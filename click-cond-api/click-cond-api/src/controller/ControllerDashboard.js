@@ -73,7 +73,11 @@ module.exports = {
 
   async getMeusEventos(req, res) {
     try {
-      const eventos = await dbAcessos.getMeusEventos(req.session.user.id, req.query.limit);
+      const eventos = await dbAcessos.getMeusEventos(
+        req.session.user.id,
+        req.query.limit,
+        req.session.user.typeAccess
+      );
       return res.status(200).json(eventos);
     } catch (err) {
       console.error('[getMeusEventos Error]', err);

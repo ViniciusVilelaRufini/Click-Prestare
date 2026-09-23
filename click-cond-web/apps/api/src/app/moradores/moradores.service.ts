@@ -736,12 +736,15 @@ export class MoradoresService {
 
     const ehMenor = dto.data_nascimento ? calcularIdade(dto.data_nascimento) < 18 : false;
 
-    // Cláusula 8.3 e Anexo I: Se informou email ou pediu credenciais, valida maioridade
+    // Cláusula 8.3 e Anexo I: menor não pode ter biometria facial nem conta
+    // de aplicativo. A importação em lote sem data de nascimento só é
+    // permitida quando o cadastro NÃO carrega foto facial nem cria
+    // credenciais de acesso — nesses casos a data é obrigatória e
+    // validarMaioridade() lança se estiver ausente (não apenas se for menor).
     if (dto.email || dto.sendCredentials) {
       validarMaioridade(dto.data_nascimento, 'criação de conta de usuário no aplicativo');
     }
 
-    // Cláusula 8.3: Se enviou foto facial para biometria, valida maioridade
     if (fotoPessoaUrl) {
       validarMaioridade(dto.data_nascimento, 'cadastro de biometria facial');
     }
@@ -963,20 +966,20 @@ export class MoradoresService {
         throw new BadRequestException('Já existe outro usuário com este e-mail.');
       }
     }
-    // Cláusula 8.3: Se menor de 18 anos, impede vinculação de email de login ou foto facial
+    // Cláusula 8.3: mesma regra do create() — sempre que o PATCH anexa e-mail
+    // (credencial) ou foto facial, a data de nascimento é obrigatória e a
+    // idade é validada, incondicionalmente. Isso cobre o registro criado sem
+    // data de nascimento (import em lote, caso legítimo do Fix 2 em create())
+    // que depois recebe foto/e-mail via update — sem isso o menor passava
+    // batido só porque `atual.data_nascimento` também estava vazio.
+    // validarMaioridade() já lança quando a data está ausente, então chamar
+    // sem guarda de "é menor?" fecha os dois buracos (data ausente e menor).
     const dnFinal = dto.data_nascimento !== undefined ? dto.data_nascimento : atual.data_nascimento;
-    const ehMenorUpdate = dnFinal ? calcularIdade(dnFinal) < 18 : false;
-    if (ehMenorUpdate) {
-      if (dto.email || (emailMudou && dto.email)) {
-        throw new BadRequestException(
-          'Menores de 18 anos não podem possuir conta de usuário no aplicativo conforme a Cláusula 8.3 do contrato.',
-        );
-      }
-      if (fotoPessoaUrl) {
-        throw new BadRequestException(
-          'É proibida a coleta ou utilização de biometria facial de menores de 18 anos conforme a Cláusula 8.3 do contrato.',
-        );
-      }
+    if (dto.email) {
+      validarMaioridade(dnFinal, 'atualização de e-mail/conta de usuário no aplicativo');
+    }
+    if (fotoPessoaUrl) {
+      validarMaioridade(dnFinal, 'atualização de biometria facial');
     }
 
     let result;
@@ -1270,6 +1273,7 @@ export class MoradoresService {
 
   async importBulk(idCondominio: number, linhas: any[]) {
     const criados = [];
+    const erros: { nome: string; erro: string }[] = [];
     for (const item of linhas) {
       if (!item.nome) continue;
       try {
@@ -1310,13 +1314,15 @@ export class MoradoresService {
           tipo: item.tipo?.toString() || 'proprietario',
           id_apartamento: idApto,
           id_condominio: idCondominio,
+          data_nascimento: item.data_nascimento?.toString() || undefined,
           sendCredentials: item.sendCredentials !== false,
         });
         criados.push(m);
       } catch (err: any) {
-        console.log('Erro ao importar linha:', item.nome, err?.message);
+        this.logger.error(`[moradores.importBulk] Erro ao importar morador "${item.nome}": ${err?.message ?? err}`);
+        erros.push({ nome: item.nome, erro: err?.message ?? 'Erro desconhecido' });
       }
     }
-    return { ok: true, total: criados.length, criados };
+    return { ok: true, total: criados.length, criados, erros };
   }
 }

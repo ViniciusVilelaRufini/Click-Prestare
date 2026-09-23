@@ -31,7 +31,13 @@ describe('MobileAuthService — vagas dispara facial', () => {
         update: jest.fn(async () => ({})),
         findMany: jest.fn(async () => []),
       },
-      moradores: { findFirst: jest.fn(async ({ where }: any) => ({ id: where.id })) },
+      moradores: {
+        findFirst: jest.fn(async ({ where }: any) => ({ id: where.id })),
+        // Usado por moradoresDoApto (checagem de vaga livre conta veículos
+        // de todos os moradores do apto, não só o logado).
+        findMany: jest.fn(async () => [{ id: CTX.moradorId }]),
+      },
+      $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
     };
     const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, facial as any);
     // Curto-circuita a resolução do morador/apto (coberta por outros testes).

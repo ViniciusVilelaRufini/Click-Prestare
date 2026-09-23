@@ -116,6 +116,15 @@ MAIL_FROM_NAME="Prestare Condomínios"
 `;
   fs.writeFileSync(path.join(EB_DIR, '.env'), fallbackEnv, 'utf8');
 
+  // 6.2 Copia .platform/ (hooks e config de nginx do Elastic Beanstalk).
+  // Sem isto, qualquer arquivo em .platform/ (ex.: client_max_body_size)
+  // nunca chega no zip publicado — fica no repo mas o EB nunca vê.
+  const platformSrc = path.join(WEB_ROOT, '.platform');
+  if (fs.existsSync(platformSrc)) {
+    console.log('5.2 Copiando .platform/ (config de nginx do EB)...');
+    fs.cpSync(platformSrc, path.join(EB_DIR, '.platform'), { recursive: true });
+  }
+
   // 7. Gera o arquivo .zip compatível com Linux usando adm-zip
   if (fs.existsSync(ZIP_OUTPUT)) {
     fs.unlinkSync(ZIP_OUTPUT);

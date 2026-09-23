@@ -36,8 +36,7 @@ module.exports = (base64, folder, name, id) => {
 
   const fileType = base64.split(';')[0].split('/')[1];
   const applicationType = base64.split(';')[0].split(':')[1];
-  // Clean the base64 string by removing any data URI scheme prefix (e.g. data:image/jpeg;base64,)
-  const base64Clean = base64.replace(/^data:[a-zA-Z0-9.\-\/+]+;base64,/, '');
+  const base64Clean = base64.replace(/^data:[a-zA-Z0-9.\-\/+]+;base64,/, '').replace(/\s+/g, '');
   const base64Data = Buffer.from(base64Clean, 'base64');
 
   console.log(base64Data);

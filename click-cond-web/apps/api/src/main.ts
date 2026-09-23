@@ -83,38 +83,40 @@ async function bootstrap() {
   const httpAdapterHost = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapterHost));
 
-  const allowedOriginsEnv = process.env.CORS_ORIGINS;
-  const defaultOrigins = [
-    'http://localhost:4200',
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'https://clickprestarecondominios.com.br',
-    'https://www.clickprestarecondominios.com.br',
-    'https://main.d340ziyanv9pav.amplifyapp.com',
-    'https://click-prestare.vercel.app',
-    'https://crm-click-prestare.vercel.app',
-    'https://kabania.vercel.app',
-  ];
-  const allowedOrigins = allowedOriginsEnv
-    ? allowedOriginsEnv.split(',').map((o) => o.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
-    : defaultOrigins;
-
+  // Origens sempre confiáveis: os domínios que nós controlamos. Não inclui
+  // *.vercel.app — a Vercel foi desativada na migração para a AWS, e domínio
+  // .vercel.app abandonado pode ser RECLAMADO por terceiros, que passariam a
+  // falar com esta API como origem confiável.
   const alwaysAllowed = [
     'https://clickprestarecondominios.com.br',
     'https://www.clickprestarecondominios.com.br',
     'https://main.d340ziyanv9pav.amplifyapp.com',
-    'https://click-prestare.vercel.app',
-    'https://crm-click-prestare.vercel.app',
-    'https://kabania.vercel.app',
     'http://localhost:5173',
     'http://localhost:4200',
     'http://localhost:3000',
   ];
-  for (const dom of alwaysAllowed) {
-    if (!allowedOrigins.includes(dom)) {
-      allowedOrigins.push(dom);
-    }
+
+  // CORS_ORIGINS (env do Beanstalk) acrescenta origens à lista — não a substitui,
+  // senão um valor mal preenchido derruba a portaria-web em produção.
+  const allowedOriginsEnv = process.env.CORS_ORIGINS;
+  const extraOrigins = allowedOriginsEnv
+    ? allowedOriginsEnv.split(',').map((o) => o.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
+    : [];
+
+  // A env CORS_ORIGINS do Beanstalk ainda carrega resíduo da Vercel. Descartamos
+  // aqui para que uma variável desatualizada não devolva confiança a um domínio
+  // que hoje qualquer pessoa pode registrar.
+  const vercelResiduo = extraOrigins.filter((o) => /\.vercel\.app$/i.test(o));
+  const extraLimpas = extraOrigins.filter((o) => !/\.vercel\.app$/i.test(o));
+  if (vercelResiduo.length) {
+    Logger.warn(
+      `CORS: ignorando ${vercelResiduo.length} origem(ns) .vercel.app vindas de CORS_ORIGINS (${vercelResiduo.join(', ')}). ` +
+        'Limpe essa variável no Elastic Beanstalk.',
+      'Bootstrap',
+    );
   }
+
+  const allowedOrigins = [...new Set([...alwaysAllowed, ...extraLimpas])];
 
   // Assinatura (req, callback): dá acesso à URL para liberar rotas públicas.
   app.enableCors((req: any, callback: (err: Error | null, options?: any) => void) => {
@@ -132,8 +134,24 @@ async function bootstrap() {
     // usuário está errado e mostrar a hora certa mesmo assim — o PC da portaria
     // costuma rodar sem sincronização de horário (visto em produção: 91s
     // adiantado). Ver ServerClockService.
-    const base = { origin: true, credentials: true, exposedHeaders: ['Date'] };
-    return callback(null, base);
+    const exposedHeaders = ['Date'];
+
+    // Sem header Origin: app Flutter, curl, hardware e chamada servidor-a-servidor.
+    // Não é requisição de navegador, logo não há origem cross-site para barrar.
+    const origin: string | undefined = req.headers?.origin;
+    if (!origin) {
+      return callback(null, { origin: true, credentials: true, exposedHeaders });
+    }
+
+    // Origem conhecida: reflete só ela (nunca "*") e libera credenciais.
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, { origin, credentials: true, exposedHeaders });
+    }
+
+    // Origem desconhecida: responde SEM header CORS, então o navegador bloqueia
+    // a leitura da resposta. Não lança erro — devolver 500 aqui esconderia a
+    // causa real e quebraria o preflight de forma difícil de diagnosticar.
+    return callback(null, { origin: false, credentials: false, exposedHeaders });
   });
 
   const globalPrefix = 'api';

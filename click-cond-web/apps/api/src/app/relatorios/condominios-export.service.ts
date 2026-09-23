@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 
 const AdmZip = require('adm-zip');
 
@@ -131,11 +132,26 @@ export class CondominiosExportService {
   }
 
   private async gerarCsvVisitantesEPrestadores(idCondominio: number): Promise<string> {
-    const visitantes = await this.prisma.visitantes.findMany({
-      where: { id_condominio: idCondominio },
-      include: { apartamento: true },
-      orderBy: { created_at: 'desc' },
-    });
+    const visitantesRaw = pessoasMigrationEnabled(this.prisma)
+      ? await this.prisma.visitas.findMany({
+          where: { id_condominio: idCondominio },
+          include: { pessoa: true, apartamento: true },
+          orderBy: { created_at: 'desc' },
+        })
+      : await this.prisma.visitantes.findMany({
+          where: { id_condominio: idCondominio },
+          include: { apartamento: true },
+          orderBy: { created_at: 'desc' },
+        });
+
+    // No caminho migrado, achata `pessoa` de volta pro formato que o resto
+    // deste método (nome/doc_identificacao na raiz) já espera — mesma
+    // convenção usada nas outras leituras migradas desta rodada.
+    const visitantes = visitantesRaw.map((v: any) =>
+      v.pessoa
+        ? { ...v, nome: v.pessoa.nome, doc_identificacao: v.pessoa.doc_identificacao }
+        : v,
+    );
 
     const prestadores = await this.prisma.prestadores_servico.findMany({
       where: { id_condominio: idCondominio },

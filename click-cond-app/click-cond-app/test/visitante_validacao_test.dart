@@ -1,4 +1,5 @@
 import 'package:click/utils/visitantes_presenca.dart';
+import 'package:click/utils/utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// O cadastro de visitante fazia o POST sem validar absolutamente nada.
@@ -65,6 +66,40 @@ void main() {
       expect(
         validarCadastroVisitante(nome: '', inicio: null, termino: null),
         'visitante_nome_obrigatorio',
+      );
+    });
+
+    test('integração com convertStringToDateTimeFormat usando formato da tela (dd/MM/yyyy HH:mm)', () {
+      final inicioDt = convertStringToDateTimeFormat('20/09/2026 23:36');
+      final terminoDt = convertStringToDateTimeFormat('21/09/2026 23:36');
+
+      expect(inicioDt, isNotNull);
+      expect(terminoDt, isNotNull);
+      expect(
+        validarCadastroVisitante(nome: 'Visitante Teste', inicio: inicioDt, termino: terminoDt),
+        isNull,
+      );
+      expect(inicioDt.toString(), startsWith('2026-09-20 23:36:00'));
+      expect(terminoDt.toString(), startsWith('2026-09-21 23:36:00'));
+    });
+
+    test('rejeita com chave adequada quando data de início está vazia ou ausente', () {
+      final inicioDt = convertStringToDateTimeFormat('');
+      final terminoDt = convertStringToDateTimeFormat('21/09/2026 23:36');
+
+      expect(
+        validarCadastroVisitante(nome: 'Visitante Teste', inicio: inicioDt, termino: terminoDt),
+        'visitante_inicio_obrigatorio',
+      );
+    });
+
+    test('rejeita com chave adequada quando data de término está vazia ou ausente', () {
+      final inicioDt = convertStringToDateTimeFormat('20/09/2026 23:36');
+      final terminoDt = convertStringToDateTimeFormat('');
+
+      expect(
+        validarCadastroVisitante(nome: 'Visitante Teste', inicio: inicioDt, termino: terminoDt),
+        'visitante_termino_obrigatorio',
       );
     });
   });

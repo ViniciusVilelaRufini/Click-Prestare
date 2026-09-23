@@ -491,6 +491,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   novo: CreateVisitante = this.estadoInicial();
   showForm = false;
   editingId: number | null = null;
+  // Id da Pessoa a editar (endpoint atualizarPessoa) — separado de
+  // `editingId` (id da Visita principal). Sem essa separação, editar
+  // identidade usava o mesmo id ambíguo que `removerPessoa`.
+  editingIdPessoa: number | null = null;
   readonly saving = signal(false);
 
   // Portaria remota: timer de polling enquanto há pedidos pendentes.
@@ -710,6 +714,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   abrirNovo() {
     this.editingId = null;
+    this.editingIdPessoa = null;
     this.editandoIdentidade.set(false);
     this.novaVisitaPara.set(null);
     this.novo = this.estadoInicial();
@@ -728,6 +733,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    */
   abrirNovaVisita(p: Pessoa) {
     this.editingId = null;
+    this.editingIdPessoa = null;
     this.editandoIdentidade.set(false);
     this.novaVisitaPara.set(p);
     this.novo = {
@@ -766,7 +772,19 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       variant: 'danger',
     }).then((ok) => {
       if (!ok) return;
-      this.service.removerPessoa(p.id).subscribe({
+      // `id_pessoa` (id da Pessoa) quando disponível — `p.id` é o id da
+      // VISITA principal e é ambíguo para um endpoint que remove a pessoa
+      // inteira (colide com o id de Visita de outra pessoa qualquer).
+      //
+      // Dual-mode de propósito: `id_pessoa` só vem preenchido quando o
+      // backend já serve `listarPessoas` pelo caminho Pessoas/Visitas
+      // (PESSOAS_MIGRATION_ENABLED=true). Não confirmamos ainda se essa flag
+      // está de fato ligada no ambiente de produção (Elastic Beanstalk) — o
+      // default é OFF e o bundle de deploy não carrega a variável. Enquanto
+      // isso não for confirmado, `p.id` continua sendo o id certo no caminho
+      // legado, e o fallback `?? p.id` é o que faz esta chamada funcionar
+      // nos dois modos. Não remover até o caminho legado sair de cena.
+      this.service.removerPessoa(p.id_pessoa ?? p.id).subscribe({
         next: () => this.carregar(),
         error: (e) => this.error.set(`Falha ao remover: ${e?.error?.message ?? e?.message ?? e}`),
       });
@@ -781,6 +799,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    */
   abrirEditar(v: Visitante | Pessoa) {
     this.editingId = v.id;
+    // `id_pessoa` quando o backend já serve pelo caminho Pessoas/Visitas;
+    // cai para `v.id` no caminho legado (onde já é o id certo).
+    this.editingIdPessoa = (v as Pessoa).id_pessoa ?? v.id;
     this.editandoIdentidade.set(true);
     this.novo = {
       nome: v.nome,
@@ -814,6 +835,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.fecharCamera();
     this.showForm = false;
     this.editingId = null;
+    this.editingIdPessoa = null;
     this.editandoIdentidade.set(false);
     this.novaVisitaPara.set(null);
     this.fotoPessoaBase64.set(null);
@@ -834,7 +856,15 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         return;
       }
       this.saving.set(true);
-      this.service.novaVisitaPessoa(novaPara.id, {
+      // `id_pessoa` (id da Pessoa) quando disponível, com fallback para
+      // `novaPara.id` (id da VISITA principal, certo no caminho legado) —
+      // mesmo dual-mode de `removerPessoa`/`atualizarPessoa` acima:
+      // `id_pessoa` só vem preenchido quando `listarPessoas` já serve pelo
+      // caminho Pessoas/Visitas (PESSOAS_MIGRATION_ENABLED=true), o que
+      // ainda não está confirmado no ambiente de produção. Sem o fallback,
+      // com a flag desligada `id_pessoa` vem `undefined` e a chamada quebra
+      // (rota vira `/pessoa/undefined/nova-visita`). Não remover.
+      this.service.novaVisitaPessoa(novaPara.id_pessoa ?? novaPara.id, {
         id_apartamento: this.novo.id_apartamento,
         data_hora_inicio: this.novo.data_hora_inicio,
         data_hora_termino: this.novo.data_hora_termino,
@@ -860,7 +890,16 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         return;
       }
       this.saving.set(true);
-      this.service.atualizarPessoa(this.editingId, {
+      // `editingIdPessoa` (id da Pessoa) quando disponível, com fallback
+      // para `this.editingId` (id da VISITA principal, certo no caminho
+      // legado) — mesmo dual-mode de `removerPessoa` acima: `editingIdPessoa`
+      // só vem preenchido quando `listarPessoas` já serve pelo caminho
+      // Pessoas/Visitas (PESSOAS_MIGRATION_ENABLED=true), o que ainda não
+      // está confirmado no ambiente de produção. `abrirEditar` (linha ~795)
+      // atribui `editingIdPessoa` com o mesmo fallback, então este `??` aqui
+      // é redundante NO CAMINHO NOVO — mas é o que mantém o caminho legado
+      // funcionando enquanto ele existir. Não remover.
+      this.service.atualizarPessoa(this.editingIdPessoa ?? this.editingId, {
         nome: this.novo.nome,
         doc_identificacao: this.novo.doc_identificacao,
         foto_pessoa: this.novo.foto_pessoa ?? undefined,

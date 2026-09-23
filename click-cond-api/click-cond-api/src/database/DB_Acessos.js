@@ -117,10 +117,42 @@ module.exports = {
   // "Meus eventos" da home: acessos (entrada/saída) do próprio usuário como morador
   // + acessos dos visitantes/prestadores que ele cadastrou ou do seu apartamento.
   // Últimos 30 dias, ordenados do mais recente para o mais antigo.
-  getMeusEventos: async function (idUser, limit) {
+  getMeusEventos: async function (idUser, limit, typeAccess) {
     const lim = Math.min(Math.max(parseInt(limit, 10) || 15, 1), 50);
     const uid = parseInt(idUser, 10);
     if (!uid) return [];
+
+    const selectBase = `select af.id, af.id_pessoa, af.nome_pessoa, af.evento, af.timestamp, af.tipo_pessoa,
+                               af.tipo_dispositivo, af.confianca, c.nome as condominio
+                          from Acessos_Facial af
+                          left join Condominios c on c.id = af.id_condominio`;
+
+    if (typeAccess === 'Funcionario') {
+      const { results: func } = await db.queryParam(
+        'select id_condominio from Funcionarios where id_user = ? limit 1', [uid]);
+      const idCond = func && func[0] ? func[0].id_condominio : null;
+      if (!idCond) return [];
+
+      const { results } = await db.queryParam(
+        `${selectBase}
+          where af.id_condominio = ?
+            and af.evento in ('entrada','saida')
+            and af.timestamp >= date_sub(now(), interval 30 day)
+          order by af.timestamp desc limit ?`, [idCond, lim]);
+
+      return (results || []).map((e) => ({
+        id: e.id,
+        id_pessoa: e.id_pessoa,
+        nome: (e.nome_pessoa || '').replace(/\s*\([^)]*\)\s*$/, '').trim(),
+        evento: e.evento,
+        tipo_pessoa: e.tipo_pessoa,
+        tipo_dispositivo: e.tipo_dispositivo,
+        confianca: e.confianca,
+        categoria: e.tipo_pessoa === 'morador' ? 'voce' : (e.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante'),
+        condominio: e.condominio || '',
+        timestamp: e.timestamp,
+      }));
+    }
 
     const { results: moras } = await db.queryParam(
       'select id from Moradores where id_user = ?', [uid]);

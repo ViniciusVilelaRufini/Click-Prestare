@@ -24,6 +24,7 @@ import 'package:click/pages/sindico/relatorios_page.dart';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/prestador%20de%20servico/list_prestadores.dart';
 import 'package:click/pages/shared/prestador%20de%20servico/list_prestadores_cadastro.dart';
+import 'package:click/pages/shared/prestador%20de%20servico/new_prestador.dart';
 import 'package:click/pages/shared/visitantes/list_visitantes.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
@@ -643,6 +644,191 @@ class _MyCondominiumState extends State<MyCondominium> {
     );
   }
 
+  void _showCadastrarVisitanteOuPrestadorSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Novo Cadastro',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Escolha o tipo de liberação para registrar no condomínio:',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const NewVisitante(isEdit: false)),
+                    ).then((_) {
+                      _visitantesKey.currentState?.loadList();
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(PhosphorIcons.userPlus, color: Color(0xFF2563EB), size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Cadastrar Visitante',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Visita avulsa, familiar ou convidado para uma unidade',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          PhosphorIcons.caretRightBold,
+                          size: 16,
+                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const NewPrestador(isEdit: false)),
+                    ).then((_) {
+                      _visitantesKey.currentState?.loadList();
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0D9488).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(PhosphorIcons.wrench, color: Color(0xFF0D9488), size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Cadastrar Prestador de Serviço',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Técnicos, diaristas, reformas, entregadores ou obras',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          PhosphorIcons.caretRightBold,
+                          size: 16,
+                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   List<Widget> _buildNavItems(BuildContext context) {
     // O síndico tinha, na aba Financeiro, três atalhos de ação na ilha
     // (Despesa, Receita, Cobrança). O financeiro do condomínio virou somente
@@ -706,12 +892,16 @@ class _MyCondominiumState extends State<MyCondominium> {
               activeIcon: PhosphorIcons.userPlus,
               label: 'Cadastrar',
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)),
-                ).then((_) {
-                  _visitantesKey.currentState?.loadList();
-                });
+                if (isFuncionario || isSindico) {
+                  _showCadastrarVisitanteOuPrestadorSheet(context);
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NewVisitante(isEdit: false)),
+                  ).then((_) {
+                    _visitantesKey.currentState?.loadList();
+                  });
+                }
               },
               isAction: true,
             )
@@ -1246,16 +1436,9 @@ class _MyCondominiumState extends State<MyCondominium> {
                           child: Builder(
                             builder: (_) {
                               final photoUrl = (_cond != null && (_cond!['photo'] ?? '').toString().isNotEmpty)
-                                  ? _cond!['photo']
-                                  : Singleton.instance.condominio_photo;
-                              if (photoUrl.isNotEmpty) {
-                                return Image.network(
-                                  photoUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => _condFallback(),
-                                );
-                              }
-                              return _condFallback();
+                                  ? _cond!['photo'].toString().trim()
+                                  : Singleton.instance.condominio_photo.trim();
+                              return _buildCondoPhoto(photoUrl);
                             },
                           ),
                         ),
@@ -1459,6 +1642,30 @@ class _MyCondominiumState extends State<MyCondominium> {
         ),
       ),
     );
+  }
+
+  Widget _buildCondoPhoto(String photoUrl) {
+    if (photoUrl.isEmpty) return _condFallback();
+    if (photoUrl.startsWith('http://') || photoUrl.startsWith('https://')) {
+      return Image.network(
+        photoUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _condFallback(),
+      );
+    }
+    try {
+      final clean = photoUrl.contains('base64,')
+          ? photoUrl.split('base64,')[1]
+          : photoUrl;
+      final bytes = base64Decode(clean.trim());
+      return Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _condFallback(),
+      );
+    } catch (_) {
+      return _condFallback();
+    }
   }
 
   Widget _condFallback() => Container(

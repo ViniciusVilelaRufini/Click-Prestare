@@ -14,11 +14,15 @@ describe('FacialService — LPR (leitura de placa)', () => {
   beforeAll(() => {
     jest.useFakeTimers(); // neutraliza os setInterval do construtor
     process.env.FACIAL_INTEGRATION_ENABLED = 'true';
+    process.env.PESSOAS_MIGRATION_ENABLED = 'false';
     jest.isolateModules(() => {
       FacialService = require('./facial.service').FacialService;
     });
   });
-  afterAll(() => jest.useRealTimers());
+  afterAll(() => {
+    jest.useRealTimers();
+    delete process.env.PESSOAS_MIGRATION_ENABLED;
+  });
 
   const DEVICE_LPR = {
     id: 42,
@@ -74,6 +78,30 @@ describe('FacialService — LPR (leitura de placa)', () => {
               }
             : null,
         ),
+        update: jest.fn(async () => ({})),
+        updateMany: jest.fn(async () => ({ count: 1 })),
+      },
+      pessoas: {
+        findUnique: jest.fn(async () =>
+          opts.vaga?.visita?.pessoa
+            ? {
+                ...opts.vaga.visita.pessoa,
+                visitas: [
+                  {
+                    id: opts.vaga.visita.id,
+                    is_prestador: opts.vaga.visita.is_prestador ?? 0,
+                    liberado: 1,
+                    bloqueado: 0,
+                    data_hora_inicio: null,
+                    data_hora_termino: null,
+                    data_saida: null,
+                  },
+                ],
+              }
+            : null,
+        ),
+      },
+      visitas: {
         update: jest.fn(async () => ({})),
         updateMany: jest.fn(async () => ({ count: 1 })),
       },
@@ -188,6 +216,42 @@ describe('FacialService — LPR (leitura de placa)', () => {
           }),
         }),
       );
+    });
+
+    it('vaga com visita vinculada (Pessoas + Visitas) identifica a pessoa', async () => {
+      const orig = process.env['PESSOAS_MIGRATION_ENABLED'];
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+      try {
+        const { svc, prisma } = build({
+          vaga: {
+            id: 4,
+            placa: 'XYZ4E56',
+            visitante: null,
+            visita: {
+              id: 1000001,
+              is_prestador: 0,
+              pessoa: { id: 2000005, nome: 'Visitante Pessoa' },
+            },
+            beneficiario: null,
+            titular: { id: 77, nome: 'Carlos', tipo: 'morador' },
+          },
+        });
+
+        await svc.processWebhook('tok-lpr', evento('XYZ4E56'));
+
+        expect(prisma.acessos_Facial.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              tipo_pessoa: 'visitante',
+              id_pessoa: 1000001,
+              nome_pessoa: 'Visitante Pessoa',
+            }),
+          }),
+        );
+      } finally {
+        if (orig === undefined) delete process.env['PESSOAS_MIGRATION_ENABLED'];
+        else process.env['PESSOAS_MIGRATION_ENABLED'] = orig;
+      }
     });
 
     // A janela da vaga precisa entrar na consulta: liberação vencida não pode

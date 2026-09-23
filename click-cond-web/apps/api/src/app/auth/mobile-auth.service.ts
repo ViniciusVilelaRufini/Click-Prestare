@@ -16,6 +16,7 @@ import { assertStaff, assertSindico, assertOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
 import { calcularIdade, validarMaioridade } from '../common/idade.util';
 import { MfaService } from './mfa/mfa.service';
+import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 
 @Injectable()
 export class MobileAuthService {
@@ -358,17 +359,19 @@ export class MobileAuthService {
 
     const docId = body.doc_identification?.trim() || null;
     const phone = body.phone?.trim() || null;
+    const nomeAtualizado = body.nome || user.name || '';
 
     // Fora da transação: o upload é rede, e segurá-lo dentro prenderia a
     // transação do banco pelo tempo da subida da imagem.
     const fotoUrl = await this.normalizarFoto(body.photo, 'sindicos');
+    const fotoAtualizada = fotoUrl !== undefined ? fotoUrl : (user.photo ?? '');
 
     await this.prisma.$transaction(async (tx) => {
       // 1. Atualizar tabela users
       await tx.users.update({
         where: { id: idUser },
         data: {
-          name: body.nome || user.name,
+          name: nomeAtualizado,
           email: emailNormalized || user.email,
           login: emailNormalized || user.login,
           phone: phone,
@@ -381,7 +384,7 @@ export class MobileAuthService {
       await tx.sindicos.update({
         where: { id: s.id },
         data: {
-          name: body.nome || s.name,
+          name: nomeAtualizado,
           email: emailNormalized || s.email,
           phone: phone,
           doc_identification: docId,
@@ -390,7 +393,14 @@ export class MobileAuthService {
       });
     });
 
-    return { success: true };
+    // Mesmo formato de `loginSindico` (token + user): o app chama
+    // storageLogin() na resposta deste endpoint para atualizar nome/foto em
+    // cache, e storageLogin() lê parsed.user.id/.name — devolver só
+    // {success:true} (formato antigo) fazia o app quebrar com
+    // "NoSuchMethodError: [] called on null" ao tentar ler parsed.user.
+    const userObj = { id: idUser, name: nomeAtualizado, photo: fotoAtualizada };
+    const payload = { sub: idUser, nome: nomeAtualizado, typeAccess: 'Sindico', user: userObj };
+    return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
   }
 
 
@@ -951,22 +961,40 @@ export class MobileAuthService {
               status: { notIn: ['Retirada', 'retirada', 'Retirado', 'retirado', 'Cancelado', 'recusado'] },
             },
           }),
-          this.prisma.visitantes.count({
-            where: {
-              id_condominio: condId,
-              OR: [
-                { data_entrada: { gte: hojeIni, lte: hojeFim } },
-                { data_hora_inicio: { gte: hojeIni, lte: hojeFim } },
-              ],
-            },
-          }),
-          this.prisma.visitantes.count({
-            where: {
-              id_condominio: condId,
-              data_entrada: { not: null },
-              data_saida: null,
-            },
-          }),
+          pessoasMigrationEnabled(this.prisma)
+            ? this.prisma.visitas.count({
+                where: {
+                  id_condominio: condId,
+                  OR: [
+                    { data_entrada: { gte: hojeIni, lte: hojeFim } },
+                    { data_hora_inicio: { gte: hojeIni, lte: hojeFim } },
+                  ],
+                },
+              })
+            : this.prisma.visitantes.count({
+                where: {
+                  id_condominio: condId,
+                  OR: [
+                    { data_entrada: { gte: hojeIni, lte: hojeFim } },
+                    { data_hora_inicio: { gte: hojeIni, lte: hojeFim } },
+                  ],
+                },
+              }),
+          pessoasMigrationEnabled(this.prisma)
+            ? this.prisma.visitas.count({
+                where: {
+                  id_condominio: condId,
+                  data_entrada: { not: null },
+                  data_saida: null,
+                },
+              })
+            : this.prisma.visitantes.count({
+                where: {
+                  id_condominio: condId,
+                  data_entrada: { not: null },
+                  data_saida: null,
+                },
+              }),
           this.prisma.ocorrencias.count({
             where: {
               id_condominio: condId,
@@ -1006,23 +1034,24 @@ export class MobileAuthService {
 
       // Conta visitantes E prestadores: o card "Visitas Hoje" abre a lista
       // conjunta do app, então o número precisa bater com o que ela mostra.
-      const visitsCount = await this.prisma.visitantes.count({
-        where: {
-          id_apartamento: { in: aptoIds },
-          OR: [
-            {
-              data_entrada: { not: null },
-              data_saida: null,
-            },
-            {
-              data_entrada: { gte: hojeIni, lte: hojeFim },
-            },
-            {
-              data_hora_inicio: { gte: hojeIni, lte: hojeFim },
-            },
-          ],
-        },
-      });
+      const visitsCountWhere = {
+        id_apartamento: { in: aptoIds },
+        OR: [
+          {
+            data_entrada: { not: null },
+            data_saida: null,
+          },
+          {
+            data_entrada: { gte: hojeIni, lte: hojeFim },
+          },
+          {
+            data_hora_inicio: { gte: hojeIni, lte: hojeFim },
+          },
+        ],
+      };
+      const visitsCount = pessoasMigrationEnabled(this.prisma)
+        ? await this.prisma.visitas.count({ where: visitsCountWhere })
+        : await this.prisma.visitantes.count({ where: visitsCountWhere });
 
       const moras = await this.prisma.moradores.findMany({
         where: { id_user: idUser },
@@ -1068,10 +1097,184 @@ export class MobileAuthService {
 
   // "Meus eventos" da home: acessos (entrada/saída) do próprio usuário como
   // morador + acessos dos visitantes/prestadores que ele cadastrou ou do seu
-  // apartamento. Últimos 30 dias, do mais recente para o mais antigo.
-  async getMeusEventos(idUser: number, limit = 15) {
+  // apartamento. Para funcionários/porteiros: acessos de todo o condomínio.
+  // Últimos 30 dias, do mais recente para o mais antigo.
+  async getMeusEventos(idUser: number, limit = 15, typeAccess?: string) {
     if (!this.prisma.isConnected) return [];
     const lim = Math.min(Math.max(Number(limit) || 15, 1), 50);
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+
+    // Se for perfil Funcionário/Porteiro:
+    let idCondominioFuncionario: number | null = null;
+    if (typeAccess === 'Funcionario') {
+      const func = await this.prisma.funcionarios.findFirst({
+        where: { id_user: idUser },
+        select: { id_condominio: true },
+      });
+      if (func?.id_condominio) {
+        idCondominioFuncionario = func.id_condominio;
+      }
+    }
+
+    if (idCondominioFuncionario) {
+      const flagFuncionario = pessoasMigrationEnabled(this.prisma);
+      const [facialEvents, visitorsRaw] = await Promise.all([
+        this.prisma.acessos_Facial.findMany({
+          where: {
+            id_condominio: idCondominioFuncionario,
+            evento: { in: ['entrada', 'saida'] },
+            timestamp: { gte: cutoff },
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 50,
+        }),
+        flagFuncionario
+          ? this.prisma.visitas.findMany({
+              where: {
+                id_condominio: idCondominioFuncionario,
+                OR: [
+                  { data_entrada: { gte: cutoff } },
+                  { data_saida: { gte: cutoff } },
+                ],
+              },
+              select: {
+                id: true,
+                id_pessoa: true,
+                id_condominio: true,
+                is_prestador: true,
+                data_entrada: true,
+                data_saida: true,
+                pessoa: { select: { nome: true } },
+              },
+              take: 50,
+            })
+          : this.prisma.visitantes.findMany({
+              where: {
+                id_condominio: idCondominioFuncionario,
+                OR: [
+                  { data_entrada: { gte: cutoff } },
+                  { data_saida: { gte: cutoff } },
+                ],
+              },
+              select: {
+                id: true,
+                nome: true,
+                id_condominio: true,
+                is_prestador: true,
+                data_entrada: true,
+                data_saida: true,
+              },
+              take: 50,
+            }),
+      ]);
+
+      // Normaliza para uma forma comum: no caminho migrado, `nome` vem da
+      // Pessoa relacionada e `id_pessoa` (id de Pessoa) fica disponível à
+      // parte do `id` (id de Visita) — usado abaixo só para o dedup, ver
+      // comentário em `jaVeioDoFacial`.
+      const visitors = flagFuncionario
+        ? (visitorsRaw as any[]).map((v) => ({
+            id: v.id,
+            id_pessoa_alt: v.id_pessoa as number | undefined,
+            nome: v.pessoa?.nome ?? '',
+            id_condominio: v.id_condominio,
+            is_prestador: v.is_prestador,
+            data_entrada: v.data_entrada,
+            data_saida: v.data_saida,
+          }))
+        : (visitorsRaw as any[]).map((v) => ({
+            id: v.id,
+            id_pessoa_alt: undefined as number | undefined,
+            nome: v.nome,
+            id_condominio: v.id_condominio,
+            is_prestador: v.is_prestador,
+            data_entrada: v.data_entrada,
+            data_saida: v.data_saida,
+          }));
+
+      const DEDUP_MS = 15_000;
+      const facialBuckets = new Set<string>();
+      for (const a of facialEvents) {
+        const b = Math.floor(a.timestamp.getTime() / DEDUP_MS);
+        facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b}`);
+        facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
+        facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b + 1}`);
+      }
+      // `Acessos_Facial.id_pessoa` não tem um único espaço de id consistente
+      // no caminho migrado — alguns tipos de evento gravam o id de `Visita`,
+      // outros o de `Pessoa` (ver facial.service.ts, não alterado aqui;
+      // limitação conhecida, correção definitiva exige mudança de schema,
+      // rastreada separadamente). Por isso o dedup checa os dois ids quando
+      // disponíveis (`idPessoaAlt`), em vez de assumir um espaço só — sem
+      // isso, um acesso já contabilizado pelo facial podia reaparecer
+      // duplicado como evento "manual" no feed.
+      const jaVeioDoFacial = (
+        idVis: number,
+        evento: 'entrada' | 'saida',
+        ts: Date,
+        idPessoaAlt?: number,
+      ) => {
+        const bucket = Math.floor(ts.getTime() / DEDUP_MS);
+        if (facialBuckets.has(`${idVis}:${evento}:${bucket}`)) return true;
+        if (idPessoaAlt != null && facialBuckets.has(`${idPessoaAlt}:${evento}:${bucket}`)) return true;
+        return false;
+      };
+
+      const manualEv = [];
+      for (const v of visitors) {
+        const marcos: [('entrada' | 'saida'), Date | null][] = [
+          ['entrada', v.data_entrada],
+          ['saida', v.data_saida],
+        ];
+        for (const [evento, ts] of marcos) {
+          if (!ts || ts < cutoff || jaVeioDoFacial(v.id, evento, ts, v.id_pessoa_alt)) continue;
+          manualEv.push({
+            id: -(v.id * 2 + (evento === 'saida' ? 1 : 0)),
+            id_pessoa: v.id,
+            id_condominio: v.id_condominio,
+            nome_pessoa: v.nome ?? '',
+            evento,
+            tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+            tipo_dispositivo: 'pin',
+            confianca: null,
+            timestamp: ts,
+          });
+        }
+      }
+
+      const conds = await this.prisma.condominios.findMany({
+        where: { id: idCondominioFuncionario },
+        select: { id: true, nome: true },
+      });
+      const condNome = conds.length ? conds[0].nome : '';
+
+      const merged = [
+        ...facialEvents.map((e) => ({
+          e,
+          categoria: e.tipo_pessoa === 'morador' ? 'voce' : (e.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante'),
+        })),
+        ...manualEv.map((e) => ({
+          e,
+          categoria: e.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante',
+        })),
+      ];
+      merged.sort((a, b) => b.e.timestamp.getTime() - a.e.timestamp.getTime());
+
+      return merged.slice(0, lim).map(({ e, categoria }) => ({
+        id: e.id,
+        id_pessoa: e.id_pessoa,
+        nome: (e.nome_pessoa || '').replace(/\s*\([^)]*\)\s*$/, '').trim(),
+        evento: e.evento,
+        tipo_pessoa: e.tipo_pessoa,
+        tipo_dispositivo: e.tipo_dispositivo,
+        confianca: e.confianca,
+        categoria,
+        condominio: condNome,
+        timestamp: e.timestamp,
+      }));
+    }
 
     const [moras, aptoUsers] = await Promise.all([
       this.prisma.moradores.findMany({ where: { id_user: idUser }, select: { id: true } }),
@@ -1080,26 +1283,78 @@ export class MobileAuthService {
     const moradorIds = moras.map((m) => m.id);
     const aptoIds = aptoUsers.map((a) => a.id_apto);
 
-    const visitors = await this.prisma.visitantes.findMany({
-      where: {
-        OR: [
-          { user: idUser },
-          ...(aptoIds.length ? [{ id_apartamento: { in: aptoIds } }] : []),
-        ],
-      },
-      select: {
-        id: true,
-        nome: true,
-        id_condominio: true,
-        is_prestador: true,
-        data_entrada: true,
-        data_saida: true,
-      },
-    });
-    const visitorIds = visitors.map((v) => v.id);
+    const flagMorador = pessoasMigrationEnabled(this.prisma);
+    const visitorsRaw = flagMorador
+      ? await this.prisma.visitas.findMany({
+          where: {
+            OR: [
+              { user: idUser },
+              ...(aptoIds.length ? [{ id_apartamento: { in: aptoIds } }] : []),
+            ],
+          },
+          select: {
+            id: true,
+            id_pessoa: true,
+            id_condominio: true,
+            is_prestador: true,
+            data_entrada: true,
+            data_saida: true,
+            pessoa: { select: { nome: true } },
+          },
+        })
+      : await this.prisma.visitantes.findMany({
+          where: {
+            OR: [
+              { user: idUser },
+              ...(aptoIds.length ? [{ id_apartamento: { in: aptoIds } }] : []),
+            ],
+          },
+          select: {
+            id: true,
+            nome: true,
+            id_condominio: true,
+            is_prestador: true,
+            data_entrada: true,
+            data_saida: true,
+          },
+        });
 
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
+    // Mesma normalização do ramo funcionário acima: `id_pessoa_alt` só existe
+    // no caminho migrado (id de Pessoa, à parte do `id` de Visita).
+    const visitors = flagMorador
+      ? (visitorsRaw as any[]).map((v) => ({
+          id: v.id,
+          id_pessoa_alt: v.id_pessoa as number | undefined,
+          nome: v.pessoa?.nome ?? '',
+          id_condominio: v.id_condominio,
+          is_prestador: v.is_prestador,
+          data_entrada: v.data_entrada,
+          data_saida: v.data_saida,
+        }))
+      : (visitorsRaw as any[]).map((v) => ({
+          id: v.id,
+          id_pessoa_alt: undefined as number | undefined,
+          nome: v.nome,
+          id_condominio: v.id_condominio,
+          is_prestador: v.is_prestador,
+          data_entrada: v.data_entrada,
+          data_saida: v.data_saida,
+        }));
+    const visitorIds = visitors.map((v) => v.id);
+    // No caminho migrado, o filtro de `Acessos_Facial.id_pessoa` abaixo
+    // precisa cobrir os dois espaços de id possíveis para estes visitantes —
+    // `Visitas.id` (visitorIds) e `Pessoas.id` (visitorPessoaIds) — porque
+    // `id_pessoa` não tem um espaço único consistente no caminho migrado
+    // (ver comentário completo abaixo, e o mesmo limite documentado no ramo
+    // funcionário). Produção mantém as duas faixas de autoincrement
+    // disjuntas hoje como rede de segurança operacional, mas isso não é uma
+    // garantia — só o motivo de essa degradação ser segura no estado atual.
+    const visitorPessoaIds = flagMorador
+      ? [...new Set((visitors.map((v) => v.id_pessoa_alt).filter((id): id is number => id != null)))]
+      : [];
+    const visEvIdFilter = flagMorador
+      ? [...new Set([...visitorIds, ...visitorPessoaIds])]
+      : visitorIds;
 
     const [morEv, visEv] = await Promise.all([
       moradorIds.length
@@ -1114,11 +1369,11 @@ export class MobileAuthService {
             take: 40,
           })
         : Promise.resolve([]),
-      visitorIds.length
+      visEvIdFilter.length
         ? this.prisma.acessos_Facial.findMany({
             where: {
               tipo_pessoa: { in: ['visitante', 'prestador'] },
-              id_pessoa: { in: visitorIds },
+              id_pessoa: { in: visEvIdFilter },
               evento: { in: ['entrada', 'saida'] },
               timestamp: { gte: cutoff },
             },
@@ -1140,8 +1395,23 @@ export class MobileAuthService {
       facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
       facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b + 1}`);
     }
-    const jaVeioDoFacial = (idVis: number, evento: 'entrada' | 'saida', ts: Date) =>
-      facialBuckets.has(`${idVis}:${evento}:${Math.floor(ts.getTime() / DEDUP_MS)}`);
+    // `Acessos_Facial.id_pessoa` não tem um único espaço de id consistente no
+    // caminho migrado — alguns tipos de evento gravam o id de `Visita`,
+    // outros o de `Pessoa` (ver facial.service.ts, não alterado aqui;
+    // limitação conhecida, correção definitiva exige mudança de schema,
+    // rastreada separadamente). Por isso o dedup checa os dois ids quando
+    // disponíveis (`idPessoaAlt`).
+    const jaVeioDoFacial = (
+      idVis: number,
+      evento: 'entrada' | 'saida',
+      ts: Date,
+      idPessoaAlt?: number,
+    ) => {
+      const bucket = Math.floor(ts.getTime() / DEDUP_MS);
+      if (facialBuckets.has(`${idVis}:${evento}:${bucket}`)) return true;
+      if (idPessoaAlt != null && facialBuckets.has(`${idPessoaAlt}:${evento}:${bucket}`)) return true;
+      return false;
+    };
 
     const manualEv = [];
     for (const v of visitors) {
@@ -1150,7 +1420,7 @@ export class MobileAuthService {
         ['saida', v.data_saida],
       ];
       for (const [evento, ts] of marcos) {
-        if (!ts || ts < cutoff || jaVeioDoFacial(v.id, evento, ts)) continue;
+        if (!ts || ts < cutoff || jaVeioDoFacial(v.id, evento, ts, v.id_pessoa_alt)) continue;
         manualEv.push({
           // Id sintético (negativo) — não colide com o id real do acesso facial,
           // que o app usa só para destacar o item vindo do push.
@@ -1255,23 +1525,51 @@ export class MobileAuthService {
       ...new Set(vinculosApto.map((v) => v.id_apto).filter((id): id is number => id != null)),
     ];
     if (aptoIds.length) {
-      const pendentes = await this.prisma.visitantes.findMany({
-        where: {
-          id_apartamento: { in: aptoIds },
-          auth_status: 'pendente',
-        },
-        take: 10,
-      });
-      for (const p of pendentes) {
-        itens.push({
-          id: `solicitacao-${p.id}`,
-          tipo: 'solicitacao',
-          titulo: 'Solicitação de Entrada na Portaria',
-          descricao: `${p.nome} aguarda sua autorização na portaria para entrar.`,
-          // `data_visita` não existe em Visitantes; a janela da visita começa
-          // em data_hora_inicio.
-          timestamp: p.auth_solicitado_em || p.data_hora_inicio || new Date(),
+      // O id embutido em `solicitacao-${id}` é só decorativo hoje — o app
+      // (notificacoes_page.dart) extrai o número mas, para o tipo
+      // 'solicitacao'/'autorizacao_visitante', só usa para abrir
+      // PendentesVisitantePage() sem repassar o id adiante; a tela então
+      // busca sua própria lista via GET /visitantes/pendentes (já migrado,
+      // devolve id de Visita). Mesmo assim, este id segue o mesmo espaço
+      // usado por `autorizar`/`negar` (id de Visita) para não criar um
+      // contrato divergente caso algum consumidor futuro passe a usá-lo.
+      if (pessoasMigrationEnabled(this.prisma)) {
+        const pendentes = await this.prisma.visitas.findMany({
+          where: {
+            id_apartamento: { in: aptoIds },
+            auth_status: 'pendente',
+          },
+          include: { pessoa: { select: { nome: true } } },
+          take: 10,
         });
+        for (const v of pendentes) {
+          itens.push({
+            id: `solicitacao-${v.id}`,
+            tipo: 'solicitacao',
+            titulo: 'Solicitação de Entrada na Portaria',
+            descricao: `${v.pessoa.nome} aguarda sua autorização na portaria para entrar.`,
+            timestamp: v.auth_solicitado_em || v.data_hora_inicio || new Date(),
+          });
+        }
+      } else {
+        const pendentes = await this.prisma.visitantes.findMany({
+          where: {
+            id_apartamento: { in: aptoIds },
+            auth_status: 'pendente',
+          },
+          take: 10,
+        });
+        for (const p of pendentes) {
+          itens.push({
+            id: `solicitacao-${p.id}`,
+            tipo: 'solicitacao',
+            titulo: 'Solicitação de Entrada na Portaria',
+            descricao: `${p.nome} aguarda sua autorização na portaria para entrar.`,
+            // `data_visita` não existe em Visitantes; a janela da visita começa
+            // em data_hora_inicio.
+            timestamp: p.auth_solicitado_em || p.data_hora_inicio || new Date(),
+          });
+        }
       }
     }
 
@@ -1871,7 +2169,27 @@ export class MobileAuthService {
 
     let photoUrl = data.photo;
     if (photoUrl && this.storage.isDataUrl(photoUrl)) {
-      photoUrl = await this.storage.uploadDataUrl(photoUrl, `condominios/${id}`, 'profile');
+      const enviada = await this.storage.uploadDataUrl(photoUrl, `condominios/${id}`, 'profile');
+
+      // `uploadDataUrl` NUNCA lança: se o S3 falhar (ou o storage estiver
+      // desativado por env incompleta) ela devolve o próprio data URL. Gravar
+      // esse retorno direto em `Condominios.photo` — que é `text`, teto de
+      // 65535 — fazia o MySQL truncar o base64 no meio, em silêncio. O
+      // resultado é o pior dos mundos: o app recebe "sucesso", a coluna fica
+      // com uma imagem impossível de decodificar, e cada resposta que carrega
+      // o condomínio passa a arrastar 64KB de lixo (daí a lentidão geral).
+      //
+      // Mesma guarda que `AreasSociaisService.resolveImagem` já fazia. Aqui a
+      // foto antiga é preservada e o erro sobe, em vez de corromper a coluna.
+      if (!enviada || this.storage.isDataUrl(enviada)) {
+        this.logger.error(
+          `Upload da foto do condomínio ${id} falhou (storage desativado ou erro no S3). Foto anterior preservada.`,
+        );
+        throw new ServiceUnavailableException(
+          'Não foi possível enviar a imagem agora. Os outros dados foram mantidos — tente a imagem novamente em instantes.',
+        );
+      }
+      photoUrl = enviada;
     }
 
     const updateData: any = {};
@@ -3845,19 +4163,36 @@ export class MobileAuthService {
     return { moradorId: m.id, idCondominio: m.id_condominio, apto };
   }
 
+  /**
+   * Moradores do apto pelo par (bloco, apto) — mesmo critério de
+   * `VagasService.moradoresDoApto` (vagas/vagas.service.ts). Antes desta
+   * correção, `liberarVaga`/`listVagasByUser` contavam só os veículos do
+   * morador LOGADO — apto com 2 vagas e dois moradores com 1 carro cada: a
+   * portaria recusava a 3ª vaga, mas o app (logado como qualquer um dos
+   * dois) aceitava, porque só via o próprio carro. Divergência real entre os
+   * dois consoles, sempre na direção de liberar vaga a mais.
+   */
+  private async moradoresDoApto(apto: { id_condominio: number; bloco: string | null; apto: string | null }) {
+    return this.prisma.moradores.findMany({
+      where: { id_condominio: apto.id_condominio, bloco: apto.bloco, apartamento: apto.apto },
+      select: { id: true },
+    });
+  }
+
   private mapVaga(v: any) {
     return {
       id: v.id,
       tipo_ocupacao: v.tipo_ocupacao,
       id_veiculo: v.id_veiculo,
       id_visitante: v.id_visitante,
+      id_visita: v.id_visita ?? null,
       id_morador_beneficiario: v.id_morador_beneficiario,
       placa: v.placa ?? v.veiculo?.placa ?? null,
       inicio: v.inicio,
       fim: v.fim,
       ocupante_nome:
         v.tipo_ocupacao === 'visitante'
-          ? v.visitante?.nome ?? null
+          ? (v.visita?.pessoa?.nome ?? v.visitante?.nome ?? null)
           : v.tipo_ocupacao === 'inquilino'
             ? v.beneficiario?.nome ?? null
             : v.titular?.nome ?? null,
@@ -3868,24 +4203,36 @@ export class MobileAuthService {
     if (!this.prisma.isConnected) return { qtd_vagas: 0, ocupadas: 0, vagas: [] };
     const ctx = await this.resolveMoradorApto(idUser, idCondominio);
     if (!ctx) return { qtd_vagas: 0, ocupadas: 0, vagas: [] };
+    const moradores = await this.moradoresDoApto(ctx.apto);
+    const moradorIds = moradores.map((m) => m.id);
     const [vagas, veiculos] = await Promise.all([
       this.prisma.vagas.findMany({
         where: { id_apartamento: ctx.apto.id, ativo: 1 },
-        include: { veiculo: true, visitante: true, beneficiario: true, titular: true },
+        include: {
+          veiculo: true,
+          visitante: true,
+          visita: { include: { pessoa: true } },
+          beneficiario: true,
+          titular: true,
+        },
         orderBy: { created_at: 'desc' },
       }),
-      // Veículos próprios do morador ocupam automaticamente uma vaga "proprio"
-      // (sintetizada em leitura, sem materializar linha em Vagas).
-      this.prisma.veiculos.findMany({
-        where: { id_morador: ctx.moradorId, ativo: 1 },
-        orderBy: { created_at: 'desc' },
-      }),
+      // Veículos próprios de QUALQUER morador do apto (não só o logado)
+      // ocupam automaticamente uma vaga "proprio" (sintetizada em leitura,
+      // sem materializar linha em Vagas) — mesmo critério de VagasService.
+      moradorIds.length
+        ? this.prisma.veiculos.findMany({
+            where: { id_morador: { in: moradorIds }, ativo: 1 },
+            orderBy: { created_at: 'desc' },
+          })
+        : Promise.resolve([]),
     ]);
     const proprios = veiculos.map((v) => ({
       id: null,
       tipo_ocupacao: 'proprio',
       id_veiculo: v.id,
       id_visitante: null,
+      id_visita: null,
       id_morador_beneficiario: null,
       placa: v.placa ?? null,
       inicio: null,
@@ -3900,17 +4247,52 @@ export class MobileAuthService {
     };
   }
 
-  /** Beneficiários possíveis: visitantes do apto + inquilinos do apto. */
+  /**
+   * Beneficiários possíveis: visitantes do apto + moradores tipo Inquilino.
+   * Suporta o modelo Pessoas + Visitas e legado.
+   */
   async listBeneficiariosVaga(idUser: number, idCondominio?: number) {
     if (!this.prisma.isConnected) return { visitantes: [], inquilinos: [] };
     const ctx = await this.resolveMoradorApto(idUser, idCondominio);
     if (!ctx) return { visitantes: [], inquilinos: [] };
+
+    if (pessoasMigrationEnabled(this.prisma)) {
+      const visitasRaw = await this.prisma.visitas.findMany({
+        where: { id_apartamento: ctx.apto.id, is_visitante: 1 },
+        select: {
+          pessoa: { select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true } },
+        },
+        orderBy: { created_at: 'desc' },
+      });
+
+      const pessoasUnicas = new Map<number, { id: number; nome: string; doc_identificacao: string | null; foto_pessoa: string | null }>();
+      for (const v of visitasRaw) {
+        const p = v.pessoa;
+        if (p && !pessoasUnicas.has(p.id)) pessoasUnicas.set(p.id, p);
+      }
+      const visitantesUnicos = Array.from(pessoasUnicas.values()).sort((a, b) =>
+        (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR'),
+      );
+
+      const inquilinos = await this.getMoradoresApto(ctx.apto.id, 'Inquilino');
+      return {
+        visitantes: visitantesUnicos.map((v) => ({
+          id: v.id,
+          nome: v.nome,
+          doc_identificacao: v.doc_identificacao,
+          tem_foto: !!(v.foto_pessoa && v.foto_pessoa.trim() !== ''),
+        })),
+        inquilinos: (inquilinos ?? []).map((i: any) => ({ id: i.id, nome: i.nome })),
+      };
+    }
+
     const visitantesRaw = await this.prisma.visitantes.findMany({
       where: { id_apartamento: ctx.apto.id, is_visitante: 1 },
       select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true, created_at: true },
       orderBy: { created_at: 'desc' },
     });
 
+    // Dedup: mesma regra de moradores/visitantes (documento, fallback por nome).
     const mapUnicos = new Map<string, typeof visitantesRaw[0]>();
     for (const v of visitantesRaw) {
       const doc = (v.doc_identificacao ?? '').trim();
@@ -3957,9 +4339,15 @@ export class MobileAuthService {
     }
 
     // Checa vaga livre: (ativas liberadas + veículos próprios) < qtd_vagas.
+    // Veículos de TODOS os moradores do apto contam, não só o logado — mesma
+    // regra de VagasService.liberar (portaria-web).
+    const moradoresDoAptoLiberar = await this.moradoresDoApto(ctx.apto);
+    const moradorIdsLiberar = moradoresDoAptoLiberar.map((m) => m.id);
     const [ativas, veiculosProprios] = await Promise.all([
       this.prisma.vagas.count({ where: { id_apartamento: ctx.apto.id, ativo: 1 } }),
-      this.prisma.veiculos.count({ where: { id_morador: ctx.moradorId, ativo: 1 } }),
+      moradorIdsLiberar.length
+        ? this.prisma.veiculos.count({ where: { id_morador: { in: moradorIdsLiberar }, ativo: 1 } })
+        : Promise.resolve(0),
     ]);
     if (ativas + veiculosProprios >= (ctx.apto.qtd_vagas ?? 0)) {
       throw new BadRequestException('Não há vagas livres neste apartamento.');
@@ -3970,31 +4358,89 @@ export class MobileAuthService {
     const placa = body?.placa ? body.placa.toString().toUpperCase().trim() : null;
 
     let idVisitante: number | null = null;
+    let idVisita: number | null = null;
     let idBeneficiario: number | null = null;
 
     if (tipo === 'visitante') {
-      idVisitante = Number(body?.id_visitante) || null;
-      if (!idVisitante) throw new BadRequestException('Selecione um visitante cadastrado.');
-      const vis = await this.prisma.visitantes.findFirst({
-        where: { id: idVisitante, id_apartamento: ctx.apto.id },
-      });
-      if (!vis) throw new BadRequestException('Visitante não encontrado neste apartamento.');
-      // Libera o acesso do visitante na janela informada e limpa saída/entrada anteriores.
-      let pin = vis.codigo_acesso;
-      if (!pin) {
-        pin = Math.floor(100000 + Math.random() * 900000).toString();
+      const idAlvo = Number(body?.id_visita ?? body?.id_pessoa ?? body?.id_visitante) || null;
+      if (!idAlvo) throw new BadRequestException('Selecione um visitante cadastrado.');
+
+      let visitaEncontrada: any = null;
+      let visitanteLegado: any = null;
+
+      if (pessoasMigrationEnabled(this.prisma)) {
+        visitaEncontrada = await this.prisma.visitas.findFirst({
+          where: {
+            id_apartamento: ctx.apto.id,
+            OR: [{ id: idAlvo }, { id_pessoa: idAlvo }],
+          },
+          orderBy: { created_at: 'desc' },
+        });
+        if (!visitaEncontrada) {
+          visitanteLegado = await this.prisma.visitantes.findFirst({
+            where: { id: idAlvo, id_apartamento: ctx.apto.id },
+          });
+        }
+      } else {
+        visitanteLegado = await this.prisma.visitantes.findFirst({
+          where: { id: idAlvo, id_apartamento: ctx.apto.id },
+        });
+        if (!visitanteLegado) {
+          visitaEncontrada = await this.prisma.visitas.findFirst({
+            where: {
+              id_apartamento: ctx.apto.id,
+              OR: [{ id: idAlvo }, { id_pessoa: idAlvo }],
+            },
+            orderBy: { created_at: 'desc' },
+          });
+        }
       }
-      await this.prisma.visitantes.update({
-        where: { id: idVisitante },
-        data: {
-          liberado: 1,
-          data_entrada: null,
-          data_saida: null,
-          codigo_acesso: pin,
-          ...(inicio ? { data_hora_inicio: inicio } : {}),
-          ...(fim ? { data_hora_termino: fim } : {}),
-        },
-      });
+
+      if (!visitaEncontrada && !visitanteLegado) {
+        throw new BadRequestException('Visitante não encontrado neste apartamento.');
+      }
+
+      if (visitaEncontrada) {
+        if (visitaEncontrada.bloqueado === 1) {
+          throw new BadRequestException(
+            'Este visitante está bloqueado pela portaria. Fale com a portaria antes de liberar a vaga.',
+          );
+        }
+        idVisita = visitaEncontrada.id;
+        let pin = visitaEncontrada.codigo_acesso;
+        if (!pin) {
+          pin = Math.floor(100000 + Math.random() * 900000).toString();
+        }
+        await this.prisma.visitas.update({
+          where: { id: visitaEncontrada.id },
+          data: {
+            liberado: 1,
+            bloqueado: 0,
+            data_entrada: null,
+            data_saida: null,
+            codigo_acesso: pin,
+            ...(inicio ? { data_hora_inicio: inicio } : {}),
+            ...(fim ? { data_hora_termino: fim } : {}),
+          },
+        });
+      } else if (visitanteLegado) {
+        idVisitante = visitanteLegado.id;
+        let pin = visitanteLegado.codigo_acesso;
+        if (!pin) {
+          pin = Math.floor(100000 + Math.random() * 900000).toString();
+        }
+        await this.prisma.visitantes.update({
+          where: { id: visitanteLegado.id },
+          data: {
+            liberado: 1,
+            data_entrada: null,
+            data_saida: null,
+            codigo_acesso: pin,
+            ...(inicio ? { data_hora_inicio: inicio } : {}),
+            ...(fim ? { data_hora_termino: fim } : {}),
+          },
+        });
+      }
     } else {
       idBeneficiario = Number(body?.id_morador_beneficiario) || null;
       if (!idBeneficiario) throw new BadRequestException('Selecione um inquilino.');
@@ -4011,25 +4457,30 @@ export class MobileAuthService {
         id_morador_titular: ctx.moradorId,
         tipo_ocupacao: tipo,
         id_visitante: idVisitante,
+        id_visita: idVisita,
         id_morador_beneficiario: idBeneficiario,
         id_veiculo: Number(body?.id_veiculo) || null,
         placa,
         inicio,
         fim,
       },
-      include: { veiculo: true, visitante: true, beneficiario: true, titular: true },
+      include: {
+        veiculo: true,
+        visitante: true,
+        visita: { include: { pessoa: true } },
+        beneficiario: true,
+        titular: true,
+      },
     });
 
-    // Liberação automática do facial/portão: enrola o visitante em todos os
-    // terminais faciais do condomínio já com a janela da reserva (ValidFrom/
-    // ValidTo derivados de data_hora_inicio/termino que acabamos de gravar).
-    // Fire-and-forget: uma falha de device não pode derrubar a reserva; o
-    // próprio syncVisitante grava face_sync_status e os ticks fazem retry.
-    if (idVisitante) {
+    // Liberação automática do facial/portão:
+    // syncVisitante já despacha para syncPessoa quando sob a migração
+    const idParaSync = idVisita ?? idVisitante;
+    if (idParaSync) {
       this.facial
-        .syncVisitante(idVisitante)
+        .syncVisitante(idParaSync)
         .catch((err) =>
-          console.error('[vagas] falha ao sincronizar facial do visitante', idVisitante, err?.message),
+          console.error('[vagas] falha ao sincronizar facial do visitante', idParaSync, err?.message),
         );
     }
 
@@ -4045,24 +4496,48 @@ export class MobileAuthService {
       where: { id: Number(id), id_apartamento: ctx.apto.id, ativo: 1 },
     });
     if (!vaga) throw new BadRequestException('Vaga não encontrada.');
-    await this.prisma.vagas.update({ where: { id: vaga.id }, data: { ativo: 0 } });
+
+    // Revoga a vaga E o crachá/PIN por trás dela na mesma transação: sem isto
+    // o rosto/PIN da Visita continuava liberando a portaria mesmo com a vaga
+    // marcada como revogada — o botão "revogar" mentia para o morador.
+    const updates: any[] = [this.prisma.vagas.update({ where: { id: vaga.id }, data: { ativo: 0 } })];
+    if (vaga.tipo_ocupacao === 'visitante' && vaga.id_visita) {
+      updates.push(
+        this.prisma.visitas.update({
+          where: { id: vaga.id_visita },
+          data: { liberado: 0, codigo_acesso: null },
+        }),
+      );
+    } else if (vaga.tipo_ocupacao === 'visitante' && vaga.id_visitante) {
+      updates.push(
+        this.prisma.visitantes.update({
+          where: { id: vaga.id_visitante },
+          data: { liberado: 0, codigo_acesso: null },
+        }),
+      );
+    }
+    await this.prisma.$transaction(updates);
 
     // Reconcilia o estado no device: re-sincroniza o visitante para refletir a
-    // vaga revogada. Não-destrutivo (não força liberado=0), pois o visitante
-    // pode estar autorizado por outro caminho; o acesso encerra em `fim` via o
-    // tick de expiração já existente.
-    if (vaga.tipo_ocupacao === 'visitante' && vaga.id_visitante) {
+    // vaga revogada. Suporta tanto id_visita quanto id_visitante.
+    const idParaSync = vaga.id_visita ?? vaga.id_visitante;
+    if (vaga.tipo_ocupacao === 'visitante' && idParaSync) {
       this.facial
-        .syncVisitante(vaga.id_visitante)
+        .syncVisitante(idParaSync)
         .catch((err) =>
-          console.error('[vagas] falha ao reconciliar facial do visitante', vaga.id_visitante, err?.message),
+          console.error('[vagas] falha ao reconciliar facial do visitante', idParaSync, err?.message),
         );
     }
 
     return { ok: true };
   }
 
-  async listSindicosByCondominio(idCond: number) {
+  async listSindicosByCondominio(idCond: number, user?: JwtPayload) {
+    // Sem esta checagem, qualquer usuário autenticado (morador ou funcionário de
+    // OUTRO condomínio) itera id_condominio e extrai nome + e-mail de todos os
+    // síndicos da base. O TenantGuard global não cobre: ele só valida o route
+    // param :idCondominio, e aqui o id vem por query string.
+    await this.tenant.assertCondominio(Number(idCond), user);
     if (!this.prisma.isConnected) return [];
     const links = await this.prisma.sindicos_Condominios.findMany({
       where: { id_condominio: Number(idCond) },

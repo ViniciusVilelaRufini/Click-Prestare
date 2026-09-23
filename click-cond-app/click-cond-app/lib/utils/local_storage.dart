@@ -107,6 +107,12 @@ String getUsername() {
   return name.toString().split(" ")[0];
 }
 
+String getUserFullName() {
+  final name = _storage.getItem('name');
+  if (name == null || name == 'null') return "";
+  return name.toString().trim();
+}
+
 String _inMemoryPhoto = '';
 
 String getUserPhoto() {

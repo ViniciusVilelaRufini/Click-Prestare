@@ -65,7 +65,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   @override
   void initState() {
     super.initState();
-    _viewMode = getUserType() == 'morador' ? FinanceiroViewMode.morador : FinanceiroViewMode.condominio;
+    _viewMode = isModoCondominioParaPerfil(getUserType())
+        ? FinanceiroViewMode.condominio
+        : FinanceiroViewMode.morador;
     saldoAtual = '${Singleton.instance.getCurrentMoeda()} 0,00';
     totalReceita = '${Singleton.instance.getCurrentMoeda()} 0,00';
     totalDespesa = '${Singleton.instance.getCurrentMoeda()} 0,00';
@@ -130,14 +132,18 @@ class ListFinanceiroState extends State<ListFinanceiro> {
         }
       }
       
-      // Carrega dados pessoais apenas na primeira vez ou em pull-to-refresh
-      if (!isMonthChange || _personalLancamentos.isEmpty) {
-        final dynamic personalData = await apiGetFinanceiroByUser();
-        if (personalData is List) {
-          _personalLancamentos = personalData;
-        } else {
-          _personalLancamentos = [];
+      // Carrega dados pessoais apenas se o perfil possuir finanças pessoais
+      if (deveCarregarFinanceiroPessoal(getUserType())) {
+        if (!isMonthChange || _personalLancamentos.isEmpty) {
+          final dynamic personalData = await apiGetFinanceiroByUser();
+          if (personalData is List) {
+            _personalLancamentos = personalData;
+          } else {
+            _personalLancamentos = [];
+          }
         }
+      } else {
+        _personalLancamentos = [];
       }
 
       // Carrega dados gerais do condomínio para o mês selecionado
@@ -249,7 +255,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       title: getText('lb_financeiro'),
       showBackButton: !widget.hideAppBar,
       safeAreaBottom: !widget.hideAppBar,
-      actions: !isSindico
+      actions: (!isSindico && deveCarregarFinanceiroPessoal(getUserType()))
           ? [
               IconButton(
                 icon: const Icon(PhosphorIcons.downloadSimple),
@@ -553,6 +559,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   }
 
   Widget _buildViewToggle() {
+    if (!deveExibirToggleFinanceiro(getUserType())) {
+      return const SizedBox.shrink();
+    }
     final isSindico = getUserType() == 'sindico';
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(

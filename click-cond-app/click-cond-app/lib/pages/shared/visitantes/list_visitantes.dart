@@ -728,7 +728,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                           child: Text('Fechar', style: AppTypography.body(context)),
                         ),
                       ),
-                      if (canAdd) ...[
+                      if (podeEditarVisitante(userType: getUserType(), canManage: canAdd)) ...[
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton.icon(

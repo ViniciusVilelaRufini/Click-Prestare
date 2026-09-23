@@ -40,6 +40,7 @@ describe('FacialService — varredura de fantasmas', () => {
     moradores?: string[];
     visitantes?: string[];
     prestadores?: string[];
+    pessoas?: string[];
   }) {
     const prisma: any = {
       isConnected: true,
@@ -52,6 +53,9 @@ describe('FacialService — varredura de fantasmas', () => {
       },
       prestadores_servico: {
         findMany: jest.fn(async () => (opts.prestadores ?? []).map((face_id) => ({ face_id }))),
+      },
+      pessoas: {
+        findMany: jest.fn(async () => (opts.pessoas ?? []).map((face_id) => ({ face_id }))),
       },
     };
     const client: any = {
@@ -98,6 +102,20 @@ describe('FacialService — varredura de fantasmas', () => {
       devices: [DEVICE('intelbras')],
       idsNoAparelho: ['prestador_servico_3'],
       prestadores: ['prestador_servico_3'],
+    });
+
+    await varrer(svc);
+
+    expect(client.removeUsers).not.toHaveBeenCalled();
+  });
+
+  // Sem a fonte de pessoas no cálculo, TODO visitante migrado (Pessoas) seria
+  // tratado como fantasma e apagado do aparelho ao virar a flag.
+  it('não apaga pessoa cadastrada na tabela pessoas (migração pessoas/visitas)', async () => {
+    const { svc, client } = build({
+      devices: [DEVICE('intelbras')],
+      idsNoAparelho: ['pessoa_42'],
+      pessoas: ['pessoa_42'],
     });
 
     await varrer(svc);

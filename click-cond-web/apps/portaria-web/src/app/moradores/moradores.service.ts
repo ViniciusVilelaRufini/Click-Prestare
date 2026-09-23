@@ -103,8 +103,8 @@ export class MoradoresApi {
     return this.http.get<{ base64: string; filename: string }>(`${this.base}/export-excel`, { params });
   }
 
-  importBulk(linhas: any[]): Observable<{ ok: boolean; total: number; criados: any[] }> {
-    return this.http.post<{ ok: boolean; total: number; criados: any[] }>(`${this.base}/import-bulk`, { linhas });
+  importBulk(linhas: any[]): Observable<{ ok: boolean; total: number; criados: any[]; erros?: { nome: string; erro: string }[] }> {
+    return this.http.post<{ ok: boolean; total: number; criados: any[]; erros?: { nome: string; erro: string }[] }>(`${this.base}/import-bulk`, { linhas });
   }
 
   // Síndicos do condomínio (para vincular um deles como morador).

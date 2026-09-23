@@ -153,15 +153,13 @@ export class AreasSociaisService {
 
     if (this.storage.isDataUrl(valor)) {
       const uploaded = await this.storage.uploadDataUrl(valor, 'areas-sociais');
-      if (uploaded && !this.storage.isDataUrl(uploaded) && uploaded.length <= 500) {
+      if (uploaded && !this.storage.isDataUrl(uploaded)) {
         return uploaded;
       }
       this.logger.warn('Upload da imagem da área falhou ou storage desativado; usando imagem padrão.');
       return DEFAULT_AREA_IMAGE;
     }
 
-    // URL comum digitada manualmente — respeita o limite da coluna.
-    if (valor.length > 500) return DEFAULT_AREA_IMAGE;
     return valor;
   }
 
@@ -1524,14 +1522,19 @@ export class AreasSociaisService {
   }
 
   async getAllManutencoes(idCondominio: number, idAreaSocial?: number, user?: JwtPayload) {
-    if (idCondominio) {
-      await this.tenant.assertEntidade(idCondominio, user, 'listar manutenções');
+    // O condomínio é obrigatório: antes, omitir id_condominio fazia Number(undefined)
+    // virar NaN (falsy), o assert era pulado e o `where` saía vazio — devolvendo as
+    // manutenções de TODOS os condomínios. Passar só id_area_social tinha o mesmo
+    // efeito para a área de outro condomínio.
+    const condId = Number(idCondominio);
+    if (!condId || Number.isNaN(condId)) {
+      throw new BadRequestException('id_condominio é obrigatório.');
     }
-    const where: any = {};
+    await this.tenant.assertEntidade(condId, user, 'listar manutenções');
+
+    const where: any = { area: { id_condominio: condId } };
     if (idAreaSocial) {
       where.id_area_social = Number(idAreaSocial);
-    } else if (idCondominio) {
-      where.area = { id_condominio: Number(idCondominio) };
     }
     return this.prisma.areas_Sociais_Manutencoes.findMany({
       where,

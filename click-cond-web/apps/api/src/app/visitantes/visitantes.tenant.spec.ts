@@ -12,6 +12,8 @@ import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { PessoasService } from '../pessoas/pessoas.service';
+import { VisitasService } from '../visitas/visitas.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 /**
@@ -94,6 +96,8 @@ describe('Visitantes — isolamento de tenant síndico mobile (e2e)', () => {
         { provide: FacialService, useValue: { syncVisitante: jest.fn().mockResolvedValue({}), unsyncVisitante: jest.fn() } },
         { provide: AuditoriaService, useValue: noop },
         { provide: RealtimeGateway, useValue: { emitToCondominio: jest.fn() } },
+        { provide: PessoasService, useValue: { obterOuCriar: jest.fn() } },
+        { provide: VisitasService, useValue: { criarVisita: jest.fn() } },
         // JwtAuthGuard real é trocado pelo fake; TenantGuard é o real.
         { provide: APP_GUARD, useClass: FakeJwtGuard },
         { provide: APP_GUARD, useClass: TenantGuard },

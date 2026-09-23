@@ -165,7 +165,9 @@ export class PrestadoresPageComponent implements OnInit {
       return;
     }
     this.savingAcesso.set(true);
-    this.visitantesApi.atualizarPessoa(p.id, {
+    // `id_pessoa` (id da Pessoa) quando disponível — `p.id` é o id da VISITA
+    // principal e é ambíguo para um endpoint que edita a pessoa inteira.
+    this.visitantesApi.atualizarPessoa(p.id_pessoa ?? p.id, {
       nome: this.editAcessoForm.nome,
       doc_identificacao: this.editAcessoForm.doc_identificacao,
       tag_rfid: (this.editAcessoForm.tag_rfid ?? '').trim() || null,
@@ -192,7 +194,8 @@ export class PrestadoresPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.visitantesApi.removerPessoa(p.id).subscribe({ next: () => this.carregar() });
+    // `id_pessoa` quando disponível — ver comentário de `salvarAcesso`.
+    this.visitantesApi.removerPessoa(p.id_pessoa ?? p.id).subscribe({ next: () => this.carregar() });
   }
 
   togglePinAcesso(id: number, event: Event) {

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
@@ -37,9 +38,7 @@ class CellAreaSocial extends StatelessWidget {
   Widget build(BuildContext context) {
     final nome = item["nome"]?.toString() ?? '';
     final areaIcon = _getAreaIcon(nome);
-    final isImagemValida = item["imagem"] != null &&
-        item["imagem"].toString().trim().isNotEmpty &&
-        !item["imagem"].toString().contains('unsplash');
+    final imagemUrl = (item["imagem"] ?? '').toString();
 
     return Container(
       margin: const EdgeInsets.symmetric(
@@ -70,14 +69,7 @@ class CellAreaSocial extends StatelessWidget {
                   height: 160,
                   width: double.infinity,
                   color: AppColors.primaryLight,
-                  child: isImagemValida
-                      ? Image.network(
-                          item["imagem"],
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _placeholderImage(context, areaIcon),
-                        )
-                      : _placeholderImage(context, areaIcon),
+                  child: _buildAreaImage(context, imagemUrl, areaIcon),
                 ),
                 // Gradient Overlay
                 Positioned.fill(
@@ -206,6 +198,33 @@ class CellAreaSocial extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildAreaImage(BuildContext context, String imagemUrl, IconData areaIcon) {
+    final cleanUrl = imagemUrl.trim();
+    if (cleanUrl.isEmpty) return _placeholderImage(context, areaIcon);
+
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+      return Image.network(
+        cleanUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholderImage(context, areaIcon),
+      );
+    }
+
+    try {
+      final clean = cleanUrl.contains('base64,')
+          ? cleanUrl.split('base64,')[1]
+          : cleanUrl;
+      final bytes = base64Decode(clean.trim());
+      return Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholderImage(context, areaIcon),
+      );
+    } catch (_) {
+      return _placeholderImage(context, areaIcon);
+    }
   }
 
   Widget _placeholderImage(BuildContext context, IconData icon) {

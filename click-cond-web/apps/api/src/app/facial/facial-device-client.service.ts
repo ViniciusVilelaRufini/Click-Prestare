@@ -35,10 +35,10 @@ export interface EnrollResult {
  */
 /**
  * Identificador que NÓS gravamos no aparelho ("morador_42", "visitante_9",
- * "prestador_servico_3"). Usado para a varredura de fantasmas não encostar em
+ * "prestador_servico_3", "pessoa_10"). Usado para a varredura de fantasmas não encostar em
  * usuários criados direto no aparelho pelo instalador. Ver listUserIds.
  */
-const NOSSO_EXTERNAL_ID = /^(morador|visitante|prestador_servico)_\d+$/;
+const NOSSO_EXTERNAL_ID = /^(morador|visitante|prestador_servico|pessoa)_\d+$/;
 
 const SEM_COMANDO_HTTP: Record<string, string> = {
   zkteco: 'protocolo TCP/UDP na porta 4370 (PULL/PUSH SDK)',

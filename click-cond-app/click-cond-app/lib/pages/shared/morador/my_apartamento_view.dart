@@ -78,6 +78,22 @@ class _MyApartamentoViewState extends State<MyApartamentoView> {
     ).then((_) => loadMoradores());
   }
 
+  void _editMembro(dynamic item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NewMorador(
+          obj: item,
+          isEdit: true,
+          apto: _apto,
+          bloco: _bloco,
+          tipo: 'Membro',
+          id_apto: _idApto,
+        ),
+      ),
+    ).then((_) => loadMoradores());
+  }
+
   String get _badgeText {
     if (_isProprietario) return getText('apto_voce_proprietario');
     if (_isInquilino) return getText('apto_voce_inquilino');
@@ -121,9 +137,10 @@ class _MyApartamentoViewState extends State<MyApartamentoView> {
                       title: getText('apto_membros'),
                       roleName: getText('lb_membro'),
                       list: listMembros,
-                      // Só o proprietário pode cadastrar familiares.
+                      // Só o proprietário pode cadastrar/editar familiares.
                       canAdd: _isProprietario,
                       onAdd: _addMembro,
+                      onTap: _isProprietario ? _editMembro : null,
                     ),
                     if (!_isProprietario) ...[
                       const SizedBox(height: AppSpacing.lg),
@@ -235,6 +252,7 @@ class _MoradorSection extends StatelessWidget {
   final List<dynamic> list;
   final bool canAdd;
   final VoidCallback onAdd;
+  final void Function(dynamic item)? onTap;
 
   const _MoradorSection({
     super.key,
@@ -243,6 +261,7 @@ class _MoradorSection extends StatelessWidget {
     required this.list,
     required this.canAdd,
     required this.onAdd,
+    this.onTap,
   });
 
   @override
@@ -355,58 +374,73 @@ class _MoradorSection extends StatelessWidget {
                   color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
                 ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        image: (photoUrl != null && photoUrl.isNotEmpty)
-                            ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
-                            : null,
-                      ),
-                      child: (photoUrl == null || photoUrl.isEmpty)
-                          ? Center(
-                              child: Text(
-                                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onTap != null ? () => onTap!(item) : null,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
                         children: [
-                          Text(
-                            name,
-                            style: AppTypography.body(context).copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black87,
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              image: (photoUrl != null && photoUrl.isNotEmpty)
+                                  ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
+                                  : null,
+                            ),
+                            child: (photoUrl == null || photoUrl.isEmpty)
+                                ? Center(
+                                    child: Text(
+                                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                      style: TextStyle(
+                                        color: AppColors.primary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: AppTypography.body(context).copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                                if (telefone.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    telefone,
+                                    style: AppTypography.caption(context).copyWith(
+                                      color: isDark ? Colors.white60 : Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                          if (telefone.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              telefone,
-                              style: AppTypography.caption(context).copyWith(
-                                color: isDark ? Colors.white60 : Colors.black54,
-                              ),
+                          if (onTap != null)
+                            Icon(
+                              PhosphorIcons.caretRight,
+                              size: 16,
+                              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.25),
                             ),
-                          ],
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             );

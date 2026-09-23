@@ -119,6 +119,7 @@ model Users {
   sindicosCondominios Sindicos_Condominios[]
   endereco            Addresses?                   @relation(fields: [address], references: [id], map: "fk_users_address")
   visitantes          Visitantes[]                 @relation("VisitanteUser")
+  visitas             Visitas[]                    @relation("VisitasUser")
   convites            Convites_Visita[]            @relation("ConviteMorador")
   consentimentos      Consentimentos[]             @relation("ConsentimentoUser")
   votacoesUsuarios    Votacoes_Usuarios[]
@@ -190,6 +191,8 @@ model Condominios {
   prestadores          Prestadores_servico[]
   sindicosCondominios  Sindicos_Condominios[]
   visitantes           Visitantes[]
+  pessoas              Pessoas[]
+  visitas              Visitas[]
   convites             Convites_Visita[]
   consentimentosTerceiros Consentimentos_Terceiros[]
   vagas                Vagas[]
@@ -251,6 +254,7 @@ model Apartamentos {
   agendamentos        Areas_Sociais_Agendamentos[]
   mudancas            Mudancas[]
   visitantes          Visitantes[]
+  visitas             Visitas[]
   convites            Convites_Visita[]
   prestadores         Prestadores_servico[]
   vagas               Vagas[]
@@ -390,6 +394,8 @@ model Vagas {
   beneficiario            Moradores?   @relation("VagaBeneficiario", fields: [id_morador_beneficiario], references: [id], map: "fk_vaga_benef")
   veiculo                 Veiculos?    @relation(fields: [id_veiculo], references: [id], map: "fk_vaga_veiculo")
   visitante               Visitantes?  @relation(fields: [id_visitante], references: [id], map: "fk_vaga_visitante")
+  id_visita               Int?
+  visita                  Visitas?     @relation(fields: [id_visita], references: [id], map: "fk_vaga_visita")
 
   @@index([id_apartamento], map: "idx_vaga_apto")
   @@index([id_condominio], map: "idx_vaga_cond")
@@ -397,6 +403,7 @@ model Vagas {
   @@index([id_morador_beneficiario], map: "fk_vaga_benef")
   @@index([id_veiculo], map: "fk_vaga_veiculo")
   @@index([id_visitante], map: "fk_vaga_visitante")
+  @@index([id_visita], map: "fk_vaga_visita")
 }
 
 model Apartamentos_Users {
@@ -764,6 +771,71 @@ model Prestadores_servico {
 
   @@index([id_condominio])
   @@index([id_apartamento])
+}
+
+model Pessoas {
+  id                Int          @id @default(autoincrement())
+  id_condominio     Int
+  nome              String       @db.VarChar(255)
+  doc_identificacao String?      @db.VarChar(50)
+  telefone          String?      @db.VarChar(50)
+  foto_pessoa       String?      @db.LongText
+  foto_documento    String?      @db.LongText
+  tipo_pessoa       String       @default("visitante") @db.VarChar(20)
+  face_id           String?      @db.VarChar(100)
+  face_enrolled_at  DateTime?    @db.DateTime(0)
+  face_sync_status  String?      @db.VarChar(20)
+  face_sync_error   String?      @db.VarChar(500)
+  bloqueado         Int          @default(0) @db.TinyInt
+  created_at        DateTime     @default(now()) @db.DateTime(0)
+  updated_at        DateTime     @default(now()) @updatedAt @db.DateTime(0)
+
+  condominio        Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_pes_cond")
+  visitas           Visitas[]
+
+  @@index([id_condominio], map: "idx_pes_cond")
+  @@unique([id_condominio, doc_identificacao], map: "uq_pes_cond_doc")
+  @@index([id_condominio, nome], map: "idx_pes_cond_nome")
+  @@map("pessoas")
+}
+
+model Visitas {
+  id                 Int          @id @default(autoincrement())
+  id_pessoa          Int
+  id_condominio      Int
+  id_apartamento     Int
+  user               Int?
+  is_visitante       Int          @default(1) @db.TinyInt
+  is_prestador       Int          @default(0) @db.TinyInt
+  data_hora_inicio   DateTime?    @db.DateTime(0)
+  data_hora_termino  DateTime?    @db.DateTime(0)
+  data_entrada       DateTime?    @db.DateTime(0)
+  data_saida         DateTime?    @db.DateTime(0)
+  codigo_acesso      String?      @db.VarChar(50)
+  liberado           Int          @default(1) @db.TinyInt
+  bloqueado          Int          @default(0) @db.TinyInt
+  avisar             Int          @default(1) @db.TinyInt
+  tag_rfid           String?      @db.VarChar(50)
+  dias_semana        String?      @db.VarChar(100)
+  categorias         String?      @db.VarChar(500)
+  auth_status        String?      @db.VarChar(20)
+  auth_solicitado_em DateTime?    @db.DateTime(0)
+  auth_respondido_em DateTime?    @db.DateTime(0)
+  auth_respondido_por Int?
+  created_at         DateTime     @default(now()) @db.DateTime(0)
+  updated_at         DateTime     @default(now()) @updatedAt @db.DateTime(0)
+
+  pessoa             Pessoas      @relation(fields: [id_pessoa], references: [id], onDelete: Cascade, map: "fk_visita_pessoa")
+  condominio         Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_visita_cond")
+  apartamento        Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Restrict, map: "fk_visita_apto")
+  criadoPor          Users?       @relation("VisitasUser", fields: [user], references: [id], map: "fk_visita_user")
+  vagas              Vagas[]
+
+  @@index([id_pessoa], map: "idx_visita_pessoa")
+  @@index([id_condominio, data_entrada], map: "idx_visita_cond_entrada")
+  @@index([id_apartamento], map: "idx_visita_apto")
+  @@index([id_condominio, codigo_acesso], map: "idx_visita_cond_pin")
+  @@map("visitas")
 }
 
 model Agenda {
@@ -1144,63 +1216,67 @@ model FechamentoMensal {
 }
 
 model Facial_Devices {
-  id            Int                   @id @default(autoincrement())
-  id_condominio Int
-  nome          String                @db.VarChar(100)
-  tipo          String                @default("facial") @db.VarChar(30)
+  id                 Int                   @id @default(autoincrement())
+  id_condominio      Int
+  nome               String                @db.VarChar(100)
+  tipo               String                @default("facial") @db.VarChar(30)
   // Como interpretar a direção dos acessos deste terminal:
   //   auto    → usa a direção que o aparelho informar (default; entrada se omitir)
   //   entrada → terminal de ENTRADA: todo acesso conta como entrada
   //   saida   → terminal de SAÍDA: todo acesso dá baixa (registra saída)
-  sentido       String                @default("auto") @db.VarChar(20)
+  sentido            String                @default("auto") @db.VarChar(20)
   // Confiança mínima (%) do reconhecimento facial para aceitar o acesso.
   // 0 = desligado (aceita qualquer confiança). Rede de segurança contra falso
   // positivo do aparelho — abaixo do limiar o acesso é negado.
-  confianca_minima Int                @default(0) @db.TinyInt
-  fabricante    String                @db.VarChar(50)
-  modelo        String?               @db.VarChar(100)
-  ip            String                @db.VarChar(45)
-  porta         Int                   @default(80)
-  api_user      String?               @db.VarChar(100)
-  api_password  String?               @db.VarChar(255)
-  webhook_token String                @db.VarChar(255)
-  ativo         Int                   @default(1) @db.TinyInt
-  ultima_sincr  DateTime?             @db.DateTime(0)
+  confianca_minima   Int                   @default(0) @db.TinyInt
+  fabricante         String                @db.VarChar(50)
+  modelo             String?               @db.VarChar(100)
+  ip                 String                @db.VarChar(45)
+  porta              Int                   @default(80)
+  api_user           String?               @db.VarChar(100)
+  api_password       String?               @db.VarChar(255)
+  webhook_token      String                @db.VarChar(255)
+  ativo              Int                   @default(1) @db.TinyInt
+  ultima_sincr       DateTime?             @db.DateTime(0)
   // Área de lazer que este terminal monitora (opcional). Quando preenchido, os
   // acessos deste device contam para a ocupação daquela área (contador "quantas
   // pessoas estão dentro agora"). null = terminal comum do condomínio.
-  id_area_social Int?                 @db.Int
-  created_at    DateTime              @default(now()) @db.DateTime(0)
-  updated_at    DateTime              @default(now()) @updatedAt @db.DateTime(0)
-  condominio    Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
-  area_social   Areas_Sociais?        @relation(fields: [id_area_social], references: [id], onDelete: SetNull, map: "fk_facdev_area")
-  regras        Regras_Dispositivos[]
+  id_area_social     Int?                  @db.Int
+  created_at         DateTime              @default(now()) @db.DateTime(0)
+  updated_at         DateTime              @default(now()) @updatedAt @db.DateTime(0)
+  condominio         Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
+  area_social        Areas_Sociais?        @relation(fields: [id_area_social], references: [id], onDelete: SetNull, map: "fk_facdev_area")
+  regras             Regras_Dispositivos[]
   // Caminho de leitores: o mesmo aparelho pode ser o LEITOR de uma etapa
   // (identifica) ou a ABERTURA que ela aciona (portão/catraca).
-  etapasComoLeitor   Caminhos_Etapas[] @relation("EtapaLeitor")
-  etapasComoAbertura Caminhos_Etapas[] @relation("EtapaAbertura")
+  etapasComoLeitor   Caminhos_Etapas[]     @relation("EtapaLeitor")
+  etapasComoAbertura Caminhos_Etapas[]     @relation("EtapaAbertura")
+  acessos            Acessos_Facial[]
 
   @@index([id_condominio], map: "idx_facdev_cond")
   @@index([id_area_social], map: "idx_facdev_area")
 }
 
 model Acessos_Facial {
-  id               Int         @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   id_condominio    Int
   id_device        Int
-  tipo_dispositivo String      @default("facial") @db.VarChar(30)
-  face_id          String      @db.VarChar(100)
-  tipo_pessoa      String      @db.VarChar(20)
+  tipo_dispositivo String         @default("facial") @db.VarChar(30)
+  nome_dispositivo String?        @db.VarChar(100)
+  face_id          String         @db.VarChar(100)
+  tipo_pessoa      String         @db.VarChar(20)
   id_pessoa        Int?
-  nome_pessoa      String      @db.VarChar(255)
-  evento           String      @db.VarChar(20)
+  nome_pessoa      String         @db.VarChar(255)
+  evento           String         @db.VarChar(20)
   confianca        Float?
-  timestamp        DateTime    @db.DateTime(0)
-  created_at       DateTime    @default(now()) @db.DateTime(0)
-  condominio       Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_acfac_cond")
+  timestamp        DateTime       @db.DateTime(0)
+  created_at       DateTime       @default(now()) @db.DateTime(0)
+  condominio       Condominios    @relation(fields: [id_condominio], references: [id], onDelete: Restrict, map: "fk_acfac_cond")
+  dispositivo      Facial_Devices @relation(fields: [id_device], references: [id], onDelete: Restrict, map: "fk_acfac_device")
 
   @@index([id_condominio, timestamp], map: "idx_acfac_cond_ts")
   @@index([id_pessoa, tipo_pessoa], map: "idx_acfac_pessoa")
+  @@index([id_device], map: "idx_acfac_device")
 }
 
 model Regras_Acesso {

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as xlsx from 'xlsx';
 import { TDocumentDefinitions } from 'pdfmake/interfaces';
+import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
+import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial-visitante-lookup.util';
 
 const pdfmake = require('pdfmake');
 
@@ -82,14 +84,31 @@ export class RelatoriosService {
         ];
       }
 
-      const list = await this.prisma.visitantes.findMany({
-        where,
-        include: {
-          apartamento: { select: { bloco: true, apto: true } },
-          criadoPor: { select: { name: true } },
-        },
-        orderBy: { created_at: 'desc' },
-      });
+      const listRaw = pessoasMigrationEnabled(this.prisma)
+        ? await this.prisma.visitas.findMany({
+            where,
+            include: {
+              pessoa: true,
+              apartamento: { select: { bloco: true, apto: true } },
+              criadoPor: { select: { name: true } },
+            },
+            orderBy: { created_at: 'desc' },
+          })
+        : await this.prisma.visitantes.findMany({
+            where,
+            include: {
+              apartamento: { select: { bloco: true, apto: true } },
+              criadoPor: { select: { name: true } },
+            },
+            orderBy: { created_at: 'desc' },
+          });
+      // No caminho migrado, achata `pessoa` de volta pro formato que o resto
+      // deste bloco já espera (nome/doc_identificacao na raiz).
+      const list = listRaw.map((v: any) =>
+        v.pessoa
+          ? { ...v, nome: v.pessoa.nome, doc_identificacao: v.pessoa.doc_identificacao }
+          : v,
+      );
 
       const excelData = list.map((v) => ({
         Nome: v.nome,
@@ -634,45 +653,92 @@ export class RelatoriosService {
 
     const limitPerSource = 2000;
 
-    const [entradasVisitantes, saidasVisitantes, encomendas, ocorrencias, acessosFacial, auditLogs, devicesInfo] = await Promise.all([
-      this.prisma.visitantes.findMany({
-        where: {
-          id_condominio: idCondominio,
-          NOT: { data_entrada: null },
-          ...(dateFilter ? { data_entrada: dateFilter } : {}),
-          ...(search ? {
-            OR: [
-              { nome: { contains: search } },
-              { doc_identificacao: { contains: search } }
-            ]
-          } : {})
-        },
-        orderBy: { data_entrada: 'desc' },
-        take: limitPerSource,
-        include: {
-          apartamento: { select: { bloco: true, apto: true } },
-          criadoPor: { select: { name: true } },
-        },
-      }),
-      this.prisma.visitantes.findMany({
-        where: {
-          id_condominio: idCondominio,
-          NOT: { data_saida: null },
-          ...(dateFilter ? { data_saida: dateFilter } : {}),
-          ...(search ? {
-            OR: [
-              { nome: { contains: search } },
-              { doc_identificacao: { contains: search } }
-            ]
-          } : {})
-        },
-        orderBy: { data_saida: 'desc' },
-        take: limitPerSource,
-        include: {
-          apartamento: { select: { bloco: true, apto: true } },
-          criadoPor: { select: { name: true } },
-        },
-      }),
+    const eventosFlagMigracao = pessoasMigrationEnabled(this.prisma);
+    const [entradasVisitantesRaw, saidasVisitantesRaw, encomendas, ocorrencias, acessosFacial, auditLogs, devicesInfo] = await Promise.all([
+      eventosFlagMigracao
+        ? this.prisma.visitas.findMany({
+            where: {
+              id_condominio: idCondominio,
+              NOT: { data_entrada: null },
+              ...(dateFilter ? { data_entrada: dateFilter } : {}),
+              ...(search ? {
+                pessoa: {
+                  OR: [
+                    { nome: { contains: search } },
+                    { doc_identificacao: { contains: search } }
+                  ]
+                }
+              } : {})
+            },
+            orderBy: { data_entrada: 'desc' },
+            take: limitPerSource,
+            include: {
+              pessoa: true,
+              apartamento: { select: { bloco: true, apto: true } },
+              criadoPor: { select: { name: true } },
+            },
+          })
+        : this.prisma.visitantes.findMany({
+            where: {
+              id_condominio: idCondominio,
+              NOT: { data_entrada: null },
+              ...(dateFilter ? { data_entrada: dateFilter } : {}),
+              ...(search ? {
+                OR: [
+                  { nome: { contains: search } },
+                  { doc_identificacao: { contains: search } }
+                ]
+              } : {})
+            },
+            orderBy: { data_entrada: 'desc' },
+            take: limitPerSource,
+            include: {
+              apartamento: { select: { bloco: true, apto: true } },
+              criadoPor: { select: { name: true } },
+            },
+          }),
+      eventosFlagMigracao
+        ? this.prisma.visitas.findMany({
+            where: {
+              id_condominio: idCondominio,
+              NOT: { data_saida: null },
+              ...(dateFilter ? { data_saida: dateFilter } : {}),
+              ...(search ? {
+                pessoa: {
+                  OR: [
+                    { nome: { contains: search } },
+                    { doc_identificacao: { contains: search } }
+                  ]
+                }
+              } : {})
+            },
+            orderBy: { data_saida: 'desc' },
+            take: limitPerSource,
+            include: {
+              pessoa: true,
+              apartamento: { select: { bloco: true, apto: true } },
+              criadoPor: { select: { name: true } },
+            },
+          })
+        : this.prisma.visitantes.findMany({
+            where: {
+              id_condominio: idCondominio,
+              NOT: { data_saida: null },
+              ...(dateFilter ? { data_saida: dateFilter } : {}),
+              ...(search ? {
+                OR: [
+                  { nome: { contains: search } },
+                  { doc_identificacao: { contains: search } }
+                ]
+              } : {})
+            },
+            orderBy: { data_saida: 'desc' },
+            take: limitPerSource,
+            include: {
+              apartamento: { select: { bloco: true, apto: true } },
+              criadoPor: { select: { name: true } },
+            },
+          }),
       this.prisma.encomendas.findMany({
         where: {
           id_condominio: idCondominio,
@@ -734,6 +800,16 @@ export class RelatoriosService {
       }),
     ]);
 
+    // No caminho migrado, achata `pessoa` de volta pro formato que o resto
+    // deste método já espera (nome/doc_identificacao na raiz) — mesma
+    // convenção usada nas outras leituras migradas.
+    const flatVisitaRow = (v: any) =>
+      v.pessoa
+        ? { ...v, nome: v.pessoa.nome, doc_identificacao: v.pessoa.doc_identificacao, foto_pessoa: v.pessoa.foto_pessoa, foto_documento: v.pessoa.foto_documento }
+        : v;
+    const entradasVisitantes = entradasVisitantesRaw.map(flatVisitaRow);
+    const saidasVisitantes = saidasVisitantesRaw.map(flatVisitaRow);
+
     const deviceById = new Map(devicesInfo.map((d) => [d.id, d.nome]));
     const deviceIpById = new Map(devicesInfo.map((d) => [d.id, d.ip]));
 
@@ -749,16 +825,29 @@ export class RelatoriosService {
       facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket + 1}`);
     }
 
-    const isDuplicadoFacial = (idVisitante: number, evento: 'entrada' | 'saida', ts: Date | null) => {
+    // `Acessos_Facial.id_pessoa` não tem espaço único no caminho migrado
+    // (ver `resolverInfoVisitantesPorIdAcessoFacial` acima) — um evento
+    // gravado com o id de Pessoa não batia contra `v.id` (id de Visita) e a
+    // mesma entrada física aparecia duplicada na lista. `idPessoaAlt` checa
+    // o segundo espaço quando disponível (`v.pessoa.id`, vindo do include
+    // no caminho migrado).
+    const isDuplicadoFacial = (
+      idVisitante: number,
+      evento: 'entrada' | 'saida',
+      ts: Date | null,
+      idPessoaAlt?: number,
+    ) => {
       if (!ts) return false;
       const bucket = Math.floor(ts.getTime() / DEDUP_WINDOW_MS);
-      return facialKeys.has(`${idVisitante}:${evento}:${bucket}`);
+      if (facialKeys.has(`${idVisitante}:${evento}:${bucket}`)) return true;
+      if (idPessoaAlt != null && facialKeys.has(`${idPessoaAlt}:${evento}:${bucket}`)) return true;
+      return false;
     };
 
     // 1. Map Visitantes Entradas
     for (const v of entradasVisitantes) {
       if (!v.data_entrada) continue;
-      if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada)) continue;
+      if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada, v.pessoa?.id)) continue;
       const aptoStr = v.apartamento ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : '';
       ultimosEventos.push({
         id: `visitante-ent-${v.id}`,
@@ -787,7 +876,7 @@ export class RelatoriosService {
     // 2. Map Visitantes Saídas
     for (const v of saidasVisitantes) {
       if (!v.data_saida) continue;
-      if (isDuplicadoFacial(v.id, 'saida', v.data_saida)) continue;
+      if (isDuplicadoFacial(v.id, 'saida', v.data_saida, v.pessoa?.id)) continue;
       const aptoStr = v.apartamento ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : '';
       ultimosEventos.push({
         id: `visitante-sai-${v.id}`,
@@ -894,7 +983,7 @@ export class RelatoriosService {
         .map((a) => a.id_pessoa)
         .filter((id): id is number => id !== null);
 
-      const [moradoresInfo, visitantesInfo, funcionariosInfo] = await Promise.all([
+      const [moradoresInfo, visitanteById, funcionariosInfo] = await Promise.all([
         idsMorador.length > 0
           ? this.prisma.moradores.findMany({
               where: { id: { in: idsMorador } },
@@ -907,17 +996,19 @@ export class RelatoriosService {
               },
             })
           : Promise.resolve([]),
-        idsVisitante.length > 0
-          ? this.prisma.visitantes.findMany({
-              where: { id: { in: idsVisitante } },
-              select: {
-                id: true,
-                foto_pessoa: true,
-                doc_identificacao: true,
-                apartamento: { select: { bloco: true, apto: true } },
-              },
-            })
-          : Promise.resolve([]),
+        pessoasMigrationEnabled(this.prisma)
+          ? resolverInfoVisitantesPorIdAcessoFacial(this.prisma, idsVisitante)
+          : idsVisitante.length > 0
+            ? this.prisma.visitantes.findMany({
+                where: { id: { in: idsVisitante } },
+                select: {
+                  id: true,
+                  foto_pessoa: true,
+                  doc_identificacao: true,
+                  apartamento: { select: { bloco: true, apto: true } },
+                },
+              }).then((rows) => new Map(rows.map((v) => [v.id, v])))
+            : Promise.resolve(new Map()),
         idsFuncionario.length > 0
           ? this.prisma.prestadores_servico.findMany({
               where: { id: { in: idsFuncionario } },
@@ -931,7 +1022,6 @@ export class RelatoriosService {
       ]);
 
       const moradorById = new Map(moradoresInfo.map((m) => [m.id, m]));
-      const visitanteById = new Map(visitantesInfo.map((v) => [v.id, v]));
       const funcionarioById = new Map(funcionariosInfo.map((f) => [f.id, f]));
 
       for (const a of acessosFacial) {

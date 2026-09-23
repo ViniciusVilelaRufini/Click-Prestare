@@ -24,26 +24,39 @@ export class StorageService {
   readonly enabled: boolean;
 
   constructor() {
-    const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+    const accessKeyId =
+      process.env.R2_ACCESS_KEY_ID ||
+      process.env.AWS_ACCESS_KEY ||
+      process.env.AWS_ACCESS_KEY_ID;
+    const secretAccessKey =
+      process.env.R2_SECRET_ACCESS_KEY ||
+      process.env.AWS_SECRET_KEY ||
+      process.env.AWS_SECRET_ACCESS_KEY;
     const endpoint = process.env.R2_ENDPOINT;
-    this.bucket = process.env.R2_BUCKET ?? '';
-    this.publicUrl = (process.env.R2_PUBLIC_URL ?? '').replace(/\/+$/, '');
+    const region =
+      process.env.AWS_S3_BUCKET_REGION || (endpoint ? 'auto' : 'us-east-1');
+    this.bucket =
+      process.env.R2_BUCKET || process.env.AWS_S3_BUCKET_NAME || '';
+    const baseS3Url =
+      process.env.R2_PUBLIC_URL ||
+      process.env.AWS_S3_BASE_URL ||
+      (this.bucket ? `https://${this.bucket}.s3.amazonaws.com` : '');
+    this.publicUrl = baseS3Url.replace(/\/+$/, '');
 
-    if (!accessKeyId || !secretAccessKey || !endpoint || !this.bucket || !this.publicUrl) {
+    if (!accessKeyId || !secretAccessKey || !this.bucket || !this.publicUrl) {
       this.client = null;
       this.enabled = false;
-      this.logger.warn('StorageService desativado (R2 envs incompletas). Uploads serão ignorados.');
+      this.logger.warn('StorageService desativado (S3/R2 envs incompletas). Uploads serão ignorados.');
       return;
     }
 
     this.client = new S3Client({
-      region: 'auto',
-      endpoint,
+      region,
+      ...(endpoint ? { endpoint } : {}),
       credentials: { accessKeyId, secretAccessKey },
     });
     this.enabled = true;
-    this.logger.log(`StorageService pronto (bucket=${this.bucket}).`);
+    this.logger.log(`StorageService pronto (bucket=${this.bucket}, provider=${endpoint ? 'R2' : 'AWS S3'}).`);
   }
 
   /**
@@ -84,10 +97,10 @@ export class StorageService {
         return null;
       }
       const contentType = dataUrl.slice(5, base64Index) || 'application/octet-stream';
-      const rawBase64 = dataUrl.slice(base64Index + 8);
+      const rawBase64 = dataUrl.slice(base64Index + 8).replace(/\s+/g, '');
       const buffer = Buffer.from(rawBase64, 'base64');
       const ext = (hint ?? this.extFromMime(contentType)).replace(/^\.+/, '');
-      const safePrefix = prefix.replace(/[^a-z0-9_\-]/gi, '').slice(0, 40) || 'arquivo';
+      const safePrefix = prefix.replace(/[^a-z0-9_\-\/]/gi, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '').slice(0, 60) || 'arquivo';
       const key = `${safePrefix}/${Date.now()}-${randomUUID()}.${ext}`;
 
       await this.client.send(new PutObjectCommand({
@@ -95,6 +108,7 @@ export class StorageService {
         Key: key,
         Body: buffer,
         ContentType: contentType,
+        ACL: 'public-read',
       }));
 
       return `${this.publicUrl}/${key}`;

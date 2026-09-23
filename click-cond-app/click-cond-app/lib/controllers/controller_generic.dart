@@ -135,7 +135,10 @@ apiDeleteObject(String route, int idObj) async {
   try {
     final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
-    return response.statusCode == 200;
+    // O NestJS responde 201 (Created) nas rotas móveis sem @HttpCode(200).
+    // A exclusão já acontecia no servidor, mas exigir exatamente 200 fazia o
+    // app mostrar erro e manter a tela antiga até ser reaberto.
+    return response.statusCode >= 200 && response.statusCode < 300;
   } catch (e) {
     return false;
   }
@@ -147,16 +150,20 @@ apiGetAll(String route) async {
     'offset': '0',
     'id_apto': Singleton.instance.getIdApartamento(),
   });
+  logDebug('[apiGetAll] $route | id_condominio=${Singleton.instance.id_condominio} | id_apto=${Singleton.instance.getIdApartamento()}');
   try {
     final response = await ApiClient.get(url)
         .timeout(_kTimeout);
+    logDebug('[apiGetAll] $route -> status ${response.statusCode}');
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
-      return (parsed == null || parsed == "") ? [] : parsed;
+      final resultado = (parsed == null || parsed == "") ? [] : parsed;
+      logDebug('[apiGetAll] $route -> ${resultado is List ? resultado.length : "não-lista: ${resultado.runtimeType}"} item(ns)');
+      return resultado;
     }
     return [];
   } catch (e) {
-    logDebug('[apiGetAll] Erro: $e');
+    logDebug('[apiGetAll] $route -> ERRO: $e');
     return [];
   }
 }

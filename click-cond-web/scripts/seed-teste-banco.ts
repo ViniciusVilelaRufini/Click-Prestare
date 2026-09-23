@@ -535,7 +535,11 @@ async function main() {
   const dt = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`\n✅ Seed concluído em ${dt}s. Condomínio "Teste Banco" (id=${idCond}) populado.\n`);
   console.log('   Para apagar tudo depois:');
-  console.log(`     DELETE FROM Condominios WHERE id=${idCond};   (cascateia o resto)\n`);
+  console.log(
+    `     DELETE FROM Condominios WHERE id=${idCond};   (cascateia a maior parte, mas` +
+      ' Acessos_Facial é RESTRICT — apague antes com' +
+      ` DELETE FROM Acessos_Facial WHERE id_condominio=${idCond}; se houver eventos)\n`,
+  );
 }
 
 main()
