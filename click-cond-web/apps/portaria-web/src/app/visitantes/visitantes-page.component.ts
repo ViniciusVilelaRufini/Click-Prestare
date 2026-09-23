@@ -71,12 +71,20 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   readonly solicitarAptoId = signal<number | null>(null);
 
   // Portaria remota: janela "ao vivo" do pedido de autorização.
+  // Guarda a CHAVE DA PESSOA (chavePessoa), não o id da linha: o id da linha
+  // é o da visita principal e muda quando Solicitar/Liberar abre uma visita
+  // nova — o modal fechava sozinho no primeiro recarregamento.
   readonly authModalPessoaId = signal<number | null>(null);
   readonly authModalPessoa = computed(() => {
-    const id = this.authModalPessoaId();
-    if (id == null) return null;
-    return this.pessoas().find((p) => p.id === id) ?? null;
+    const chave = this.authModalPessoaId();
+    if (chave == null) return null;
+    return this.pessoas().find((p) => this.chavePessoa(p) === chave) ?? null;
   });
+
+  /** Identidade estável da pessoa: `id_pessoa` (Pessoas/Visitas) ou `id` (legado). */
+  chavePessoa(v: Visitante | Pessoa): number {
+    return (v as Pessoa).id_pessoa ?? v.id;
+  }
 
   // Modal de registro de entrada com abas/seleção de apartamento liberado
   readonly entradaModalPessoa = signal<Pessoa | null>(null);
@@ -698,7 +706,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     pessoa.auth_status = 'pendente';
     pessoa.auth_solicitado_em = new Date().toISOString();
     this.fecharSolicitar();
-    this.authModalPessoaId.set(pessoa.id); // abre a janela "ao vivo" do pedido
+    this.authModalPessoaId.set(this.chavePessoa(pessoa)); // abre a janela "ao vivo" do pedido
     this.startAuthPolling();
 
     this.service.solicitarAutorizacao(pessoa.id, idApto).subscribe({
