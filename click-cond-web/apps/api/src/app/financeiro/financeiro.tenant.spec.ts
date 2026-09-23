@@ -223,6 +223,22 @@ describe('FinanceiroService — isolamento de tenant (IDOR)', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.financeiro.update).not.toHaveBeenCalled();
     });
+
+    // Token da portaria-web: `sub` é Funcionarios_Portaria.id, não Users.id.
+    // Com o mesmo número do dono da conta, o porteiro passava na checagem
+    // de posse e trocava o comprovante do morador.
+    it('NEGA porteiro cujo id coincide com o do dono da conta', async () => {
+      const { svc, prisma } = buildService({
+        financeiro: {
+          findUnique: jest.fn(async () => ({ ...lancamentoDoCond2, id_usuario: 2 })),
+          update: jest.fn(async () => ({})),
+        },
+      });
+      await expect(
+        svc.uploadSharedFile(500, 'data:image/png;base64,AAA', 'comprovante', porteiroCond2),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.financeiro.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('insertMoradorConta', () => {

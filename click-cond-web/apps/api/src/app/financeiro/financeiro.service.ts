@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { MailService } from '../common/mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { isOperador, assertFinanceiroSomenteLeitura } from '../auth/tenant.util';
@@ -1967,7 +1968,12 @@ export class FinanceiroService implements OnModuleInit {
     // papel quebraria um fluxo legítimo. Quem manda é a posse do
     // lançamento, não o cargo.
     {
-      const userId = Number(user?.sub ?? user?.user?.id);
+      // Users.id de verdade: no token da portaria-web `sub` é o id do
+      // operador em Funcionarios_Portaria e coincidia com o dono da conta.
+      const userId = idUsuarioDoToken(user);
+      if (!userId) {
+        throw new ForbiddenException('Você só pode anexar arquivo a um lançamento seu');
+      }
       if (lanc.id_usuario) {
         if (Number(lanc.id_usuario) !== userId) {
           throw new ForbiddenException('Você só pode anexar arquivo a um lançamento seu');
