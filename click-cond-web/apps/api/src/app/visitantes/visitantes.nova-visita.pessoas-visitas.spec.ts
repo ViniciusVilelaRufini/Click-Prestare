@@ -204,7 +204,11 @@ describe('VisitantesService.novaVisitaParaPessoa — Pessoas/Visitas (Lote B, Cr
       const payload = { sub: 1, nome: 'Porteiro', id_condominio: 1 } as any;
       const resultado: any = await service.novaVisitaParaPessoa(
         5,
-        { id_apartamento: 101 },
+        {
+          id_apartamento: 101,
+          data_hora_inicio: '2026-09-20T12:00',
+          data_hora_termino: '2026-09-21T12:00',
+        },
         payload,
       );
 
