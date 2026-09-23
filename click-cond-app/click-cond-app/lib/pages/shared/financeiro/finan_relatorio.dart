@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/pages/singleton.dart';
+import 'package:click/pages/shared/financeiro/financeiro_resumo_cards.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:click/theme/app_colors.dart';
@@ -261,24 +262,12 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                     if (resultObj != null && resultObj is Map) ...[
                       Text(getText('financeiro_nav_resultado'), style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary)),
                       const SizedBox(height: AppSpacing.md),
-                      Container(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
-                        child: Column(
-                          children: [
-                            _ResultRow(label: getText('financeiro_total_receitas'), value: _moeda(resultObj['totalReceitaReal']), valueColor: const Color(0xFF22C55E), extra: resultObj['percentualReceita']),
-                            const SizedBox(height: AppSpacing.sm),
-                            _ResultRow(label: getText('financeiro_total_despesas'), value: _moeda(resultObj['totalDespesaReal']), valueColor: AppColors.error, extra: resultObj['percentualDespesa']),
-                            const Divider(height: AppSpacing.xl),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(getText('financeiro_resultado_periodo'), style: AppTypography.bodyMedium(context)),
-                                Text(_moeda(resultObj['saldoReal']), style: AppTypography.headline(context).copyWith(color: AppColors.primary)),
-                              ],
-                            ),
-                          ],
-                        ),
+                      FinanceiroResumoCards(
+                        receita: _moeda(resultObj['totalReceitaReal']),
+                        despesa: _moeda(resultObj['totalDespesaReal']),
+                        saldo: _moeda(resultObj['saldoReal']),
+                        percentualReceita: resultObj['percentualReceita']?.toString(),
+                        percentualDespesa: resultObj['percentualDespesa']?.toString(),
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       Text(getText('lb_categorias').toUpperCase(), style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary)),
@@ -310,27 +299,6 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                 ),
               ),
             ),
-    );
-  }
-}
-
-class _ResultRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color valueColor;
-  final String? extra;
-  const _ResultRow({required this.label, required this.value, required this.valueColor, this.extra});
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: AppTypography.body(context)),
-        Row(children: [
-          Text(value, style: AppTypography.captionMedium(context).copyWith(color: valueColor)),
-          if (extra != null) ...[const SizedBox(width: 8), Text(extra!, style: AppTypography.tiny(context))],
-        ]),
-      ],
     );
   }
 }

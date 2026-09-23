@@ -64,6 +64,24 @@ void main() {
   });
 
   group('MfaVerificationPage Widget', () {
+    testWidgets('mantém confirmar acessível acima do teclado', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(375, 812);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+
+      await tester.pumpWidget(const MaterialApp(
+        home: MfaVerificationPage(mfaToken: 'teste', emailMasked: 'si****@click.com', expiresInSeconds: 600),
+      ));
+      await tester.tap(find.byType(TextField));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Ocultar teclado'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('renderiza tela de verificação 2FA com elementos esperados',
         (WidgetTester tester) async {
       await tester.pumpWidget(
