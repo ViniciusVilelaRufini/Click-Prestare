@@ -4,6 +4,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 
 export type OcorrenciaStatus = 'Pendente' | 'Ciente' | 'Solucionado';
 
@@ -41,13 +42,26 @@ export class OcorrenciasService {
 
   /** Só a equipe (síndico/funcionário), o autor, ou qualquer um se a ocorrência é pública. */
   private assertPodeVer(o: { user: number | null; publica: boolean }, requester?: JwtPayload) {
-    const typeAccess = requester?.typeAccess ?? requester?.user?.typeAccess;
-    const isStaff = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
-    if (isStaff || o.publica) return;
-    const callerId = requester?.user?.id ?? requester?.sub;
-    if (o.user !== callerId) {
+    if (this.ehEquipe(requester) || o.publica) return;
+    if (!this.ehAutor(o, requester)) {
       throw new ForbiddenException('Acesso negado: ocorrência não pertence a você');
     }
+  }
+
+  /**
+   * Síndico/funcionário do app ou operador da portaria-web (token com
+   * id_condominio) — o mesmo critério que a listagem já usava. Antes o
+   * porteiro via a ocorrência na lista e levava 403 ao abri-la.
+   */
+  private ehEquipe(requester?: JwtPayload): boolean {
+    const typeAccess = requester?.typeAccess ?? requester?.user?.typeAccess;
+    return typeAccess === 'Sindico' || typeAccess === 'Funcionario' || !!requester?.id_condominio;
+  }
+
+  /** Autor pelo Users.id real — `sub` do porteiro é Funcionarios_Portaria.id. */
+  private ehAutor(o: { user: number | null }, requester?: JwtPayload): boolean {
+    const callerId = idUsuarioDoToken(requester);
+    return callerId != null && o.user === callerId;
   }
 
   listCategorias() {
@@ -333,10 +347,13 @@ export class OcorrenciasService {
   async listMessages(idOcorrencia: number, requester?: JwtPayload) {
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id: idOcorrencia },
-      select: { id_condominio: true },
+      select: { id_condominio: true, user: true, publica: true },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${idOcorrencia} não encontrada`);
     await this.tenant.assertEntidade(o.id_condominio, requester, `ocorrência #${idOcorrencia}`);
+    // Só o condomínio era conferido: qualquer morador lia o chat da ocorrência
+    // privada do vizinho. Mesma regra do findOne.
+    this.assertPodeVer(o, requester);
     return this.prisma.ocorrenciaMensagens.findMany({
       where: { id_ocorrencia: idOcorrencia },
       include: {
@@ -346,13 +363,23 @@ export class OcorrenciasService {
     });
   }
 
-  async createMessage(idOcorrencia: number, idUsuario: number, mensagem: string, requester?: JwtPayload) {
+  async createMessage(idOcorrencia: number, idUsuario: number | null, mensagem: string, requester?: JwtPayload) {
     const oc = await this.prisma.ocorrencias.findUnique({
       where: { id: idOcorrencia },
-      select: { id_condominio: true },
+      select: { id_condominio: true, user: true, publica: true },
     });
     if (!oc) throw new NotFoundException(`Ocorrência ${idOcorrencia} não encontrada`);
     await this.tenant.assertEntidade(oc.id_condominio, requester, `ocorrência #${idOcorrencia}`);
+    // Escrever no chat é da equipe ou de quem abriu — ocorrência pública se
+    // lê, mas a conversa é entre o autor e o condomínio.
+    if (!this.ehEquipe(requester) && !this.ehAutor(oc, requester)) {
+      throw new ForbiddenException('Acesso negado: ocorrência não pertence a você');
+    }
+    // Autor da mensagem é FK para Users. O token da portaria-web não tem
+    // Users.id — gravar o `sub` dele atribuía a mensagem a outra pessoa.
+    if (!idUsuario) {
+      throw new BadRequestException('Envie a mensagem com um login de síndico ou morador.');
+    }
     const msg = await this.prisma.ocorrenciaMensagens.create({
       data: {
         id_ocorrencia: idOcorrencia,

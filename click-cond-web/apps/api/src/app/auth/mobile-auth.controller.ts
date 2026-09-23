@@ -6,6 +6,7 @@ import type { JwtPayload } from './jwt-payload.interface';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { EncomendasService } from '../encomendas/encomendas.service';
 import { assertOperador } from './tenant.util';
+import { idUsuarioDoToken } from './usuario-do-token.util';
 
 // ==========================================
 // SÍNDICO
@@ -500,10 +501,9 @@ export class OcorrenciasMobileController {
     @Body() body: { id_ocorrencia: number; mensagem: string },
     @ReqUser() payload: JwtPayload,
   ) {
-    const idUser = payload?.user?.id ?? payload?.sub ?? null;
     return this.ocorrenciasService.createMessage(
       Number(body.id_ocorrencia),
-      Number(idUser),
+      idUsuarioDoToken(payload),
       body.mensagem,
       payload,
     );
