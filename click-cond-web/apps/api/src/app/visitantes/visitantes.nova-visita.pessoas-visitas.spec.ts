@@ -219,7 +219,7 @@ describe('VisitantesService.novaVisitaParaPessoa — Pessoas/Visitas (Lote B, Cr
 
       await expect(
         service.novaVisitaParaPessoa(999, { id_apartamento: 101 }, payload),
-      ).rejects.toThrow('Pessoa 999 não encontrada');
+      ).rejects.toThrow('Cadastro do visitante não encontrado.');
       expect(visitantesDelegate).not.toHaveBeenCalled();
     });
 

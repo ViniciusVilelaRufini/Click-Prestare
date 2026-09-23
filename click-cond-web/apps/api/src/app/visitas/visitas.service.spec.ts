@@ -133,7 +133,7 @@ describe('VisitasService', () => {
   it('deve recusar registrarEntrada com 404 quando a visita não existe', async () => {
     mockPrisma.visitas.findUnique.mockResolvedValueOnce(null);
 
-    await expect(service.registrarEntrada(999, 1)).rejects.toThrow('Visita 999 não encontrada');
+    await expect(service.registrarEntrada(999, 1)).rejects.toThrow('Visita não encontrada.');
     expect(mockPrisma.visitas.update).not.toHaveBeenCalled();
   });
 

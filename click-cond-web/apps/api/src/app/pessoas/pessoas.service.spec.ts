@@ -104,7 +104,7 @@ describe('PessoasService', () => {
   it('deve recusar histórico com 404 quando a pessoa não existe', async () => {
     mockPrisma.pessoas.findUnique.mockResolvedValue(null);
 
-    await expect(service.obterHistorico(1, 999)).rejects.toThrow('Pessoa 999 não encontrada');
+    await expect(service.obterHistorico(1, 999)).rejects.toThrow('Cadastro do visitante não encontrado.');
     expect(mockPrisma.visitas.findMany).not.toHaveBeenCalled();
   });
 
@@ -121,7 +121,7 @@ describe('PessoasService', () => {
     mockPrisma.pessoas.findUnique.mockResolvedValue(null);
 
     await expect(service.atualizarBiometria(999, 'face_x')).rejects.toThrow(
-      'Pessoa 999 não encontrada',
+      'Cadastro do visitante não encontrado.',
     );
     expect(mockPrisma.pessoas.update).not.toHaveBeenCalled();
   });
@@ -130,7 +130,7 @@ describe('PessoasService', () => {
     mockPrisma.pessoas.findUnique.mockResolvedValue(null);
 
     await expect(service.bloquearPessoa(999, true)).rejects.toThrow(
-      'Pessoa 999 não encontrada',
+      'Cadastro do visitante não encontrado.',
     );
     expect(mockPrisma.pessoas.update).not.toHaveBeenCalled();
   });

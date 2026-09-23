@@ -266,7 +266,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.liberandoVisitante.set(true);
     this.erroLiberar.set(null);
 
-    this.visitantesService.novaVisitaPessoa(p.id, {
+    // `id` da lista de pessoas é o da VISITA principal; a rota quer o da
+    // pessoa. Mesmo critério de chavePessoa() na tela de Visitantes.
+    this.visitantesService.novaVisitaPessoa(p.id_pessoa ?? p.id, {
       id_apartamento: idApto,
       data_hora_inicio: this.liberarInicio() || undefined,
       data_hora_termino: this.liberarTermino() || undefined,

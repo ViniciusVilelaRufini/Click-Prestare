@@ -160,7 +160,7 @@ export class PessoasService {
       select: { id: true, id_condominio: true },
     });
     if (!pessoa) {
-      throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
+      throw new NotFoundException('Cadastro do visitante não encontrado.');
     }
     if (pessoa.id_condominio !== Number(idCondominio)) {
       throw new ForbiddenException('Acesso negado: esta pessoa pertence a outro condomínio.');
@@ -188,7 +188,7 @@ export class PessoasService {
       select: { id: true },
     });
     if (!existente) {
-      throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
+      throw new NotFoundException('Cadastro do visitante não encontrado.');
     }
   }
 
