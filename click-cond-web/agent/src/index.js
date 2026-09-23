@@ -32,14 +32,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { AGENT_VERSION } = require('./versao');
-const { md5, buildDigestHeader, parseChallengeInto, computeDigest } = require('./lib/digest');
-const { formatDahuaTime, parseDahuaINI, dahuaEpochToISO, hikIsoComOffset } = require('./lib/dahua-formato');
+const { buildDigestHeader } = require('./lib/digest');
+const { hikIsoComOffset } = require('./lib/dahua-formato');
 const { buildMultipart } = require('./lib/multipart');
 const {
-  request,
   lanRequest: lanRequestComTimeout,
   okFrom,
-  parseJson,
   sleep,
 } = require('./lib/http');
 const {
@@ -54,6 +52,8 @@ const {
   cloudRequest,
   agoraDaNuvem,
 } = require('./core/nuvem');
+const { resolverDriver } = require('./drivers/registro');
+const dahuaFacial = require('./drivers/dahua-facial');
 
 /**
  * Fabricantes que NÃO falam HTTP para comandos. Usam protocolo binário em
@@ -89,94 +89,23 @@ const LAN_TIMEOUT_MS = Number(process.env.LAN_TIMEOUT_MS || 8000);
 function lanRequest(device, method, pathname, opts) {
   return lanRequestComTimeout(device, method, pathname, opts, LAN_TIMEOUT_MS);
 }
+// O driver Dahua/Intelbras também fala LAN e não lê `process.env` (fica
+// testável isolado) — recebe o mesmo timeout por configurar(), assim como
+// core/nuvem.js recebe apiUrl.
+dahuaFacial.configurar({ lanTimeoutMs: LAN_TIMEOUT_MS });
 // Intervalo do heartbeat de status do aparelho (online/offline no portal).
 const DEVICE_STATUS_INTERVAL_MS = Number(
   process.env.DEVICE_STATUS_INTERVAL_MS || 5000,
 );
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
+// deviceIds já com o `escutar` de algum driver ativo (evita assinar de novo
+// a cada poll — mesmo papel do antigo `dahuaListeners`, agora genérico por
+// driver; o Supervisor da tarefa 6 assume esse controle).
+const driverListenersAtivos = new Set();
 // deviceId → maior RecNo/serialNo/ID de log de acesso já processado no
 // dispositivo (Map + funções de leitura/gravação em core/estado.js).
 loadBaselines();
-// Devices com recuperação de log offline em curso (evita corrida entre a
-// recuperação da transição e o avanço de baseline do heartbeat).
-const offlineSyncBusy = new Set();
-// deviceId → epoch ms do último avanço de baseline (throttle).
-const lastBaselineAdvance = new Map();
-const BASELINE_ADVANCE_INTERVAL_MS = 10 * 60 * 1000; // 10 min
-
-/**
- * Enquanto o aparelho está ONLINE de forma estável, a stream ao vivo já
- * encaminha cada acesso — aqui só mantemos a marca d'água (maior RecNo) atual,
- * para que o PRÓXIMO reconnect só reprocesse a janela realmente offline, e não
- * os eventos que a stream já pegou. Só avança; nunca reencaminha. Throttle de
- * 10 min (a leitura do log é um lote; não faz sentido a cada heartbeat).
- */
-async function advanceBaselineWhileOnline(device, force = false) {
-  if (device.fabricante !== 'intelbras') return;
-  if (offlineSyncBusy.has(device.id)) return;
-  const agora = Date.now();
-  // Throttle: 10 min no caso ocioso; 10s logo após um evento ao vivo (force).
-  // Mesmo no force coalescemos rajadas de reconhecimentos (o fetch é do log
-  // inteiro) — 10s continua bem abaixo da janela de dedup (20s), então nenhum
-  // evento ao vivo fica "descoberto" tempo suficiente para ser reenviado.
-  const minIntervalo = force ? 10 * 1000 : BASELINE_ADVANCE_INTERVAL_MS;
-  if (agora - (lastBaselineAdvance.get(device.id) || 0) < minIntervalo) return;
-  lastBaselineAdvance.set(device.id, agora);
-  try {
-    const { maxRecNo } = await dahuaFindAccessRecords(device, ACCESS_LOG_CAP);
-    if (!maxRecNo) return;
-    const baseline = deviceBaselines.get(device.id);
-    if (baseline === undefined || maxRecNo > baseline) setBaseline(device.id, maxRecNo);
-  } catch {
-    /* aparelho oscilou; o próximo ciclo tenta de novo */
-  }
-}
-// Relógio do aparelho: sem NTP ele DERIVA (visto em produção: ~2 min atrasado)
-// e volta a 2000 ao perder energia. A nuvem compara a hora do log do aparelho
-// (CreateTime dos replays) com a hora de chegada dos eventos ao vivo — minutos
-// de atraso fazem a saída real parecer "eco da entrada" e serem descartadas.
-// Sincroniza no reconnect (force) e a cada hora enquanto online.
-const lastClockSyncAt = new Map(); // deviceId -> epoch ms
-const CLOCK_SYNC_INTERVAL_MS = 60 * 60 * 1000;
-async function dahuaSyncClock(device, force = false) {
-  if (device.fabricante !== 'intelbras') return;
-  const agora = Date.now();
-  if (!force && agora - (lastClockSyncAt.get(device.id) || 0) < CLOCK_SYNC_INTERVAL_MS)
-    return;
-  lastClockSyncAt.set(device.id, agora);
-  try {
-    // Hora da NUVEM, não a desta máquina. O PC da portaria roda com o relógio
-    // livre no CMOS e erra por minutos; gravar essa hora no terminal fazia os
-    // acessos serem carimbados no futuro e aparecerem fora de ordem no
-    // histórico. Ver `agoraDaNuvem`.
-    const t = formatDahuaTime(agoraDaNuvem());
-    const res = await lanRequest(
-      device,
-      'GET',
-      `/cgi-bin/global.cgi?action=setCurrentTime&time=${encodeURIComponent(t)}`,
-    );
-    if (res.status >= 200 && res.status < 300) {
-      // Deriva o skew via agoraDaNuvem() em vez de ler o estado interno de
-      // core/nuvem.js diretamente (módulo não expõe o valor cru).
-      const skew = Math.round((Date.now() - agoraDaNuvem().getTime()) / 1000);
-      console.log(
-        `[agente] ${device.nome}: relógio do aparelho acertado (${t})` +
-          (Math.abs(skew) >= 5
-            ? ` — ATENÇÃO: o relógio DESTA máquina está ${Math.abs(skew)}s ${
-                skew > 0 ? 'adiantado' : 'atrasado'
-              } em relação ao servidor. Ative a sincronização de horário do Windows.`
-            : ''),
-      );
-    } else {
-      console.log(
-        `[agente] ${device.nome}: falha ao acertar relógio (HTTP ${res.status}): ${String(res.raw || '').slice(0, 80)}`,
-      );
-    }
-  } catch (e) {
-    console.log(`[agente] ${device.nome}: falha ao acertar relógio (${e.message || e})`);
-  }
-}
 
 // Devices do último poll (p/ o servidor de live view achar IP/credencial).
 let lastDevices = [];
@@ -280,9 +209,14 @@ async function runCondoLoop(token) {
       for (const entry of body.devices || []) {
         const device = entry.device;
         // Aparelhos Dahua/Intelbras: abre (uma vez) o stream de eventos de
-        // acesso e repassa cada reconhecimento para a nuvem.
-        if (device.fabricante === 'intelbras') {
-          startDahuaEventListener(token, device);
+        // acesso do driver e repassa cada reconhecimento para a nuvem. A
+        // Supervisor da tarefa 6 assume esse "uma vez por device"; por ora
+        // é este Set aqui mesmo (mesmo papel do antigo `dahuaListeners`).
+        const driverDoDevice = resolverDriver(device);
+        if (driverDoDevice && driverDoDevice.escutar && !driverListenersAtivos.has(device.id)) {
+          driverListenersAtivos.add(device.id);
+          console.log(`[agente] ${device.nome}: assinando eventos de acesso (${driverDoDevice.id})`);
+          driverDoDevice.escutar(device, (data) => forwardAccessEvent(token, device, data));
         }
         if (device.fabricante === 'hikvision') {
           startHikvisionEventListener(token, device);
@@ -327,17 +261,18 @@ async function runCondoLoop(token) {
             );
             if (online) {
               // Transição offline→online: recupera a janela que a stream perdeu
-              // e acerta o relógio (ele deriva; ver dahuaSyncClock).
+              // e acerta o relógio (ele deriva; ver dahuaFacial.acertarRelogio).
               syncDeviceOfflineLogs(token, device).catch((e) =>
                 console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e)
               );
-              dahuaSyncClock(device, true).catch(() => {});
+              resolverDriver(device)?.acertarRelogio?.(device, true)?.catch(() => {});
             }
           } else if (online) {
             // Online estável: só mantém a marca d'água atual (a stream já cobre
             // os eventos); assim o próximo reconnect só reprocessa a janela real.
-            advanceBaselineWhileOnline(device).catch(() => {});
-            dahuaSyncClock(device).catch(() => {});
+            const driverDoDevice = resolverDriver(device);
+            driverDoDevice?.advanceBaselineWhileOnline?.(device)?.catch(() => {});
+            driverDoDevice?.acertarRelogio?.(device)?.catch(() => {});
           }
         }
         if (statuses.length > 0) {
@@ -420,6 +355,20 @@ async function executeOnDevice(device, cmd) {
       error: `${device.fabricante} usa ${SEM_COMANDO_HTTP[device.fabricante]} — não aceita comando via HTTP. Use uma botoeira/relé HTTP genérico ou um bridge SDK.`,
     };
   }
+  // Dahua/Intelbras já fala pelo contrato de driver (src/drivers). Hikvision
+  // e Control iD ainda ficam no switch abaixo — migram na tarefa 5.
+  const driver = resolverDriver(device);
+  if (driver) {
+    try {
+      return await driver.executar(device, cmd);
+    } catch (err) {
+      return {
+        ok: false,
+        statusCode: err.statusCode,
+        error: err.message || String(err),
+      };
+    }
+  }
   try {
     switch (cmd.type) {
       case 'ping':
@@ -472,69 +421,12 @@ async function doSnapshot(device) {
     }
     return { ok: true, imageBase64: res.buffer.toString('base64') };
   }
-  if (device.fabricante !== 'intelbras') {
-    return {
-      ok: false,
-      error: `Captura por câmera não suportada para ${device.fabricante}.`,
-    };
-  }
-  // Liga o flash automaticamente antes do snapshot
-  await setDeviceLightingMode(device, 'Manual').catch(() => {});
-  await sleep(300); // aguarda acender e exposição regular
-
-  const res = await lanRequest(
-    device,
-    'GET',
-    '/cgi-bin/snapshot.cgi?channel=1',
-  );
-
-  // Restaura para automático após o snapshot
-  await setDeviceLightingMode(device, 'Auto').catch(() => {});
-
-  if (
-    !(res.status >= 200 && res.status < 300) ||
-    !res.buffer ||
-    res.buffer.length < 100
-  ) {
-    return {
-      ok: false,
-      statusCode: res.status,
-      error: 'o aparelho não retornou imagem',
-    };
-  }
-  return { ok: true, imageBase64: res.buffer.toString('base64') };
-}
-
-/** Altera o modo de iluminação (LED/Flash) do dispositivo (Manual = ligado, Auto = automático). */
-async function setDeviceLightingMode(device, mode) {
-  if (device.fabricante !== 'intelbras') return;
-  console.log(`[agente] ${device.nome}: setDeviceLightingMode chamado para "${mode}"`);
-
-  if (mode === 'Manual') {
-    try {
-      // 1. Garante que a câmera principal está no modo Colorido para que a foto do cadastro seja em cores
-      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&VideoInOptions[0].DayNightColor=0');
-      // 2. Desativa o canal secundário (infravermelho) para evitar conflitos de iluminação
-      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[1][0].Mode=Off');
-      // 3. Define o canal principal (LED branco) como Manual
-      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[0][0].Mode=Manual');
-      // 4. Define a intensidade do LED branco para 100% (ligado)
-      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[0][0].MiddleLight[0].Light=100');
-      console.log(`[agente] ${device.nome}: LED branco ativado com sucesso (Manual, 100%)`);
-    } catch (err) {
-      console.error(`[agente] ${device.nome}: falha ao ativar LED branco:`, err.message || err);
-    }
-  } else {
-    try {
-      // Restaura as configurações padrão do dispositivo (Auto)
-      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[0][0].Mode=Auto');
-      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[0][0].MiddleLight[0].Light=0');
-      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[1][0].Mode=Auto');
-      console.log(`[agente] ${device.nome}: LED branco restaurado para automatico`);
-    } catch (err) {
-      console.error(`[agente] ${device.nome}: falha ao restaurar LED branco:`, err.message || err);
-    }
-  }
+  // Dahua/Intelbras usa o driver (src/drivers/dahua-facial.js) via
+  // executeOnDevice; chegar aqui com esse fabricante não deveria acontecer.
+  return {
+    ok: false,
+    error: `Captura por câmera não suportada para ${device.fabricante}.`,
+  };
 }
 
 // ---------- Preview ao vivo (servidor local MJPEG por snapshots) ----------
@@ -543,6 +435,10 @@ async function setDeviceLightingMode(device, mode) {
 // Então montamos um multipart/x-mixed-replace a partir de snapshots rápidos.
 // Roda só em localhost: o navegador do PC da portaria (mesma rede da câmera)
 // consome direto — sem a latência da nuvem. ~3 fps (teto do snapshot).
+//
+// O protocolo por trás (iluminação, snapshot com Digest) é só Dahua/Intelbras
+// e mora no driver (`dahuaFacial.setDeviceLightingMode`/`snapshotComDigest`)
+// — aqui só orquestramos o servidor HTTP local e o loop de quadros.
 
 function startLiveViewServer() {
   const server = http.createServer((req, res) => {
@@ -556,13 +452,14 @@ function startLiveViewServer() {
       res.writeHead(404);
       return res.end('not found');
     }
-    const device = lastDevices.find((d) => d.fabricante === 'intelbras');
+    const device = lastDevices.find((d) => resolverDriver(d) === dahuaFacial);
     if (!device) {
       res.writeHead(503);
       return res.end('nenhum terminal facial conectado');
     }
     if (reqPath === '/snapshot') {
-      snapshotComDigest(device, {})
+      dahuaFacial
+        .snapshotComDigest(device, {})
         .then((jpeg) => {
           res.writeHead(200, {
             'Content-Type': 'image/jpeg',
@@ -604,7 +501,7 @@ async function streamLiveView(device, res) {
   });
 
   // Liga o flash automaticamente antes do preview
-  await setDeviceLightingMode(device, 'Manual').catch(() => {});
+  await dahuaFacial.setDeviceLightingMode(device, 'Manual').catch(() => {});
 
   const st = {}; // estado do Digest (reusa o nonce entre quadros = mais fps)
   let lastLightOnAt = 0;
@@ -614,9 +511,9 @@ async function streamLiveView(device, res) {
       // Reforça o comando de acendimento do LED a cada 800ms em segundo plano para evitar que o firmware o desligue por inatividade
       if (Date.now() - lastLightOnAt > 800) {
         lastLightOnAt = Date.now();
-        void setDeviceLightingMode(device, 'Manual').catch(() => {});
+        void dahuaFacial.setDeviceLightingMode(device, 'Manual').catch(() => {});
       }
-      jpeg = await snapshotComDigest(device, st);
+      jpeg = await dahuaFacial.snapshotComDigest(device, st);
     } catch {
       /* tenta no próximo ciclo */
     }
@@ -637,7 +534,7 @@ async function streamLiveView(device, res) {
   }
 
   // Restaura para automático após o fim do preview
-  await setDeviceLightingMode(device, 'Auto').catch(() => {});
+  await dahuaFacial.setDeviceLightingMode(device, 'Auto').catch(() => {});
 
   try {
     res.end();
@@ -646,74 +543,16 @@ async function streamLiveView(device, res) {
   }
 }
 
-/** GET snapshot reutilizando o nonce do Digest (evita o 401 a cada quadro). */
-function snapshotComDigest(device, st) {
-  const reqPath = '/cgi-bin/snapshot.cgi?channel=1';
-  const user = device.api_user || 'admin';
-  const pass = device.api_password || 'admin';
-  const fetchOne = (authHeader) =>
-    new Promise((resolve, reject) => {
-      const req = http.request(
-        {
-          host: device.ip,
-          port: device.porta,
-          path: reqPath,
-          method: 'GET',
-          headers: authHeader ? { Authorization: authHeader } : {},
-        },
-        (r) => {
-          const chunks = [];
-          r.on('data', (c) => chunks.push(c));
-          r.on('end', () =>
-            resolve({
-              status: r.statusCode,
-              wa: r.headers['www-authenticate'],
-              body: Buffer.concat(chunks),
-            }),
-          );
-        },
-      );
-      req.on('error', reject);
-      req.setTimeout(LAN_TIMEOUT_MS, () => req.destroy(new Error('timeout')));
-      req.end();
-    });
-
-  return (async () => {
-    if (st.realm) {
-      st.nc = (st.nc || 0) + 1;
-      const r = await fetchOne(computeDigest(user, pass, 'GET', reqPath, st));
-      if (r.status === 200) return r.body; // nonce ainda válido (1 req/quadro)
-      if (r.status === 401 && r.wa) {
-        parseChallengeInto(r.wa, st);
-        st.nc = 1;
-        return (await fetchOne(computeDigest(user, pass, 'GET', reqPath, st)))
-          .body;
-      }
-    }
-    const c = await fetchOne(null); // primeiro acesso: dispara o 401
-    if (c.status === 200) return c.body;
-    parseChallengeInto(c.wa || '', st);
-    st.nc = 1;
-    return (await fetchOne(computeDigest(user, pass, 'GET', reqPath, st))).body;
-  })();
-}
-
 async function doPing(device) {
   if (device.fabricante === 'control_id') {
     await controlIdLogin(device); // login OK prova conectividade
     return { ok: true };
   }
-  if (device.fabricante === 'intelbras') {
-    // NÃO usar login RPC2 aqui: ele cria uma sessão que não é encerrada e, com o
-    // heartbeat a cada 20s, estoura o limite do aparelho ("too many connections")
-    // — derrubando o ping E os comandos. Um GET cgi com Digest prova rede +
-    // credencial SEM criar sessão (stateless).
-    const res = await lanRequest(
-      device,
-      'GET',
-      '/cgi-bin/magicBox.cgi?action=getDeviceType',
-    );
-    return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
+  const driver = resolverDriver(device);
+  if (driver) {
+    // Dahua/Intelbras: ver `testar` no driver (não usa login RPC2 — estouraria
+    // o limite de sessões do aparelho com o heartbeat repetindo a cada 20s).
+    return driver.testar(device);
   }
   if (device.fabricante === 'hikvision') {
     // ISAPI: deviceInfo prova rede + credencial (Digest tratado em request()).
@@ -738,15 +577,8 @@ async function doOpenDoor(device) {
     );
     return okFrom(res);
   }
-  // VALIDADO ao vivo (SS 3530 MF FACE W): abre o relé via cgi com Digest.
-  if (device.fabricante === 'intelbras') {
-    const res = await lanRequest(
-      device,
-      'GET',
-      '/cgi-bin/accessControl.cgi?action=openDoor&channel=1',
-    );
-    return okFrom(res);
-  }
+  // Dahua/Intelbras: abre pelo driver (executeOnDevice já delegou antes de
+  // chegar aqui; este ponto só existe para fabricantes sem driver ainda).
   const map = {
     // VALIDADO (ISAPI). Requer Digest auth — tratado automaticamente em request().
     hikvision: {
@@ -767,9 +599,6 @@ async function doEnroll(device, cmd) {
     return cmd.type === 'update'
       ? controlIdUpdate(device, cmd)
       : controlIdCreate(device, cmd);
-  }
-  if (device.fabricante === 'intelbras') {
-    return dahuaEnroll(device, cmd);
   }
   if (device.fabricante === 'hikvision') {
     return hikvisionEnroll(device, cmd);
@@ -814,15 +643,6 @@ async function doRemove(device, cmd) {
       {
         json: { object: 'users', where: { users: { id: Number(cmd.faceId) } } },
       },
-    );
-    return okFrom(res);
-  }
-  if (device.fabricante === 'intelbras') {
-    // VALIDADO ao vivo: array vai como query-param (?UserIDList[0]=id), não JSON.
-    const res = await lanRequest(
-      device,
-      'GET',
-      `/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]=${encodeURIComponent(cmd.faceId)}`,
     );
     return okFrom(res);
   }
@@ -931,52 +751,8 @@ async function doListUsers(device) {
     };
   }
 
-  if (device.fabricante !== 'intelbras') {
-    return { ok: false, error: `list_users não suportado para ${device.fabricante}` };
-  }
-  const countResp = await lanRequest(
-    device,
-    'POST',
-    '/RPC2',
-    { json: { method: 'UserInfo.getCount', params: { Conditions: {} } } }
-  );
-  if (countResp.status !== 200 || !countResp.data || countResp.data.result === false) {
-    return { ok: false, error: `Falha ao obter quantidade de usuários: status ${countResp.status}` };
-  }
-  const total = countResp.data.params?.Count ?? 0;
-  if (total === 0) {
-    return { ok: true, userIds: [] };
-  }
-
-  const ids = [];
-  const PAGE = 100;
-  let startNo = 0;
-
-  while (startNo < total) {
-    const resp = await lanRequest(
-      device,
-      'POST',
-      '/RPC2',
-      {
-        json: {
-          method: 'UserInfo.getMulti',
-          params: { Conditions: {}, StartNo: startNo, Count: PAGE }
-        }
-      }
-    );
-    if (resp.status !== 200 || !resp.data || resp.data.result === false) {
-      return { ok: false, error: `Falha ao obter lista de usuários (startNo: ${startNo})` };
-    }
-    const list = resp.data.params?.UserList ?? [];
-    for (const u of list) {
-      if (u.UserID && u.UserID !== 'FFFFFF') {
-        ids.push(u.UserID);
-      }
-    }
-    startNo += PAGE;
-    if (list.length < PAGE) break;
-  }
-  return { ok: true, userIds: ids };
+  // Dahua/Intelbras já saiu por `executeOnDevice` antes de chegar aqui.
+  return { ok: false, error: `list_users não suportado para ${device.fabricante}` };
 }
 
 async function doRemoveUsers(device, cmd) {
@@ -1005,30 +781,8 @@ async function doRemoveUsers(device, cmd) {
     return { ok: true };
   }
 
-  if (device.fabricante !== 'intelbras') {
-    return { ok: false, error: `remove_users não suportado para ${device.fabricante}` };
-  }
-  const userIds = cmd.faceIds || [];
-  if (userIds.length === 0) {
-    return { ok: true };
-  }
-  const res = await lanRequest(
-    device,
-    'POST',
-    '/RPC2',
-    {
-      json: {
-        method: 'UserInfo.removeMulti',
-        params: {
-          UserList: userIds.map((id) => ({ UserID: id }))
-        }
-      }
-    }
-  );
-  if (res.status !== 200 || !res.data || res.data.result === false) {
-    return { ok: false, error: `Falha ao remover lista de usuários: status ${res.status}` };
-  }
-  return { ok: true };
+  // Dahua/Intelbras já saiu por `executeOnDevice` antes de chegar aqui.
+  return { ok: false, error: `remove_users não suportado para ${device.fabricante}` };
 }
 
 /**
@@ -1109,142 +863,7 @@ async function controlIdLogin(device) {
   return String(session);
 }
 
-// ---------- Dahua / Intelbras (linha SS facial: SS 3530 MF FACE etc.) ----------
-//
-// VALIDADO ao vivo num SS 3530 MF FACE W (firmware 2.000.00IB004, 2021). A
-// Intelbras é OEM da Dahua: o login é o handshake RPC2 em duas etapas
-// (challenge → hash MD5 maiúsculo → login), e a gestão de usuário/rosto usa os
-// CGIs AccessUser.cgi / AccessFace.cgi com Digest auth. O faceId que guardamos
-// é o próprio UserID (string definida por nós, ex.: "morador_42") — o push de
-// evento do aparelho devolve esse UserID, então não dependemos de id interno.
-
-async function dahuaLogin(device) {
-  const base = `http://${device.ip}:${device.porta}`;
-  const user = device.api_user || 'admin';
-  const pass = device.api_password || 'admin';
-  const s1 = await request(`${base}/RPC2_Login`, {
-    method: 'POST',
-    timeout: LAN_TIMEOUT_MS,
-    json: {
-      method: 'global.login',
-      params: { userName: user, password: '', clientType: 'Web3.0', loginType: 'Direct' },
-      id: 1,
-    },
-  });
-  const d1 = parseJson(s1);
-  const p = d1.params || {};
-  const session = d1.session;
-  if (!p.realm || !p.random || !session) {
-    const e = new Error('Dahua: aparelho não respondeu o desafio de login (RPC2)');
-    e.statusCode = s1.status;
-    throw e;
-  }
-  const ha = md5(`${user}:${p.realm}:${pass}`).toUpperCase();
-  const loginHash = md5(`${user}:${p.random}:${ha}`).toUpperCase();
-  const s2 = await request(`${base}/RPC2_Login`, {
-    method: 'POST',
-    timeout: LAN_TIMEOUT_MS,
-    headers: { Cookie: `DWebClientSessionID=${session}` },
-    json: {
-      method: 'global.login',
-      params: {
-        userName: user,
-        password: loginHash,
-        clientType: 'Web3.0',
-        loginType: 'Direct',
-        authorityType: 'Default',
-        passwordType: 'Default',
-      },
-      id: 2,
-      session,
-    },
-  });
-  const d2 = parseJson(s2);
-  if (!d2.result) {
-    const msg = (d2.error && d2.error.message) || 'login negado';
-    const e = new Error(`Dahua: ${msg} (confira usuário/senha do aparelho)`);
-    e.statusCode = s2.status;
-    throw e;
-  }
-  return session;
-}
-
-async function dahuaEnroll(device, cmd) {
-  const userId = String(cmd.externalId || cmd.faceId);
-  const userBody = {
-    UserList: [
-      {
-        UserID: userId,
-        UserName: cmd.nome || userId,
-        // UseTime só é aplicado pelo firmware quando UserType=2 (Guest).
-        // Tabela Dahua: 0=geral, 1=blocklist, 2=convidado, 3=ronda, 4=VIP.
-        UserType: typeof cmd.userTimes === 'number' && cmd.userTimes > 0 ? 2 : 0,
-        Authority: 2,
-        Doors: [0],
-        TimeSections: [255],
-        // Visitante manda a janela da visita (cmd.validFrom/validTo) — o aparelho
-        // NEGA sozinho após o término. Morador/sem janela: permanente. Cuidado:
-        // sem NTP o relógio volta a 2000 ao perder energia; por isso o morador
-        // fica em 2000 (sempre vale) e o agente mantém a hora sincronizada.
-        ValidFrom: cmd.validFrom || '2000-01-01 00:00:00',
-        ValidTo: cmd.validTo || '2037-12-31 23:59:59',
-        UseTime: typeof cmd.userTimes === 'number' ? cmd.userTimes : -1,
-      },
-    ],
-  };
-  // REPLACE LIMPO: remove antes (idempotente). Sem isso, re-sincronizar um rosto
-  // que já existe dá "Bad Request" no insertMulti (duplicado) e o cadastro trava
-  // em "pendente" para sempre (0 enviados). Remover o usuário leva o rosto junto.
-  await lanRequest(
-    device,
-    'GET',
-    `/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]=${encodeURIComponent(userId)}`,
-  ).catch(() => {});
-
-  // Cria o usuário do zero.
-  const u = await lanRequest(
-    device,
-    'POST',
-    '/cgi-bin/AccessUser.cgi?action=insertMulti',
-    { json: userBody },
-  );
-  if (!(u.status >= 200 && u.status < 300) || /error/i.test(String(u.raw || ''))) {
-    return {
-      ok: false,
-      statusCode: u.status,
-      error: `usuário: ${String(u.raw || '').slice(0, 120)}`,
-    };
-  }
-
-  // Sobe o rosto (insert do zero; fallback updateMulti por segurança). O aparelho
-  // extrai a biometria e recusa imagem sem rosto nítido — aí sim é foto ruim.
-  if (cmd.fotoBase64) {
-    const faceBody = { FaceList: [{ UserID: userId, PhotoData: [cmd.fotoBase64] }] };
-    let f = await lanRequest(
-      device,
-      'POST',
-      '/cgi-bin/AccessFace.cgi?action=insertMulti',
-      { json: faceBody },
-    );
-    if (!(f.status >= 200 && f.status < 300) || /error/i.test(String(f.raw || ''))) {
-      f = await lanRequest(
-        device,
-        'POST',
-        '/cgi-bin/AccessFace.cgi?action=updateMulti',
-        { json: faceBody },
-      );
-    }
-    if (!(f.status >= 200 && f.status < 300) || /error/i.test(String(f.raw || ''))) {
-      return {
-        ok: false,
-        statusCode: f.status,
-        error: `rosto recusado: ${String(f.raw || '').slice(0, 120)}`,
-        faceId: userId,
-      };
-    }
-  }
-  return { ok: true, faceId: userId };
-}
+// Login e enroll Dahua/Intelbras (RPC2, AccessUser/AccessFace) moveram para src/drivers/dahua-facial.js.
 
 // ---------- Hikvision ISAPI: enroll/remove ----------
 
@@ -1307,14 +926,11 @@ async function hikvisionEnroll(device, cmd) {
   return { ok: true, faceId: employeeNo };
 }
 
-// ---------- Dahua: stream de eventos de acesso → nuvem ----------
+// ---------- Dahua: stream de eventos de acesso -> nuvem ----------
 //
-// Aparelhos Dahua/Intelbras não fazem push HTTP para uma URL: eles MANTÊM um
-// stream (multipart) em /cgi-bin/eventManager.cgi?action=attach. Assinamos esse
-// stream e, a cada rosto reconhecido (evento _DoorFace_ com UserID != FFFFFF),
-// repassamos o acesso para a nuvem. O UserID é o nosso external_id (morador_42).
-
-const dahuaListeners = new Set(); // deviceIds já com listener ativo
+// O protocolo (attach multipart, parse de _DoorFace_) mora no driver
+// (dahuaFacial.escutar) -- ver o dispatch em runCondoLoop, que chama
+// escutar(device, (data) => forwardAccessEvent(token, device, data)).
 
 // Debounce na ORIGEM: o aparelho dispara vários _DoorFace_ por aproximação
 // (múltiplos frames). Sem isso, vários POSTs concorrentes chegariam à nuvem e
@@ -1323,140 +939,6 @@ const dahuaListeners = new Set(); // deviceIds já com listener ativo
 // síncrono (antes de qualquer await), então é seguro contra a rajada.
 const AGENT_EVENT_DEBOUNCE_MS = 8000;
 const lastAccessForwardedAt = new Map(); // "deviceId:userId" -> epoch ms
-
-function startDahuaEventListener(token, device) {
-  if (dahuaListeners.has(device.id)) return;
-  dahuaListeners.add(device.id);
-  console.log(`[agente] ${device.nome}: assinando eventos de acesso (Dahua)`);
-  let streamWasDown = false;
-  (async () => {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      try {
-        await dahuaAttachOnce(token, device, () => {
-          // Chamado no primeiro byte recebido da stream.
-          // Se a stream estava caída (internet estava desconectada), este é o
-          // sinal imediato de que o aparelho voltou — dispara recovery SEM
-          // esperar o próximo heartbeat (que pode demorar até 5s).
-          if (streamWasDown && !lastDeviceOnline.get(device.id)) {
-            streamWasDown = false;
-            lastDeviceOnline.set(device.id, true);
-            console.log(`[agente] ${device.nome}: aparelho ONLINE (stream reconectou) — recuperando acessos offline`);
-            syncDeviceOfflineLogs(token, device).catch((e) =>
-              console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e)
-            );
-          } else {
-            streamWasDown = false;
-          }
-        });
-      } catch (err) {
-        if (!streamWasDown) {
-          console.error(
-            `[agente] ${device.nome}: stream de eventos caiu (${err.message || err}); reabrindo em 5s`,
-          );
-        }
-        streamWasDown = true;
-      }
-      await sleep(5000); // o aparelho fecha o stream periodicamente — reabre
-    }
-  })();
-}
-
-/** Abre UMA conexão de streaming (resolve quando o aparelho a encerra).
- *  onConnect é chamado uma única vez no primeiro byte recebido. */
-function dahuaAttachOnce(token, device, onConnect) {
-  return new Promise((resolve, reject) => {
-    const user = device.api_user || 'admin';
-    const pass = device.api_password || 'admin';
-    const path = '/cgi-bin/eventManager.cgi?action=attach&codes=[All]';
-
-    // 1) Desafio Digest (o attach exige autenticação por header).
-    const challenge = http.request(
-      { host: device.ip, port: device.porta, path, method: 'GET' },
-      (cres) => {
-        cres.resume();
-        if (cres.statusCode !== 401) {
-          return reject(new Error(`desafio inesperado: HTTP ${cres.statusCode}`));
-        }
-        const wa = cres.headers['www-authenticate'] || '';
-        if (!/digest/i.test(wa)) return reject(new Error('aparelho não pediu Digest'));
-        const authHeader = buildDigestHeader(user, pass, 'GET', path, wa);
-
-        // 2) Conexão de streaming autenticada (sem timeout: fica aberta).
-        const stream = http.request(
-          {
-            host: device.ip,
-            port: device.porta,
-            path,
-            method: 'GET',
-            headers: { Authorization: authHeader },
-          },
-          (sres) => {
-            if (sres.statusCode !== 200) {
-              sres.resume();
-              return reject(new Error(`attach HTTP ${sres.statusCode}`));
-            }
-            let buf = '';
-            let onConnectFired = false;
-            sres.setEncoding('utf8');
-            sres.on('data', (chunk) => {
-              if (!onConnectFired && onConnect) { onConnectFired = true; onConnect(); }
-              buf += chunk;
-              buf = consumeDahuaEvents(buf, (data) =>
-                forwardAccessEvent(token, device, data),
-              );
-              // Trava de segurança contra evento gigante/parcial sem fim.
-              if (buf.length > 1_000_000) buf = buf.slice(-100_000);
-            });
-            sres.on('end', resolve);
-            sres.on('error', reject);
-          },
-        );
-        stream.on('error', reject);
-        stream.setTimeout(0);
-        stream.end();
-      },
-    );
-    challenge.on('error', reject);
-    challenge.setTimeout(LAN_TIMEOUT_MS, () =>
-      challenge.destroy(new Error('timeout no desafio')),
-    );
-    challenge.end();
-  });
-}
-
-/**
- * Consome eventos completos do buffer (separados por --myboundary) e devolve o
- * trecho final ainda incompleto. Só processa o evento de acesso (_DoorFace_).
- */
-function consumeDahuaEvents(buf, onData) {
-  let restante = buf;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const iCode = restante.indexOf('Code=_DoorFace_');
-    if (iCode < 0) break;
-    const iData = restante.indexOf('data=', iCode);
-    if (iData < 0) break; // cabeçalho chegou, corpo ainda não
-    const iChave = restante.indexOf('{', iData);
-    if (iChave < 0) break;
-    const fim = fimDoObjetoJson(restante, iChave);
-    if (fim < 0) break; // JSON pela metade: espera o resto do chunk
-    const bruto = restante.slice(iChave, fim);
-    restante = restante.slice(fim);
-    try {
-      onData(JSON.parse(bruto));
-    } catch {
-      /* JSON inválido — ignora */
-    }
-  }
-  // Sem acesso pendente à vista, guarda só o trecho depois do último boundary:
-  // o resto é heartbeat/evento de outro tipo e faria o buffer crescer à toa.
-  if (restante.indexOf('Code=_DoorFace_') < 0) {
-    const ultimo = restante.lastIndexOf('--myboundary');
-    if (ultimo > 0) restante = restante.slice(ultimo);
-  }
-  return restante;
-}
 
 // ---------- Store-and-forward: fila em disco para eventos offline ----------
 // `enqueueOfflineEvent`/`flushOfflineEvents` moveram para core/fila-offline.js.
@@ -1538,7 +1020,9 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
     // Só avança se a nuvem ACEITOU. Avançar após uma recusa apagava o evento
     // duas vezes: ele não entrou na nuvem e a marca d'água passava por cima
     // dele, então o replay do próximo reconnect também não o veria.
-    if (!opts.backlog && ok) advanceBaselineWhileOnline(device, true).catch(() => {});
+    if (!opts.backlog && ok) {
+      resolverDriver(device)?.advanceBaselineWhileOnline?.(device, true)?.catch(() => {});
+    }
     return ok;
   } catch (err) {
     console.error(
@@ -1807,37 +1291,6 @@ function loadDotEnv() {
   }
 }
 
-/**
- * Lê o log de acesso interno do terminal Dahua/Intelbras via recordFinder.cgi
- * e devolve os registros já parseados. Descoberto empiricamente no SS 3530 MF:
- *   - action=find&name=AccessControlCardRec&count=N funciona (startFind/token
- *     e factory.create dão HTTP 400 neste firmware);
- *   - a resposta é INI (records[i].Campo=valor) e vem do MAIS ANTIGO p/ o mais
- *     novo; `offset` é IGNORADO — para pegar os recentes buscamos count>=total
- *     e filtramos por RecNo;
- *   - campos úteis: RecNo (sequencial), UserID (nosso external_id), CreateTime
- *     (epoch unix), Type ("Entry" sempre — o sentido é decidido na nuvem).
- */
-// ATENÇÃO: `found=` na resposta é a QUANTIDADE RETORNADA (min(count, total)),
-// NÃO o total do aparelho. A marca d'água confiável é o maior RecNo. Como o
-// `find` vem do mais antigo→novo e ignora offset, buscamos um lote grande (CAP)
-// e usamos o maior RecNo. CAP cobre com folga um terminal de condomínio; um
-// log acima disso perderia os mais recentes (limitação conhecida do firmware).
-const ACCESS_LOG_CAP = 20000;
-async function dahuaFindAccessRecords(device, count) {
-  const res = await lanRequest(
-    device,
-    'GET',
-    `/cgi-bin/recordFinder.cgi?action=find&name=AccessControlCardRec&count=${count}`,
-  );
-  const records = parseDahuaINI(String(res.raw || ''));
-  const maxRecNo = records.reduce(
-    (m, r) => Math.max(m, parseInt(r.RecNo, 10) || 0),
-    0,
-  );
-  return { maxRecNo, records };
-}
-
 // Janela que o replay da Hikvision varre ao reconectar. 24h cobre uma queda
 // longa de internet sem trazer o histórico inteiro do aparelho.
 const HIK_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -1846,82 +1299,55 @@ async function syncDeviceOfflineLogs(token, device) {
   // Dahua / Intelbras — recupera acessos que ocorreram enquanto o agente
   // estava sem alcançar o aparelho (ex.: internet/energia do facial caiu). A
   // stream ao vivo não os viu; eles ficaram só no log interno do terminal.
-  if (device.fabricante === 'intelbras') {
-    if (offlineSyncBusy.has(device.id)) return;
-    offlineSyncBusy.add(device.id);
+  // O protocolo (recordFinder.cgi, parse INI) mora no driver — `buscarDesde`
+  // só lê e devolve; quem manda para a nuvem e decide até onde persistir a
+  // marca d'água (represar no primeiro envio que falhar) é este orquestrador.
+  const driver = resolverDriver(device);
+  if (driver && driver.buscarDesde) {
+    if (dahuaFacial.offlineSyncBusy.has(device.id)) return;
+    dahuaFacial.offlineSyncBusy.add(device.id);
     try {
-      // Uma única busca do log (mais antigo→novo). A marca d'água é o maior
-      // RecNo; filtramos os novos por RecNo > baseline.
-      const { records, maxRecNo } = await dahuaFindAccessRecords(device, ACCESS_LOG_CAP);
-      if (records.length === 0) {
-        console.log(`[agente] ${device.nome}: log de acesso vazio.`);
-        return;
-      }
       const baseline = deviceBaselines.get(device.id);
+      const { eventos, novaMarca } = await driver.buscarDesde(device, baseline);
 
-      // Primeira vez: estabelece a marca d'água SEM reprocessar o histórico.
       if (baseline === undefined) {
-        setBaseline(device.id, maxRecNo);
-        console.log(`[agente] ${device.nome}: baseline de acessos inicializada em RecNo ${maxRecNo}.`);
+        // Primeira vez: estabelece a marca d'água SEM reprocessar o histórico.
+        if (novaMarca !== undefined) {
+          setBaseline(device.id, novaMarca);
+          console.log(`[agente] ${device.nome}: baseline de acessos inicializada em RecNo ${novaMarca}.`);
+        } else {
+          console.log(`[agente] ${device.nome}: log de acesso vazio.`);
+        }
         return;
       }
-      if (maxRecNo <= baseline) {
+      if (novaMarca === undefined || novaMarca <= baseline) {
         console.log(
-          `[agente] ${device.nome}: recovery sem novidade (maior RecNo ${maxRecNo} <= baseline ${baseline}).`,
+          `[agente] ${device.nome}: recovery sem novidade (maior RecNo ${novaMarca} <= baseline ${baseline}).`,
         );
         return;
-      }
-
-      const janela = records.filter((r) => parseInt(r.RecNo, 10) > baseline);
-      // O log interno guarda TAMBÉM as tentativas NEGADAS pelo aparelho
-      // (ErrorCode != 0, ex.: 16 = sem saldo/na regra). Reenviar negada como
-      // acesso corrompe a auditoria (vira "entrada" falsa na nuvem). Só
-      // passagens de sucesso (ErrorCode 0/ausente) com UserID viram evento.
-      const negadoNoAparelho = (r) =>
-        r.ErrorCode != null && String(r.ErrorCode).trim() !== '0';
-      const novos = janela
-        .filter((r) => r.UserID && r.UserID.trim() !== '' && !negadoNoAparelho(r))
-        .sort((a, b) => parseInt(a.RecNo, 10) - parseInt(b.RecNo, 10));
-      // Diagnóstico: loga cru o que foi pulado, em vez de sumir calado.
-      for (const r of janela) {
-        if (!r.UserID || r.UserID.trim() === '') {
-          console.log(
-            `[agente] ${device.nome}: registro offline IGNORADO (sem UserID): ${JSON.stringify(r).slice(0, 300)}`,
-          );
-        } else if (negadoNoAparelho(r)) {
-          console.log(
-            `[agente] ${device.nome}: registro offline IGNORADO (negado no aparelho, ErrorCode ${r.ErrorCode}): ${JSON.stringify(r).slice(0, 300)}`,
-          );
-        }
       }
 
       let enviados = 0;
       let falhas = 0;
-      // Até onde é seguro avançar a marca d'água. Começa no maior RecNo pulado
-      // por filtro (sem UserID / negado no aparelho) que ainda seja menor que o
-      // primeiro que falhar — esses não voltam mesmo, não adianta represá-los.
+      // Até onde é seguro avançar a marca d'água: o maior RecNo confirmado
+      // pela nuvem antes do primeiro envio que falhar (esses não voltam
+      // mesmo, não adianta represá-los).
       let ultimoConfirmado = baseline;
-      for (const rec of novos) {
-        const recNo = parseInt(rec.RecNo, 10);
+      for (const ev of eventos) {
         console.log(
-          `[agente] ${device.nome}: replay RecNo ${rec.RecNo} UserID ${rec.UserID} CreateTime ${rec.CreateTime}`,
+          `[agente] ${device.nome}: replay RecNo ${ev._marca} UserID ${ev.UserID} timestamp ${ev.timestamp}`,
         );
-        const ok = await forwardAccessEvent(token, device, {
-          UserID: rec.UserID,
-          CardNo: rec.CardNo,
-          Similarity: 100,
-          timestamp: dahuaEpochToISO(rec.CreateTime),
-        }, { backlog: true });
+        const ok = await forwardAccessEvent(token, device, ev, { backlog: true });
         if (ok) {
           enviados++;
-          if (falhas === 0) ultimoConfirmado = recNo;
+          if (falhas === 0) ultimoConfirmado = ev._marca;
         } else {
           falhas++;
         }
       }
 
       // A marca d'água só avança até o último acesso que a nuvem CONFIRMOU.
-      // Antes ela ia direto para `maxRecNo` mesmo com envios falhando — o
+      // Antes ela ia direto para `novaMarca` mesmo com envios falhando — o
       // reconnect seguinte via "sem novidade" e as passagens recusadas sumiam
       // do histórico para sempre. Represar o watermark faz o próximo ciclo
       // tentar de novo; o `backlog: true` e a deduplicação na nuvem cuidam de
@@ -1930,19 +1356,20 @@ async function syncDeviceOfflineLogs(token, device) {
         setBaseline(device.id, ultimoConfirmado);
         console.error(
           `[agente] ${device.nome}: recuperados ${enviados} acesso(s), ${falhas} FALHARAM. ` +
-          `Baseline represada em RecNo ${ultimoConfirmado} (não avançou até ${maxRecNo}) — ` +
+          `Baseline represada em RecNo ${ultimoConfirmado} (não avançou até ${novaMarca}) — ` +
           `nova tentativa no próximo ciclo.`,
         );
       } else {
-        // Sem falhas: avança até o maior RecNo lido, incluindo os que foram
-        // pulados por filtro (sem UserID / negados) e nunca virariam evento.
-        setBaseline(device.id, maxRecNo);
-        console.log(`[agente] ${device.nome}: recuperados ${enviados} acesso(s) offline (RecNo ${baseline}→${maxRecNo}).`);
+        // Sem falhas: avança até a maior marca lida (`buscarDesde` já excluiu
+        // do array `eventos` o que foi filtrado por UserID vazio/negado, mas
+        // `novaMarca` cobre esses registros também — nunca virariam evento).
+        setBaseline(device.id, novaMarca);
+        console.log(`[agente] ${device.nome}: recuperados ${enviados} acesso(s) offline (RecNo ${baseline}→${novaMarca}).`);
       }
     } catch (err) {
       console.error(`[agente] ${device.nome}: falha ao ler log de acesso do Intelbras:`, err.message || err);
     } finally {
-      offlineSyncBusy.delete(device.id);
+      dahuaFacial.offlineSyncBusy.delete(device.id);
     }
   }
 
