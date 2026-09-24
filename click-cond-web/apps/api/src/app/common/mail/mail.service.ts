@@ -260,9 +260,10 @@ export class MailService implements OnModuleInit {
   }
 
   async sendResetPasswordLink(email: string, token: string, tipoUsuario: string): Promise<void> {
+    const webLink = `https://www.clickprestarecondominios.com.br/redefinir-senha?token=${encodeURIComponent(token)}`;
     const deepLink = `clickprestare://redefinir-senha?token=${encodeURIComponent(token)}`;
     const subject = 'PRESTARE - Recuperação de Senha';
-    const text = `Olá!\n\nVocê solicitou a redefinição de senha da sua conta (${tipoUsuario}) no aplicativo PRESTARE.\n\nPara cadastrar uma nova senha, abra o link abaixo diretamente no seu celular:\n${deepLink}\n\nEste link é válido por 30 minutos e só pode ser utilizado uma vez.\nSe você não solicitou a redefinição de senha, ignore esta mensagem.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+    const text = `Olá!\n\nVocê solicitou a redefinição de senha da sua conta (${tipoUsuario}) no sistema PRESTARE.\n\nPara cadastrar uma nova senha, acesse o link abaixo:\n${webLink}\n\nSe estiver no celular com o aplicativo PRESTARE instalado, você também pode abrir diretamente:\n${deepLink}\n\nEste link é válido por 30 minutos e só pode ser utilizado uma vez.\nSe você não solicitou a redefinição de senha, ignore esta mensagem: sua conta continua segura.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
     const html = `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -273,7 +274,7 @@ export class MailService implements OnModuleInit {
       </head>
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px 10px;">
         <div style="display:none;font-size:1px;color:#fff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
-          Link para redefinição de senha no aplicativo PRESTARE
+          Link para redefinição de senha no sistema PRESTARE
         </div>
         <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
           <div style="text-align: center; margin-bottom: 20px;">
@@ -281,21 +282,27 @@ export class MailService implements OnModuleInit {
           </div>
           <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
             Olá!<br><br>
-            Recebemos uma solicitação para redefinir a senha da sua conta de <b>${this.escape(tipoUsuario)}</b> no aplicativo <b>PRESTARE</b>.<br><br>
-            Para criar sua nova senha, clique no botão abaixo para abrir o aplicativo:
+            Recebemos uma solicitação para redefinir a senha da sua conta de <b>${this.escape(tipoUsuario)}</b> no sistema <b>PRESTARE</b>.<br><br>
+            Para criar sua nova senha, clique no botão seguro abaixo:
           </p>
 
           <div style="text-align: center; margin: 28px 0;">
-            <a href="${deepLink}" style="display: inline-block; background-color: #1e3a8a; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 2px 4px rgba(30, 58, 138, 0.25);">
-              Redefinir Minha Senha no App
+            <a href="${webLink}" style="display: inline-block; background-color: #1e3a8a; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 2px 4px rgba(30, 58, 138, 0.25);">
+              Redefinir Minha Senha
             </a>
           </div>
 
           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin: 20px 0;">
             <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0; word-break: break-all;">
-              Se o botão não funcionar diretamente, copie e cole este link:<br>
-              <a href="${deepLink}" style="color: #2563eb; font-family: monospace;">${deepLink}</a>
+              Se o botão não funcionar, copie e cole este link no seu navegador:<br>
+              <a href="${webLink}" style="color: #2563eb; font-family: monospace;">${webLink}</a>
             </p>
+          </div>
+
+          <div style="text-align: center; margin: 16px 0;">
+            <a href="${deepLink}" style="color: #64748b; font-size: 12px; text-decoration: underline;">
+              Prefere abrir diretamente no aplicativo PRESTARE instalado? Clique aqui
+            </a>
           </div>
 
           <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0;">

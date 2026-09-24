@@ -22,6 +22,12 @@ export const appRoutes: Route[] = [
       import('./auth/login-page.component').then((m) => m.LoginPageComponent),
   },
   {
+    // Pública: aberta pelo link enviado por e-mail para redefinir senha.
+    path: 'redefinir-senha',
+    loadComponent: () =>
+      import('./auth/redefinir-senha-page.component').then((m) => m.RedefinirSenhaPageComponent),
+  },
+  {
     // Fora do shell: é uma tela cheia, mostrada antes de entrar no console.
     path: 'selecionar-condominio',
     canActivate: [authGuard],
