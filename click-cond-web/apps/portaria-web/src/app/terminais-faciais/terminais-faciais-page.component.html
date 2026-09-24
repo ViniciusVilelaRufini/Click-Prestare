@@ -558,6 +558,13 @@
         <div>
           <h3 class="text-sm font-semibold text-slate-800 dark:text-white">Encontrados na rede</h3>
           <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Aparelhos que o agente local achou varrendo a rede da portaria.</p>
+          <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+            @if (descobertos()?.recebido_em) {
+              Última busca: {{ tempoRelativo(descobertos()!.recebido_em) }}
+            } @else {
+              Nenhuma busca ainda
+            }
+          </p>
         </div>
       </div>
       <button
@@ -575,10 +582,18 @@
       </button>
     </header>
 
+    @if (procuraSemResposta()) {
+      <p class="text-xs text-rose-600 dark:text-rose-400">{{ procuraSemResposta() }}</p>
+    }
+
     @for (v of descobertos()?.avisos ?? []; track v.id_dispositivo + '_' + v.em) {
       <p class="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
         <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-        <span>IP do {{ v.nome }} atualizado de {{ v.de }} para {{ v.para }} às {{ v.em | date: 'HH:mm' }}</span>
+        @if (v.tipo === 'porta') {
+          <span>Porta do {{ v.nome }} atualizada de {{ v.de }} para {{ v.para }} às {{ v.em | date: 'HH:mm' }}</span>
+        } @else {
+          <span>IP do {{ v.nome }} atualizado de {{ v.de }} para {{ v.para }} às {{ v.em | date: 'HH:mm' }}</span>
+        }
       </p>
     }
 
@@ -586,13 +601,16 @@
       <p class="text-sm text-slate-500 dark:text-slate-400">Nenhum aparelho encontrado ainda. Clique em "Procurar na rede" para varrer a LAN da portaria.</p>
     } @else {
       <div class="space-y-2">
-        @for (a of descobertos()!.achados; track (a.mac ?? '') + a.ip) {
+        @for (a of achadosOrdenados(); track (a.mac ?? '') + a.ip) {
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 p-3 rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 text-xs">
             <span class="font-semibold text-slate-700 dark:text-slate-200">
               {{ a.fabricante === 'control_id' ? 'Control iD' : a.fabricante === 'hikvision' ? 'HikVision' : 'Intelbras' }}
             </span>
             <span class="text-slate-500 dark:text-slate-400">{{ a.modelo || '—' }}</span>
             <span class="font-mono text-slate-600 dark:text-slate-300">{{ a.ip }}</span>
+            @if (rotuloClasse(a.classe); as rotulo) {
+              <span class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200/70 text-slate-600 dark:bg-white/10 dark:text-slate-300">{{ rotulo }}</span>
+            }
             @if (!a.validado_em_campo) {
               <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">não validado em campo</span>
             }

@@ -64,6 +64,8 @@ export interface AparelhoEncontrado {
   numero_serie: string | null;
   dhcp: boolean | null;
   validado_em_campo: boolean;
+  /** DeviceClass do DHIP ('BSC'/'ASC…' = controle de acesso; outro = câmera/gravador); null = protocolo não informa. */
+  classe: string | null;
   id_dispositivo: number | null;
 }
 
@@ -72,6 +74,8 @@ export interface AparelhoEncontrado {
 export interface AvisoIpCorrigido {
   id_dispositivo: number;
   nome: string;
+  /** 'porta' quando só a porta HTTP mudou (de/para são portas). Ausente em avisos antigos = IP. */
+  tipo?: 'ip' | 'porta';
   de: string;
   para: string;
   em: string;

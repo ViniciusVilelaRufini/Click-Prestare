@@ -55,3 +55,86 @@ describe('TerminaisFaciaisPageComponent — encontrados na rede', () => {
     expect(tela.procurando()).toBe(true);
   });
 });
+
+describe('TerminaisFaciaisPageComponent — encontrados na rede (revisão final)', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('"Procurando…" desiste após 60 s sem resultado novo e avisa que o agente não respondeu', () => {
+    jest.useFakeTimers({ now: new Date('2026-09-24T10:00:00Z') });
+    const antigo = new Date('2026-09-24T09:00:00Z').toISOString();
+    const { f, tela } = build({ descobertos: jest.fn(() => of({ recebido_em: antigo, achados: [], avisos: [] })) });
+    tela.procurarNaRede();
+    jest.advanceTimersByTime(59_000);
+    expect(tela.procurando()).toBe(true);
+    jest.advanceTimersByTime(1_500);
+    expect(tela.procurando()).toBe(false);
+    f.detectChanges();
+    expect(f.nativeElement.textContent).toContain('O agente não respondeu. Confira se ele está online.');
+    tela.ngOnDestroy();
+  });
+
+  it('resultado novo antes do prazo encerra a procura sem a mensagem de falha', () => {
+    jest.useFakeTimers({ now: new Date('2026-09-24T10:00:00Z') });
+    let recebido = new Date('2026-09-24T09:00:00Z').toISOString();
+    const { tela } = build({ descobertos: jest.fn(() => of({ recebido_em: recebido, achados: [], avisos: [] })) });
+    tela.procurarNaRede();
+    jest.advanceTimersByTime(10_000);
+    recebido = new Date().toISOString();
+    tela.loadDescobertos();
+    expect(tela.procurando()).toBe(false);
+    jest.advanceTimersByTime(120_000);
+    // Checa o sinal (não o DOM): com o relógio falso avançado, o "há X min"
+    // do cabeçalho muda sozinho e o detectChanges do teste acusaria NG0100.
+    expect(tela.procuraSemResposta()).toBeNull();
+    expect(tela.procurando()).toBe(false);
+    tela.ngOnDestroy();
+  });
+
+  it('ngOnDestroy cancela o prazo da procura', () => {
+    jest.useFakeTimers();
+    const { tela } = build();
+    tela.procurarNaRede();
+    const comPrazo = jest.getTimerCount();
+    tela.ngOnDestroy();
+    // statusInterval + prazo da procura saem; o callback do prazo não roda mais.
+    expect(jest.getTimerCount()).toBe(comPrazo - 2);
+    jest.advanceTimersByTime(120_000);
+    expect(tela.procurando()).toBe(true);
+  });
+
+  it('cabeçalho mostra a última busca ou "Nenhuma busca ainda"', () => {
+    const cincoMin = new Date(Date.now() - 5 * 60_000 - 1000).toISOString();
+    const { f } = build({ descobertos: jest.fn(() => of({ recebido_em: cincoMin, achados: [], avisos: [] })) });
+    expect(f.nativeElement.textContent).toContain('Última busca: há 5 min');
+    TestBed.resetTestingModule();
+    const vazio = build({ descobertos: jest.fn(() => of({ recebido_em: null, achados: [], avisos: [] })) });
+    expect(vazio.f.nativeElement.textContent).toContain('Nenhuma busca ainda');
+  });
+
+  // Sem classe (Control iD, Hikvision) fica no meio: pode ser controle de
+  // acesso — só o que se declara câmera/gravador vai para o fim.
+  it('rótulo por classe e controle de acesso primeiro', () => {
+    const camera = { ...achadoIntelbras, mac: 'aa:bb:cc:dd:ee:02', ip: '192.168.3.20', modelo: 'IPC-1', classe: 'IPC' };
+    const facial = { ...achadoIntelbras, classe: 'BSC' };
+    const asc = { ...achadoIntelbras, mac: 'aa:bb:cc:dd:ee:03', ip: '192.168.3.30', modelo: 'ASC-1', classe: 'ASC1204' };
+    const semClasse = { ...achadoCid, classe: null };
+    const { f, tela } = build({ descobertos: jest.fn(() => of({ recebido_em: new Date().toISOString(), achados: [camera, semClasse, facial, asc], avisos: [] })) });
+    expect(tela.achadosOrdenados().map((a) => a.ip)).toEqual(['192.168.3.175', '192.168.3.30', '192.168.3.99', '192.168.3.20']);
+    expect(tela.rotuloClasse('BSC')).toBe('Controle de acesso');
+    expect(tela.rotuloClasse('ASC1204')).toBe('Controle de acesso');
+    expect(tela.rotuloClasse('IPC')).toBe('Câmera/gravador');
+    expect(tela.rotuloClasse(null)).toBeNull();
+    const txt = f.nativeElement.textContent as string;
+    expect(txt).toContain('Controle de acesso');
+    expect(txt).toContain('Câmera/gravador');
+  });
+
+  it('aviso de porta corrigida fala de porta', () => {
+    const { f } = build({
+      descobertos: jest.fn(() => of({ recebido_em: new Date().toISOString(), achados: [], avisos: [{ id_dispositivo: 4, nome: 'facial principal', tipo: 'porta', de: '80', para: '8080', em: new Date().toISOString() }] })),
+    });
+    const txt = f.nativeElement.textContent as string;
+    expect(txt).toContain('Porta do facial principal atualizada de 80 para 8080');
+    expect(txt).not.toContain('IP do facial principal');
+  });
+});

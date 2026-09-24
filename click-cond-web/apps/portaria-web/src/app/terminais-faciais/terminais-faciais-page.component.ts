@@ -151,6 +151,20 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   readonly procurando = signal(false);
   /** Momento do clique em "Procurar na rede" — usado para saber se o resultado que chegou é posterior ao pedido. */
   private procuraPedidaEm: number | null = null;
+  /** Prazo da procura: sem ele, com o agente offline o botão ficaria em "Procurando…" para sempre. */
+  private procuraTimer?: ReturnType<typeof setTimeout>;
+  /** Mensagem quando o prazo estoura sem resultado novo. */
+  readonly procuraSemResposta = signal<string | null>(null);
+
+  /** Controle de acesso primeiro (é o que o operador veio cadastrar); câmeras e gravadores depois. */
+  readonly achadosOrdenados = computed(() => {
+    const lista = this.descobertos()?.achados ?? [];
+    const peso = (a: AparelhoEncontrado) => {
+      const r = this.rotuloClasse(a.classe);
+      return r === 'Controle de acesso' ? 0 : r == null ? 1 : 2;
+    };
+    return [...lista].sort((x, y) => peso(x) - peso(y));
+  });
 
   /** Há uma versão do agente mais nova que a instalada (tarefa 8 preenche `versao_disponivel`). */
   readonly atualizacaoDisponivel = computed(() => {
@@ -319,11 +333,25 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
           d.recebido_em &&
           new Date(d.recebido_em).getTime() >= this.procuraPedidaEm
         ) {
-          this.procurando.set(false);
+          this.encerrarProcura();
         }
       },
-      error: () => this.procurando.set(false),
+      error: () => this.encerrarProcura(),
     });
+  }
+
+  /** DeviceClass do DHIP → rótulo curto; null quando o protocolo não informa. */
+  rotuloClasse(classe: string | null | undefined): string | null {
+    if (!classe) return null;
+    const c = classe.toUpperCase();
+    return c.startsWith('BSC') || c.startsWith('ASC') ? 'Controle de acesso' : 'Câmera/gravador';
+  }
+
+  private encerrarProcura() {
+    this.procurando.set(false);
+    this.procuraPedidaEm = null;
+    if (this.procuraTimer) clearTimeout(this.procuraTimer);
+    this.procuraTimer = undefined;
   }
 
   /** Abre o cadastro já preenchido com o que a varredura achou (sem senha — nunca vem da LAN). */
@@ -345,9 +373,17 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   /** Pede ao agente uma nova varredura da LAN; o resultado chega pelo polling de `loadDescobertos()`. */
   procurarNaRede() {
     this.procurando.set(true);
+    this.procuraSemResposta.set(null);
     this.procuraPedidaEm = Date.now();
+    if (this.procuraTimer) clearTimeout(this.procuraTimer);
+    // O agente pega o pedido no próximo poll (segundos) e a varredura leva
+    // ~10–30 s; 60 s sem resultado novo = agente offline ou travado.
+    this.procuraTimer = setTimeout(() => {
+      this.encerrarProcura();
+      this.procuraSemResposta.set('O agente não respondeu. Confira se ele está online.');
+    }, 60_000);
     this.api.procurarDescobertos().subscribe({
-      error: () => this.procurando.set(false),
+      error: () => this.encerrarProcura(),
     });
   }
 
@@ -516,6 +552,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.statusInterval) clearInterval(this.statusInterval);
     if (this.hideProgressTimer) clearTimeout(this.hideProgressTimer);
+    if (this.procuraTimer) clearTimeout(this.procuraTimer);
   }
 
   loadSyncStatus() {
