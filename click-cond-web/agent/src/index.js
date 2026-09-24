@@ -51,6 +51,7 @@ const {
 } = require('./core/nuvem');
 const { Supervisor } = require('./core/supervisor');
 const { iniciarTelemetria } = require('./core/telemetria');
+const { criarAtualizador } = require('./core/atualizador');
 const { resolverDriver } = require('./drivers/registro');
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
@@ -110,6 +111,10 @@ const TELEMETRIA_INTERVAL_MS = Number(
 // portal saber há quanto tempo o agente está de pé, sem depender do relógio
 // desta máquina (que pode estar desviado — ver core/nuvem.js).
 const INICIADO_EM = new Date().toISOString();
+// Auto-atualização (tarefa 8): só age rodando como executável SEA (senão só
+// loga — ver core/atualizador.js). Uma instância só, com as dependências
+// reais (produção); os testes usam `criarAtualizador` com tudo injetado.
+const atualizador = criarAtualizador();
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
 // Ciclo de vida do ouvinte de eventos por device (assina uma vez, reconecta
@@ -136,6 +141,12 @@ const temConfig = () => API_URL && (AGENT_TOKEN || DEVICE_TOKENS.length > 0);
 main();
 
 async function main() {
+  // Auto-atualização (tarefa 8): confere ANTES de tudo, mesmo sem config —
+  // se esta é uma versão que acabou de ser trocada e já falhou 3 vezes
+  // seguidas em completar um poll, reverte para a anterior e sai, em vez de
+  // insistir numa versão quebrada. Roda uma vez por partida do processo.
+  atualizador.verificarInicializacao();
+
   // Sem config? Se houver console (rodando manualmente), pergunta e salva o
   // .env sozinho — o operador não precisa abrir editor de texto. Rodando como
   // serviço (sem console), apenas avisa o que falta.
@@ -203,6 +214,10 @@ async function runCondoLoop(token) {
   let pollMs = DEFAULT_POLL_MS;
   let errBackoff = 0;
   let lastStatusAt = 0; // throttle do heartbeat de status do aparelho
+  // Auto-atualização (tarefa 8): só agenda depois do 1º poll bem-sucedido —
+  // confirma que a versão atual fala com a nuvem (apaga atualizacao.json, se
+  // havia uma pendente) antes de sequer considerar buscar outra.
+  let atualizadorAgendado = false;
 
   // Um SupervisorDispositivo por device: resolve o driver, assina `escutar`
   // (uma vez) e reconecta sozinho (espera crescente) se a assinatura falhar.
@@ -253,6 +268,11 @@ async function runCondoLoop(token) {
         );
         await sleep(30000);
         continue;
+      }
+      if (!atualizadorAgendado) {
+        atualizadorAgendado = true;
+        atualizador.confirmarSucesso();
+        atualizador.agendarVerificacaoPeriodica(token);
       }
       const body = res.data || {};
       if (body.poll_interval_ms) pollMs = Number(body.poll_interval_ms);

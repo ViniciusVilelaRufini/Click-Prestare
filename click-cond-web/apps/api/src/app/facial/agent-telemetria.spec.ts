@@ -9,8 +9,9 @@ import { AgentBridgeService, sanitizarTelemetria } from './agent-bridge.service'
  *    pelo token, como as outras rotas condo/*, e guarda a última foto no
  *    AgentBridgeService;
  *  - GET facial/agent/saude (FacialController) devolve essa última foto +
- *    versao_disponivel (null até a tarefa 8) — só para operador, morador
- *    é recusado (mesmo tenant check de agent/info, com assertOperador a mais).
+ *    versao_disponivel (tarefa 8: comparada contra AgentVersionService) —
+ *    só para operador, morador é recusado (mesmo tenant check de agent/info,
+ *    com assertOperador a mais).
  */
 describe('POST facial/agent/condo/:token/telemetria', () => {
   const payload = {
@@ -59,13 +60,17 @@ describe('GET facial/agent/saude', () => {
   // isOperador() recusar (mesmo padrão de dashboard.papel.spec.ts).
   const morador = { sub: 50, nome: 'QA morador', typeAccess: 'Morador' } as any;
 
-  it('morador é recusado', () => {
+  function agentVersionFake(info: { versao: string | null; url?: string | null; sha256?: string | null }) {
+    return { getLatest: jest.fn(async () => ({ url: null, sha256: null, ...info })) };
+  }
+
+  it('morador é recusado', async () => {
     const bridge = new AgentBridgeService();
-    const ctrl = new FacialController({} as any, bridge);
-    expect(() => ctrl.agentSaude(7, morador)).toThrow(ForbiddenException);
+    const ctrl = new FacialController({} as any, bridge, agentVersionFake({ versao: null }) as any);
+    await expect(ctrl.agentSaude(7, morador)).rejects.toThrow(ForbiddenException);
   });
 
-  it('operador lê a última telemetria + versao_disponivel null (tarefa 8 preenche)', () => {
+  it('operador lê a última telemetria; sem versão nova publicada, versao_disponivel é null', async () => {
     const bridge = new AgentBridgeService();
     bridge.setTelemetria(7, {
       versao: '2026.09.24',
@@ -76,9 +81,9 @@ describe('GET facial/agent/saude', () => {
       ],
       eventos_pendentes: 2,
     });
-    const ctrl = new FacialController({} as any, bridge);
+    const ctrl = new FacialController({} as any, bridge, agentVersionFake({ versao: '2026.09.24' }) as any);
 
-    const res = ctrl.agentSaude(7, operador);
+    const res = await ctrl.agentSaude(7, operador);
 
     expect(res.versao).toBe('2026.09.24');
     expect(res.dispositivos).toHaveLength(1);
@@ -87,23 +92,59 @@ describe('GET facial/agent/saude', () => {
     expect(typeof res.recebido_em).toBe('string');
   });
 
-  it('sem telemetria ainda (agente nunca reportou): devolve vazio, não lança', () => {
+  it('versão publicada mais nova que a do agente: versao_disponivel vem preenchida', async () => {
     const bridge = new AgentBridgeService();
-    const ctrl = new FacialController({} as any, bridge);
+    bridge.setTelemetria(7, {
+      versao: '2026.09.24',
+      so: 'win32 10.0.26100',
+      iniciado_em: '2026-09-23T00:00:00.000Z',
+      dispositivos: [],
+      eventos_pendentes: 0,
+    });
+    const ctrl = new FacialController({} as any, bridge, agentVersionFake({ versao: '2026.09.25' }) as any);
 
-    const res = ctrl.agentSaude(7, operador);
+    const res = await ctrl.agentSaude(7, operador);
+
+    expect(res.versao).toBe('2026.09.24');
+    expect(res.versao_disponivel).toBe('2026.09.25');
+  });
+
+  it('versão publicada mais velha (ou igual) que a do agente: versao_disponivel continua null', async () => {
+    const bridge = new AgentBridgeService();
+    bridge.setTelemetria(7, {
+      versao: '2026.09.24',
+      so: 'x',
+      iniciado_em: 'x',
+      dispositivos: [],
+      eventos_pendentes: 0,
+    });
+    const ctrl = new FacialController({} as any, bridge, agentVersionFake({ versao: '2026.09.20' }) as any);
+
+    const res = await ctrl.agentSaude(7, operador);
+    expect(res.versao_disponivel).toBeNull();
+  });
+
+  it('sem telemetria ainda (agente nunca reportou): devolve vazio, não lança, não compara versão', async () => {
+    const bridge = new AgentBridgeService();
+    const fakeVersion = agentVersionFake({ versao: '2026.09.25' });
+    const ctrl = new FacialController({} as any, bridge, fakeVersion as any);
+
+    const res = await ctrl.agentSaude(7, operador);
 
     expect(res.recebido_em).toBeNull();
     expect(res.versao).toBeNull();
     expect(res.dispositivos).toEqual([]);
+    // Sem versão atual conhecida, não dá pra dizer que há "atualização
+    // disponível" — mesmo a última publicada sendo mais nova que qualquer
+    // coisa, não há base de comparação confiável.
     expect(res.versao_disponivel).toBeNull();
   });
 
-  it('condomínio de outro tenant é recusado (assertTenantStrict)', () => {
+  it('condomínio de outro tenant é recusado (assertTenantStrict)', async () => {
     const bridge = new AgentBridgeService();
-    const ctrl = new FacialController({} as any, bridge);
+    const ctrl = new FacialController({} as any, bridge, agentVersionFake({ versao: null }) as any);
     const operadorDeOutroCondominio = { sub: 3, nome: 'QA porteiro', id_condominio: 99 } as any;
-    expect(() => ctrl.agentSaude(7, operadorDeOutroCondominio)).toThrow(ForbiddenException);
+    await expect(ctrl.agentSaude(7, operadorDeOutroCondominio)).rejects.toThrow(ForbiddenException);
   });
 });
 

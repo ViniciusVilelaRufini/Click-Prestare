@@ -110,6 +110,37 @@ para a nuvem** via webhook — configure a URL do webhook no próprio aparelho
 (a mesma URL do botão "Copiar URL Webhook"). Isso só exige que o aparelho tenha
 internet de saída, o que normalmente já existe.
 
+## Auto-atualização
+
+O executável (Opção A) se atualiza sozinho: na partida e a cada 6h ele
+consulta a última versão publicada e, se houver uma mais nova, baixa,
+confere o SHA-256 e troca o próprio arquivo (reiniciando em seguida — o laço
+de serviço, `run-agent-service.cmd`, sobe a versão nova sozinho). Se a versão
+nova não conseguir completar nem um poll em 3 tentativas seguidas, o agente
+reverte sozinho para a anterior. Só age rodando como o `.exe` empacotado
+(Node SEA) — via `node dist/click-agent.cjs` (Opção B) fica de fora, sem
+efeito nenhum. Ver `src/core/atualizador.js` para o protocolo completo.
+
+### Publicando uma versão nova
+
+1. Suba `AGENT_VERSION` em `src/versao.js` (formato `AAAA.MM.DD` ou
+   `AAAA.MM.DD.N` para mais de um release no mesmo dia).
+2. Gere o executável: `npm run build:exe` (dentro de `agent/`) — produz
+   `click-agent.exe` e `click-agent.exe.sha256` na pasta `agent/`.
+3. Publique o release no GitHub, com a tag `agent-v<versão>` (ex.:
+   `agent-v2026.09.24`) e os dois arquivos como assets:
+   ```bash
+   cd agent
+   gh release create agent-v<versao> dist/../click-agent.exe click-agent.exe.sha256 --latest
+   ```
+   A API (`GET /api/facial/agent/condo/:token/versao`, ver
+   `apps/api/.../facial/agent-version.service.ts`) lê o último release desse
+   jeito: tag `agent-v<versão>` e os assets `click-agent.exe` +
+   `click-agent.exe.sha256` — nomes exatos, senão a API não reconhece o
+   release como uma versão publicada (cai em "nenhuma versão disponível").
+   Cache de 10 min: um release novo pode levar até esse tempo para os
+   agentes verem.
+
 ## Fabricantes — status de validação
 
 Endpoints validados contra a documentação pública dos fabricantes (jun/2026).

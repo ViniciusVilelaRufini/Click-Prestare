@@ -28,6 +28,7 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador, assertTenantStrict, requireTenant } from '../auth/tenant.util';
 import { timingSafeEqual } from 'crypto';
 import { AgentBridgeService } from './agent-bridge.service';
+import { AgentVersionService, compararVersoesAgente } from './agent-version.service';
 
 /**
  * Confere o token compartilhado das rotas server-to-server (`internal/*`).
@@ -60,6 +61,7 @@ export class FacialController {
   constructor(
     private readonly service: FacialService,
     private readonly bridge: AgentBridgeService,
+    private readonly agentVersion: AgentVersionService,
   ) {}
 
   @Get('devices')
@@ -292,8 +294,11 @@ export class FacialController {
    * Telemetria do Agente Local (tarefa 7): versão, SO, saúde por device e
    * fila offline pendente — a última foto que o agente mandou (POST
    * condo/:token/telemetria, ver AgentController), guardada em memória no
-   * AgentBridgeService. `versao_disponivel` vem null até a tarefa 8 (checagem
-   * de versão nova) preenchê-la.
+   * AgentBridgeService. `versao_disponivel` (tarefa 8) vem preenchida com a
+   * versão publicada quando ela é mais nova que a que o agente reportou —
+   * null quando já está atualizado, quando o agente nunca reportou (sem
+   * versão para comparar) ou quando a consulta ao GitHub falha
+   * (AgentVersionService trata isso como "não sei", nunca lança).
    *
    * Mesmo tenant check de agent/info, mas só para OPERADOR (síndico/porteiro):
    * agent/info não tinha essa checagem porque só devolve a chave do agente,
@@ -301,7 +306,7 @@ export class FacialController {
    * condomínio inteiro, sem razão para um morador ver.
    */
   @Get('agent/saude')
-  agentSaude(
+  async agentSaude(
     @Query('id_condominio', ParseIntPipe) idCondominio: number,
     @ReqUser() user: JwtPayload,
   ) {
@@ -312,15 +317,20 @@ export class FacialController {
     );
     assertOperador(user, 'ver a saúde do agente local');
     const telemetria = this.bridge.getTelemetria(idCondominio);
+    const versaoAtual = telemetria?.versao || null;
+    const ultima = await this.agentVersion.getLatest();
+    const versaoDisponivel =
+      versaoAtual && ultima.versao && compararVersoesAgente(ultima.versao, versaoAtual) > 0
+        ? ultima.versao
+        : null;
     return {
       recebido_em: telemetria?.recebido_em ?? null,
-      versao: telemetria?.versao ?? null,
+      versao: versaoAtual,
       so: telemetria?.so ?? null,
       iniciado_em: telemetria?.iniciado_em ?? null,
       dispositivos: telemetria?.dispositivos ?? [],
       eventos_pendentes: telemetria?.eventos_pendentes ?? null,
-      // Tarefa 8 preenche comparando com a versão publicada.
-      versao_disponivel: null as string | null,
+      versao_disponivel: versaoDisponivel,
     };
   }
 
