@@ -10,10 +10,21 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * Fora do SEA: o bundle vive em `agent/dist/click-agent.cjs` (build-bundle.mjs),
+ * mas o .env e o estado ficam em `agent/` — ao lado do package.json, onde o
+ * operador sempre os deixou. Então, se o diretório do código é um `dist`,
+ * sobe um nível; qualquer outro diretório (fonte, cópia do harness) é usado
+ * como está.
+ */
+function dirDeConfigFora(dirDoCodigo) {
+  return path.basename(dirDoCodigo) === 'dist' ? path.dirname(dirDoCodigo) : dirDoCodigo;
+}
+
+/**
  * Diretório onde procurar o .env e o estado do agente (baselines, fila
  * offline). Quando empacotado como executável (Node SEA), __dirname aponta
  * para um caminho virtual interno — então usamos a pasta do próprio .exe
- * (process.execPath). Rodando via `node index.js`, usa __dirname.
+ * (process.execPath). Rodando via `node`, usa __dirname (ver `dirDeConfigFora`).
  */
 function configDir() {
   try {
@@ -25,7 +36,7 @@ function configDir() {
   } catch {
     /* node:sea não existe em Node antigo — segue com __dirname */
   }
-  return __dirname;
+  return dirDeConfigFora(__dirname);
 }
 
 /**
@@ -85,6 +96,7 @@ function setBaseline(deviceId, val) {
 
 module.exports = {
   configDir,
+  dirDeConfigFora,
   lerJson,
   gravarJsonAtomico,
   deviceBaselines,

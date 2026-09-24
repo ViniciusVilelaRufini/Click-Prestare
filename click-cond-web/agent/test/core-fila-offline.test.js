@@ -108,3 +108,75 @@ test('flushOfflineEvents(): com a nuvem fora do ar, mantém tudo na fila', async
     .map((l) => JSON.parse(l));
   assert.deepEqual(linhas, [{ ordem: 1 }, { ordem: 2 }]);
 });
+
+test('flushOfflineEvents(): evento enfileirado DURANTE o flush não se perde (M4 da revisão final)', async () => {
+  // O flush lia a fila, reenviava (com await) e regravava o arquivo só com o
+  // que sobrou da leitura inicial — um evento que o stream enfileirasse no
+  // meio do reenvio (internet oscilando) era apagado da fila.
+  const recebidos = [];
+  let enfileirouNoMeio = false;
+  const { url, fechar } = await comServidor((req, res) => {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      recebidos.push(JSON.parse(raw));
+      if (!enfileirouNoMeio) {
+        enfileirouNoMeio = true;
+        enqueueOfflineEvent({ ordem: 'novo-no-meio' }, 'device-1');
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{}');
+    });
+  });
+  try {
+    configurarNuvem({ apiUrl: url });
+    enqueueOfflineEvent({ ordem: 1 }, 'device-1');
+    enqueueOfflineEvent({ ordem: 2 }, 'device-1');
+
+    await flushOfflineEvents('tok');
+
+    assert.deepEqual(recebidos.map((b) => b.ordem), [1, 2]);
+    const linhas = fs
+      .readFileSync(offlineQueuePath(), 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+    assert.deepEqual(linhas, [{ ordem: 'novo-no-meio' }], 'o evento novo continua na fila para o próximo flush');
+  } finally {
+    await fechar();
+  }
+});
+
+test('flushOfflineEvents(): falha no meio preserva o não enviado E o que chegou durante o flush, em ordem', async () => {
+  let chamadas = 0;
+  const { url, fechar } = await comServidor((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      chamadas++;
+      if (chamadas === 1) {
+        enqueueOfflineEvent({ ordem: 'novo' }, 'device-1');
+        res.writeHead(200);
+        res.end('{}');
+        return;
+      }
+      res.writeHead(503); // nuvem caiu de novo no 2º envio
+      res.end('{}');
+    });
+  });
+  try {
+    configurarNuvem({ apiUrl: url });
+    enqueueOfflineEvent({ ordem: 1 }, 'device-1');
+    enqueueOfflineEvent({ ordem: 2 }, 'device-1');
+
+    await flushOfflineEvents('tok');
+
+    const linhas = fs
+      .readFileSync(offlineQueuePath(), 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+    assert.deepEqual(linhas, [{ ordem: 2 }, { ordem: 'novo' }]);
+  } finally {
+    await fechar();
+  }
+});

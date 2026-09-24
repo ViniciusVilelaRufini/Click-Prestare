@@ -10,18 +10,23 @@
  *   1. só baixa se a instalação tiver um laço de reinício
  *      (`run-agent-service.cmd` com `goto loop` ao lado do exe) — sem ele,
  *      trocar o arquivo e sair NUNCA mais sobe o agente sozinho;
- *   2. baixa para `click-agent.new.exe`, só de um host permitido (github.com,
- *      objects.githubusercontent.com, release-assets.githubusercontent.com,
- *      ou o host da própria API) — na URL inicial E em cada
- *      redirecionamento — e com TLS validado de verdade (sem isso, o SHA-256
- *      não vale nada: um MITM que engana o TLS pode servir seu próprio
- *      {url, sha256} e o agente baixaria e rodaria QUALQUER coisa);
+ *   2. baixa para `click-agent.new.exe`, só de origem permitida (ver
+ *      `motivoUrlRecusada`: releases `agent-v*` do repositório do agente no
+ *      github.com, o CDN de assets do GitHub SÓ como redirecionamento, ou o
+ *      host da própria API) — na URL inicial E em cada redirecionamento — e
+ *      com TLS validado de verdade (sem isso, o SHA-256 não vale nada: um
+ *      MITM que engana o TLS pode servir seu próprio {url, sha256} e o
+ *      agente baixaria e rodaria QUALQUER coisa);
  *   3. confere o SHA-256 contra o que a nuvem informou — divergente é
  *      DESCARTADO;
  *   4. grava `atualizacao.json` ({ de, para, tentativas: 0 }), renomeia o exe
  *      em uso para `click-agent.old.exe` (Windows deixa renomear um .exe em
  *      execução, só não deixa apagar/sobrescrever) e o novo para o mesmo nome
  *      do exe atual, e sai com código 0 — o laço de serviço reinicia sozinho.
+ *      A saída não é imediata: `temReinicioPendente()` fica true e quem roda
+ *      o laço de poll (index.js) chama `sairSeReinicioPendente()` no FIM da
+ *      iteração, depois dos comandos em curso (um enroll pela metade não é
+ *      cortado). Um teto de segurança sai mesmo assim se o laço travar.
  *      Se qualquer um dos dois renames falhar no meio, desfaz o que já tinha
  *      sido feito (nunca fica sem `click-agent.exe` no disco).
  *
@@ -34,6 +39,14 @@
  * em `versao-recusada.json`, para `verificar()` nunca mais tentar baixá-la
  * (senão, enquanto a nuvem continuar oferecendo essa mesma versão, o agente
  * entraria num looping infinito de baixar → trocar → falhar → reverter).
+ *
+ * Crash ANTES de main() (a versão nova nem chega a rodar este código) é
+ * coberto pelo laço de serviço (run-agent-service.cmd): com
+ * `atualizacao.json` presente, cada saída com código != 0 soma em
+ * `atualizacao-falhas.txt`; na 3ª, o próprio .cmd troca os arquivos
+ * (exe → .bad.exe, .old.exe → exe) e NÃO apaga `atualizacao.json` — o exe
+ * antigo, ao subir, vê `para` diferente da própria versão e marca `para`
+ * como recusada (mesmo caminho do parágrafo abaixo).
  *
  * O mesmo booby-trap (looping infinito) acontece se um release esquecer de
  * bumpar `AGENT_VERSION` em `src/versao.js`: o exe rodando é de fato o que
@@ -91,18 +104,58 @@ const WATCHDOG_CONFIRMACAO_MS = 10 * 60 * 1000;
 // não é um teto pro download inteiro) — sem isso, uma conexão travada trava
 // o atualizador (e a verificação periódica) pra sempre.
 const DOWNLOAD_TIMEOUT_MS = 60000;
+// Troca feita, saída adiada até o fim da iteração do laço de poll — mas se
+// o laço não chegar lá nesse prazo (travado), sai mesmo assim.
+const TETO_REINICIO_PENDENTE_MS = 5 * 60 * 1000;
 
-// Hosts que servem os assets de release do GitHub. O download só é aceito
-// vindo de um desses (ou do host da própria API) — na URL inicial E em CADA
-// redirecionamento (o GitHub redireciona o asset pra um CDN de objetos).
-// Isso é o que faz o SHA-256 valer alguma coisa contra um servidor
-// comprometido: mesmo que ele minta um {url, sha256} coerentes entre si, só
-// aceitamos buscar o arquivo de um host que sabidamente é o do GitHub.
-const HOSTS_GITHUB_PADRAO = Object.freeze([
-  'github.com',
+// Origens do download (checadas na URL inicial E em CADA redirecionamento).
+// É o que faz o SHA-256 valer alguma coisa contra uma nuvem comprometida:
+// mesmo que ela minta um {url, sha256} coerentes entre si, só buscamos o
+// arquivo de um release do NOSSO repositório. Só o host "github.com" não
+// bastava — qualquer repositório público do GitHub passaria.
+//   - github.com: só releases com tag `agent-v*` do repositório do agente
+//     (o dono aparece com os dois nomes que a conta já teve);
+//   - CDN de assets do GitHub: só como REDIRECIONAMENTO (é para onde o
+//     github.com manda o download) — nunca como URL inicial, senão um asset
+//     de outro repositório entraria direto pelo CDN;
+//   - o host da própria API (quem chama passa em `hostApi`).
+const HOST_GITHUB = 'github.com';
+const PREFIXOS_RELEASE_GITHUB = Object.freeze([
+  '/Viniciusvile/Click-Prestare/releases/download/agent-v',
+  '/ViniciusVilelaRufini/Click-Prestare/releases/download/agent-v',
+]);
+const HOSTS_CDN_GITHUB = Object.freeze([
   'objects.githubusercontent.com',
   'release-assets.githubusercontent.com',
 ]);
+
+/**
+ * Por que `urlStr` NÃO pode ser usada no download da atualização (string com
+ * o motivo) — ou `null` se pode. `inicial` = é a URL que a nuvem mandou (não
+ * um hop de redirecionamento). Nomes de dono/repositório do GitHub não
+ * diferenciam maiúsculas, então o prefixo também não.
+ */
+function motivoUrlRecusada(urlStr, { inicial, hostApi } = {}) {
+  let url;
+  try {
+    url = new URL(urlStr);
+  } catch {
+    return `URL inválida: ${urlStr}`;
+  }
+  const host = url.hostname.toLowerCase();
+  if (hostApi && host === String(hostApi).toLowerCase()) return null;
+  if (host === HOST_GITHUB) {
+    const caminho = url.pathname.toLowerCase();
+    const ok = PREFIXOS_RELEASE_GITHUB.some((p) => caminho.startsWith(p.toLowerCase()));
+    return ok
+      ? null
+      : `caminho não permitido no github.com (só releases agent-v* do repositório do agente): ${url.pathname}`;
+  }
+  if (HOSTS_CDN_GITHUB.includes(host)) {
+    return inicial ? `host não permitido como URL inicial (só como redirecionamento): ${host}` : null;
+  }
+  return `host não permitido: ${host}`;
+}
 
 /** `node:sea` só existe a partir do Node 20 com o flag de build SEA; em Node
  *  mais velho, ou rodando `node index.js` direto (dev), `isSea()` não existe
@@ -178,10 +231,10 @@ function hostnameDe(urlStr) {
  * para outro host). Duas travas de segurança, checadas na URL inicial E em
  * CADA hop de redirecionamento (não só na primeira):
  *   - esquema tem de ser `https://`;
- *   - se `opts.hostsPermitidos` for passado (um Set de hostnames), o host da
- *     URL tem de estar nele — quem chama pela produção (`criarAtualizador`)
- *     sempre passa; testes que chamam `baixarArquivo` direto podem omitir
- *     pra continuar genérico.
+ *   - se `opts.validarUrl(url, { inicial })` for passado, ele devolve o motivo
+ *     da recusa (string) ou null — quem chama pela produção
+ *     (`criarAtualizador`) sempre passa `motivoUrlRecusada`; testes que
+ *     chamam `baixarArquivo` direto podem omitir pra continuar genérico.
  * TLS é validado de verdade (sem `rejectUnauthorized: false`) — é o SHA-256
  * conferido depois que garante a integridade do conteúdo, mas só faz sentido
  * se ninguém no meio do caminho puder trocar o {url, sha256} por um par seu
@@ -194,7 +247,7 @@ function hostnameDe(urlStr) {
 function baixarArquivo(urlStr, destino, opts = {}) {
   const transporte = opts.transporte || https;
   const maxRedirects = opts.maxRedirects ?? MAX_REDIRECTS;
-  const hostsPermitidos = opts.hostsPermitidos || null;
+  const validarUrl = opts.validarUrl || null;
   const timeoutMs = opts.timeoutMs ?? DOWNLOAD_TIMEOUT_MS;
 
   function tentar(url, restantes) {
@@ -203,10 +256,10 @@ function baixarArquivo(urlStr, destino, opts = {}) {
         reject(new Error(`Download de atualização precisa ser HTTPS: ${url}`));
         return;
       }
-      if (hostsPermitidos) {
-        const host = hostnameDe(url);
-        if (!host || !hostsPermitidos.has(host)) {
-          reject(new Error(`Download de atualização: host não permitido: ${host || url}`));
+      if (validarUrl) {
+        const motivo = validarUrl(url, { inicial: restantes === maxRedirects });
+        if (motivo) {
+          reject(new Error(`Download de atualização: ${motivo}`));
           return;
         }
       }
@@ -294,9 +347,13 @@ function criarAtualizador(deps = {}) {
     apiUrl = () => '',
     renomear = (de, para) => fs.renameSync(de, para),
     baixar = (urlStr, destino) =>
-      baixarArquivo(urlStr, destino, { hostsPermitidos: hostsPermitidosAtuais() }),
+      baixarArquivo(urlStr, destino, {
+        validarUrl: (url, { inicial }) => motivoUrlRecusada(url, { inicial, hostApi: hostApiAtual() }),
+      }),
     sair = (codigo) => process.exit(codigo),
     log = console,
+    // Teto de segurança da saída adiada (ver `sairSeReinicioPendente`).
+    tetoReinicioMs = TETO_REINICIO_PENDENTE_MS,
   } = deps;
 
   // Verificação em curso: o setInterval de agendarVerificacaoPeriodica não
@@ -309,15 +366,16 @@ function criarAtualizador(deps = {}) {
   // versão nova encontrada nessa situação.
   let ultimoAvisoRejeitada = null;
 
-  function hostsPermitidosAtuais() {
-    const hosts = new Set(HOSTS_GITHUB_PADRAO);
+  // Arquivos já trocados, esperando o laço de poll terminar a iteração em
+  // curso para sair (ver `sairSeReinicioPendente`).
+  let reinicioPendente = false;
+
+  function hostApiAtual() {
     try {
-      const host = hostnameDe(apiUrl() || '');
-      if (host) hosts.add(host);
+      return hostnameDe(apiUrl() || '');
     } catch {
-      /* apiUrl() não configurada ainda — segue só com os hosts do GitHub */
+      return null; /* apiUrl() não configurada ainda — só as origens do GitHub */
     }
-    return hosts;
   }
 
   function marcarVersaoRecusada(dir, versao) {
@@ -390,14 +448,16 @@ function criarAtualizador(deps = {}) {
     // Comparação NUMÉRICA (não `!==` de string): "2026.09.24" e
     // "2026.09.24.0" são a mesma versão.
     if (compararVersoes(estado.para, AGENT_VERSION) !== 0) {
-      // Não é lixo qualquer: isto é o sintoma clássico de um release que
-      // esqueceu de bumpar AGENT_VERSION — o exe rodando é de fato o que
-      // acabou de ser trocado, mas a constante por dentro não bate. Sem
-      // marcar como recusada, verificar() tentaria baixar essa "mesma"
-      // versão pra sempre (a nuvem nunca vai anunciar outra coisa).
+      // Dois casos, mesmo remédio (marcar `para` como recusada):
+      //  - o laço de serviço (run-agent-service.cmd) reverteu uma versão
+      //    nova que caía antes de main() — quem roda agora é o exe ANTIGO;
+      //  - um release esqueceu de bumpar AGENT_VERSION — o exe rodando é o
+      //    trocado, mas a constante por dentro não bate.
+      // Sem marcar como recusada, verificar() tentaria baixar essa versão
+      // pra sempre (a nuvem nunca vai anunciar outra coisa).
       if (estado.para) {
         log.error(
-          `[agente] atualizacao.json aponta para ${estado.para}, mas a versão rodando é ${AGENT_VERSION} — descartando (release esqueceu de atualizar AGENT_VERSION?)`,
+          `[agente] atualizacao.json aponta para ${estado.para}, mas a versão rodando é ${AGENT_VERSION} — marcando ${estado.para} como recusada (revertida pelo laço de serviço, ou release sem AGENT_VERSION atualizado)`,
         );
         marcarVersaoRecusada(dir, estado.para);
       }
@@ -580,8 +640,31 @@ function criarAtualizador(deps = {}) {
       return;
     }
 
-    log.log(`[agente] atualizado para ${info.versao} — reiniciando`);
+    // Não sai aqui: esta verificação roda em paralelo ao laço de poll, que
+    // pode estar no meio de um comando no aparelho (enroll, remoção em
+    // lote...). O laço chama `sairSeReinicioPendente()` no fim da iteração.
+    reinicioPendente = true;
+    log.log(`[agente] atualizado para ${info.versao} — reiniciando ao fim do ciclo de comandos em curso`);
+    // Teto de segurança: se o laço travar (nuvem pendurada etc.), sai mesmo
+    // assim — os arquivos já foram trocados e só um reinício aplica a versão.
+    const teto = setTimeout(() => sairSeReinicioPendente(), tetoReinicioMs);
+    teto.unref?.();
+  }
+
+  /** Há uma troca de exe feita esperando a saída do processo? */
+  function temReinicioPendente() {
+    return reinicioPendente;
+  }
+
+  /** Sai com código 0 (o laço de serviço sobe a versão nova) SE `verificar()`
+   *  já trocou os arquivos. Chame no fim de cada iteração do laço de poll,
+   *  depois dos comandos. Sem troca pendente, não faz nada (devolve false). */
+  function sairSeReinicioPendente() {
+    if (!reinicioPendente) return false;
+    reinicioPendente = false;
+    log.log('[agente] saindo para o laço de serviço subir a versão nova');
     sair(0);
+    return true;
   }
 
   /** Verificação imediata (chame só depois do primeiro poll OK — ver
@@ -634,6 +717,8 @@ function criarAtualizador(deps = {}) {
     verificarInicializacao,
     confirmarSucesso,
     verificar,
+    temReinicioPendente,
+    sairSeReinicioPendente,
     agendarVerificacaoPeriodica,
     iniciarVigiaDeConfirmacao,
   };
@@ -648,5 +733,7 @@ module.exports = {
   ARQ_ATUALIZACAO,
   ARQ_VERSAO_RECUSADA,
   NOME_LACO_SERVICO,
-  HOSTS_GITHUB_PADRAO,
+  PREFIXOS_RELEASE_GITHUB,
+  HOSTS_CDN_GITHUB,
+  motivoUrlRecusada,
 };

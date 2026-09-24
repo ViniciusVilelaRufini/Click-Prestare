@@ -10,6 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
   configDir,
+  dirDeConfigFora,
   lerJson,
   gravarJsonAtomico,
   deviceBaselines,
@@ -29,6 +30,23 @@ function limpar(nome) {
     } catch { /* já não existe */ }
   }
 }
+
+test('dirDeConfigFora(): bundle em agent/dist procura .env/estado em agent/ (pasta pai)', () => {
+  // I7 da revisão final: `node agent/dist/click-agent.cjs` procurava o .env,
+  // as baselines e a fila offline dentro de dist/.
+  const agente = path.join(path.sep, 'x', 'click-cond-web', 'agent');
+  assert.equal(dirDeConfigFora(path.join(agente, 'dist')), agente);
+});
+
+test('dirDeConfigFora(): qualquer outro diretório (fonte, cópia do harness) fica como está', () => {
+  const fonte = path.join(path.sep, 'x', 'agent', 'src', 'core');
+  const harness = path.join(path.sep, 'x', 'agent', 'harness', '.tmp-agent');
+  assert.equal(dirDeConfigFora(fonte), fonte);
+  assert.equal(dirDeConfigFora(harness), harness);
+  // "distribuicao" não é "dist": só o nome exato sobe um nível.
+  const parecido = path.join(path.sep, 'x', 'distribuicao');
+  assert.equal(dirDeConfigFora(parecido), parecido);
+});
 
 test('lerJson(): devolve o padrão quando o arquivo não existe', () => {
   const nome = 'estado-teste-inexistente.json';

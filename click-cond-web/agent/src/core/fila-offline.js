@@ -100,7 +100,19 @@ async function flushOfflineEvents(token) {
         break; // nuvem ainda inalcançável — preserva o restante
       }
     }
-    const restantes = lines.slice(enviados);
+    // O flush tem `await` no meio: enquanto ele reenviava, o stream pode
+    // ter enfileirado eventos NOVOS (appendFileSync no fim do arquivo).
+    // Regravar só com `restantes` apagava esses eventos — relê o arquivo e
+    // preserva tudo o que foi acrescentado depois da leitura inicial. (Ler
+    // e gravar aqui é síncrono: nada mais roda no meio.)
+    let novos = [];
+    try {
+      const atuais = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+      novos = atuais.slice(lines.length);
+    } catch {
+      /* arquivo sumiu no meio — nada novo a preservar */
+    }
+    const restantes = lines.slice(enviados).concat(novos);
     fs.writeFileSync(file, restantes.length ? restantes.join('\n') + '\n' : '', 'utf8');
     if (enviados > 0) {
       console.log(

@@ -22,6 +22,7 @@ const {
   ARQ_ATUALIZACAO,
   ARQ_VERSAO_RECUSADA,
   NOME_LACO_SERVICO,
+  motivoUrlRecusada,
 } = require('../src/core/atualizador');
 const { AGENT_VERSION } = require('../src/versao');
 const { request } = require('../src/lib/http');
@@ -240,6 +241,51 @@ test('verificarInicializacao(): atualizacao.json que não bate com a versão rod
     f.logs.error.some((m) => m.includes('2020.01.02') && m.includes(AGENT_VERSION)),
     JSON.stringify(f.logs.error),
   );
+});
+
+test('verificarInicializacao(): exe ANTIGO restaurado pelo laço de serviço (versão nova caía antes de main) marca a nova como recusada (I5)', () => {
+  // O run-agent-service.cmd, depois de 3 saídas != 0 com atualizacao.json
+  // presente, troca os arquivos (exe → .bad.exe, .old.exe → exe) e deixa o
+  // atualizacao.json no lugar. Quem sobe agora é o exe antigo (esta
+  // versão, AGENT_VERSION = `de`), que tem de reconhecer que `para` foi
+  // revertida e nunca mais baixá-la.
+  const f = montarFixture();
+  fs.writeFileSync(
+    path.join(f.dir, ARQ_ATUALIZACAO),
+    JSON.stringify({ de: AGENT_VERSION, para: '9999.12.31', tentativas: 0 }),
+  );
+  f.atualizador.verificarInicializacao();
+  assert.equal(f.saidas.length, 0, 'segue rodando normalmente (é a versão boa)');
+  assert.equal(fs.existsSync(path.join(f.dir, ARQ_ATUALIZACAO)), false, 'json consumido');
+  assert.equal(lerVersaoRecusada(f.dir).versao, '9999.12.31');
+  assert.ok(
+    f.logs.error.some((m) => m.includes('9999.12.31') && m.includes('revertida pelo laço de serviço')),
+    JSON.stringify(f.logs.error),
+  );
+});
+
+test('verificar(): depois do rollback pelo laço de serviço, a versão revertida não é baixada de novo (I5)', async () => {
+  const f = montarFixture();
+  fs.writeFileSync(
+    path.join(f.dir, ARQ_ATUALIZACAO),
+    JSON.stringify({ de: AGENT_VERSION, para: '9999.12.31', tentativas: 0 }),
+  );
+  let baixou = false;
+  const at = criarAtualizador({
+    isSea: () => true,
+    diretorio: () => f.dir,
+    caminhoExe: () => f.caminhoExeVal,
+    sair: (c) => f.saidas.push(c),
+    log: f.logger,
+    buscarVersao: async () => ({ versao: '9999.12.31', url: 'https://x/y', sha256: 'a'.repeat(64) }),
+    baixar: async () => {
+      baixou = true;
+    },
+  });
+  at.verificarInicializacao();
+  await at.verificar('token-x');
+  assert.equal(baixou, false);
+  assert.equal(at.temReinicioPendente(), false);
 });
 
 test('verificarInicializacao(): compara versão NUMERICAMENTE, não como string ("para" com sufixo .0 ainda é a versão rodando)', () => {
@@ -530,7 +576,7 @@ test('verificar(): hash divergente é descartado, sem trocar arquivos', async ()
   }
 });
 
-test('verificar(): versão nova com hash certo troca os arquivos e sai(0)', async () => {
+test('verificar(): versão nova com hash certo troca os arquivos e sai(0) — só quando o laço de poll pede (fim do ciclo)', async () => {
   const f = montarFixture();
   const conteudoExe = Buffer.from('conteudo-novo-exe-valido');
   const shaCorreto = crypto.createHash('sha256').update(conteudoExe).digest('hex');
@@ -577,6 +623,14 @@ test('verificar(): versão nova com hash certo troca os arquivos e sai(0)', asyn
       para: '9999.01.01',
       tentativas: 0,
     });
+    // M3 da revisão final: verificar() roda em paralelo ao laço de poll —
+    // sair() aqui cortaria um enroll em curso. Só marca e espera o laço.
+    assert.equal(f.saidas.length, 0, 'não sai no meio de um possível comando em curso');
+    assert.equal(at.temReinicioPendente(), true);
+    assert.equal(at.sairSeReinicioPendente(), true, 'o laço de poll pede a saída no fim da iteração');
+    assert.deepEqual(f.saidas, [0]);
+    assert.equal(at.temReinicioPendente(), false);
+    assert.equal(at.sairSeReinicioPendente(), false, 'segunda chamada não sai de novo');
     assert.deepEqual(f.saidas, [0]);
   } finally {
     await fechar();
@@ -739,7 +793,9 @@ test('verificar(): versão MENOR OU IGUAL à rejeitada continua bloqueada; MAIS 
       ...depsHttpDoServidor(url),
     });
     await at.verificar('token-x');
-    assert.deepEqual(f.saidas, [0], 'versão mais nova que a rejeitada passou normalmente');
+    assert.equal(at.temReinicioPendente(), true, 'versão mais nova que a rejeitada passou normalmente');
+    at.sairSeReinicioPendente();
+    assert.deepEqual(f.saidas, [0]);
     assert.deepEqual(fs.readFileSync(f.caminhoExeVal), conteudoExe);
   } finally {
     await fechar();
@@ -770,18 +826,55 @@ test('verificar(): loga o aviso de versão rejeitada só uma vez, mesmo chamando
 
 // ---------- host allowlist do download (Critical 1) ----------
 
-test('baixarArquivo(): recusa host fora da allowlist antes de conectar', async () => {
+test('baixarArquivo(): recusa URL que o validador recusa, antes de conectar', async () => {
   const destino = path.join(dirTemp(), 'saida.bin');
   await assert.rejects(
     baixarArquivo('https://evil.example.com/click-agent.exe', destino, {
-      hostsPermitidos: new Set(['github.com']),
+      validarUrl: (url) => motivoUrlRecusada(url, { inicial: true }),
     }),
     /host não permitido/,
   );
   assert.equal(fs.existsSync(destino), false);
 });
 
-test('baixarArquivo(): recusa host fora da allowlist também no hop de redirecionamento', async () => {
+test('motivoUrlRecusada(): github.com só aceita releases agent-v* do repositório do agente (I6)', () => {
+  const ok = (u, inicial = true) => motivoUrlRecusada(u, { inicial, hostApi: 'api.clickprestarecondominios.com.br' });
+  // Os dois nomes do dono que a conta já teve (e sem diferenciar maiúsculas,
+  // como o próprio GitHub).
+  assert.equal(ok('https://github.com/Viniciusvile/Click-Prestare/releases/download/agent-v2026.09.25/click-agent.exe'), null);
+  assert.equal(ok('https://github.com/ViniciusVilelaRufini/Click-Prestare/releases/download/agent-v2026.09.25/click-agent.exe'), null);
+  assert.equal(ok('https://github.com/viniciusvile/click-prestare/releases/download/agent-v2026.09.25/click-agent.exe'), null);
+  // Outro repositório, outra tag, ou outro caminho do nosso: recusados.
+  assert.match(ok('https://github.com/atacante/Click-Prestare/releases/download/agent-v2026.09.25/click-agent.exe'), /caminho não permitido/);
+  assert.match(ok('https://github.com/Viniciusvile/Outro-Repo/releases/download/agent-v1/click-agent.exe'), /caminho não permitido/);
+  assert.match(ok('https://github.com/Viniciusvile/Click-Prestare/releases/download/v2026.09.25/click-agent.exe'), /caminho não permitido/);
+  assert.match(ok('https://github.com/Viniciusvile/Click-Prestare/raw/master/click-agent.exe'), /caminho não permitido/);
+  // "../" não fura o prefixo: o parser de URL normaliza antes da checagem.
+  assert.match(
+    ok('https://github.com/Viniciusvile/Click-Prestare/releases/download/agent-v1/../../../../atacante/x/releases/download/agent-v1/a.exe'),
+    /caminho não permitido/,
+  );
+  // Nem subdomínio nem host parecido.
+  assert.match(ok('https://github.com.evil.example/Viniciusvile/Click-Prestare/releases/download/agent-v1/a.exe'), /host não permitido/);
+});
+
+test('motivoUrlRecusada(): CDN de assets do GitHub só como redirecionamento, nunca como URL inicial (I6)', () => {
+  for (const host of ['objects.githubusercontent.com', 'release-assets.githubusercontent.com']) {
+    const url = `https://${host}/github-production-release-asset/123/abc?x=1`;
+    assert.match(motivoUrlRecusada(url, { inicial: true }), /só como redirecionamento/, host);
+    assert.equal(motivoUrlRecusada(url, { inicial: false }), null, host);
+  }
+});
+
+test('motivoUrlRecusada(): host da própria API continua permitido (inicial e hop)', () => {
+  const hostApi = 'api.clickprestarecondominios.com.br';
+  assert.equal(motivoUrlRecusada(`https://${hostApi}/downloads/click-agent.exe`, { inicial: true, hostApi }), null);
+  assert.equal(motivoUrlRecusada(`https://${hostApi}/downloads/click-agent.exe`, { inicial: false, hostApi }), null);
+  assert.match(motivoUrlRecusada('https://evil.example.com/a.exe', { inicial: true, hostApi }), /host não permitido/);
+  assert.match(motivoUrlRecusada('https://evil.example.com/a.exe', { inicial: true }), /host não permitido/);
+});
+
+test('baixarArquivo(): recusa origem fora da allowlist também no hop de redirecionamento', async () => {
   const { url, fechar } = await comServidorHttp((req, res) => {
     res.writeHead(302, { Location: 'https://evil.example.com/final' });
     res.end();
@@ -791,10 +884,35 @@ test('baixarArquivo(): recusa host fora da allowlist também no hop de redirecio
     await assert.rejects(
       baixarArquivo(`${url}/primeiro`, destino, {
         transporte: transporteViaHttp,
-        hostsPermitidos: new Set(['127.0.0.1']),
+        validarUrl: (u, { inicial }) => motivoUrlRecusada(u, { inicial, hostApi: '127.0.0.1' }),
       }),
-      /host não permitido/,
+      /host não permitido: evil\.example\.com/,
     );
+  } finally {
+    await fechar();
+  }
+});
+
+test('baixarArquivo(): o validador recebe inicial=true só na 1ª URL e false nos hops', async () => {
+  const { url, fechar } = await comServidorHttp((req, res) => {
+    if (req.url === '/a') {
+      res.writeHead(302, { Location: '/b' });
+      res.end();
+      return;
+    }
+    res.writeHead(200);
+    res.end('ok');
+  });
+  try {
+    const vistas = [];
+    await baixarArquivo(`${url}/a`, path.join(dirTemp(), 'saida.bin'), {
+      transporte: transporteViaHttp,
+      validarUrl: (u, { inicial }) => {
+        vistas.push([new URL(u).pathname, inicial]);
+        return null;
+      },
+    });
+    assert.deepEqual(vistas, [['/a', true], ['/b', false]]);
   } finally {
     await fechar();
   }
@@ -808,11 +926,38 @@ test('baixarArquivo(): host presente na allowlist passa normalmente', async () =
   });
   try {
     const destino = path.join(dirTemp(), 'saida.bin');
-    await baixarArquivo(url, destino, { transporte: transporteViaHttp, hostsPermitidos: new Set(['127.0.0.1']) });
+    await baixarArquivo(url, destino, {
+      transporte: transporteViaHttp,
+      validarUrl: (u, { inicial }) => motivoUrlRecusada(u, { inicial, hostApi: '127.0.0.1' }),
+    });
     assert.deepEqual(fs.readFileSync(destino), conteudo);
   } finally {
     await fechar();
   }
+});
+
+test('verificar(): com o baixar padrão, asset de OUTRO repositório do github.com é recusado sem conectar (I6)', async () => {
+  const f = montarFixture();
+  const at = criarAtualizador({
+    isSea: () => true,
+    diretorio: () => f.dir,
+    caminhoExe: () => f.caminhoExeVal,
+    apiUrl: () => 'https://api.clickprestarecondominios.com.br',
+    sair: (c) => f.saidas.push(c),
+    log: f.logger,
+    buscarVersao: async () => ({
+      versao: '9999.01.01',
+      url: 'https://github.com/atacante/malware/releases/download/agent-v9999.01.01/click-agent.exe',
+      sha256: 'a'.repeat(64),
+    }),
+  });
+  await at.verificar('token-x');
+  assert.equal(fs.existsSync(path.join(f.dir, 'click-agent.new.exe')), false);
+  assert.equal(at.temReinicioPendente(), false);
+  assert.ok(
+    f.logs.error.some((m) => m.includes('falha ao baixar atualização') && m.includes('caminho não permitido')),
+    JSON.stringify(f.logs.error),
+  );
 });
 
 test('verificar(): com o baixar padrão (sem override), recusa host fora da allowlist sem tentar conectar', async () => {
@@ -830,7 +975,7 @@ test('verificar(): com o baixar padrão (sem override), recusa host fora da allo
       sha256: 'a'.repeat(64),
     }),
     // `baixar` NÃO é sobrescrito aqui: usa o wrapper padrão de
-    // criarAtualizador, que aplica hostsPermitidosAtuais() de verdade.
+    // criarAtualizador, que aplica motivoUrlRecusada() de verdade.
   });
   await at.verificar('token-x');
   assert.equal(fs.existsSync(path.join(f.dir, 'click-agent.new.exe')), false);
