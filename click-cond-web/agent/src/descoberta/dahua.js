@@ -28,7 +28,9 @@ function interpretarRespostaDhip(buf) {
   if (buf.subarray(4, 8).toString('latin1') !== 'DHIP') return null;
   let msg;
   try {
-    msg = JSON.parse(buf.subarray(32).toString('utf8'));
+    // O aparelho real termina o JSON com '\n\0' (o byte nulo conta no tamanho
+    // do cabeçalho); sem tirar isso, JSON.parse falha e o aparelho "some".
+    msg = JSON.parse(buf.subarray(32).toString('utf8').replace(/[\s\0]+$/, ''));
   } catch {
     return null;
   }

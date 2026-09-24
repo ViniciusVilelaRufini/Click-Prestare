@@ -46,6 +46,14 @@ test('interpreta a resposta DHIP real do SS 3530 MF', () => {
   });
 });
 
+test('DHIP: aceita o "\\n\\0" que o SS 3530 MF real põe depois do JSON', () => {
+  // Bytes reais (24/09): o tamanho do cabeçalho inclui o '\n' e o byte nulo finais.
+  const a = dahua.interpretarRespostaDhip(comCabecalho(RESPOSTA_REAL + '\n\u0000'));
+  assert.ok(a, 'resposta real com terminador nulo foi descartada');
+  assert.strictEqual(a.mac, 'b4:4c:3b:f4:e3:01');
+  assert.strictEqual(a.ip, '192.168.3.175');
+});
+
 test('DHIP: ignora o próprio pedido (DHDiscover.search) e lixo', () => {
   assert.strictEqual(dahua.interpretarRespostaDhip(dahua.montarPacoteDhip()), null);
   assert.strictEqual(dahua.interpretarRespostaDhip(Buffer.from('oi')), null);
