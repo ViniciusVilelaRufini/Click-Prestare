@@ -1538,3 +1538,21 @@ model User_Trusted_Devices {
   @@index([id_user, expires_at], map: "idx_user_trusted_devices_user_exp")
   @@map("user_trusted_devices")
 }
+
+/// Tokens temporários de redefinição de senha com expiração e uso único.
+/// Armazena apenas o hash SHA-256 do token (segurança em caso de vazamento).
+model Redefinicoes_Senha {
+  id         Int       @id @default(autoincrement())
+  papel      String    @db.VarChar(20)
+  id_conta   Int
+  token_hash String    @unique(map: "un_redefinicao_token") @db.Char(64)
+  expira_em  DateTime  @db.DateTime(0)
+  usado_em   DateTime? @db.DateTime(0)
+  criado_em  DateTime  @default(now()) @db.DateTime(0)
+  ip         String?   @db.VarChar(45)
+
+  @@index([id_conta, papel], map: "idx_redefinicao_conta_papel")
+  @@index([expira_em], map: "idx_redefinicao_expira")
+  @@map("redefinicoes_senha")
+}
+

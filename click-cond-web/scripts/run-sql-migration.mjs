@@ -11,6 +11,7 @@ const allowed = new Set([
   '2026-09-20-pessoas-visitas.sql',
   '2026-09-21-offsets-pessoas-visitas.sql',
   '2026-09-24-facial-devices-mac.sql',
+  '2026-09-24-redefinicoes-senha.sql',
 ]);
 
 const file = process.env.MIGRATION_FILE;

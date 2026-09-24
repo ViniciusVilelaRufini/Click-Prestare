@@ -206,7 +206,7 @@ export class VisitantesGlobalController {
 
   // Rate-limit estrito: o PIN é só 6 dígitos (1M combinações). Sem limite,
   // um autenticado varre o espaço de PINs ativos. 10 tentativas/min/IP.
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Get('validar/:codigo')
   async validarCodigo(
     @Param('codigo') codigo: string,

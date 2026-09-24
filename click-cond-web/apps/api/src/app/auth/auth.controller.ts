@@ -1,18 +1,31 @@
-import { Body, Controller, HttpCode, Post, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Get, Param, ParseIntPipe, Optional } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { MobileAuthService } from './mobile-auth.service';
 import { Public } from './public.decorator';
 import { ReqUser } from './req-user.decorator';
 import type { JwtPayload } from './jwt-payload.interface';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    @Optional() private readonly mobileAuthService?: MobileAuthService,
+  ) {}
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('redefinir-senha')
+  @HttpCode(200)
+  redefinirSenha(@Body() body: { token: string; novaSenha?: string; nova_senha?: string }) {
+    const novaSenha = body.novaSenha ?? body.nova_senha ?? '';
+    return this.mobileAuthService?.confirmarRedefinicaoSenha(body.token, novaSenha);
+  }
 
   @Public()
   // Throttle estrito no login: 5 tentativas / minuto / IP. Adicional ao
   // throttle global. Protege contra password spray e brute force básico.
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ medium: { limit: 5, ttl: 60_000 } })
   @Post('login-portaria')
   @HttpCode(200)
   login(@Body() body: { login: string; senha: string }) {

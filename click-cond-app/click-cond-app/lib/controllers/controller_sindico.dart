@@ -158,6 +158,30 @@ passRecoveryApi(String email, String loginType) async {
   }
 }
 
+Future<String> redefinirSenhaApi(String token, String novaSenha) async {
+  final url = ApiConfig.buildUri('/auth/redefinir-senha');
+  final body = json.encode({
+    'token': token,
+    'nova_senha': novaSenha,
+  });
+  try {
+    final response = await ApiClient.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: body,
+      skip401Handling: true,
+    ).timeout(_kTimeout);
+
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode == 200 && parsed['success'] == true) {
+      return parsed['message'] ?? 'Senha redefinida com sucesso!';
+    }
+    throw parsed['message'] ?? 'Houve um erro ao redefinir a senha. Tente novamente.';
+  } catch (e) {
+    rethrow;
+  }
+}
+
 signupSindico(String nome, String documento, String dn, String email,
     String telefone, String senha, String? photo) async {
   final url = _buildUri('/sindico/signup');

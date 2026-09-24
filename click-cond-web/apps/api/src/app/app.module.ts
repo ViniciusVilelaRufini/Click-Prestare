@@ -44,21 +44,11 @@ import { ChatIaModule } from './chat-ia/chat-ia.module';
 import { SuperlogicaModule } from './superlogica/superlogica.module';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { THROTTLERS } from './common/throttle/throttlers';
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([
-      {
-        name: 'short',
-        ttl: 1000,
-        limit: 20, // 20 req/s por IP — protege contra burst
-      },
-      {
-        name: 'medium',
-        ttl: 60000,
-        limit: 600, // 600 req/min por IP — uso normal do app
-      },
-    ]),
+    ThrottlerModule.forRoot(THROTTLERS),
     MailModule,
     StorageModule,
     PrismaModule,

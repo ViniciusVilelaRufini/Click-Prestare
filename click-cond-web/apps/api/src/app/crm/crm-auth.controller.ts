@@ -9,7 +9,7 @@ export class CrmAuthController {
 
   @Public()
   // Mesmo throttle estrito do login da portaria: 5 tentativas/min/IP.
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ medium: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)
   login(@Body() body: { login: string; senha: string }) {

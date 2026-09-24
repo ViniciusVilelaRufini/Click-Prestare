@@ -46,8 +46,18 @@ export class SindicoMobileController {
   @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('recovery-password')
   @HttpCode(200)
-  recoveryPassword(@Body() body: { email: string }) {
-    return this.service.recoveryPasswordSindico(body.email);
+  recoveryPassword(@Body() body: { email: string }, @Req() req: any) {
+    const ip = req?.ip || req?.headers?.['x-forwarded-for'];
+    return this.service.solicitarRedefinicaoSenha(body.email, 'sindico', ip);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('redefinir-senha')
+  @HttpCode(200)
+  redefinirSenha(@Body() body: { token: string; novaSenha?: string; nova_senha?: string }) {
+    const novaSenha = body.novaSenha ?? body.nova_senha ?? '';
+    return this.service.confirmarRedefinicaoSenha(body.token, novaSenha);
   }
 
   @Get('list-condominios')
@@ -117,8 +127,18 @@ export class MoradoresMobileController {
   @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('recovery-password')
   @HttpCode(200)
-  recoveryPassword(@Body() body: { email: string }) {
-    return this.service.recoveryPasswordMorador(body.email);
+  recoveryPassword(@Body() body: { email: string }, @Req() req: any) {
+    const ip = req?.ip || req?.headers?.['x-forwarded-for'];
+    return this.service.solicitarRedefinicaoSenha(body.email, 'morador', ip);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('redefinir-senha')
+  @HttpCode(200)
+  redefinirSenha(@Body() body: { token: string; novaSenha?: string; nova_senha?: string }) {
+    const novaSenha = body.novaSenha ?? body.nova_senha ?? '';
+    return this.service.confirmarRedefinicaoSenha(body.token, novaSenha);
   }
 
   @Get('list-condominios')
@@ -207,8 +227,18 @@ export class FuncionariosMobileController {
   @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('recovery-password')
   @HttpCode(200)
-  recoveryPassword(@Body() body: { email: string }) {
-    return this.service.recoveryPasswordFuncionario(body.email);
+  recoveryPassword(@Body() body: { email: string }, @Req() req: any) {
+    const ip = req?.ip || req?.headers?.['x-forwarded-for'];
+    return this.service.solicitarRedefinicaoSenha(body.email, 'funcionario', ip);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('redefinir-senha')
+  @HttpCode(200)
+  redefinirSenha(@Body() body: { token: string; novaSenha?: string; nova_senha?: string }) {
+    const novaSenha = body.novaSenha ?? body.nova_senha ?? '';
+    return this.service.confirmarRedefinicaoSenha(body.token, novaSenha);
   }
 
   @Get('list-condominios')

@@ -2370,50 +2370,185 @@ export class MobileAuthService {
 
 
   // ==========================================
-  // RECUPERAÇÃO DE SENHA
+  // RECUPERAÇÃO DE SENHA SEGURA (F2 — DEEP LINK)
   // ==========================================
   private gerarNovaSenha(): string {
     return randomBytes(4).toString('hex'); // 8 chars alfanumérico
   }
 
-  async recoveryPasswordSindico(email: string) {
-    const user = await this.prisma.users.findFirst({
-      where: { login: email },
-      include: { sindicos: true },
-    });
-    if (!user || !user.sindicos || user.sindicos.length === 0) {
-      throw new NotFoundException('E-mail não encontrado');
+  async solicitarRedefinicaoSenha(
+    email: string,
+    papel: 'sindico' | 'morador' | 'funcionario',
+    ip?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const defaultResponse = {
+      success: true,
+      message: 'Se o e-mail estiver cadastrado, enviamos as instruções para redefinição.',
+    };
+
+    if (!email || typeof email !== 'string') {
+      return defaultResponse;
     }
-    const novaSenha = this.gerarNovaSenha();
-    const hash = await bcrypt.hash(novaSenha, 10);
-    await this.prisma.users.update({ where: { id: user.id }, data: { password: hash } });
-    await this.mail.sendForgotPassword(email, novaSenha, 'Síndico');
-    return { success: true };
+
+    const emailNormalizado = email.trim().toLowerCase();
+    if (!emailNormalizado || !this.prisma.isConnected) {
+      return defaultResponse;
+    }
+
+    try {
+      let idConta: number | null = null;
+      let papelNome = 'Usuário';
+
+      if (papel === 'sindico') {
+        const user = await this.prisma.users.findFirst({
+          where: { login: emailNormalizado },
+          include: { sindicos: true },
+        });
+        if (user && user.sindicos && user.sindicos.length > 0) {
+          idConta = user.id;
+          papelNome = 'Síndico';
+        }
+      } else if (papel === 'morador') {
+        const morador = await this.prisma.moradores.findFirst({ where: { email: emailNormalizado } });
+        if (morador) {
+          const user = await this.prisma.users.findFirst({ where: { login: emailNormalizado } });
+          if (user) {
+            idConta = user.id;
+            papelNome = 'Morador';
+          }
+        }
+      } else if (papel === 'funcionario') {
+        const func = await this.prisma.funcionarios_Portaria.findFirst({ where: { login: emailNormalizado } });
+        if (func) {
+          idConta = func.id;
+          papelNome = 'Funcionário';
+        }
+      }
+
+      if (idConta != null) {
+        // Gerar token seguro aleatório
+        const token = randomBytes(32).toString('base64url');
+        const tokenHash = createHash('sha256').update(token).digest('hex');
+
+        // Invalidar tokens ativos anteriores desta conta e papel
+        await this.prisma.redefinicoes_Senha.updateMany({
+          where: { id_conta: idConta, papel, usado_em: null },
+          data: { usado_em: new Date() },
+        });
+
+        // Grava token com validade de 30 minutos
+        const expiraEm = new Date(Date.now() + 30 * 60 * 1000);
+        await this.prisma.redefinicoes_Senha.create({
+          data: {
+            papel,
+            id_conta: idConta,
+            token_hash: tokenHash,
+            expira_em: expiraEm,
+            ip: ip ?? null,
+          },
+        });
+
+        // Envia e-mail com Deep Link (não expõe token na resposta da API)
+        try {
+          await this.mail.sendResetPasswordLink(emailNormalizado, token, papelNome);
+        } catch (mailErr: any) {
+          this.logger.error(
+            `Falha ao enviar e-mail de redefinição para ${emailNormalizado}: ${mailErr?.message ?? mailErr}`,
+          );
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Erro ao processar solicitação de redefinição para ${emailNormalizado}: ${err?.message ?? err}`);
+    }
+
+    return defaultResponse;
+  }
+
+  async confirmarRedefinicaoSenha(
+    token: string,
+    novaSenha: string,
+  ): Promise<{ success: boolean; message: string }> {
+    if (!token || typeof token !== 'string' || !novaSenha || typeof novaSenha !== 'string') {
+      throw new BadRequestException('Token e nova senha são obrigatórios.');
+    }
+
+    const senhaLimpa = novaSenha.trim();
+    if (senhaLimpa.length < 6) {
+      throw new BadRequestException('A nova senha deve ter no mínimo 6 caracteres.');
+    }
+
+    const tokenHash = createHash('sha256').update(token.trim()).digest('hex');
+
+    const registro = await this.prisma.redefinicoes_Senha.findFirst({
+      where: {
+        token_hash: tokenHash,
+        usado_em: null,
+        expira_em: { gt: new Date() },
+      },
+    });
+
+    if (!registro) {
+      throw new BadRequestException('Link de redefinição inválido ou expirado.');
+    }
+
+    const hash = await bcrypt.hash(senhaLimpa, 10);
+
+    if (registro.papel === 'funcionario') {
+      await this.prisma.funcionarios_Portaria.update({
+        where: { id: registro.id_conta },
+        data: { password: hash },
+      });
+    } else {
+      // 'sindico' ou 'morador' são registros na tabela Users
+      await this.prisma.users.update({
+        where: { id: registro.id_conta },
+        data: { password: hash },
+      });
+    }
+
+    // Invalida o token marcando como utilizado
+    await this.prisma.redefinicoes_Senha.update({
+      where: { id: registro.id },
+      data: { usado_em: new Date() },
+    });
+
+    // Auditoria (opcional / tolerante a falhas)
+    try {
+      if (this.prisma?.auditLog?.create) {
+        await this.prisma.auditLog.create({
+          data: {
+            id_condominio: 0,
+            usuario_nome: `Conta #${registro.id_conta} (${registro.papel})`,
+            usuario_email: null,
+            acao: 'UPDATE',
+            modulo: 'AUTH',
+            entidade_id: registro.id_conta,
+            descricao: `Senha redefinida com sucesso via token para ${registro.papel}`,
+            detalhes: JSON.stringify({ papel: registro.papel, id_conta: registro.id_conta }),
+            ip: registro.ip,
+          },
+        });
+      }
+    } catch (auditErr) {
+      // Falha de auditoria não impede o sucesso da redefinição
+    }
+
+    return {
+      success: true,
+      message: 'Senha redefinida com sucesso!',
+    };
+  }
+
+  async recoveryPasswordSindico(email: string) {
+    return this.solicitarRedefinicaoSenha(email, 'sindico');
   }
 
   async recoveryPasswordMorador(email: string) {
-    const morador = await this.prisma.moradores.findFirst({ where: { email } });
-    if (!morador) throw new NotFoundException('E-mail não encontrado');
-    const user = await this.prisma.users.findFirst({ where: { login: email } });
-    if (!user) throw new NotFoundException('E-mail não encontrado');
-    const novaSenha = this.gerarNovaSenha();
-    const hash = await bcrypt.hash(novaSenha, 10);
-    await this.prisma.users.update({ where: { id: user.id }, data: { password: hash } });
-    await this.mail.sendForgotPassword(email, novaSenha, 'Morador');
-    return { success: true };
+    return this.solicitarRedefinicaoSenha(email, 'morador');
   }
 
   async recoveryPasswordFuncionario(email: string) {
-    const func = await this.prisma.funcionarios_Portaria.findFirst({ where: { login: email } });
-    if (!func) throw new NotFoundException('E-mail não encontrado');
-    const novaSenha = this.gerarNovaSenha();
-    // bcrypt, nao MD5: o login ja aceita os dois (migra sozinho quando o hash
-    // antigo bate), mas gravar MD5 aqui recriava o problema a cada
-    // recuperacao de senha.
-    const senhaHash = await bcrypt.hash(novaSenha, 10);
-    await this.prisma.funcionarios_Portaria.update({ where: { id: func.id }, data: { password: senhaHash } });
-    await this.mail.sendForgotPassword(email, novaSenha, 'Funcionário');
-    return { success: true };
+    return this.solicitarRedefinicaoSenha(email, 'funcionario');
   }
 
   // ==========================================

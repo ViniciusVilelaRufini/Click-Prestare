@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:app_links/app_links.dart';
+import 'package:click/pages/auth/redefinir_senha_page.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/router.dart';
 import 'package:click/theme/app_theme.dart';
@@ -43,12 +46,15 @@ class MyApp extends StatefulWidget {
 
 class MyAppState extends State<MyApp> {
   bool _ready = false;
+  late final AppLinks _appLinks;
+  StreamSubscription<Uri>? _linkSubscription;
 
   @override
   void initState() {
     super.initState();
     Singleton.instance.mainView = this;
     _init();
+    _initDeepLinks();
   }
 
   Future<void> _init() async {
@@ -58,12 +64,45 @@ class MyAppState extends State<MyApp> {
     if (mounted) setState(() => _ready = true);
   }
 
+  void _initDeepLinks() {
+    _appLinks = AppLinks();
+
+    // Deep link com app em segundo plano ou em execução
+    _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
+      _processDeepLink(uri);
+    });
+
+    // Deep link inicial quando o app abre frio
+    _appLinks.getInitialLink().then((uri) {
+      if (uri != null) {
+        _processDeepLink(uri);
+      }
+    });
+  }
+
+  void _processDeepLink(Uri uri) {
+    if (uri.scheme == 'clickprestare' &&
+        (uri.host == 'redefinir-senha' || uri.path.contains('redefinir-senha'))) {
+      final token = uri.queryParameters['token'] ?? '';
+      if (token.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          NavigationService.navigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (_) => RedefinirSenhaPage(token: token),
+            ),
+          );
+        });
+      }
+    }
+  }
+
   void update() {
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _linkSubscription?.cancel();
     ThemeController.instance.removeListener(update);
     super.dispose();
   }

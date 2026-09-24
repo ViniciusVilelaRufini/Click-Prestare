@@ -24,7 +24,7 @@ import { DescobertaService } from './descoberta.service';
 // Polling do agente é tráfego de máquina (a cada ~2s) e autenticado por token.
 // Fica fora do rate-limit global para não consumir o orçamento por IP que o
 // webhook de acesso e o app do porteiro compartilham (mesma IP do condomínio).
-@SkipThrottle()
+@SkipThrottle({ short: true, medium: true })
 @Controller('facial/agent')
 export class AgentController {
   constructor(

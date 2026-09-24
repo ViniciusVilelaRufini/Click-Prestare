@@ -34,8 +34,8 @@ import { requestContext, extractClientIp } from './app/common/context/request-co
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
-  // Habilita trust proxy para ler IP correto através de proxies/load balancers (AWS CloudFront, ALB, etc.)
-  app.set('trust proxy', true);
+  // Habilita trust proxy para 1 salto (AWS ALB). Evita que atacantes forjem IP enviando X-Forwarded-For falso.
+  app.set('trust proxy', 1);
 
   // Armazena o IP da máquina do cliente no AsyncLocalStorage para logs de auditoria automáticos
   app.use((req: any, _res: any, next: any) => {
