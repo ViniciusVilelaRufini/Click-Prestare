@@ -209,5 +209,38 @@ describe('MobileAuthService.getMeusEventos — entrada registrada na portaria', 
       tipo_pessoa: 'visitante',
       categoria: 'visitante',
     }));
+  it('reclassifica no feed de síndico a entrada manual da visita convertida', async () => {
+    process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+    const agora = new Date();
+    const prisma: any = {
+      isConnected: true,
+      moradores: { findMany: jest.fn(async () => []) },
+      apartamentos_Users: { findMany: jest.fn(async () => [{ id_apto: ID_APTO }]) },
+      visitas: {
+        findMany: jest.fn(async () => [{
+          id: ID_VISITANTE,
+          id_pessoa: 50,
+          id_condominio: 1,
+          is_prestador: 1,
+          data_entrada: agora,
+          data_saida: null,
+          pessoa: { nome: 'Vinicius Vilela Rufini', tipo_pessoa: 'visitante' },
+        }]),
+      },
+      acessos_Facial: { findMany: jest.fn(async () => []) },
+      condominios: { findMany: jest.fn(async () => [{ id: 1, nome: 'Boa Vista' }]) },
+    };
+    const svc = new MobileAuthService(
+      prisma, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+    );
+
+    const eventos = await svc.getMeusEventos(ID_USER, 15, 'Sindico');
+
+    expect(eventos).toHaveLength(1);
+    expect(eventos[0]).toEqual(expect.objectContaining({
+      tipo_pessoa: 'visitante',
+      categoria: 'visitante',
+      tipo_dispositivo: 'pin',
+    }));
   });
 });
