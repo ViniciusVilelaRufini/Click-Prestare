@@ -8,7 +8,36 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
+const https = require('node:https');
+const { EventEmitter } = require('node:events');
 const { request, lanRequest, okFrom, parseJson, sleep } = require('../src/lib/http');
+
+/**
+ * Substitui `https.request` por um espião que nunca conecta de verdade —
+ * só captura as opções com que `request()`/`lanRequest()` chamariam o
+ * módulo `https` real. É o jeito de provar a decisão de TLS (Critical 1 da
+ * revisão da tarefa 8: TLS estrito por padrão, permissivo só onde LAN
+ * precisa) sem precisar de um servidor HTTPS de verdade com certificado.
+ */
+function espiarHttpsRequest() {
+  const original = https.request;
+  let opcoes = null;
+  https.request = (opts) => {
+    opcoes = opts;
+    const req = new EventEmitter();
+    req.setTimeout = () => req;
+    req.write = () => {};
+    req.end = () => {};
+    req.destroy = () => {};
+    return req;
+  };
+  return {
+    opcoesCapturadas: () => opcoes,
+    restaurar: () => {
+      https.request = original;
+    },
+  };
+}
 
 /** Sobe um servidor HTTP local descartável em 127.0.0.1:porta-aleatória. */
 function comServidor(handler) {
@@ -109,6 +138,42 @@ test('sleep(): resolve depois de ao menos o tempo pedido', async () => {
   const antes = Date.now();
   await sleep(30);
   assert.ok(Date.now() - antes >= 25);
+});
+
+test('request(): TLS estrito por padrão (rejectUnauthorized true) quando o chamador não diz nada (Critical 1)', async () => {
+  const espiao = espiarHttpsRequest();
+  try {
+    // Não aguardamos a Promise terminar (o req fake nunca emite resposta) —
+    // só precisamos que request() já tenha chamado https.request().
+    request('https://exemplo.invalido.test/x', {}).catch(() => {});
+    await new Promise((r) => setImmediate(r));
+    assert.equal(espiao.opcoesCapturadas().rejectUnauthorized, true);
+  } finally {
+    espiao.restaurar();
+  }
+});
+
+test('request(): rejectUnauthorized: false explícito continua permissivo (uso de LAN direto em request())', async () => {
+  const espiao = espiarHttpsRequest();
+  try {
+    request('https://exemplo.invalido.test/x', { rejectUnauthorized: false }).catch(() => {});
+    await new Promise((r) => setImmediate(r));
+    assert.equal(espiao.opcoesCapturadas().rejectUnauthorized, false);
+  } finally {
+    espiao.restaurar();
+  }
+});
+
+test('lanRequest(): continua permissivo por padrão (rejectUnauthorized false) — aparelho de LAN com certificado self-signed (Critical 1)', async () => {
+  const espiao = espiarHttpsRequest();
+  try {
+    const device = { ip: '127.0.0.1', porta: 443, fabricante: 'hikvision' };
+    lanRequest(device, 'GET', '/status').catch(() => {});
+    await new Promise((r) => setImmediate(r));
+    assert.equal(espiao.opcoesCapturadas().rejectUnauthorized, false);
+  } finally {
+    espiao.restaurar();
+  }
 });
 
 test('lanRequest(): monta a URL http://ip:porta e usa o defaultTimeoutMs recebido', async () => {

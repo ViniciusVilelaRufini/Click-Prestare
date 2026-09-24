@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
 import { AgentController } from './agent.controller';
 import { AgentVersionService, compararVersoesAgente } from './agent-version.service';
 
@@ -40,6 +40,13 @@ describe('AgentVersionService.getLatest()', () => {
     AGENT_SHA256: process.env['AGENT_SHA256'],
   };
 
+  beforeEach(() => {
+    // Os testes de caminho de falha (tag inválida, sem assets, GitHub fora
+    // do ar) disparam `Logger.warn` de propósito — silencia pra não sujar o
+    // output do jest com WARN esperado.
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined as any);
+  });
+
   afterEach(() => {
     for (const [k, v] of Object.entries(envOriginais)) {
       if (v === undefined) delete process.env[k];
@@ -72,13 +79,15 @@ describe('AgentVersionService.getLatest()', () => {
     // AGENT_DOWNLOAD_URL e AGENT_SHA256 ausentes.
     const fetchMock = jest.fn(async (url: string) => {
       if (String(url).includes('api.github.com')) {
-        return respostaJson({
-          tag_name: 'agent-v2026.09.28',
-          assets: [
-            { name: 'click-agent.exe', browser_download_url: 'https://gh/click-agent.exe' },
-            { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/click-agent.exe.sha256' },
-          ],
-        });
+        return respostaReleases([
+          releaseFake({
+            tag_name: 'agent-v2026.09.28',
+            assets: [
+              { name: 'click-agent.exe', browser_download_url: 'https://gh/click-agent.exe' },
+              { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/click-agent.exe.sha256' },
+            ],
+          }),
+        ]);
       }
       return respostaTexto('b'.repeat(64) + '  click-agent.exe\n');
     });
@@ -91,16 +100,18 @@ describe('AgentVersionService.getLatest()', () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
-  it('GitHub: monta { versao, url, sha256 } a partir da tag e dos dois assets', async () => {
+  it('GitHub: monta { versao, url, sha256 } a partir da tag e dos dois assets do release mais novo com tag agent-v*', async () => {
     const fetchMock = jest.fn(async (url: string) => {
       if (String(url).includes('api.github.com')) {
-        return respostaJson({
-          tag_name: 'agent-v2026.09.25',
-          assets: [
-            { name: 'click-agent.exe', browser_download_url: 'https://gh/download/click-agent.exe' },
-            { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/download/click-agent.exe.sha256' },
-          ],
-        });
+        return respostaReleases([
+          releaseFake({
+            tag_name: 'agent-v2026.09.25',
+            assets: [
+              { name: 'click-agent.exe', browser_download_url: 'https://gh/download/click-agent.exe' },
+              { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/download/click-agent.exe.sha256' },
+            ],
+          }),
+        ]);
       }
       return respostaTexto('C'.repeat(64)); // maiúsculo — o consumo é case-insensitive
     });
@@ -116,16 +127,63 @@ describe('AgentVersionService.getLatest()', () => {
     });
   });
 
+  it('pula releases que não são do agente (tag sem prefixo agent-v) até achar um que é', async () => {
+    const fetchMock = jest.fn(async (url: string) => {
+      if (String(url).includes('api.github.com')) {
+        return respostaReleases([
+          releaseFake({ tag_name: 'portaria-web-v3.0.0', assets: [] }), // outro produto do mesmo repo
+          releaseFake({
+            tag_name: 'agent-v2026.09.20',
+            assets: [
+              { name: 'click-agent.exe', browser_download_url: 'https://gh/click-agent.exe' },
+              { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/click-agent.exe.sha256' },
+            ],
+          }),
+        ]);
+      }
+      return respostaTexto('9'.repeat(64));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const info = await new AgentVersionService().getLatest();
+    expect(info.versao).toBe('2026.09.20');
+  });
+
+  it('pula draft e pre-release mesmo com tag agent-v*', async () => {
+    const fetchMock = jest.fn(async (url: string) => {
+      if (String(url).includes('api.github.com')) {
+        return respostaReleases([
+          releaseFake({ tag_name: 'agent-v2026.09.30', draft: true, assets: [] }),
+          releaseFake({ tag_name: 'agent-v2026.09.29', prerelease: true, assets: [] }),
+          releaseFake({
+            tag_name: 'agent-v2026.09.25',
+            assets: [
+              { name: 'click-agent.exe', browser_download_url: 'https://gh/click-agent.exe' },
+              { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/click-agent.exe.sha256' },
+            ],
+          }),
+        ]);
+      }
+      return respostaTexto('8'.repeat(64));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const info = await new AgentVersionService().getLatest();
+    expect(info.versao).toBe('2026.09.25');
+  });
+
   it('sha256 extrai só o primeiro token hex de 64 (formato "sha256sum": "<hash>  <arquivo>")', async () => {
     const fetchMock = jest.fn(async (url: string) => {
       if (String(url).includes('api.github.com')) {
-        return respostaJson({
-          tag_name: 'agent-v2026.09.25',
-          assets: [
-            { name: 'click-agent.exe', browser_download_url: 'https://gh/click-agent.exe' },
-            { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/click-agent.exe.sha256' },
-          ],
-        });
+        return respostaReleases([
+          releaseFake({
+            tag_name: 'agent-v2026.09.25',
+            assets: [
+              { name: 'click-agent.exe', browser_download_url: 'https://gh/click-agent.exe' },
+              { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/click-agent.exe.sha256' },
+            ],
+          }),
+        ]);
       }
       return respostaTexto(`${'d'.repeat(64)}  click-agent.exe\n`);
     });
@@ -135,10 +193,8 @@ describe('AgentVersionService.getLatest()', () => {
     expect(info.sha256).toBe('d'.repeat(64));
   });
 
-  it('tag fora do padrão agent-v<versão>: devolve versao null', async () => {
-    const fetchMock = jest.fn(async () =>
-      respostaJson({ tag_name: 'v2026.09.25', assets: [] }),
-    );
+  it('nenhum release com tag agent-v*: devolve versao null', async () => {
+    const fetchMock = jest.fn(async () => respostaReleases([releaseFake({ tag_name: 'v2026.09.25', assets: [] })]));
     global.fetch = fetchMock as unknown as typeof fetch;
 
     const info = await new AgentVersionService().getLatest();
@@ -147,7 +203,7 @@ describe('AgentVersionService.getLatest()', () => {
 
   it('release sem os assets esperados: devolve versao null', async () => {
     const fetchMock = jest.fn(async () =>
-      respostaJson({ tag_name: 'agent-v2026.09.25', assets: [{ name: 'outro-arquivo.txt' }] }),
+      respostaReleases([releaseFake({ tag_name: 'agent-v2026.09.25', assets: [{ name: 'outro-arquivo.txt' }] })]),
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -179,13 +235,15 @@ describe('AgentVersionService.getLatest()', () => {
   it('cache de 10 min: duas chamadas seguidas só consultam o GitHub uma vez', async () => {
     const fetchMock = jest.fn(async (url: string) => {
       if (String(url).includes('api.github.com')) {
-        return respostaJson({
-          tag_name: 'agent-v2026.09.25',
-          assets: [
-            { name: 'click-agent.exe', browser_download_url: 'https://gh/click-agent.exe' },
-            { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/click-agent.exe.sha256' },
-          ],
-        });
+        return respostaReleases([
+          releaseFake({
+            tag_name: 'agent-v2026.09.25',
+            assets: [
+              { name: 'click-agent.exe', browser_download_url: 'https://gh/click-agent.exe' },
+              { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/click-agent.exe.sha256' },
+            ],
+          }),
+        ]);
       }
       return respostaTexto('e'.repeat(64));
     });
@@ -202,13 +260,15 @@ describe('AgentVersionService.getLatest()', () => {
   it('cache expirado (>10 min): consulta o GitHub de novo', async () => {
     const fetchMock = jest.fn(async (url: string) => {
       if (String(url).includes('api.github.com')) {
-        return respostaJson({
-          tag_name: 'agent-v2026.09.25',
-          assets: [
-            { name: 'click-agent.exe', browser_download_url: 'https://gh/click-agent.exe' },
-            { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/click-agent.exe.sha256' },
-          ],
-        });
+        return respostaReleases([
+          releaseFake({
+            tag_name: 'agent-v2026.09.25',
+            assets: [
+              { name: 'click-agent.exe', browser_download_url: 'https://gh/click-agent.exe' },
+              { name: 'click-agent.exe.sha256', browser_download_url: 'https://gh/click-agent.exe.sha256' },
+            ],
+          }),
+        ]);
       }
       return respostaTexto('f'.repeat(64));
     });
@@ -224,8 +284,16 @@ describe('AgentVersionService.getLatest()', () => {
   });
 });
 
-function respostaJson(body: unknown) {
-  return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+function releaseFake(over: {
+  tag_name: string;
+  assets: { name: string; browser_download_url?: string }[];
+  draft?: boolean;
+  prerelease?: boolean;
+}) {
+  return { draft: false, prerelease: false, ...over };
+}
+function respostaReleases(releases: unknown[]) {
+  return { ok: true, status: 200, json: async () => releases, text: async () => JSON.stringify(releases) };
 }
 function respostaTexto(texto: string) {
   return { ok: true, status: 200, text: async () => texto, json: async () => ({}) };

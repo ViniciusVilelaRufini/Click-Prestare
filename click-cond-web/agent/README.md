@@ -112,14 +112,25 @@ internet de saída, o que normalmente já existe.
 
 ## Auto-atualização
 
-O executável (Opção A) se atualiza sozinho: na partida e a cada 6h ele
-consulta a última versão publicada e, se houver uma mais nova, baixa,
-confere o SHA-256 e troca o próprio arquivo (reiniciando em seguida — o laço
-de serviço, `run-agent-service.cmd`, sobe a versão nova sozinho). Se a versão
-nova não conseguir completar nem um poll em 3 tentativas seguidas, o agente
-reverte sozinho para a anterior. Só age rodando como o `.exe` empacotado
-(Node SEA) — via `node dist/click-agent.cjs` (Opção B) fica de fora, sem
-efeito nenhum. Ver `src/core/atualizador.js` para o protocolo completo.
+O executável (Opção A), **em modo condomínio** (`AGENT_TOKEN`), se atualiza
+sozinho: na partida e a cada 6h ele consulta a última versão publicada e, se
+houver uma mais nova, baixa (só de um host confiável — github.com e o CDN de
+release dele —, com TLS validado de verdade), confere o SHA-256 e troca o
+próprio arquivo. Se a versão nova não conseguir completar nem um poll em 3
+tentativas seguidas, o agente reverte sozinho para a anterior, e marca essa
+versão como recusada (não tenta baixá-la de novo enquanto a nuvem não
+publicar outra). Só age rodando como o `.exe` empacotado (Node SEA) — via
+`node dist/click-agent.cjs` (Opção B) fica de fora, sem efeito nenhum. O modo
+legado por dispositivo (`DEVICE_TOKENS`, sem `AGENT_TOKEN`) também fica de
+fora — só o modo condomínio tem esse wiring hoje. Ver `src/core/atualizador.js`
+para o protocolo completo.
+
+**Pré-requisito para a troca funcionar de verdade:** a instalação precisa ter
+um laço de reinício — `run-agent-service.cmd` com `goto loop` ao lado do exe,
+gerado pelo instalador (`install-windows.bat`, ver "Rodar como serviço"
+acima). Trocar o arquivo e sair não adianta nada se ninguém sobe a versão
+nova em seguida; sem esse laço, o agente detecta a ausência dele e **pula a
+troca**, só logando um aviso pra reinstalar pelo portal.
 
 ### Publicando uma versão nova
 

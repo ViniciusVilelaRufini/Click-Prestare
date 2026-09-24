@@ -114,7 +114,10 @@ const INICIADO_EM = new Date().toISOString();
 // Auto-atualização (tarefa 8): só age rodando como executável SEA (senão só
 // loga — ver core/atualizador.js). Uma instância só, com as dependências
 // reais (produção); os testes usam `criarAtualizador` com tudo injetado.
-const atualizador = criarAtualizador();
+// `apiUrl` é uma função (não a string direto) porque API_URL pode mudar
+// depois de firstRunSetup() (configuração interativa na 1ª execução), que
+// roda depois deste `criarAtualizador()`.
+const atualizador = criarAtualizador({ apiUrl: () => API_URL });
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
 // Ciclo de vida do ouvinte de eventos por device (assina uma vez, reconecta
@@ -146,6 +149,11 @@ async function main() {
   // seguidas em completar um poll, reverte para a anterior e sai, em vez de
   // insistir numa versão quebrada. Roda uma vez por partida do processo.
   atualizador.verificarInicializacao();
+  // Vigia (Important 3 da revisão): se ficou uma atualização pendente sem
+  // confirmar nenhum poll 2xx, força a saída em 10min — sem isso, uma
+  // versão que conecta mas nunca fecha um poll de verdade ficaria presa
+  // pra sempre sem o contador de tentativas avançar.
+  atualizador.iniciarVigiaDeConfirmacao();
 
   // Sem config? Se houver console (rodando manualmente), pergunta e salva o
   // .env sozinho — o operador não precisa abrir editor de texto. Rodando como
@@ -269,7 +277,10 @@ async function runCondoLoop(token) {
         await sleep(30000);
         continue;
       }
-      if (!atualizadorAgendado) {
+      // 2xx de verdade (Important 3 da revisão) — não só "diferente de
+      // 401/404": um 5xx repetido nunca deveria confirmar a atualização
+      // nem disparar a checagem de versão nova.
+      if (!atualizadorAgendado && res.status >= 200 && res.status < 300) {
         atualizadorAgendado = true;
         atualizador.confirmarSucesso();
         atualizador.agendarVerificacaoPeriodica(token);

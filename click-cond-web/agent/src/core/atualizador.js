@@ -3,29 +3,53 @@
 /**
  * agent/src/core/atualizador.js — auto-atualização do executável (tarefa 8).
  *
- * PROTOCOLO (spec, decisão 6)
- * ----------------------------
+ * PROTOCOLO (spec, decisão 6 + endurecimento da revisão)
+ * --------------------------------------------------------
  * O agente consulta `GET /api/facial/agent/condo/:token/versao` na partida
  * (após o primeiro poll bem-sucedido) e a cada 6h. Se houver versão maior:
- *   1. baixa para `click-agent.new.exe` ao lado do exe atual;
- *   2. confere o SHA-256 contra o que a nuvem informou — divergente é
- *      DESCARTADO (nunca troca um arquivo cujo hash não bate: é o único jeito
- *      de garantir que o que vai rodar na máquina do cliente é exatamente o
- *      que foi publicado, sem depender de TLS estrito — o resto do agente já
- *      não valida certificado nenhum, ver lib/http.js);
- *   3. grava `atualizacao.json` ({ de, para, tentativas: 0 }), renomeia o exe
+ *   1. só baixa se a instalação tiver um laço de reinício
+ *      (`run-agent-service.cmd` com `goto loop` ao lado do exe) — sem ele,
+ *      trocar o arquivo e sair NUNCA mais sobe o agente sozinho;
+ *   2. baixa para `click-agent.new.exe`, só de um host permitido (github.com,
+ *      objects.githubusercontent.com, release-assets.githubusercontent.com,
+ *      ou o host da própria API) — na URL inicial E em cada
+ *      redirecionamento — e com TLS validado de verdade (sem isso, o SHA-256
+ *      não vale nada: um MITM que engana o TLS pode servir seu próprio
+ *      {url, sha256} e o agente baixaria e rodaria QUALQUER coisa);
+ *   3. confere o SHA-256 contra o que a nuvem informou — divergente é
+ *      DESCARTADO;
+ *   4. grava `atualizacao.json` ({ de, para, tentativas: 0 }), renomeia o exe
  *      em uso para `click-agent.old.exe` (Windows deixa renomear um .exe em
  *      execução, só não deixa apagar/sobrescrever) e o novo para o mesmo nome
- *      do exe atual, e sai com código 0 — o laço de serviço
- *      (run-agent-service.cmd) reinicia sozinho.
+ *      do exe atual, e sai com código 0 — o laço de serviço reinicia sozinho.
+ *      Se qualquer um dos dois renames falhar no meio, desfaz o que já tinha
+ *      sido feito (nunca fica sem `click-agent.exe` no disco).
  *
  * Na PRÓXIMA partida, se `atualizacao.json` existe e `para` é a versão que
- * está rodando agora, incrementa `tentativas`. Se chegar a 3 (a versão nova
- * não conseguiu nem completar um poll 3 vezes seguidas), reverte sozinho:
- * o exe atual (quebrado) vira `click-agent.bad.exe` (fica no disco para
- * inspeção, nunca é apagado) e `click-agent.old.exe` volta a ser o exe.
- * Depois do PRIMEIRO poll bem-sucedido da versão nova, `atualizacao.json` é
- * apagado — a atualização foi confirmada, não conta mais como tentativa.
+ * está rodando agora (comparação numérica, não string — ver `compararVersoes`),
+ * incrementa `tentativas`. Se chegar a 3 (a versão nova não conseguiu nem
+ * completar um poll 3 vezes seguidas), reverte sozinho: o exe atual (quebrado)
+ * vira `click-agent.bad.exe` (fica no disco para inspeção, nunca é apagado) e
+ * `click-agent.old.exe` volta a ser o exe — e a versão rejeitada fica marcada
+ * em `versao-recusada.json`, para `verificar()` nunca mais tentar baixá-la
+ * (senão, enquanto a nuvem continuar oferecendo essa mesma versão, o agente
+ * entraria num looping infinito de baixar → trocar → falhar → reverter).
+ *
+ * O mesmo booby-trap (looping infinito) acontece se um release esquecer de
+ * bumpar `AGENT_VERSION` em `src/versao.js`: o exe rodando é de fato o que
+ * acabou de ser publicado, mas a constante por dentro não bate com
+ * `atualizacao.json.para` nem com o que a nuvem anuncia — `verificarInicializacao`
+ * e `confirmarSucesso` detectam essa incoerência, marcam a versão como
+ * recusada e descartam o `atualizacao.json`, em vez de ficar tentando essa
+ * "mesma" versão pra sempre.
+ *
+ * Depois do PRIMEIRO poll com HTTP 2xx (não só "não é 401/404" — um 5xx
+ * repetido nunca confirma nada), `atualizacao.json` é apagado — a
+ * atualização foi confirmada, não conta mais como tentativa. Um vigia
+ * (`iniciarVigiaDeConfirmacao`) força a saída do processo se isso não
+ * acontecer dentro de 10min, pra não ficar preso numa versão que conecta mas
+ * nunca fecha um poll de verdade (sem isso, `tentativas` nunca avançaria e o
+ * rollback nunca disparia).
  *
  * TESTABILIDADE (nota do controller)
  * -----------------------------------
@@ -34,8 +58,9 @@
  * rodarem 100% num diretório temporário, sem tocar em arquivo real nem rede
  * real: `isSea` (nunca mexe em disco fora de um exe SEA de verdade),
  * `caminhoExe`/`diretorio` (onde vivem o exe e o `atualizacao.json`),
- * `buscarVersao`/`baixar` (a camada HTTP) e `sair` (no lugar de
- * `process.exit`, que mataria o processo de teste).
+ * `buscarVersao`/`baixar` (a camada HTTP), `renomear` (pra simular falha no
+ * meio da troca de arquivos) e `sair` (no lugar de `process.exit`, que
+ * mataria o processo de teste).
  */
 
 const fs = require('fs');
@@ -47,15 +72,37 @@ const { cloudRequest } = require('./nuvem');
 const { AGENT_VERSION } = require('../versao');
 
 const ARQ_ATUALIZACAO = 'atualizacao.json';
+const ARQ_VERSAO_RECUSADA = 'versao-recusada.json';
 const NOME_OLD = 'click-agent.old.exe';
 const NOME_NEW = 'click-agent.new.exe';
 const NOME_BAD = 'click-agent.bad.exe';
+const NOME_LACO_SERVICO = 'run-agent-service.cmd';
 const MAX_TENTATIVAS = 3;
 const MAX_REDIRECTS = 5;
 // 6h — mesmo valor da spec. Não veio de env: diferente do intervalo de
 // telemetria (que já existia configurável antes desta tarefa), este é novo e
 // a spec não pede override.
 const INTERVALO_VERIFICACAO_MS = 6 * 60 * 60 * 1000;
+// Se uma atualização ficar pendente (atualizacao.json gravado) sem confirmar
+// nenhum poll 2xx dentro desse tempo, o processo se mata sozinho (exit 1) —
+// o laço de serviço reinicia e ISSO conta como tentativa.
+const WATCHDOG_CONFIRMACAO_MS = 10 * 60 * 1000;
+// Timeout de INATIVIDADE do socket de download (reseta a cada byte recebido;
+// não é um teto pro download inteiro) — sem isso, uma conexão travada trava
+// o atualizador (e a verificação periódica) pra sempre.
+const DOWNLOAD_TIMEOUT_MS = 60000;
+
+// Hosts que servem os assets de release do GitHub. O download só é aceito
+// vindo de um desses (ou do host da própria API) — na URL inicial E em CADA
+// redirecionamento (o GitHub redireciona o asset pra um CDN de objetos).
+// Isso é o que faz o SHA-256 valer alguma coisa contra um servidor
+// comprometido: mesmo que ele minta um {url, sha256} coerentes entre si, só
+// aceitamos buscar o arquivo de um host que sabidamente é o do GitHub.
+const HOSTS_GITHUB_PADRAO = Object.freeze([
+  'github.com',
+  'objects.githubusercontent.com',
+  'release-assets.githubusercontent.com',
+]);
 
 /** `node:sea` só existe a partir do Node 20 com o flag de build SEA; em Node
  *  mais velho, ou rodando `node index.js` direto (dev), `isSea()` não existe
@@ -117,22 +164,38 @@ function sha256DoArquivo(caminho) {
   });
 }
 
+function hostnameDe(urlStr) {
+  try {
+    return new URL(urlStr).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Baixa `urlStr` para `destino`, seguindo redirecionamentos (até
  * `opts.maxRedirects`, default 5 — os assets de release do GitHub redirecionam
- * para outro host). SÓ aceita HTTPS: a checagem é na URL, não no transporte,
- * então continua valendo mesmo com `opts.transporte` trocado (é assim que os
- * testes reaproveitam esta função de verdade contra um servidor local, sem
- * precisar de certificado — trocam só o `get` por um que fala HTTP por baixo
- * dos panos, a checagem de esquema roda igual).
+ * para outro host). Duas travas de segurança, checadas na URL inicial E em
+ * CADA hop de redirecionamento (não só na primeira):
+ *   - esquema tem de ser `https://`;
+ *   - se `opts.hostsPermitidos` for passado (um Set de hostnames), o host da
+ *     URL tem de estar nele — quem chama pela produção (`criarAtualizador`)
+ *     sempre passa; testes que chamam `baixarArquivo` direto podem omitir
+ *     pra continuar genérico.
+ * TLS é validado de verdade (sem `rejectUnauthorized: false`) — é o SHA-256
+ * conferido depois que garante a integridade do conteúdo, mas só faz sentido
+ * se ninguém no meio do caminho puder trocar o {url, sha256} por um par seu
+ * (daí a checagem de host) nem forjar a conexão (daí o TLS estrito).
  *
- * Não valida certificado (`rejectUnauthorized: false`), mesma escolha do
- * resto do agente (lib/http.js) — quem garante a integridade do arquivo é o
- * SHA-256 conferido depois, não o TLS.
+ * `opts.transporte` é injetável — é o que deixa os testes reaproveitarem
+ * esta função de verdade contra um servidor local (fala HTTP por baixo dos
+ * panos, sem precisar de certificado) sem pesar na validação de TLS real.
  */
 function baixarArquivo(urlStr, destino, opts = {}) {
   const transporte = opts.transporte || https;
   const maxRedirects = opts.maxRedirects ?? MAX_REDIRECTS;
+  const hostsPermitidos = opts.hostsPermitidos || null;
+  const timeoutMs = opts.timeoutMs ?? DOWNLOAD_TIMEOUT_MS;
 
   function tentar(url, restantes) {
     return new Promise((resolve, reject) => {
@@ -140,9 +203,16 @@ function baixarArquivo(urlStr, destino, opts = {}) {
         reject(new Error(`Download de atualização precisa ser HTTPS: ${url}`));
         return;
       }
+      if (hostsPermitidos) {
+        const host = hostnameDe(url);
+        if (!host || !hostsPermitidos.has(host)) {
+          reject(new Error(`Download de atualização: host não permitido: ${host || url}`));
+          return;
+        }
+      }
       let req;
       try {
-        req = transporte.get(url, { rejectUnauthorized: false }, (res) => {
+        req = transporte.get(url, {}, (res) => {
           const { statusCode, headers } = res;
           if (statusCode >= 300 && statusCode < 400 && headers.location) {
             res.resume(); // descarta o corpo do redirect
@@ -176,6 +246,12 @@ function baixarArquivo(urlStr, destino, opts = {}) {
         return;
       }
       req.on('error', reject);
+      // Timeout de inatividade do socket — não de download inteiro (reseta
+      // a cada byte). Uma conexão que trava no meio (ou nunca conecta) não
+      // pode travar o atualizador pra sempre.
+      req.setTimeout?.(timeoutMs, () => {
+        req.destroy(new Error('Download de atualização: timeout'));
+      });
     });
   }
 
@@ -191,10 +267,19 @@ async function buscarVersaoPadrao(token) {
   return res && res.data && typeof res.data === 'object' ? res.data : null;
 }
 
+function temLacoDeReinicio(dirExe) {
+  try {
+    const conteudo = fs.readFileSync(path.join(dirExe, NOME_LACO_SERVICO), 'utf8');
+    return /goto\s+loop/i.test(conteudo);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Monta o atualizador com as dependências injetadas (produção usa os
  * defaults reais; os testes trocam `isSea`, `diretorio`, `caminhoExe`,
- * `buscarVersao`, `baixar` e `sair`).
+ * `buscarVersao`, `baixar`, `renomear`, `apiUrl` e `sair`).
  */
 function criarAtualizador(deps = {}) {
   const {
@@ -202,25 +287,127 @@ function criarAtualizador(deps = {}) {
     diretorio = configDir,
     caminhoExe = () => process.execPath,
     buscarVersao = buscarVersaoPadrao,
-    baixar = baixarArquivo,
+    // apiUrl() entra na allowlist de hosts do download (além dos do GitHub) —
+    // função (não string) porque em index.js API_URL pode mudar depois da
+    // configuração inicial interativa (firstRunSetup), e este atualizador é
+    // criado uma vez só, no boot do módulo.
+    apiUrl = () => '',
+    renomear = (de, para) => fs.renameSync(de, para),
+    baixar = (urlStr, destino) =>
+      baixarArquivo(urlStr, destino, { hostsPermitidos: hostsPermitidosAtuais() }),
     sair = (codigo) => process.exit(codigo),
     log = console,
   } = deps;
 
+  // Verificação em curso: o setInterval de agendarVerificacaoPeriodica não
+  // pode empilhar uma segunda chamada por cima de um download ainda em
+  // andamento (rede lenta, exe grande) — reentrar no meio bagunçaria o
+  // click-agent.new.exe compartilhado.
+  let emAndamento = false;
+  // Evita logar o mesmo aviso de "versão recusada" a cada verificação (6h em
+  // 6h) enquanto a nuvem continuar anunciando essa versão — loga uma vez por
+  // versão nova encontrada nessa situação.
+  let ultimoAvisoRejeitada = null;
+
+  function hostsPermitidosAtuais() {
+    const hosts = new Set(HOSTS_GITHUB_PADRAO);
+    try {
+      const host = hostnameDe(apiUrl() || '');
+      if (host) hosts.add(host);
+    } catch {
+      /* apiUrl() não configurada ainda — segue só com os hosts do GitHub */
+    }
+    return hosts;
+  }
+
+  function marcarVersaoRecusada(dir, versao) {
+    try {
+      gravarJsonAtomicoEm(dir, ARQ_VERSAO_RECUSADA, { versao, em: new Date().toISOString() });
+    } catch (err) {
+      log.error(`[agente] falha ao gravar ${ARQ_VERSAO_RECUSADA}: ${err.message || err}`);
+    }
+  }
+
+  /** Uma troca de arquivos pode falhar NO MEIO (renomeou o 1º, o 2º deu
+   *  erro) — sem desfazer, `click-agent.exe` some do disco e o laço de
+   *  serviço não encontra mais nada pra rodar na próxima subida. Tenta
+   *  devolver `nomeOrigemUndo` (ao lado do exe) pro lugar do exe, best-effort
+   *  (só loga se também falhar — não há mais nada a fazer por código aqui). */
+  function desfazerTrocaParcial(dirExe, exeAtual, nomeOrigemUndo) {
+    try {
+      if (!fs.existsSync(exeAtual) && fs.existsSync(path.join(dirExe, nomeOrigemUndo))) {
+        renomear(path.join(dirExe, nomeOrigemUndo), exeAtual);
+        log.error(`[agente] troca incompleta revertida: ${path.basename(exeAtual)} restaurado a partir de ${nomeOrigemUndo}`);
+      }
+    } catch (err) {
+      log.error(`[agente] falha ao desfazer troca incompleta: ${err.message || err}`);
+    }
+  }
+
+  /** Log de diagnóstico (não corrige sozinho — Task 9 ensina o
+   *  run-agent-service.cmd a fazer isso antes de tentar subir o exe): se
+   *  `click-agent.exe` não existe mas `click-agent.old.exe` sim, uma troca
+   *  anterior ficou pela metade. O PROCESSO ATUAL pode muito bem ser
+   *  exatamente esse exe renomeado (Windows deixa um exe em execução ser
+   *  renomeado/movido sem derrubar o processo) — daí dar pra rodar este
+   *  código e notar a inconsistência mesmo "sendo" o arquivo desaparecido. */
+  function checarExeFaltando() {
+    const exe = caminhoExe();
+    const dirExe = path.dirname(exe);
+    if (!fs.existsSync(exe) && fs.existsSync(path.join(dirExe, NOME_OLD))) {
+      log.error(
+        `[agente] ${path.basename(exe)} não existe nesta pasta, mas ${NOME_OLD} sim — uma troca de atualização não terminou. Renomeie ${NOME_OLD} de volta para ${path.basename(exe)} (ou reinstale pelo portal) para o serviço voltar a subir sozinho.`,
+      );
+    }
+  }
+
   /**
-   * Chamado uma vez, na partida do processo — ANTES de qualquer poll. Só
-   * existe trabalho a fazer se `atualizacao.json` aponta para a versão que
-   * está rodando agora (ou seja: esta é a versão recém-trocada, subindo pela
-   * enésima vez). Incrementa `tentativas`; na 3ª, desiste e reverte.
+   * Chamado uma vez, na partida do processo — ANTES de qualquer poll. Nunca
+   * lança (Important 4): um erro inesperado aqui não pode derrubar `main()`
+   * antes do agente sequer tentar falar com a nuvem.
    */
   function verificarInicializacao() {
+    try {
+      verificarInicializacaoInterna();
+    } catch (err) {
+      log.error(
+        `[agente] atualizador: falha inesperada ao verificar atualização pendente na partida: ${err.message || err} — seguindo em frente`,
+      );
+    }
+  }
+
+  function verificarInicializacaoInterna() {
     if (!isSea()) {
       log.log('[agente] atualizador: fora de um executável SEA — não mexe em arquivos');
       return;
     }
+    checarExeFaltando();
+
     const dir = diretorio();
     const estado = lerJsonEm(dir, ARQ_ATUALIZACAO, null);
-    if (!estado || estado.para !== AGENT_VERSION) return;
+    if (!estado) return;
+
+    // Comparação NUMÉRICA (não `!==` de string): "2026.09.24" e
+    // "2026.09.24.0" são a mesma versão.
+    if (compararVersoes(estado.para, AGENT_VERSION) !== 0) {
+      // Não é lixo qualquer: isto é o sintoma clássico de um release que
+      // esqueceu de bumpar AGENT_VERSION — o exe rodando é de fato o que
+      // acabou de ser trocado, mas a constante por dentro não bate. Sem
+      // marcar como recusada, verificar() tentaria baixar essa "mesma"
+      // versão pra sempre (a nuvem nunca vai anunciar outra coisa).
+      if (estado.para) {
+        log.error(
+          `[agente] atualizacao.json aponta para ${estado.para}, mas a versão rodando é ${AGENT_VERSION} — descartando (release esqueceu de atualizar AGENT_VERSION?)`,
+        );
+        marcarVersaoRecusada(dir, estado.para);
+      }
+      try {
+        fs.unlinkSync(path.join(dir, ARQ_ATUALIZACAO));
+      } catch {
+        /* já não existia */
+      }
+      return;
+    }
 
     const tentativas = (Number(estado.tentativas) || 0) + 1;
     if (tentativas >= MAX_TENTATIVAS) {
@@ -229,11 +416,13 @@ function criarAtualizador(deps = {}) {
       );
       const dirExe = path.dirname(caminhoExe());
       try {
-        fs.renameSync(caminhoExe(), path.join(dirExe, NOME_BAD));
-        fs.renameSync(path.join(dirExe, NOME_OLD), caminhoExe());
+        renomear(caminhoExe(), path.join(dirExe, NOME_BAD));
+        renomear(path.join(dirExe, NOME_OLD), caminhoExe());
       } catch (err) {
         log.error(`[agente] falha ao reverter a atualização: ${err.message || err}`);
+        desfazerTrocaParcial(dirExe, caminhoExe(), NOME_BAD);
       }
+      marcarVersaoRecusada(dir, estado.para);
       try {
         fs.unlinkSync(path.join(dir, ARQ_ATUALIZACAO));
       } catch {
@@ -249,15 +438,31 @@ function criarAtualizador(deps = {}) {
     );
   }
 
-  /** Chamado após o PRIMEIRO poll bem-sucedido: a versão atual provou que
-   *  fala com a nuvem, então a atualização (se havia uma em curso) está
-   *  confirmada — apaga `atualizacao.json` para não contar mais tentativas. */
+  /** Chamado só quando o poll respondeu 2xx de verdade (não qualquer coisa
+   *  "diferente de 401/404" — um 5xx não confirma nada): a versão atual
+   *  provou que fala com a nuvem, então a atualização (se havia uma em
+   *  curso) está confirmada. Nunca lança (Important 4). */
   function confirmarSucesso() {
-    if (!isSea()) return;
     try {
-      fs.unlinkSync(path.join(diretorio(), ARQ_ATUALIZACAO));
-    } catch {
-      /* nada pendente — caminho normal (sem atualização em curso) */
+      if (!isSea()) return;
+      const dir = diretorio();
+      const estado = lerJsonEm(dir, ARQ_ATUALIZACAO, null);
+      if (estado && estado.para && compararVersoes(estado.para, AGENT_VERSION) !== 0) {
+        // Mesmo booby-trap do início do arquivo: confirmar um poll não
+        // significa que a versão bate com o que foi anunciado. Marca como
+        // recusada pra verificar() não insistir nela pra sempre.
+        log.error(
+          `[agente] poll confirmado, mas a versão rodando (${AGENT_VERSION}) não é a esperada (${estado.para}) — release esqueceu de atualizar AGENT_VERSION? Marcando como recusada.`,
+        );
+        marcarVersaoRecusada(dir, estado.para);
+      }
+      try {
+        fs.unlinkSync(path.join(dir, ARQ_ATUALIZACAO));
+      } catch {
+        /* nada pendente — caminho normal (sem atualização em curso) */
+      }
+    } catch (err) {
+      log.error(`[agente] atualizador: falha inesperada ao confirmar sucesso: ${err.message || err}`);
     }
   }
 
@@ -265,6 +470,21 @@ function criarAtualizador(deps = {}) {
    *  lança — falha de rede, hash divergente etc. só logam e devolvem sem
    *  efeito (a próxima verificação, em 6h, tenta de novo). */
   async function verificar(token) {
+    if (emAndamento) {
+      log.log('[agente] atualizador: já há uma verificação em andamento — pulando esta chamada');
+      return;
+    }
+    emAndamento = true;
+    try {
+      await verificarInterna(token);
+    } catch (err) {
+      log.error(`[agente] atualizador: falha inesperada ao verificar atualização: ${err.message || err}`);
+    } finally {
+      emAndamento = false;
+    }
+  }
+
+  async function verificarInterna(token) {
     if (!isSea()) {
       log.log('[agente] atualizador: fora de um executável SEA — não verifica atualização automática');
       return;
@@ -281,8 +501,27 @@ function criarAtualizador(deps = {}) {
 
     if (compararVersoes(info.versao, AGENT_VERSION) <= 0) return; // já está na versão mais nova (ou mais nova ainda)
 
-    log.log(`[agente] nova versão disponível: ${AGENT_VERSION} → ${info.versao} — baixando`);
+    const dir = diretorio();
+    const rejeitada = lerJsonEm(dir, ARQ_VERSAO_RECUSADA, null);
+    if (rejeitada && rejeitada.versao && compararVersoes(info.versao, rejeitada.versao) <= 0) {
+      if (ultimoAvisoRejeitada !== info.versao) {
+        ultimoAvisoRejeitada = info.versao;
+        log.error(
+          `[agente] versão ${info.versao} já foi tentada e revertida antes (ver ${ARQ_VERSAO_RECUSADA}) — ignorando até uma versão mais nova ser publicada`,
+        );
+      }
+      return;
+    }
+
     const dirExe = path.dirname(caminhoExe());
+    if (!temLacoDeReinicio(dirExe)) {
+      log.error(
+        '[agente] instalação sem laço de reinício — reinstale pelo portal para receber atualizações automáticas',
+      );
+      return;
+    }
+
+    log.log(`[agente] nova versão disponível: ${AGENT_VERSION} → ${info.versao} — baixando`);
     const novo = path.join(dirExe, NOME_NEW);
 
     try {
@@ -321,17 +560,23 @@ function criarAtualizador(deps = {}) {
       return;
     }
 
+    const exeAtual = caminhoExe();
     try {
-      gravarJsonAtomicoEm(diretorio(), ARQ_ATUALIZACAO, {
+      gravarJsonAtomicoEm(dir, ARQ_ATUALIZACAO, {
         de: AGENT_VERSION,
         para: info.versao,
         tentativas: 0,
       });
-      const exeAtual = caminhoExe();
-      fs.renameSync(exeAtual, path.join(dirExe, NOME_OLD));
-      fs.renameSync(novo, exeAtual);
+      renomear(exeAtual, path.join(dirExe, NOME_OLD));
+      renomear(novo, exeAtual);
     } catch (err) {
       log.error(`[agente] falha ao trocar o executável pela versão nova: ${err.message || err}`);
+      desfazerTrocaParcial(dirExe, exeAtual, NOME_OLD);
+      try {
+        fs.unlinkSync(path.join(dir, ARQ_ATUALIZACAO));
+      } catch {
+        /* pode nem ter chegado a gravar */
+      }
       return;
     }
 
@@ -350,11 +595,47 @@ function criarAtualizador(deps = {}) {
     return timer;
   }
 
+  /**
+   * Vigia (Important 3): se `atualizacao.json` está pendente (uma
+   * atualização acabou de trocar os arquivos) e nenhum poll 2xx confirma
+   * isso dentro de `ms` (default 10min), força a saída (código 1) — o laço
+   * de serviço reinicia o processo, e essa reinicialização CONTA como
+   * tentativa em `verificarInicializacao`. Sem isso, uma versão nova que
+   * conecta mas nunca fecha um poll de verdade (trava, erro silencioso etc.)
+   * ficaria presa pra sempre sem o contador de tentativas avançar. Chame uma
+   * vez, logo depois de `verificarInicializacao()`, no boot do processo.
+   */
+  function iniciarVigiaDeConfirmacao(ms = WATCHDOG_CONFIRMACAO_MS) {
+    if (!isSea()) return null;
+    let dir;
+    try {
+      dir = diretorio();
+      if (!fs.existsSync(path.join(dir, ARQ_ATUALIZACAO))) return null; // nada pendente agora
+    } catch {
+      return null;
+    }
+    const timer = setTimeout(() => {
+      try {
+        if (fs.existsSync(path.join(dir, ARQ_ATUALIZACAO))) {
+          log.error(
+            `[agente] atualização pendente sem confirmar um poll em ${Math.round(ms / 60000)}min — reiniciando para contar como tentativa`,
+          );
+          sair(1);
+        }
+      } catch (err) {
+        log.error(`[agente] atualizador: falha no vigia de confirmação: ${err.message || err}`);
+      }
+    }, ms);
+    timer.unref?.();
+    return timer;
+  }
+
   return {
     verificarInicializacao,
     confirmarSucesso,
     verificar,
     agendarVerificacaoPeriodica,
+    iniciarVigiaDeConfirmacao,
   };
 }
 
@@ -363,5 +644,9 @@ module.exports = {
   baixarArquivo,
   criarAtualizador,
   INTERVALO_VERIFICACAO_MS,
+  WATCHDOG_CONFIRMACAO_MS,
   ARQ_ATUALIZACAO,
+  ARQ_VERSAO_RECUSADA,
+  NOME_LACO_SERVICO,
+  HOSTS_GITHUB_PADRAO,
 };

@@ -57,6 +57,12 @@ async function cloudRequest(method, pathname, jsonBody) {
     method,
     json: jsonBody,
     timeout: 15000,
+    // Explícito (revisão de segurança da tarefa 8): a nuvem valida TLS de
+    // verdade — diferente do device na LAN (self-signed), é aqui que
+    // trafegam tokens e (via atualizador) a versão/hash do próprio
+    // executável. request() já é estrito por default; isto só documenta a
+    // intenção contra uma mudança futura do default.
+    rejectUnauthorized: true,
   });
   registrarSkewDaNuvem(res, enviadoEm);
   return res;

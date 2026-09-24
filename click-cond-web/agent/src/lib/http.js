@@ -69,8 +69,15 @@ function request(urlStr, opts = {}) {
       port: u.port || (u.protocol === 'https:' ? 443 : 80),
       path: u.pathname + u.search,
       headers,
-      // Aparelhos de LAN usam certificado self-signed; a rede local é confiável.
-      rejectUnauthorized: false,
+      // TLS é explícito por chamada, não um flip global (revisão de
+      // segurança da tarefa 8): default é validar de verdade (Node
+      // default). Só quem PRECISA de permissivo (aparelhos de LAN, com
+      // certificado self-signed — ver lanRequest()) passa
+      // `rejectUnauthorized: false` explicitamente. cloudRequest()
+      // (core/nuvem.js) e o downloader de atualização NÃO passam — ficam
+      // estritos, porque validam segredos/hashes que só valem alguma coisa
+      // se a conexão não puder ser interceptada.
+      rejectUnauthorized: opts.rejectUnauthorized !== false,
     };
 
     const req = lib.request(reqOpts, (res) => {
@@ -147,7 +154,17 @@ function lanRequest(device, method, pathname, opts = {}, defaultTimeoutMs = DEFA
     device.api_user && device.api_password && device.fabricante !== 'control_id'
       ? { user: device.api_user, pass: device.api_password }
       : undefined;
-  return request(url, { method, timeout: defaultTimeoutMs, auth, ...opts });
+  return request(url, {
+    method,
+    timeout: defaultTimeoutMs,
+    auth,
+    // Explícito (ver comentário em request()): aparelhos de LAN usam
+    // certificado self-signed, então este caminho fica permissivo — a rede
+    // local é confiável. `...opts` depois: um chamador raro que queira
+    // forçar estrito ainda pode.
+    rejectUnauthorized: false,
+    ...opts,
+  });
 }
 
 module.exports = { request, lanRequest, okFrom, parseJson, sleep };
