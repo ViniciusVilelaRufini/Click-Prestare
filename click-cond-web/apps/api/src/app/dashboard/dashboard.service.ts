@@ -632,6 +632,7 @@ export class DashboardService {
         let foto: string | undefined;
         let aptoStr = '';
         let documento: string | undefined;
+        let tipoPessoaAtual = a.tipo_pessoa;
 
         if (a.tipo_pessoa === 'morador' && a.id_pessoa !== null) {
           const m = moradorById.get(a.id_pessoa);
@@ -643,6 +644,9 @@ export class DashboardService {
           const v = visitanteById.get(a.id_pessoa);
           foto = v?.foto_pessoa ?? undefined;
           documento = v?.doc_identificacao ?? undefined;
+          if (v?.tipo_pessoa === 'visitante' || v?.tipo_pessoa === 'prestador') {
+            tipoPessoaAtual = v.tipo_pessoa;
+          }
           if (v?.apartamento) {
             aptoStr = `Apto ${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim();
           }
@@ -699,7 +703,7 @@ export class DashboardService {
             nome: a.nome_pessoa,
             documento,
             blocoApto: aptoStr || undefined,
-            tipoPessoa: a.tipo_pessoa as any,
+            tipoPessoa: tipoPessoaAtual as any,
             status: a.evento === 'entrada' ? `Entrada via ${dispLabel}` :
                     a.evento === 'saida' ? `Saída via ${dispLabel}` :
                     'Acesso negado',

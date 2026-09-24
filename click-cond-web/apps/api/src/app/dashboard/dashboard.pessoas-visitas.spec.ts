@@ -125,6 +125,24 @@ describe('DashboardService — summary() (Pessoas/Visitas)', () => {
     expect(doCarlos[0].detalhes.metodoLiberacao).toBe('facial');
   });
 
+  it('mostra visitante recorrente como visitante no dashboard, mesmo se o evento facial antigo gravou prestador', async () => {
+    process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+    const { svc, prisma } = build();
+    prisma.acessos_Facial.findMany = jest.fn(async () => [{
+      id: 902, id_condominio: 1, timestamp: new Date('2026-01-01T11:00:00Z'),
+      nome_pessoa: 'Carlos Visitante', tipo_pessoa: 'prestador', tipo_dispositivo: 'facial',
+      evento: 'entrada', confianca: 0.9, id_device: 5, id_pessoa: 800,
+    }]);
+    prisma.pessoas.findMany = jest.fn(async () => [{
+      id: 800, foto_pessoa: 'foto.jpg', doc_identificacao: '999', tipo_pessoa: 'visitante',
+    }]);
+
+    const resumo = await svc.summary(1);
+    const evento = resumo.ultimosEventos.find((e) => e.tipo === 'Acesso Facial');
+
+    expect(evento?.detalhes.tipoPessoa).toBe('visitante');
+  });
+
   it('flag ON: enriquecimento de nome/foto/apto do card "Acesso Facial" resolve corretamente quando id_pessoa é um id de Visita', async () => {
     process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
     const { svc, prisma, visitaMigrada } = build();

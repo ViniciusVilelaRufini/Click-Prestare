@@ -33,6 +33,7 @@ export async function resolverInfoVisitantesPorIdAcessoFacial(
       id: number;
       foto_pessoa: string | null;
       doc_identificacao: string | null;
+      tipo_pessoa: string | null;
       apartamento: { bloco: string | null; apto: string | null } | null;
     }
   >
@@ -43,6 +44,7 @@ export async function resolverInfoVisitantesPorIdAcessoFacial(
       id: number;
       foto_pessoa: string | null;
       doc_identificacao: string | null;
+      tipo_pessoa: string | null;
       apartamento: { bloco: string | null; apto: string | null } | null;
     }
   >();
@@ -51,14 +53,14 @@ export async function resolverInfoVisitantesPorIdAcessoFacial(
   const [pessoasFound, visitasFound] = await Promise.all([
     prisma.pessoas.findMany({
       where: { id: { in: ids } },
-      select: { id: true, foto_pessoa: true, doc_identificacao: true },
+      select: { id: true, foto_pessoa: true, doc_identificacao: true, tipo_pessoa: true },
     }),
     prisma.visitas.findMany({
       where: { id: { in: ids } },
       select: {
         id: true,
         apartamento: { select: { bloco: true, apto: true } },
-        pessoa: { select: { foto_pessoa: true, doc_identificacao: true } },
+        pessoa: { select: { foto_pessoa: true, doc_identificacao: true, tipo_pessoa: true } },
       },
     }),
   ]);
@@ -68,6 +70,7 @@ export async function resolverInfoVisitantesPorIdAcessoFacial(
       id: p.id,
       foto_pessoa: p.foto_pessoa,
       doc_identificacao: p.doc_identificacao,
+      tipo_pessoa: p.tipo_pessoa,
       apartamento: null,
     });
   }
@@ -79,6 +82,7 @@ export async function resolverInfoVisitantesPorIdAcessoFacial(
       id: v.id,
       foto_pessoa: v.pessoa?.foto_pessoa ?? null,
       doc_identificacao: v.pessoa?.doc_identificacao ?? null,
+      tipo_pessoa: v.pessoa?.tipo_pessoa ?? null,
       apartamento: v.apartamento,
     });
   }
