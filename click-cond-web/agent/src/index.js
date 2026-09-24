@@ -52,7 +52,7 @@ const {
 const { Supervisor } = require('./core/supervisor');
 const { iniciarTelemetria } = require('./core/telemetria');
 const { criarAtualizador } = require('./core/atualizador');
-const { resolverDriver } = require('./drivers/registro');
+const { resolverDriver, resolverDriverDeEventos } = require('./drivers/registro');
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
 const controlidFacial = require('./drivers/controlid-facial');
@@ -243,8 +243,10 @@ async function runCondoLoop(token) {
   // por conta própria (não é sinal de queda de verdade — ver comentário no
   // driver Dahua/Intelbras), então este callback só age quando o HEARTBEAT
   // (abaixo) já tinha marcado o device como offline.
+  // Ouvinte de eventos: só tipo 'facial' (`resolverDriverDeEventos`) — uma
+  // câmera LPR ou catraca da mesma marca não assina o stream de rostos.
   const supervisor = new Supervisor({
-    resolverDriver,
+    resolverDriver: resolverDriverDeEventos,
     aoEvento: (device, data) => forwardAccessEvent(token, device, data),
     aoRecuperarOffline: (device) => {
       if (lastDeviceOnline.get(device.id) === false) {
@@ -259,7 +261,8 @@ async function runCondoLoop(token) {
     },
   });
 
-  // Telemetria (tarefa 7): versão + SO + saúde por device (supervisor.saudeTodos())
+  // Telemetria (tarefa 7): versão + SO + saúde por device (supervisor.saudeTodos()
+  // + `online` do heartbeat)
   // + fila offline pendente, a cada TELEMETRIA_INTERVAL_MS — alimenta o card do
   // agente no portal (GET facial/agent/saude). Modo condomínio só: é o único que
   // tem `supervisor` (o modo legado por device não o usa). Guardamos o handle
@@ -271,6 +274,8 @@ async function runCondoLoop(token) {
     supervisor,
     pendentes,
     iniciadoEm: INICIADO_EM,
+    // `online` por device = último heartbeat (ping), não o estado do ouvinte.
+    onlineDoDispositivo: (id) => lastDeviceOnline.get(id) === true,
     intervaloMs: TELEMETRIA_INTERVAL_MS,
   });
 
@@ -351,13 +356,13 @@ async function runCondoLoop(token) {
               syncDeviceOfflineLogs(token, device).catch((e) =>
                 console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e)
               );
-              resolverDriver(device)?.acertarRelogio?.(device, true)?.catch(() => {});
+              resolverDriverDeEventos(device)?.acertarRelogio?.(device, true)?.catch(() => {});
             }
           } else if (online) {
             // Online estável: só mantém a marca d'água atual (a stream já cobre
             // os eventos); assim o próximo reconnect só reprocessa a janela real.
             // Fora da janela de recovery em curso (evita corrida com ela).
-            const driverDoDevice = resolverDriver(device);
+            const driverDoDevice = resolverDriverDeEventos(device);
             if (!offlineSyncBusy.has(device.id)) {
               driverDoDevice?.advanceBaselineWhileOnline?.(device)?.catch(() => {});
             }
@@ -376,6 +381,11 @@ async function runCondoLoop(token) {
       errBackoff = Math.min(errBackoff + 1, 10);
       console.error('[agente] erro no poll do condomínio:', err.message || err);
     }
+    // Auto-atualização: `verificar` roda em paralelo a este laço e, se trocou
+    // o exe, NÃO sai na hora (cortaria um enroll/remoção em curso) — a
+    // saída acontece aqui, no fim da iteração, com os comandos já
+    // respondidos à nuvem.
+    atualizador.sairSeReinicioPendente();
     await sleep(errBackoff > 0 ? pollMs * (1 + errBackoff) : pollMs);
   }
 }
@@ -521,7 +531,7 @@ function startLiveViewServer() {
       res.writeHead(404);
       return res.end('not found');
     }
-    const device = lastDevices.find((d) => resolverDriver(d) === dahuaFacial);
+    const device = lastDevices.find((d) => resolverDriverDeEventos(d) === dahuaFacial);
     if (!device) {
       res.writeHead(503);
       return res.end('nenhum terminal facial conectado');
@@ -788,7 +798,7 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
     // duas vezes: ele não entrou na nuvem e a marca d'água passava por cima
     // dele, então o replay do próximo reconnect também não o veria.
     if (!opts.backlog && ok && !offlineSyncBusy.has(device.id)) {
-      resolverDriver(device)?.advanceBaselineWhileOnline?.(device, true)?.catch(() => {});
+      resolverDriverDeEventos(device)?.advanceBaselineWhileOnline?.(device, true)?.catch(() => {});
     }
     return ok;
   } catch (err) {
@@ -848,7 +858,7 @@ function loadDotEnv() {
  * é este orquestrador.
  */
 async function syncDeviceOfflineLogs(token, device) {
-  const driver = resolverDriver(device);
+  const driver = resolverDriverDeEventos(device);
   if (!driver || !driver.buscarDesde) return;
   if (offlineSyncBusy.has(device.id)) return;
   offlineSyncBusy.add(device.id);

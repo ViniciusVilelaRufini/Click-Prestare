@@ -2,10 +2,12 @@
 
 /**
  * agent/src/core/supervisor.js — um SupervisorDispositivo por device: decide
- * se há driver para (tipo, fabricante), inicia o ouvinte de eventos
- * (`escutar`) e reconecta com espera crescente quando ele falha, aciona a
- * recuperação de acessos offline e o acerto de relógio no reconectar/a cada
- * 1h, e expõe `saude()` para telemetria (tarefa 7).
+ * se há ouvinte de eventos para o device (`resolverDriver` injetado — em
+ * produção, `resolverDriverDeEventos` do registro: só tipo 'facial'), inicia
+ * o ouvinte (`escutar`) e reconecta com espera crescente quando ele falha,
+ * aciona a recuperação de acessos offline no reconectar, acerta o relógio
+ * (respeitando o limite de 1h do driver) e expõe `saude()` para telemetria
+ * (tarefa 7).
  *
  * NÃO reimplementa o protocolo de cada marca (mora nos drivers, ver
  * src/drivers/*) nem o heartbeat de status reportado à nuvem (ping via
@@ -17,11 +19,13 @@
  * (ex.: erro síncrono ao abrir o ouvinte), reconecta sozinho com espera
  * crescente, em vez de desistir OU martelar sem parar.
  *
- * `aoConectar`/`aoEvento` (injetados no construtor) são os callbacks que
- * index.js já usa hoje (o fast-path "stream reconectou → recupera na hora" e
- * o encaminhamento de evento para a nuvem) — o Supervisor só os invoca no
- * lugar certo do ciclo de vida; não decide sozinho quando agir sobre eles
- * (mesma filosofia do contrato de driver, ver dahua-facial.js).
+ * `aoRecuperarOffline`/`aoEvento` (opções do construtor) são os callbacks
+ * que index.js já usa hoje (o fast-path "stream reconectou → recupera na
+ * hora" e o encaminhamento de evento para a nuvem) — o Supervisor só os
+ * invoca no lugar certo do ciclo de vida; não decide sozinho quando agir
+ * sobre eles (mesma filosofia do contrato de driver, ver dahua-facial.js).
+ * O `aoConectar` que aparece abaixo é outra coisa: o callback que o
+ * Supervisor passa AO DRIVER em `escutar(device, aoEvento, { aoConectar })`.
  */
 
 const BACKOFF_INICIAL_MS = 1000;
@@ -43,7 +47,7 @@ class SupervisorDispositivo {
     this._backoffMs = BACKOFF_INICIAL_MS;
     this._reconnectTimer = null;
     this._clockSyncTimer = null;
-    this._online = false;
+    this._ouvinteAtivo = false;
     this._ultimoEventoEm = null;
     this._ultimoErro = null;
   }
@@ -81,7 +85,9 @@ class SupervisorDispositivo {
       this._pararEscuta = this.driver.escutar(this.device, (dado) => this._receberEvento(dado), {
         aoConectar: () => this._aoConectar(),
       });
+      this._ouvinteAtivo = true;
     } catch (err) {
+      this._ouvinteAtivo = false;
       this._log.error(
         `[agente] ${this.device.nome}: falha ao assinar eventos (${err.message || err}); nova tentativa em ${this._backoffMs}ms`,
       );
@@ -90,9 +96,13 @@ class SupervisorDispositivo {
     }
   }
 
+  /** Devolve o que `aoEvento` devolver (inclusive a Promise): o driver
+   *  Control iD faz `const ok = await aoEvento(...)` e só avança a marca
+   *  d'água quando a nuvem confirmou — engolir o retorno aqui fazia o mesmo
+   *  acesso ser reenviado para sempre (a cada fim de debounce). */
   _receberEvento(dado) {
     this._ultimoEventoEm = new Date();
-    this._aoEvento(this.device, dado);
+    return this._aoEvento(this.device, dado);
   }
 
   /** Chamado pelo driver no primeiro byte de CADA conexão bem-sucedida do
@@ -102,14 +112,17 @@ class SupervisorDispositivo {
    *  injeta o callback decidir se estava mesmo offline antes (index.js já
    *  faz essa checagem via heartbeat — preservado, não repetido aqui). */
   _aoConectar() {
-    this._online = true;
     this._backoffMs = BACKOFF_INICIAL_MS; // conexão do ouvinte OK: reseta a espera
     if (this._reconnectTimer) {
       clearTimeout(this._reconnectTimer);
       this._reconnectTimer = null;
     }
+    // SEM `force`: o stream reabre sozinho periodicamente (não é queda de
+    // verdade), então forçar aqui acertaria o relógio a cada reabertura. O
+    // driver respeita o próprio limite de 1h; a transição offline→online de
+    // verdade já força o acerto pelo heartbeat (index.js).
     if (this.driver.acertarRelogio) {
-      Promise.resolve(this.driver.acertarRelogio(this.device, true)).catch((err) =>
+      Promise.resolve(this.driver.acertarRelogio(this.device)).catch((err) =>
         this._registrarErroAcertoDeRelogio(err),
       );
     }
@@ -119,9 +132,9 @@ class SupervisorDispositivo {
     );
   }
 
-  /** Acerta o relógio a cada 1h enquanto o ouvinte estiver de pé — além do
-   *  acerto imediato em `_aoConectar`. Marcas sem `acertarRelogio` (ex.:
-   *  Hikvision) simplesmente não ganham este agendamento. */
+  /** Acerta o relógio a cada 1h enquanto o ouvinte estiver de pé — além da
+   *  tentativa (sujeita ao limite de 1h do driver) em `_aoConectar`. Marcas
+   *  sem `acertarRelogio` (ex.: Hikvision) não ganham este agendamento. */
   _agendarAcertoDeRelogioPeriodico() {
     if (this._clockSyncTimer) clearInterval(this._clockSyncTimer);
     if (!this.driver.acertarRelogio) return;
@@ -139,7 +152,6 @@ class SupervisorDispositivo {
    *  desistir de vez. */
   _agendarReconexao() {
     if (this._parado) return;
-    this._online = false;
     const espera = this._backoffMs;
     this._backoffMs = Math.min(this._backoffMs * 2, BACKOFF_MAX_MS);
     this._reconnectTimer = setTimeout(() => {
@@ -167,6 +179,7 @@ class SupervisorDispositivo {
    *  sai da lista da nuvem (removido/desativado no portal). */
   parar() {
     this._parado = true;
+    this._ouvinteAtivo = false;
     if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
     if (this._clockSyncTimer) clearInterval(this._clockSyncTimer);
     try {
@@ -176,11 +189,15 @@ class SupervisorDispositivo {
     }
   }
 
+  /** `ouvinte_ativo` = a assinatura de eventos está aberta (o `escutar` do
+   *  driver foi chamado com sucesso e não foi parado) — NÃO é "o aparelho
+   *  está online": isso vem do heartbeat (ping) de index.js, que a
+   *  telemetria anexa por conta própria (ver core/telemetria.js). */
   saude() {
     return {
       id: this.device.id,
       driver: this.driver ? this.driver.id : null,
-      online: this._online,
+      ouvinte_ativo: this._ouvinteAtivo,
       ultimo_evento_em: this._ultimoEventoEm,
       ultimo_erro: this._ultimoErro,
     };

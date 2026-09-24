@@ -42,18 +42,45 @@ function supervisorFake(dispositivos) {
 test('montarPayload(): formato da spec (versão, so, iniciado_em, dispositivos, eventos_pendentes)', () => {
   const { telemetria } = carregarModulosLimpos();
   const dispositivos = [
-    { id: 10, driver: 'dahua-facial', online: true, ultimo_evento_em: null, ultimo_erro: null },
+    { id: 10, driver: 'dahua-facial', ouvinte_ativo: true, ultimo_evento_em: null, ultimo_erro: null },
   ];
   const payload = telemetria.montarPayload({
     supervisor: supervisorFake(dispositivos),
     pendentes: () => 3,
     iniciadoEm: '2026-09-23T00:00:00.000Z',
+    onlineDoDispositivo: () => true,
   });
   assert.equal(payload.versao, AGENT_VERSION);
   assert.equal(payload.so, `${os.platform()} ${os.release()}`);
   assert.equal(payload.iniciado_em, '2026-09-23T00:00:00.000Z');
-  assert.deepEqual(payload.dispositivos, dispositivos);
+  assert.deepEqual(payload.dispositivos, [{ ...dispositivos[0], online: true }]);
   assert.equal(payload.eventos_pendentes, 3);
+});
+
+test('montarPayload(): `online` vem do heartbeat (getter), não do estado do ouvinte do Supervisor', () => {
+  // I8 da revisão final: o ouvinte do Control iD só "conectava" depois de
+  // uma falha, o de Dahua/Hikvision nunca voltava a false e device sem
+  // ouvinte (LPR/catraca) ficava sempre vermelho no portal.
+  const { telemetria } = carregarModulosLimpos();
+  const heartbeat = new Map([[10, true], [20, false]]);
+  const payload = telemetria.montarPayload({
+    supervisor: supervisorFake([
+      { id: 10, driver: 'controlid-facial', ouvinte_ativo: false, ultimo_evento_em: null, ultimo_erro: null },
+      { id: 20, driver: 'dahua-facial', ouvinte_ativo: true, ultimo_evento_em: null, ultimo_erro: null },
+      { id: 40, driver: null, ouvinte_ativo: false, ultimo_evento_em: null, ultimo_erro: null },
+    ]),
+    pendentes: () => 0,
+    iniciadoEm: 'agora',
+    onlineDoDispositivo: (id) => heartbeat.get(id),
+  });
+  assert.deepEqual(
+    payload.dispositivos.map((d) => [d.id, d.online, d.ouvinte_ativo]),
+    [
+      [10, true, false],
+      [20, false, true],
+      [40, false, false], // sem heartbeat ainda → false (nunca undefined)
+    ],
+  );
 });
 
 test('enviarTelemetria(): POST no path certo, com o payload montado', async () => {
@@ -70,7 +97,7 @@ test('enviarTelemetria(): POST no path certo, com o payload montado', async () =
   });
   try {
     nuvem.configurar({ apiUrl: url });
-    const dispositivos = [{ id: 1, driver: 'x', online: false, ultimo_evento_em: null, ultimo_erro: 'timeout' }];
+    const dispositivos = [{ id: 1, driver: 'x', ouvinte_ativo: false, ultimo_evento_em: null, ultimo_erro: 'timeout' }];
     await telemetria.enviarTelemetria('token-abc', {
       supervisor: supervisorFake(dispositivos),
       pendentes: () => 0,
@@ -79,7 +106,7 @@ test('enviarTelemetria(): POST no path certo, com o payload montado', async () =
     assert.equal(recebido.method, 'POST');
     assert.equal(recebido.path, '/api/facial/agent/condo/token-abc/telemetria');
     assert.equal(recebido.body.versao, AGENT_VERSION);
-    assert.deepEqual(recebido.body.dispositivos, dispositivos);
+    assert.deepEqual(recebido.body.dispositivos, [{ ...dispositivos[0], online: false }]);
     assert.equal(recebido.body.eventos_pendentes, 0);
   } finally {
     await fechar();

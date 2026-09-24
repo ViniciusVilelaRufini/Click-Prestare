@@ -276,11 +276,15 @@ interface PendingCommand {
   timer: ReturnType<typeof setTimeout>;
 }
 
-/** Saúde de UM device, no formato que `Supervisor.saude()` do agente monta. */
+/** Saúde de UM device, no formato que a telemetria do agente monta
+ *  (agent/src/core/telemetria.js): `online` = último heartbeat (ping) do
+ *  aparelho; `ouvinte_ativo` = a assinatura de eventos faciais está aberta
+ *  (sempre false para device sem ouvinte — LPR, catraca...). */
 export interface AgentTelemetriaDispositivo {
   id: number;
   driver: string | null;
   online: boolean;
+  ouvinte_ativo: boolean;
   ultimo_evento_em: string | null;
   ultimo_erro: string | null;
 }
@@ -326,6 +330,7 @@ function sanitizarDispositivo(v: unknown): AgentTelemetriaDispositivo | null {
     id: d['id'],
     driver: strOuNull(d['driver'], TELEMETRIA_MAX_DRIVER),
     online: d['online'] === true,
+    ouvinte_ativo: d['ouvinte_ativo'] === true,
     ultimo_evento_em: strOuNull(d['ultimo_evento_em'], TELEMETRIA_MAX_ULTIMO_EVENTO_EM),
     ultimo_erro: strOuNull(d['ultimo_erro'], TELEMETRIA_MAX_ULTIMO_ERRO),
   };

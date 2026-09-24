@@ -1,12 +1,13 @@
 'use strict';
 
 /**
- * agent/src/drivers/registro.js — resolverDriver() por (tipo, fabricante),
- * com fabricante normalizado (intelbras/dahua caem na mesma família).
+ * agent/src/drivers/registro.js — resolverDriver() (comandos: por família do
+ * fabricante, qualquer tipo) e resolverDriverDeEventos() (ouvinte facial: só
+ * tipo 'facial'), com fabricante normalizado (intelbras/dahua = mesma família).
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { resolverDriver, FAMILIA_POR_FABRICANTE } = require('../src/drivers/registro');
+const { resolverDriver, resolverDriverDeEventos, FAMILIA_POR_FABRICANTE } = require('../src/drivers/registro');
 const dahuaFacial = require('../src/drivers/dahua-facial');
 const hikvisionFacial = require('../src/drivers/hikvision-facial');
 const controlidFacial = require('../src/drivers/controlid-facial');
@@ -34,9 +35,36 @@ test('resolverDriver(): facial/control_id devolve o driver controlid-facial', ()
   assert.equal(driver.id, 'controlid-facial');
 });
 
-test('resolverDriver(): combinação (tipo, fabricante) desconhecida devolve null', () => {
-  assert.equal(resolverDriver({ tipo: 'lpr', fabricante: 'intelbras' }), null);
+test('resolverDriver(): fabricante sem driver devolve null', () => {
   assert.equal(resolverDriver({ tipo: 'facial', fabricante: 'zkteco' }), null);
+  assert.equal(resolverDriver({ tipo: 'catraca', fabricante: 'generico' }), null);
+  // Nome de propriedade herdada de Object não pode virar "driver".
+  assert.equal(resolverDriver({ tipo: 'facial', fabricante: 'toString' }), null);
+});
+
+test('resolverDriver(): COMANDOS resolvem pela família do fabricante, qualquer que seja o tipo (catraca/botoeira/leitores/LPR)', () => {
+  // Regressão (C2 da revisão final): resolver por (tipo, fabricante) fazia
+  // uma catraca Control iD cair no REST genérico — open_door num POST
+  // /open_door que o aparelho não entende e ping em GET /status (offline).
+  for (const tipo of ['catraca', 'botoeira', 'tag_reader', 'qrcode_reader', 'lpr']) {
+    assert.equal(resolverDriver({ tipo, fabricante: 'control_id' }), controlidFacial, tipo);
+    assert.equal(resolverDriver({ tipo, fabricante: 'intelbras' }), dahuaFacial, tipo);
+    assert.equal(resolverDriver({ tipo, fabricante: 'dahua' }), dahuaFacial, tipo);
+    assert.equal(resolverDriver({ tipo, fabricante: 'hikvision' }), hikvisionFacial, tipo);
+  }
+});
+
+test('resolverDriverDeEventos(): só tipo facial ganha ouvinte (LPR/catraca da mesma marca não)', () => {
+  assert.equal(resolverDriverDeEventos({ tipo: 'facial', fabricante: 'intelbras' }), dahuaFacial);
+  assert.equal(resolverDriverDeEventos({ tipo: 'facial', fabricante: 'control_id' }), controlidFacial);
+  assert.equal(resolverDriverDeEventos({ tipo: 'facial', fabricante: 'hikvision' }), hikvisionFacial);
+  assert.equal(resolverDriverDeEventos({ tipo: 'lpr', fabricante: 'intelbras' }), null);
+  assert.equal(resolverDriverDeEventos({ tipo: 'catraca', fabricante: 'control_id' }), null);
+  assert.equal(resolverDriverDeEventos({ tipo: 'botoeira', fabricante: 'hikvision' }), null);
+  assert.equal(resolverDriverDeEventos({ tipo: 'facial', fabricante: 'zkteco' }), null);
+  // tipo ausente = default da API ('facial')
+  assert.equal(resolverDriverDeEventos({ fabricante: 'intelbras' }), dahuaFacial);
+  assert.equal(resolverDriverDeEventos(null), null);
 });
 
 test('resolverDriver(): device nulo/indefinido devolve null (não lança)', () => {

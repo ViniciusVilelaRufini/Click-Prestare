@@ -19,7 +19,7 @@ describe('POST facial/agent/condo/:token/telemetria', () => {
     so: 'win32 10.0.26100',
     iniciado_em: '2026-09-23T00:00:00.000Z',
     dispositivos: [
-      { id: 10, driver: 'dahua-facial', online: true, ultimo_evento_em: null, ultimo_erro: null },
+      { id: 10, driver: 'dahua-facial', online: true, ouvinte_ativo: true, ultimo_evento_em: null, ultimo_erro: null },
     ],
     eventos_pendentes: 2,
   };
@@ -77,7 +77,7 @@ describe('GET facial/agent/saude', () => {
       so: 'win32 10.0.26100',
       iniciado_em: '2026-09-23T00:00:00.000Z',
       dispositivos: [
-        { id: 10, driver: 'dahua-facial', online: true, ultimo_evento_em: null, ultimo_erro: null },
+        { id: 10, driver: 'dahua-facial', online: true, ouvinte_ativo: true, ultimo_evento_em: null, ultimo_erro: null },
       ],
       eventos_pendentes: 2,
     });
@@ -162,7 +162,7 @@ describe('sanitizarTelemetria()', () => {
       so: 'win32 10.0.26100',
       iniciado_em: '2026-09-23T00:00:00.000Z',
       dispositivos: [
-        { id: 10, driver: 'dahua-facial', online: true, ultimo_evento_em: null, ultimo_erro: 'timeout' },
+        { id: 10, driver: 'dahua-facial', online: true, ouvinte_ativo: true, ultimo_evento_em: null, ultimo_erro: 'timeout' },
       ],
       eventos_pendentes: 5,
     });
@@ -171,7 +171,7 @@ describe('sanitizarTelemetria()', () => {
       so: 'win32 10.0.26100',
       iniciado_em: '2026-09-23T00:00:00.000Z',
       dispositivos: [
-        { id: 10, driver: 'dahua-facial', online: true, ultimo_evento_em: null, ultimo_erro: 'timeout' },
+        { id: 10, driver: 'dahua-facial', online: true, ouvinte_ativo: true, ultimo_evento_em: null, ultimo_erro: 'timeout' },
       ],
       eventos_pendentes: 5,
     });
@@ -236,7 +236,7 @@ describe('sanitizarTelemetria()', () => {
       ],
     });
     expect(out.dispositivos).toEqual([
-      { id: 2, driver: 'ok', online: true, ultimo_evento_em: null, ultimo_erro: null },
+      { id: 2, driver: 'ok', online: true, ouvinte_ativo: false, ultimo_evento_em: null, ultimo_erro: null },
     ]);
     expect((out.dispositivos[0] as any).campoInventado).toBeUndefined();
   });
@@ -250,6 +250,18 @@ describe('sanitizarTelemetria()', () => {
       ],
     });
     expect(out.dispositivos.map((d) => d.online)).toEqual([false, false, false]);
+  });
+
+  it('ouvinte_ativo só é true quando o valor é exatamente booleano true (ausente → false)', () => {
+    const out = sanitizarTelemetria({
+      dispositivos: [
+        { id: 1, ouvinte_ativo: 'true' },
+        { id: 2, ouvinte_ativo: 1 },
+        { id: 3 },
+        { id: 4, ouvinte_ativo: true },
+      ],
+    });
+    expect(out.dispositivos.map((d) => d.ouvinte_ativo)).toEqual([false, false, false, true]);
   });
 
   it('campos extras no corpo (nível topo) são descartados', () => {

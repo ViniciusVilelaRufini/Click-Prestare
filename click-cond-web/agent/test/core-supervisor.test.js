@@ -36,7 +36,7 @@ test('sem driver conhecido: não assina nada e loga uma vez só', () => {
     [`[agente] ${device.nome}: sem driver para lpr/intelbras`],
   );
   assert.equal(supervisor.saude(device.id).driver, null);
-  assert.equal(supervisor.saude(device.id).online, false);
+  assert.equal(supervisor.saude(device.id).ouvinte_ativo, false);
 });
 
 test('com driver: assina escutar() uma única vez mesmo em vários atualizar()', () => {
@@ -55,7 +55,7 @@ test('com driver: assina escutar() uma única vez mesmo em vários atualizar()',
   supervisor.atualizar([device]);
   supervisor.atualizar([device]);
   assert.equal(chamadas, 1);
-  assert.equal(supervisor.saude(device.id).online, true);
+  assert.equal(supervisor.saude(device.id).ouvinte_ativo, true);
   assert.equal(supervisor.saude(device.id).driver, 'fake-facial');
 });
 
@@ -81,7 +81,7 @@ test('reconecta com espera crescente (1s, 2s, 4s...) quando escutar() falha, e r
 
   // 1ª tentativa falhou na hora (síncrono) — saude reflete o erro e offline.
   assert.equal(tentativas, 1);
-  assert.equal(supervisor.saude(device.id).online, false);
+  assert.equal(supervisor.saude(device.id).ouvinte_ativo, false);
   assert.match(supervisor.saude(device.id).ultimo_erro, /queda simulada #1/);
 
   // Espera 1: BACKOFF_INICIAL_MS (1000ms) antes da 2ª tentativa.
@@ -99,7 +99,7 @@ test('reconecta com espera crescente (1s, 2s, 4s...) quando escutar() falha, e r
   // Espera 3: dobra para 4000ms antes da 4ª tentativa, que finalmente conecta.
   t.mock.timers.tick(BACKOFF_INICIAL_MS * 4);
   assert.equal(tentativas, 4);
-  assert.equal(supervisor.saude(device.id).online, true, 'reconectou');
+  assert.equal(supervisor.saude(device.id).ouvinte_ativo, true, 'reconectou');
 });
 
 test('espera de reconexão tem teto de 60s (não cresce pra sempre)', (t) => {
@@ -186,7 +186,35 @@ test('saude(): repassa o evento cru para o callback aoEvento injetado', () => {
   assert.deepEqual(recebidos, [{ deviceId: device.id, dado: { UserID: 'x' } }]);
 });
 
-test('aoConectar: chama acertarRelogio(force=true) e aoRecuperarOffline ao (re)conectar', async () => {
+test("aoEvento: o retorno (inclusive Promise) volta para o driver — Control iD só avança a marca d'água com ok", async () => {
+  // Regressão (C1 da revisão final): `_receberEvento` descartava o retorno
+  // de aoEvento; o driver Control iD faz `const ok = await aoEvento(...)` e,
+  // sem ok, nunca gravava a marca d'água — o mesmo acesso era reenviado a
+  // cada fim de debounce, para sempre.
+  let aoEventoDoDriver;
+  const driver = {
+    id: 'fake-facial',
+    escutar(device, aoEvento) {
+      aoEventoDoDriver = aoEvento;
+      return () => {};
+    },
+  };
+  const respostas = [true, false];
+  const supervisor = new Supervisor({
+    resolverDriver: () => driver,
+    aoEvento: async () => respostas.shift(),
+    log: logMudo,
+  });
+  supervisor.atualizar([deviceFacial(15)]);
+  assert.equal(await aoEventoDoDriver({ UserID: 'a' }), true);
+  assert.equal(await aoEventoDoDriver({ UserID: 'b' }), false);
+
+  const sincrono = new Supervisor({ resolverDriver: () => driver, aoEvento: () => 'ok-sincrono', log: logMudo });
+  sincrono.atualizar([deviceFacial(16)]);
+  assert.equal(aoEventoDoDriver({ UserID: 'c' }), 'ok-sincrono');
+});
+
+test('aoConectar: chama acertarRelogio SEM force (respeita o limite de 1h do driver) e aoRecuperarOffline ao (re)conectar', async () => {
   const chamadasRelogio = [];
   const recuperados = [];
   const driver = {
@@ -214,7 +242,9 @@ test('aoConectar: chama acertarRelogio(force=true) e aoRecuperarOffline ao (re)c
   // aoConectar dispara os dois síncronamente (as promises internas resolvem
   // no próximo microtask) — aguarda um tick pra garantir.
   await Promise.resolve();
-  assert.deepEqual(chamadasRelogio, [{ deviceId: device.id, force: true }]);
+  // Sem force: o stream reabre sozinho periodicamente — forçar aqui acertaria
+  // o relógio a cada reabertura em vez de 1x/h (M1 da revisão final).
+  assert.deepEqual(chamadasRelogio, [{ deviceId: device.id, force: false }]);
   assert.deepEqual(recuperados, [device.id]);
 });
 
@@ -234,7 +264,7 @@ test('acertarRelogio periódico: agenda a cada 1h enquanto o ouvinte está de p�
   };
   const supervisor = new Supervisor({ resolverDriver: () => driver, log: logMudo });
   supervisor.atualizar([deviceFacial(8)]);
-  assert.equal(chamadas, 1, 'acerto imediato ao conectar (force)');
+  assert.equal(chamadas, 1, 'tentativa de acerto ao conectar (o driver aplica o limite de 1h)');
 
   t.mock.timers.tick(CLOCK_SYNC_INTERVAL_MS - 1);
   assert.equal(chamadas, 1, 'ainda não passou 1h');
@@ -256,7 +286,7 @@ test('drivers sem acertarRelogio (ex.: Hikvision) não geram agendamento nem err
   };
   const supervisor = new Supervisor({ resolverDriver: () => driver, log: logMudo });
   assert.doesNotThrow(() => supervisor.atualizar([deviceFacial(9)]));
-  assert.equal(supervisor.saude(9).online, true);
+  assert.equal(supervisor.saude(9).ouvinte_ativo, true);
 });
 
 test('Supervisor exige resolverDriver()', () => {
@@ -317,7 +347,7 @@ test('acertarRelogio falhando (ao conectar OU no acerto periódico): loga e regi
 
   await Promise.resolve();
   await Promise.resolve();
-  assert.match(supervisor.saude(device.id).ultimo_erro, /falha relogio #1/, 'erro do acerto ao conectar (force)');
+  assert.match(supervisor.saude(device.id).ultimo_erro, /falha relogio #1/, 'erro do acerto ao conectar');
   assert.ok(erros.some((m) => m.includes('falha ao acertar relógio')), 'logou o erro ao conectar');
 
   erros.length = 0;

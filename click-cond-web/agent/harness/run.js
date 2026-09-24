@@ -77,9 +77,25 @@ const DEVICES = {
     api_user: USER,
     api_password: PASS,
   },
+  // C2 da revisão final: aparelho NÃO facial de marca suportada. Comandos
+  // (ping, open_door) têm de sair pelo protocolo da marca (driver Control
+  // iD, por família do fabricante) — antes da correção caíam no REST
+  // genérico (POST /open_door, GET /status) e a catraca aparecia OFFLINE.
+  // Ouvinte de eventos faciais, esse não pode ganhar. Usa o MESMO mock do
+  // Control iD facial (porta 9102): um aparelho a mais na mesma "caixa".
+  50: {
+    id: 50,
+    nome: 'Catraca Control iD',
+    tipo: 'catraca',
+    fabricante: 'control_id',
+    ip: '127.0.0.1',
+    porta: PORTA_CID,
+    api_user: USER,
+    api_password: PASS,
+  },
 };
 
-const filaComandos = new Map([[10, []], [20, []], [30, []], [40, []]]);
+const filaComandos = new Map([[10, []], [20, []], [30, []], [40, []], [50, []]]);
 const resultados = new Map(); // commandId -> result
 const eventos = [];
 const statusRecebidos = [];
@@ -449,9 +465,13 @@ async function main() {
     checar('cid: poller ao vivo enviou o acesso', !!evCid, JSON.stringify(eventos.slice(antesCid)));
     checar('cid: evento ao vivo NÃO é backlog', evCid && !evCid.backlog);
 
-    // Não pode reenviar o mesmo log no ciclo seguinte (marca d'água).
+    // Não pode reenviar o mesmo log no ciclo seguinte (marca d'água). A
+    // espera tem de passar do debounce de 8s do agente + 1 ciclo do poller
+    // (3s): com a marca d'água travada (C1 da revisão final — o Supervisor
+    // engolia o `ok` do envio), o reenvio só aparece DEPOIS do debounce, e
+    // uma espera de 3s nunca o via.
     const qtdAntes = eventos.filter((e) => e.external_id === idInterno).length;
-    await sleep(3000);
+    await sleep(11500);
     const qtdDepois = eventos.filter((e) => e.external_id === idInterno).length;
     checar('cid: não reenvia o mesmo acesso', qtdDepois === qtdAntes, `${qtdAntes} → ${qtdDepois}`);
 
@@ -462,6 +482,30 @@ async function main() {
       'cid: consulta de logs usa order desc',
       condsLogs.length > 0 && condsLogs.every((c) => c.order?.[1] === 'desc'),
       JSON.stringify(condsLogs[0]?.order),
+    );
+
+    // ===== Catraca Control iD (tipo != facial): comandos pelo protocolo da marca =====
+    const portaAntesCatraca = estado.cid.portaAberta;
+    const rCatraca = await esperarResultado(enfileirar(50, { type: 'open_door' }));
+    checar('catraca cid: open_door OK via protocolo Control iD', rCatraca?.ok === true, JSON.stringify(rCatraca));
+    checar(
+      'catraca cid: a porta abriu no aparelho (não caiu no POST /open_door genérico)',
+      estado.cid.portaAberta === portaAntesCatraca + 1,
+      `${portaAntesCatraca} → ${estado.cid.portaAberta}`,
+    );
+    checar(
+      'catraca cid: nenhum POST /open_door genérico chegou ao aparelho',
+      !estado.cid.requisicoes.includes('POST /open_door'),
+    );
+    checar(
+      'catraca cid: heartbeat pelo protocolo da marca reporta ONLINE',
+      statusRecebidos.some((s) => s.deviceId === 50 && s.online),
+      JSON.stringify(statusRecebidos.filter((s) => s.deviceId === 50).slice(-3)),
+    );
+    checar(
+      'catraca cid: sem ouvinte de eventos faciais (loga "sem driver" para o ouvinte)',
+      logAgente.join('').includes('Catraca Control iD: sem driver para catraca/control_id') &&
+        !logAgente.join('').includes('Catraca Control iD: monitorando acessos'),
     );
 
     const cCidRem = enfileirar(20, { type: 'remove_users', faceIds: [idInterno] });
@@ -690,16 +734,18 @@ async function main() {
       );
     }
 
-    // ===== Supervisor (tarefa 6): (tipo, fabricante) sem driver conhecido =====
+    // ===== Supervisor (tarefa 6): (tipo, fabricante) sem ouvinte =====
     // Uma câmera LPR Intelbras não pode herdar o ouvinte de eventos de
     // reconhecimento facial (o bug original: decisão só pelo `fabricante`,
     // sem olhar o `tipo`). Ao longo de toda a execução acima (dezenas de
     // segundos, vários ciclos de poll), o mock do device 40 só pode ter
-    // recebido o ping genérico de status (GET /status) — nunca nada
-    // parecido com assinatura de eventos.
+    // recebido o PING da marca (comandos resolvem por família do fabricante
+    // — C2 da revisão final: Dahua/Intelbras pinga em magicBox.cgi) — nunca
+    // assinatura de eventos (eventManager attach), busca de log
+    // (recordFinder) ou acerto de relógio (global.cgi).
     checar(
-      'lpr/intelbras: sem driver conhecido, mock não recebe nenhuma assinatura de eventos',
-      lprRequisicoes.every((r) => r === 'GET /status'),
+      'lpr/intelbras: mock só recebe o ping da marca, nenhuma assinatura de eventos',
+      lprRequisicoes.length > 0 && lprRequisicoes.every((r) => r === 'GET /cgi-bin/magicBox.cgi'),
       `requisições recebidas: ${JSON.stringify([...new Set(lprRequisicoes)])}`,
     );
     checar(
@@ -716,10 +762,19 @@ async function main() {
     checar('telemetria: traz o SO (os.platform()+release())', typeof ultimaTelemetria?.so === 'string' && ultimaTelemetria.so.length > 0, ultimaTelemetria?.so);
     checar('telemetria: traz iniciado_em', typeof ultimaTelemetria?.iniciado_em === 'string' && ultimaTelemetria.iniciado_em.length > 0, ultimaTelemetria?.iniciado_em);
     checar(
-      'telemetria: traz os dispositivos com saúde (id/driver/online)',
+      'telemetria: traz os dispositivos com saúde (id/driver/online/ouvinte_ativo)',
       Array.isArray(ultimaTelemetria?.dispositivos) &&
-        ultimaTelemetria.dispositivos.some((d) => d.id === 10 && d.driver === 'hikvision-facial' && d.online === true),
+        ultimaTelemetria.dispositivos.some(
+          (d) => d.id === 10 && d.driver === 'hikvision-facial' && d.online === true && d.ouvinte_ativo === true,
+        ),
       JSON.stringify(ultimaTelemetria?.dispositivos),
+    );
+    // I8 da revisão final: `online` vem do heartbeat — a catraca (sem
+    // ouvinte facial) responde ao ping e tem de aparecer online.
+    checar(
+      'telemetria: online vem do heartbeat (catraca sem ouvinte aparece online)',
+      ultimaTelemetria?.dispositivos?.some((d) => d.id === 50 && d.online === true && d.ouvinte_ativo === false),
+      JSON.stringify(ultimaTelemetria?.dispositivos?.find((d) => d.id === 50)),
     );
     checar(
       'telemetria: número (não string) de eventos_pendentes',
