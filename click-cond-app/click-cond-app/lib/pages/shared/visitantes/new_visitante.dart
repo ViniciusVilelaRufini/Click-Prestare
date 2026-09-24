@@ -23,6 +23,16 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../singleton.dart';
 
+String tipoCadastroVisitante({
+  String? defaultType,
+  bool? isVisitanteExistente,
+}) {
+  if (defaultType == 'visitante' || defaultType == 'prestador') {
+    return defaultType!;
+  }
+  return isVisitanteExistente == false ? 'prestador' : 'visitante';
+}
+
 class NewVisitante extends StatefulWidget {
   final bool isEdit;
   final int? myId;
@@ -90,7 +100,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
     if (widget.isEdit) {
       load();
     } else {
-      currentTipo = widget.defaultType ?? 'visitante';
+      currentTipo = tipoCadastroVisitante(defaultType: widget.defaultType);
       // Prestador novo já vem com os dias úteis pré-selecionados.
       if (currentTipo == 'prestador')
         diasSemana = ['seg', 'ter', 'qua', 'qui', 'sex'];
@@ -101,8 +111,11 @@ class _NewVisitantePageState extends State<NewVisitante> {
         txtApto.text = widget.reUseData!["apto"] ?? "";
         txtBloco.text = widget.reUseData!["apto_bloco"] ?? "";
         txtObs.text = widget.reUseData!["observacoes"] ?? "";
-        currentTipo =
-            widget.reUseData!["is_visitante"] == 1 ? 'visitante' : 'prestador';
+        currentTipo = tipoCadastroVisitante(
+          defaultType: widget.defaultType,
+          isVisitanteExistente: widget.reUseData!["is_visitante"] == 1 ||
+              widget.reUseData!["is_visitante"] == true,
+        );
         diasSemana = _parseDias(widget.reUseData!["dias_semana"]);
         idMyApartment = widget.reUseData!["apto_id"];
         final rawPhoto =
@@ -134,7 +147,11 @@ class _NewVisitantePageState extends State<NewVisitante> {
       txtApto.text = obj["apto"] ?? "";
       txtBloco.text = obj["apto_bloco"] ?? "";
       txtObs.text = obj["observacoes"] ?? "";
-      currentTipo = obj["is_visitante"] == 1 ? 'visitante' : 'prestador';
+      currentTipo = tipoCadastroVisitante(
+        defaultType: widget.defaultType,
+        isVisitanteExistente:
+            obj["is_visitante"] == 1 || obj["is_visitante"] == true,
+      );
       diasSemana = _parseDias(obj["dias_semana"]);
       _jaRegistrada = obj['data_entrada'] != null;
       imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty
@@ -566,7 +583,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                     ),
                   ),
                   // Seletor de Tipo (Visitante vs Prestador de Serviços)
-                  if (!widget.isEdit) ...[
+                  ...[
                     const SizedBox(height: AppSpacing.md),
                     Text(
                       getText('lb_tipo'),
