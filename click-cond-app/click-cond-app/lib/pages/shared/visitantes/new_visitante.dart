@@ -204,7 +204,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
         id_apartamento: idMyApartment ?? getIdApto(),
         is_visitante: currentTipo == 'visitante',
         is_prestador: currentTipo == 'prestador',
-        dias_semana: currentTipo == 'prestador' ? diasSemana.join(',') : null,
+        dias_semana: diasAcessoSelecionados(diasSemana),
         photo: imageFile != null && imageChanged
             ? convertToBase64(imageFile, "image/jpeg")
             : (imageFile is String ? imageFile : null),
@@ -587,11 +587,17 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       },
                     ),
                   ],
-                  if (isPrestador) ...[
+                  // Dias recorrentes pertencem a uma visita, não ao tipo da
+                  // pessoa. Assim, um visitante pode ter acesso em dias
+                  // definidos sem ser classificado como prestador no web.
+                  ...[
                     const SizedBox(height: AppSpacing.xl),
-                    _section('Dias de Acesso'),
+                    _section(
+                        isPrestador ? 'Dias de Acesso' : 'Visita recorrente'),
                     Text(
-                      'Dias em que este prestador pode entrar no condomínio.',
+                      isPrestador
+                          ? 'Dias em que este prestador pode entrar no condomínio.'
+                          : 'Selecione os dias em que este visitante pode entrar no condomínio.',
                       style: AppTypography.caption(context)
                           .copyWith(color: AppColors.textSecondary(context)),
                     ),
@@ -810,6 +816,11 @@ class _Chip extends StatelessWidget {
       ),
     );
   }
+}
+
+String? diasAcessoSelecionados(List<String> dias) {
+  final selecionados = dias.where((dia) => dia.trim().isNotEmpty).toList();
+  return selecionados.isEmpty ? null : selecionados.join(',');
 }
 
 class VisitanteModel {

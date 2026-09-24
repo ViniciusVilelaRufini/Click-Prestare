@@ -928,7 +928,7 @@
                     [class.dark:bg-amber-950/40]="v.is_prestador"
                     [class.dark:border-amber-800/60]="v.is_prestador"
                   >
-                    {{ v.is_prestador ? 'Prestador' : 'Visitante' }}
+                    {{ tipoPessoa(v) }}
                   </span>
                 </div>
                 <div class="mt-2 flex items-center gap-2 flex-wrap">
@@ -1042,7 +1042,7 @@
                     </span>
                   }
                 </div>
-                @if (v.is_prestador && (v.categorias || v.dias_semana)) {
+                @if (v.categorias || v.dias_semana) {
                   <div
                     class="mt-1.5 text-[10px] text-amber-700 dark:text-amber-400/85 font-medium flex flex-wrap gap-1 items-center"
                   >
@@ -1267,7 +1267,7 @@
                             · {{ $any(v).visitasAnteriores }} {{ $any(v).visitasAnteriores === 1 ? 'visita' : 'visitas' }}
                           </span>
                         }
-                        @if (v.is_prestador && (v.categorias || v.dias_semana)) {
+                        @if (v.categorias || v.dias_semana) {
                           <span class="text-slate-300 dark:text-slate-650 select-none">·</span>
                           @if (v.categorias) {
                             <span
@@ -1343,7 +1343,7 @@
                     [class.dark:bg-amber-950/40]="v.is_prestador"
                     [class.dark:border-amber-800/60]="v.is_prestador"
                   >
-                    {{ v.is_prestador ? 'Prestador' : 'Visitante' }}
+                    {{ tipoPessoa(v) }}
                   </span>
                 </td>
                 <td class="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-xs font-mono whitespace-nowrap">
@@ -2800,10 +2800,7 @@
                   </button>
                 }
               </div>
-              @if (
-                d.visitante.is_prestador === 1 &&
-                (d.visitante.categorias || d.visitante.dias_semana)
-              ) {
+              @if (d.visitante.categorias || d.visitante.dias_semana) {
                 <div class="mt-2.5 flex flex-col gap-1 text-xs">
                   @if (d.visitante.categorias) {
                     <div>
