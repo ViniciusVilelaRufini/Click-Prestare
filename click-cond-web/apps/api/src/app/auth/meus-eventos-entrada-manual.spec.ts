@@ -209,6 +209,8 @@ describe('MobileAuthService.getMeusEventos — entrada registrada na portaria', 
       tipo_pessoa: 'visitante',
       categoria: 'visitante',
     }));
+  });
+
   it('reclassifica no feed de síndico a entrada manual da visita convertida', async () => {
     process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
     const agora = new Date();
