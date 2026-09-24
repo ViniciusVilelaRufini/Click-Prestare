@@ -1459,7 +1459,7 @@ export class MobileAuthService {
           id_condominio: v.id_condominio,
           nome_pessoa: v.nome ?? '',
           evento,
-          tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+          tipo_pessoa: v.tipo_pessoa || (v.is_prestador === 1 ? 'prestador' : 'visitante'),
           tipo_dispositivo: 'pin',
           confianca: null,
           timestamp: ts,
@@ -3138,7 +3138,9 @@ export class MobileAuthService {
 
       let userId: number;
       let passwordWasSet = false;
-      const senhaInicial = somenteDigitos(cpf) || '123456';
+      const senhaInicial = (mor.email && mor.sendCredentials !== false)
+        ? this.gerarNovaSenha()
+        : (somenteDigitos(cpf) || this.gerarNovaSenha());
       // bcrypt: a senha inicial sao os digitos do CPF, que nao e segredo. Em
       // MD5 sem sal, qualquer vazamento do banco entrega a senha na hora.
       const senhaHash = await bcrypt.hash(senhaInicial, 10);

@@ -9,6 +9,7 @@ import { SuperlogicaWriteService } from '../superlogica/superlogica-write.servic
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 
 export interface CreateMoradorDto {
@@ -51,6 +52,10 @@ export class MoradoresService {
     private readonly auditoria: AuditoriaService,
     private readonly superlogicaWrite: SuperlogicaWriteService,
   ) {}
+
+  private gerarSenhaAleatoria(): string {
+    return randomBytes(4).toString('hex');
+  }
 
   private parseDate(dateStr: string | Date | null | undefined): Date | null {
     if (!dateStr) return null;
@@ -693,7 +698,7 @@ export class MoradoresService {
       };
       MoradoresService.mockMoradores.push(newM as any);
       if (dto.sendCredentials && dto.email) {
-        this.fireWelcomeEmail(dto.email, dto.nome, dto.documento || '123456');
+        this.fireWelcomeEmail(dto.email, dto.nome, this.gerarSenhaAleatoria());
       }
       return newM;
     }
@@ -737,10 +742,13 @@ export class MoradoresService {
     const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa);
     const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento);
 
-    // bcrypt: a senha inicial e o documento da pessoa, que nao e segredo. Em
-    // MD5 sem sal, um vazamento do banco entrega a senha de todo mundo de uma
-    // vez. O login ja aceita os dois formatos e migra o legado no acesso.
-    const senhaHash = await bcrypt.hash(dto.documento || '123456', 10);
+    // Senha inicial temporária gerada de forma aleatória quando as credenciais são enviadas,
+    // evitando expor documento/CPF como credencial de acesso.
+    const senhaAleatoria = this.gerarSenhaAleatoria();
+    const senhaInicial = (dto.sendCredentials && dto.email)
+      ? senhaAleatoria
+      : (somenteDigitos(dto.documento) || senhaAleatoria);
+    const senhaHash = await bcrypt.hash(senhaInicial, 10);
     let passwordWasSet = false;
 
     const ehMenor = dto.data_nascimento ? calcularIdade(dto.data_nascimento) < 18 : false;
@@ -889,7 +897,7 @@ export class MoradoresService {
     }
 
     if (dto.sendCredentials && dto.email) {
-      this.fireWelcomeEmail(dto.email, dto.nome, passwordWasSet ? (dto.documento || '123456') : undefined);
+      this.fireWelcomeEmail(dto.email, dto.nome, passwordWasSet ? senhaInicial : undefined);
     }
 
     // Mão dupla com a Superlógica. Best-effort de propósito: o ERP fora do ar
@@ -1190,18 +1198,42 @@ export class MoradoresService {
     if (!m.email) {
       throw new NotFoundException('Morador não possui e-mail cadastrado');
     }
-    // Só os dígitos: este fluxo REDEFINE a senha e manda por e-mail, então a
-    // máscara do documento viraria a senha real e a pessoa erraria ao digitar.
-    const senhaInicial = somenteDigitos(m.documento) || '123456';
-    if (this.prisma.isConnected && m.id_user) {
-      // bcrypt, não MD5. O login já aceita os dois e migra o hash legado no
-      // primeiro acesso — mas este fluxo REDEFINE a senha, então gravar MD5
-      // aqui recriava o problema toda vez que o síndico reenviava credenciais.
-      // Pior: a senha são os dígitos do documento, e MD5 sem sal de um número
-      // de 11 dígitos se quebra por força bruta em segundos.
+    // Gera uma senha temporária aleatória de 8 caracteres alfanuméricos
+    // (mesmo padrão da recuperação de senha), em vez de usar o CPF da pessoa.
+    const senhaInicial = this.gerarSenhaAleatoria();
+    if (this.prisma.isConnected) {
+      let userId = m.id_user;
+      if (!userId) {
+        const existingUser = await this.prisma.users.findFirst({
+          where: { OR: [{ email: m.email }, { login: m.email }] },
+        });
+        if (existingUser) {
+          userId = existingUser.id;
+        } else {
+          const newUser = await this.prisma.users.create({
+            data: {
+              name: m.nome,
+              email: m.email,
+              login: m.email,
+              phone: m.telefone,
+              cpf: m.documento,
+              is_morador: 1,
+              login_type: 'morador',
+              photo: m.foto_pessoa,
+              profile_image: m.foto_pessoa,
+            },
+          });
+          userId = newUser.id;
+        }
+        await this.prisma.moradores.update({
+          where: { id },
+          data: { id_user: userId },
+        });
+      }
+
       const senhaHash = await bcrypt.hash(senhaInicial, 10);
       await this.prisma.users.update({
-        where: { id: m.id_user },
+        where: { id: userId },
         data: {
           login: m.email,
           password: senhaHash,
