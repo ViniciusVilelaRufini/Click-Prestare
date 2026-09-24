@@ -2426,6 +2426,23 @@ export class MobileAuthService {
       }
 
       if (idConta != null) {
+        // Rate limit: máximo 3 solicitações por hora por conta e papel (anti-spam de caixa de entrada)
+        const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000);
+        const pedidosRecentes = await this.prisma.redefinicoes_Senha.count({
+          where: {
+            id_conta: idConta,
+            papel,
+            criado_em: { gte: umaHoraAtras },
+          },
+        });
+
+        if (pedidosRecentes >= 3) {
+          this.logger.warn(
+            `[solicitarRedefinicaoSenha] Limite de 3 pedidos/hora excedido para id_conta=${idConta} (${papel})`,
+          );
+          return defaultResponse;
+        }
+
         // Gerar token seguro aleatório
         const token = randomBytes(32).toString('base64url');
         const tokenHash = createHash('sha256').update(token).digest('hex');
@@ -2448,14 +2465,14 @@ export class MobileAuthService {
           },
         });
 
-        // Envia e-mail com Deep Link (não expõe token na resposta da API)
-        try {
-          await this.mail.sendResetPasswordLink(emailNormalizado, token, papelNome);
-        } catch (mailErr: any) {
-          this.logger.error(
-            `Falha ao enviar e-mail de redefinição para ${emailNormalizado}: ${mailErr?.message ?? mailErr}`,
-          );
-        }
+        // Envio assíncrono para neutralizar timing attack (tempo de resposta idêntico a e-mail inexistente)
+        setImmediate(() => {
+          this.mail.sendResetPasswordLink(emailNormalizado, token, papelNome).catch((mailErr: any) => {
+            this.logger.error(
+              `Falha ao enviar e-mail de redefinição para ${emailNormalizado}: ${mailErr?.message ?? mailErr}`,
+            );
+          });
+        });
       }
     } catch (err: any) {
       this.logger.error(`Erro ao processar solicitação de redefinição para ${emailNormalizado}: ${err?.message ?? err}`);
@@ -2478,13 +2495,26 @@ export class MobileAuthService {
     }
 
     const tokenHash = createHash('sha256').update(token.trim()).digest('hex');
+    const now = new Date();
 
-    const registro = await this.prisma.redefinicoes_Senha.findFirst({
+    // 1. Atualização atômica para prevenir race condition / múltiplos usos concorrentes do mesmo token
+    const updateResult = await this.prisma.redefinicoes_Senha.updateMany({
       where: {
         token_hash: tokenHash,
         usado_em: null,
-        expira_em: { gt: new Date() },
+        expira_em: { gt: now },
       },
+      data: {
+        usado_em: now,
+      },
+    });
+
+    if (updateResult.count === 0) {
+      throw new BadRequestException('Link de redefinição inválido ou expirado.');
+    }
+
+    const registro = await this.prisma.redefinicoes_Senha.findFirst({
+      where: { token_hash: tokenHash },
     });
 
     if (!registro) {
@@ -2493,37 +2523,91 @@ export class MobileAuthService {
 
     const hash = await bcrypt.hash(senhaLimpa, 10);
 
+    let idCondominio = 0;
+    let usuarioNome = `Conta #${registro.id_conta} (${registro.papel})`;
+    let usuarioEmail: string | null = null;
+
     if (registro.papel === 'funcionario') {
       await this.prisma.funcionarios_Portaria.update({
         where: { id: registro.id_conta },
         data: { password: hash },
       });
-    } else {
-      // 'sindico' ou 'morador' são registros na tabela Users
+      try {
+        const func = await this.prisma.funcionarios_Portaria.findFirst({
+          where: { id: registro.id_conta },
+          select: { id_condominio: true, nome: true, login: true, email: true },
+        });
+        if (func) {
+          idCondominio = func.id_condominio ?? 0;
+          usuarioNome = func.nome || func.login || usuarioNome;
+          usuarioEmail = func.email || func.login || null;
+        }
+      } catch (_) {}
+    } else if (registro.papel === 'sindico') {
       await this.prisma.users.update({
         where: { id: registro.id_conta },
         data: { password: hash },
       });
+      try {
+        const rel = await this.prisma.sindicos_Condominios.findFirst({
+          where: { id_user: registro.id_conta },
+          select: { id_condominio: true },
+        });
+        const user = await this.prisma.users.findUnique({
+          where: { id: registro.id_conta },
+          select: { name: true, email: true },
+        });
+        idCondominio = rel?.id_condominio ?? 0;
+        if (user) {
+          usuarioNome = user.name || usuarioNome;
+          usuarioEmail = user.email || null;
+        }
+      } catch (_) {}
+    } else {
+      // 'morador'
+      await this.prisma.users.update({
+        where: { id: registro.id_conta },
+        data: { password: hash },
+      });
+      try {
+        const morador = await this.prisma.moradores.findFirst({
+          where: { id_user: registro.id_conta },
+          select: { id_condominio: true, nome: true, email: true },
+        });
+        if (morador) {
+          idCondominio = morador.id_condominio ?? 0;
+          usuarioNome = morador.nome || usuarioNome;
+          usuarioEmail = morador.email || null;
+        } else {
+          const apto = await this.prisma.apartamentos_Users.findFirst({
+            where: { id_user: registro.id_conta },
+            include: { apartamento: { select: { id_condominio: true } } },
+          });
+          idCondominio = apto?.apartamento?.id_condominio ?? 0;
+          const user = await this.prisma.users.findUnique({
+            where: { id: registro.id_conta },
+            select: { name: true, email: true },
+          });
+          if (user) {
+            usuarioNome = user.name || usuarioNome;
+            usuarioEmail = user.email || null;
+          }
+        }
+      } catch (_) {}
     }
 
-    // Invalida o token marcando como utilizado
-    await this.prisma.redefinicoes_Senha.update({
-      where: { id: registro.id },
-      data: { usado_em: new Date() },
-    });
-
-    // Auditoria (opcional / tolerante a falhas)
+    // Auditoria (opcional / tolerante a falhas) com id_condominio real
     try {
       if (this.prisma?.auditLog?.create) {
         await this.prisma.auditLog.create({
           data: {
-            id_condominio: 0,
-            usuario_nome: `Conta #${registro.id_conta} (${registro.papel})`,
-            usuario_email: null,
+            id_condominio: idCondominio,
+            usuario_nome: usuarioNome,
+            usuario_email: usuarioEmail,
             acao: 'UPDATE',
             modulo: 'AUTH',
             entidade_id: registro.id_conta,
-            descricao: `Senha redefinida com sucesso via token para ${registro.papel}`,
+            descricao: `Senha redefinida com sucesso para ${registro.papel}`,
             detalhes: JSON.stringify({ papel: registro.papel, id_conta: registro.id_conta }),
             ip: registro.ip,
           },
