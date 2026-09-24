@@ -62,3 +62,12 @@
 - RED: teste com uma visita histórica `is_prestador = 1` e Pessoa atual `tipo_pessoa = visitante` falhou, pois a consulta do card não relacionava Pessoa.
 - GREEN: na fonte migrada, o card agora conta visitas ativas cuja `Pessoa.tipo_pessoa` é `visitante`. A consulta preserva condomínio, exige entrada e exclui visitas com saída.
 - Validação: teste direcionado 5/5, typecheck e builds API/portaria-web passaram; a suíte integral da API local excedeu 120 s sem resultado consolidado e será o gate obrigatório da publicação no GitHub Actions.
+
+## Correção de consistência do app — 24/09/2026
+
+- Reprodução: o app TestFlight mostrava Vinicius como `Prestador` na lista "Visitantes e Prestadores", em "Eventos de Acesso" e em "Meus eventos", embora a pessoa atual já fosse visitante recorrente no console e no dashboard web.
+- Causa raiz: os três cards móveis recebiam campos históricos: `Visitas.is_prestador` em `GET /visitantes/get-all` e `Acessos_Facial.tipo_pessoa` em `GET /dashboard/meus-eventos`. A classificação vigente está em `Pessoas.tipo_pessoa`.
+- RED: duas provas falharam para visita/evento históricos de prestador com Pessoa atual visitante: a lista devolvia `is_prestador: 1`; os feeds de porteiro e síndico devolviam `tipo_pessoa: prestador`.
+- GREEN: o adaptador móvel passa a derivar os flags do tipo atual da Pessoa; os feeds normalizam acessos facial e manuais pelo mapa Pessoa/Visita, cobrindo ids de Pessoa e de Visita.
+- Isolamento: os mapas são construídos exclusivamente a partir das visitas já limitadas ao condomínio/apartamento/papel da requisição; evento sem `id_pessoa` preserva o tipo gravado e não é associado a outra pessoa.
+- Validação: 21/21 testes direcionados passaram, typecheck e builds API/portaria-web passaram (aviso conhecido do sourcemap Prisma). A suíte integral local excedeu 120 s sem retorno consolidado; o CI completo deve ser o gate de publicação.

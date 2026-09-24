@@ -432,8 +432,12 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
       );
     });
 
-    it('findAllMobile() retorna o PIN da visita ativa para conta vinculada', async () => {
-      const { service } = buildStateHarness();
+    it('findAllMobile() reflete o tipo atual da Pessoa para conta vinculada', async () => {
+      const { service, visitas } = buildStateHarness();
+      // A visita histórica nasceu como prestador, mas a Pessoa foi convertida
+      // em visitante recorrente.
+      visitas[0].is_prestador = 1;
+      visitas[0].is_visitante = 0;
 
       const res = await service.findAllMobile(1, undefined, undefined, 0, 1);
 
@@ -444,6 +448,8 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
           nome: 'Mariana Lima',
           condominio_nome: 'Condomínio Solar',
           codigo_acesso: '123456',
+          is_prestador: 0,
+          is_visitante: 1,
         }),
       );
     });

@@ -2280,8 +2280,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       doc_identificacao: p.doc_identificacao,
       data_hora_inicio: visita.data_hora_inicio,
       data_hora_termino: visita.data_hora_termino,
-      is_visitante: visita.is_visitante,
-      is_prestador: visita.is_prestador,
+      // Em Pessoas/Visitas, a classificação vigente vive em Pessoa. A Visita
+      // mantém o valor histórico do momento do acesso e não deve fazer um
+      // cadastro convertido reaparecer como prestador no app.
+      is_visitante: p?.tipo_pessoa === 'prestador' ? 0 : 1,
+      is_prestador: p?.tipo_pessoa === 'prestador' ? 1 : 0,
       user: visita.user,
       id_apartamento: visita.id_apartamento,
       id_condominio: visita.id_condominio,
