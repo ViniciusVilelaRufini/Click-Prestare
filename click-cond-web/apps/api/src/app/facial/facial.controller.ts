@@ -344,7 +344,7 @@ export class FacialController {
   ) {
     assertTenantStrict(idCondominio, user, `aparelhos encontrados na rede do condomínio ${idCondominio}`);
     assertOperador(user, 'ver os aparelhos encontrados na rede');
-    return this.descoberta.listar(idCondominio);
+    return await this.descoberta.listar(idCondominio);
   }
 
   /** Pede ao agente uma descoberta completa (multicast + varredura) no próximo poll. */
