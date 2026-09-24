@@ -27,6 +27,7 @@ const PORTA_NUVEM = 9100;
 const PORTA_HIK = 9101;
 const PORTA_CID = 9102;
 const PORTA_DAHUA = 9103;
+const PORTA_LPR = 9104;
 const TOKEN = 'token-de-teste';
 
 const DEVICES = {
@@ -61,9 +62,24 @@ const DEVICES = {
     api_user: USER,
     api_password: PASS,
   },
+  // Tarefa 6: (tipo, fabricante) sem driver conhecido — câmera LPR não pode
+  // herdar o ouvinte de reconhecimento facial (era o bug do `if (fabricante
+  // === ...)` sem olhar o tipo). Aponta pra um mock PRÓPRIO (PORTA_LPR, só
+  // conta requisições) — se o Supervisor errasse a combinação e tentasse
+  // assinar eventos nele, a contagem deixaria de ser zero.
+  40: {
+    id: 40,
+    nome: 'Câmera LPR Intelbras',
+    tipo: 'lpr',
+    fabricante: 'intelbras',
+    ip: '127.0.0.1',
+    porta: PORTA_LPR,
+    api_user: USER,
+    api_password: PASS,
+  },
 };
 
-const filaComandos = new Map([[10, []], [20, []], [30, []]]);
+const filaComandos = new Map([[10, []], [20, []], [30, []], [40, []]]);
 const resultados = new Map(); // commandId -> result
 const eventos = [];
 const statusRecebidos = [];
@@ -129,6 +145,29 @@ let streamDahua = null;
 let dahua = servidorDahua(PORTA_DAHUA, (res) => {
   streamDahua = res;
 });
+
+// Mock isolado pro device 40 (lpr/intelbras, sem driver): registra cada
+// requisição recebida. Não usa servidorDahua/estado.dahua de propósito —
+// aquele estado é compartilhado com o device 30 (facial/intelbras, que
+// assina de verdade), e misturar os dois esconderia uma falha aqui.
+//
+// Sem driver conhecido, o Supervisor não assina NADA (nem `escutar` nem
+// `testar`) — mas o heartbeat de status GENÉRICO de index.js (fallback REST
+// pra fabricante sem driver, ver `doPing`) continua pingando `GET /status`
+// pra reportar online/offline no portal. Isso é esperado e não é o que a
+// tarefa 6 proíbe; o que não pode aparecer é qualquer coisa parecida com
+// assinatura de eventos (o attach fica preso numa conexão bem mais pesada
+// que um simples ping-pong de /status).
+const lprRequisicoes = [];
+const lprMock = comFechamentoForcado(
+  http
+    .createServer((req, res) => {
+      lprRequisicoes.push(`${req.method} ${(req.url || '').split('?')[0]}`);
+      res.writeHead(404);
+      res.end();
+    })
+    .listen(PORTA_LPR, '127.0.0.1'),
+);
 
 /** Simula o aparelho caindo da rede e voltando (queda de energia/switch). */
 async function piscarAparelhoDahua(msFora) {
@@ -644,12 +683,30 @@ async function main() {
         condsAcs[0].startTime,
       );
     }
+
+    // ===== Supervisor (tarefa 6): (tipo, fabricante) sem driver conhecido =====
+    // Uma câmera LPR Intelbras não pode herdar o ouvinte de eventos de
+    // reconhecimento facial (o bug original: decisão só pelo `fabricante`,
+    // sem olhar o `tipo`). Ao longo de toda a execução acima (dezenas de
+    // segundos, vários ciclos de poll), o mock do device 40 só pode ter
+    // recebido o ping genérico de status (GET /status) — nunca nada
+    // parecido com assinatura de eventos.
+    checar(
+      'lpr/intelbras: sem driver conhecido, mock não recebe nenhuma assinatura de eventos',
+      lprRequisicoes.every((r) => r === 'GET /status'),
+      `requisições recebidas: ${JSON.stringify([...new Set(lprRequisicoes)])}`,
+    );
+    checar(
+      'lpr/intelbras: agente loga "sem driver" (uma vez) em vez de tentar assinar',
+      logAgente.join('').includes(`sem driver para ${DEVICES[40].tipo}/${DEVICES[40].fabricante}`),
+    );
   } finally {
     agente.kill();
     void nuvem.fecharAgora();
     void hik.fecharAgora();
     void dahua.fecharAgora();
     void cid.fecharAgora();
+    void lprMock.fecharAgora();
     try {
       if (streamRes) streamRes.end();
     } catch {

@@ -49,6 +49,7 @@ const {
   cloudRequest,
   agoraDaNuvem,
 } = require('./core/nuvem');
+const { Supervisor } = require('./core/supervisor');
 const { resolverDriver } = require('./drivers/registro');
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
@@ -100,10 +101,10 @@ const DEVICE_STATUS_INTERVAL_MS = Number(
 );
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
-// deviceIds já com o `escutar` de algum driver ativo (evita assinar de novo
-// a cada poll — mesmo papel do antigo `dahuaListeners`, agora genérico por
-// driver; o Supervisor da tarefa 6 assume esse controle).
-const driverListenersAtivos = new Set();
+// Ciclo de vida do ouvinte de eventos por device (assina uma vez, reconecta
+// com espera crescente se `escutar` falhar, para quando o device sai da
+// lista) fica em `supervisor` (criado dentro de `runCondoLoop`, ver
+// src/core/supervisor.js) — substitui o antigo Set `driverListenersAtivos`.
 // deviceId → maior RecNo/serialNo/ID de log de acesso já processado no
 // dispositivo (Map + funções de leitura/gravação em core/estado.js).
 loadBaselines();
@@ -192,6 +193,28 @@ async function runCondoLoop(token) {
   let errBackoff = 0;
   let lastStatusAt = 0; // throttle do heartbeat de status do aparelho
 
+  // Um SupervisorDispositivo por device: resolve o driver, assina `escutar`
+  // (uma vez) e reconecta sozinho (espera crescente) se a assinatura falhar.
+  // `aoConectar` é o fast-path já existente: o STREAM reabre periodicamente
+  // por conta própria (não é sinal de queda de verdade — ver comentário no
+  // driver Dahua/Intelbras), então só age quando o HEARTBEAT (abaixo) já
+  // tinha marcado o device como offline.
+  const supervisor = new Supervisor({
+    resolverDriver,
+    aoEvento: (device, data) => forwardAccessEvent(token, device, data),
+    aoConectar: (device) => {
+      if (lastDeviceOnline.get(device.id) === false) {
+        lastDeviceOnline.set(device.id, true);
+        console.log(
+          `[agente] ${device.nome}: aparelho ONLINE (stream reconectou) — recuperando acessos offline`,
+        );
+        syncDeviceOfflineLogs(token, device).catch((e) =>
+          console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e),
+        );
+      }
+    },
+  });
+
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
@@ -213,34 +236,13 @@ async function runCondoLoop(token) {
       // a queda de internet (store-and-forward). Roda em background.
       void flushOfflineEvents(token);
 
+      // Mantém um SupervisorDispositivo por device da lista atual — cria o
+      // que é novo (resolve driver, assina `escutar`), para (`parar()`) o
+      // que saiu da lista (removido/desativado no portal).
+      supervisor.atualizar((body.devices || []).map((entry) => entry.device));
+
       for (const entry of body.devices || []) {
         const device = entry.device;
-        // Aparelhos Dahua/Intelbras: abre (uma vez) o stream de eventos de
-        // acesso do driver e repassa cada reconhecimento para a nuvem. A
-        // Supervisor da tarefa 6 assume esse "uma vez por device"; por ora
-        // é este Set aqui mesmo (mesmo papel do antigo `dahuaListeners`).
-        const driverDoDevice = resolverDriver(device);
-        if (driverDoDevice && driverDoDevice.escutar && !driverListenersAtivos.has(device.id)) {
-          driverListenersAtivos.add(device.id);
-          console.log(`[agente] ${device.nome}: assinando eventos de acesso (${driverDoDevice.id})`);
-          driverDoDevice.escutar(device, (data) => forwardAccessEvent(token, device, data), {
-            // Sinal imediato de que o aparelho voltou (sem esperar o próximo
-            // heartbeat, que pode demorar até DEVICE_STATUS_INTERVAL_MS). Só
-            // age se o heartbeat ainda não tiver percebido a volta — evita
-            // disparar a recuperação duas vezes e logar "ONLINE" repetido.
-            aoConectar: () => {
-              if (lastDeviceOnline.get(device.id) === false) {
-                lastDeviceOnline.set(device.id, true);
-                console.log(
-                  `[agente] ${device.nome}: aparelho ONLINE (stream reconectou) — recuperando acessos offline`,
-                );
-                syncDeviceOfflineLogs(token, device).catch((e) =>
-                  console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e),
-                );
-              }
-            },
-          });
-        }
         for (const cmd of entry.commands || []) {
           const result = await executeOnDevice(device, cmd);
           await cloudRequest('POST', `/api/facial/agent/condo/${token}/result`, {
