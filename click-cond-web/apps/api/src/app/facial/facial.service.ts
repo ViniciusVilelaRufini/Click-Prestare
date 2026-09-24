@@ -33,6 +33,7 @@ import { normalizarPlaca, placaValida, variantesPlaca } from './placa.util';
 import { normalizarPayloadNativo } from './webhook-payload.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
+import { normalizarMac } from './descoberta.service';
 
 function pessoasMigrationEnabled(prisma?: any): boolean {
   if (process.env['PESSOAS_MIGRATION_ENABLED'] !== 'true') return false;
@@ -94,6 +95,9 @@ export interface CreateDeviceDto {
    * id_area_social. Separado da ocupação. NUNCA usar na entrada principal.
    */
   controle_acesso_facial?: number | boolean;
+  /** MAC/série vindos da descoberta na rede (etapa 3) — identidade para corrigir IP. */
+  mac?: string | null;
+  numero_serie?: string | null;
 }
 
 export interface UpdateDeviceDto extends Partial<CreateDeviceDto> {}
@@ -863,6 +867,11 @@ export class FacialService {
         api_password: encryptSecret(dto.api_password ?? null),
         id_area_social: dto.id_area_social ?? null,
         webhook_token: token,
+        mac: normalizarMac(dto.mac ?? null),
+        numero_serie:
+          typeof dto.numero_serie === 'string' && dto.numero_serie.trim()
+            ? dto.numero_serie.trim().slice(0, 64)
+            : null,
       },
     });
     await this.auditoria.registrar({
