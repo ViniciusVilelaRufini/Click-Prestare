@@ -47,7 +47,7 @@ const {
   parseJson,
   sleep,
 } = require('../lib/http');
-const { deviceBaselines, setBaseline } = require('../core/estado');
+const { deviceBaselines, setBaseline, lerJson, gravarJsonAtomico } = require('../core/estado');
 const { agoraDaNuvem } = require('../core/nuvem');
 
 // lib/http.js não conhece o timeout da LAN — é config injetada por quem monta
@@ -595,26 +595,103 @@ function fimDoObjetoJson(buf, inicio) {
 
 // ---------- Contrato: buscarDesde (replay do log interno) ----------
 //
-// Descoberto empiricamente no SS 3530 MF: recordFinder.cgi devolve o log de
-// acesso em formato INI (records[i].Campo=valor), do MAIS ANTIGO ao mais
-// novo; `offset` é IGNORADO pelo firmware — para pegar os recentes buscamos
-// um lote grande (CAP) e filtramos por RecNo. `found=` na resposta é a
-// QUANTIDADE RETORNADA (min(count, total)), NÃO o total do aparelho; a marca
-// d'água confiável é o maior RecNo.
-const ACCESS_LOG_CAP = 20000;
+// Confirmado em campo no SS 3530 MF (24/09): recordFinder.cgi devolve o log de
+// acesso em formato INI (records[i].Campo=valor), do MAIS ANTIGO ao mais novo,
+// e CORTA em 1024 registros qualquer que seja o `count`; `offset` e
+// `condition.*` são ignorados. Com o log acima de 1024 passagens, "pegar um
+// lote grande e filtrar por RecNo" nunca via as passagens novas — o replay
+// dizia "sem novidade" e a entrada feita offline sumia.
+//
+// O que o firmware respeita é o filtro `StartTime`/`EndTime` (epoch em
+// segundos, sobre o CreateTime). Então buscamos por JANELA DE HORÁRIO: se a
+// resposta vier cheia (1024), a janela é dividida ao meio e cada metade é
+// buscada de novo, da mais nova para a mais antiga — parando assim que
+// aparece um registro já processado (RecNo <= marca).
+//
+// Limite conhecido: passagens com CreateTime fora da janela (queda maior que
+// JANELA_PASSADO_S, ou aparelho que voltou com o relógio em 2000 após perder
+// energia) não são recuperadas.
+const CORTE_DO_APARELHO = 1024;
+const JANELA_PASSADO_S = 7 * 24 * 3600;
+const JANELA_FUTURO_S = 24 * 3600; // tolera relógio do aparelho adiantado
+const PROFUNDIDADE_MAX = 16; // 8 dias / 2^16 ≈ 10 s por fatia
 
-async function dahuaFindAccessRecords(device, count) {
+function recNo(r) {
+  return parseInt(r.RecNo, 10) || 0;
+}
+
+function janelaPadrao() {
+  const agora = Math.floor(Date.now() / 1000);
+  return { ini: agora - JANELA_PASSADO_S, fim: agora + JANELA_FUTURO_S };
+}
+
+async function buscarNaJanela(device, ini, fim) {
   const res = await lanRequest(
     device,
     'GET',
-    `/cgi-bin/recordFinder.cgi?action=find&name=AccessControlCardRec&count=${count}`,
+    `/cgi-bin/recordFinder.cgi?action=find&name=AccessControlCardRec&StartTime=${ini}&EndTime=${fim}&count=${CORTE_DO_APARELHO}`,
   );
-  const records = parseDahuaINI(String(res.raw || ''));
-  const maxRecNo = records.reduce(
-    (m, r) => Math.max(m, parseInt(r.RecNo, 10) || 0),
-    0,
-  );
-  return { maxRecNo, records };
+  return parseDahuaINI(String(res.raw || ''));
+}
+
+/**
+ * Registros com RecNo > marca dentro de [ini, fim]. Devolve também o menor
+ * RecNo visto, para a metade mais antiga ser pulada quando a mais nova já
+ * alcançou a marca.
+ */
+async function coletarDesde(device, ini, fim, marca, prof = 0) {
+  const registros = await buscarNaJanela(device, ini, fim);
+  const menor = registros.reduce((m, r) => Math.min(m, recNo(r)), Infinity);
+  if (registros.length < CORTE_DO_APARELHO || fim - ini < 2 || prof >= PROFUNDIDADE_MAX) {
+    if (registros.length >= CORTE_DO_APARELHO) {
+      console.log(`[agente] ${device.nome}: log do aparelho cheio mesmo numa fatia de ${fim - ini}s; algumas passagens podem ficar de fora.`);
+    }
+    return { registros: registros.filter((r) => recNo(r) > marca), menor };
+  }
+  const meio = Math.floor((ini + fim) / 2);
+  const novos = await coletarDesde(device, meio + 1, fim, marca, prof + 1);
+  if (novos.menor <= marca) return novos;
+  const antigos = await coletarDesde(device, ini, meio, marca, prof + 1);
+  return {
+    registros: [...antigos.registros, ...novos.registros],
+    menor: Math.min(antigos.menor, novos.menor),
+  };
+}
+
+/** Maior RecNo dentro de [ini, fim] (0 se a janela está vazia). */
+async function maiorRecNo(device, ini, fim, prof = 0) {
+  const registros = await buscarNaJanela(device, ini, fim);
+  if (registros.length === 0) return 0;
+  if (registros.length < CORTE_DO_APARELHO || fim - ini < 2 || prof >= PROFUNDIDADE_MAX) {
+    return registros.reduce((m, r) => Math.max(m, recNo(r)), 0);
+  }
+  const meio = Math.floor((ini + fim) / 2);
+  const nova = await maiorRecNo(device, meio + 1, fim, prof + 1);
+  return nova || maiorRecNo(device, ini, meio, prof + 1);
+}
+
+// Até a versão 2026.09.24 a marca era lida com o corte de 1024 e ficou
+// travada abaixo do RecNo real. Tratá-la como verdadeira reenviaria, na
+// primeira recuperação, passagens que o stream ao vivo já tinha mandado.
+// Por isso cada aparelho tem a marca REESTABELECIDA uma vez pela busca por
+// janela (sem replay) antes de voltar a recuperar passagens offline.
+const MARCAS_POR_JANELA_FILE = 'dahua-marca-por-janela.json';
+let marcasPorJanela = null;
+
+function marcaConfiavel(deviceId) {
+  if (!marcasPorJanela) marcasPorJanela = new Set(lerJson(MARCAS_POR_JANELA_FILE, []));
+  return marcasPorJanela.has(deviceId);
+}
+
+function registrarMarcaPorJanela(deviceId, valor) {
+  setBaseline(deviceId, valor);
+  if (marcaConfiavel(deviceId)) return;
+  marcasPorJanela.add(deviceId);
+  try {
+    gravarJsonAtomico(MARCAS_POR_JANELA_FILE, [...marcasPorJanela]);
+  } catch (e) {
+    console.error(`[agente] falha ao salvar ${MARCAS_POR_JANELA_FILE}: ${e.message || e}`);
+  }
 }
 
 /**
@@ -634,13 +711,16 @@ async function dahuaFindAccessRecords(device, count) {
  * além de `marca`" — index.js usa os dois para logar mensagens distintas.
  */
 async function buscarDesde(device, marca) {
-  const { records, maxRecNo } = await dahuaFindAccessRecords(device, ACCESS_LOG_CAP);
-  if (records.length === 0) {
-    return { eventos: [], novaMarca: marca, logVazio: true };
+  const { ini, fim } = janelaPadrao();
+  if (marca === undefined || !marcaConfiavel(device.id)) {
+    const maior = await maiorRecNo(device, ini, fim);
+    if (!maior) return { eventos: [], novaMarca: marca, logVazio: true };
+    registrarMarcaPorJanela(device.id, Math.max(maior, marca || 0));
+    return { eventos: [], novaMarca: Math.max(maior, marca || 0) };
   }
-  if (marca === undefined || maxRecNo <= marca) {
-    return { eventos: [], novaMarca: maxRecNo };
-  }
+  const { registros: janela } = await coletarDesde(device, ini, fim, marca);
+  if (janela.length === 0) return { eventos: [], novaMarca: marca };
+  const maxRecNo = janela.reduce((m, r) => Math.max(m, recNo(r)), marca);
 
   // O log interno guarda TAMBÉM as tentativas NEGADAS pelo aparelho
   // (ErrorCode != 0, ex.: 16 = sem saldo/na regra). Reenviar negada como
@@ -648,7 +728,6 @@ async function buscarDesde(device, marca) {
   // passagens de sucesso (ErrorCode 0/ausente) com UserID viram evento.
   const negadoNoAparelho = (r) =>
     r.ErrorCode != null && String(r.ErrorCode).trim() !== '0';
-  const janela = records.filter((r) => parseInt(r.RecNo, 10) > marca);
   // Diagnóstico: loga cru o que foi pulado, em vez de sumir calado.
   for (const r of janela) {
     if (!r.UserID || r.UserID.trim() === '') {
@@ -698,10 +777,13 @@ async function advanceBaselineWhileOnline(device, force = false) {
   if (agora - (lastBaselineAdvance.get(device.id) || 0) < minIntervalo) return;
   lastBaselineAdvance.set(device.id, agora);
   try {
-    const { maxRecNo } = await dahuaFindAccessRecords(device, ACCESS_LOG_CAP);
+    const { ini, fim } = janelaPadrao();
+    const maxRecNo = await maiorRecNo(device, ini, fim);
     if (!maxRecNo) return;
     const baseline = deviceBaselines.get(device.id);
-    if (baseline === undefined || maxRecNo > baseline) setBaseline(device.id, maxRecNo);
+    if (baseline === undefined || maxRecNo > baseline || !marcaConfiavel(device.id)) {
+      registrarMarcaPorJanela(device.id, Math.max(maxRecNo, baseline || 0));
+    }
   } catch {
     /* aparelho oscilou; o próximo ciclo tenta de novo */
   }

@@ -451,7 +451,21 @@ function servidorDahua(porta, onStream) {
           return res.end(jpegFalso);
         }
         if (caminho === '/cgi-bin/recordFinder.cgi') {
-          return texto(registrosParaIni(estado.dahua.registros));
+          // Igual ao SS 3530 MF real (confirmado em campo, 24/09): filtra por
+          // StartTime/EndTime (epoch s, sobre CreateTime) quando vierem, devolve
+          // do MAIS ANTIGO ao mais novo e corta em 1024 registros por resposta,
+          // qualquer que seja o `count` pedido.
+          const ini = url.searchParams.get('StartTime');
+          const fim = url.searchParams.get('EndTime');
+          let lista = estado.dahua.registros;
+          if (ini != null && fim != null) {
+            lista = lista.filter((r) => {
+              const t = Number(r.CreateTime);
+              return t >= Number(ini) && t <= Number(fim);
+            });
+          }
+          lista = [...lista].sort((a, b) => Number(a.RecNo) - Number(b.RecNo)).slice(0, 1024);
+          return texto(registrosParaIni(lista));
         }
         if (caminho === '/cgi-bin/AccessUser.cgi') {
           if (acao === 'removeMulti') {
