@@ -23,6 +23,8 @@ describe('TerminaisFaciaisPageComponent — telemetria do agente', () => {
           useValue: {
             syncPessoas: jest.fn(() => of([])),
             syncStatus: jest.fn(() => of({ synced: 0, pending: 0, error: 0, semFoto: 0, running: false })),
+            descobertos: jest.fn(() => of({ recebido_em: null, achados: [], avisos: [] })),
+            procurarDescobertos: jest.fn(() => of({ ok: true })),
             ...apiOverrides,
           },
         },

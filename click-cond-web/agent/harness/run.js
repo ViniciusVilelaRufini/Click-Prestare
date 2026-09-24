@@ -19,6 +19,7 @@ const {
   servidorHik,
   servidorControlId,
   servidorDahua,
+  iniciarRespondedorDhip,
   USER,
   PASS,
 } = require('./mock-device');
@@ -28,6 +29,7 @@ const PORTA_HIK = 9101;
 const PORTA_CID = 9102;
 const PORTA_DAHUA = 9103;
 const PORTA_LPR = 9104;
+const PORTA_DHIP = 47810; // responder UDP simulado (descoberta, etapa 3)
 const TOKEN = 'token-de-teste';
 
 const DEVICES = {
@@ -100,6 +102,10 @@ const resultados = new Map(); // commandId -> result
 const eventos = [];
 const statusRecebidos = [];
 const telemetrias = []; // payloads recebidos em POST condo/:token/telemetria
+const descobertos = []; // payloads recebidos em POST condo/:token/descobertos
+// "Procurar na rede" do portal: true até o próximo /poll responder (zera
+// sozinho — como o campo `descobrir` de verdade, que é um pedido único).
+let pedirDescoberta = false;
 let proximoCmd = 1;
 
 function enfileirar(deviceId, cmd) {
@@ -129,10 +135,16 @@ function criarNuvem() {
           filaComandos.set(device.id, []);
           return { device, commands };
         });
-        return json({ devices, poll_interval_ms: 300 });
+        const descobrirAgora = pedirDescoberta;
+        pedirDescoberta = false; // pedido único — zera assim que o agente o vê
+        return json({ devices, poll_interval_ms: 300, descobrir: descobrirAgora });
       }
       if (p === `/api/facial/agent/condo/${TOKEN}/result`) {
         resultados.set(body.commandId, body);
+        return json({ ok: true });
+      }
+      if (p === `/api/facial/agent/condo/${TOKEN}/descobertos`) {
+        descobertos.push(body);
         return json({ ok: true });
       }
       if (p === `/api/facial/agent/condo/${TOKEN}/event`) {
@@ -162,6 +174,10 @@ const hik = servidorHik(PORTA_HIK, (res) => {
   streamRes = res;
 });
 let cid = servidorControlId(PORTA_CID);
+// Descoberta (etapa 3): responde DHDiscover.search como o terminal Intelbras
+// simulado (device 30, mesma porta HTTP PORTA_DAHUA) — o agente descobre por
+// esse socket unicast em vez do multicast real (DESCOBERTA_DESTINOS abaixo).
+const respondedorDhip = iniciarRespondedorDhip({ porta: PORTA_DHIP, ip: '127.0.0.1', httpPorta: PORTA_DAHUA });
 let streamDahua = null;
 let dahua = servidorDahua(PORTA_DAHUA, (res) => {
   streamDahua = res;
@@ -299,6 +315,12 @@ async function main() {
       TELEMETRIA_INTERVAL_MS: '1000',
       LAN_TIMEOUT_MS: '5000',
       LIVEVIEW_PORT: '8799',
+      // Descoberta (etapa 3): destino unicast em vez do multicast real (só
+      // harness/testes) e um alvo de varredura inofensivo (127.0.0.1:1) —
+      // sem isso o cenário "Procurar na rede" varreria a LAN de verdade da
+      // máquina que roda o harness (254 GETs por interface).
+      DESCOBERTA_DESTINOS: `dhip@127.0.0.1:${PORTA_DHIP}`,
+      DESCOBERTA_HOSTS_VARREDURA: '127.0.0.1:1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -786,6 +808,15 @@ async function main() {
       logAgente.join('').includes(`sem driver para ${DEVICES[40].tipo}/${DEVICES[40].fabricante}`),
     );
 
+    // ===== Descoberta na rede (etapa 3) =====
+    await sleep(3000);
+    const comIntelbras = descobertos.find((d) => (d.achados || []).some((a) => a.mac === 'b4:4c:3b:f4:e3:01'));
+    checar('descoberta: facial Intelbras simulado chegou à nuvem', !!comIntelbras, JSON.stringify(descobertos.slice(-1)));
+    const antesPedido = descobertos.length;
+    pedirDescoberta = true;
+    await sleep(6000);
+    checar('descoberta: "Procurar na rede" do portal gera nova descoberta', descobertos.length > antesPedido, String(descobertos.length));
+
     // ===== Telemetria (tarefa 7) =====
     // TELEMETRIA_INTERVAL_MS=1000 no spawn do agente — não precisa esperar o
     // 1min de produção para o cenário confirmar que a telemetria chegou.
@@ -821,6 +852,7 @@ async function main() {
     void dahua.fecharAgora();
     void cid.fecharAgora();
     void lprMock.fecharAgora();
+    respondedorDhip.close();
     try {
       if (streamRes) streamRes.end();
     } catch {

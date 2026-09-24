@@ -50,6 +50,35 @@ export interface CreateTerminalFacial {
   api_password?: string;
   id_area_social?: number | null;
   controle_acesso_facial?: number | boolean;
+  mac?: string | null;
+  numero_serie?: string | null;
+}
+
+/** Um aparelho achado pela varredura da LAN do Agente Local (etapa 3). */
+export interface AparelhoEncontrado {
+  mac: string | null;
+  ip: string;
+  porta: number;
+  fabricante: 'intelbras' | 'hikvision' | 'control_id';
+  modelo: string | null;
+  numero_serie: string | null;
+  dhcp: boolean | null;
+  validado_em_campo: boolean;
+  /** DeviceClass do DHIP ('BSC'/'ASC…' = controle de acesso; outro = câmera/gravador); null = protocolo não informa. */
+  classe: string | null;
+  id_dispositivo: number | null;
+}
+
+/** Correção automática de IP: o aparelho já cadastrado mudou de IP na LAN
+ *  (ex.: reserva DHCP nova) e o agente reconheceu pelo MAC. */
+export interface AvisoIpCorrigido {
+  id_dispositivo: number;
+  nome: string;
+  /** 'porta' quando só a porta HTTP mudou (de/para são portas). Ausente em avisos antigos = IP. */
+  tipo?: 'ip' | 'porta';
+  de: string;
+  para: string;
+  em: string;
 }
 
 export interface AcessoFacial {
@@ -285,6 +314,26 @@ export class TerminaisFaciaisApi {
   agentSaude(): Observable<AgentTelemetria> {
     const params = new HttpParams().set('id_condominio', this.idCondominio);
     return this.http.get<AgentTelemetria>(`${this.base}/agent/saude`, { params });
+  }
+
+  /** Últimos aparelhos achados pela varredura da LAN do agente + avisos de IP corrigido. */
+  descobertos(): Observable<{
+    recebido_em: string | null;
+    achados: AparelhoEncontrado[];
+    avisos: AvisoIpCorrigido[];
+  }> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    return this.http.get<{
+      recebido_em: string | null;
+      achados: AparelhoEncontrado[];
+      avisos: AvisoIpCorrigido[];
+    }>(`${this.base}/descobertos`, { params });
+  }
+
+  /** Pede ao agente uma nova varredura da LAN (assíncrono: resultado chega via `descobertos()`). */
+  procurarDescobertos(): Observable<{ ok: true }> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    return this.http.post<{ ok: true }>(`${this.base}/descobertos/procurar`, {}, { params });
   }
 
   /** Baixa o arquivo de config do agente já personalizado (.env ou instalar.bat). */

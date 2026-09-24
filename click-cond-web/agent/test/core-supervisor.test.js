@@ -390,3 +390,30 @@ test('saudeTodos(): lista a saúde de todos os devices rastreados', () => {
   const ids = supervisor.saudeTodos().map((s) => s.id).sort();
   assert.deepEqual(ids, [10, 11]);
 });
+
+test('IP ou porta mudou (correção por DHCP): para o ouvinte velho e reconecta no endereço novo', () => {
+  const escutas = [];
+  let parados = 0;
+  const driver = {
+    id: 'fake-facial',
+    escutar(device) {
+      escutas.push(`${device.ip}:${device.porta}`);
+      return () => { parados++; };
+    },
+  };
+  const supervisor = new Supervisor({ resolverDriver: () => driver, log: logMudo });
+  supervisor.atualizar([{ ...deviceFacial(5), ip: '192.168.3.175', porta: 80 }]);
+  // Só a credencial/nome mudou: não mexe na conexão viva.
+  supervisor.atualizar([{ ...deviceFacial(5), nome: 'Outro nome', ip: '192.168.3.175', porta: 80 }]);
+  assert.deepEqual(escutas, ['192.168.3.175:80']);
+  assert.equal(parados, 0);
+  // A nuvem corrigiu o IP: o ouvinte preso no endereço antigo é trocado.
+  supervisor.atualizar([{ ...deviceFacial(5), ip: '192.168.3.60', porta: 80 }]);
+  assert.deepEqual(escutas, ['192.168.3.175:80', '192.168.3.60:80']);
+  assert.equal(parados, 1);
+  // Só a porta mudou: também reconecta.
+  supervisor.atualizar([{ ...deviceFacial(5), ip: '192.168.3.60', porta: 8080 }]);
+  assert.deepEqual(escutas, ['192.168.3.175:80', '192.168.3.60:80', '192.168.3.60:8080']);
+  assert.equal(parados, 2);
+  assert.equal(supervisor.saudeTodos().length, 1);
+});

@@ -29,6 +29,7 @@ import { assertOperador, assertTenantStrict, requireTenant } from '../auth/tenan
 import { timingSafeEqual } from 'crypto';
 import { AgentBridgeService } from './agent-bridge.service';
 import { AgentVersionService, compararVersoesAgente } from './agent-version.service';
+import { DescobertaService } from './descoberta.service';
 
 /**
  * Confere o token compartilhado das rotas server-to-server (`internal/*`).
@@ -62,6 +63,7 @@ export class FacialController {
     private readonly service: FacialService,
     private readonly bridge: AgentBridgeService,
     private readonly agentVersion: AgentVersionService,
+    private readonly descoberta: DescobertaService,
   ) {}
 
   @Get('devices')
@@ -332,6 +334,29 @@ export class FacialController {
       eventos_pendentes: telemetria?.eventos_pendentes ?? null,
       versao_disponivel: versaoDisponivel,
     };
+  }
+
+  /** Aparelhos achados na LAN pelo agente (etapa 3) + avisos de IP corrigido. Só operador. */
+  @Get('descobertos')
+  async descobertos(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertTenantStrict(idCondominio, user, `aparelhos encontrados na rede do condomínio ${idCondominio}`);
+    assertOperador(user, 'ver os aparelhos encontrados na rede');
+    return await this.descoberta.listar(idCondominio);
+  }
+
+  /** Pede ao agente uma descoberta completa (multicast + varredura) no próximo poll. */
+  @Post('descobertos/procurar')
+  async procurarDescobertos(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertTenantStrict(idCondominio, user, `procurar aparelhos na rede do condomínio ${idCondominio}`);
+    assertOperador(user, 'procurar aparelhos na rede');
+    this.descoberta.pedirProcura(idCondominio);
+    return { ok: true };
   }
 
   @Get('agent/config')

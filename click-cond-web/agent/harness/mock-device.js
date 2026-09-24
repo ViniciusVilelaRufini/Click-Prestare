@@ -8,6 +8,7 @@
  * chega fica registrado em `estado` para o harness inspecionar depois.
  */
 const http = require('http');
+const dgram = require('dgram');
 const crypto = require('crypto');
 
 const md5 = (s) => crypto.createHash('md5').update(s).digest('hex');
@@ -544,12 +545,31 @@ function servidorDahua(porta, onStream) {
   );
 }
 
+// ---------- DHIP (descoberta multicast — etapa 3) ----------
+
+/** Responde DHDiscover.search como o SS 3530 MF real (ver spec da etapa 3). */
+function iniciarRespondedorDhip({ porta, ip, httpPorta, mac = 'b4:4c:3b:f4:e3:01', serie = 'K3LJ3400209RH' }) {
+  const s = dgram.createSocket('udp4');
+  s.on('message', (msg, r) => {
+    if (!msg.includes('DHDiscover.search')) return;
+    const json = Buffer.from(JSON.stringify({ mac, method: 'client.notifyDevInfo', params: { deviceInfo: {
+      DeviceClass: 'BSC', DeviceType: 'SS 3530 MF FACE W', HttpPort: httpPorta, SerialNo: serie,
+      Vendor: 'Intelbras', IPv4Address: { IPAddress: ip, DhcpEnable: true, SubnetMask: '255.255.255.0' } } } }));
+    const h = Buffer.alloc(32);
+    h.write('\x20\x00\x00\x00DHIP', 0, 'latin1'); h.writeUInt32LE(json.length, 16); h.writeUInt32LE(json.length, 24);
+    s.send(Buffer.concat([h, json]), r.port, r.address);
+  });
+  s.bind(porta, '127.0.0.1');
+  return s;
+}
+
 module.exports = {
   comFechamentoForcado,
   estado,
   servidorHik,
   servidorControlId,
   servidorDahua,
+  iniciarRespondedorDhip,
   USER,
   PASS,
   jpegFalso,

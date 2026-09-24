@@ -8,6 +8,7 @@ import {
 } from './facial.service';
 import { AgentBridgeService, AgentResult } from './agent-bridge.service';
 import { AgentVersionService } from './agent-version.service';
+import { DescobertaService } from './descoberta.service';
 
 /**
  * Endpoints consumidos pelo Agente Local (ver agent/ e AgentBridgeService).
@@ -30,6 +31,7 @@ export class AgentController {
     private readonly service: FacialService,
     private readonly bridge: AgentBridgeService,
     private readonly agentVersion: AgentVersionService,
+    private readonly descoberta: DescobertaService,
   ) {}
 
   @Public()
@@ -111,7 +113,13 @@ export class AgentController {
         commands,
       };
     });
-    return { devices: out, poll_interval_ms: this.bridge.pollIntervalMs };
+    return {
+      devices: out,
+      poll_interval_ms: this.bridge.pollIntervalMs,
+      // Etapa 3: pedido de descoberta feito pelo portal (DescobertaService.pedirProcura).
+      // Consumido aqui — true só uma vez por pedido — para o agente disparar a varredura da LAN.
+      descobrir: this.descoberta.consumirPedido(idCondominio),
+    };
   }
 
   @Public()
@@ -173,6 +181,18 @@ export class AgentController {
     const idCondominio = await this.service.resolveCondominioForAgent(token);
     this.bridge.setTelemetria(idCondominio, body);
     return { ok: true };
+  }
+
+  /**
+   * Descoberta na rede (etapa 3): aparelhos achados na LAN pelo agente + MAC
+   * dos cadastrados que estão online. `body` é `unknown` de propósito (rota
+   * pública por token) — `DescobertaService.receber` sanitiza.
+   */
+  @Public()
+  @Post('condo/:token/descobertos')
+  async condoDescobertos(@Param('token') token: string, @Body() body: unknown) {
+    const idCondominio = await this.service.resolveCondominioForAgent(token);
+    return this.descoberta.receber(idCondominio, body);
   }
 
   /**

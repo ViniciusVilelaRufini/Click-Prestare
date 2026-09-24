@@ -240,13 +240,22 @@ class Supervisor {
     for (const device of devices || []) {
       vistos.add(device.id);
       const existente = this._porId.get(device.id);
-      if (existente) {
-        // Atualiza a referência (ip/credencial podem ter mudado no portal) —
-        // não reinicia o ouvinte: trocar host/senha em cima de uma conexão
-        // viva é bem mais raro que perder/reganhar rede, e o próprio
-        // reconectar (ao cair) já pega a versão nova do device.
+      const enderecoMudou =
+        existente && (existente.device.ip !== device.ip || existente.device.porta !== device.porta);
+      if (existente && !enderecoMudou) {
+        // Atualiza a referência (credencial/nome podem ter mudado no portal) —
+        // não reinicia o ouvinte: trocar a senha em cima de uma conexão viva
+        // é raro, e o próprio reconectar (ao cair) já pega a versão nova.
         existente.device = device;
         continue;
+      }
+      if (existente) {
+        // IP/porta mudou (correção automática da etapa 3 quando o DHCP troca
+        // o endereço, ou edição no portal): o ouvinte velho pode ficar preso
+        // tentando o endereço antigo — ou, pior, conversando com OUTRO
+        // aparelho que herdou aquele IP. Para e cria um supervisor novo.
+        existente.parar();
+        this._porId.delete(device.id);
       }
       const sup = new SupervisorDispositivo(device, {
         resolverDriver: this._resolverDriver,

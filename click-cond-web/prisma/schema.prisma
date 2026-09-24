@@ -1233,6 +1233,10 @@ model Facial_Devices {
   modelo             String?               @db.VarChar(100)
   ip                 String                @db.VarChar(45)
   porta              Int                   @default(80)
+  // Identidade do aparelho na LAN (etapa 3 do agente): o agente reencontra o
+  // aparelho pelo MAC quando o IP muda (DHCP) e a nuvem corrige o cadastro.
+  mac                String?               @db.VarChar(17)
+  numero_serie       String?               @db.VarChar(64)
   api_user           String?               @db.VarChar(100)
   api_password       String?               @db.VarChar(255)
   webhook_token      String                @db.VarChar(255)
@@ -1255,6 +1259,7 @@ model Facial_Devices {
 
   @@index([id_condominio], map: "idx_facdev_cond")
   @@index([id_area_social], map: "idx_facdev_area")
+  @@index([mac], map: "idx_facdev_mac")
 }
 
 model Acessos_Facial {
