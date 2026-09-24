@@ -43,6 +43,8 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
 
   final TextEditingController _codeController = TextEditingController();
   final FocusNode _codeFocusNode = FocusNode();
+  final ScrollController _pageScrollController = ScrollController();
+  final GlobalKey _confirmButtonKey = GlobalKey();
 
   @override
   void initState() {
@@ -60,6 +62,17 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
 
     _codeFocusNode.addListener(() {
       if (mounted) setState(() {});
+      if (_codeFocusNode.hasFocus) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_pageScrollController.hasClients) {
+            _pageScrollController.animateTo(
+              _pageScrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
     });
 
     _startCountdownTimer();
@@ -79,6 +92,7 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
     _cooldownTimer?.cancel();
     _codeController.dispose();
     _codeFocusNode.dispose();
+    _pageScrollController.dispose();
     super.dispose();
   }
 
@@ -266,18 +280,36 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
                 behavior: HitTestBehavior.translucent,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    return SingleChildScrollView(
+                    final tecladoAberto = MediaQuery.viewInsetsOf(context).bottom > 0;
+                    if (tecladoAberto) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        final confirmContext = _confirmButtonKey.currentContext;
+                        if (confirmContext != null) {
+                          Scrollable.ensureVisible(
+                            confirmContext,
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOut,
+                            alignment: 0.9,
+                          );
+                        }
+                      });
+                    }
+                    return AnimatedPadding(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+                      child: SingleChildScrollView(
+                      controller: _pageScrollController,
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.symmetric(
+                      padding: EdgeInsets.symmetric(
                         horizontal: AppSpacing.xxl,
-                        vertical: AppSpacing.sm,
+                        vertical: tecladoAberto ? AppSpacing.xs : AppSpacing.sm,
                       ),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight - AppSpacing.sm * 2,
-                      ),
-                      child: IntrinsicHeight(
+                      child: ConstrainedBox(
+                        constraints: tecladoAberto
+                            ? const BoxConstraints()
+                            : BoxConstraints(minHeight: constraints.maxHeight - AppSpacing.sm * 2),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -285,20 +317,21 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
                               alignment: Alignment.centerLeft,
                               child: _buildBackButton(context),
                             ),
-                            const SizedBox(height: AppSpacing.xl),
+                            SizedBox(height: tecladoAberto ? AppSpacing.sm : AppSpacing.xl),
                             _buildHeader(context),
-                            const SizedBox(height: AppSpacing.xxl),
+                            SizedBox(height: tecladoAberto ? AppSpacing.lg : AppSpacing.xxl),
                             _buildVerificationCard(context),
-                            const Spacer(),
-                            const SizedBox(height: AppSpacing.xl),
-                            Text(
-                              '© 2026 Prestare Gestão e Tecnologia.',
-                              style: AppTypography.tiny(context).copyWith(
-                                color: AppColors.textTertiary(context),
+                            if (!tecladoAberto) ...[
+                              const SizedBox(height: AppSpacing.xl),
+                              Text(
+                                '© 2026 Prestare Gestão e Tecnologia.',
+                                style: AppTypography.tiny(context).copyWith(
+                                  color: AppColors.textTertiary(context),
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
+                              const SizedBox(height: AppSpacing.sm),
+                            ],
                           ],
                         ),
                       ),
@@ -424,24 +457,26 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          LayoutBuilder(builder: (context, constraints) => Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'Digite o código recebido',
-                style: AppTypography.headline(context).copyWith(
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  'Digite o código recebido',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.headline(context).copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
+              const SizedBox(width: AppSpacing.xs),
               if (_codeFocusNode.hasFocus)
                 TextButton.icon(
                   onPressed: () => _codeFocusNode.unfocus(),
                   icon: const Icon(PhosphorIcons.caretDown, size: 14),
-                  label: const Text(
-                    'Ocultar teclado',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
+                  label: constraints.maxWidth < 310 ? const SizedBox.shrink() : const Text('Ocultar teclado', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.textSecondary(context),
                     padding:
@@ -455,7 +490,7 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
                   ),
                 ),
             ],
-          ),
+          )),
           const SizedBox(height: AppSpacing.xl),
           _buildOtpRow(context),
           const SizedBox(height: AppSpacing.lg),
@@ -546,11 +581,14 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
             ),
           ),
           const SizedBox(height: AppSpacing.xl),
-          AppButton(
-            label: 'Confirmar e Entrar',
-            loading: _isLoading,
-            trailingIcon: PhosphorIcons.arrowRight,
-            onPressed: _submitVerification,
+          SizedBox(
+            key: _confirmButtonKey,
+            child: AppButton(
+              label: 'Confirmar e Entrar',
+              loading: _isLoading,
+              trailingIcon: PhosphorIcons.arrowRight,
+              onPressed: _submitVerification,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           TextButton(

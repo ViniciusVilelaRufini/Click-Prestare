@@ -2,6 +2,8 @@ import { Component, OnDestroy, OnInit, computed, inject, signal, Input } from '@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
+  AgentTelemetria,
+  AgentTelemetriaDispositivo,
   CreateTerminalFacial,
   FacialHealth,
   FacialSyncStatus,
@@ -10,6 +12,31 @@ import {
   TerminalFacial,
 } from './terminais-faciais.service';
 import { AreaSocial, AreasSociaisApi } from '../areas-sociais/areas-sociais.service';
+
+/**
+ * Compara versões do agente (`AAAA.MM.DD[.N]`) segmento a segmento,
+ * NUMERICAMENTE — mesmo algoritmo de `compararVersoes` no agente
+ * (agent/src/core/atualizador.js) e de `compararVersoesAgente` na API.
+ * Comparar como string erra ("2026.09.9" > "2026.09.10"). >0 = `a` mais nova.
+ */
+export function compararVersoesAgente(a: string, b: string): number {
+  const segmentos = (v: string) =>
+    String(v || '')
+      .split('.')
+      .map((n) => Number(n) || 0);
+  const sa = segmentos(a);
+  const sb = segmentos(b);
+  const tamanho = Math.max(sa.length, sb.length);
+  for (let i = 0; i < tamanho; i++) {
+    const diff = (sa[i] || 0) - (sb[i] || 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+/** Telemetria mais velha que isso (o agente manda a cada 60s) não representa
+ *  mais o estado dos aparelhos — os selos por device somem em vez de mentir. */
+export const TELEMETRIA_VALIDA_MS = 3 * 60 * 1000;
 
 @Component({
   selector: 'app-terminais-faciais-page',
@@ -45,6 +72,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   readonly pessoas = signal<SyncPessoa[]>([]);
   readonly mostrarPessoas = signal(false);
   readonly retryingPessoa = signal<string | null>(null);
+  /** Pessoa cujo detalhe do envio estÃ¡ aberto na lista. */
+  readonly pessoaDetalhada = signal<string | null>(null);
 
   // Estimativa de tempo restante (ETA)
   private syncStartTime: number | null = null;
@@ -108,6 +137,36 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   // Painel de saúde: terminais offline, status do agente, varredura de rostos órfãos.
   readonly health = signal<FacialHealth | null>(null);
 
+  // Telemetria do agente (tarefa 7): versão, SO, saúde por device, fila offline.
+  readonly agentTelemetria = signal<AgentTelemetria | null>(null);
+
+  /** Há uma versão do agente mais nova que a instalada (tarefa 8 preenche `versao_disponivel`). */
+  readonly atualizacaoDisponivel = computed(() => {
+    const t = this.agentTelemetria();
+    return !!(
+      t?.versao_disponivel &&
+      t.versao &&
+      compararVersoesAgente(t.versao_disponivel, t.versao) > 0
+    );
+  });
+
+  /** A telemetria chegou há no máximo TELEMETRIA_VALIDA_MS (avaliado na hora da chamada). */
+  telemetriaRecente(): boolean {
+    const recebidoEm = this.agentTelemetria()?.recebido_em;
+    if (!recebidoEm) return false;
+    const idadeMs = Date.now() - new Date(recebidoEm).getTime();
+    return Number.isFinite(idadeMs) && idadeMs <= TELEMETRIA_VALIDA_MS;
+  }
+
+  /** Saúde do device (driver/online/último erro) reportada pelo agente, casando
+   *  por id — null quando a telemetria está velha (agente parou de mandar). */
+  telemetriaDoDispositivo(deviceId: number): AgentTelemetriaDispositivo | null {
+    if (!this.telemetriaRecente()) return null;
+    return (
+      this.agentTelemetria()?.dispositivos.find((d) => d.id === deviceId) ?? null
+    );
+  }
+
   /**
    * Uma fonte só para "agente conectado": a saúde do facial (com último
    * contato); enquanto ela não carrega, o status reportado nos terminais.
@@ -136,6 +195,33 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.filtroPessoas.set(status);
     this.mostrarPessoas.set(true);
     this.loadPessoas();
+  }
+
+  /** Abre o primeiro cadastro com falha e mostra o retorno completo do terminal. */
+  verMotivoErro() {
+    this.filtroPessoas.set('error');
+    this.mostrarPessoas.set(true);
+    this.api.syncPessoas().subscribe({
+      next: (lista) => {
+        this.pessoas.set(lista);
+        const primeiroErro = lista.find((p) => p.status === 'error');
+        this.pessoaDetalhada.set(primeiroErro ? this.chavePessoa(primeiroErro) : null);
+      },
+      error: () => {
+        this.pessoas.set([]);
+        this.pessoaDetalhada.set(null);
+      },
+    });
+  }
+
+  chavePessoa(pessoa: SyncPessoa): string {
+    return `${pessoa.tipo}_${pessoa.id}`;
+  }
+
+  /** Abre/fecha o detalhe do retorno do terminal sem perder o filtro atual. */
+  toggleDetalhePessoa(pessoa: SyncPessoa) {
+    const chave = this.chavePessoa(pessoa);
+    this.pessoaDetalhada.update((atual) => (atual === chave ? null : chave));
   }
 
   readonly chipAtivo =
@@ -198,6 +284,13 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   loadHealth() {
     this.api.health().subscribe({
       next: (h) => this.health.set(h),
+      error: () => {},
+    });
+  }
+
+  loadAgentTelemetria() {
+    this.api.agentSaude().subscribe({
+      next: (t) => this.agentTelemetria.set(t),
       error: () => {},
     });
   }
@@ -352,9 +445,14 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.loadSyncStatus();
     this.loadAgentInfo();
     this.loadHealth();
+    this.loadAgentTelemetria();
     // Atualiza o status online/offline dos aparelhos a cada 15s (silencioso),
     // refletindo o heartbeat do agente sem o operador clicar "Testar Conexão".
-    this.statusInterval = setInterval(() => { this.load(true); this.loadHealth(); }, 15_000);
+    this.statusInterval = setInterval(() => {
+      this.load(true);
+      this.loadHealth();
+      this.loadAgentTelemetria();
+    }, 15_000);
   }
 
   ngOnDestroy(): void {
@@ -624,8 +722,9 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   /** Re-tenta o envio de UMA pessoa (ex.: depois de trocar a foto). */
   retryPessoa(p: SyncPessoa) {
-    const key = `${p.tipo}_${p.id}`;
+    const key = this.chavePessoa(p);
     this.retryingPessoa.set(key);
+    this.errorMessage.set(null);
     const obs =
       p.tipo === 'morador'
         ? this.api.syncMorador(p.id)
@@ -633,12 +732,15 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     obs.subscribe({
       next: () => {
         this.retryingPessoa.set(null);
+        this.pessoaDetalhada.set(null);
         this.loadPessoas();
-        this.api.syncStatus().subscribe((s) => this.syncStatus.set(s));
+        this.loadSyncStatus();
       },
-      error: () => {
+      error: (err) => {
         this.retryingPessoa.set(null);
         this.loadPessoas();
+        this.errorMessage.set(err?.error?.message ?? 'NÃ£o foi possÃ­vel reenviar este rosto.');
+        setTimeout(() => this.errorMessage.set(null), 5000);
       },
     });
   }

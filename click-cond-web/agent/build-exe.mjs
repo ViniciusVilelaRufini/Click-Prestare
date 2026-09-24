@@ -8,8 +8,10 @@
  * Requer: o mesmo Node que vai ser embutido (use Node 20+; ideal Node 24).
  */
 import { execSync } from 'node:child_process';
-import { copyFileSync, rmSync, existsSync } from 'node:fs';
+import { copyFileSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { platform } from 'node:os';
+import { bundle } from './build-bundle.mjs';
 
 const isWin = platform() === 'win32';
 const isMac = platform() === 'darwin';
@@ -22,6 +24,10 @@ function run(cmd) {
 }
 
 console.log(`Empacotando o agente com o Node ${process.version} (${platform()})...\n`);
+
+// 0. Gera o bundle (agent/src/index.js → dist/click-agent.cjs) — é ele que o
+//    sea-config.json aponta como "main".
+bundle();
 
 // 1. Gera o blob com o código embutido
 run('node --experimental-sea-config sea-config.json');
@@ -36,6 +42,12 @@ run(`npx --yes postject ${out} NODE_SEA_BLOB sea-prep.blob --sentinel-fuse ${FUS
 
 // 4. Limpa o blob temporário
 if (existsSync('sea-prep.blob')) rmSync('sea-prep.blob');
+
+// 5. Grava o SHA-256 do exe ao lado — permite ao instalador/operador conferir
+//    a integridade do binário antes de rodar na máquina da portaria.
+const hash = createHash('sha256').update(readFileSync(out)).digest('hex');
+writeFileSync(`${out}.sha256`, `${hash}\n`);
+console.log(`SHA-256: ${hash}`);
 
 console.log(`\n✅ Gerado: ${out}`);
 console.log('Copie esse arquivo + um .env (veja .env.example) para a máquina da portaria.');

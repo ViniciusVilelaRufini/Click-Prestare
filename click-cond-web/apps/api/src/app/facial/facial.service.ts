@@ -137,6 +137,154 @@ const AGENT_DOWNLOAD_URL =
   process.env.AGENT_DOWNLOAD_URL ||
   'https://github.com/Viniciusvile/Click-Prestare/releases/latest/download/click-agent.exe';
 
+/**
+ * Linhas "echo" que escrevem o laco de reinicio (run-agent-service.cmd) de
+ * dentro de um bloco "( ... ) > arquivo" de .bat. SAO AS MESMAS LINHAS de
+ * agent/install-windows.bat, e o que elas geram e exatamente
+ * agent/run-agent-service.cmd (agent-installer-bat.spec.ts confere os tres).
+ * Escape: `%` vira `%%`; fora de aspas, `( ) < > & |` levam `^`; linha em
+ * branco e `echo:`. Comentarios em ASCII de proposito: acento/travessao
+ * dentro de um "echo" num bloco "(...)" corrompe o parsing do cmd.exe.
+ *
+ * O que o .cmd faz: recupera uma troca de exe que parou no meio, rotaciona
+ * agent-service.log (>5 MB) enquanto ninguem segura o arquivo, confia na
+ * CA do Windows, roda o exe e - com uma auto-atualizacao pendente
+ * (atualizacao.json) - conta as saidas com erro da versao nova; na 3a,
+ * volta o click-agent.old.exe (a versao nova caia antes de o proprio
+ * agente conseguir reverter). Espera com "ping" (timeout falha sem console).
+ */
+export const LINHAS_ECHO_LACO_SERVICO: readonly string[] = [
+  'echo @echo off',
+  'echo cd /d "%%~dp0"',
+  'echo:',
+  'echo :loop',
+  'echo REM Recuperacao: se a atualizacao trocou o exe e o processo morreu no meio',
+  'echo REM dos dois renames, so sobra o click-agent.old.exe no disco.',
+  'echo if not exist "%%~dp0click-agent.exe" if exist "%%~dp0click-agent.old.exe" ^(',
+  'echo   ren "%%~dp0click-agent.old.exe" "click-agent.exe"',
+  'echo ^)',
+  'echo:',
+  'echo REM Sem atualizacao pendente, zera o contador de falhas da versao nova.',
+  'echo if not exist "%%~dp0atualizacao.json" if exist "%%~dp0atualizacao-falhas.txt" del "%%~dp0atualizacao-falhas.txt"',
+  'echo:',
+  'echo REM Rotacao do log: tem que ser AQUI, nao dentro do agente. O ">>" abaixo',
+  'echo REM abre o arquivo antes do processo existir e o handle fica em uso',
+  'echo REM durante toda a execucao - o proprio agente tentando renomear seu',
+  'echo REM stdout herdado falha com EBUSY. Aqui, entre uma execucao e a proxima,',
+  'echo REM nenhum processo segura o arquivo.',
+  'echo for %%%%A in ^("%%~dp0agent-service.log"^) do if %%%%~zA GTR 5242880 move /y "%%~dp0agent-service.log" "%%~dp0agent-service.1.log" ^>nul',
+  'echo:',
+  'echo REM Confia no repositorio de certificados do Windows - redes de condominio',
+  'echo REM as vezes tem antivirus que inspeciona HTTPS.',
+  'echo set "NODE_USE_SYSTEM_CA=1"',
+  'echo "%%~dp0click-agent.exe" ^>^> "%%~dp0agent-service.log" 2^>^&1',
+  'echo set "SAIDA=%%errorlevel%%"',
+  'echo:',
+  'echo REM Versao nova que cai ANTES de subir nao chega ao rollback do proprio',
+  'echo REM agente. Com atualizacao.json presente, cada saida com erro conta em',
+  'echo REM atualizacao-falhas.txt; na 3a, volta o click-agent.old.exe. O',
+  'echo REM atualizacao.json fica: o exe antigo, ao subir, marca a versao nova',
+  'echo REM como recusada e nao a baixa de novo.',
+  'echo if "%%SAIDA%%"=="0" goto espera',
+  'echo if not exist "%%~dp0atualizacao.json" goto espera',
+  'echo set "FALHAS=0"',
+  'echo if exist "%%~dp0atualizacao-falhas.txt" set /p FALHAS=^<"%%~dp0atualizacao-falhas.txt"',
+  'echo set /a FALHAS+=1',
+  'echo ^>"%%~dp0atualizacao-falhas.txt" echo %%FALHAS%%',
+  'echo if %%FALHAS%% LSS 3 goto espera',
+  'echo if not exist "%%~dp0click-agent.old.exe" goto espera',
+  'echo ^>^>"%%~dp0agent-service.log" echo [servico] versao nova falhou %%FALHAS%%x ao iniciar - voltando para o click-agent.old.exe',
+  'echo move /y "%%~dp0click-agent.exe" "%%~dp0click-agent.bad.exe" ^>nul',
+  'echo move /y "%%~dp0click-agent.old.exe" "%%~dp0click-agent.exe" ^>nul',
+  'echo del "%%~dp0atualizacao-falhas.txt"',
+  'echo:',
+  'echo :espera',
+  'echo REM "timeout" falha na hora sem console de verdade ^(tarefa SYSTEM, sem',
+  'echo REM sessao interativa^) e viraria busy-loop; "ping" nao depende de console.',
+  'echo ping -n 6 127.0.0.1 ^>nul',
+  'echo goto loop',
+];
+
+/** Ajusta a tarefa: o padrao do schtasks mata a tarefa com 72h e nao a
+ *  roda (ou a para) na bateria - o laco do agente e infinito. */
+export const COMANDO_AJUSTE_TAREFA =
+  'powershell -NoProfile -Command "Set-ScheduledTask -TaskName ClickPortariaAgent -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1))"';
+
+/**
+ * instalar-agente-<condominio>.bat do portal: 1 clique instala OU ATUALIZA.
+ * Para a tarefa e o processo ANTES de mexer em qualquer arquivo (o cmd.exe
+ * le o .cmd em execucao pelo deslocamento - reescreve-lo com o laco rodando
+ * embaralha os comandos; e o .exe em uso nao pode ser sobrescrito), baixa
+ * SEMPRE o exe do portal para click-agent.new.exe e so entao o move por
+ * cima do click-agent.exe (download que falha mantem o exe atual), grava a
+ * configuracao, o laco de reinicio, registra a tarefa e a inicia.
+ */
+export function montarInstaladorBat(apiBase: string, token: string, downloadUrl: string): string {
+  const baixaExe = downloadUrl
+    ? [
+        'echo Baixando o agente...',
+        'if exist "%NOVO%" del "%NOVO%"',
+        `powershell -NoProfile -Command "$ErrorActionPreference = 'Stop'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing -Uri '${downloadUrl}' -OutFile '%NOVO%'"`,
+        'if errorlevel 1 (',
+        '  if exist "%NOVO%" del "%NOVO%"',
+        '  echo [AVISO] Nao consegui baixar o agente - mantendo o que ja esta nesta pasta.',
+        ')',
+        'if exist "%NOVO%" move /y "%NOVO%" "%EXE%" >nul',
+      ]
+    : [];
+  const linhas = [
+    '@echo off',
+    'setlocal',
+    'set "DIR=%~dp0"',
+    'set "EXE=%DIR%click-agent.exe"',
+    'set "NOVO=%DIR%click-agent.new.exe"',
+    'set "ENVFILE=%DIR%.env"',
+    'set "CMDFILE=%DIR%run-agent-service.cmd"',
+    '',
+    'REM 1) Para o agente antigo (tarefa + processo) antes de trocar qualquer arquivo',
+    'schtasks /End /TN "ClickPortariaAgent" >nul 2>&1',
+    'taskkill /F /IM click-agent.exe >nul 2>&1',
+    'ping -n 3 127.0.0.1 >nul',
+    'REM Instalacao manual substitui qualquer auto-atualizacao pendente',
+    'if exist "%DIR%atualizacao.json" del "%DIR%atualizacao.json"',
+    'if exist "%DIR%atualizacao-falhas.txt" del "%DIR%atualizacao-falhas.txt"',
+    '',
+    'REM 2) Baixa a versao atual do agente (instala ou atualiza)',
+    ...baixaExe,
+    'if not exist "%EXE%" (',
+    '  echo [ERRO] click-agent.exe nao encontrado nesta pasta. Baixe-o pelo portal e rode de novo.',
+    '  pause',
+    '  exit /b 1',
+    ')',
+    '',
+    'REM 3) Escreve a configuracao do condominio',
+    '(',
+    `echo API_URL=${apiBase}`,
+    `echo AGENT_TOKEN=${token}`,
+    ') > "%ENVFILE%"',
+    '',
+    'REM 4) Escreve o laco de reinicio (run-agent-service.cmd)',
+    '(',
+    ...LINHAS_ECHO_LACO_SERVICO,
+    ') > "%CMDFILE%"',
+    '',
+    'REM 5) Inicia com o Windows, sem limite de 72h nem parada na bateria',
+    'schtasks /Create /TN "ClickPortariaAgent" /TR "\\"%CMDFILE%\\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F',
+    'if errorlevel 1 (',
+    '  echo [ERRO] Falha ao registrar a tarefa. Rode este arquivo como Administrador.',
+    '  pause',
+    '  exit /b 1',
+    ')',
+    `${COMANDO_AJUSTE_TAREFA} >nul`,
+    'if errorlevel 1 echo [AVISO] Nao consegui ajustar as opcoes da tarefa - ela pode parar sozinha apos 72h.',
+    'schtasks /Run /TN "ClickPortariaAgent"',
+    'echo.',
+    'echo Pronto! Agente instalado e rodando. Confira "Agente conectado" no portal.',
+    'pause',
+  ];
+  return linhas.join('\r\n') + '\r\n';
+}
+
 @Injectable()
 export class FacialService {
   private readonly logger = new Logger(FacialService.name);
@@ -684,47 +832,9 @@ export class FacialService {
         .slice(0, 40) || 'condominio';
 
     if (format === 'bat') {
-      const downloadUrl = AGENT_DOWNLOAD_URL;
-      const baixaExe = downloadUrl
-        ? [
-            'if not exist "%EXE%" (',
-            '  echo Baixando o agente...',
-            `  powershell -Command "Invoke-WebRequest -Uri '${downloadUrl}' -OutFile '%EXE%'"`,
-            ')',
-          ]
-        : [
-            'if not exist "%EXE%" (',
-            '  echo [ERRO] click-agent.exe nao encontrado nesta pasta. Baixe-o pelo portal e rode de novo.',
-            '  pause',
-            '  exit /b 1',
-            ')',
-          ];
-      const linhas = [
-        '@echo off',
-        'setlocal',
-        'set "DIR=%~dp0"',
-        'set "EXE=%DIR%click-agent.exe"',
-        'set "ENVFILE=%DIR%.env"',
-        '',
-        'REM 1) Garante o executavel',
-        ...baixaExe,
-        '',
-        'REM 2) Escreve a configuracao do condominio',
-        '(',
-        `echo API_URL=${apiBase}`,
-        `echo AGENT_TOKEN=${token}`,
-        ') > "%ENVFILE%"',
-        '',
-        'REM 3) Inicia com o Windows',
-        'schtasks /Create /TN "ClickPortariaAgent" /TR "\\"%EXE%\\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F',
-        'schtasks /Run /TN "ClickPortariaAgent"',
-        'echo.',
-        'echo Pronto! Agente instalado e rodando. Confira "Agente conectado" no portal.',
-        'pause',
-      ];
       return {
         filename: `instalar-agente-${slug}.bat`,
-        content: linhas.join('\r\n') + '\r\n',
+        content: montarInstaladorBat(apiBase, token, AGENT_DOWNLOAD_URL),
         contentType: 'application/octet-stream',
       };
     }
@@ -3496,6 +3606,7 @@ export class FacialService {
           tipo: true,
           foto_pessoa: true,
           face_sync_status: true,
+          face_sync_error: true,
         },
       }),
       this.prisma.visitantes.findMany({
@@ -3506,6 +3617,7 @@ export class FacialService {
           is_prestador: true,
           foto_pessoa: true,
           face_sync_status: true,
+          face_sync_error: true,
         },
       }),
     ]);
@@ -3520,6 +3632,7 @@ export class FacialService {
         tem_foto: !!m.foto_pessoa,
         status: this.statusPessoa(m.face_sync_status, !!m.foto_pessoa),
         motivo: this.motivoSync(m.face_sync_status, !!m.foto_pessoa),
+        motivo_detalhado: m.face_sync_error,
       })),
       ...visitantes.map((v) => ({
         tipo: 'visitante' as const,
@@ -3529,6 +3642,7 @@ export class FacialService {
         tem_foto: !!v.foto_pessoa,
         status: this.statusPessoa(v.face_sync_status, !!v.foto_pessoa),
         motivo: this.motivoSync(v.face_sync_status, !!v.foto_pessoa),
+        motivo_detalhado: v.face_sync_error,
       })),
     ];
 

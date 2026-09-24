@@ -8,6 +8,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
+import 'package:click/utils/access_invite_message.dart';
 import 'package:click/utils/visitantes_presenca.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/bottom_sheet_aptos.dart';
@@ -28,7 +29,12 @@ class NewVisitante extends StatefulWidget {
   final Map<String, dynamic>? reUseData;
   final String? defaultType;
 
-  const NewVisitante({super.key, required this.isEdit, this.myId, this.reUseData, this.defaultType});
+  const NewVisitante(
+      {super.key,
+      required this.isEdit,
+      this.myId,
+      this.reUseData,
+      this.defaultType});
 
   @override
   _NewVisitantePageState createState() => _NewVisitantePageState();
@@ -68,8 +74,13 @@ class _NewVisitantePageState extends State<NewVisitante> {
 
   @override
   void dispose() {
-    txtNome.dispose(); txtDocumento.dispose(); txtDataInicio.dispose();
-    txtDataTermino.dispose(); txtBloco.dispose(); txtApto.dispose(); txtObs.dispose();
+    txtNome.dispose();
+    txtDocumento.dispose();
+    txtDataInicio.dispose();
+    txtDataTermino.dispose();
+    txtBloco.dispose();
+    txtApto.dispose();
+    txtObs.dispose();
     super.dispose();
   }
 
@@ -81,18 +92,24 @@ class _NewVisitantePageState extends State<NewVisitante> {
     } else {
       currentTipo = widget.defaultType ?? 'visitante';
       // Prestador novo já vem com os dias úteis pré-selecionados.
-      if (currentTipo == 'prestador') diasSemana = ['seg', 'ter', 'qua', 'qui', 'sex'];
+      if (currentTipo == 'prestador')
+        diasSemana = ['seg', 'ter', 'qua', 'qui', 'sex'];
       if (widget.reUseData != null) {
         txtNome.text = widget.reUseData!["nome"] ?? "";
-        txtDocumento.text = widget.reUseData!["doc_identificacao"]?.toString() ?? "";
+        txtDocumento.text =
+            widget.reUseData!["doc_identificacao"]?.toString() ?? "";
         txtApto.text = widget.reUseData!["apto"] ?? "";
         txtBloco.text = widget.reUseData!["apto_bloco"] ?? "";
         txtObs.text = widget.reUseData!["observacoes"] ?? "";
-        currentTipo = widget.reUseData!["is_visitante"] == 1 ? 'visitante' : 'prestador';
+        currentTipo =
+            widget.reUseData!["is_visitante"] == 1 ? 'visitante' : 'prestador';
         diasSemana = _parseDias(widget.reUseData!["dias_semana"]);
         idMyApartment = widget.reUseData!["apto_id"];
-        final rawPhoto = widget.reUseData!["foto_pessoa"] ?? widget.reUseData!["photo"];
-        imageFile = rawPhoto != null && rawPhoto.toString().isNotEmpty && rawPhoto.toString() != 'null'
+        final rawPhoto =
+            widget.reUseData!["foto_pessoa"] ?? widget.reUseData!["photo"];
+        imageFile = rawPhoto != null &&
+                rawPhoto.toString().isNotEmpty &&
+                rawPhoto.toString() != 'null'
             ? rawPhoto.toString()
             : null;
       }
@@ -120,9 +137,13 @@ class _NewVisitantePageState extends State<NewVisitante> {
       currentTipo = obj["is_visitante"] == 1 ? 'visitante' : 'prestador';
       diasSemana = _parseDias(obj["dias_semana"]);
       _jaRegistrada = obj['data_entrada'] != null;
-      imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
+      imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty
+          ? obj['photo']
+          : null;
     } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+      if (mounted)
+        displayMessage(
+            context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -147,7 +168,9 @@ class _NewVisitantePageState extends State<NewVisitante> {
         if (!listBlocos.contains(item['bloco'])) listBlocos.add(item['bloco']);
       }
     } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+      if (mounted)
+        displayMessage(
+            context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -168,7 +191,9 @@ class _NewVisitantePageState extends State<NewVisitante> {
 
       var visitante = VisitanteModel(
         id: widget.myId ?? -1,
-        id_anterior: widget.reUseData?['id'] is int ? widget.reUseData!['id'] : int.tryParse(widget.reUseData?['id']?.toString() ?? ''),
+        id_anterior: widget.reUseData?['id'] is int
+            ? widget.reUseData!['id']
+            : int.tryParse(widget.reUseData?['id']?.toString() ?? ''),
         nome_anterior: widget.reUseData?['nome']?.toString(),
         nome: txtNome.text,
         doc_identificacao: txtDocumento.text,
@@ -194,10 +219,12 @@ class _NewVisitantePageState extends State<NewVisitante> {
           if (mounted) Navigator.pop(context);
         }
       } else {
-        if (mounted) displayMessage(context, getText('alert_error'), result.toString());
+        if (mounted)
+          displayMessage(context, getText('alert_error'), result.toString());
       }
     } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), e.toString());
+      if (mounted)
+        displayMessage(context, getText('alert_error'), e.toString());
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -207,23 +234,26 @@ class _NewVisitantePageState extends State<NewVisitante> {
     final moradorName = getUsername();
     final blocoText = txtBloco.text;
     final aptoText = txtApto.text;
-    
-    final formattedCode = code.length == 6 ? "${code.substring(0, 3)}-${code.substring(3, 6)}" : code;
-    
-    final inviteText = 
-      "🔑 *Convite de Acesso - Click Portaria*\n\n"
-      "Olá! Sua liberação de acesso foi cadastrada.\n\n"
-      "📍 *Destino:* Bloco $blocoText, Apto $aptoText\n"
-      "👤 *Autorizado por:* ${moradorName.isNotEmpty ? moradorName : 'Morador'}\n"
-      "🔑 *Código de Acesso (PIN):* $formattedCode\n\n"
-      "Apresente este código ao chegar na portaria para liberação da sua entrada.";
+
+    final formattedCode = code.length == 6
+        ? "${code.substring(0, 3)}-${code.substring(3, 6)}"
+        : code;
+
+    final inviteText = buildVisitorAccessInvite(
+      condominioNome: Singleton.instance.condominio_nome.toString(),
+      bloco: blocoText,
+      apartamento: aptoText,
+      autorizadoPor: moradorName,
+      codigo: formattedCode,
+    );
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           backgroundColor: AppColors.surface(context),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.xl),
@@ -245,23 +275,27 @@ class _NewVisitantePageState extends State<NewVisitante> {
                 const SizedBox(height: AppSpacing.lg),
                 Text(
                   "Liberação Gerada!",
-                  style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
+                  style: AppTypography.title(context)
+                      .copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   "Compartilhe o código abaixo com o seu ${isPrestador ? 'prestador' : 'visitante'} para agilizar a entrada na portaria.",
                   textAlign: TextAlign.center,
-                  style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context)),
+                  style: AppTypography.body(context)
+                      .copyWith(color: AppColors.textSecondary(context)),
                 ),
                 const SizedBox(height: AppSpacing.xl),
-                
+
                 // Container do PIN
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg, vertical: AppSpacing.md),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceElevated(context),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                    border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -277,11 +311,14 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       ),
                       const SizedBox(width: AppSpacing.md),
                       IconButton(
-                        icon: Icon(PhosphorIcons.copy, color: AppColors.primary),
+                        icon:
+                            Icon(PhosphorIcons.copy, color: AppColors.primary),
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: code));
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Código copiado para a área de transferência!')),
+                            const SnackBar(
+                                content: Text(
+                                    'Código copiado para a área de transferência!')),
                           );
                         },
                       ),
@@ -289,20 +326,22 @@ class _NewVisitantePageState extends State<NewVisitante> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
-                
+
                 // Botão Compartilhar via WhatsApp
                 AppButton(
                   label: "Enviar via WhatsApp",
                   icon: PhosphorIcons.whatsappLogo,
                   onPressed: () async {
-                    final url = Uri.parse("https://wa.me/?text=${Uri.encodeComponent(inviteText)}");
+                    final url = Uri.parse(
+                        "https://wa.me/?text=${Uri.encodeComponent(inviteText)}");
                     if (await canLaunchUrl(url)) {
-                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                      await launchUrl(url,
+                          mode: LaunchMode.externalApplication);
                     }
                   },
                 ),
                 const SizedBox(height: AppSpacing.md),
-                
+
                 // Botão Fechar / Concluir
                 TextButton(
                   onPressed: () {
@@ -334,7 +373,9 @@ class _NewVisitantePageState extends State<NewVisitante> {
       if (res) {
         if (mounted) Navigator.of(context).pop(true);
       } else {
-        if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+        if (mounted)
+          displayMessage(
+              context, getText('alert_error'), getText('alert_generic_error'));
       }
     }
   }
@@ -351,7 +392,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
 
   getIdApto() {
     for (var item in list) {
-      if (item['bloco'] == txtBloco.text && item["apto"] == txtApto.text) return item["id"];
+      if (item['bloco'] == txtBloco.text && item["apto"] == txtApto.text)
+        return item["id"];
     }
     throw getText('mudanca_selecione_apto');
   }
@@ -382,7 +424,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
       } catch (_) {}
       return const AssetImage('assets/images/defaultUser.png');
     }
-    
+
     // Se for File/XFile
     if (kIsWeb) {
       return NetworkImage(imageFile.path);
@@ -398,8 +440,12 @@ class _NewVisitantePageState extends State<NewVisitante> {
   Widget build(BuildContext context) {
     return AppScaffold(
       title: isPrestador
-          ? (widget.isEdit ? getText('prestador_nav_edit') : getText('prestador_nav_new'))
-          : (widget.isEdit ? getText('visitantes_nav_edit') : getText('visitantes_nav_new')),
+          ? (widget.isEdit
+              ? getText('prestador_nav_edit')
+              : getText('prestador_nav_new'))
+          : (widget.isEdit
+              ? getText('visitantes_nav_edit')
+              : getText('visitantes_nav_new')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -414,19 +460,24 @@ class _NewVisitantePageState extends State<NewVisitante> {
                         children: [
                           CircleAvatar(
                             radius: 52,
-                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                            backgroundColor:
+                                AppColors.primary.withValues(alpha: 0.1),
                             backgroundImage: _getAvatarImageProvider(),
                           ),
                           Positioned(
-                            bottom: 0, right: 0,
+                            bottom: 0,
+                            right: 0,
                             child: Container(
-                              width: 30, height: 30,
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
                                 color: AppColors.primary,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: AppColors.bg(context), width: 2),
+                                border: Border.all(
+                                    color: AppColors.bg(context), width: 2),
                               ),
-                              child: const Icon(PhosphorIcons.camera, size: 16, color: Colors.white),
+                              child: const Icon(PhosphorIcons.camera,
+                                  size: 16, color: Colors.white),
                             ),
                           ),
                         ],
@@ -436,17 +487,20 @@ class _NewVisitantePageState extends State<NewVisitante> {
                   const SizedBox(height: AppSpacing.sm),
                   Center(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                       margin: const EdgeInsets.only(top: AppSpacing.sm),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                        border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(PhosphorIcons.scan, color: AppColors.primary, size: 14),
+                          Icon(PhosphorIcons.scan,
+                              color: AppColors.primary, size: 14),
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
@@ -486,7 +540,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
                     onTap: () => showCupertinoModalPopup(
                       context: context,
                       builder: (_) => ModalCupertino(
-                        onPressed: (text) => setState(() => txtDataInicio.text = text),
+                        onPressed: (text) =>
+                            setState(() => txtDataInicio.text = text),
                         initialDate: DateTime.now(),
                         type: 'datetime',
                       ),
@@ -501,8 +556,11 @@ class _NewVisitantePageState extends State<NewVisitante> {
                     onTap: () => showCupertinoModalPopup(
                       context: context,
                       builder: (_) => ModalCupertino(
-                        onPressed: (text) => setState(() => txtDataTermino.text = text),
-                        initialDate: convertStringToDateTimeFormat(txtDataInicio.text) ?? DateTime.now(),
+                        onPressed: (text) =>
+                            setState(() => txtDataTermino.text = text),
+                        initialDate:
+                            convertStringToDateTimeFormat(txtDataInicio.text) ??
+                                DateTime.now(),
                         type: 'datetime',
                       ),
                     ),
@@ -521,7 +579,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       onChanged: (v) {
                         setState(() {
                           currentTipo = v;
-                          if (currentTipo == 'prestador' && diasSemana.isEmpty) {
+                          if (currentTipo == 'prestador' &&
+                              diasSemana.isEmpty) {
                             diasSemana = ['seg', 'ter', 'qua', 'qui', 'sex'];
                           }
                         });
@@ -549,19 +608,26 @@ class _NewVisitantePageState extends State<NewVisitante> {
                           controller: txtBloco,
                           prefixIcon: PhosphorIcons.buildings,
                           readOnly: true,
-                          onTap: getUserType() == 'morador' ? null : () {
-                            if (listBlocos.isEmpty) {
-                              displayMessage(context, getText('alert_ops'), getText('alert_nenhum_bloco'));
-                              return;
-                            }
-                            bottomSheetAptos(context, listBlocos, txtBloco.text, (s) {
-                              if (txtBloco.text != s) txtApto.text = '';
-                              txtBloco.text = s;
-                              Navigator.of(context).pop();
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              setState(() {});
-                            });
-                          },
+                          onTap: getUserType() == 'morador'
+                              ? null
+                              : () {
+                                  if (listBlocos.isEmpty) {
+                                    displayMessage(
+                                        context,
+                                        getText('alert_ops'),
+                                        getText('alert_nenhum_bloco'));
+                                    return;
+                                  }
+                                  bottomSheetAptos(
+                                      context, listBlocos, txtBloco.text, (s) {
+                                    if (txtBloco.text != s) txtApto.text = '';
+                                    txtBloco.text = s;
+                                    Navigator.of(context).pop();
+                                    FocusManager.instance.primaryFocus
+                                        ?.unfocus();
+                                    setState(() {});
+                                  });
+                                },
                         ),
                       ),
                       const SizedBox(width: AppSpacing.md),
@@ -571,18 +637,26 @@ class _NewVisitantePageState extends State<NewVisitante> {
                           controller: txtApto,
                           prefixIcon: PhosphorIcons.door,
                           readOnly: true,
-                          onTap: getUserType() == 'morador' ? null : () {
-                            if (getListAptos().isEmpty) {
-                              displayMessage(context, getText('alert_ops'), getText('visitante_erro_bloco'));
-                              return;
-                            }
-                            bottomSheetAptos(context, getListAptos(), txtApto.text, (s) {
-                              txtApto.text = s;
-                              Navigator.of(context).pop();
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              setState(() {});
-                            });
-                          },
+                          onTap: getUserType() == 'morador'
+                              ? null
+                              : () {
+                                  if (getListAptos().isEmpty) {
+                                    displayMessage(
+                                        context,
+                                        getText('alert_ops'),
+                                        getText('visitante_erro_bloco'));
+                                    return;
+                                  }
+                                  bottomSheetAptos(
+                                      context, getListAptos(), txtApto.text,
+                                      (s) {
+                                    txtApto.text = s;
+                                    Navigator.of(context).pop();
+                                    FocusManager.instance.primaryFocus
+                                        ?.unfocus();
+                                    setState(() {});
+                                  });
+                                },
                         ),
                       ),
                     ],
@@ -622,7 +696,11 @@ class _NewVisitantePageState extends State<NewVisitante> {
   List<String> _parseDias(dynamic raw) {
     final s = raw?.toString().trim() ?? '';
     if (s.isEmpty) return [];
-    return s.split(',').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toList();
+    return s
+        .split(',')
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 
   Widget _buildDiasSemana() {
@@ -648,7 +726,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
             decoration: BoxDecoration(
               color: sel ? AppColors.primary : AppColors.surface(context),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: sel ? AppColors.primary : AppColors.border(context)),
+              border: Border.all(
+                  color: sel ? AppColors.primary : AppColors.border(context)),
             ),
             child: Text(
               label,
@@ -666,7 +745,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
   Widget _section(String title) => Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Text(title.toUpperCase(),
-            style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary, letterSpacing: 0.8)),
+            style: AppTypography.captionMedium(context)
+                .copyWith(color: AppColors.primary, letterSpacing: 0.8)),
       );
 }
 
@@ -700,7 +780,8 @@ class _Chip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _Chip({required this.label, required this.selected, required this.onTap});
+  const _Chip(
+      {required this.label, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -709,11 +790,13 @@ class _Chip extends StatelessWidget {
       onTap: onTap,
       child: Container(
         constraints: BoxConstraints(maxWidth: screenWidth - 48),
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           color: selected ? AppColors.primary : AppColors.surface(context),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? AppColors.primary : AppColors.border(context)),
+          border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border(context)),
         ),
         child: FittedBox(
           fit: BoxFit.scaleDown,
@@ -732,20 +815,47 @@ class _Chip extends StatelessWidget {
 class VisitanteModel {
   int? id;
   int? id_anterior;
-  String? nome, nome_anterior, doc_identificacao, data_inicio, data_termino, observacoes, photo, dias_semana;
+  String? nome,
+      nome_anterior,
+      doc_identificacao,
+      data_inicio,
+      data_termino,
+      observacoes,
+      photo,
+      dias_semana;
   int? id_apartamento;
   bool? avisar, is_visitante, is_prestador;
 
-  VisitanteModel({this.id, this.id_anterior, this.nome, this.nome_anterior, this.doc_identificacao, this.data_inicio,
-      this.data_termino, this.avisar, this.id_apartamento, this.is_visitante,
-      this.is_prestador, this.observacoes, this.photo, this.dias_semana});
+  VisitanteModel(
+      {this.id,
+      this.id_anterior,
+      this.nome,
+      this.nome_anterior,
+      this.doc_identificacao,
+      this.data_inicio,
+      this.data_termino,
+      this.avisar,
+      this.id_apartamento,
+      this.is_visitante,
+      this.is_prestador,
+      this.observacoes,
+      this.photo,
+      this.dias_semana});
 
   Map toJson() => {
-        'id': id, 'id_anterior': id_anterior, 'nome': nome, 'nome_anterior': nome_anterior,
+        'id': id,
+        'id_anterior': id_anterior,
+        'nome': nome,
+        'nome_anterior': nome_anterior,
         'doc_identificacao': doc_identificacao,
-        'data_inicio': data_inicio, 'data_termino': data_termino,
-        'observacoes': observacoes, 'id_apartamento': id_apartamento,
-        'avisar': avisar, 'is_visitante': is_visitante, 'is_prestador': is_prestador,
-        'dias_semana': dias_semana, 'photo': photo,
+        'data_inicio': data_inicio,
+        'data_termino': data_termino,
+        'observacoes': observacoes,
+        'id_apartamento': id_apartamento,
+        'avisar': avisar,
+        'is_visitante': is_visitante,
+        'is_prestador': is_prestador,
+        'dias_semana': dias_semana,
+        'photo': photo,
       };
 }

@@ -3,8 +3,12 @@
 
 # Artefatos do build do executável
 *.exe
+*.exe.sha256
 *.blob
 click-agent
+
+# Artefato do bundle (esbuild) — gerado a partir de src/, não versionar
+dist/
 
 node_modules/
 

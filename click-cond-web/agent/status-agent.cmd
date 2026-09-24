@@ -4,7 +4,7 @@ setlocal
 echo === Processos do agente ===
 tasklist /FI "IMAGENNAME eq click-agent.exe" | findstr /I click-agent.exe
 if errorlevel 1 (
-  tasklist /FI "IMAGENNAME eq node.exe" /V | findstr /I index.js
+  tasklist /FI "IMAGENNAME eq node.exe" /V | findstr /I click-agent.cjs
   if errorlevel 1 echo   ^(nenhum agente rodando^)
 )
 echo.

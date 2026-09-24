@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
@@ -364,8 +364,8 @@ export class EncomendasService implements OnModuleInit {
     }
 
     try {
-      const atualizada = await this.prisma.encomendas.update({
-        where: { id: Number(id) },
+      const transicao = await this.prisma.encomendas.updateMany({
+        where: { id: Number(id), status: 'Aguardando' },
         data: {
           retirado_em: new Date(),
           retirado_por: retiradoPor,
@@ -376,6 +376,14 @@ export class EncomendasService implements OnModuleInit {
           entregue_por_user: operador?.sub ?? null,
         },
       });
+
+      if (transicao.count === 0) {
+        throw new ConflictException('Esta encomenda ja foi retirada ou nao esta aguardando entrega.');
+      }
+      const atualizada = await this.prisma.encomendas.findUnique({
+        where: { id: Number(id) },
+      });
+      if (!atualizada) throw new NotFoundException(`Encomenda ${id} nao encontrada`);
 
       const ctx = await this.carregarContextoEncomenda(atualizada.id);
       await this.auditoria.registrar({
@@ -389,7 +397,8 @@ export class EncomendasService implements OnModuleInit {
       });
 
       return atualizada;
-    } catch {
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
       throw new NotFoundException(`Encomenda ${id} não encontrada`);
     }
   }
@@ -473,21 +482,24 @@ export class EncomendasService implements OnModuleInit {
 
     await this.assertEncomendaDoTenant(id, operador);
 
-    let encomenda;
-    try {
-      encomenda = await this.prisma.encomendas.update({
-        where: { id: Number(id) },
-        data: {
-          status: 'Aguardando',
-          recebido_em: new Date(),
-          recebido_por_user: operador?.sub ?? null,
-          notificado: 1,
-          notificado_em: new Date(),
-        },
-      });
-    } catch {
-      throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    const agora = new Date();
+    const transicao = await this.prisma.encomendas.updateMany({
+      where: { id: Number(id), status: 'Esperando' },
+      data: {
+        status: 'Aguardando',
+        recebido_em: agora,
+        recebido_por_user: operador?.sub ?? null,
+        notificado: 1,
+        notificado_em: agora,
+      },
+    });
+    if (transicao.count === 0) {
+      throw new ConflictException('Esta encomenda já foi recebida ou não está aguardando confirmação.');
     }
+    const encomenda = await this.prisma.encomendas.findUnique({
+      where: { id: Number(id) },
+    });
+    if (!encomenda) throw new NotFoundException(`Encomenda ${id} não encontrada`);
 
     // Notifica o(s) morador(es) do apartamento que a encomenda chegou.
     try {
