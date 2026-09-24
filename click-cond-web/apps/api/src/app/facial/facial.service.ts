@@ -705,6 +705,7 @@ export class FacialService {
         'set "DIR=%~dp0"',
         'set "EXE=%DIR%click-agent.exe"',
         'set "ENVFILE=%DIR%.env"',
+        'set "CMDFILE=%DIR%run-agent-service.cmd"',
         '',
         'REM 1) Garante o executavel',
         ...baixaExe,
@@ -715,8 +716,39 @@ export class FacialService {
         `echo AGENT_TOKEN=${token}`,
         ') > "%ENVFILE%"',
         '',
-        'REM 3) Inicia com o Windows',
-        'schtasks /Create /TN "ClickPortariaAgent" /TR "\\"%EXE%\\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F',
+        // laco de reinicio (tarefa 9): a tarefa agendada roda ESTE .cmd, nao o
+        // exe direto, para sobreviver a crash/atualizacao. A auto-atualizacao
+        // (atualizador.js) so troca o exe e sai(0) se este arquivo tiver
+        // "goto loop" ao lado - sem ele, trocar o arquivo e sair nunca mais
+        // sobe o agente sozinho. Comentarios do .cmd gerado ficam em ASCII de
+        // proposito: acento/travessao dentro de um "echo" que roda dentro de
+        // um bloco "(...)" corrompe o parsing do cmd.exe (confirmado testando
+        // o bloco equivalente do install-windows.bat).
+        'REM 3) Escreve o laco de reinicio (run-agent-service.cmd)',
+        '(',
+        'echo @echo off',
+        'echo cd /d "%%~dp0"',
+        'echo:',
+        'echo :loop',
+        'echo REM Recuperacao: se a atualizacao trocou o exe e o processo morreu no meio',
+        'echo REM dos dois renames, so sobra o click-agent.old.exe no disco.',
+        'echo if not exist "%%~dp0click-agent.exe" if exist "%%~dp0click-agent.old.exe" ^(',
+        'echo   ren "%%~dp0click-agent.old.exe" "click-agent.exe"',
+        'echo ^)',
+        'echo:',
+        'echo REM Confia no repositorio de certificados do Windows - redes de condominio',
+        'echo REM as vezes tem antivirus que inspeciona HTTPS.',
+        'echo set "NODE_USE_SYSTEM_CA=1"',
+        'echo "%%~dp0click-agent.exe" ^>^> "%%~dp0agent-service.log" 2^>^&1',
+        'echo:',
+        'echo REM "timeout" falha na hora sem console de verdade ^(tarefa SYSTEM, sem',
+        'echo REM sessao interativa^) e viraria busy-loop; "ping" nao depende de console.',
+        'echo ping -n 6 127.0.0.1 ^>nul',
+        'echo goto loop',
+        ') > "%CMDFILE%"',
+        '',
+        'REM 4) Inicia com o Windows',
+        'schtasks /Create /TN "ClickPortariaAgent" /TR "\\"%CMDFILE%\\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F',
         'schtasks /Run /TN "ClickPortariaAgent"',
         'echo.',
         'echo Pronto! Agente instalado e rodando. Confira "Agente conectado" no portal.',

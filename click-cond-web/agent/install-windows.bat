@@ -25,7 +25,7 @@ REM senao o Windows nao deixa sobrescrever o .exe (arquivo em uso) e sobram
 REM duas versoes ativas.
 schtasks /End /TN "%TASK%" >nul 2>&1
 taskkill /F /IM click-agent.exe >nul 2>&1
-for /f "tokens=2" %%p in ('tasklist /FI "IMAGENNAME eq node.exe" /V /FO LIST 2^>nul ^| findstr /I "index.js"') do taskkill /F /PID %%p >nul 2>&1
+for /f "tokens=2" %%p in ('tasklist /FI "IMAGENNAME eq node.exe" /V /FO LIST 2^>nul ^| findstr /I "click-agent.cjs"') do taskkill /F /PID %%p >nul 2>&1
 REM Da um tempo para o Windows liberar o arquivo/porta.
 timeout /t 2 /nobreak >nul
 
@@ -36,12 +36,32 @@ if not exist "%~dp0.env" (
 
 echo === 2/4  Registrando tarefa "%TASK%" (inicia com o Windows) ===
 REM A tarefa roda um wrapper .cmd (nao o exe direto) para o console do agente
-REM ficar gravado em agent-service.log — sem isso o agente roda como SYSTEM e
+REM ficar gravado em agent-service.log - sem isso o agente roda como SYSTEM e
 REM os logs somem, impossibilitando diagnosticar recuperacao offline/enroll.
+REM O .cmd tem um laco (":loop" / "goto loop"): se o agente cair (crash,
+REM atualizacao) ele volta a subir sozinho - sem o laco, a atualizacao
+REM automatica (atualizador.js) nunca troca o exe, porque trocar e sair sem
+REM ninguem reiniciar deixaria a maquina sem agente rodando.
 (
 echo @echo off
 echo cd /d "%%~dp0"
+echo:
+echo :loop
+echo REM Recuperacao: se a atualizacao trocou o exe e o processo morreu no meio
+echo REM dos dois renames, so sobra o click-agent.old.exe no disco.
+echo if not exist "%%~dp0click-agent.exe" if exist "%%~dp0click-agent.old.exe" ^(
+echo   ren "%%~dp0click-agent.old.exe" "click-agent.exe"
+echo ^)
+echo:
+echo REM Confia no repositorio de certificados do Windows - redes de condominio
+echo REM as vezes tem antivirus que inspeciona HTTPS.
+echo set "NODE_USE_SYSTEM_CA=1"
 echo "%%~dp0click-agent.exe" ^>^> "%%~dp0agent-service.log" 2^>^&1
+echo:
+echo REM "timeout" falha na hora sem console de verdade ^(tarefa SYSTEM, sem
+echo REM sessao interativa^) e viraria busy-loop; "ping" nao depende de console.
+echo ping -n 6 127.0.0.1 ^>nul
+echo goto loop
 ) > "%~dp0run-agent-service.cmd"
 schtasks /Create /TN "%TASK%" /TR "\"%~dp0run-agent-service.cmd\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
 if errorlevel 1 (

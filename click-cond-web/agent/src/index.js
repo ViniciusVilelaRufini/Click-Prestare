@@ -52,6 +52,7 @@ const {
 const { Supervisor } = require('./core/supervisor');
 const { iniciarTelemetria } = require('./core/telemetria');
 const { criarAtualizador } = require('./core/atualizador');
+const { rotacionarLogSeGrande } = require('./core/log-rotativo');
 const { resolverDriver } = require('./drivers/registro');
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
@@ -144,6 +145,13 @@ const temConfig = () => API_URL && (AGENT_TOKEN || DEVICE_TOKENS.length > 0);
 main();
 
 async function main() {
+  // Rotação do log de serviço (tarefa 9): confere ANTES de qualquer coisa
+  // que escreva no console — o run-agent-service.cmd redireciona stdout/
+  // stderr pro agent-service.log em modo append pra sempre (nunca trunca
+  // sozinho), então essa checagem é o único ponto que evita o arquivo
+  // crescer sem limite numa máquina que fica ligada meses.
+  rotacionarLogSeGrande();
+
   // Auto-atualização (tarefa 8): confere ANTES de tudo, mesmo sem config —
   // se esta é uma versão que acabou de ser trocada e já falhou 3 vezes
   // seguidas em completar um poll, reverte para a anterior e sai, em vez de
