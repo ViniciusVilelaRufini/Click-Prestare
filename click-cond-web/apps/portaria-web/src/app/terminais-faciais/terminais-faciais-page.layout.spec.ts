@@ -34,6 +34,8 @@ describe('TerminaisFaciaisPageComponent — agente e sincronização', () => {
             agentInfo: jest.fn(() => of({ agent_token: 'teste', download_url: null })),
             agentSaude: jest.fn(() => of(null)),
             health: jest.fn(() => of({ terminais: { total: 0, offline: [], semReporteRecente: [] }, agente: { online: true, lastSeenAt: null }, fantasmas: { ultimaVarreduraEm: null, removidosHoje: 0, eventosHoje: [] } })),
+            descobertos: jest.fn(() => of({ recebido_em: null, achados: [], avisos: [] })),
+            procurarDescobertos: jest.fn(() => of({ ok: true })),
             ...apiOverrides,
           },
         },

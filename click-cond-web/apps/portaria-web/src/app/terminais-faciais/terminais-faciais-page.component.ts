@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import {
   AgentTelemetria,
   AgentTelemetriaDispositivo,
+  AparelhoEncontrado,
+  AvisoIpCorrigido,
   CreateTerminalFacial,
   FacialHealth,
   FacialSyncStatus,
@@ -139,6 +141,16 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   // Telemetria do agente (tarefa 7): versão, SO, saúde por device, fila offline.
   readonly agentTelemetria = signal<AgentTelemetria | null>(null);
+
+  // Aparelhos achados pela varredura da LAN do agente (etapa 3) + avisos de IP corrigido.
+  readonly descobertos = signal<{
+    recebido_em: string | null;
+    achados: AparelhoEncontrado[];
+    avisos: AvisoIpCorrigido[];
+  } | null>(null);
+  readonly procurando = signal(false);
+  /** Momento do clique em "Procurar na rede" — usado para saber se o resultado que chegou é posterior ao pedido. */
+  private procuraPedidaEm: number | null = null;
 
   /** Há uma versão do agente mais nova que a instalada (tarefa 8 preenche `versao_disponivel`). */
   readonly atualizacaoDisponivel = computed(() => {
@@ -295,6 +307,50 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  loadDescobertos() {
+    this.api.descobertos().subscribe({
+      next: (d) => {
+        this.descobertos.set(d);
+        // O pedido de "Procurar na rede" só termina quando chega um resultado
+        // mais novo que o clique — evita marcar "concluído" com um resultado
+        // antigo que já estava em cache.
+        if (
+          this.procuraPedidaEm != null &&
+          d.recebido_em &&
+          new Date(d.recebido_em).getTime() >= this.procuraPedidaEm
+        ) {
+          this.procurando.set(false);
+        }
+      },
+      error: () => this.procurando.set(false),
+    });
+  }
+
+  /** Abre o cadastro já preenchido com o que a varredura achou (sem senha — nunca vem da LAN). */
+  abrirCadastroDe(a: AparelhoEncontrado) {
+    this.editingId.set(null);
+    this.form = {
+      ...this.emptyForm(),
+      tipo: 'facial',
+      fabricante: a.fabricante,
+      modelo: a.modelo ?? '',
+      ip: a.ip,
+      porta: a.porta,
+      mac: a.mac,
+      numero_serie: a.numero_serie,
+    };
+    this.showModal.set(true);
+  }
+
+  /** Pede ao agente uma nova varredura da LAN; o resultado chega pelo polling de `loadDescobertos()`. */
+  procurarNaRede() {
+    this.procurando.set(true);
+    this.procuraPedidaEm = Date.now();
+    this.api.procurarDescobertos().subscribe({
+      error: () => this.procurando.set(false),
+    });
+  }
+
   /** "há 3 min" / "há 2h" — para last-seen do agente e da varredura de fantasmas. */
   tempoRelativo(iso: string | null): string {
     if (!iso) return 'sem registro';
@@ -446,12 +502,14 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.loadAgentInfo();
     this.loadHealth();
     this.loadAgentTelemetria();
+    this.loadDescobertos();
     // Atualiza o status online/offline dos aparelhos a cada 15s (silencioso),
     // refletindo o heartbeat do agente sem o operador clicar "Testar Conexão".
     this.statusInterval = setInterval(() => {
       this.load(true);
       this.loadHealth();
       this.loadAgentTelemetria();
+      this.loadDescobertos();
     }, 15_000);
   }
 
@@ -771,6 +829,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       api_password: '',
       id_area_social: null,
       controle_acesso_facial: false,
+      mac: null,
+      numero_serie: null,
     };
   }
 
@@ -895,6 +955,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       porta: Number(this.form.porta) || 80,
       api_user: this.form.api_user || undefined,
       api_password: this.form.api_password || undefined,
+      mac: this.form.mac ?? undefined,
+      numero_serie: this.form.numero_serie ?? undefined,
       id_area_social: this.mostrarArea
         ? (this.form.id_area_social ? Number(this.form.id_area_social) : null)
         : null,
