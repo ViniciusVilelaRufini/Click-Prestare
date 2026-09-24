@@ -263,6 +263,96 @@ test('Supervisor exige resolverDriver()', () => {
   assert.throws(() => new Supervisor({}), /resolverDriver/);
 });
 
+test('Supervisor rejeita chave de opção desconhecida (ex.: "aoConectar" em vez de "aoRecuperarOffline")', () => {
+  // Regressão: index.js passava `aoConectar` (nome do parâmetro do contrato
+  // de driver, não da opção do Supervisor) — o construtor aceitava calado,
+  // o fast-path de recuperação ficava morto porque `aoRecuperarOffline`
+  // continuava no default no-op. Este teste falha na hora se o erro
+  // voltar, em vez de só silenciosamente não fazer nada.
+  assert.throws(
+    () => new Supervisor({ resolverDriver: () => null, aoConectar: () => {} }),
+    /opção desconhecida "aoConectar"/,
+  );
+});
+
+test('aoRecuperarOffline falhando: registra o erro em saude().ultimo_erro (não some calado)', async () => {
+  const driver = {
+    id: 'fake-facial',
+    escutar(device, aoEvento, { aoConectar }) {
+      aoConectar();
+      return () => {};
+    },
+  };
+  const supervisor = new Supervisor({
+    resolverDriver: () => driver,
+    aoRecuperarOffline: () => Promise.reject(new Error('nuvem fora do ar')),
+    log: logMudo,
+  });
+  const device = deviceFacial(12);
+  supervisor.atualizar([device]);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.match(supervisor.saude(device.id).ultimo_erro, /nuvem fora do ar/);
+});
+
+test('acertarRelogio falhando (ao conectar OU no acerto periódico): loga e registra em saude().ultimo_erro, não some calado', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const erros = [];
+  const log = { log: () => {}, error: (m) => erros.push(m) };
+  let chamadas = 0;
+  const driver = {
+    id: 'fake-facial',
+    escutar(device, aoEvento, { aoConectar }) {
+      aoConectar();
+      return () => {};
+    },
+    acertarRelogio() {
+      chamadas++;
+      return Promise.reject(new Error(`falha relogio #${chamadas}`));
+    },
+  };
+  const supervisor = new Supervisor({ resolverDriver: () => driver, log });
+  const device = deviceFacial(13);
+  supervisor.atualizar([device]);
+
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.match(supervisor.saude(device.id).ultimo_erro, /falha relogio #1/, 'erro do acerto ao conectar (force)');
+  assert.ok(erros.some((m) => m.includes('falha ao acertar relógio')), 'logou o erro ao conectar');
+
+  erros.length = 0;
+  t.mock.timers.tick(CLOCK_SYNC_INTERVAL_MS);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.match(supervisor.saude(device.id).ultimo_erro, /falha relogio #2/, 'erro do acerto periódico');
+  assert.ok(erros.some((m) => m.includes('falha ao acertar relógio')), 'logou o erro periódico');
+});
+
+test('parar(): cancela o acerto de relógio periódico (não continua batendo depois de parado)', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  let chamadas = 0;
+  const driver = {
+    id: 'fake-facial',
+    escutar(device, aoEvento, { aoConectar }) {
+      aoConectar();
+      return () => {};
+    },
+    acertarRelogio() {
+      chamadas++;
+      return Promise.resolve();
+    },
+  };
+  const supervisor = new Supervisor({ resolverDriver: () => driver, log: logMudo });
+  const device = deviceFacial(14);
+  supervisor.atualizar([device]);
+  assert.equal(chamadas, 1, 'acerto imediato ao conectar');
+
+  supervisor.atualizar([]); // device removido da lista -> parar()
+
+  t.mock.timers.tick(CLOCK_SYNC_INTERVAL_MS * 3);
+  assert.equal(chamadas, 1, 'nenhum acerto periódico depois de parar()');
+});
+
 test('saudeTodos(): lista a saúde de todos os devices rastreados', () => {
   const driver = { id: 'fake-facial', escutar: () => () => {} };
   const supervisor = new Supervisor({ resolverDriver: () => driver, log: logMudo });

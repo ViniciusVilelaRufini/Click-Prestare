@@ -195,14 +195,15 @@ async function runCondoLoop(token) {
 
   // Um SupervisorDispositivo por device: resolve o driver, assina `escutar`
   // (uma vez) e reconecta sozinho (espera crescente) se a assinatura falhar.
-  // `aoConectar` é o fast-path já existente: o STREAM reabre periodicamente
+  // `aoRecuperarOffline` é chamado pelo Supervisor toda vez que o driver
+  // conecta (é o fast-path já existente) — o STREAM reabre periodicamente
   // por conta própria (não é sinal de queda de verdade — ver comentário no
-  // driver Dahua/Intelbras), então só age quando o HEARTBEAT (abaixo) já
-  // tinha marcado o device como offline.
+  // driver Dahua/Intelbras), então este callback só age quando o HEARTBEAT
+  // (abaixo) já tinha marcado o device como offline.
   const supervisor = new Supervisor({
     resolverDriver,
     aoEvento: (device, data) => forwardAccessEvent(token, device, data),
-    aoConectar: (device) => {
+    aoRecuperarOffline: (device) => {
       if (lastDeviceOnline.get(device.id) === false) {
         lastDeviceOnline.set(device.id, true);
         console.log(

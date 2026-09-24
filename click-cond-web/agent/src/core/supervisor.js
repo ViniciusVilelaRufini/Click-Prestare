@@ -109,7 +109,9 @@ class SupervisorDispositivo {
       this._reconnectTimer = null;
     }
     if (this.driver.acertarRelogio) {
-      Promise.resolve(this.driver.acertarRelogio(this.device, true)).catch(() => {});
+      Promise.resolve(this.driver.acertarRelogio(this.device, true)).catch((err) =>
+        this._registrarErroAcertoDeRelogio(err),
+      );
     }
     this._agendarAcertoDeRelogioPeriodico();
     Promise.resolve(this._aoRecuperarOffline(this.device)).catch((err) =>
@@ -125,7 +127,9 @@ class SupervisorDispositivo {
     if (!this.driver.acertarRelogio) return;
     this._clockSyncTimer = setInterval(() => {
       if (this._parado) return;
-      Promise.resolve(this.driver.acertarRelogio(this.device)).catch(() => {});
+      Promise.resolve(this.driver.acertarRelogio(this.device)).catch((err) =>
+        this._registrarErroAcertoDeRelogio(err),
+      );
     }, CLOCK_SYNC_INTERVAL_MS);
     this._clockSyncTimer.unref?.();
   }
@@ -147,6 +151,16 @@ class SupervisorDispositivo {
 
   _registrarErro(err) {
     this._ultimoErro = (err && err.message) || String(err);
+  }
+
+  /** `acertarRelogio` falhando não pode sumir calado — igual a
+   *  `_aoRecuperarOffline`, alimenta `saude().ultimo_erro` (telemetria da
+   *  tarefa 7) e loga, em vez do `.catch(() => {})` mudo de antes. */
+  _registrarErroAcertoDeRelogio(err) {
+    this._registrarErro(err);
+    this._log.error(
+      `[agente] ${this.device.nome}: falha ao acertar relógio: ${(err && err.message) || err}`,
+    );
   }
 
   /** Para o ouvinte e cancela timers pendentes — chamado quando o device
@@ -176,8 +190,24 @@ class SupervisorDispositivo {
 /** Um SupervisorDispositivo por device ativo. `atualizar(devices)` é
  *  chamado a cada ciclo de poll com a lista atual — cria o que é novo, para
  *  (`parar()`) o que saiu da lista. */
+const OPCOES_CONHECIDAS = new Set(['resolverDriver', 'aoRecuperarOffline', 'aoEvento', 'log']);
+
 class Supervisor {
-  constructor({ resolverDriver, aoRecuperarOffline, aoEvento, log } = {}) {
+  constructor(opcoes = {}) {
+    // Rede de segurança contra erro de digitação na chave (ex.: `aoConectar`
+    // em vez de `aoRecuperarOffline`): sem isso, a opção some em silêncio —
+    // o construtor aceita, mas o callback nunca é chamado — e o fast-path de
+    // recuperação fica morto sem nenhum aviso (foi exatamente o que
+    // aconteceu aqui: index.js passava `aoConectar`, este construtor
+    // ignorava, `aoRecuperarOffline` ficava no default no-op).
+    for (const chave of Object.keys(opcoes)) {
+      if (!OPCOES_CONHECIDAS.has(chave)) {
+        throw new Error(
+          `Supervisor: opção desconhecida "${chave}" (esperado: ${[...OPCOES_CONHECIDAS].join(', ')})`,
+        );
+      }
+    }
+    const { resolverDriver, aoRecuperarOffline, aoEvento, log } = opcoes;
     if (typeof resolverDriver !== 'function') {
       throw new Error('Supervisor requer resolverDriver(device)');
     }
