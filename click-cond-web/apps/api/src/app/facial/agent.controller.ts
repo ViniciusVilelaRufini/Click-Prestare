@@ -7,6 +7,7 @@ import {
   normalizarFabricante,
 } from './facial.service';
 import { AgentBridgeService, AgentResult } from './agent-bridge.service';
+import type { AgentTelemetriaPayload } from './agent-bridge.service';
 
 /**
  * Endpoints consumidos pelo Agente Local (ver agent/ e AgentBridgeService).
@@ -152,5 +153,22 @@ export class AgentController {
   ) {
     const idCondominio = await this.service.resolveCondominioForAgent(token);
     return this.service.reportDeviceStatuses(idCondominio, body?.statuses ?? []);
+  }
+
+  /**
+   * Telemetria do agente (tarefa 7): versão, SO, saúde por device e fila
+   * offline pendente — enviada a cada ~60s (ver agent/src/core/telemetria.js).
+   * Guarda a última foto no AgentBridgeService; o portal lê pelo
+   * GET facial/agent/saude (FacialController, só para operador).
+   */
+  @Public()
+  @Post('condo/:token/telemetria')
+  async condoTelemetria(
+    @Param('token') token: string,
+    @Body() body: AgentTelemetriaPayload,
+  ) {
+    const idCondominio = await this.service.resolveCondominioForAgent(token);
+    this.bridge.setTelemetria(idCondominio, body);
+    return { ok: true };
   }
 }

@@ -94,6 +94,30 @@ export interface FacialHealth {
   };
 }
 
+/** Saúde de UM device, no formato que `Supervisor.saude()` do agente monta. */
+export interface AgentTelemetriaDispositivo {
+  id: number;
+  driver: string | null;
+  online: boolean;
+  ultimo_evento_em: string | null;
+  ultimo_erro: string | null;
+}
+
+/**
+ * Última telemetria do Agente Local (tarefa 7): versão, SO, saúde por
+ * device e fila offline pendente. `versao_disponivel` vem `null` até a
+ * tarefa 8 (checagem de versão nova) preenchê-la.
+ */
+export interface AgentTelemetria {
+  recebido_em: string | null;
+  versao: string | null;
+  so: string | null;
+  iniciado_em: string | null;
+  dispositivos: AgentTelemetriaDispositivo[];
+  eventos_pendentes: number | null;
+  versao_disponivel: string | null;
+}
+
 export interface SyncPessoa {
   tipo: 'morador' | 'visitante';
   categoria: string; // morador | funcionario | visitante | prestador
@@ -252,6 +276,12 @@ export class TerminaisFaciaisApi {
       `${this.base}/agent/info`,
       { params },
     );
+  }
+
+  /** Última telemetria do agente (versão, SO, saúde por device, fila offline). */
+  agentSaude(): Observable<AgentTelemetria> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    return this.http.get<AgentTelemetria>(`${this.base}/agent/saude`, { params });
   }
 
   /** Baixa o arquivo de config do agente já personalizado (.env ou instalar.bat). */

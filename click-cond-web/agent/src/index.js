@@ -43,13 +43,14 @@ const {
   loadBaselines,
   setBaseline,
 } = require('./core/estado');
-const { enqueueOfflineEvent, flushOfflineEvents } = require('./core/fila-offline');
+const { enqueueOfflineEvent, flushOfflineEvents, pendentes } = require('./core/fila-offline');
 const {
   configurar: configurarNuvem,
   cloudRequest,
   agoraDaNuvem,
 } = require('./core/nuvem');
 const { Supervisor } = require('./core/supervisor');
+const { iniciarTelemetria } = require('./core/telemetria');
 const { resolverDriver } = require('./drivers/registro');
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
@@ -99,6 +100,16 @@ controlidFacial.configurar({ lanTimeoutMs: LAN_TIMEOUT_MS });
 const DEVICE_STATUS_INTERVAL_MS = Number(
   process.env.DEVICE_STATUS_INTERVAL_MS || 5000,
 );
+// Intervalo da telemetria (versão + saúde por device + fila offline) —
+// produção usa o default de 60s; o harness passa um valor curto via env
+// para não esperar um minuto inteiro pelo cenário (ver core/telemetria.js).
+const TELEMETRIA_INTERVAL_MS = Number(
+  process.env.TELEMETRIA_INTERVAL_MS || 60000,
+);
+// Hora de início do processo — vai na telemetria (`iniciado_em`) para o
+// portal saber há quanto tempo o agente está de pé, sem depender do relógio
+// desta máquina (que pode estar desviado — ver core/nuvem.js).
+const INICIADO_EM = new Date().toISOString();
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
 // Ciclo de vida do ouvinte de eventos por device (assina uma vez, reconecta
@@ -214,6 +225,17 @@ async function runCondoLoop(token) {
         );
       }
     },
+  });
+
+  // Telemetria (tarefa 7): versão + SO + saúde por device (supervisor.saudeTodos())
+  // + fila offline pendente, a cada TELEMETRIA_INTERVAL_MS — alimenta o card do
+  // agente no portal (GET facial/agent/saude). Modo condomínio só: é o único que
+  // tem `supervisor` (o modo legado por device não o usa).
+  iniciarTelemetria(token, {
+    supervisor,
+    pendentes,
+    iniciadoEm: INICIADO_EM,
+    intervaloMs: TELEMETRIA_INTERVAL_MS,
   });
 
   // eslint-disable-next-line no-constant-condition

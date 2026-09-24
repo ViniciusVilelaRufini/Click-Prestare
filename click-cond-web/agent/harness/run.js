@@ -83,6 +83,7 @@ const filaComandos = new Map([[10, []], [20, []], [30, []], [40, []]]);
 const resultados = new Map(); // commandId -> result
 const eventos = [];
 const statusRecebidos = [];
+const telemetrias = []; // payloads recebidos em POST condo/:token/telemetria
 let proximoCmd = 1;
 
 function enfileirar(deviceId, cmd) {
@@ -124,6 +125,10 @@ function criarNuvem() {
       }
       if (p === `/api/facial/agent/condo/${TOKEN}/device-status`) {
         statusRecebidos.push(...(body.statuses || []));
+        return json({ ok: true });
+      }
+      if (p === `/api/facial/agent/condo/${TOKEN}/telemetria`) {
+        telemetrias.push(body);
         return json({ ok: true });
       }
       res.writeHead(404);
@@ -275,6 +280,7 @@ async function main() {
       AGENT_TOKEN: TOKEN,
       POLL_INTERVAL_MS: '300',
       DEVICE_STATUS_INTERVAL_MS: '1000',
+      TELEMETRIA_INTERVAL_MS: '1000',
       LAN_TIMEOUT_MS: '5000',
       LIVEVIEW_PORT: '8799',
     },
@@ -699,6 +705,26 @@ async function main() {
     checar(
       'lpr/intelbras: agente loga "sem driver" (uma vez) em vez de tentar assinar',
       logAgente.join('').includes(`sem driver para ${DEVICES[40].tipo}/${DEVICES[40].fabricante}`),
+    );
+
+    // ===== Telemetria (tarefa 7) =====
+    // TELEMETRIA_INTERVAL_MS=1000 no spawn do agente — não precisa esperar o
+    // 1min de produção para o cenário confirmar que a telemetria chegou.
+    checar('telemetria: chegou ao menos uma vez', telemetrias.length > 0, JSON.stringify(telemetrias.slice(0, 1)));
+    const ultimaTelemetria = telemetrias[telemetrias.length - 1];
+    checar('telemetria: traz a versão do agente', typeof ultimaTelemetria?.versao === 'string' && ultimaTelemetria.versao.length > 0, JSON.stringify(ultimaTelemetria));
+    checar('telemetria: traz o SO (os.platform()+release())', typeof ultimaTelemetria?.so === 'string' && ultimaTelemetria.so.length > 0, ultimaTelemetria?.so);
+    checar('telemetria: traz iniciado_em', typeof ultimaTelemetria?.iniciado_em === 'string' && ultimaTelemetria.iniciado_em.length > 0, ultimaTelemetria?.iniciado_em);
+    checar(
+      'telemetria: traz os dispositivos com saúde (id/driver/online)',
+      Array.isArray(ultimaTelemetria?.dispositivos) &&
+        ultimaTelemetria.dispositivos.some((d) => d.id === 10 && d.driver === 'hikvision-facial' && d.online === true),
+      JSON.stringify(ultimaTelemetria?.dispositivos),
+    );
+    checar(
+      'telemetria: número (não string) de eventos_pendentes',
+      typeof ultimaTelemetria?.eventos_pendentes === 'number',
+      String(ultimaTelemetria?.eventos_pendentes),
     );
   } finally {
     agente.kill();

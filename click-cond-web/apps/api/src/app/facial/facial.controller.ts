@@ -25,8 +25,9 @@ import { MockRelayService } from './mock-relay.service';
 import { CategoriaPessoa } from './access-rules.util';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertTenantStrict, requireTenant } from '../auth/tenant.util';
+import { assertOperador, assertTenantStrict, requireTenant } from '../auth/tenant.util';
 import { timingSafeEqual } from 'crypto';
+import { AgentBridgeService } from './agent-bridge.service';
 
 /**
  * Confere o token compartilhado das rotas server-to-server (`internal/*`).
@@ -56,7 +57,10 @@ const API_URL_PUBLICA_PADRAO = 'https://api.clickprestarecondominios.com.br';
 
 @Controller('facial')
 export class FacialController {
-  constructor(private readonly service: FacialService) {}
+  constructor(
+    private readonly service: FacialService,
+    private readonly bridge: AgentBridgeService,
+  ) {}
 
   @Get('devices')
   list(
@@ -282,6 +286,42 @@ export class FacialController {
       `agente do condomínio ${idCondominio}`,
     );
     return this.service.getAgentInfo(idCondominio);
+  }
+
+  /**
+   * Telemetria do Agente Local (tarefa 7): versão, SO, saúde por device e
+   * fila offline pendente — a última foto que o agente mandou (POST
+   * condo/:token/telemetria, ver AgentController), guardada em memória no
+   * AgentBridgeService. `versao_disponivel` vem null até a tarefa 8 (checagem
+   * de versão nova) preenchê-la.
+   *
+   * Mesmo tenant check de agent/info, mas só para OPERADOR (síndico/porteiro):
+   * agent/info não tinha essa checagem porque só devolve a chave do agente,
+   * que o próprio operador usa para instalar — aqui é saúde operacional do
+   * condomínio inteiro, sem razão para um morador ver.
+   */
+  @Get('agent/saude')
+  agentSaude(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertTenantStrict(
+      idCondominio,
+      user,
+      `saúde do agente do condomínio ${idCondominio}`,
+    );
+    assertOperador(user, 'ver a saúde do agente local');
+    const telemetria = this.bridge.getTelemetria(idCondominio);
+    return {
+      recebido_em: telemetria?.recebido_em ?? null,
+      versao: telemetria?.versao ?? null,
+      so: telemetria?.so ?? null,
+      iniciado_em: telemetria?.iniciado_em ?? null,
+      dispositivos: telemetria?.dispositivos ?? [],
+      eventos_pendentes: telemetria?.eventos_pendentes ?? null,
+      // Tarefa 8 preenche comparando com a versão publicada.
+      versao_disponivel: null as string | null,
+    };
   }
 
   @Get('agent/config')

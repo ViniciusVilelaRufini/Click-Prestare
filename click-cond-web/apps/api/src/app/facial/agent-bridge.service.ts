@@ -66,6 +66,8 @@ export class AgentBridgeService {
   private readonly pending = new Map<string, PendingCommand>();
   /** deviceId → fila de commandIds ainda não entregues no poll. */
   private readonly queue = new Map<number, string[]>();
+  /** idCondominio → última telemetria recebida do Agente Local (tarefa 7). */
+  private readonly telemetria = new Map<number, AgentTelemetria>();
 
   /** Registra que o agente desse device fez polling agora. */
   heartbeat(deviceId: number): void {
@@ -202,6 +204,25 @@ export class AgentBridgeService {
     this.pending.delete(commandId);
     p.resolve(result);
   }
+
+  /**
+   * Chamado pelo agente (POST condo/:token/telemetria, ~1x/min) para
+   * atualizar o retrato de saúde do condomínio: versão, SO, saúde por
+   * device e fila offline pendente. Em memória, como o resto desta classe
+   * (ver comentário "ESTADO EM MEMÓRIA" acima) — reiniciar o backend só
+   * apaga a última foto, o agente manda outra no próximo ciclo.
+   */
+  setTelemetria(idCondominio: number, payload: AgentTelemetriaPayload): void {
+    this.telemetria.set(idCondominio, {
+      recebido_em: new Date().toISOString(),
+      ...payload,
+    });
+  }
+
+  /** Última telemetria do condomínio, ou null se o agente nunca reportou. */
+  getTelemetria(idCondominio: number): AgentTelemetria | null {
+    return this.telemetria.get(idCondominio) ?? null;
+  }
 }
 
 export type AgentCommandType =
@@ -245,4 +266,27 @@ interface PendingCommand {
   deviceId: number;
   resolve: (r: AgentResult) => void;
   timer: ReturnType<typeof setTimeout>;
+}
+
+/** Saúde de UM device, no formato que `Supervisor.saude()` do agente monta. */
+export interface AgentTelemetriaDispositivo {
+  id: number;
+  driver: string | null;
+  online: boolean;
+  ultimo_evento_em: string | null;
+  ultimo_erro: string | null;
+}
+
+/** Corpo de POST condo/:token/telemetria (ver agent/src/core/telemetria.js). */
+export interface AgentTelemetriaPayload {
+  versao: string;
+  so: string;
+  iniciado_em: string;
+  dispositivos: AgentTelemetriaDispositivo[];
+  eventos_pendentes: number;
+}
+
+/** O que fica guardado por condomínio: o payload do agente + quando chegou. */
+export interface AgentTelemetria extends AgentTelemetriaPayload {
+  recebido_em: string;
 }

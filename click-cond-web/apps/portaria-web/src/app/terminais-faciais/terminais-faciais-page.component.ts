@@ -2,6 +2,8 @@ import { Component, OnDestroy, OnInit, computed, inject, signal, Input } from '@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
+  AgentTelemetria,
+  AgentTelemetriaDispositivo,
   CreateTerminalFacial,
   FacialHealth,
   FacialSyncStatus,
@@ -109,6 +111,22 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   // Painel de saúde: terminais offline, status do agente, varredura de rostos órfãos.
   readonly health = signal<FacialHealth | null>(null);
+
+  // Telemetria do agente (tarefa 7): versão, SO, saúde por device, fila offline.
+  readonly agentTelemetria = signal<AgentTelemetria | null>(null);
+
+  /** Há uma versão do agente mais nova que a instalada (tarefa 8 preenche `versao_disponivel`). */
+  readonly atualizacaoDisponivel = computed(() => {
+    const t = this.agentTelemetria();
+    return !!(t?.versao_disponivel && t.versao && t.versao_disponivel > t.versao);
+  });
+
+  /** Saúde do device (driver/online/último erro) reportada pelo agente, casando por id. */
+  telemetriaDoDispositivo(deviceId: number): AgentTelemetriaDispositivo | null {
+    return (
+      this.agentTelemetria()?.dispositivos.find((d) => d.id === deviceId) ?? null
+    );
+  }
 
   /**
    * Uma fonte só para "agente conectado": a saúde do facial (com último
@@ -227,6 +245,13 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   loadHealth() {
     this.api.health().subscribe({
       next: (h) => this.health.set(h),
+      error: () => {},
+    });
+  }
+
+  loadAgentTelemetria() {
+    this.api.agentSaude().subscribe({
+      next: (t) => this.agentTelemetria.set(t),
       error: () => {},
     });
   }
@@ -381,9 +406,14 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.loadSyncStatus();
     this.loadAgentInfo();
     this.loadHealth();
+    this.loadAgentTelemetria();
     // Atualiza o status online/offline dos aparelhos a cada 15s (silencioso),
     // refletindo o heartbeat do agente sem o operador clicar "Testar Conexão".
-    this.statusInterval = setInterval(() => { this.load(true); this.loadHealth(); }, 15_000);
+    this.statusInterval = setInterval(() => {
+      this.load(true);
+      this.loadHealth();
+      this.loadAgentTelemetria();
+    }, 15_000);
   }
 
   ngOnDestroy(): void {
