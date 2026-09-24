@@ -52,6 +52,9 @@ const {
 const { Supervisor } = require('./core/supervisor');
 const { iniciarTelemetria } = require('./core/telemetria');
 const { criarAtualizador } = require('./core/atualizador');
+const { descobrir } = require('./descoberta');
+const { criarAgendador } = require('./descoberta/agendador');
+const { lerTabelaArp } = require('./descoberta/arp');
 const { resolverDriver, resolverDriverDeEventos } = require('./drivers/registro');
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
@@ -107,6 +110,26 @@ const DEVICE_STATUS_INTERVAL_MS = Number(
 const TELEMETRIA_INTERVAL_MS = Number(
   process.env.TELEMETRIA_INTERVAL_MS || 60000,
 );
+// Só para o harness/testes: substitui o multicast real por destinos unicast
+// ("dhip@127.0.0.1:47810,sadp@127.0.0.1:47020"). Vazio em produção.
+const DESCOBERTA_DESTINOS = String(process.env.DESCOBERTA_DESTINOS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .map((s) => {
+    const [protocolo, resto] = s.split('@');
+    const [host, porta] = String(resto || '').split(':');
+    return { protocolo, host, porta: Number(porta) };
+  })
+  .filter((d) => d.host && d.porta);
+// Só para o harness/testes: substitui a varredura HTTP real (254 GETs por
+// /24 em cada interface) por uma lista fixa de "host:porta" — senão o
+// cenário "Procurar na rede" varreria a LAN de verdade da máquina que roda
+// o harness. Vazio em produção.
+const DESCOBERTA_HOSTS_VARREDURA = String(process.env.DESCOBERTA_HOSTS_VARREDURA || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 // Hora de início do processo — vai na telemetria (`iniciado_em`) para o
 // portal saber há quanto tempo o agente está de pé, sem depender do relógio
 // desta máquina (que pode estar desviado — ver core/nuvem.js).
@@ -120,6 +143,7 @@ const INICIADO_EM = new Date().toISOString();
 const atualizador = criarAtualizador({ apiUrl: () => API_URL });
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
+const offlineDesde = new Map(); // deviceId → quando ficou offline (ms)
 // Ciclo de vida do ouvinte de eventos por device (assina uma vez, reconecta
 // com espera crescente se `escutar` falhar, para quando o device sai da
 // lista) fica em `supervisor` (criado dentro de `runCondoLoop`, ver
@@ -279,6 +303,28 @@ async function runCondoLoop(token) {
     intervaloMs: TELEMETRIA_INTERVAL_MS,
   });
 
+  // Etapa 3: descoberta na rede. Só lê (sem senha). O MAC dos devices
+  // cadastrados que estão online vai junto: é assim que a nuvem aprende o MAC
+  // de quem foi cadastrado antes desta versão, para reencontrá-lo se o IP mudar.
+  const agendadorDescoberta = criarAgendador({
+    descobrir: (o) =>
+      descobrir({
+        ...o,
+        destinos: DESCOBERTA_DESTINOS.length ? DESCOBERTA_DESTINOS : undefined,
+        hostsVarredura: DESCOBERTA_HOSTS_VARREDURA.length ? DESCOBERTA_HOSTS_VARREDURA : undefined,
+      }),
+    enviar: async (achados) => {
+      const arp = await lerTabelaArp();
+      const macs_cadastrados = lastDevices
+        .filter((d) => lastDeviceOnline.get(d.id) === true && arp.has(d.ip))
+        .map((d) => ({ id: d.id, mac: arp.get(d.ip) }));
+      await cloudRequest('POST', `/api/facial/agent/condo/${token}/descobertos`, {
+        achados,
+        macs_cadastrados,
+      }).catch((e) => console.error(`[agente] falha ao enviar descobertos: ${e.message || e}`));
+    },
+  });
+
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
@@ -312,6 +358,17 @@ async function runCondoLoop(token) {
       // que é novo (resolve driver, assina `escutar`), para (`parar()`) o
       // que saiu da lista (removido/desativado no portal).
       supervisor.atualizar((body.devices || []).map((entry) => entry.device));
+
+      // offlineDesde: tira os ids que saíram da lista atual (device removido/
+      // desativado no portal) — senão ficariam presos como "offline há muito
+      // tempo" para sempre e continuariam empurrando varredura na descoberta.
+      const idsAtuais = new Set((body.devices || []).map((entry) => entry.device.id));
+      for (const id of offlineDesde.keys()) if (!idsAtuais.has(id)) offlineDesde.delete(id);
+
+      // Descoberta na rede (etapa 3): dispara sem bloquear o laço do poll —
+      // o agendador decide sozinho se é hora (leve periódica, pedido do
+      // portal ou device offline há muito tempo — ver descoberta/agendador.js).
+      void agendadorDescoberta.tick({ pedidoDaNuvem: body.descobrir === true, offlineDesde });
 
       for (const entry of body.devices || []) {
         const device = entry.device;
@@ -351,12 +408,19 @@ async function runCondoLoop(token) {
               `[agente] ${device.nome}: aparelho ${online ? 'ONLINE' : 'OFFLINE'}`,
             );
             if (online) {
+              // Voltou: some do mapa (a descoberta olha `offlineDesde` para
+              // saber quem está caído há muito tempo — ver descoberta/agendador.js).
+              offlineDesde.delete(device.id);
               // Transição offline→online: recupera a janela que a stream perdeu
               // e acerta o relógio (ele deriva; ver dahuaFacial.acertarRelogio).
               syncDeviceOfflineLogs(token, device).catch((e) =>
                 console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e)
               );
               resolverDriverDeEventos(device)?.acertarRelogio?.(device, true)?.catch(() => {});
+            } else {
+              // Ficou offline agora: marca o instante para o agendador de
+              // descoberta considerar varredura se persistir por muito tempo.
+              offlineDesde.set(device.id, Date.now());
             }
           } else if (online) {
             // Online estável: só mantém a marca d'água atual (a stream já cobre
