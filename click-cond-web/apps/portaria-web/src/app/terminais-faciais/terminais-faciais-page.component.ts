@@ -13,6 +13,31 @@ import {
 } from './terminais-faciais.service';
 import { AreaSocial, AreasSociaisApi } from '../areas-sociais/areas-sociais.service';
 
+/**
+ * Compara versões do agente (`AAAA.MM.DD[.N]`) segmento a segmento,
+ * NUMERICAMENTE — mesmo algoritmo de `compararVersoes` no agente
+ * (agent/src/core/atualizador.js) e de `compararVersoesAgente` na API.
+ * Comparar como string erra ("2026.09.9" > "2026.09.10"). >0 = `a` mais nova.
+ */
+export function compararVersoesAgente(a: string, b: string): number {
+  const segmentos = (v: string) =>
+    String(v || '')
+      .split('.')
+      .map((n) => Number(n) || 0);
+  const sa = segmentos(a);
+  const sb = segmentos(b);
+  const tamanho = Math.max(sa.length, sb.length);
+  for (let i = 0; i < tamanho; i++) {
+    const diff = (sa[i] || 0) - (sb[i] || 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+/** Telemetria mais velha que isso (o agente manda a cada 60s) não representa
+ *  mais o estado dos aparelhos — os selos por device somem em vez de mentir. */
+export const TELEMETRIA_VALIDA_MS = 3 * 60 * 1000;
+
 @Component({
   selector: 'app-terminais-faciais-page',
   standalone: true,
@@ -118,11 +143,25 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   /** Há uma versão do agente mais nova que a instalada (tarefa 8 preenche `versao_disponivel`). */
   readonly atualizacaoDisponivel = computed(() => {
     const t = this.agentTelemetria();
-    return !!(t?.versao_disponivel && t.versao && t.versao_disponivel > t.versao);
+    return !!(
+      t?.versao_disponivel &&
+      t.versao &&
+      compararVersoesAgente(t.versao_disponivel, t.versao) > 0
+    );
   });
 
-  /** Saúde do device (driver/online/último erro) reportada pelo agente, casando por id. */
+  /** A telemetria chegou há no máximo TELEMETRIA_VALIDA_MS (avaliado na hora da chamada). */
+  telemetriaRecente(): boolean {
+    const recebidoEm = this.agentTelemetria()?.recebido_em;
+    if (!recebidoEm) return false;
+    const idadeMs = Date.now() - new Date(recebidoEm).getTime();
+    return Number.isFinite(idadeMs) && idadeMs <= TELEMETRIA_VALIDA_MS;
+  }
+
+  /** Saúde do device (driver/online/último erro) reportada pelo agente, casando
+   *  por id — null quando a telemetria está velha (agente parou de mandar). */
   telemetriaDoDispositivo(deviceId: number): AgentTelemetriaDispositivo | null {
+    if (!this.telemetriaRecente()) return null;
     return (
       this.agentTelemetria()?.dispositivos.find((d) => d.id === deviceId) ?? null
     );

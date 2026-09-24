@@ -1,6 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { TerminaisFaciaisPageComponent } from './terminais-faciais-page.component';
+import {
+  TELEMETRIA_VALIDA_MS,
+  TerminaisFaciaisPageComponent,
+  compararVersoesAgente,
+} from './terminais-faciais-page.component';
 import { AgentTelemetria, TerminaisFaciaisApi } from './terminais-faciais.service';
 import { AreasSociaisApi } from '../areas-sociais/areas-sociais.service';
 
@@ -34,8 +38,8 @@ describe('TerminaisFaciaisPageComponent — telemetria do agente', () => {
     so: 'win32 10.0.26100',
     iniciado_em: new Date().toISOString(),
     dispositivos: [
-      { id: 10, driver: 'hikvision-facial', online: true, ultimo_evento_em: null, ultimo_erro: null },
-      { id: 20, driver: 'control_id-facial', online: false, ultimo_erro: 'timeout ao reconectar', ultimo_evento_em: null },
+      { id: 10, driver: 'hikvision-facial', online: true, ouvinte_ativo: true, ultimo_evento_em: null, ultimo_erro: null },
+      { id: 20, driver: 'control_id-facial', online: false, ouvinte_ativo: true, ultimo_erro: 'timeout ao reconectar', ultimo_evento_em: null },
     ],
     eventos_pendentes: 3,
     versao_disponivel: null,
@@ -80,6 +84,52 @@ describe('TerminaisFaciaisPageComponent — telemetria do agente', () => {
     });
     tela.loadAgentTelemetria();
     expect(tela.atualizacaoDisponivel()).toBe(true);
+  });
+
+  it('atualizacaoDisponivel(): compara NUMERICAMENTE por segmento, não como string', () => {
+    // Como string, "2026.09.9" > "2026.09.10" e o selo apareceria para uma
+    // versão MAIS VELHA — e sumiria para a mais nova.
+    const maisNova = build({
+      agentSaude: jest.fn(() => of(telemetria({ versao: '2026.09.9', versao_disponivel: '2026.09.10' }))),
+    });
+    maisNova.loadAgentTelemetria();
+    expect(maisNova.atualizacaoDisponivel()).toBe(true);
+
+    TestBed.resetTestingModule();
+    const maisVelha = build({
+      agentSaude: jest.fn(() => of(telemetria({ versao: '2026.09.10', versao_disponivel: '2026.09.9' }))),
+    });
+    maisVelha.loadAgentTelemetria();
+    expect(maisVelha.atualizacaoDisponivel()).toBe(false);
+
+    TestBed.resetTestingModule();
+    const mesmaComSufixo = build({
+      agentSaude: jest.fn(() => of(telemetria({ versao: '2026.09.24', versao_disponivel: '2026.09.24.0' }))),
+    });
+    mesmaComSufixo.loadAgentTelemetria();
+    expect(mesmaComSufixo.atualizacaoDisponivel()).toBe(false);
+  });
+
+  it('compararVersoesAgente(): mesmo contrato do agente (>0, <0, 0)', () => {
+    expect(compararVersoesAgente('2026.10.01', '2026.09.30')).toBe(1);
+    expect(compararVersoesAgente('2026.09.24', '2026.09.24.1')).toBe(-1);
+    expect(compararVersoesAgente('2026.09.24', '2026.09.24.0')).toBe(0);
+  });
+
+  it('telemetriaDoDispositivo(): telemetria com mais de 3 min é ignorada (selos somem em vez de mentir)', () => {
+    const velha = new Date(Date.now() - TELEMETRIA_VALIDA_MS - 1000).toISOString();
+    const tela = build({ agentSaude: jest.fn(() => of(telemetria({ recebido_em: velha }))) });
+    tela.loadAgentTelemetria();
+    expect(tela.telemetriaRecente()).toBe(false);
+    expect(tela.telemetriaDoDispositivo(10)).toBeNull();
+  });
+
+  it('telemetriaDoDispositivo(): telemetria recente (< 3 min) continua valendo', () => {
+    const recente = new Date(Date.now() - 60 * 1000).toISOString();
+    const tela = build({ agentSaude: jest.fn(() => of(telemetria({ recebido_em: recente }))) });
+    tela.loadAgentTelemetria();
+    expect(tela.telemetriaRecente()).toBe(true);
+    expect(tela.telemetriaDoDispositivo(10)?.online).toBe(true);
   });
 
   it('atualizacaoDisponivel(): false quando já está na versão mais nova', () => {

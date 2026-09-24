@@ -94,11 +94,14 @@ export interface FacialHealth {
   };
 }
 
-/** Saúde de UM device, no formato que `Supervisor.saude()` do agente monta. */
+/** Saúde de UM device, no formato que a telemetria do agente monta:
+ *  `online` = último heartbeat (ping) do aparelho; `ouvinte_ativo` = a
+ *  assinatura de eventos faciais está aberta (false para LPR/catraca). */
 export interface AgentTelemetriaDispositivo {
   id: number;
   driver: string | null;
   online: boolean;
+  ouvinte_ativo: boolean;
   ultimo_evento_em: string | null;
   ultimo_erro: string | null;
 }
