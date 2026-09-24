@@ -1,4 +1,16 @@
-export const API_BASE = '/api';
+export function isLocalHost(hostname?: string): boolean {
+  if (typeof window === 'undefined' && !hostname) return true;
+  const host = hostname ?? window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+}
+
+export function shouldDirectToApi(hostname?: string): boolean {
+  return !isLocalHost(hostname);
+}
+
+export const API_BASE = (() => {
+  return isLocalHost() ? '/api' : 'https://api.clickprestarecondominios.com.br/api';
+})();
 
 /**
  * Origem do Socket.IO.
@@ -7,8 +19,5 @@ export const API_BASE = '/api';
  * Em desenvolvimento local, conecta na porta 3000.
  */
 export const REALTIME_ORIGIN = (() => {
-  if (typeof window === 'undefined') return '';
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  return isLocal ? 'http://localhost:3000' : 'https://api.clickprestarecondominios.com.br';
+  return isLocalHost() ? 'http://localhost:3000' : 'https://api.clickprestarecondominios.com.br';
 })();
-

@@ -9,6 +9,7 @@ import { ServerClockService } from '../core/server-clock.service';
 import { NetworkStatusService } from '../core/network-status.service';
 import { catchError, tap } from 'rxjs/operators';
 import { throwError } from 'rxjs';
+import { shouldDirectToApi } from '../shared/api.config';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
@@ -18,6 +19,15 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   if (token) {
     req = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
   }
+
+  // Em produção, direciona chamadas /api diretamente para api.clickprestarecondominios.com.br
+  // contornando o proxy reverso do Amplify para preservar o IP real do cliente.
+  if (shouldDirectToApi() && req.url.startsWith('/api')) {
+    req = req.clone({
+      url: `https://api.clickprestarecondominios.com.br${req.url}`,
+    });
+  }
+
   const enviadoEm = Date.now();
   return next(req).pipe(
     // Toda resposta carrega o header `Date` do servidor — de graça, mede o
