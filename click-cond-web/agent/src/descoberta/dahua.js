@@ -44,6 +44,10 @@ function interpretarRespostaDhip(buf) {
     numero_serie: typeof info.SerialNo === 'string' && info.SerialNo ? info.SerialNo : null,
     dhcp: typeof info.IPv4Address.DhcpEnable === 'boolean' ? info.IPv4Address.DhcpEnable : null,
     validado_em_campo: true,
+    // DeviceClass diz o que o aparelho É (BSC/ASC = controle de acesso; IPC,
+    // NVR... = câmera/gravador), para o portal não oferecer uma câmera como
+    // terminal facial.
+    classe: typeof info.DeviceClass === 'string' && info.DeviceClass ? info.DeviceClass : null,
   };
 }
 

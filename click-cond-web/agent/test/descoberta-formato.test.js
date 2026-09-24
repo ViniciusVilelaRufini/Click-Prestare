@@ -42,7 +42,7 @@ test('interpreta a resposta DHIP real do SS 3530 MF', () => {
   const a = dahua.interpretarRespostaDhip(comCabecalho(RESPOSTA_REAL));
   assert.deepStrictEqual(a, {
     mac: 'b4:4c:3b:f4:e3:01', ip: '192.168.3.175', porta: 80, fabricante: 'intelbras',
-    modelo: 'SS 3530 MF FACE W', numero_serie: 'K3LJ3400209RH', dhcp: true, validado_em_campo: true,
+    modelo: 'SS 3530 MF FACE W', numero_serie: 'K3LJ3400209RH', dhcp: true, validado_em_campo: true, classe: 'BSC',
   });
 });
 
@@ -55,7 +55,7 @@ test('interpreta ProbeMatch SADP (Hikvision, não validado em campo)', () => {
   const xml = '<?xml version="1.0" encoding="UTF-8"?><ProbeMatch><Uuid>X</Uuid><Types>inquiry</Types><DeviceType>135340</DeviceType><DeviceDescription>DS-K1T671M</DeviceDescription><DeviceSN>DS-K1T671M20210101AAWRF12345678</DeviceSN><CommandPort>8000</CommandPort><HttpPort>80</HttpPort><MAC>44-19-b6-aa-bb-cc</MAC><IPv4Address>192.168.3.64</IPv4Address><DHCP>false</DHCP></ProbeMatch>';
   assert.deepStrictEqual(hik.interpretarRespostaSadp(Buffer.from(xml)), {
     mac: '44:19:b6:aa:bb:cc', ip: '192.168.3.64', porta: 80, fabricante: 'hikvision',
-    modelo: 'DS-K1T671M', numero_serie: 'DS-K1T671M20210101AAWRF12345678', dhcp: false, validado_em_campo: false,
+    modelo: 'DS-K1T671M', numero_serie: 'DS-K1T671M20210101AAWRF12345678', dhcp: false, validado_em_campo: false, classe: null,
   });
   assert.strictEqual(hik.interpretarRespostaSadp(hik.montarProbeSadp('ABC')), null);
 });
@@ -79,10 +79,10 @@ test('interpreta a saída do arp -a do Windows', () => {
 });
 
 test('agruparPorMac funde o mesmo aparelho e mantém sem-MAC por IP', () => {
-  const base = { porta: 80, fabricante: 'intelbras', modelo: null, numero_serie: null, dhcp: null, validado_em_campo: true };
+  const base = { porta: 80, fabricante: 'intelbras', modelo: null, numero_serie: null, dhcp: null, validado_em_campo: true, classe: null };
   const r = agruparPorMac([
     { ...base, mac: 'b4:4c:3b:f4:e3:01', ip: '192.168.3.175' },
-    { ...base, mac: 'b4:4c:3b:f4:e3:01', ip: '192.168.3.175', modelo: 'SS 3530', numero_serie: 'K3' },
+    { ...base, mac: 'b4:4c:3b:f4:e3:01', ip: '192.168.3.175', modelo: 'SS 3530', numero_serie: 'K3', classe: 'BSC' },
     { ...base, mac: null, ip: '192.168.3.9', fabricante: 'control_id', validado_em_campo: false },
     { ...base, mac: null, ip: '192.168.3.9', fabricante: 'control_id', validado_em_campo: false },
   ]);
@@ -90,4 +90,5 @@ test('agruparPorMac funde o mesmo aparelho e mantém sem-MAC por IP', () => {
   const f = r.find((a) => a.mac);
   assert.strictEqual(f.modelo, 'SS 3530');
   assert.strictEqual(f.numero_serie, 'K3');
+  assert.strictEqual(f.classe, 'BSC');
 });

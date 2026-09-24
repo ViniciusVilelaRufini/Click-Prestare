@@ -25,6 +25,8 @@ const { agruparPorMac } = require('./formato');
 
 const CONCORRENCIA_HTTP = 32;
 const TIMEOUT_HTTP_MS = 800;
+const PRAZO_TOTAL_HTTP_MS = 2000;
+const LIMITE_CORPO = 20000;
 
 function interfacesLocais() {
   return Object.values(os.networkInterfaces())
@@ -98,14 +100,43 @@ function sondarUdp(destinos, esperaMs) {
 
 function getHttp(host, porta) {
   return new Promise((resolve) => {
-    const req = http.get({ host, port: porta, path: '/', timeout: TIMEOUT_HTTP_MS }, (res) => {
+    // Resolve uma vez só: timeout, erro, fim e corte por tamanho competem.
+    let feito = false;
+    let req = null;
+    let res = null;
+    const terminar = (valor) => {
+      if (feito) return;
+      feito = true;
+      clearTimeout(prazo);
+      if (res) res.destroy();
+      if (req) req.destroy();
+      resolve(valor);
+    };
+    // Prazo TOTAL: o `timeout` do http.get é só de ociosidade — um aparelho
+    // que manda um byte a cada segundo (ou cabeçalho e nada mais depois de
+    // aberta a resposta) prenderia o trabalhador da varredura para sempre.
+    const prazo = setTimeout(() => terminar(null), PRAZO_TOTAL_HTTP_MS);
+    req = http.get({ host, port: porta, path: '/', timeout: TIMEOUT_HTTP_MS }, (r) => {
+      res = r;
       let corpo = '';
-      res.setEncoding('latin1');
-      res.on('data', (c) => { if (corpo.length < 20000) corpo += c; });
-      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, corpo }));
+      const resposta = () => ({ status: r.statusCode, headers: r.headers, corpo });
+      r.setEncoding('latin1');
+      r.on('data', (c) => {
+        corpo += c;
+        // 20 KB bastam para reconhecer a página; o resto nem é lido.
+        if (corpo.length >= LIMITE_CORPO) {
+          corpo = corpo.slice(0, LIMITE_CORPO);
+          terminar(resposta());
+        }
+      });
+      r.on('end', () => terminar(resposta()));
+      // Conexão cortada no meio da resposta: sem isto a promessa ficava pendente.
+      r.on('aborted', () => terminar(null));
+      r.on('error', () => terminar(null));
+      r.on('close', () => terminar(r.complete ? resposta() : null));
     });
-    req.on('timeout', () => req.destroy());
-    req.on('error', () => resolve(null));
+    req.on('timeout', () => terminar(null));
+    req.on('error', () => terminar(null));
   });
 }
 
@@ -120,7 +151,7 @@ async function varrerHttp(hostsVarredura) {
       const { host, porta } = alvos[proximo++];
       const r = await getHttp(host, porta);
       if (r && cid.pareceControlId(r)) {
-        achados.push({ mac: null, ip: host, porta, fabricante: 'control_id', modelo: null, numero_serie: null, dhcp: null, validado_em_campo: false });
+        achados.push({ mac: null, ip: host, porta, fabricante: 'control_id', modelo: null, numero_serie: null, dhcp: null, validado_em_campo: false, classe: null });
       }
     }
   }

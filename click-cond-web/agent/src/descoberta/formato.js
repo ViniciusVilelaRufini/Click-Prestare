@@ -13,6 +13,7 @@
  * @property {string|null} numero_serie
  * @property {boolean|null} dhcp
  * @property {boolean} validado_em_campo  false = protocolo feito pela documentação
+ * @property {string|null} classe  DeviceClass do DHIP (ex. 'BSC' = controle de acesso); null quando o protocolo não informa
  */
 
 /** MAC em qualquer formato comum → 'aa:bb:cc:dd:ee:ff'; null se inválido/broadcast/zero. */

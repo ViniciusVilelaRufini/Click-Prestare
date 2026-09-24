@@ -89,3 +89,49 @@ test('erro síncrono na decisão (agora() lança) não rejeita e não deixa emCu
     console.error = origConsoleError;
   }
 });
+
+test('descoberta que nunca termina é abandonada após o prazo total e libera o próximo tick', async () => {
+  const origConsoleError = console.error;
+  const erros = [];
+  console.error = (...args) => erros.push(args.join(' '));
+  try {
+    const chamadas = [];
+    const enviados = [];
+    const ag = criarAgendador({
+      descobrir: (o) => { chamadas.push(o.varredura); return chamadas.length === 1 ? new Promise(() => {}) : Promise.resolve([{ ip: 'y' }]); },
+      enviar: async (a) => { enviados.push(a); },
+      prazoTotalMs: 50,
+    });
+    await ag.tick({ pedidoDaNuvem: true, offlineDesde: new Map() });
+    assert.ok(erros.some((e) => /prazo/i.test(e)), JSON.stringify(erros));
+    await ag.tick({ pedidoDaNuvem: true, offlineDesde: new Map() });
+    assert.deepStrictEqual(chamadas, [true, true]);
+    assert.deepStrictEqual(enviados, [[{ ip: 'y' }]]);
+  } finally {
+    console.error = origConsoleError;
+  }
+});
+
+test('pedido da nuvem durante uma descoberta em curso vira varredura no tick seguinte', async () => {
+  let soltar;
+  let t = 1_000_000;
+  const chamadas = [];
+  const ag = criarAgendador({
+    descobrir: (o) => {
+      chamadas.push(o.varredura);
+      if (chamadas.length === 1) return new Promise((ok) => { soltar = () => ok([]); });
+      return Promise.resolve([]);
+    },
+    enviar: async () => {},
+    agora: () => t,
+  });
+  const p = ag.tick(nada); // leve em curso
+  await ag.tick({ pedidoDaNuvem: true, offlineDesde: new Map() }); // a API já consumiu o pedido
+  soltar();
+  await p;
+  t += 1000; // leve não venceu: só roda se o pedido ficou lembrado
+  await ag.tick(nada);
+  assert.deepStrictEqual(chamadas, [false, true]);
+  await ag.tick(nada); // pendência atendida: não repete
+  assert.deepStrictEqual(chamadas, [false, true]);
+});

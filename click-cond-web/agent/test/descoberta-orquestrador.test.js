@@ -32,6 +32,8 @@ test('descobrir junta resposta DHIP e página Control iD', async () => {
     assert.ok(cid, JSON.stringify(achados));
     assert.strictEqual(cid.porta, web.address().port);
     assert.strictEqual(cid.validado_em_campo, false);
+    assert.strictEqual(cid.classe, null);
+    assert.strictEqual(intel.classe, null); // resposta sem DeviceClass
   } finally {
     udp.close(); web.close();
   }
@@ -66,5 +68,57 @@ test('UDP com host inválido loga exatamente uma linha de erro', async () => {
     assert.match(erroLogs[0], /\[agente\] descoberta: \d+ falha\(s\) de rede ignorada\(s\)/);
   } finally {
     console.log = originalLog;
+  }
+});
+
+test('servidor HTTP que manda cabeçalho e nunca termina não prende a varredura', async () => {
+  // Aparelho travado (ou qualquer coisa na porta 80) que responde devagar e
+  // infinitamente: o timeout de ociosidade do socket nunca dispara porque
+  // sempre chega um byte novo. Só um prazo total por requisição resolve.
+  const web = http.createServer((q, s) => {
+    s.writeHead(200, { 'content-type': 'text/html' });
+    s.write('<html>');
+    const t = setInterval(() => s.write('x'), 100);
+    s.on('close', () => clearInterval(t));
+  });
+  await new Promise((ok) => web.listen(0, '127.0.0.1', ok));
+  const inicio = Date.now();
+  try {
+    const achados = await descobrir({
+      varredura: true,
+      esperaMs: 100,
+      destinos: [],
+      hostsVarredura: [`127.0.0.1:${web.address().port}`],
+    });
+    assert.deepStrictEqual(achados, []);
+    assert.ok(Date.now() - inicio < 3000, `demorou ${Date.now() - inicio} ms`);
+  } finally {
+    web.closeAllConnections?.();
+    web.close();
+  }
+});
+
+test('corpo infinito é cortado em 20 KB e a página ainda é reconhecida', async () => {
+  const web = http.createServer((q, s) => {
+    s.writeHead(200, { 'content-type': 'text/html' });
+    s.write('<title>Control iD</title>');
+    const t = setInterval(() => s.write('x'.repeat(8000)), 5);
+    s.on('close', () => clearInterval(t));
+  });
+  await new Promise((ok) => web.listen(0, '127.0.0.1', ok));
+  const inicio = Date.now();
+  try {
+    const achados = await descobrir({
+      varredura: true,
+      esperaMs: 100,
+      destinos: [],
+      hostsVarredura: [`127.0.0.1:${web.address().port}`],
+    });
+    assert.strictEqual(achados.length, 1, JSON.stringify(achados));
+    assert.strictEqual(achados[0].fabricante, 'control_id');
+    assert.ok(Date.now() - inicio < 1500, `demorou ${Date.now() - inicio} ms (deveria cortar antes do prazo total)`);
+  } finally {
+    web.closeAllConnections?.();
+    web.close();
   }
 });

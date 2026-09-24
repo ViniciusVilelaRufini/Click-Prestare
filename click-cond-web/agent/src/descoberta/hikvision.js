@@ -39,6 +39,7 @@ function interpretarRespostaSadp(buf) {
     numero_serie: tag(xml, 'DeviceSN'),
     dhcp: dhcp == null ? null : dhcp.toLowerCase() === 'true',
     validado_em_campo: false,
+    classe: null, // SADP não traz uma classe equivalente ao DeviceClass do DHIP
   };
 }
 
