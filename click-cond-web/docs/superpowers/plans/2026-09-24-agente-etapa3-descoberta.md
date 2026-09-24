@@ -1535,7 +1535,7 @@ git commit -m "feat(portaria): aparelhos encontrados na rede, cadastro preenchid
 
 ## Depois das tarefas (controlador, não subagente)
 
-1. Revisão final do conjunto (opus).
+2. Aplicar `prisma/sql/2026-09-24-facial-devices-mac.sql` pelo workflow "Database migration" (GitHub Actions, registra em `_schema_migrations`) **antes** do push (com aprovação do usuário) e verificar as colunas.
 2. Aplicar `prisma/manual_2026-09_facial_devices_mac.sql` no RDS **antes** do push (com aprovação do usuário) e verificar as colunas.
 3. Bump `agent/src/versao.js` → `2026.09.25` (ou `.N`), push master + main, build do exe (`cd agent && node build-exe.mjs`), release `agent-v<versão>` com aprovação.
 4. Teste em campo: o facial Intelbras do usuário aparece como "já cadastrado ✓" e o MAC é aprendido; trocar o IP (reserva no roteador) e ver a correção.
