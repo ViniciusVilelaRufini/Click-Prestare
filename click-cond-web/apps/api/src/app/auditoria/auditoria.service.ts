@@ -22,6 +22,8 @@ export type AuditoriaAcao =
   | 'ONLINE'            // dispositivo voltou a responder na LAN (heartbeat do agente)
   | 'OFFLINE'           // dispositivo parou de responder na LAN
   | 'FANTASMAS_REMOVIDOS' // tickFantasmas removeu biometria órfã de um terminal
+  | 'DISPOSITIVO_IP_CORRIGIDO'   // descoberta na rede achou o aparelho (mesmo MAC) em outro IP/porta
+  | 'DISPOSITIVO_MAC_ATUALIZADO' // aparelho trocado fisicamente no mesmo endereço (MAC novo)
   // ---- Ciclo de vida comercial do condomínio (CRM) ----
   | 'DEACTIVATE'        // condomínio desligado: corta app, portaria e facial
   | 'REACTIVATE';       // condomínio religado antes da purga
