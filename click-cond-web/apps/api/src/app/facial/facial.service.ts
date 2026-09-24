@@ -100,7 +100,14 @@ export interface CreateDeviceDto {
   numero_serie?: string | null;
 }
 
-export interface UpdateDeviceDto extends Partial<CreateDeviceDto> {}
+export interface UpdateDeviceDto extends Partial<CreateDeviceDto> {
+  /**
+   * 0/false = tira o terminal de operação sem apagar o histórico (o agente para
+   * de falar com ele). É a saída para terminal com acessos registrados, que
+   * removeDevice recusa excluir.
+   */
+  ativo?: number | boolean;
+}
 
 export interface WebhookEventDto {
   device_id?: string;
@@ -938,6 +945,7 @@ export class FacialService {
         ...(dto.id_area_social !== undefined && {
           id_area_social: dto.id_area_social,
         }),
+        ...(dto.ativo !== undefined && { ativo: dto.ativo ? 1 : 0 }),
       },
     });
     // Detalha o que mudou (campos sensíveis: ip/porta/tipo/api_user — mudança
@@ -952,6 +960,7 @@ export class FacialService {
       'ip',
       'porta',
       'api_user',
+      'ativo',
     ] as const) {
       if (dto[k] !== undefined && (antes as any)[k] !== (atual as any)[k]) {
         diff[k] = { de: (antes as any)[k], para: (atual as any)[k] };

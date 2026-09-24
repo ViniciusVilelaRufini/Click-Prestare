@@ -819,6 +819,14 @@
                     >Sem agente
                   </span>
                 }
+                @if (t.ativo === 0) {
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/60 dark:bg-slate-700/30 border border-slate-300/80 dark:border-slate-700/40 text-slate-600 dark:text-slate-300"
+                    title="Fora de operação: o agente não usa este terminal. O histórico de acessos é mantido."
+                  >
+                    Desativado
+                  </span>
+                }
                 <!-- Telemetria do agente (tarefa 7): driver + status do heartbeat do agente, casando por id (some se a telemetria tiver mais de 3 min) -->
                 @if (telemetriaDoDispositivo(t.id); as td) {
                   <span
@@ -970,8 +978,15 @@
               Editar
             </button>
             <button
+              (click)="alternarAtivo(t)"
+              class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-500/10 hover:bg-slate-500/15 border border-slate-500/20 transition ml-auto"
+              [title]="t.ativo === 0 ? 'Volta a usar este terminal' : 'Tira de operação sem apagar o histórico de acessos'"
+            >
+              {{ t.ativo === 0 ? 'Reativar' : 'Desativar' }}
+            </button>
+            <button
               (click)="remove(t)"
-              class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 transition ml-auto"
+              class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 transition"
             >
               Remover
             </button>

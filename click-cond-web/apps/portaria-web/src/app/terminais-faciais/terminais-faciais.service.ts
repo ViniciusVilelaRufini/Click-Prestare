@@ -195,7 +195,7 @@ export class TerminaisFaciaisApi {
 
   update(
     id: number,
-    dto: Partial<CreateTerminalFacial>,
+    dto: Partial<CreateTerminalFacial> & { ativo?: number },
   ): Observable<TerminalFacial> {
     return this.http.put<TerminalFacial>(`${this.base}/devices/${id}`, dto);
   }

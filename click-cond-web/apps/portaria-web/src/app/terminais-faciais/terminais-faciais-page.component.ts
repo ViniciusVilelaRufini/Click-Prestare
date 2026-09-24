@@ -1033,7 +1033,33 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         this.load();
       },
       error: (err) =>
-        this.errorMessage.set(err?.error?.message ?? 'Falha ao remover.'),
+        this.errorMessage.set(
+          err?.status === 409
+            ? `"${t.nome}" tem acessos registrados e não pode ser excluído (o histórico precisa ser preservado). Use "Desativar" para tirá-lo de operação.`
+            : (err?.error?.message ?? 'Falha ao remover.'),
+        ),
+    });
+  }
+
+  /**
+   * Terminal com histórico não pode ser excluído (a API devolve 409): desativar
+   * tira de operação sem apagar o log — o agente para de falar com ele.
+   */
+  alternarAtivo(t: TerminalFacial) {
+    const desativar = t.ativo !== 0;
+    const pergunta = desativar
+      ? `Desativar "${t.nome}"? O agente para de usar este terminal; o histórico de acessos é mantido.`
+      : `Reativar "${t.nome}"?`;
+    if (!confirm(pergunta)) return;
+    this.api.update(t.id, { ativo: desativar ? 0 : 1 }).subscribe({
+      next: () => {
+        this.errorMessage.set(null);
+        this.successMessage.set(desativar ? 'Dispositivo desativado.' : 'Dispositivo reativado.');
+        setTimeout(() => this.successMessage.set(null), 4000);
+        this.load();
+      },
+      error: (err) =>
+        this.errorMessage.set(err?.error?.message ?? 'Falha ao alterar o status do dispositivo.'),
     });
   }
 
