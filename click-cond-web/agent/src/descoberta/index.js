@@ -47,6 +47,7 @@ function sondarUdp(destinos, esperaMs) {
   return new Promise((resolve) => {
     const achados = [];
     const sockets = [];
+    const erros = { count: 0, primeira: null };
     const planos = destinos
       ? [{ endereco: '0.0.0.0', alvos: destinos }]
       : interfacesLocais().map((i) => ({
@@ -60,7 +61,10 @@ function sondarUdp(destinos, esperaMs) {
     for (const plano of planos) {
       const s = dgram.createSocket({ type: 'udp4', reuseAddr: true });
       sockets.push(s);
-      s.on('error', () => {});
+      s.on('error', (err) => {
+        erros.count++;
+        if (!erros.primeira) erros.primeira = err.message || String(err);
+      });
       s.on('message', (msg) => {
         const a = interpretar(msg);
         if (a) achados.push(a);
@@ -69,11 +73,17 @@ function sondarUdp(destinos, esperaMs) {
         try {
           s.setBroadcast(true);
           if (plano.endereco !== '0.0.0.0') s.setMulticastInterface(plano.endereco);
-        } catch {
-          /* interface sem multicast: segue só com o que der */
+        } catch (err) {
+          erros.count++;
+          if (!erros.primeira) erros.primeira = err.message || String(err);
         }
         for (const alvo of plano.alvos) {
-          s.send(pacoteDe(alvo.protocolo), alvo.porta, alvo.host, () => {});
+          s.send(pacoteDe(alvo.protocolo), alvo.porta, alvo.host, (err) => {
+            if (err) {
+              erros.count++;
+              if (!erros.primeira) erros.primeira = err.message || String(err);
+            }
+          });
         }
       });
     }
@@ -81,7 +91,7 @@ function sondarUdp(destinos, esperaMs) {
       for (const s of sockets) {
         try { s.close(); } catch { /* já fechado */ }
       }
-      resolve(achados);
+      resolve({ achados, erros });
     }, esperaMs);
   });
 }
@@ -120,14 +130,19 @@ async function varrerHttp(hostsVarredura) {
 
 async function descobrir({ varredura = false, destinos, esperaMs = 3000, hostsVarredura } = {}) {
   try {
-    const [udp, web] = await Promise.all([
+    const [udpResult, web] = await Promise.all([
       sondarUdp(destinos, esperaMs),
       varredura ? varrerHttp(hostsVarredura) : Promise.resolve([]),
     ]);
+    const udp = udpResult.achados;
+    const errosUdp = udpResult.erros;
     const todos = [...udp, ...web];
     if (todos.some((a) => !a.mac)) {
       const arp = await lerTabelaArp();
       for (const a of todos) if (!a.mac) a.mac = arp.get(a.ip) || null;
+    }
+    if (errosUdp.count > 0) {
+      console.log(`[agente] descoberta: ${errosUdp.count} falha(s) de rede ignorada(s) (primeira: ${errosUdp.primeira})`);
     }
     return agruparPorMac(todos);
   } catch (err) {

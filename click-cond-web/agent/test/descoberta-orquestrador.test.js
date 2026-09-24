@@ -38,6 +38,33 @@ test('descobrir junta resposta DHIP e página Control iD', async () => {
 });
 
 test('sem varredura não faz HTTP; sem resposta devolve lista vazia sem lançar', async () => {
-  const achados = await descobrir({ varredura: false, esperaMs: 300, destinos: [{ protocolo: 'dhip', host: '127.0.0.1', porta: 9 }] });
-  assert.deepStrictEqual(achados, []);
+  const logOutput = [];
+  const originalLog = console.log;
+  console.log = (...args) => logOutput.push(args.join(''));
+  try {
+    const achados = await descobrir({ varredura: false, esperaMs: 300, destinos: [{ protocolo: 'dhip', host: '127.0.0.1', porta: 9 }] });
+    assert.deepStrictEqual(achados, []);
+    assert.strictEqual(logOutput.length, 0, 'sem resposta não deve logar nada');
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test('UDP com host inválido loga exatamente uma linha de erro', async () => {
+  const logOutput = [];
+  const originalLog = console.log;
+  console.log = (...args) => logOutput.push(args.join(''));
+  try {
+    const achados = await descobrir({
+      varredura: false,
+      esperaMs: 300,
+      destinos: [{ protocolo: 'dhip', host: '256.1.1.1', porta: 47810 }],
+    });
+    assert.deepStrictEqual(achados, []);
+    const erroLogs = logOutput.filter((l) => l.includes('[agente] descoberta:'));
+    assert.strictEqual(erroLogs.length, 1, `esperava exatamente 1 log de erro, got ${erroLogs.length}: ${JSON.stringify(erroLogs)}`);
+    assert.match(erroLogs[0], /\[agente\] descoberta: \d+ falha\(s\) de rede ignorada\(s\)/);
+  } finally {
+    console.log = originalLog;
+  }
 });
