@@ -125,7 +125,10 @@ export class DashboardService {
         ? this.prisma.visitas.count({
             where: {
               id_condominio: idCondominio,
-              is_visitante: 1,
+              // Cadastros migrados de prestador para visitante podem manter o
+              // indicador legado `is_visitante` como 0. A fonte de verdade
+              // para separar visitantes de prestadores é `is_prestador`.
+              is_prestador: { not: 1 },
               NOT: { data_entrada: null },
               data_saida: null,
             },
@@ -133,7 +136,7 @@ export class DashboardService {
         : this.prisma.visitantes.count({
             where: {
               id_condominio: idCondominio,
-              is_visitante: 1,
+              is_prestador: { not: 1 },
               NOT: { data_entrada: null },
               data_saida: null,
             },
