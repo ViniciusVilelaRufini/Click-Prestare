@@ -368,7 +368,12 @@ async function runCondoLoop(token) {
       // Descoberta na rede (etapa 3): dispara sem bloquear o laço do poll —
       // o agendador decide sozinho se é hora (leve periódica, pedido do
       // portal ou device offline há muito tempo — ver descoberta/agendador.js).
-      void agendadorDescoberta.tick({ pedidoDaNuvem: body.descobrir === true, offlineDesde });
+      void agendadorDescoberta
+        .tick({ pedidoDaNuvem: body.descobrir === true, offlineDesde })
+        // Defesa extra: tick() já não deveria rejeitar (ver agendador.js),
+        // mas sem isso qualquer furo viraria rejeição não tratada e
+        // derrubaria o processo inteiro (poll, comandos, heartbeat).
+        .catch((err) => console.error(`[agente] descoberta: ${err.message || err}`));
 
       for (const entry of body.devices || []) {
         const device = entry.device;

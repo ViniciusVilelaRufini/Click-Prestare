@@ -23,21 +23,27 @@ function criarAgendador({
 
   async function tick({ pedidoDaNuvem, offlineDesde }) {
     if (emCurso) return;
-    const t = agora();
-    const algumOfflineAntigo = [...offlineDesde.values()].some((desde) => t - desde > offlineParaVarrerMs);
-    const podeVarrerPorOffline = ultimaVarredura == null || t - ultimaVarredura >= minEntreVarredurasMs;
-    const varredura = pedidoDaNuvem || (algumOfflineAntigo && podeVarrerPorOffline);
-    const leveVencida = ultimaLeve == null || t - ultimaLeve >= intervaloLeveMs;
-    if (!varredura && !leveVencida) return;
-
-    emCurso = true;
+    // Tudo dentro do try, inclusive a decisão (agora()/offlineDesde podem
+    // lançar) — sem isso uma exceção síncrona aqui vira rejeição não tratada
+    // no `void agendadorDescoberta.tick(...)` de index.js e derruba o agente
+    // inteiro (poll, comandos, heartbeat). `emCurso` só vira true quando a
+    // descoberta de fato começa (depois da decisão), mas o `finally` cobre
+    // qualquer saída — decisão que lança nunca deixa emCurso travado em true.
     try {
+      const t = agora();
+      const algumOfflineAntigo = [...offlineDesde.values()].some((desde) => t - desde > offlineParaVarrerMs);
+      const podeVarrerPorOffline = ultimaVarredura == null || t - ultimaVarredura >= minEntreVarredurasMs;
+      const varredura = pedidoDaNuvem || (algumOfflineAntigo && podeVarrerPorOffline);
+      const leveVencida = ultimaLeve == null || t - ultimaLeve >= intervaloLeveMs;
+      if (!varredura && !leveVencida) return;
+
+      emCurso = true;
       ultimaLeve = t;
       if (varredura) ultimaVarredura = t;
       const achados = await descobrir({ varredura });
       await enviar(achados);
     } catch (err) {
-      console.log(`[agente] descoberta: ${err.message || err}`);
+      console.error(`[agente] descoberta: ${err.message || err}`);
     } finally {
       emCurso = false;
     }

@@ -59,3 +59,33 @@ test('não sobrepõe duas descobertas', async () => {
   await p;
   assert.strictEqual(chamadas.length, 1);
 });
+
+test('erro síncrono na decisão (agora() lança) não rejeita e não deixa emCurso travado', async () => {
+  const chamadas = [];
+  const origConsoleError = console.error;
+  const erros = [];
+  console.error = (...args) => erros.push(args.join(' ')); // mantém a saída do teste limpa
+  try {
+    let primeiraChamada = true;
+    const ag = criarAgendador({
+      descobrir: async (o) => { chamadas.push(o.varredura); return []; },
+      enviar: async () => {},
+      agora: () => {
+        if (primeiraChamada) {
+          primeiraChamada = false;
+          throw new Error('relógio indisponível');
+        }
+        return 2_000_000;
+      },
+    });
+    await assert.doesNotReject(ag.tick(nada));
+    assert.strictEqual(chamadas.length, 0, 'não chegou a chamar descobrir() com a decisão quebrada');
+    assert.ok(erros.length > 0, 'logou o erro em console.error');
+    // emCurso não pode ter ficado travado em true: este tick precisa rodar
+    // a descoberta normalmente.
+    await ag.tick(nada);
+    assert.strictEqual(chamadas.length, 1);
+  } finally {
+    console.error = origConsoleError;
+  }
+});
