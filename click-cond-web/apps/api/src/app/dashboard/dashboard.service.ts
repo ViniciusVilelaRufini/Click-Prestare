@@ -125,10 +125,12 @@ export class DashboardService {
         ? this.prisma.visitas.count({
             where: {
               id_condominio: idCondominio,
-              // Cadastros migrados de prestador para visitante podem manter o
-              // indicador legado `is_visitante` como 0. A fonte de verdade
-              // para separar visitantes de prestadores é `is_prestador`.
-              is_prestador: { not: 1 },
+              // A Visita preserva o tipo que existia no momento do acesso.
+              // Para o dashboard, a classificação atual da Pessoa é a fonte
+              // de verdade: um prestador convertido em visitante recorrente
+              // precisa aparecer aqui mesmo que a visita antiga tenha
+              // `is_prestador = 1`.
+              pessoa: { tipo_pessoa: 'visitante' },
               NOT: { data_entrada: null },
               data_saida: null,
             },

@@ -54,3 +54,11 @@
 - Correção (GREEN): as duas consultas de visitantes ativos (modelo migrado e legado) agora excluem somente `is_prestador = 1`. Assim, visitantes recorrentes são contabilizados e prestadores continuam fora do card.
 - Validação: teste direcionado `dashboard.pessoas-visitas.spec.ts` 5/5 passou; typecheck e build da API passaram. O build mantém apenas o aviso conhecido do sourcemap Prisma ausente.
 - Aguardando aprovação: commit/publicação desta correção e nenhuma escrita direta no banco de produção.
+
+## Correção de regressão — 24/09/2026
+
+- Reprodução em produção: a lista de Visitantes apresentava Vinicius como "No condomínio", e os eventos do dashboard como `VISITANTE`, mas o card do dashboard permanecia em 0.
+- Causa raiz confirmada: a primeira correção ainda usava `Visitas.is_prestador`. Esse campo representa o tipo histórico da visita e pode continuar como prestador depois que a pessoa é convertida em visitante recorrente. Eventos já usavam `Pessoas.tipo_pessoa`, a classificação atual, criando a divergência.
+- RED: teste com uma visita histórica `is_prestador = 1` e Pessoa atual `tipo_pessoa = visitante` falhou, pois a consulta do card não relacionava Pessoa.
+- GREEN: na fonte migrada, o card agora conta visitas ativas cuja `Pessoa.tipo_pessoa` é `visitante`. A consulta preserva condomínio, exige entrada e exclui visitas com saída.
+- Validação: teste direcionado 5/5, typecheck e builds API/portaria-web passaram; a suíte integral da API local excedeu 120 s sem resultado consolidado e será o gate obrigatório da publicação no GitHub Actions.

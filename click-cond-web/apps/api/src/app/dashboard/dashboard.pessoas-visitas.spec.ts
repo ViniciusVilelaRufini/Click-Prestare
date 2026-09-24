@@ -30,13 +30,22 @@ describe('DashboardService — summary() (Pessoas/Visitas)', () => {
     };
     const visitaMigrada = {
       id: 501,
-      is_prestador: 0,
+      // Visitas antigas podem conservar a classificação de quando a pessoa
+      // era prestador. O dashboard deve respeitar o tipo atual da Pessoa.
+      is_prestador: 1,
       data_entrada: new Date('2026-01-01T10:00:00Z'),
       data_saida: null,
       created_at: new Date('2026-01-01T09:00:00Z'),
       apartamento: { bloco: 'A', apto: '101' },
       criadoPor: { name: 'Morador Teste' },
-      pessoa: { id: 800, nome: 'Carlos Visitante', doc_identificacao: '999', foto_pessoa: 'foto.jpg', foto_documento: null },
+      pessoa: {
+        id: 800,
+        nome: 'Carlos Visitante',
+        doc_identificacao: '999',
+        foto_pessoa: 'foto.jpg',
+        foto_documento: null,
+        tipo_pessoa: 'visitante',
+      },
     };
 
     const prisma: any = {
@@ -91,7 +100,7 @@ describe('DashboardService — summary() (Pessoas/Visitas)', () => {
     expect(prisma.visitantes.count).not.toHaveBeenCalled();
     expect(prisma.visitantes.findMany).not.toHaveBeenCalled();
     expect(prisma.visitas.count).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ is_prestador: { not: 1 } }),
+      where: expect.objectContaining({ pessoa: { tipo_pessoa: 'visitante' } }),
     }));
 
     const entrada = r.ultimosEventos.find((e) => e.detalhes.nome === 'Carlos Visitante');
