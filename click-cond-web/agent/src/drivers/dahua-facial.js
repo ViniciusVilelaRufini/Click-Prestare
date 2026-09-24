@@ -254,14 +254,10 @@ async function removerUsuario(device, cmd) {
 }
 
 async function capturarSnapshot(device) {
-  // Liga o flash automaticamente antes do snapshot
-  await setDeviceLightingMode(device, 'Manual').catch(() => {});
-  await sleep(300); // aguarda acender e exposição regular
-
+  // Não mexe no LED: ligar/desligar a cada foto (e a cada quadro do preview)
+  // fazia o LED do aparelho piscar o tempo todo. O aparelho fica no
+  // automático dele.
   const res = await lanRequest(device, 'GET', '/cgi-bin/snapshot.cgi?channel=1');
-
-  // Restaura para automático após o snapshot
-  await setDeviceLightingMode(device, 'Auto').catch(() => {});
 
   if (
     !(res.status >= 200 && res.status < 300) ||
@@ -351,7 +347,6 @@ async function removerUsuarios(device, cmd) {
 
 /** Altera o modo de iluminação (LED/Flash) do dispositivo (Manual = ligado, Auto = automático). */
 async function setDeviceLightingMode(device, mode) {
-  console.log(`[agente] ${device.nome}: setDeviceLightingMode chamado para "${mode}"`);
 
   if (mode === 'Manual') {
     try {
@@ -450,8 +445,17 @@ function snapshotComDigest(device, st) {
  * no primeiro byte recebido de CADA conexão bem-sucedida (inclusive a
  * primeira). Quem orquestra decide se/quando agir sobre isso.
  */
+// Versões até 2026.09.24.1 ligavam o LED branco em "Manual, 100%" durante o
+// preview e podiam deixá-lo assim (agente reiniciado no meio). Uma vez por
+// aparelho, a cada partida do agente, devolve a iluminação ao automático.
+const ledRestaurado = new Set();
+
 function escutar(device, aoEvento, opcoes = {}) {
   const aoConectar = opcoes.aoConectar;
+  if (!ledRestaurado.has(device.id)) {
+    ledRestaurado.add(device.id);
+    setDeviceLightingMode(device, 'Auto').catch(() => {});
+  }
   let parado = false;
   let streamCaida = false;
   (async () => {

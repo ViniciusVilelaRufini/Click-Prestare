@@ -579,19 +579,12 @@ async function streamLiveView(device, res) {
     alive = false;
   });
 
-  // Liga o flash automaticamente antes do preview
-  await dahuaFacial.setDeviceLightingMode(device, 'Manual').catch(() => {});
-
+  // O preview NÃO mexe no LED do aparelho: reforçar "ligado" a cada 800 ms e
+  // voltar ao automático ao fechar fazia o LED piscar o tempo todo.
   const st = {}; // estado do Digest (reusa o nonce entre quadros = mais fps)
-  let lastLightOnAt = 0;
   while (alive) {
     let jpeg = null;
     try {
-      // Reforça o comando de acendimento do LED a cada 800ms em segundo plano para evitar que o firmware o desligue por inatividade
-      if (Date.now() - lastLightOnAt > 800) {
-        lastLightOnAt = Date.now();
-        void dahuaFacial.setDeviceLightingMode(device, 'Manual').catch(() => {});
-      }
       jpeg = await dahuaFacial.snapshotComDigest(device, st);
     } catch {
       /* tenta no próximo ciclo */
@@ -611,9 +604,6 @@ async function streamLiveView(device, res) {
       await sleep(150);
     }
   }
-
-  // Restaura para automático após o fim do preview
-  await dahuaFacial.setDeviceLightingMode(device, 'Auto').catch(() => {});
 
   try {
     res.end();
