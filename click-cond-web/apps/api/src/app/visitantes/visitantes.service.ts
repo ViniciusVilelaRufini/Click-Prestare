@@ -2609,6 +2609,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (fotoPes !== undefined) pessoaData.foto_pessoa = fotoPes;
     if (fotoDoc !== undefined) pessoaData.foto_documento = fotoDoc;
     if (dto.bloqueado !== undefined) pessoaData.bloqueado = Number(dto.bloqueado);
+    if (dto.is_prestador !== undefined) {
+      pessoaData.tipo_pessoa = dto.is_prestador === 1 ? 'prestador' : 'visitante';
+    }
 
     const visitaData: any = {};
     if (dto.is_visitante !== undefined) visitaData.is_visitante = dto.is_visitante;
