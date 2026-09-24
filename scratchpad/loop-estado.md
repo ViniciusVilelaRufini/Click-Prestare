@@ -45,3 +45,12 @@
 - Teste: `encomendas.retirar-duplicidade.spec.ts` criado em RED e aprovado em GREEN (1/1).
 - Verificacao: teste direcionado e typecheck da API aprovados; build da API aprovado; testes/build do portaria-web aprovados (59/59); testes Flutter e APK debug aprovados (182/182). A suite completa da API foi tentada, mas excedeu 64 s e foi interrompida sem resultado final.
 - Aguardando aprovacao: nenhuma publicacao nem escrita em banco de producao foi realizada nesta rodada.
+
+## Correção pontual — 24/09/2026
+
+- Fluxo: indicador "Visitantes no condomínio" no dashboard da portaria após entrada facial de visitante recorrente.
+- Reprodução (RED): o evento facial era corretamente exibido como `VISITANTE`, porém o indicador permanecia em 0. O teste comprovou que a consulta contava apenas registros com o marcador legado `is_visitante = 1`.
+- Causa raiz: ao converter um cadastro que antes era prestador em visitante recorrente, a classificação atual usa `is_prestador = 0`, mas registros históricos podem manter `is_visitante = 0`. A leitura do dashboard usava o campo legado e excluía uma visita ativa válida.
+- Correção (GREEN): as duas consultas de visitantes ativos (modelo migrado e legado) agora excluem somente `is_prestador = 1`. Assim, visitantes recorrentes são contabilizados e prestadores continuam fora do card.
+- Validação: teste direcionado `dashboard.pessoas-visitas.spec.ts` 5/5 passou; typecheck e build da API passaram. O build mantém apenas o aviso conhecido do sourcemap Prisma ausente.
+- Aguardando aprovação: commit/publicação desta correção e nenhuma escrita direta no banco de produção.

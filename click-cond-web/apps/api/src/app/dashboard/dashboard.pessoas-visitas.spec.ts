@@ -90,6 +90,9 @@ describe('DashboardService — summary() (Pessoas/Visitas)', () => {
     expect(prisma.visitas.findMany).toHaveBeenCalled();
     expect(prisma.visitantes.count).not.toHaveBeenCalled();
     expect(prisma.visitantes.findMany).not.toHaveBeenCalled();
+    expect(prisma.visitas.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ is_prestador: { not: 1 } }),
+    }));
 
     const entrada = r.ultimosEventos.find((e) => e.detalhes.nome === 'Carlos Visitante');
     expect(entrada).toBeDefined();
