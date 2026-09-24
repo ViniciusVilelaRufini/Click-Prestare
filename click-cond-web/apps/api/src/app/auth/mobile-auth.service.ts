@@ -1149,7 +1149,7 @@ export class MobileAuthService {
                 is_prestador: true,
                 data_entrada: true,
                 data_saida: true,
-                pessoa: { select: { nome: true } },
+                pessoa: { select: { nome: true, tipo_pessoa: true } },
               },
               take: 50,
             })
@@ -1184,6 +1184,7 @@ export class MobileAuthService {
             nome: v.pessoa?.nome ?? '',
             id_condominio: v.id_condominio,
             is_prestador: v.is_prestador,
+            tipo_pessoa: v.pessoa?.tipo_pessoa ?? (v.is_prestador === 1 ? 'prestador' : 'visitante'),
             data_entrada: v.data_entrada,
             data_saida: v.data_saida,
           }))
@@ -1193,13 +1194,27 @@ export class MobileAuthService {
             nome: v.nome,
             id_condominio: v.id_condominio,
             is_prestador: v.is_prestador,
+            tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
             data_entrada: v.data_entrada,
             data_saida: v.data_saida,
           }));
 
+      // Acesso facial pode guardar o tipo existente na hora da passagem.
+      // A lista móvel usa a classificação vigente da Pessoa para não exibir
+      // como prestador quem já é visitante recorrente.
+      const tipoAtualPorId = new Map<number, string>();
+      for (const v of visitors) {
+        tipoAtualPorId.set(v.id, v.tipo_pessoa);
+        if (v.id_pessoa_alt != null) tipoAtualPorId.set(v.id_pessoa_alt, v.tipo_pessoa);
+      }
+      const facialEventsAtualizados = facialEvents.map((e) => ({
+        ...e,
+        tipo_pessoa: (e.id_pessoa != null ? tipoAtualPorId.get(e.id_pessoa) : undefined) ?? e.tipo_pessoa,
+      }));
+
       const DEDUP_MS = 15_000;
       const facialBuckets = new Set<string>();
-      for (const a of facialEvents) {
+      for (const a of facialEventsAtualizados) {
         const b = Math.floor(a.timestamp.getTime() / DEDUP_MS);
         facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b}`);
         facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
@@ -1239,7 +1254,7 @@ export class MobileAuthService {
             id_condominio: v.id_condominio,
             nome_pessoa: v.nome ?? '',
             evento,
-            tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+            tipo_pessoa: v.tipo_pessoa,
             tipo_dispositivo: 'pin',
             confianca: null,
             timestamp: ts,
@@ -1254,7 +1269,7 @@ export class MobileAuthService {
       const condNome = conds.length ? conds[0].nome : '';
 
       const merged = [
-        ...facialEvents.map((e) => ({
+        ...facialEventsAtualizados.map((e) => ({
           e,
           categoria: e.tipo_pessoa === 'morador' ? 'voce' : (e.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante'),
         })),
@@ -1302,7 +1317,7 @@ export class MobileAuthService {
             is_prestador: true,
             data_entrada: true,
             data_saida: true,
-            pessoa: { select: { nome: true } },
+            pessoa: { select: { nome: true, tipo_pessoa: true } },
           },
         })
       : await this.prisma.visitantes.findMany({
@@ -1331,6 +1346,7 @@ export class MobileAuthService {
           nome: v.pessoa?.nome ?? '',
           id_condominio: v.id_condominio,
           is_prestador: v.is_prestador,
+          tipo_pessoa: v.pessoa?.tipo_pessoa ?? (v.is_prestador === 1 ? 'prestador' : 'visitante'),
           data_entrada: v.data_entrada,
           data_saida: v.data_saida,
         }))
@@ -1340,6 +1356,7 @@ export class MobileAuthService {
           nome: v.nome,
           id_condominio: v.id_condominio,
           is_prestador: v.is_prestador,
+          tipo_pessoa: v.tipo_pessoa,
           data_entrada: v.data_entrada,
           data_saida: v.data_saida,
         }));
@@ -1390,9 +1407,19 @@ export class MobileAuthService {
     // pelo terminal, então não existe em Acessos_Facial: é montada a partir do
     // próprio registro do visitante, do mesmo jeito que a linha do tempo do
     // detalhe. Sem isso o feed do app perdia todo acesso que não fosse facial.
+    const tipoAtualPorId = new Map<number, string>();
+    for (const v of visitors) {
+      tipoAtualPorId.set(v.id, v.tipo_pessoa);
+      if (v.id_pessoa_alt != null) tipoAtualPorId.set(v.id_pessoa_alt, v.tipo_pessoa);
+    }
+    const visEvAtualizados = visEv.map((e) => ({
+      ...e,
+      tipo_pessoa: (e.id_pessoa != null ? tipoAtualPorId.get(e.id_pessoa) : undefined) ?? e.tipo_pessoa,
+    }));
+
     const DEDUP_MS = 15_000;
     const facialBuckets = new Set<string>();
-    for (const a of visEv) {
+    for (const a of visEvAtualizados) {
       const b = Math.floor(a.timestamp.getTime() / DEDUP_MS);
       facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b}`);
       facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
@@ -1441,7 +1468,7 @@ export class MobileAuthService {
     }
 
     const condIds = [
-      ...new Set([...morEv, ...visEv, ...manualEv].map((e) => e.id_condominio)),
+      ...new Set([...morEv, ...visEvAtualizados, ...manualEv].map((e) => e.id_condominio)),
     ];
     const conds = condIds.length
       ? await this.prisma.condominios.findMany({
@@ -1453,7 +1480,10 @@ export class MobileAuthService {
 
     const merged = [
       ...morEv.map((e) => ({ e, categoria: 'voce' })),
-      ...visEv.map((e) => ({ e, categoria: 'visitante' })),
+      ...visEvAtualizados.map((e) => ({
+        e,
+        categoria: e.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante',
+      })),
       ...manualEv.map((e) => ({ e, categoria: 'visitante' })),
     ];
     merged.sort((a, b) => b.e.timestamp.getTime() - a.e.timestamp.getTime());
