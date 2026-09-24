@@ -42,8 +42,11 @@ function saidaDoEcho(linha: string): string {
   return out;
 }
 
-const TEMPLATE_CMD = fs.readFileSync(path.resolve(process.cwd(), 'agent', 'run-agent-service.cmd'), 'utf8');
-const INSTALL_WINDOWS_BAT = fs.readFileSync(path.resolve(process.cwd(), 'agent', 'install-windows.bat'), 'utf8');
+// Relativo ao próprio spec (apps/api/src/app/facial → click-cond-web/agent):
+// o CI roda o jest a partir de apps/api, então process.cwd() não serve.
+const DIR_AGENTE = path.resolve(__dirname, '..', '..', '..', '..', '..', 'agent');
+const TEMPLATE_CMD = fs.readFileSync(path.resolve(DIR_AGENTE, 'run-agent-service.cmd'), 'utf8');
+const INSTALL_WINDOWS_BAT = fs.readFileSync(path.resolve(DIR_AGENTE, 'install-windows.bat'), 'utf8');
 
 /**
  * O instalador do portal (getAgentConfigFile(..., 'bat')) baixado pelo
