@@ -114,12 +114,18 @@ internet de saída, o que normalmente já existe.
 
 O executável (Opção A), **em modo condomínio** (`AGENT_TOKEN`), se atualiza
 sozinho: na partida e a cada 6h ele consulta a última versão publicada e, se
-houver uma mais nova, baixa (só de um host confiável — github.com e o CDN de
-release dele —, com TLS validado de verdade), confere o SHA-256 e troca o
-próprio arquivo. Se a versão nova não conseguir completar nem um poll em 3
-tentativas seguidas, o agente reverte sozinho para a anterior, e marca essa
-versão como recusada (não tenta baixá-la de novo enquanto a nuvem não
-publicar outra). Só age rodando como o `.exe` empacotado (Node SEA) — via
+houver uma mais nova, baixa (só de um release `agent-v*` do repositório do
+agente no github.com — o CDN de assets do GitHub só vale como redirecionamento
+—, ou do host da própria API, com TLS validado de verdade), confere o SHA-256
+e troca o próprio arquivo; a saída para subir a versão nova espera o fim do
+ciclo de comandos em curso (um cadastro no aparelho não é cortado no meio).
+Se a versão nova não conseguir completar nem um poll em 3 tentativas
+seguidas, o agente reverte sozinho para a anterior, e marca essa versão como
+recusada (não tenta baixá-la de novo enquanto a nuvem não publicar outra). Se
+ela cair antes mesmo de rodar esse código, quem reverte é o laço de serviço
+(`run-agent-service.cmd`): 3 saídas com erro com `atualizacao.json` presente
+trazem o `click-agent.old.exe` de volta, e o exe antigo marca a versão como
+recusada ao subir. Só age rodando como o `.exe` empacotado (Node SEA) — via
 `node dist/click-agent.cjs` (Opção B) fica de fora, sem efeito nenhum. O modo
 legado por dispositivo (`DEVICE_TOKENS`, sem `AGENT_TOKEN`) também fica de
 fora — só o modo condomínio tem esse wiring hoje. Ver `src/core/atualizador.js`
@@ -130,7 +136,12 @@ um laço de reinício — `run-agent-service.cmd` com `goto loop` ao lado do exe
 gerado pelo instalador (`install-windows.bat`, ver "Rodar como serviço"
 acima). Trocar o arquivo e sair não adianta nada se ninguém sobe a versão
 nova em seguida; sem esse laço, o agente detecta a ausência dele e **pula a
-troca**, só logando um aviso pra reinstalar pelo portal.
+troca**, só logando um aviso pra reinstalar pelo portal. Os dois instaladores
+(`install-windows.bat` e o `instalar-agente-<condominio>.bat` do portal)
+geram exatamente o `run-agent-service.cmd` versionado nesta pasta, param a
+tarefa/processo antes de reescrevê-lo e tiram da tarefa o limite padrão de 72h
+e as condições de bateria do `schtasks`. Rodar o instalador do portal de novo
+também ATUALIZA uma instalação antiga (sempre baixa o exe atual).
 
 ### Publicando uma versão nova
 
