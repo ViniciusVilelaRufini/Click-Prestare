@@ -52,7 +52,6 @@ const {
 const { Supervisor } = require('./core/supervisor');
 const { iniciarTelemetria } = require('./core/telemetria');
 const { criarAtualizador } = require('./core/atualizador');
-const { rotacionarLogSeGrande } = require('./core/log-rotativo');
 const { resolverDriver } = require('./drivers/registro');
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
@@ -145,12 +144,14 @@ const temConfig = () => API_URL && (AGENT_TOKEN || DEVICE_TOKENS.length > 0);
 main();
 
 async function main() {
-  // Rotação do log de serviço (tarefa 9): confere ANTES de qualquer coisa
-  // que escreva no console — o run-agent-service.cmd redireciona stdout/
-  // stderr pro agent-service.log em modo append pra sempre (nunca trunca
-  // sozinho), então essa checagem é o único ponto que evita o arquivo
-  // crescer sem limite numa máquina que fica ligada meses.
-  rotacionarLogSeGrande();
+  // Rotação do log de serviço (tarefa 9): NÃO acontece aqui — o próprio
+  // processo herda o handle de escrita do ">>" que o run-agent-service.cmd
+  // usou pra lançá-lo (o cmd abre o arquivo ANTES de lançar o exe, e o
+  // handle fica em uso durante toda a execução). Tentar renomear esse
+  // arquivo de dentro do processo que está escrevendo nele falha com EBUSY
+  // no Windows (silenciosamente, se o erro for só logado) — por isso a
+  // rotação é feita no PRÓPRIO .cmd, dentro do laço, ANTES de lançar o exe
+  // (nenhum processo segura o arquivo nesse momento). Ver run-agent-service.cmd.
 
   // Auto-atualização (tarefa 8): confere ANTES de tudo, mesmo sem config —
   // se esta é uma versão que acabou de ser trocada e já falhou 3 vezes

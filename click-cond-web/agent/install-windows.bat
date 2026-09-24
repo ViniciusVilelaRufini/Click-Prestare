@@ -53,6 +53,13 @@ echo if not exist "%%~dp0click-agent.exe" if exist "%%~dp0click-agent.old.exe" ^
 echo   ren "%%~dp0click-agent.old.exe" "click-agent.exe"
 echo ^)
 echo:
+echo REM Rotacao do log: tem que ser AQUI, nao dentro do agente. O ">>" abaixo
+echo REM abre o arquivo antes do processo existir e o handle fica em uso
+echo REM durante toda a execucao - o proprio agente tentando renomear seu
+echo REM stdout herdado falha com EBUSY. Aqui, entre uma execucao e a proxima,
+echo REM nenhum processo segura o arquivo.
+echo for %%%%A in ^("%%~dp0agent-service.log"^) do if %%%%~zA GTR 5242880 move /y "%%~dp0agent-service.log" "%%~dp0agent-service.1.log" ^>nul
+echo:
 echo REM Confia no repositorio de certificados do Windows - redes de condominio
 echo REM as vezes tem antivirus que inspeciona HTTPS.
 echo set "NODE_USE_SYSTEM_CA=1"

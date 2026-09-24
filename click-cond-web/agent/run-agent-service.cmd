@@ -15,6 +15,14 @@ if not exist "%~dp0click-agent.exe" if exist "%~dp0click-agent.old.exe" (
   ren "%~dp0click-agent.old.exe" "click-agent.exe"
 )
 
+REM Rotação do log: tem que ser AQUI, não dentro do agente. A linha abaixo
+REM que lança o exe ("...click-agent.exe >> agent-service.log") abre o
+REM arquivo ANTES do processo existir, e o handle fica em uso durante toda a
+REM execução — o próprio agente tentando se renomear (ou renomear o arquivo
+REM que É o seu próprio stdout herdado) falha com EBUSY no Windows. Aqui,
+REM entre uma execução e a próxima, nenhum processo segura o arquivo.
+for %%A in ("%~dp0agent-service.log") do if %%~zA GTR 5242880 move /y "%~dp0agent-service.log" "%~dp0agent-service.1.log" >nul
+
 REM NODE_USE_SYSTEM_CA=1: o agente fala HTTPS estrito com a nuvem, e redes de
 REM condomínio às vezes têm antivírus que inspeciona TLS (troca o
 REM certificado do site por um próprio). Sem isso, a cadeia validaria só
