@@ -244,6 +244,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     return dias.map((d) => mapa[d] || d).join(', ');
   }
 
+  tipoPessoa(pessoa: Pick<Pessoa, 'is_prestador' | 'dias_semana'>): string {
+    if (pessoa.is_prestador === 1) return 'Prestador';
+    return pessoa.dias_semana?.trim() ? 'Visitante recorrente' : 'Visitante';
+  }
+
   // Modos do formulário:
   //   - editandoIdentidade=true: alterando dados da pessoa (nome/foto/doc)
   //     -> salva via atualizarPessoa(), reflete em TODAS as visitas

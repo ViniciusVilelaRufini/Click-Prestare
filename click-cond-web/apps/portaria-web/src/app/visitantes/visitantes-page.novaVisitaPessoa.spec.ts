@@ -106,4 +106,11 @@ describe('VisitantesPageComponent — salvar() nova visita para pessoa existente
       expect.objectContaining({ id_apartamento: 101 }),
     );
   });
+
+  it('identifica visitante recorrente sem classificá-lo como prestador', () => {
+    const component = build();
+
+    expect(component.tipoPessoa(buildPessoa({ dias_semana: 'seg,ter,qua' }))).toBe('Visitante recorrente');
+    expect(component.tipoPessoa(buildPessoa({ is_prestador: 1, dias_semana: 'seg,ter,qua' }))).toBe('Prestador');
+  });
 });
