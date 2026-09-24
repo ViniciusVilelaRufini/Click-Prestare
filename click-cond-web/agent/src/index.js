@@ -230,8 +230,12 @@ async function runCondoLoop(token) {
   // Telemetria (tarefa 7): versão + SO + saúde por device (supervisor.saudeTodos())
   // + fila offline pendente, a cada TELEMETRIA_INTERVAL_MS — alimenta o card do
   // agente no portal (GET facial/agent/saude). Modo condomínio só: é o único que
-  // tem `supervisor` (o modo legado por device não o usa).
-  iniciarTelemetria(token, {
+  // tem `supervisor` (o modo legado por device não o usa). Guardamos o handle
+  // do timer (mesma simetria de `_reconnectTimer`/`_clockSyncTimer` no
+  // Supervisor) em vez de descartar o retorno — o loop do condomínio não para
+  // sozinho hoje, mas o handle fica disponível para quem precisar (ex.: um
+  // futuro shutdown gracioso), em vez de um `setInterval` solto e inacessível.
+  const telemetriaTimer = iniciarTelemetria(token, {
     supervisor,
     pendentes,
     iniciadoEm: INICIADO_EM,

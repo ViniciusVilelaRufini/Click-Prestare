@@ -1,7 +1,7 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AgentController } from './agent.controller';
 import { FacialController } from './facial.controller';
-import { AgentBridgeService } from './agent-bridge.service';
+import { AgentBridgeService, sanitizarTelemetria } from './agent-bridge.service';
 
 /**
  * Telemetria do Agente Local (tarefa 7):
@@ -104,5 +104,137 @@ describe('GET facial/agent/saude', () => {
     const ctrl = new FacialController({} as any, bridge);
     const operadorDeOutroCondominio = { sub: 3, nome: 'QA porteiro', id_condominio: 99 } as any;
     expect(() => ctrl.agentSaude(7, operadorDeOutroCondominio)).toThrow(ForbiddenException);
+  });
+});
+
+/**
+ * A rota condo/:token/telemetria é @Public() (token do device, sem JWT) e
+ * @SkipThrottle(), sob o limite genérico de body (50MB) — `AgentTelemetriaPayload`
+ * é só um tipo do TypeScript, apagado em runtime. `sanitizarTelemetria()` é o
+ * único ponto que decide o que entra no Map do AgentBridgeService: monta um
+ * objeto NOVO só com os campos esperados, no tipo/tamanho certos, e nunca lança.
+ */
+describe('sanitizarTelemetria()', () => {
+  it('payload válido passa praticamente inalterado', () => {
+    const out = sanitizarTelemetria({
+      versao: '2026.09.24',
+      so: 'win32 10.0.26100',
+      iniciado_em: '2026-09-23T00:00:00.000Z',
+      dispositivos: [
+        { id: 10, driver: 'dahua-facial', online: true, ultimo_evento_em: null, ultimo_erro: 'timeout' },
+      ],
+      eventos_pendentes: 5,
+    });
+    expect(out).toEqual({
+      versao: '2026.09.24',
+      so: 'win32 10.0.26100',
+      iniciado_em: '2026-09-23T00:00:00.000Z',
+      dispositivos: [
+        { id: 10, driver: 'dahua-facial', online: true, ultimo_evento_em: null, ultimo_erro: 'timeout' },
+      ],
+      eventos_pendentes: 5,
+    });
+  });
+
+  it('trunca strings grandes (versao, so, iniciado_em, ultimo_erro)', () => {
+    const out = sanitizarTelemetria({
+      versao: 'v'.repeat(1000),
+      so: 's'.repeat(1000),
+      iniciado_em: 'i'.repeat(1000),
+      dispositivos: [{ id: 1, ultimo_erro: 'e'.repeat(1000) }],
+      eventos_pendentes: 0,
+    });
+    expect(out.versao).toHaveLength(32);
+    expect(out.so).toHaveLength(100);
+    expect(out.iniciado_em).toHaveLength(40);
+    expect(out.dispositivos[0].ultimo_erro).toHaveLength(500);
+  });
+
+  it('limita a lista de dispositivos a 200 entradas', () => {
+    const dispositivos = Array.from({ length: 500 }, (_, i) => ({ id: i, online: true }));
+    const out = sanitizarTelemetria({
+      versao: 'x',
+      so: 'x',
+      iniciado_em: 'x',
+      dispositivos,
+      eventos_pendentes: 0,
+    });
+    expect(out.dispositivos).toHaveLength(200);
+    expect(out.dispositivos[0].id).toBe(0);
+  });
+
+  it('tipos errados nos campos de topo viram default seguro, sem lançar', () => {
+    const out = sanitizarTelemetria({
+      versao: 12345,
+      so: null,
+      iniciado_em: { foo: 'bar' },
+      dispositivos: 'nao é um array',
+      eventos_pendentes: 'muitos',
+    });
+    expect(out).toEqual({
+      versao: '',
+      so: '',
+      iniciado_em: '',
+      dispositivos: [],
+      eventos_pendentes: 0,
+    });
+  });
+
+  it('eventos_pendentes negativo ou NaN vira 0', () => {
+    expect(sanitizarTelemetria({ eventos_pendentes: -5 }).eventos_pendentes).toBe(0);
+    expect(sanitizarTelemetria({ eventos_pendentes: NaN }).eventos_pendentes).toBe(0);
+    expect(sanitizarTelemetria({ eventos_pendentes: Infinity }).eventos_pendentes).toBe(0);
+  });
+
+  it('device sem id numérico é descartado; campos extras do device são descartados', () => {
+    const out = sanitizarTelemetria({
+      dispositivos: [
+        { id: 'nao-numero', driver: 'x', online: true },
+        { driver: 'sem-id', online: true },
+        { id: 2, driver: 'ok', online: true, campoInventado: 'deveria sumir' },
+      ],
+    });
+    expect(out.dispositivos).toEqual([
+      { id: 2, driver: 'ok', online: true, ultimo_evento_em: null, ultimo_erro: null },
+    ]);
+    expect((out.dispositivos[0] as any).campoInventado).toBeUndefined();
+  });
+
+  it('online só é true quando o valor é exatamente booleano true', () => {
+    const out = sanitizarTelemetria({
+      dispositivos: [
+        { id: 1, online: 'true' },
+        { id: 2, online: 1 },
+        { id: 3, online: false },
+      ],
+    });
+    expect(out.dispositivos.map((d) => d.online)).toEqual([false, false, false]);
+  });
+
+  it('campos extras no corpo (nível topo) são descartados', () => {
+    const out = sanitizarTelemetria({
+      versao: '1.0',
+      so: 'x',
+      iniciado_em: 'x',
+      dispositivos: [],
+      eventos_pendentes: 0,
+      comando_secreto: 'rm -rf /',
+    } as any);
+    expect((out as any).comando_secreto).toBeUndefined();
+    expect(Object.keys(out).sort()).toEqual(
+      ['dispositivos', 'eventos_pendentes', 'iniciado_em', 'so', 'versao'].sort(),
+    );
+  });
+
+  it('raw não-objeto (null, string, array, undefined) devolve os defaults, sem lançar', () => {
+    for (const raw of [null, undefined, 'string qualquer', 42, []]) {
+      expect(sanitizarTelemetria(raw)).toEqual({
+        versao: '',
+        so: '',
+        iniciado_em: '',
+        dispositivos: [],
+        eventos_pendentes: 0,
+      });
+    }
   });
 });

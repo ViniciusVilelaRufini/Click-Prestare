@@ -7,7 +7,6 @@ import {
   normalizarFabricante,
 } from './facial.service';
 import { AgentBridgeService, AgentResult } from './agent-bridge.service';
-import type { AgentTelemetriaPayload } from './agent-bridge.service';
 
 /**
  * Endpoints consumidos pelo Agente Local (ver agent/ e AgentBridgeService).
@@ -160,13 +159,15 @@ export class AgentController {
    * offline pendente — enviada a cada ~60s (ver agent/src/core/telemetria.js).
    * Guarda a última foto no AgentBridgeService; o portal lê pelo
    * GET facial/agent/saude (FacialController, só para operador).
+   *
+   * `body` é `unknown` de propósito: rota `@Public()` (token do device, sem
+   * JWT) e `@SkipThrottle()`, sob o limite genérico de body (50MB) — não dá
+   * pra confiar no formato. `setTelemetria()` sanitiza antes de guardar (ver
+   * `sanitizarTelemetria()` em agent-bridge.service.ts).
    */
   @Public()
   @Post('condo/:token/telemetria')
-  async condoTelemetria(
-    @Param('token') token: string,
-    @Body() body: AgentTelemetriaPayload,
-  ) {
+  async condoTelemetria(@Param('token') token: string, @Body() body: unknown) {
     const idCondominio = await this.service.resolveCondominioForAgent(token);
     this.bridge.setTelemetria(idCondominio, body);
     return { ok: true };

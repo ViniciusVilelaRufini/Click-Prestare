@@ -211,11 +211,19 @@ export class AgentBridgeService {
    * device e fila offline pendente. Em memória, como o resto desta classe
    * (ver comentário "ESTADO EM MEMÓRIA" acima) — reiniciar o backend só
    * apaga a última foto, o agente manda outra no próximo ciclo.
+   *
+   * `payload` é `unknown` de propósito: a rota é `@Public()` (autenticada só
+   * pelo token do device, sem JWT) e `@SkipThrottle()`, sob o limite global de
+   * body (50MB) — `AgentTelemetriaPayload` é só um tipo do TypeScript, apagado
+   * em tempo de execução, então sem `sanitizarTelemetria()` um payload
+   * malicioso ou de um agente com bug ficaria neste Map do jeito que chegou
+   * (string gigante, array enorme, campos a mais). Sanitiza SEMPRE, aqui
+   * dentro — não depende do chamador lembrar de sanitizar antes de chamar.
    */
-  setTelemetria(idCondominio: number, payload: AgentTelemetriaPayload): void {
+  setTelemetria(idCondominio: number, payload: unknown): void {
     this.telemetria.set(idCondominio, {
       recebido_em: new Date().toISOString(),
-      ...payload,
+      ...sanitizarTelemetria(payload),
     });
   }
 
@@ -289,4 +297,60 @@ export interface AgentTelemetriaPayload {
 /** O que fica guardado por condomínio: o payload do agente + quando chegou. */
 export interface AgentTelemetria extends AgentTelemetriaPayload {
   recebido_em: string;
+}
+
+// ----- Sanitização de POST condo/:token/telemetria (entrada não confiável) -----
+
+const TELEMETRIA_MAX_VERSAO = 32;
+const TELEMETRIA_MAX_SO = 100;
+const TELEMETRIA_MAX_INICIADO_EM = 40;
+const TELEMETRIA_MAX_DISPOSITIVOS = 200;
+const TELEMETRIA_MAX_DRIVER = 40;
+const TELEMETRIA_MAX_ULTIMO_EVENTO_EM = 40;
+const TELEMETRIA_MAX_ULTIMO_ERRO = 500;
+
+function strTruncada(v: unknown, max: number): string {
+  return typeof v === 'string' ? v.slice(0, max) : '';
+}
+
+function strOuNull(v: unknown, max: number): string | null {
+  return typeof v === 'string' ? v.slice(0, max) : null;
+}
+
+/** Um device da telemetria: só entra com `id` numérico — sem ele não dá para casar com o dispositivo no portal. */
+function sanitizarDispositivo(v: unknown): AgentTelemetriaDispositivo | null {
+  if (!v || typeof v !== 'object') return null;
+  const d = v as Record<string, unknown>;
+  if (typeof d['id'] !== 'number' || !Number.isFinite(d['id'])) return null;
+  return {
+    id: d['id'],
+    driver: strOuNull(d['driver'], TELEMETRIA_MAX_DRIVER),
+    online: d['online'] === true,
+    ultimo_evento_em: strOuNull(d['ultimo_evento_em'], TELEMETRIA_MAX_ULTIMO_EVENTO_EM),
+    ultimo_erro: strOuNull(d['ultimo_erro'], TELEMETRIA_MAX_ULTIMO_ERRO),
+  };
+}
+
+/**
+ * Sanitiza o corpo de POST condo/:token/telemetria ANTES de guardar: monta um
+ * objeto NOVO só com os campos esperados, no tipo e tamanho certos — qualquer
+ * coisa a mais é descartada, qualquer coisa do tipo errado vira o default
+ * seguro (nunca lança). Ver `setTelemetria()` para o porquê (rota pública,
+ * sem rate-limit, sob o limite genérico de body).
+ */
+export function sanitizarTelemetria(raw: unknown): AgentTelemetriaPayload {
+  const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const eventosPendentes = Number(body['eventos_pendentes']);
+  const dispositivosBrutos = Array.isArray(body['dispositivos']) ? body['dispositivos'] : [];
+  const dispositivos = dispositivosBrutos
+    .slice(0, TELEMETRIA_MAX_DISPOSITIVOS)
+    .map(sanitizarDispositivo)
+    .filter((d): d is AgentTelemetriaDispositivo => d !== null);
+  return {
+    versao: strTruncada(body['versao'], TELEMETRIA_MAX_VERSAO),
+    so: strTruncada(body['so'], TELEMETRIA_MAX_SO),
+    iniciado_em: strTruncada(body['iniciado_em'], TELEMETRIA_MAX_INICIADO_EM),
+    eventos_pendentes: Number.isFinite(eventosPendentes) && eventosPendentes >= 0 ? eventosPendentes : 0,
+    dispositivos,
+  };
 }
