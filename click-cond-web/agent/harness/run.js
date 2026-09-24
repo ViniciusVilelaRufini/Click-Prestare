@@ -4,13 +4,15 @@
  *
  * Sobe: aparelho Hikvision falso (Digest real), Control iD falso (sessão) e uma
  * NUVEM falsa que fala o mesmo protocolo de poll/result/event do backend.
- * Depois roda o AGENTE REAL (cópia byte a byte de agent/index.js) contra tudo e
- * confere o que chegou em cada ponta.
+ * Depois roda o AGENTE REAL (o BUNDLE gerado a partir de agent/src/index.js)
+ * contra tudo e confere o que chegou em cada ponta.
  */
 const http = require('http');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+// require(esm) síncrono exige Node >=22.12; o agente suporta Node >=18, por
+// isso usamos import() dinâmico (funciona desde o Node 12) em vez de require().
 const {
   comFechamentoForcado,
   estado,
@@ -25,6 +27,7 @@ const PORTA_NUVEM = 9100;
 const PORTA_HIK = 9101;
 const PORTA_CID = 9102;
 const PORTA_DAHUA = 9103;
+const PORTA_LPR = 9104;
 const TOKEN = 'token-de-teste';
 
 const DEVICES = {
@@ -59,12 +62,44 @@ const DEVICES = {
     api_user: USER,
     api_password: PASS,
   },
+  // Tarefa 6: (tipo, fabricante) sem driver conhecido — câmera LPR não pode
+  // herdar o ouvinte de reconhecimento facial (era o bug do `if (fabricante
+  // === ...)` sem olhar o tipo). Aponta pra um mock PRÓPRIO (PORTA_LPR, só
+  // conta requisições) — se o Supervisor errasse a combinação e tentasse
+  // assinar eventos nele, a contagem deixaria de ser zero.
+  40: {
+    id: 40,
+    nome: 'Câmera LPR Intelbras',
+    tipo: 'lpr',
+    fabricante: 'intelbras',
+    ip: '127.0.0.1',
+    porta: PORTA_LPR,
+    api_user: USER,
+    api_password: PASS,
+  },
+  // C2 da revisão final: aparelho NÃO facial de marca suportada. Comandos
+  // (ping, open_door) têm de sair pelo protocolo da marca (driver Control
+  // iD, por família do fabricante) — antes da correção caíam no REST
+  // genérico (POST /open_door, GET /status) e a catraca aparecia OFFLINE.
+  // Ouvinte de eventos faciais, esse não pode ganhar. Usa o MESMO mock do
+  // Control iD facial (porta 9102): um aparelho a mais na mesma "caixa".
+  50: {
+    id: 50,
+    nome: 'Catraca Control iD',
+    tipo: 'catraca',
+    fabricante: 'control_id',
+    ip: '127.0.0.1',
+    porta: PORTA_CID,
+    api_user: USER,
+    api_password: PASS,
+  },
 };
 
-const filaComandos = new Map([[10, []], [20, []], [30, []]]);
+const filaComandos = new Map([[10, []], [20, []], [30, []], [40, []], [50, []]]);
 const resultados = new Map(); // commandId -> result
 const eventos = [];
 const statusRecebidos = [];
+const telemetrias = []; // payloads recebidos em POST condo/:token/telemetria
 let proximoCmd = 1;
 
 function enfileirar(deviceId, cmd) {
@@ -108,6 +143,10 @@ function criarNuvem() {
         statusRecebidos.push(...(body.statuses || []));
         return json({ ok: true });
       }
+      if (p === `/api/facial/agent/condo/${TOKEN}/telemetria`) {
+        telemetrias.push(body);
+        return json({ ok: true });
+      }
       res.writeHead(404);
       res.end('nao implementado: ' + p);
     });
@@ -122,11 +161,34 @@ let streamRes = null;
 const hik = servidorHik(PORTA_HIK, (res) => {
   streamRes = res;
 });
-const cid = servidorControlId(PORTA_CID);
+let cid = servidorControlId(PORTA_CID);
 let streamDahua = null;
 let dahua = servidorDahua(PORTA_DAHUA, (res) => {
   streamDahua = res;
 });
+
+// Mock isolado pro device 40 (lpr/intelbras, sem driver): registra cada
+// requisição recebida. Não usa servidorDahua/estado.dahua de propósito —
+// aquele estado é compartilhado com o device 30 (facial/intelbras, que
+// assina de verdade), e misturar os dois esconderia uma falha aqui.
+//
+// Sem driver conhecido, o Supervisor não assina NADA (nem `escutar` nem
+// `testar`) — mas o heartbeat de status GENÉRICO de index.js (fallback REST
+// pra fabricante sem driver, ver `doPing`) continua pingando `GET /status`
+// pra reportar online/offline no portal. Isso é esperado e não é o que a
+// tarefa 6 proíbe; o que não pode aparecer é qualquer coisa parecida com
+// assinatura de eventos (o attach fica preso numa conexão bem mais pesada
+// que um simples ping-pong de /status).
+const lprRequisicoes = [];
+const lprMock = comFechamentoForcado(
+  http
+    .createServer((req, res) => {
+      lprRequisicoes.push(`${req.method} ${(req.url || '').split('?')[0]}`);
+      res.writeHead(404);
+      res.end();
+    })
+    .listen(PORTA_LPR, '127.0.0.1'),
+);
 
 /** Simula o aparelho caindo da rede e voltando (queda de energia/switch). */
 async function piscarAparelhoDahua(msFora) {
@@ -136,6 +198,13 @@ async function piscarAparelhoDahua(msFora) {
   dahua = servidorDahua(PORTA_DAHUA, (res) => {
     streamDahua = res;
   });
+}
+
+/** Mesma simulação para o Control iD (sem stream — só fecha/reabre o servidor). */
+async function piscarAparelhoControlId(msFora) {
+  await cid.fecharAgora();
+  await new Promise((r) => setTimeout(r, msFora));
+  cid = servidorControlId(PORTA_CID);
 }
 
 /** Empurra um reconhecimento pela stream de eventos do Intelbras/Dahua. */
@@ -200,11 +269,16 @@ async function esperarResultado(cmdId, timeoutMs = 15000) {
  * O agente grava estado (marca d'água, fila offline) AO LADO do index.js. Por
  * isso rodamos uma CÓPIA numa pasta descartável: um teste nunca pode sobrescrever
  * o estado do agente de verdade que esteja rodando nesta máquina.
+ *
+ * Roda o bundle (src/index.js → dist/click-agent.cjs) primeiro — é o bundle,
+ * não o fonte, que testamos aqui, porque é o bundle que vai para o exe.
  */
-function prepararCopiaDoAgente() {
+async function prepararCopiaDoAgente() {
+  const { bundle } = await import('../build-bundle.mjs');
+  const bundlePath = bundle();
   const destino = path.join(__dirname, '.tmp-agent');
   fs.mkdirSync(destino, { recursive: true });
-  fs.copyFileSync(path.join(__dirname, '..', 'index.js'), path.join(destino, 'index.js'));
+  fs.copyFileSync(bundlePath, path.join(destino, 'index.js'));
   for (const f of ['device-baselines.json', 'events-queue.jsonl']) {
     const alvo = path.join(destino, f);
     if (fs.existsSync(alvo)) fs.unlinkSync(alvo);
@@ -213,7 +287,7 @@ function prepararCopiaDoAgente() {
 }
 
 async function main() {
-  const agentePath = prepararCopiaDoAgente();
+  const agentePath = await prepararCopiaDoAgente();
 
   const agente = spawn(process.execPath, [agentePath], {
     env: {
@@ -222,6 +296,7 @@ async function main() {
       AGENT_TOKEN: TOKEN,
       POLL_INTERVAL_MS: '300',
       DEVICE_STATUS_INTERVAL_MS: '1000',
+      TELEMETRIA_INTERVAL_MS: '1000',
       LAN_TIMEOUT_MS: '5000',
       LIVEVIEW_PORT: '8799',
     },
@@ -390,9 +465,13 @@ async function main() {
     checar('cid: poller ao vivo enviou o acesso', !!evCid, JSON.stringify(eventos.slice(antesCid)));
     checar('cid: evento ao vivo NÃO é backlog', evCid && !evCid.backlog);
 
-    // Não pode reenviar o mesmo log no ciclo seguinte (marca d'água).
+    // Não pode reenviar o mesmo log no ciclo seguinte (marca d'água). A
+    // espera tem de passar do debounce de 8s do agente + 1 ciclo do poller
+    // (3s): com a marca d'água travada (C1 da revisão final — o Supervisor
+    // engolia o `ok` do envio), o reenvio só aparece DEPOIS do debounce, e
+    // uma espera de 3s nunca o via.
     const qtdAntes = eventos.filter((e) => e.external_id === idInterno).length;
-    await sleep(3000);
+    await sleep(11500);
     const qtdDepois = eventos.filter((e) => e.external_id === idInterno).length;
     checar('cid: não reenvia o mesmo acesso', qtdDepois === qtdAntes, `${qtdAntes} → ${qtdDepois}`);
 
@@ -405,10 +484,88 @@ async function main() {
       JSON.stringify(condsLogs[0]?.order),
     );
 
+    // ===== Catraca Control iD (tipo != facial): comandos pelo protocolo da marca =====
+    const portaAntesCatraca = estado.cid.portaAberta;
+    const rCatraca = await esperarResultado(enfileirar(50, { type: 'open_door' }));
+    checar('catraca cid: open_door OK via protocolo Control iD', rCatraca?.ok === true, JSON.stringify(rCatraca));
+    checar(
+      'catraca cid: a porta abriu no aparelho (não caiu no POST /open_door genérico)',
+      estado.cid.portaAberta === portaAntesCatraca + 1,
+      `${portaAntesCatraca} → ${estado.cid.portaAberta}`,
+    );
+    checar(
+      'catraca cid: nenhum POST /open_door genérico chegou ao aparelho',
+      !estado.cid.requisicoes.includes('POST /open_door'),
+    );
+    checar(
+      'catraca cid: heartbeat pelo protocolo da marca reporta ONLINE',
+      statusRecebidos.some((s) => s.deviceId === 50 && s.online),
+      JSON.stringify(statusRecebidos.filter((s) => s.deviceId === 50).slice(-3)),
+    );
+    checar(
+      'catraca cid: sem ouvinte de eventos faciais (loga "sem driver" para o ouvinte)',
+      logAgente.join('').includes('Catraca Control iD: sem driver para catraca/control_id') &&
+        !logAgente.join('').includes('Catraca Control iD: monitorando acessos'),
+    );
+
     const cCidRem = enfileirar(20, { type: 'remove_users', faceIds: [idInterno] });
     const rCidRem = await esperarResultado(cCidRem);
     checar('cid: remove_users OK', rCidRem?.ok === true, JSON.stringify(rCidRem));
     checar('cid: usuário removido', !estado.cid.usuarios.has(idInterno));
+
+    // ===== Control iD: replay offline (log criado com o aparelho fora do ar) =====
+    // O poller ao vivo (`escutar`) e o replay offline (`buscarDesde`) leem o
+    // MESMO recurso (access_logs) — pra provar que o replay pega o log criado
+    // durante a queda (sem o poller "roubar" o evento por sorte de timing),
+    // primeiro sincronizamos com a fase do poller: ele sempre dorme
+    // CONTROLID_POLL_MS (3s) após cada tentativa, então esperamos o ciclo
+    // atual completar e SÓ ENTÃO derrubamos o aparelho — a próxima tentativa
+    // dele cai no meio da queda (falha) e a seguinte só vem ~2.6s depois do
+    // aparelho voltar, dando folga de sobra pro heartbeat (a cada ~1s)
+    // detectar ONLINE e disparar a recuperação primeiro.
+    const antesPollCid = estado.cid.requisicoes.filter((r) => r === 'POST /load_objects.fcgi').length;
+    while (
+      estado.cid.requisicoes.filter((r) => r === 'POST /load_objects.fcgi').length === antesPollCid
+    ) {
+      await sleep(50);
+    }
+    // Log criado ENQUANTO o aparelho está fora do ar (o agente não alcança o
+    // Control iD): só pode ter chegado à nuvem pelo replay offline.
+    estado.cid.accessLogs.push({
+      id: 9002,
+      time: Math.floor(Date.now() / 1000),
+      user_id: 88888,
+      event: 7,
+    });
+    await piscarAparelhoControlId(3400); // > CONTROLID_POLL_MS (ver comentário acima)
+    await sleep(2000); // dá tempo de sobra pro heartbeat detectar ONLINE e recuperar
+
+    const evReplayCid = eventos.find((e) => e.external_id === '88888');
+    checar(
+      'cid: replay offline recuperado',
+      !!evReplayCid,
+      JSON.stringify(eventos.filter((e) => e.external_id === '88888')),
+    );
+    checar(
+      'cid: replay offline vem marcado como backlog (não reabre a porta)',
+      evReplayCid?.backlog === true,
+      JSON.stringify(evReplayCid),
+    );
+
+    // A checagem de "não duplica" só prova algo de fato se esperarmos o
+    // poller ao vivo TER A CHANCE de tentar de novo — pela sincronização de
+    // fase acima, a próxima tentativa dele cai em ~6s depois do início da
+    // queda (3,4s de queda + ~2,6s). Checar antes disso provaria só que o
+    // replay funcionou, não que o poller não duplicou o mesmo acesso ao
+    // reencontrar o aparelho. Espera mais ~4s (total ~9,4s desde o início da
+    // queda: ~3,4s de margem depois da retentativa do poller) antes de
+    // reler a contagem.
+    await sleep(4000);
+    checar(
+      'cid: replay offline não duplica o que já foi enviado',
+      eventos.filter((e) => e.external_id === '88888').length === 1,
+      String(eventos.filter((e) => e.external_id === '88888').length),
+    );
 
     // ===== Intelbras / Dahua: NÃO-REGRESSÃO da marca que já funciona =====
     const cDh = enfileirar(30, {
@@ -576,12 +733,61 @@ async function main() {
         condsAcs[0].startTime,
       );
     }
+
+    // ===== Supervisor (tarefa 6): (tipo, fabricante) sem ouvinte =====
+    // Uma câmera LPR Intelbras não pode herdar o ouvinte de eventos de
+    // reconhecimento facial (o bug original: decisão só pelo `fabricante`,
+    // sem olhar o `tipo`). Ao longo de toda a execução acima (dezenas de
+    // segundos, vários ciclos de poll), o mock do device 40 só pode ter
+    // recebido o PING da marca (comandos resolvem por família do fabricante
+    // — C2 da revisão final: Dahua/Intelbras pinga em magicBox.cgi) — nunca
+    // assinatura de eventos (eventManager attach), busca de log
+    // (recordFinder) ou acerto de relógio (global.cgi).
+    checar(
+      'lpr/intelbras: mock só recebe o ping da marca, nenhuma assinatura de eventos',
+      lprRequisicoes.length > 0 && lprRequisicoes.every((r) => r === 'GET /cgi-bin/magicBox.cgi'),
+      `requisições recebidas: ${JSON.stringify([...new Set(lprRequisicoes)])}`,
+    );
+    checar(
+      'lpr/intelbras: agente loga "sem driver" (uma vez) em vez de tentar assinar',
+      logAgente.join('').includes(`sem driver para ${DEVICES[40].tipo}/${DEVICES[40].fabricante}`),
+    );
+
+    // ===== Telemetria (tarefa 7) =====
+    // TELEMETRIA_INTERVAL_MS=1000 no spawn do agente — não precisa esperar o
+    // 1min de produção para o cenário confirmar que a telemetria chegou.
+    checar('telemetria: chegou ao menos uma vez', telemetrias.length > 0, JSON.stringify(telemetrias.slice(0, 1)));
+    const ultimaTelemetria = telemetrias[telemetrias.length - 1];
+    checar('telemetria: traz a versão do agente', typeof ultimaTelemetria?.versao === 'string' && ultimaTelemetria.versao.length > 0, JSON.stringify(ultimaTelemetria));
+    checar('telemetria: traz o SO (os.platform()+release())', typeof ultimaTelemetria?.so === 'string' && ultimaTelemetria.so.length > 0, ultimaTelemetria?.so);
+    checar('telemetria: traz iniciado_em', typeof ultimaTelemetria?.iniciado_em === 'string' && ultimaTelemetria.iniciado_em.length > 0, ultimaTelemetria?.iniciado_em);
+    checar(
+      'telemetria: traz os dispositivos com saúde (id/driver/online/ouvinte_ativo)',
+      Array.isArray(ultimaTelemetria?.dispositivos) &&
+        ultimaTelemetria.dispositivos.some(
+          (d) => d.id === 10 && d.driver === 'hikvision-facial' && d.online === true && d.ouvinte_ativo === true,
+        ),
+      JSON.stringify(ultimaTelemetria?.dispositivos),
+    );
+    // I8 da revisão final: `online` vem do heartbeat — a catraca (sem
+    // ouvinte facial) responde ao ping e tem de aparecer online.
+    checar(
+      'telemetria: online vem do heartbeat (catraca sem ouvinte aparece online)',
+      ultimaTelemetria?.dispositivos?.some((d) => d.id === 50 && d.online === true && d.ouvinte_ativo === false),
+      JSON.stringify(ultimaTelemetria?.dispositivos?.find((d) => d.id === 50)),
+    );
+    checar(
+      'telemetria: número (não string) de eventos_pendentes',
+      typeof ultimaTelemetria?.eventos_pendentes === 'number',
+      String(ultimaTelemetria?.eventos_pendentes),
+    );
   } finally {
     agente.kill();
     void nuvem.fecharAgora();
     void hik.fecharAgora();
     void dahua.fecharAgora();
     void cid.fecharAgora();
+    void lprMock.fecharAgora();
     try {
       if (streamRes) streamRes.end();
     } catch {

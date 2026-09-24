@@ -12,6 +12,7 @@ import { MockRelayService } from './mock-relay.service';
 import { EnrollSessionService } from './enroll-session.service';
 import { AccessStateService } from './access-state.service';
 import { AgentBridgeService } from './agent-bridge.service';
+import { AgentVersionService } from './agent-version.service';
 
 /**
  * O simulador de terminal e a botoeira mock são andaimes de teste — existem
@@ -44,6 +45,7 @@ const simuladorHabilitado =
     EnrollSessionService,
     AccessStateService,
     AgentBridgeService,
+    AgentVersionService,
   ],
   // FacialDeviceClientService é exportado porque o CRM precisa dele para
   // desprovisionar a biometria dos terminais antes de excluir um condomínio

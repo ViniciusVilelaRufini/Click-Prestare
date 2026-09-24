@@ -65,8 +65,10 @@ Em poucos segundos o portal mostra **"Agente conectado"** no card do device.
 
 ## Opção B — Via Node (Raspberry Pi, Linux, dev)
 
-Requer Node.js 18+ (o agente não tem dependências npm). Copie a pasta `agent/`,
-`cp .env.example .env`, preencha os mesmos campos acima e rode `node index.js`.
+Requer Node.js 18+ (o agente não tem dependências npm em runtime — só para
+gerar o bundle). Copie a pasta `agent/`, rode `npm run build` (gera
+`dist/click-agent.cjs`), `cp .env.example .env`, preencha os mesmos campos
+acima e rode `node dist/click-agent.cjs` (ou `npm start`).
 
 ## Rodar como serviço (iniciar com a máquina)
 
@@ -87,7 +89,7 @@ After=network-online.target
 
 [Service]
 WorkingDirectory=/opt/click-agent
-ExecStart=/usr/bin/node /opt/click-agent/index.js
+ExecStart=/usr/bin/node /opt/click-agent/dist/click-agent.cjs
 Restart=always
 RestartSec=5
 
@@ -107,6 +109,59 @@ aparelho gera (rosto reconhecido, tag lida) continuam indo **direto do aparelho
 para a nuvem** via webhook — configure a URL do webhook no próprio aparelho
 (a mesma URL do botão "Copiar URL Webhook"). Isso só exige que o aparelho tenha
 internet de saída, o que normalmente já existe.
+
+## Auto-atualização
+
+O executável (Opção A), **em modo condomínio** (`AGENT_TOKEN`), se atualiza
+sozinho: na partida e a cada 6h ele consulta a última versão publicada e, se
+houver uma mais nova, baixa (só de um release `agent-v*` do repositório do
+agente no github.com — o CDN de assets do GitHub só vale como redirecionamento
+—, ou do host da própria API, com TLS validado de verdade), confere o SHA-256
+e troca o próprio arquivo; a saída para subir a versão nova espera o fim do
+ciclo de comandos em curso (um cadastro no aparelho não é cortado no meio).
+Se a versão nova não conseguir completar nem um poll em 3 tentativas
+seguidas, o agente reverte sozinho para a anterior, e marca essa versão como
+recusada (não tenta baixá-la de novo enquanto a nuvem não publicar outra). Se
+ela cair antes mesmo de rodar esse código, quem reverte é o laço de serviço
+(`run-agent-service.cmd`): 3 saídas com erro com `atualizacao.json` presente
+trazem o `click-agent.old.exe` de volta, e o exe antigo marca a versão como
+recusada ao subir. Só age rodando como o `.exe` empacotado (Node SEA) — via
+`node dist/click-agent.cjs` (Opção B) fica de fora, sem efeito nenhum. O modo
+legado por dispositivo (`DEVICE_TOKENS`, sem `AGENT_TOKEN`) também fica de
+fora — só o modo condomínio tem esse wiring hoje. Ver `src/core/atualizador.js`
+para o protocolo completo.
+
+**Pré-requisito para a troca funcionar de verdade:** a instalação precisa ter
+um laço de reinício — `run-agent-service.cmd` com `goto loop` ao lado do exe,
+gerado pelo instalador (`install-windows.bat`, ver "Rodar como serviço"
+acima). Trocar o arquivo e sair não adianta nada se ninguém sobe a versão
+nova em seguida; sem esse laço, o agente detecta a ausência dele e **pula a
+troca**, só logando um aviso pra reinstalar pelo portal. Os dois instaladores
+(`install-windows.bat` e o `instalar-agente-<condominio>.bat` do portal)
+geram exatamente o `run-agent-service.cmd` versionado nesta pasta, param a
+tarefa/processo antes de reescrevê-lo e tiram da tarefa o limite padrão de 72h
+e as condições de bateria do `schtasks`. Rodar o instalador do portal de novo
+também ATUALIZA uma instalação antiga (sempre baixa o exe atual).
+
+### Publicando uma versão nova
+
+1. Suba `AGENT_VERSION` em `src/versao.js` (formato `AAAA.MM.DD` ou
+   `AAAA.MM.DD.N` para mais de um release no mesmo dia).
+2. Gere o executável: `npm run build:exe` (dentro de `agent/`) — produz
+   `click-agent.exe` e `click-agent.exe.sha256` na pasta `agent/`.
+3. Publique o release no GitHub, com a tag `agent-v<versão>` (ex.:
+   `agent-v2026.09.24`) e os dois arquivos como assets:
+   ```bash
+   cd agent
+   gh release create agent-v<versao> dist/../click-agent.exe click-agent.exe.sha256 --latest
+   ```
+   A API (`GET /api/facial/agent/condo/:token/versao`, ver
+   `apps/api/.../facial/agent-version.service.ts`) lê o último release desse
+   jeito: tag `agent-v<versão>` e os assets `click-agent.exe` +
+   `click-agent.exe.sha256` — nomes exatos, senão a API não reconhece o
+   release como uma versão publicada (cai em "nenhuma versão disponível").
+   Cache de 10 min: um release novo pode levar até esse tempo para os
+   agentes verem.
 
 ## Fabricantes — status de validação
 

@@ -7,6 +7,7 @@ import {
   normalizarFabricante,
 } from './facial.service';
 import { AgentBridgeService, AgentResult } from './agent-bridge.service';
+import { AgentVersionService } from './agent-version.service';
 
 /**
  * Endpoints consumidos pelo Agente Local (ver agent/ e AgentBridgeService).
@@ -28,6 +29,7 @@ export class AgentController {
   constructor(
     private readonly service: FacialService,
     private readonly bridge: AgentBridgeService,
+    private readonly agentVersion: AgentVersionService,
   ) {}
 
   @Public()
@@ -152,5 +154,38 @@ export class AgentController {
   ) {
     const idCondominio = await this.service.resolveCondominioForAgent(token);
     return this.service.reportDeviceStatuses(idCondominio, body?.statuses ?? []);
+  }
+
+  /**
+   * Telemetria do agente (tarefa 7): versão, SO, saúde por device e fila
+   * offline pendente — enviada a cada ~60s (ver agent/src/core/telemetria.js).
+   * Guarda a última foto no AgentBridgeService; o portal lê pelo
+   * GET facial/agent/saude (FacialController, só para operador).
+   *
+   * `body` é `unknown` de propósito: rota `@Public()` (token do device, sem
+   * JWT) e `@SkipThrottle()`, sob o limite genérico de body (50MB) — não dá
+   * pra confiar no formato. `setTelemetria()` sanitiza antes de guardar (ver
+   * `sanitizarTelemetria()` em agent-bridge.service.ts).
+   */
+  @Public()
+  @Post('condo/:token/telemetria')
+  async condoTelemetria(@Param('token') token: string, @Body() body: unknown) {
+    const idCondominio = await this.service.resolveCondominioForAgent(token);
+    this.bridge.setTelemetria(idCondominio, body);
+    return { ok: true };
+  }
+
+  /**
+   * Auto-atualização (tarefa 8): o agente consulta isto na partida e a cada
+   * 6h (ver agent/src/core/atualizador.js) para saber se há uma versão mais
+   * nova publicada. Token validado como as outras rotas condo/* (mesmo 401
+   * de token inválido) — não expõe nada sensível, mas mantém o mesmo padrão
+   * de autenticação de todo o resto deste controller.
+   */
+  @Public()
+  @Get('condo/:token/versao')
+  async condoVersao(@Param('token') token: string) {
+    await this.service.resolveCondominioForAgent(token);
+    return this.agentVersion.getLatest();
   }
 }
