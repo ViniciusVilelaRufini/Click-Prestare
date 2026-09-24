@@ -687,6 +687,39 @@ async function main() {
       JSON.stringify(replayed.map((e) => e.external_id)),
     );
 
+    // ===== Log interno com mais de 1024 registros (caso de campo, 24/09) =====
+    // O SS 3530 MF corta o recordFinder em 1024 registros, do mais antigo ao
+    // mais novo, qualquer que seja o `count`. Com o log acima disso, a busca
+    // "os N primeiros" nunca via a passagem nova — o replay dizia "sem
+    // novidade" e a entrada feita offline sumia. A busca tem de ser por janela
+    // de horário (StartTime/EndTime).
+    const dezDiasAtras = Math.floor(Date.now() / 1000) - 10 * 24 * 3600;
+    const historicoAntigo = [];
+    for (let n = 1; n <= 1100; n++) {
+      historicoAntigo.push({ RecNo: String(n), UserID: `antigo_${n}`, CreateTime: String(dezDiasAtras + n), ErrorCode: '0' });
+    }
+    estado.dahua.registros = historicoAntigo;
+    await piscarAparelhoDahua(2500);
+    await sleep(4000);
+    const antesLogCheio = eventos.length;
+    estado.dahua.registros = [
+      ...historicoAntigo,
+      { RecNo: '1101', UserID: 'prestador_1101', CreateTime: String(Math.floor(Date.now() / 1000)), ErrorCode: '0' },
+    ];
+    await piscarAparelhoDahua(2500);
+    await sleep(5000);
+    const replayLogCheio = eventos.slice(antesLogCheio);
+    checar(
+      'replay: log com mais de 1024 registros recupera a passagem offline',
+      replayLogCheio.some((e) => e.external_id === 'prestador_1101'),
+      JSON.stringify(replayLogCheio.map((e) => e.external_id)),
+    );
+    checar(
+      'replay: log cheio não reenvia histórico antigo',
+      !replayLogCheio.some((e) => String(e.external_id).startsWith('antigo_')),
+      String(replayLogCheio.filter((e) => String(e.external_id).startsWith('antigo_')).length),
+    );
+
     // ===== Queda de internet: store-and-forward =====
     // O acesso acontece com a nuvem inalcançável. A pessoa passou pela porta;
     // perder esse registro é perder auditoria. O agente guarda em disco e
