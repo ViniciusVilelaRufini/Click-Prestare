@@ -4,14 +4,14 @@ import 'package:flutter/foundation.dart';
 class ApiConfig {
   /// Mude para 'true' para usar o servidor da AWS (Nuvem)
   /// Mude para 'false' para usar o servidor local (Seu PC)
-  static const bool isProduction = true;
+  static const bool isProduction = false;
 
   /// Host dinâmico
   static String get host {
     if (isProduction) return "api.clickprestarecondominios.com.br";
-    if (kIsWeb) return "localhost:3003";
+    if (kIsWeb) return "localhost:3000";
     // 10.0.2.2 é o endereço especial para acessar o localhost do seu PC de dentro do Emulador Android
-    return "10.0.2.2:3003";
+    return "10.0.2.2:3000";
   }
 
   /// HTTPS é obrigatório na AWS (Produção)
