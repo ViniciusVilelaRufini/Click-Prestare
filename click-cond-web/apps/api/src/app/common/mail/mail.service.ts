@@ -320,6 +320,55 @@ export class MailService implements OnModuleInit {
     await this.send(email, subject, html, text);
   }
 
+  async sendResetPasswordCode(
+    email: string,
+    nome: string,
+    code: string,
+    tipoUsuario = 'Usuário',
+  ): Promise<void> {
+    const subject = `Código para redefinição de senha: ${code} - PRESTARE`;
+    const text = `Olá, ${nome}!\n\nRecebemos uma solicitação para redefinir a senha da sua conta (${tipoUsuario}) no aplicativo PRESTARE.\n\nSeu código de segurança de 6 dígitos é: ${code}\n\nDigite este código diretamente no aplicativo para cadastrar sua nova senha.\nEste código é válido por 10 minutos.\nSe você não solicitou a redefinição de senha, desconsidere esta mensagem: sua conta continua segura.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+    const html = `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${this.escape(subject)}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px 10px;">
+        <div style="display:none;font-size:1px;color:#fff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+          Seu código de recuperação PRESTARE é ${this.escape(code)}
+        </div>
+        <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #0f172a; margin: 0; font-size: 20px; font-weight: 700;">Recuperação de Senha</h2>
+          </div>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+            Olá, <b>${this.escape(nome)}</b>!<br><br>
+            Recebemos uma solicitação para redefinir a senha da sua conta de <b>${this.escape(tipoUsuario)}</b> no aplicativo <b>PRESTARE</b>.<br><br>
+            Digite o código de 6 dígitos abaixo na tela do aplicativo para criar sua nova senha:
+          </p>
+          <div style="text-align: center; margin: 24px 0;">
+            <span style="display: inline-block; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #1e3a8a; background-color: #f1f5f9; padding: 14px 28px; border-radius: 8px; border: 1px dashed #94a3b8; font-family: monospace;">
+              ${this.escape(code)}
+            </span>
+          </div>
+          <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0;">
+            ⏳ Este código expira em <b>10 minutos</b> e só pode ser utilizado uma única vez.<br>
+            🔒 Se você não realizou essa solicitação, desconsidere este e-mail. Sua senha atual permanece inalterada.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+            Equipe PRESTARE Condomínios
+          </p>
+        </div>
+      </body>
+      </html>
+    `;
+    await this.send(email, subject, html, text);
+  }
+
   async sendBillingReminder(
     email: string,
     nome: string,
