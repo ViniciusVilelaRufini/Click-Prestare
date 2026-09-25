@@ -5,7 +5,25 @@ import { authGuard } from './auth/auth.guard';
 const convitePorQueryCanMatch: CanMatchFn = () =>
   Boolean(inject(Router).getCurrentNavigation()?.extractedUrl.queryParams['convite']);
 
+const redefinirSenhaPorQueryCanMatch: CanMatchFn = () => {
+  const queryParams = inject(Router).getCurrentNavigation()?.extractedUrl.queryParams;
+  return Boolean(
+    queryParams &&
+      (queryParams['redefinir-senha'] !== undefined ||
+        queryParams['redefinir_senha'] !== undefined ||
+        queryParams['token'] !== undefined),
+  );
+};
+
 export const appRoutes: Route[] = [
+  {
+    // Fallback público via query param na raiz para contornar ausência de rewrite SPA no hosting (Amplify).
+    path: '',
+    pathMatch: 'full',
+    canMatch: [redefinirSenhaPorQueryCanMatch],
+    loadComponent: () =>
+      import('./auth/redefinir-senha-page.component').then((m) => m.RedefinirSenhaPageComponent),
+  },
   {
     // O fallback público usa a raiz para evitar deep link no hosting. Sem a
     // query, este caminho não casa e a rota raiz protegida abaixo continua

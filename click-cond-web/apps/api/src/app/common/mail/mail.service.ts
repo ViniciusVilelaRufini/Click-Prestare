@@ -260,7 +260,7 @@ export class MailService implements OnModuleInit {
   }
 
   async sendResetPasswordLink(email: string, token: string, tipoUsuario: string): Promise<void> {
-    const webLink = `https://www.clickprestarecondominios.com.br/redefinir-senha?token=${encodeURIComponent(token)}`;
+    const webLink = `https://www.clickprestarecondominios.com.br/?redefinir-senha=${encodeURIComponent(token)}`;
     const deepLink = `clickprestare://redefinir-senha?token=${encodeURIComponent(token)}`;
     const subject = 'PRESTARE - Recuperação de Senha';
     const text = `Olá!\n\nVocê solicitou a redefinição de senha da sua conta (${tipoUsuario}) no sistema PRESTARE.\n\nPara cadastrar uma nova senha, acesse o link abaixo:\n${webLink}\n\nSe estiver no celular com o aplicativo PRESTARE instalado, você também pode abrir diretamente:\n${deepLink}\n\nEste link é válido por 30 minutos e só pode ser utilizado uma vez.\nSe você não solicitou a redefinição de senha, ignore esta mensagem: sua conta continua segura.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;

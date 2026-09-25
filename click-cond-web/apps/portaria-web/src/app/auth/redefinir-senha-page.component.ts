@@ -220,7 +220,10 @@ export class RedefinirSenhaPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    const fromQuery = this.route.snapshot.queryParamMap.get('token');
+    const fromQuery =
+      this.route.snapshot.queryParamMap.get('redefinir-senha') ||
+      this.route.snapshot.queryParamMap.get('redefinir_senha') ||
+      this.route.snapshot.queryParamMap.get('token');
     const fromParam = this.route.snapshot.paramMap.get('token');
     const t = (fromQuery || fromParam || '').trim();
 

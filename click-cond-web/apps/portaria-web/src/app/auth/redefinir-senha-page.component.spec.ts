@@ -3,8 +3,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { RedefinirSenhaPageComponent } from './redefinir-senha-page.component';
-import { API_BASE } from '../shared/api.config';
+import { appRoutes } from '../app.routes';
 import { ThemeService } from '../shared/theme.service';
 
 describe('RedefinirSenhaPageComponent — Web Reset (F2)', () => {
@@ -44,10 +45,17 @@ describe('RedefinirSenhaPageComponent — Web Reset (F2)', () => {
     expect(component.semToken()).toBe(true);
   });
 
-  it('lê o token dos parâmetros da query', () => {
+  it('lê o token dos parâmetros da query (formato ?token=)', () => {
     const { component } = build({}, { token: 'token-valido-123' });
     component.ngOnInit();
     expect(component.token()).toBe('token-valido-123');
+    expect(component.semToken()).toBe(false);
+  });
+
+  it('lê o token dos parâmetros da query (formato raiz ?redefinir-senha=)', () => {
+    const { component } = build({}, { 'redefinir-senha': 'token-raiz-456' });
+    component.ngOnInit();
+    expect(component.token()).toBe('token-raiz-456');
     expect(component.semToken()).toBe(false);
   });
 
@@ -85,5 +93,22 @@ describe('RedefinirSenhaPageComponent — Web Reset (F2)', () => {
 
     expect(component.sucesso()).toBe(true);
     expect(component.mensagemSucesso()).toBe('Senha alterada com sucesso!');
+  });
+
+  it('abre a tela de redefinição ao navegar para a raiz com ?redefinir-senha=', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter(appRoutes),
+        { provide: ThemeService, useValue: { isLight: signal(false) } },
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/?redefinir-senha=token-url-raiz', RedefinirSenhaPageComponent);
+
+    expect(component).toBeInstanceOf(RedefinirSenhaPageComponent);
+    expect(component.token()).toBe('token-url-raiz');
+    expect(component.semToken()).toBe(false);
   });
 });
