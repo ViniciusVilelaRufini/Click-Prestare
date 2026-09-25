@@ -10,6 +10,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
+import 'package:click/widgets/animations/validation_alert_wrapper.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
@@ -58,6 +59,18 @@ class _NewMoradorPageState extends State<NewMorador> {
   dynamic imageFile;
   var imageChanged = false;
   var myId = -1;
+
+  // Chaves de scroll para auto-foco nos campos obrigatórios
+  final _keyNome = GlobalKey();
+  final _keyDocumento = GlobalKey();
+  final _keyDN = GlobalKey();
+  final _keyEmail = GlobalKey();
+
+  // Mensagens de erro com animação de alerta
+  String? _erroNome;
+  String? _erroDocumento;
+  String? _erroDN;
+  String? _erroEmail;
 
   @override
   void dispose() {
@@ -158,6 +171,7 @@ class _NewMoradorPageState extends State<NewMorador> {
     txtDN.text = text;
     final menorDetectado = _calcularSeMenor(text);
     setState(() {
+      _erroDN = null;
       _isMenor = menorDetectado;
       if (menorDetectado) {
         _sendCredentials = false;
@@ -204,26 +218,56 @@ class _NewMoradorPageState extends State<NewMorador> {
   }
 
   Future<void> save() async {
-    // Validações básicas antes de tentar enviar
-    if (txtNome.text.trim().isEmpty) {
-      displayMessage(context, getText('alert'), 'Informe o nome do morador.');
-      return;
-    }
+    // Validações com destaque animado nos campos obrigatórios
+    setState(() {
+      _erroNome = null;
+      _erroDocumento = null;
+      _erroDN = null;
+      _erroEmail = null;
 
-    if (txtDocumento.text.trim().isEmpty) {
-      displayMessage(
-        context,
-        getText('alert'),
-        _isMenor
-            ? 'Informe o documento do menor (RG, CPF ou Certidão de Nascimento).'
-            : 'Informe o documento do morador.',
-      );
-      return;
-    }
+      if (txtNome.text.trim().isEmpty) {
+        _erroNome = _isMenor
+            ? 'Informe o nome completo do menor.'
+            : 'Informe o nome do morador.';
+      }
 
-    // E-mail só é obrigatório quando o usuário opta por enviar credenciais/acesso ao app (não aplicável a menores).
-    if (_sendCredentials && !_isMenor && txtEmail.text.trim().isEmpty) {
-      displayMessage(context, getText('alert'), 'Informe o e-mail para enviar o acesso ao app.');
+      if (txtDocumento.text.trim().isEmpty) {
+        _erroDocumento = _isMenor
+            ? 'Informe o documento do menor (RG, CPF ou Certidão).'
+            : 'Informe o documento do morador.';
+      }
+
+      if (txtDN.text.trim().isEmpty) {
+        _erroDN = 'Informe a data de nascimento.';
+      }
+
+      if (_sendCredentials && !_isMenor && txtEmail.text.trim().isEmpty) {
+        _erroEmail = 'Informe o e-mail para enviar o acesso ao app.';
+      }
+    });
+
+    final hasErrors = _erroNome != null ||
+        _erroDocumento != null ||
+        _erroDN != null ||
+        _erroEmail != null;
+
+    if (hasErrors) {
+      if (_erroNome != null) {
+        ValidationAlertWrapper.scrollTo(_keyNome);
+      } else if (_erroDocumento != null) {
+        ValidationAlertWrapper.scrollTo(_keyDocumento);
+      } else if (_erroDN != null) {
+        ValidationAlertWrapper.scrollTo(_keyDN);
+      } else if (_erroEmail != null) {
+        ValidationAlertWrapper.scrollTo(_keyEmail);
+      }
+
+      if (mounted) {
+        ValidationAlertWrapper.showErrorSnackBar(
+          context,
+          'Preencha os campos obrigatórios destacados.',
+        );
+      }
       return;
     }
 
@@ -399,26 +443,42 @@ class _NewMoradorPageState extends State<NewMorador> {
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('funcionario_infos_pessoais')),
                   AppInput(
+                    fieldKey: _keyNome,
                     label: _isMenor ? 'Nome Completo do Menor' : getText('user_nome_completo'),
                     controller: txtNome,
                     prefixIcon: _isMenor ? PhosphorIcons.baby : PhosphorIcons.user,
                     textCapitalization: TextCapitalization.words,
+                    errorText: _erroNome,
+                    onChanged: (val) {
+                      if (_erroNome != null) {
+                        setState(() => _erroNome = null);
+                      }
+                    },
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppInput(
+                    fieldKey: _keyDocumento,
                     label: _isMenor
                         ? 'Documento (RG, CPF ou Certidão)'
                         : getText('user_documento'),
                     controller: txtDocumento,
                     prefixIcon: PhosphorIcons.identificationCard,
                     formatters: [FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]'))],
+                    errorText: _erroDocumento,
+                    onChanged: (val) {
+                      if (_erroDocumento != null) {
+                        setState(() => _erroDocumento = null);
+                      }
+                    },
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppInput(
+                    fieldKey: _keyDN,
                     label: getText('data_nascimento'),
                     controller: txtDN,
                     prefixIcon: PhosphorIcons.calendarBlank,
                     readOnly: true,
+                    errorText: _erroDN,
                     onTap: () => showCupertinoModalPopup(
                       context: context,
                       builder: (_) => ModalCupertino(
@@ -518,10 +578,17 @@ class _NewMoradorPageState extends State<NewMorador> {
                   // e a API recusava o cadastro. Sem campo de e-mail para menor.
                   if (!_isMenor) ...[
                     AppInput(
+                      fieldKey: _keyEmail,
                       label: getText('email'),
                       controller: txtEmail,
                       prefixIcon: PhosphorIcons.envelope,
                       keyboard: TextInputType.emailAddress,
+                      errorText: _erroEmail,
+                      onChanged: (val) {
+                        if (_erroEmail != null) {
+                          setState(() => _erroEmail = null);
+                        }
+                      },
                     ),
                     const SizedBox(height: AppSpacing.md),
                   ],

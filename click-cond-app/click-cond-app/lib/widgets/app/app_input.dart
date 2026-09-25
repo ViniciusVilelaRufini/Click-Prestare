@@ -1,6 +1,7 @@
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/widgets/animations/validation_alert_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -21,6 +22,8 @@ class AppInput extends StatefulWidget {
   final bool readOnly;
   final VoidCallback? onTap;
   final int maxLines;
+  final String? errorText;
+  final GlobalKey? fieldKey;
 
   const AppInput({
     super.key,
@@ -39,6 +42,8 @@ class AppInput extends StatefulWidget {
     this.readOnly = false,
     this.onTap,
     this.maxLines = 1,
+    this.errorText,
+    this.fieldKey,
   });
 
   @override
@@ -50,7 +55,10 @@ class _AppInputState extends State<AppInput> {
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
+    final hasCustomError =
+        widget.errorText != null && widget.errorText!.trim().isNotEmpty;
+
+    final field = TextFormField(
       controller: widget.controller,
       obscureText: widget.isPassword && _obscure,
       keyboardType: widget.keyboard,
@@ -67,35 +75,52 @@ class _AppInputState extends State<AppInput> {
         labelText: widget.label,
         hintText: widget.hint,
         prefixIcon: widget.prefixIcon != null
-            ? Icon(widget.prefixIcon, size: 20, color: AppColors.textSecondary(context))
+            ? Icon(
+                widget.prefixIcon,
+                size: 20,
+                color: hasCustomError
+                    ? AppColors.error
+                    : AppColors.textSecondary(context),
+              )
             : null,
         suffixIcon: _suffixIcon(context),
         filled: true,
-        fillColor: AppColors.surface(context),
+        fillColor: hasCustomError
+            ? AppColors.error.withValues(alpha: 0.05)
+            : AppColors.surface(context),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.lg,
         ),
         labelStyle: AppTypography.body(context).copyWith(
-          color: AppColors.textSecondary(context),
+          color: hasCustomError
+              ? AppColors.error
+              : AppColors.textSecondary(context),
         ),
         floatingLabelStyle: AppTypography.captionMedium(context).copyWith(
-          color: AppColors.primary,
+          color: hasCustomError ? AppColors.error : AppColors.primary,
         ),
         hintStyle: AppTypography.body(context).copyWith(
           color: AppColors.textTertiary(context),
         ),
         border: OutlineInputBorder(
           borderRadius: AppRadius.rlg,
-          borderSide: BorderSide.none,
+          borderSide: hasCustomError
+              ? const BorderSide(color: AppColors.error, width: 1.5)
+              : BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: AppRadius.rlg,
-          borderSide: BorderSide.none,
+          borderSide: hasCustomError
+              ? const BorderSide(color: AppColors.error, width: 1.5)
+              : BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppRadius.rlg,
-          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(
+            color: hasCustomError ? AppColors.error : AppColors.primary,
+            width: 1.5,
+          ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppRadius.rlg,
@@ -106,6 +131,12 @@ class _AppInputState extends State<AppInput> {
           borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
       ),
+    );
+
+    return ValidationAlertWrapper(
+      scrollKey: widget.fieldKey,
+      errorText: widget.errorText,
+      child: field,
     );
   }
 

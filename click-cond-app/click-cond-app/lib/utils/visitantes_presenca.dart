@@ -24,6 +24,50 @@ bool estaNoLocal(Map<dynamic, dynamic> item) {
   return item['data_entrada'] != null && item['data_saida'] == null;
 }
 
+/// Resultado da validação campo a campo do cadastro de visitante/prestador.
+class ValidacaoVisitanteResult {
+  final String? erroNome;
+  final String? erroInicio;
+  final String? erroTermino;
+
+  const ValidacaoVisitanteResult({
+    this.erroNome,
+    this.erroInicio,
+    this.erroTermino,
+  });
+
+  bool get isValid =>
+      erroNome == null && erroInicio == null && erroTermino == null;
+
+  /// Retorna a primeira chave de erro na ordem prioritária.
+  String? get primeiroErro => erroNome ?? erroInicio ?? erroTermino;
+}
+
+/// Valida os campos do cadastro de visitante identificando individualmente os erros de cada campo.
+ValidacaoVisitanteResult validarCamposVisitanteDetalhado({
+  required String nome,
+  required DateTime? inicio,
+  required DateTime? termino,
+}) {
+  String? erroNome;
+  String? erroInicio;
+  String? erroTermino;
+
+  if (nome.trim().isEmpty) erroNome = 'visitante_nome_obrigatorio';
+  if (inicio == null) erroInicio = 'visitante_inicio_obrigatorio';
+  if (termino == null) {
+    erroTermino = 'visitante_termino_obrigatorio';
+  } else if (inicio != null && termino.isBefore(inicio)) {
+    erroTermino = 'visitante_periodo_invalido';
+  }
+
+  return ValidacaoVisitanteResult(
+    erroNome: erroNome,
+    erroInicio: erroInicio,
+    erroTermino: erroTermino,
+  );
+}
+
 /// Valida o cadastro de visitante/prestador antes de ir à rede.
 ///
 /// Devolve a CHAVE da mensagem de erro (para o getText da tela), ou null se
@@ -38,11 +82,11 @@ String? validarCadastroVisitante({
   required DateTime? inicio,
   required DateTime? termino,
 }) {
-  if (nome.trim().isEmpty) return 'visitante_nome_obrigatorio';
-  if (inicio == null) return 'visitante_inicio_obrigatorio';
-  if (termino == null) return 'visitante_termino_obrigatorio';
-  if (termino.isBefore(inicio)) return 'visitante_periodo_invalido';
-  return null;
+  return validarCamposVisitanteDetalhado(
+    nome: nome,
+    inicio: inicio,
+    termino: termino,
+  ).primeiroErro;
 }
 
 /// Define se o usuário tem permissão para editar um cadastro existente de visitante.

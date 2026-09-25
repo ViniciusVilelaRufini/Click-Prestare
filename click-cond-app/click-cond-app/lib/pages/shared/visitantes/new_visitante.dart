@@ -13,6 +13,7 @@ import 'package:click/utils/visitantes_presenca.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/bottom_sheet_aptos.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
+import 'package:click/widgets/animations/validation_alert_wrapper.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
@@ -58,6 +59,16 @@ class _NewVisitantePageState extends State<NewVisitante> {
   final txtBloco = TextEditingController();
   final txtApto = TextEditingController();
   final txtObs = TextEditingController();
+
+  // Chaves de scroll para auto-foco nos campos obrigatórios
+  final _keyNome = GlobalKey();
+  final _keyDataInicio = GlobalKey();
+  final _keyDataTermino = GlobalKey();
+
+  // Mensagens de erro com animação de alerta
+  String? _erroNome;
+  String? _erroDataInicio;
+  String? _erroDataTermino;
 
   var idMyApartment;
   var currentTipo = '';
@@ -199,12 +210,48 @@ class _NewVisitantePageState extends State<NewVisitante> {
       // na lista depende de data_termino, e nulo ali vira crachá permanente.
       final inicio = convertStringToDateTimeFormat(txtDataInicio.text.trim());
       final termino = convertStringToDateTimeFormat(txtDataTermino.text.trim());
-      final erro = validarCadastroVisitante(
+      final validacao = validarCamposVisitanteDetalhado(
         nome: txtNome.text,
         inicio: inicio,
         termino: termino,
       );
-      if (erro != null) throw getText(erro);
+
+      if (!validacao.isValid) {
+        setState(() {
+          _erroNome = validacao.erroNome != null
+              ? getText(validacao.erroNome!)
+              : null;
+          _erroDataInicio = validacao.erroInicio != null
+              ? getText(validacao.erroInicio!)
+              : null;
+          _erroDataTermino = validacao.erroTermino != null
+              ? getText(validacao.erroTermino!)
+              : null;
+        });
+
+        // Rola até o primeiro campo obrigatório em falta
+        if (_erroNome != null) {
+          ValidationAlertWrapper.scrollTo(_keyNome);
+        } else if (_erroDataInicio != null) {
+          ValidationAlertWrapper.scrollTo(_keyDataInicio);
+        } else if (_erroDataTermino != null) {
+          ValidationAlertWrapper.scrollTo(_keyDataTermino);
+        }
+
+        if (mounted) {
+          ValidationAlertWrapper.showErrorSnackBar(
+            context,
+            'Preencha os campos obrigatórios destacados.',
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _erroNome = null;
+        _erroDataInicio = null;
+        _erroDataTermino = null;
+      });
 
       var visitante = VisitanteModel(
         id: widget.myId ?? -1,
@@ -536,10 +583,17 @@ class _NewVisitantePageState extends State<NewVisitante> {
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('funcionario_infos_pessoais')),
                   AppInput(
+                    fieldKey: _keyNome,
                     label: getText('user_nome_completo'),
                     controller: txtNome,
                     prefixIcon: PhosphorIcons.user,
                     textCapitalization: TextCapitalization.words,
+                    errorText: _erroNome,
+                    onChanged: (val) {
+                      if (_erroNome != null) {
+                        setState(() => _erroNome = null);
+                      }
+                    },
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppInput(
@@ -550,15 +604,19 @@ class _NewVisitantePageState extends State<NewVisitante> {
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('visitantes_infos')),
                   AppInput(
+                    fieldKey: _keyDataInicio,
                     label: getText('visitantes_data_hora_inicio'),
                     controller: txtDataInicio,
                     prefixIcon: PhosphorIcons.calendarBlank,
                     readOnly: true,
+                    errorText: _erroDataInicio,
                     onTap: () => showCupertinoModalPopup(
                       context: context,
                       builder: (_) => ModalCupertino(
-                        onPressed: (text) =>
-                            setState(() => txtDataInicio.text = text),
+                        onPressed: (text) => setState(() {
+                          txtDataInicio.text = text;
+                          _erroDataInicio = null;
+                        }),
                         initialDate: DateTime.now(),
                         type: 'datetime',
                       ),
@@ -566,15 +624,19 @@ class _NewVisitantePageState extends State<NewVisitante> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppInput(
+                    fieldKey: _keyDataTermino,
                     label: getText('visitantes_data_hora_termino'),
                     controller: txtDataTermino,
                     prefixIcon: PhosphorIcons.calendarCheck,
                     readOnly: true,
+                    errorText: _erroDataTermino,
                     onTap: () => showCupertinoModalPopup(
                       context: context,
                       builder: (_) => ModalCupertino(
-                        onPressed: (text) =>
-                            setState(() => txtDataTermino.text = text),
+                        onPressed: (text) => setState(() {
+                          txtDataTermino.text = text;
+                          _erroDataTermino = null;
+                        }),
                         initialDate:
                             convertStringToDateTimeFormat(txtDataInicio.text) ??
                                 DateTime.now(),

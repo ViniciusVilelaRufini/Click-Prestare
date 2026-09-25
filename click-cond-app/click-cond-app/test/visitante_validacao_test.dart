@@ -103,4 +103,60 @@ void main() {
       );
     });
   });
+
+  group('validarCamposVisitanteDetalhado', () {
+    test('identifica múltiplos erros simultaneamente para destaque em tela', () {
+      final res = validarCamposVisitanteDetalhado(
+        nome: '',
+        inicio: null,
+        termino: null,
+      );
+
+      expect(res.isValid, isFalse);
+      expect(res.erroNome, 'visitante_nome_obrigatorio');
+      expect(res.erroInicio, 'visitante_inicio_obrigatorio');
+      expect(res.erroTermino, 'visitante_termino_obrigatorio');
+      expect(res.primeiroErro, 'visitante_nome_obrigatorio');
+    });
+
+    test('quando apenas o nome falta, indica erro apenas no nome', () {
+      final res = validarCamposVisitanteDetalhado(
+        nome: '   ',
+        inicio: inicio,
+        termino: termino,
+      );
+
+      expect(res.isValid, isFalse);
+      expect(res.erroNome, 'visitante_nome_obrigatorio');
+      expect(res.erroInicio, isNull);
+      expect(res.erroTermino, isNull);
+    });
+
+    test('quando período for inválido, indica erro de período no término', () {
+      final res = validarCamposVisitanteDetalhado(
+        nome: 'Visitante Correto',
+        inicio: termino,
+        termino: inicio,
+      );
+
+      expect(res.isValid, isFalse);
+      expect(res.erroNome, isNull);
+      expect(res.erroInicio, isNull);
+      expect(res.erroTermino, 'visitante_periodo_invalido');
+    });
+
+    test('passa com sucesso quando todos os campos obrigatórios estão preenchidos', () {
+      final res = validarCamposVisitanteDetalhado(
+        nome: 'Visitante Correto',
+        inicio: inicio,
+        termino: termino,
+      );
+
+      expect(res.isValid, isTrue);
+      expect(res.erroNome, isNull);
+      expect(res.erroInicio, isNull);
+      expect(res.erroTermino, isNull);
+      expect(res.primeiroErro, isNull);
+    });
+  });
 }
