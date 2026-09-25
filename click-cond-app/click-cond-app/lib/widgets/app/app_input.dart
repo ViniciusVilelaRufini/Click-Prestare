@@ -78,27 +78,23 @@ class _AppInputState extends State<AppInput> {
             ? Icon(
                 widget.prefixIcon,
                 size: 20,
-                color: hasCustomError
-                    ? AppColors.error
-                    : AppColors.textSecondary(context),
+                color: AppColors.textSecondary(context),
               )
             : null,
         suffixIcon: _suffixIcon(context),
         filled: true,
-        fillColor: hasCustomError
-            ? AppColors.error.withValues(alpha: 0.05)
-            : AppColors.surface(context),
+        fillColor: AppColors.surface(context),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.lg,
         ),
         labelStyle: AppTypography.body(context).copyWith(
-          color: hasCustomError
-              ? AppColors.error
-              : AppColors.textSecondary(context),
+          color: AppColors.textSecondary(context),
         ),
         floatingLabelStyle: AppTypography.captionMedium(context).copyWith(
-          color: hasCustomError ? AppColors.error : AppColors.primary,
+          color: hasCustomError
+              ? AppColors.error.withValues(alpha: 0.8)
+              : AppColors.primary,
         ),
         hintStyle: AppTypography.body(context).copyWith(
           color: AppColors.textTertiary(context),
@@ -106,29 +102,43 @@ class _AppInputState extends State<AppInput> {
         border: OutlineInputBorder(
           borderRadius: AppRadius.rlg,
           borderSide: hasCustomError
-              ? const BorderSide(color: AppColors.error, width: 1.5)
+              ? BorderSide(
+                  color: AppColors.error.withValues(alpha: 0.5),
+                  width: 1.0,
+                )
               : BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: AppRadius.rlg,
           borderSide: hasCustomError
-              ? const BorderSide(color: AppColors.error, width: 1.5)
+              ? BorderSide(
+                  color: AppColors.error.withValues(alpha: 0.5),
+                  width: 1.0,
+                )
               : BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppRadius.rlg,
           borderSide: BorderSide(
-            color: hasCustomError ? AppColors.error : AppColors.primary,
-            width: 1.5,
+            color: hasCustomError
+                ? AppColors.error.withValues(alpha: 0.7)
+                : AppColors.primary,
+            width: hasCustomError ? 1.2 : 1.5,
           ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppRadius.rlg,
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+          borderSide: BorderSide(
+            color: AppColors.error.withValues(alpha: 0.5),
+            width: 1.0,
+          ),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: AppRadius.rlg,
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+          borderSide: BorderSide(
+            color: AppColors.error.withValues(alpha: 0.7),
+            width: 1.2,
+          ),
         ),
       ),
     );

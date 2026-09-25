@@ -85,7 +85,7 @@ class _ValidationAlertWrapperState extends State<ValidationAlertWrapper>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 550),
+      duration: const Duration(milliseconds: 380),
     );
 
     _shakeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -123,15 +123,14 @@ class _ValidationAlertWrapperState extends State<ValidationAlertWrapper>
 
   double _calculateShake(double t) {
     if (t == 0.0 || t == 1.0) return 0.0;
-    // 3.5 ciclos com decaimento exponencial suave
-    return math.sin(t * math.pi * 7.0) * 8.0 * (1.0 - t);
+    // Micro-vibração suave, sutil e elegante (amplitude reduzida para 3.5px)
+    return math.sin(t * math.pi * 5.0) * 3.5 * (1.0 - t);
   }
 
   @override
   Widget build(BuildContext context) {
     final hasError =
         widget.errorText != null && widget.errorText!.trim().isNotEmpty;
-    final radius = widget.borderRadius ?? AppRadius.rlg;
 
     return Container(
       key: widget.scrollKey,
@@ -139,7 +138,6 @@ class _ValidationAlertWrapperState extends State<ValidationAlertWrapper>
         animation: _controller,
         builder: (context, child) {
           final shakeOffset = _calculateShake(_shakeAnimation.value);
-          final pulseValue = _pulseAnimation.value;
 
           return Transform.translate(
             offset: Offset(shakeOffset, 0),
@@ -147,50 +145,33 @@ class _ValidationAlertWrapperState extends State<ValidationAlertWrapper>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOut,
-                  decoration: BoxDecoration(
-                    borderRadius: radius,
-                    boxShadow: hasError
-                        ? [
-                            BoxShadow(
-                              color: AppColors.error.withValues(
-                                alpha: 0.12 + (0.35 * pulseValue),
-                              ),
-                              blurRadius: 8 + (10 * pulseValue),
-                              spreadRadius: 1 + (2.5 * pulseValue),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: widget.child,
-                ),
+                widget.child,
                 AnimatedSize(
-                  duration: const Duration(milliseconds: 250),
+                  duration: const Duration(milliseconds: 200),
                   curve: Curves.easeInOut,
                   child: hasError
                       ? Padding(
                           padding: const EdgeInsets.only(
-                            top: AppSpacing.xs + 2,
-                            left: AppSpacing.sm,
-                            right: AppSpacing.sm,
+                            top: AppSpacing.xs,
+                            left: AppSpacing.md,
+                            right: AppSpacing.md,
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              const Icon(
+                              Icon(
                                 PhosphorIcons.warningCircle,
-                                size: 14,
-                                color: AppColors.error,
+                                size: 12,
+                                color: AppColors.error.withValues(alpha: 0.75),
                               ),
                               const SizedBox(width: 5),
                               Expanded(
                                 child: Text(
                                   widget.errorText!,
                                   style: AppTypography.tiny(context).copyWith(
-                                    color: AppColors.error,
-                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.error.withValues(alpha: 0.85),
+                                    fontWeight: FontWeight.w400,
+                                    fontSize: 12,
                                   ),
                                 ),
                               ),
