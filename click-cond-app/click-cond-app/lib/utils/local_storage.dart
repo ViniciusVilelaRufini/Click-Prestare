@@ -73,6 +73,17 @@ storageFuncionario(Map<String, dynamic> parsed) {
   _storage.setItem('apartamentos', parsed["user"]["apartamentos"] ?? 0);
 }
 
+void storageAutoLogin(Map<String, dynamic> parsed, String loginType) {
+  final cleanType = loginType.toLowerCase().trim();
+  if (cleanType.contains('sindico')) {
+    storageLogin(parsed);
+  } else if (cleanType.contains('func')) {
+    storageFuncionario(parsed);
+  } else {
+    storageMorador(parsed);
+  }
+}
+
 Future<void> storageLogout() async {
   _inMemoryPhoto = '';
   // Cache de exibição do condomínio vive no processo, não no storage: sem isto

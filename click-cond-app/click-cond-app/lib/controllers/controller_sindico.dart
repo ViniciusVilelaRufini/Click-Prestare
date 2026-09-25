@@ -158,6 +158,121 @@ passRecoveryApi(String email, String loginType) async {
   }
 }
 
+Future<Map<String, dynamic>> solicitarCodigoRedefinicaoApi(
+  String email,
+  String loginType,
+) async {
+  final cleanLoginType = loginType.toLowerCase().contains('sindico')
+      ? 'sindico'
+      : (loginType.toLowerCase().contains('func') ? 'funcionarios' : 'moradores');
+  final url = ApiConfig.buildUri('/$cleanLoginType/solicitar-codigo-redefinicao');
+  final body = json.encode({'email': email.trim()});
+
+  try {
+    final response = await ApiClient.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: body,
+      skip401Handling: true,
+    ).timeout(_kTimeout);
+
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode == 200 && parsed['success'] == true) {
+      return {
+        'success': true,
+        'ticket_id': parsed['ticket_id']?.toString() ?? '',
+        'email_masked': parsed['email_masked']?.toString() ?? email,
+        'expira_em_segundos': parsed['expira_em_segundos'] ?? 600,
+        'message': parsed['message']?.toString() ?? 'Código de verificação enviado!',
+      };
+    }
+
+    throw parsed['message']?.toString() ?? 'Não foi possível enviar o código de verificação.';
+  } catch (e) {
+    if (e is String) rethrow;
+    throw 'Falha de comunicação com o servidor. Verifique sua conexão e tente novamente.';
+  }
+}
+
+Future<String> validarCodigoRedefinicaoApi(
+  String ticketId,
+  String codigo, {
+  String loginType = 'moradores',
+}) async {
+  final cleanLoginType = loginType.toLowerCase().contains('sindico')
+      ? 'sindico'
+      : (loginType.toLowerCase().contains('func') ? 'funcionarios' : 'moradores');
+  final url = ApiConfig.buildUri('/$cleanLoginType/validar-codigo-redefinicao');
+  final body = json.encode({
+    'ticket_id': ticketId.trim(),
+    'codigo': codigo.trim(),
+  });
+
+  try {
+    final response = await ApiClient.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: body,
+      skip401Handling: true,
+    ).timeout(_kTimeout);
+
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode == 200 && parsed['success'] == true && parsed['reset_token'] != null) {
+      return parsed['reset_token'].toString();
+    }
+
+    throw parsed['message']?.toString() ?? 'Código inválido ou expirado.';
+  } catch (e) {
+    if (e is String) rethrow;
+    throw 'Falha de comunicação com o servidor ao validar código.';
+  }
+}
+
+Future<Map<String, dynamic>> redefinirSenhaComAutoLoginApi(
+  String resetToken,
+  String novaSenha,
+  String loginType,
+) async {
+  final cleanLoginType = loginType.toLowerCase().contains('sindico')
+      ? 'sindico'
+      : (loginType.toLowerCase().contains('func') ? 'funcionarios' : 'moradores');
+  final url = ApiConfig.buildUri('/$cleanLoginType/redefinir-senha');
+  final body = json.encode({
+    'token': resetToken.trim(),
+    'nova_senha': novaSenha.trim(),
+  });
+
+  try {
+    final response = await ApiClient.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: body,
+      skip401Handling: true,
+    ).timeout(_kTimeout);
+
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode == 200 && parsed['success'] == true) {
+      if (parsed['token'] != null && parsed['user'] != null) {
+        storageAutoLogin(parsed, cleanLoginType);
+      }
+      return {
+        'success': true,
+        'message': parsed['message']?.toString() ?? 'Senha redefinida com sucesso!',
+        'token': parsed['token'],
+        'user': parsed['user'],
+      };
+    }
+
+    throw parsed['message']?.toString() ?? 'Não foi possível redefinir a senha.';
+  } catch (e) {
+    if (e is String) rethrow;
+    throw 'Falha de comunicação com o servidor ao salvar nova senha.';
+  }
+}
+
 Future<String> redefinirSenhaApi(String token, String novaSenha) async {
   final url = ApiConfig.buildUri('/auth/redefinir-senha');
   final body = json.encode({
