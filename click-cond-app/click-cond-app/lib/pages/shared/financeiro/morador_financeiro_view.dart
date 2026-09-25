@@ -317,8 +317,30 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     if (_condoItems.isEmpty)
                       Container(
                         padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
-                        child: Text("Nenhuma despesa registrada", style: AppTypography.caption(context)),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? AppColors.darkSurface
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.darkBorder
+                                : const Color(0xFFE2E8F0),
+                            width: 1.1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.black.withValues(alpha: 0.20)
+                                  : const Color(0xFF64748B).withValues(alpha: 0.05),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text("Nenhuma despesa registrada", style: AppTypography.caption(context)),
+                        ),
                       )
                     else
                       ..._condoItems.map((item) => _buildFinanceiroCard(item)),
@@ -1100,146 +1122,152 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   Widget _buildCategoryCard(_CategoryItem cat, List<String> personalCategories) {
     final bool hasPending = cat.pendingCount > 0;
     final Color catColor = _corCategoria(cat.title);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.darkSurface : Colors.white;
 
-    return Material(
-      color: AppColors.surface(context),
-      borderRadius: BorderRadius.circular(18),
-      elevation: 0,
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
         borderRadius: BorderRadius.circular(18),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MoradorFinanceiroCategoryDetailPage(
-                title: cat.title,
-                icon: cat.icon,
-                getItems: () => _items,
-                personalCategories: personalCategories,
-                mes: mes ?? '',
-                ano: ano ?? '',
-                onRefresh: () => _loadData(),
-                showContaFormModal: ({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
-                  showContaFormModal(item: item, initialCategory: initialCategory, customContext: customContext, onSuccess: onSuccess);
-                },
-                buildFinanceiroCard: (item, {onChanged}) => _buildFinanceiroCard(item, onChanged: onChanged),
-              ),
-            ),
-          ).then((_) {
-            setState(() {});
-          });
-        },
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: hasPending
-                  ? const Color(0xFFEF4444).withValues(alpha: 0.35)
-                  : AppColors.border(context).withValues(alpha: 0.8),
-              width: hasPending ? 1.4 : 1.1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: (hasPending ? const Color(0xFFEF4444) : Colors.black)
-                    .withValues(alpha: hasPending ? 0.06 : 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+        border: Border.all(
+          color: hasPending
+              ? const Color(0xFFEF4444).withValues(alpha: 0.35)
+              : (isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
+          width: hasPending ? 1.4 : 1.1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (hasPending
+                    ? const Color(0xFFEF4444)
+                    : (isDark ? Colors.black : const Color(0xFF64748B)))
+                .withValues(alpha: hasPending ? 0.08 : (isDark ? 0.20 : 0.05)),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Topo do card: Ícone em squircle estilizado + Badge de status
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: catColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(13),
-                      border: Border.all(
-                        color: catColor.withValues(alpha: 0.25),
-                        width: 1,
-                      ),
-                    ),
-                    child: Center(
-                      child: Icon(cat.icon, color: catColor, size: 22),
-                    ),
-                  ),
-                  if (hasPending)
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MoradorFinanceiroCategoryDetailPage(
+                  title: cat.title,
+                  icon: cat.icon,
+                  getItems: () => _items,
+                  personalCategories: personalCategories,
+                  mes: mes ?? '',
+                  ano: ano ?? '',
+                  onRefresh: () => _loadData(),
+                  showContaFormModal: ({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
+                    showContaFormModal(item: item, initialCategory: initialCategory, customContext: customContext, onSuccess: onSuccess);
+                  },
+                  buildFinanceiroCard: (item, {onChanged}) => _buildFinanceiroCard(item, onChanged: onChanged),
+                ),
+              ),
+            ).then((_) {
+              setState(() {});
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Topo do card: Ícone em squircle estilizado + Badge de status
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444).withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(20),
+                        color: catColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(13),
                         border: Border.all(
-                          color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                          color: catColor.withValues(alpha: 0.25),
                           width: 1,
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            PhosphorIcons.warningCircleFill,
-                            size: 11,
-                            color: Color(0xFFEF4444),
-                          ),
-                          const SizedBox(width: 3.5),
-                          Text(
-                            cat.pendingCount.toString(),
-                            style: const TextStyle(
-                              color: Color(0xFFEF4444),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
+                      child: Center(
+                        child: Icon(cat.icon, color: catColor, size: 22),
                       ),
-                    )
-                  else
-                    const SizedBox.shrink(),
-                ],
-              ),
-              // Base do card: Título e subtítulo
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    cat.title,
-                    style: AppTypography.bodyMedium(context).copyWith(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                      height: 1.15,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    hasPending
-                        ? "${cat.pendingCount} pendente${cat.pendingCount > 1 ? 's' : ''}"
-                        : "Nenhuma pendência",
-                    style: TextStyle(
-                      color: hasPending
-                          ? const Color(0xFFEF4444)
-                          : AppColors.textTertiary(context),
-                      fontSize: 11.5,
-                      fontWeight: hasPending ? FontWeight.w700 : FontWeight.w500,
+                    if (hasPending)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              PhosphorIcons.warningCircleFill,
+                              size: 11,
+                              color: Color(0xFFEF4444),
+                            ),
+                            const SizedBox(width: 3.5),
+                            Text(
+                              cat.pendingCount.toString(),
+                              style: const TextStyle(
+                                color: Color(0xFFEF4444),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      const SizedBox.shrink(),
+                  ],
+                ),
+                // Base do card: Título e subtítulo
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      cat.title,
+                      style: AppTypography.bodyMedium(context).copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        height: 1.15,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(height: 3),
+                    Text(
+                      hasPending
+                          ? "${cat.pendingCount} pendente${cat.pendingCount > 1 ? 's' : ''}"
+                          : "Nenhuma pendência",
+                      style: TextStyle(
+                        color: hasPending
+                            ? const Color(0xFFEF4444)
+                            : AppColors.textTertiary(context),
+                        fontSize: 11.5,
+                        fontWeight: hasPending ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2123,9 +2151,25 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppColors.surface(context),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppColors.darkSurface
+                      : Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border(context)),
+                  border: Border.all(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? AppColors.darkBorder
+                        : const Color(0xFFE2E8F0),
+                    width: 1.1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.black.withValues(alpha: 0.20)
+                          : const Color(0xFF64748B).withValues(alpha: 0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,

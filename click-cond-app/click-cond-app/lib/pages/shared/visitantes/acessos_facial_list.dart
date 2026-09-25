@@ -17,7 +17,7 @@ class AcessosFacialList extends StatefulWidget {
   const AcessosFacialList({
     super.key,
     required this.idVisitante,
-    this.limit = 5,
+    this.limit = 4,
   });
 
   @override
@@ -38,7 +38,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
     final list = await apiGetAcessosVisitante(widget.idVisitante, limit: widget.limit);
     if (!mounted) return;
     setState(() {
-      _acessos = list;
+      _acessos = list.take(widget.limit).toList();
       _loading = false;
     });
   }
@@ -156,19 +156,37 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
             ],
           ),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface(context),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            children: _acessos.map((a) {
-              final evento = (a['evento'] ?? '').toString();
-              final observacao = a['observacao']?.toString();
-              final style = _styleForEvento(evento, observacao);
-              final metodo = _styleForMetodo(a['tipo_dispositivo']?.toString());
-              final isLast = a == _acessos.last;
-              return Container(
+        Builder(
+          builder: (context) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final exibidos = _acessos.take(widget.limit).toList();
+
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                  width: 1.1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: isDark
+                        ? Colors.black.withValues(alpha: 0.20)
+                        : const Color(0xFF64748B).withValues(alpha: 0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: exibidos.map((a) {
+                  final evento = (a['evento'] ?? '').toString();
+                  final observacao = a['observacao']?.toString();
+                  final style = _styleForEvento(evento, observacao);
+                  final metodo = _styleForMetodo(a['tipo_dispositivo']?.toString());
+                  final isLast = a == exibidos.last;
+                  return Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.md,
                   vertical: AppSpacing.sm,
@@ -263,8 +281,9 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
               );
             }).toList(),
           ),
-        ),
-      ],
-    );
-  }
+        );
+      }),
+    ],
+  );
+}
 }

@@ -128,19 +128,23 @@ class FinanceiroCard extends StatelessWidget {
     final bool pagaOnline = ehSuperlogica && temUrlBoleto;
     final bool temComprovante = _temValor(item['url_comprovante']) || _temValor(item['photo']);
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: AppColors.surface(context),
+        color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.border(context).withValues(alpha: 0.8),
-          width: 1.2,
+          color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+          width: 1.1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.20)
+                : const Color(0xFF64748B).withValues(alpha: 0.06),
+            blurRadius: 14,
             offset: const Offset(0, 4),
           ),
         ],

@@ -176,9 +176,25 @@ class ListEncomendasState extends State<ListEncomendas> {
                 // Barra de Busca
                 Container(
                   decoration: BoxDecoration(
-                    color: AppColors.surface(context),
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(color: AppColors.border(context)),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? AppColors.darkSurface
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? AppColors.darkBorder
+                          : const Color(0xFFE2E8F0),
+                      width: 1.1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.black.withValues(alpha: 0.15)
+                            : const Color(0xFF64748B).withValues(alpha: 0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: TextField(
                     controller: _searchController,
@@ -284,15 +300,17 @@ class ListEncomendasState extends State<ListEncomendas> {
     final isSelected = _filtroStatus == value;
     final activeColor = color ?? AppColors.primary;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return FilterChip(
       selected: isSelected,
       label: Text('$label ($count)'),
       labelStyle: TextStyle(
         fontSize: 12,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
         color: isSelected ? Colors.white : AppColors.textSecondary(context),
       ),
-      backgroundColor: AppColors.surface(context),
+      backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
       selectedColor: activeColor,
       checkmarkColor: Colors.white,
       showCheckmark: false,
@@ -300,8 +318,8 @@ class ListEncomendasState extends State<ListEncomendas> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(
-          color: isSelected ? activeColor : AppColors.border(context),
-          width: 1,
+          color: isSelected ? activeColor : (isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
+          width: 1.1,
         ),
       ),
       onSelected: (_) => setState(() => _filtroStatus = value),
@@ -706,7 +724,9 @@ class _EncomendaCard extends StatelessWidget {
 
             return Container(
               decoration: BoxDecoration(
-                color: AppColors.surface(context),
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? AppColors.darkSurface
+                    : Colors.white,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
               ),
               padding: EdgeInsets.fromLTRB(
@@ -941,25 +961,34 @@ class _EncomendaCard extends StatelessWidget {
 
     final hasPhoto = encomenda.fotoVolume != null && encomenda.fotoVolume!.isNotEmpty;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.darkSurface : Colors.white;
+    final cardBorder = isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
+
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border(context)),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: cardBorder,
+          width: 1.1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.20)
+                : const Color(0xFF64748B).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        borderRadius: BorderRadius.circular(18),
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(18),
           onTap: () => _showEncomendaDetails(context, dataFormatada, statusColor),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
@@ -1203,7 +1232,9 @@ class _EncomendaCard extends StatelessWidget {
             maxHeight: MediaQuery.of(context).size.height * 0.85,
           ),
           decoration: BoxDecoration(
-            color: AppColors.surface(context),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? AppColors.darkSurface
+                : Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             boxShadow: [
               BoxShadow(

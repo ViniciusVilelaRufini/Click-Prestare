@@ -52,6 +52,8 @@ export class RelatoriosController {
     @Query('formato') formato: 'pdf' | 'xlsx',
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
+    @Query('bloco') bloco?: string,
+    @Query('apto') apto?: string,
   ) {
     if (tipo === 'financeiro') {
       assertSindico(payload, 'baixar o relatório financeiro do condomínio');
@@ -63,7 +65,9 @@ export class RelatoriosController {
       tipo,
       formato,
       dataInicio,
-      dataFim
+      dataFim,
+      bloco,
+      apto,
     );
 
     res.setHeader('Content-Type', mime);

@@ -23,7 +23,6 @@ import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
 import 'package:click/pages/shared/visitantes/list_visitantes.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/sindico/edit_sindico.dart';
-import 'package:click/pages/sindico/signup/signup_%20condominium_1.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -892,56 +891,26 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           _buildDashboard(context),
           const SizedBox(height: 22),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    'Meus condomínios',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${_list.length}',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                    ),
-                  ),
-                ],
-              ),
-              if (getUserType() == 'sindico')
-                FilledButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SignupCondominuim1(),
-                        )).then((_) {
-                      if (mounted) _loadList();
-                    });
-                  },
-                  icon: const Icon(PhosphorIcons.plus, size: 15),
-                  label: const Text('Novo'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+              Text(
+                'Meus condomínios',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  letterSpacing: -0.3,
                 ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${_list.length}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),

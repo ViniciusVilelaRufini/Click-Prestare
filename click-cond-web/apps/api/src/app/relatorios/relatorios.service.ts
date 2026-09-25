@@ -61,13 +61,24 @@ export class RelatoriosService {
     tipo: 'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro',
     formato: 'pdf' | 'xlsx',
     dataInicio?: string,
-    dataFim?: string
+    dataFim?: string,
+    bloco?: string,
+    apto?: string,
   ): Promise<{ buffer: Buffer; mime: string; filename: string }> {
     const condominio = await this.prisma.condominios.findUnique({
       where: { id: idCondominio },
       select: { nome: true },
     });
     const nomeCondo = condominio?.nome || 'Condomínio';
+
+    const cleanBloco = bloco?.trim() || undefined;
+    const cleanApto = apto?.trim() || undefined;
+    const blocoLabel = cleanBloco ? (/^bloco/i.test(cleanBloco) ? cleanBloco : `Bloco ${cleanBloco}`) : '';
+    const aptoLabel = cleanApto ? (/^apto/i.test(cleanApto) ? cleanApto : `Apto ${cleanApto}`) : '';
+    const unidadeDesc = (cleanBloco || cleanApto)
+      ? [blocoLabel, aptoLabel].filter(Boolean).join(' - ')
+      : null;
+    const fileSuffix = unidadeDesc ? `_${unidadeDesc.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
 
     const dateFilter = (dataInicio || dataFim) ? {
       ...(dataInicio ? { gte: new Date(`${dataInicio}T00:00:00.000-03:00`) } : {}),
@@ -83,6 +94,12 @@ export class RelatoriosService {
           { data_saida: dateFilter },
           { data_hora_inicio: dateFilter },
         ];
+      }
+      if (cleanBloco || cleanApto) {
+        where.apartamento = {
+          ...(cleanBloco ? { bloco: { equals: cleanBloco } } : {}),
+          ...(cleanApto ? { apto: { equals: cleanApto } } : {}),
+        };
       }
 
       const listRaw = pessoasMigrationEnabled(this.prisma)
@@ -126,11 +143,12 @@ export class RelatoriosService {
         return {
           buffer,
           mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          filename: `relatorio_visitantes_${getTimestamp()}.xlsx`,
+          filename: `relatorio_visitantes${fileSuffix}_${getTimestamp()}.xlsx`,
         };
       } else {
         const buffer = await this.generatePdf({
           headerText: `Relatório de Visitantes - ${nomeCondo}`,
+          unidade: unidadeDesc,
           periodo: this.formatPeriod(dataInicio, dataFim),
           metrics: [
             { label: 'Total de Visitantes', value: list.length.toString() },
@@ -157,7 +175,7 @@ export class RelatoriosService {
         return {
           buffer,
           mime: 'application/pdf',
-          filename: `relatorio_visitantes_${getTimestamp()}.pdf`,
+          filename: `relatorio_visitantes${fileSuffix}_${getTimestamp()}.pdf`,
         };
       }
     }
@@ -169,6 +187,12 @@ export class RelatoriosService {
           { recebido_em: dateFilter },
           { retirado_em: dateFilter },
         ];
+      }
+      if (cleanBloco) {
+        where.destinatario_bloco = { equals: cleanBloco };
+      }
+      if (cleanApto) {
+        where.destinatario_apto = { equals: cleanApto };
       }
 
       const list = await this.prisma.encomendas.findMany({
@@ -195,11 +219,12 @@ export class RelatoriosService {
         return {
           buffer,
           mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          filename: `relatorio_encomendas_${getTimestamp()}.xlsx`,
+          filename: `relatorio_encomendas${fileSuffix}_${getTimestamp()}.xlsx`,
         };
       } else {
         const buffer = await this.generatePdf({
           headerText: `Relatório de Encomendas - ${nomeCondo}`,
+          unidade: unidadeDesc,
           periodo: this.formatPeriod(dataInicio, dataFim),
           metrics: [
             { label: 'Total de Encomendas', value: list.length.toString() },
@@ -227,7 +252,7 @@ export class RelatoriosService {
         return {
           buffer,
           mime: 'application/pdf',
-          filename: `relatorio_encomendas_${getTimestamp()}.pdf`,
+          filename: `relatorio_encomendas${fileSuffix}_${getTimestamp()}.pdf`,
         };
       }
     }
@@ -239,6 +264,18 @@ export class RelatoriosService {
           { created_at: dateFilter },
           { resposta_at: dateFilter },
         ];
+      }
+      if (cleanBloco || cleanApto) {
+        where.criadoPor = {
+          apartamentosUsers: {
+            some: {
+              apartamento: {
+                ...(cleanBloco ? { bloco: { equals: cleanBloco } } : {}),
+                ...(cleanApto ? { apto: { equals: cleanApto } } : {}),
+              },
+            },
+          },
+        };
       }
 
       const list = await this.prisma.ocorrencias.findMany({
@@ -265,11 +302,12 @@ export class RelatoriosService {
         return {
           buffer,
           mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          filename: `relatorio_ocorrencias_${getTimestamp()}.xlsx`,
+          filename: `relatorio_ocorrencias${fileSuffix}_${getTimestamp()}.xlsx`,
         };
       } else {
         const buffer = await this.generatePdf({
           headerText: `Relatório de Ocorrências - ${nomeCondo}`,
+          unidade: unidadeDesc,
           periodo: this.formatPeriod(dataInicio, dataFim),
           metrics: [
             { label: 'Total Registrado', value: list.length.toString() },
@@ -296,7 +334,7 @@ export class RelatoriosService {
         return {
           buffer,
           mime: 'application/pdf',
-          filename: `relatorio_ocorrencias_${getTimestamp()}.pdf`,
+          filename: `relatorio_ocorrencias${fileSuffix}_${getTimestamp()}.pdf`,
         };
       }
     }
@@ -317,10 +355,22 @@ export class RelatoriosService {
       ];
     }
 
-    const list = await this.prisma.financeiro.findMany({
+    let list = await this.prisma.financeiro.findMany({
       where,
       orderBy: { created_at: 'desc' },
     });
+
+    if (cleanApto) {
+      list = list.filter((f) => {
+        const text = `${f.nome || ''} ${f.descricao || ''}`;
+        const matchApto = new RegExp(`\\b(?:Apto|Apartamento)?\\s*${cleanApto}\\b`, 'i').test(text);
+        if (!matchApto) return false;
+        if (cleanBloco) {
+          return new RegExp(`\\b(?:Bloco)?\\s*${cleanBloco}\\b`, 'i').test(text);
+        }
+        return true;
+      });
+    }
 
     const excelData = list.map((f) => {
       const isRevenue = f.tipo?.toUpperCase() === 'C';
@@ -341,7 +391,7 @@ export class RelatoriosService {
       return {
         buffer,
         mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        filename: `relatorio_financeiro_${getTimestamp()}.xlsx`,
+        filename: `relatorio_financeiro${fileSuffix}_${getTimestamp()}.xlsx`,
       };
     } else {
       const totalReceitas = list
@@ -353,6 +403,7 @@ export class RelatoriosService {
 
       const buffer = await this.generatePdf({
         headerText: `Relatório Financeiro - ${nomeCondo}`,
+        unidade: unidadeDesc,
         periodo: this.formatPeriod(dataInicio, dataFim),
         metrics: [
           { label: 'Total Receitas', value: `R$ ${totalReceitas.toFixed(2)}` },
@@ -385,7 +436,7 @@ export class RelatoriosService {
       return {
         buffer,
         mime: 'application/pdf',
-        filename: `relatorio_financeiro_${getTimestamp()}.pdf`,
+        filename: `relatorio_financeiro${fileSuffix}_${getTimestamp()}.pdf`,
       };
     }
   }
@@ -400,6 +451,7 @@ export class RelatoriosService {
   private async generatePdf(params: {
     headerText: string;
     periodo: string;
+    unidade?: string | null;
     metrics: { label: string; value: string }[];
     table: { widths: any[]; body: any[][] };
   }): Promise<Buffer> {
@@ -419,6 +471,7 @@ export class RelatoriosService {
       content: [
         // Cabeçalho Premium
         { text: params.headerText, style: 'header' },
+        ...(params.unidade ? [{ text: `Unidade: ${params.unidade}`, style: 'subheader', bold: true }] : []),
         { text: `Período: ${params.periodo}`, style: 'subheader' },
         { text: `Gerado em: ${getGeradoEmStr()}`, style: 'meta' },
         { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1.5, lineColor: '#E2E8F0' }] },

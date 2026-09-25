@@ -1103,21 +1103,41 @@ class _MyCondominiumState extends State<MyCondominium> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final buttonBg = isDark ? AppColors.darkSurface : Colors.white;
+    final buttonBorder = isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.xl, AppSpacing.lg, AppSpacing.xl, AppSpacing.lg),
       child: Row(
         children: [
-          Material(
-            color: AppColors.surface(context),
-            borderRadius: BorderRadius.circular(AppRadius.full),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppRadius.full),
-              onTap: () => Navigator.pop(context),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                child: Icon(PhosphorIcons.caretLeft,
-                    color: AppColors.textPrimary(context)),
+          Container(
+            decoration: BoxDecoration(
+              color: buttonBg,
+              shape: BoxShape.circle,
+              border: Border.all(color: buttonBorder, width: 1.1),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.15)
+                      : const Color(0xFF64748B).withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.pop(context),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  child: Icon(PhosphorIcons.caretLeft,
+                      color: AppColors.textPrimary(context)),
+                ),
               ),
             ),
           ),
@@ -1153,20 +1173,36 @@ class _MyCondominiumState extends State<MyCondominium> {
               ],
             ),
           ),
-          Material(
-            color: AppColors.surface(context),
-            borderRadius: BorderRadius.circular(AppRadius.full),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppRadius.full),
-              onTap: () {
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const ListVeiculos(),
-                )).then((_) => _loadCond());
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                child: Icon(PhosphorIcons.car,
-                    color: AppColors.textPrimary(context)),
+          Container(
+            decoration: BoxDecoration(
+              color: buttonBg,
+              shape: BoxShape.circle,
+              border: Border.all(color: buttonBorder, width: 1.1),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.15)
+                      : const Color(0xFF64748B).withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => const ListVeiculos(),
+                  )).then((_) => _loadCond());
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  child: Icon(PhosphorIcons.car,
+                      color: AppColors.textPrimary(context)),
+                ),
               ),
             ),
           ),
@@ -1177,20 +1213,36 @@ class _MyCondominiumState extends State<MyCondominium> {
               child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary),
             )
           else
-            Material(
-              color: AppColors.surface(context),
-              borderRadius: BorderRadius.circular(AppRadius.full),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(AppRadius.full),
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => ConfiguracoesView(condominio: _cond),
-                  )).then((_) => _loadCond());
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: Icon(PhosphorIcons.gearSix,
-                      color: AppColors.textPrimary(context)),
+            Container(
+              decoration: BoxDecoration(
+                color: buttonBg,
+                shape: BoxShape.circle,
+                border: Border.all(color: buttonBorder, width: 1.1),
+                boxShadow: [
+                  BoxShadow(
+                    color: isDark
+                        ? Colors.black.withValues(alpha: 0.15)
+                        : const Color(0xFF64748B).withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => ConfiguracoesView(condominio: _cond),
+                    )).then((_) => _loadCond());
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    child: Icon(PhosphorIcons.gearSix,
+                        color: AppColors.textPrimary(context)),
+                  ),
                 ),
               ),
             ),
@@ -1689,35 +1741,61 @@ class _MenuRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surface(context),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.darkSurface : Colors.white;
+    final cardBorder = isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-          child: Row(
-            children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: cardBorder,
+          width: 1.1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.20)
+                : const Color(0xFF64748B).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(item.icon, color: AppColors.primary, size: 22),
                 ),
-                child: Icon(item.icon, color: AppColors.primary, size: 22),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Text(
-                  item.label,
-                  style: AppTypography.bodyMedium(context),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    item.label,
+                    style: AppTypography.bodyMedium(context).copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
-            ],
+                Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+              ],
+            ),
           ),
         ),
       ),

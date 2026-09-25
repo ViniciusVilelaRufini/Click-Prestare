@@ -22,6 +22,7 @@ import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:click/utils/access_invite_message.dart';
 
 class ListVisitantes extends StatefulWidget {
   final bool allCondos;
@@ -435,10 +436,25 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(AppSpacing.md),
                             decoration: BoxDecoration(
-                              color: AppColors.surface(context),
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? AppColors.darkSurface
+                                  : Colors.white,
                               borderRadius: BorderRadius.circular(16),
-                              border:
-                                  Border.all(color: AppColors.border(context)),
+                              border: Border.all(
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? AppColors.darkBorder
+                                    : const Color(0xFFE2E8F0),
+                                width: 1.1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? Colors.black.withValues(alpha: 0.20)
+                                      : const Color(0xFF64748B).withValues(alpha: 0.05),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,50 +683,77 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                         fontSize: _pinSize,
                                       ),
                                     ),
-                                    const SizedBox(height: 10),
-                                    // Botão copiar
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: AppSpacing.md),
-                                        child: OutlinedButton.icon(
-                                          icon: const Icon(PhosphorIcons.copy,
-                                              size: 16),
-                                          label: const Text('Copiar código'),
-                                          onPressed: () {
-                                            Clipboard.setData(ClipboardData(
-                                                    text: item['codigo_acesso']
-                                                        .toString()))
-                                                .then((_) {
-                                              if (context.mounted) {
-                                                ScaffoldMessenger.of(context)
-                                                    .showSnackBar(
-                                                  SnackBar(
-                                                    content: const Text(
-                                                        'Código PIN copiado!'),
-                                                    backgroundColor: AppColors
-                                                        .primary
-                                                        .withValues(alpha: 0.9),
-                                                    duration: const Duration(
-                                                        seconds: 2),
-                                                  ),
-                                                );
-                                              }
-                                            });
-                                          },
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: AppColors.primary,
-                                            side: BorderSide(
-                                                color: AppColors.primary
-                                                    .withValues(alpha: 0.4)),
-                                            shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(10)),
-                                            padding: const EdgeInsets.symmetric(
-                                                vertical: 10),
+                                    const SizedBox(height: 12),
+                                    // Botões de ação do QR Code / PIN
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: AppSpacing.md),
+                                      child: Column(
+                                        children: [
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: ElevatedButton.icon(
+                                              icon: const Icon(PhosphorIcons.whatsappLogo, size: 20),
+                                              label: const Text(
+                                                'Enviar QR code completo',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(0xFF25D366),
+                                                foregroundColor: Colors.white,
+                                                elevation: 0,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                              ),
+                                              onPressed: () => _enviarQrCodeCompleto(item),
+                                            ),
                                           ),
-                                        ),
+                                          const SizedBox(height: 8),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: OutlinedButton.icon(
+                                              icon: const Icon(PhosphorIcons.copy, size: 16),
+                                              label: const Text('Copiar código'),
+                                              onPressed: () {
+                                                Clipboard.setData(ClipboardData(
+                                                        text: item['codigo_acesso']
+                                                            .toString()))
+                                                    .then((_) {
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                        content: const Text(
+                                                            'Código PIN copiado!'),
+                                                        backgroundColor: AppColors
+                                                            .primary
+                                                            .withValues(alpha: 0.9),
+                                                        duration: const Duration(
+                                                            seconds: 2),
+                                                      ),
+                                                    );
+                                                  }
+                                                });
+                                              },
+                                              style: OutlinedButton.styleFrom(
+                                                foregroundColor: AppColors.primary,
+                                                side: BorderSide(
+                                                    color: AppColors.primary
+                                                        .withValues(alpha: 0.4)),
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(10)),
+                                                padding: const EdgeInsets.symmetric(
+                                                    vertical: 10),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                     const SizedBox(height: AppSpacing.md),
@@ -998,6 +1041,80 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     if (d == null) return val.toString();
     String pad(int n) => n.toString().padLeft(2, '0');
     return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
+  }
+
+  Future<void> _enviarQrCodeCompleto(dynamic item) async {
+    final nomeVisitante = (item['nome'] ?? 'Visitante').toString().trim();
+    final isPrestador = item['is_prestador'] == 1;
+    final tipoPessoa = isPrestador ? 'Prestador(a) de Serviço' : 'Visitante';
+
+    final condNome = (item['condominio_nome'] ?? '').toString().trim().isNotEmpty
+        ? item['condominio_nome'].toString().trim()
+        : (Singleton.instance.condominio_nome.isNotEmpty
+            ? Singleton.instance.condominio_nome
+            : 'Condomínio');
+
+    final bloco = (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim();
+    final apto = (item['apto'] ?? '').toString().trim();
+
+    final moradorName = (item['morador_nome'] ?? '').toString().trim().isNotEmpty
+        ? item['morador_nome'].toString().trim()
+        : (getUsername().isNotEmpty ? getUsername() : 'Morador');
+
+    final rawCode = (item['codigo_acesso'] ?? '').toString().trim();
+    final formattedCode = rawCode.length == 6
+        ? "${rawCode.substring(0, 3)}-${rawCode.substring(3, 6)}"
+        : rawCode;
+
+    final periodo = _formatPeriod(item['data_hora_inicio'], item['data_hora_termino']);
+
+    final qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${Uri.encodeComponent(rawCode)}';
+
+    final shareText = buildVisitorAccessInvite(
+      condominioNome: condNome,
+      bloco: bloco,
+      apartamento: apto,
+      autorizadoPor: moradorName,
+      codigo: formattedCode,
+      visitanteNome: nomeVisitante,
+      tipoPessoa: tipoPessoa,
+      periodo: periodo,
+      qrCodeUrl: qrUrl,
+    );
+
+    // Se tiver telefone do visitante cadastrado, envia direto
+    String? phone = (item['telefone'] ?? item['celular'] ?? item['whatsapp'] ?? item['phone'])?.toString();
+    phone = phone?.replaceAll(RegExp(r'\D'), '');
+    if (phone != null && phone.isNotEmpty && !phone.startsWith('55') && (phone.length == 10 || phone.length == 11)) {
+      phone = '55$phone';
+    }
+
+    final String whatsappUrlString = (phone != null && phone.isNotEmpty)
+        ? 'https://wa.me/$phone?text=${Uri.encodeComponent(shareText)}'
+        : 'https://wa.me/?text=${Uri.encodeComponent(shareText)}';
+
+    final uri = Uri.parse(whatsappUrlString);
+    bool abriu = false;
+    try {
+      if (await canLaunchUrl(uri)) {
+        abriu = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
+      abriu = false;
+    }
+
+    if (!abriu) {
+      await Clipboard.setData(ClipboardData(text: shareText));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp não aberto. Informações do convite copiadas para a área de transferência!'),
+            backgroundColor: AppColors.primary,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   /// Mesma checagem de `_temApto` em my_condominium.dart.
