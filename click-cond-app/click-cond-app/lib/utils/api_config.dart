@@ -2,9 +2,14 @@ import 'package:flutter/foundation.dart';
 
 /// Configuração centralizada da API.
 class ApiConfig {
-  /// Mude para 'true' para usar o servidor da AWS (Nuvem)
-  /// Mude para 'false' para usar o servidor local (Seu PC)
-  static const bool isProduction = false;
+  /// Em release builds (como TestFlight e Play Store), SEMPRE apontamos para produção.
+  /// Em debug, aponta para produção por padrão, a menos que _forceLocalInDebug seja true.
+  static const bool _forceLocalInDebug = false;
+
+  static bool get isProduction {
+    if (kReleaseMode) return true;
+    return !_forceLocalInDebug;
+  }
 
   /// Host dinâmico
   static String get host {
