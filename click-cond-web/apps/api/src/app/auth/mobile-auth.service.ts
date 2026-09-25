@@ -1,9 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { MailService } from '../common/mail/mail.service';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { StorageService } from '../common/storage/storage.service';
@@ -2481,10 +2481,209 @@ export class MobileAuthService {
     return defaultResponse;
   }
 
+  private maskEmail(email: string): string {
+    if (!email || !email.includes('@')) return 'e-mail';
+    const [user, domain] = email.split('@');
+    if (user.length <= 2) {
+      return `${user.charAt(0)}*@${domain}`;
+    }
+    const prefix = user.substring(0, 2);
+    return `${prefix}****@${domain}`;
+  }
+
+  async solicitarCodigoRedefinicao(
+    email: string,
+    papel: string,
+    ip?: string,
+  ): Promise<{ success: boolean; ticket_id: string; email_masked: string; expira_em_segundos: number; message: string }> {
+    const emailNormalizado = (email || '').toLowerCase().trim();
+    const fakeTicket = randomUUID();
+    const defaultResponse = {
+      success: true,
+      ticket_id: fakeTicket,
+      email_masked: this.maskEmail(emailNormalizado),
+      expira_em_segundos: 600,
+      message: 'Se o e-mail estiver cadastrado, enviamos o código de verificação.',
+    };
+
+    if (!emailNormalizado || !emailNormalizado.includes('@')) {
+      return defaultResponse;
+    }
+
+    try {
+      let idConta: number | null = null;
+      let papelNome = 'Usuário';
+      let nomeUsuario = 'Usuário';
+
+      if (papel === 'sindico') {
+        const user = await this.prisma.users.findFirst({
+          where: { OR: [{ email: emailNormalizado }, { login: emailNormalizado }] },
+          include: { sindicos: true },
+        });
+        if (user && user.sindicos && user.sindicos.length > 0) {
+          idConta = user.id;
+          papelNome = 'Síndico';
+          nomeUsuario = user.sindicos[0]?.name || user.name || 'Síndico';
+        }
+      } else if (papel === 'morador') {
+        const user = await this.prisma.users.findFirst({
+          where: { OR: [{ email: emailNormalizado }, { login: emailNormalizado }] },
+          include: { moradores: true },
+        });
+        if (user && user.moradores && user.moradores.length > 0) {
+          idConta = user.id;
+          papelNome = 'Morador';
+          nomeUsuario = user.moradores[0]?.nome || user.name || 'Morador';
+        }
+      } else if (papel === 'funcionario') {
+        const func = await this.prisma.funcionarios_Portaria.findFirst({
+          where: { OR: [{ login: emailNormalizado }, { email: emailNormalizado }] },
+        });
+        if (func) {
+          idConta = func.id;
+          papelNome = 'Funcionário';
+          nomeUsuario = func.nome || func.login || 'Funcionário';
+        }
+      }
+
+      if (idConta != null) {
+        // Rate limit: máximo 3 solicitações por hora por conta e papel
+        const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000);
+        const pedidosRecentes = await this.prisma.redefinicoes_Senha.count({
+          where: {
+            id_conta: idConta,
+            papel,
+            criado_em: { gte: umaHoraAtras },
+          },
+        });
+
+        if (pedidosRecentes >= 3) {
+          this.logger.warn(
+            `[solicitarCodigoRedefinicao] Limite de 3 pedidos/hora excedido para id_conta=${idConta} (${papel})`,
+          );
+          return defaultResponse;
+        }
+
+        // Gerar código numérico de 6 dígitos e ticket seguro
+        const code = randomInt(100000, 999999).toString();
+        const ticketId = randomUUID();
+        const codeHash = await bcrypt.hash(code, 10);
+
+        // Invalidar códigos ativos anteriores desta conta e papel
+        await this.prisma.redefinicoes_Senha.updateMany({
+          where: { id_conta: idConta, papel, usado_em: null },
+          data: { usado_em: new Date() },
+        });
+
+        const expiraEm = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
+        await this.prisma.redefinicoes_Senha.create({
+          data: {
+            papel,
+            id_conta: idConta,
+            ticket_id: ticketId,
+            codigo_hash: codeHash,
+            tentativas: 0,
+            expira_em: expiraEm,
+            ip: ip ?? null,
+          },
+        });
+
+        // Envio assíncrono do e-mail para neutralizar timing attack
+        setImmediate(() => {
+          this.mail.sendResetPasswordCode(emailNormalizado, nomeUsuario, code, papelNome).catch((mailErr: any) => {
+            this.logger.error(
+              `Falha ao enviar código de recuperação para ${emailNormalizado}: ${mailErr?.message ?? mailErr}`,
+            );
+          });
+        });
+
+        return {
+          success: true,
+          ticket_id: ticketId,
+          email_masked: this.maskEmail(emailNormalizado),
+          expira_em_segundos: 600,
+          message: 'Código de verificação enviado com sucesso.',
+        };
+      }
+    } catch (err: any) {
+      this.logger.error(`Erro ao processar solicitação de código para ${emailNormalizado}: ${err?.message ?? err}`);
+    }
+
+    return defaultResponse;
+  }
+
+  async validarCodigoRedefinicao(
+    ticketId: string,
+    codigo: string,
+  ): Promise<{ success: boolean; reset_token: string; message: string }> {
+    if (!ticketId || !codigo) {
+      throw new BadRequestException('Identificador de sessão e código de 6 dígitos são obrigatórios.');
+    }
+
+    const cleanCode = codigo.toString().trim();
+    if (cleanCode.length !== 6) {
+      throw new BadRequestException('O código deve conter exatamente 6 dígitos.');
+    }
+
+    const registro = await this.prisma.redefinicoes_Senha.findFirst({
+      where: {
+        ticket_id: ticketId.trim(),
+        usado_em: null,
+        expira_em: { gt: new Date() },
+      },
+    });
+
+    if (!registro || !registro.codigo_hash) {
+      throw new BadRequestException('Código expirado ou inválido. Solicite um novo.');
+    }
+
+    if (registro.tentativas >= 5) {
+      try {
+        await this.prisma.redefinicoes_Senha.update({
+          where: { id: registro.id },
+          data: { usado_em: new Date() },
+        });
+      } catch (_) {}
+      throw new HttpException(
+        'Muitas tentativas incorretas. O código foi invalidado por segurança.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const isMatch = await bcrypt.compare(cleanCode, registro.codigo_hash);
+    if (!isMatch) {
+      await this.prisma.redefinicoes_Senha.update({
+        where: { id: registro.id },
+        data: { tentativas: { increment: 1 } },
+      });
+      const restam = Math.max(0, 5 - (registro.tentativas + 1));
+      throw new UnauthorizedException(`Código incorreto. Restam ${restam} tentativa(s).`);
+    }
+
+    // Código válido! Gera reset_token descartável com hash SHA-256
+    const resetToken = randomBytes(32).toString('base64url');
+    const resetTokenHash = createHash('sha256').update(resetToken).digest('hex');
+
+    await this.prisma.redefinicoes_Senha.update({
+      where: { id: registro.id },
+      data: {
+        verificado_em: new Date(),
+        reset_token_hash: resetTokenHash,
+      },
+    });
+
+    return {
+      success: true,
+      reset_token: resetToken,
+      message: 'Código validado com sucesso!',
+    };
+  }
+
   async confirmarRedefinicaoSenha(
     token: string,
     novaSenha: string,
-  ): Promise<{ success: boolean; message: string }> {
+    papel?: string,
+  ): Promise<{ success: boolean; message: string; token?: string; user?: any; login_type?: string }> {
     if (!token || typeof token !== 'string' || !novaSenha || typeof novaSenha !== 'string') {
       throw new BadRequestException('Token e nova senha são obrigatórios.');
     }
@@ -2497,10 +2696,13 @@ export class MobileAuthService {
     const tokenHash = createHash('sha256').update(token.trim()).digest('hex');
     const now = new Date();
 
-    // 1. Atualização atômica para prevenir race condition / múltiplos usos concorrentes do mesmo token
+    // 1. Atualização atômica suportando tanto o token de link web (token_hash) quanto o reset_token do código
     const updateResult = await this.prisma.redefinicoes_Senha.updateMany({
       where: {
-        token_hash: tokenHash,
+        OR: [
+          { token_hash: tokenHash },
+          { reset_token_hash: tokenHash },
+        ],
         usado_em: null,
         expira_em: { gt: now },
       },
@@ -2510,15 +2712,20 @@ export class MobileAuthService {
     });
 
     if (updateResult.count === 0) {
-      throw new BadRequestException('Link de redefinição inválido ou expirado.');
+      throw new BadRequestException('Link ou código de redefinição inválido ou expirado.');
     }
 
     const registro = await this.prisma.redefinicoes_Senha.findFirst({
-      where: { token_hash: tokenHash },
+      where: {
+        OR: [
+          { token_hash: tokenHash },
+          { reset_token_hash: tokenHash },
+        ],
+      },
     });
 
     if (!registro) {
-      throw new BadRequestException('Link de redefinição inválido ou expirado.');
+      throw new BadRequestException('Link ou código de redefinição inválido ou expirado.');
     }
 
     const hash = await bcrypt.hash(senhaLimpa, 10);
@@ -2596,7 +2803,7 @@ export class MobileAuthService {
       } catch (_) {}
     }
 
-    // Auditoria (opcional / tolerante a falhas) com id_condominio real
+    // Auditoria com id_condominio real
     try {
       if (this.prisma?.auditLog?.create) {
         await this.prisma.auditLog.create({
@@ -2617,9 +2824,89 @@ export class MobileAuthService {
       // Falha de auditoria não impede o sucesso da redefinição
     }
 
+    // Bootstrapping de sessão de login para auto-login imediato no mobile
+    let tokenAuth: string | undefined;
+    let userAuth: any = undefined;
+
+    try {
+      if (this.jwt?.sign) {
+        if (registro.papel === 'funcionario') {
+          const userRec = await this.prisma.users.findUnique({
+            where: { id: registro.id_conta },
+          });
+          const funcRec = await this.prisma.funcionarios.findFirst({
+            where: { id_user: registro.id_conta },
+          });
+          const userObj = {
+            id: registro.id_conta,
+            nome: funcRec?.nome || usuarioNome,
+            photo: userRec?.photo ?? '',
+            areas_sociais: funcRec?.areas_sociais ?? 1,
+            comunicados: funcRec?.comunicados ?? 1,
+            ocorrencias: funcRec?.ocorrencias ?? 1,
+            manutencoes_programadas: funcRec?.manutencoes_programadas ?? 1,
+            prestadores_servico: funcRec?.prestadores_servico ?? 1,
+            agendar_mudanca: funcRec?.agendar_mudanca ?? 1,
+            cadastrar_visitante: funcRec?.cadastrar_visitante ?? 1,
+            apartamentos: funcRec?.apartamentos ?? 1,
+          };
+          const payload = {
+            sub: registro.id_conta,
+            nome: funcRec?.nome || usuarioNome,
+            typeAccess: 'Funcionario',
+            user: userObj,
+          };
+          tokenAuth = this.jwt.sign(payload, { expiresIn: '365d' });
+          userAuth = userObj;
+        } else if (registro.papel === 'sindico') {
+          const userRec = await this.prisma.users.findUnique({
+            where: { id: registro.id_conta },
+            include: { sindicos: true },
+          });
+          const sindicoRec = userRec?.sindicos?.[0];
+          const userObj = {
+            id: registro.id_conta,
+            name: sindicoRec?.name || userRec?.name || usuarioNome,
+            photo: userRec?.photo ?? '',
+          };
+          const payload = {
+            sub: registro.id_conta,
+            nome: sindicoRec?.name || userRec?.name || usuarioNome,
+            typeAccess: 'Sindico',
+            user: userObj,
+          };
+          tokenAuth = this.jwt.sign(payload, { expiresIn: '365d' });
+          userAuth = userObj;
+        } else {
+          // 'morador'
+          const userRec = await this.prisma.users.findUnique({
+            where: { id: registro.id_conta },
+            include: { moradores: true },
+          });
+          const moradorRec = userRec?.moradores?.[0];
+          const userObj = {
+            id: registro.id_conta,
+            nome: moradorRec?.nome || userRec?.name || usuarioNome,
+            photo: userRec?.photo ?? '',
+          };
+          const payload = {
+            sub: registro.id_conta,
+            nome: moradorRec?.nome || userRec?.name || usuarioNome,
+            typeAccess: 'Morador',
+            user: userObj,
+          };
+          tokenAuth = this.jwt.sign(payload, { expiresIn: '365d' });
+          userAuth = userObj;
+        }
+      }
+    } catch (_) {}
+
     return {
       success: true,
       message: 'Senha redefinida com sucesso!',
+      token: tokenAuth,
+      user: userAuth,
+      login_type: registro.papel,
     };
   }
 

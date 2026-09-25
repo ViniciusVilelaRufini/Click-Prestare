@@ -32,7 +32,7 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       redefinicoes_Senha: {
         findFirst: jest.fn(),
         create: jest.fn(),
-        update: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         count: jest.fn().mockResolvedValue(0),
       },
@@ -43,12 +43,13 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
 
     mail = {
       sendResetPasswordLink: jest.fn().mockResolvedValue(undefined),
+      sendResetPasswordCode: jest.fn().mockResolvedValue(true),
       sendForgotPassword: jest.fn().mockResolvedValue(undefined),
     };
 
     service = new MobileAuthService(
       prisma,
-      { sign: jest.fn() } as any,
+      { sign: jest.fn().mockReturnValue('mock-jwt-token') } as any,
       mail,
       {} as any,
       {} as any,
@@ -215,7 +216,10 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       );
       expect(prisma.redefinicoes_Senha.updateMany).toHaveBeenCalledWith({
         where: {
-          token_hash: tokenHash,
+          OR: [
+            { token_hash: tokenHash },
+            { reset_token_hash: tokenHash },
+          ],
           usado_em: null,
           expira_em: { gt: expect.any(Date) },
         },
@@ -357,4 +361,137 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       });
     });
   });
+
+  describe('Recuperação de Senha por Código de 6 Dígitos no App Mobile', () => {
+    it('solicitarCodigoRedefinicao: gera código de 6 dígitos, hash bcrypt, ticket_id e envia e-mail para morador', async () => {
+      mail.sendResetPasswordCode = jest.fn().mockResolvedValue(undefined);
+      prisma.users.findFirst.mockResolvedValue({
+        id: 55,
+        login: 'morador@click.com',
+        moradores: [{ id: 12, nome: 'João Morador', id_condominio: 3 }],
+      });
+      prisma.redefinicoes_Senha.updateMany.mockResolvedValue({ count: 0 });
+      prisma.redefinicoes_Senha.create.mockResolvedValue({ id: 201 });
+
+      const res = await service.solicitarCodigoRedefinicao('morador@click.com', 'morador', '189.100.86.130');
+
+      expect(res.success).toBe(true);
+      expect(res.ticket_id).toBeDefined();
+      expect(res.email_masked).toBe('mo****@click.com');
+      expect(res.expira_em_segundos).toBe(600);
+
+      expect(prisma.redefinicoes_Senha.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          id_conta: 55,
+          papel: 'morador',
+          ticket_id: expect.any(String),
+          codigo_hash: expect.stringMatching(/^\$2[aby]\$/),
+          tentativas: 0,
+          expira_em: expect.any(Date),
+          ip: '189.100.86.130',
+        }),
+      });
+    });
+
+    it('solicitarCodigoRedefinicao: retorna sucesso fictício quando conta não existe (anti-timing e anti-enumeração)', async () => {
+      prisma.users.findFirst.mockResolvedValue(null);
+
+      const res = await service.solicitarCodigoRedefinicao('fantasma@click.com', 'morador');
+
+      expect(res.success).toBe(true);
+      expect(res.ticket_id).toBeDefined();
+      expect(res.email_masked).toBe('fa****@click.com');
+      expect(prisma.redefinicoes_Senha.create).not.toHaveBeenCalled();
+    });
+
+    it('validarCodigoRedefinicao: lança erro se ticket não existir ou estiver expirado', async () => {
+      prisma.redefinicoes_Senha.findFirst.mockResolvedValue(null);
+
+      await expect(service.validarCodigoRedefinicao('ticket-invalido', '123456')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('validarCodigoRedefinicao: bloqueia e lança 429 se tentativas >= 5', async () => {
+      prisma.redefinicoes_Senha.findFirst.mockResolvedValue({
+        id: 301,
+        ticket_id: 'ticket-123',
+        tentativas: 5,
+        codigo_hash: await bcrypt.hash('123456', 10),
+      });
+
+      await expect(service.validarCodigoRedefinicao('ticket-123', '123456')).rejects.toThrow(
+        'Muitas tentativas incorretas. O código foi invalidado por segurança.',
+      );
+    });
+
+    it('validarCodigoRedefinicao: incrementa tentativas e informa restante se código incorreto', async () => {
+      const hash = await bcrypt.hash('654321', 10);
+      prisma.redefinicoes_Senha.findFirst.mockResolvedValue({
+        id: 302,
+        ticket_id: 'ticket-123',
+        tentativas: 1,
+        codigo_hash: hash,
+      });
+
+      await expect(service.validarCodigoRedefinicao('ticket-123', '000000')).rejects.toThrow(
+        'Código incorreto. Restam 3 tentativa(s).',
+      );
+
+      expect(prisma.redefinicoes_Senha.update).toHaveBeenCalledWith({
+        where: { id: 302 },
+        data: { tentativas: { increment: 1 } },
+      });
+    });
+
+    it('validarCodigoRedefinicao: emite reset_token quando código de 6 dígitos estiver correto', async () => {
+      const hash = await bcrypt.hash('889900', 10);
+      prisma.redefinicoes_Senha.findFirst.mockResolvedValue({
+        id: 303,
+        ticket_id: 'ticket-correto',
+        tentativas: 0,
+        codigo_hash: hash,
+      });
+      prisma.redefinicoes_Senha.update.mockResolvedValue({ id: 303 });
+
+      const res = await service.validarCodigoRedefinicao('ticket-correto', '889900');
+
+      expect(res.success).toBe(true);
+      expect(res.reset_token).toBeDefined();
+      expect(prisma.redefinicoes_Senha.update).toHaveBeenCalledWith({
+        where: { id: 303 },
+        data: expect.objectContaining({
+          verificado_em: expect.any(Date),
+          reset_token_hash: expect.any(String),
+        }),
+      });
+    });
+
+    it('confirmarRedefinicaoSenha: aceita reset_token gerado pelo código e retorna payload de auto-login', async () => {
+      const resetToken = 'reset-token-valido-123';
+      const resetTokenHash = createHash('sha256').update(resetToken).digest('hex');
+
+      prisma.redefinicoes_Senha.updateMany.mockResolvedValue({ count: 1 });
+      prisma.redefinicoes_Senha.findFirst.mockResolvedValue({
+        id: 401,
+        papel: 'morador',
+        id_conta: 77,
+        reset_token_hash: resetTokenHash,
+        token_hash: null,
+        expira_em: new Date(Date.now() + 10 * 60 * 1000),
+      });
+      prisma.users.findUnique.mockResolvedValue({ id: 77, name: 'Morador Logado', email: 'morador@click.com', photo: '' });
+      prisma.moradores.findFirst.mockResolvedValue({ id: 10, nome: 'Morador Logado', id_condominio: 5 });
+      prisma.users.update.mockResolvedValue({ id: 77 });
+
+      const res = await service.confirmarRedefinicaoSenha(resetToken, 'NovaSenha@2026', 'morador');
+
+      expect(res.success).toBe(true);
+      expect(res.token).toBeDefined();
+      expect(res.user).toBeDefined();
+      expect(res.user.nome).toBe('Morador Logado');
+      expect(prisma.users.update).toHaveBeenCalled();
+    });
+  });
 });
+

@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, Get, Param, ParseIntPipe, Optional } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Get, Param, ParseIntPipe, Optional, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { MobileAuthService } from './mobile-auth.service';
@@ -12,6 +12,26 @@ export class AuthController {
     private readonly authService: AuthService,
     @Optional() private readonly mobileAuthService?: MobileAuthService,
   ) {}
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('solicitar-codigo-redefinicao')
+  @HttpCode(200)
+  solicitarCodigoRedefinicao(@Body() body: { email: string; papel?: string; login_type?: string }, @Req() req: any) {
+    const ip = req?.ip || req?.headers?.['x-forwarded-for'];
+    const papel = body.papel || body.login_type || 'morador';
+    return this.mobileAuthService?.solicitarCodigoRedefinicao(body.email, papel, ip);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('validar-codigo-redefinicao')
+  @HttpCode(200)
+  validarCodigoRedefinicao(@Body() body: { ticket_id?: string; ticketId?: string; codigo?: string; code?: string }) {
+    const ticketId = body.ticket_id ?? body.ticketId ?? '';
+    const codigo = body.codigo ?? body.code ?? '';
+    return this.mobileAuthService?.validarCodigoRedefinicao(ticketId, codigo);
+  }
 
   @Public()
   @Throttle({ medium: { limit: 10, ttl: 60_000 } })

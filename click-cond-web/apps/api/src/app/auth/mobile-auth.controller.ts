@@ -53,6 +53,25 @@ export class SindicoMobileController {
 
   @Public()
   @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('solicitar-codigo-redefinicao')
+  @HttpCode(200)
+  solicitarCodigoRedefinicao(@Body() body: { email: string }, @Req() req: any) {
+    const ip = req?.ip || req?.headers?.['x-forwarded-for'];
+    return this.service.solicitarCodigoRedefinicao(body.email, 'sindico', ip);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('validar-codigo-redefinicao')
+  @HttpCode(200)
+  validarCodigoRedefinicao(@Body() body: { ticket_id?: string; ticketId?: string; codigo?: string; code?: string }) {
+    const ticketId = body.ticket_id ?? body.ticketId ?? '';
+    const codigo = body.codigo ?? body.code ?? '';
+    return this.service.validarCodigoRedefinicao(ticketId, codigo);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('redefinir-senha')
   @HttpCode(200)
   redefinirSenha(@Body() body: { token: string; novaSenha?: string; nova_senha?: string }) {
@@ -130,6 +149,25 @@ export class MoradoresMobileController {
   recoveryPassword(@Body() body: { email: string }, @Req() req: any) {
     const ip = req?.ip || req?.headers?.['x-forwarded-for'];
     return this.service.solicitarRedefinicaoSenha(body.email, 'morador', ip);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('solicitar-codigo-redefinicao')
+  @HttpCode(200)
+  solicitarCodigoRedefinicao(@Body() body: { email: string }, @Req() req: any) {
+    const ip = req?.ip || req?.headers?.['x-forwarded-for'];
+    return this.service.solicitarCodigoRedefinicao(body.email, 'morador', ip);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('validar-codigo-redefinicao')
+  @HttpCode(200)
+  validarCodigoRedefinicao(@Body() body: { ticket_id?: string; ticketId?: string; codigo?: string; code?: string }) {
+    const ticketId = body.ticket_id ?? body.ticketId ?? '';
+    const codigo = body.codigo ?? body.code ?? '';
+    return this.service.validarCodigoRedefinicao(ticketId, codigo);
   }
 
   @Public()
@@ -230,6 +268,25 @@ export class FuncionariosMobileController {
   recoveryPassword(@Body() body: { email: string }, @Req() req: any) {
     const ip = req?.ip || req?.headers?.['x-forwarded-for'];
     return this.service.solicitarRedefinicaoSenha(body.email, 'funcionario', ip);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('solicitar-codigo-redefinicao')
+  @HttpCode(200)
+  solicitarCodigoRedefinicao(@Body() body: { email: string }, @Req() req: any) {
+    const ip = req?.ip || req?.headers?.['x-forwarded-for'];
+    return this.service.solicitarCodigoRedefinicao(body.email, 'funcionario', ip);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('validar-codigo-redefinicao')
+  @HttpCode(200)
+  validarCodigoRedefinicao(@Body() body: { ticket_id?: string; ticketId?: string; codigo?: string; code?: string }) {
+    const ticketId = body.ticket_id ?? body.ticketId ?? '';
+    const codigo = body.codigo ?? body.code ?? '';
+    return this.service.validarCodigoRedefinicao(ticketId, codigo);
   }
 
   @Public()
