@@ -31,7 +31,13 @@ describe('FacialService — histórico de acesso por pessoa', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
-  function build() {
+  function build(opts: { migrationEnabled?: boolean } = {}) {
+    if (opts.migrationEnabled) {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+    } else {
+      delete process.env['PESSOAS_MIGRATION_ENABLED'];
+    }
+
     const prisma: any = {
       isConnected: true,
       moradores: {
@@ -48,6 +54,80 @@ describe('FacialService — histórico de acesso por pessoa', () => {
           if (where.id === 301) return { id_condominio: 1, id_apartamento: 8 };
           return null;
         }),
+      },
+      visitas: opts.migrationEnabled
+        ? {
+            findUnique: jest.fn(async ({ where }: any) => {
+              if (where.id === 1000019)
+                return {
+                  id: 1000019,
+                  id_pessoa: 2000002,
+                  id_condominio: 1,
+                  id_apartamento: MEU_APTO,
+                  pessoa: { id: 2000002, id_condominio: 1, nome: 'Visitante Migrado' },
+                };
+              if (where.id === 1000020)
+                return {
+                  id: 1000020,
+                  id_pessoa: 2000002,
+                  id_condominio: 1,
+                  id_apartamento: 8,
+                  pessoa: { id: 2000002, id_condominio: 1, nome: 'Visitante Migrado' },
+                };
+              return null;
+            }),
+            findMany: jest.fn(async ({ where }: any) => {
+              if (where?.id_pessoa === 2000002) {
+                return [
+                  {
+                    id: 1000019,
+                    id_pessoa: 2000002,
+                    id_condominio: 1,
+                    id_apartamento: MEU_APTO,
+                    data_entrada: new Date('2026-09-25T14:59:44.000Z'),
+                    data_saida: null,
+                  },
+                ];
+              }
+              if (where?.OR) {
+                return [{ id_apartamento: MEU_APTO }];
+              }
+              return [];
+            }),
+          }
+        : undefined,
+      pessoas: opts.migrationEnabled
+        ? {
+            findUnique: jest.fn(async ({ where }: any) => {
+              if (where.id === 2000002)
+                return {
+                  id: 2000002,
+                  id_condominio: 1,
+                  nome: 'Visitante Migrado',
+                  face_id: 'pessoa_2000002',
+                  visitas: [{ id_condominio: 1, id_apartamento: MEU_APTO }],
+                };
+              return null;
+            }),
+          }
+        : undefined,
+      acessos_Facial: {
+        findMany: jest.fn(async () => [
+          {
+            id: 35,
+            id_condominio: 1,
+            id_device: 1,
+            tipo_dispositivo: 'facial',
+            nome_dispositivo: 'facial principal',
+            face_id: 'pessoa_2000002',
+            tipo_pessoa: 'visitante',
+            id_pessoa: 1000019,
+            nome_pessoa: 'Visitante Migrado',
+            evento: 'entrada',
+            confianca: 0.98,
+            timestamp: new Date('2026-09-25T14:59:44.000Z'),
+          },
+        ]),
       },
       apartamentos_Users: {
         findFirst: jest.fn(async ({ where }: any) => {
@@ -122,5 +202,37 @@ describe('FacialService — histórico de acesso por pessoa', () => {
     const { svc } = build();
     await expect(svc.assertMoradorSameTenant(999, porteiro))
       .rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  describe('com PESSOAS_MIGRATION_ENABLED ativo', () => {
+    it('PERMITE morador ler visita do próprio apartamento via id da Visita', async () => {
+      const { svc } = build({ migrationEnabled: true });
+      await expect(svc.assertVisitanteSameTenant(1000019, morador)).resolves.toBeUndefined();
+    });
+
+    it('PERMITE morador ler visita do próprio apartamento via id da Pessoa', async () => {
+      const { svc } = build({ migrationEnabled: true });
+      await expect(svc.assertVisitanteSameTenant(2000002, morador)).resolves.toBeUndefined();
+    });
+
+    it('NEGA morador ler visita de outro apartamento', async () => {
+      const { svc } = build({ migrationEnabled: true });
+      await expect(svc.assertVisitanteSameTenant(1000020, morador))
+        .rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('retorna 404 para visita inexistente', async () => {
+      const { svc } = build({ migrationEnabled: true });
+      await expect(svc.assertVisitanteSameTenant(9999999, morador))
+        .rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('listAcessosPessoa retorna acessos consolidados da pessoa e da visita', async () => {
+      const { svc } = build({ migrationEnabled: true });
+      const acessos = await svc.listAcessosPessoa('visitante', 1000019, 5);
+      expect(acessos.length).toBeGreaterThan(0);
+      expect(acessos[0].evento).toBe('entrada');
+      expect(acessos[0].nome_pessoa).toBe('Visitante Migrado');
+    });
   });
 });

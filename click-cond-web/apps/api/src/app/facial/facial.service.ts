@@ -440,22 +440,75 @@ export class FacialService {
 
   /** Idem para visitante: morador só alcança visita de apartamento dele. */
   async assertVisitanteSameTenant(idVisitante: number, user?: JwtPayload) {
-    const v = await this.prisma.visitantes.findUnique({
-      where: { id: idVisitante },
-      select: { id_condominio: true, id_apartamento: true },
-    });
-    if (!v)
-      throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
-    await this.tenant.assertEntidade(v.id_condominio, user, `visitante #${idVisitante}`);
+    let idCondominio: number | undefined;
+    let idApartamento: number | undefined;
+
+    if (pessoasMigrationEnabled(this.prisma)) {
+      const vis = await this.prisma.visitas.findUnique({
+        where: { id: idVisitante },
+        select: { id_condominio: true, id_apartamento: true },
+      });
+      if (vis) {
+        idCondominio = vis.id_condominio;
+        idApartamento = vis.id_apartamento;
+      } else {
+        const p = await this.prisma.pessoas.findUnique({
+          where: { id: idVisitante },
+          include: {
+            visitas: {
+              select: { id_condominio: true, id_apartamento: true },
+              orderBy: { created_at: 'desc' },
+              take: 1,
+            },
+          },
+        });
+        if (p) {
+          idCondominio = p.id_condominio;
+          idApartamento = p.visitas[0]?.id_apartamento;
+        }
+      }
+    }
+
+    if (idCondominio === undefined) {
+      const v = await this.prisma.visitantes.findUnique({
+        where: { id: idVisitante },
+        select: { id_condominio: true, id_apartamento: true },
+      });
+      if (!v)
+        throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
+      idCondominio = v.id_condominio;
+      idApartamento = v.id_apartamento;
+    }
+
+    await this.tenant.assertEntidade(idCondominio, user, `visitante #${idVisitante}`);
 
     if (this.ehMoradorMobile(user)) {
       const idUser = Number(user?.user?.id ?? user?.sub);
-      const vinculo = idUser
-        ? await this.prisma.apartamentos_Users.findFirst({
-            where: { id_user: idUser, id_apto: v.id_apartamento },
+      let vinculo = null;
+      if (idUser && idApartamento) {
+        vinculo = await this.prisma.apartamentos_Users.findFirst({
+          where: { id_user: idUser, id_apto: idApartamento },
+          select: { id_apto: true },
+        });
+      }
+      if (!vinculo && idUser && pessoasMigrationEnabled(this.prisma)) {
+        const aptoIds = await this.prisma.visitas.findMany({
+          where: {
+            OR: [
+              { id: idVisitante },
+              { id_pessoa: idVisitante },
+            ],
+          },
+          select: { id_apartamento: true },
+        });
+        const ids = aptoIds.map((a: any) => a.id_apartamento).filter(Boolean);
+        if (ids.length > 0) {
+          vinculo = await this.prisma.apartamentos_Users.findFirst({
+            where: { id_user: idUser, id_apto: { in: ids } },
             select: { id_apto: true },
-          })
-        : null;
+          });
+        }
+      }
       if (!vinculo) {
         throw new ForbiddenException('Acesso negado: esta visita não é do seu apartamento.');
       }
@@ -5171,6 +5224,139 @@ export class FacialService {
       });
     }
 
+    type MergedEntry = {
+      id: number;
+      id_condominio: number;
+      id_device?: number | null;
+      tipo_dispositivo?: string | null;
+      face_id?: string | null;
+      tipo_pessoa: 'visitante';
+      id_pessoa: number;
+      nome_pessoa: string;
+      evento: 'entrada' | 'saida' | 'negado';
+      confianca?: number | null;
+      timestamp: Date;
+      observacao?: string | null;
+    };
+
+    const DEDUP_MS = 15_000;
+
+    // Para o caminho migrado (Pessoas / Visitas): consolida acessos faciais e entradas/saídas por PIN/manual
+    if (pessoasMigrationEnabled(this.prisma)) {
+      let pessoa: any = null;
+      const vis = await this.prisma.visitas.findUnique({
+        where: { id: idPessoa },
+        include: { pessoa: true },
+      });
+      if (vis?.pessoa) {
+        pessoa = vis.pessoa;
+      } else {
+        pessoa = await this.prisma.pessoas.findUnique({
+          where: { id: idPessoa },
+        });
+      }
+
+      if (pessoa) {
+        const todasVisitas = await this.prisma.visitas.findMany({
+          where: {
+            id_pessoa: pessoa.id,
+            id_condominio: pessoa.id_condominio,
+          },
+          orderBy: { created_at: 'desc' },
+        });
+        const todosVisIds = todasVisitas.map((x: any) => x.id);
+
+        const acessosFacial = await this.prisma.acessos_Facial.findMany({
+          where: {
+            id_condominio: pessoa.id_condominio,
+            OR: [
+              { tipo_pessoa: 'visitante', id_pessoa: { in: [...todosVisIds, pessoa.id] } },
+              { tipo_pessoa: 'prestador', id_pessoa: { in: [...todosVisIds, pessoa.id] } },
+              { face_id: `pessoa_${pessoa.id}` },
+              ...(pessoa.face_id ? [{ face_id: pessoa.face_id }] : []),
+            ],
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 100,
+        });
+
+        const facialBuckets = new Set<string>();
+        for (const a of acessosFacial) {
+          const b = Math.floor(a.timestamp.getTime() / DEDUP_MS);
+          facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b}`);
+          facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
+          facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b + 1}`);
+          facialBuckets.add(`${pessoa.id}:${a.evento}:${b}`);
+        }
+        const isDup = (idVis: number, evento: 'entrada' | 'saida', ts: Date) => {
+          const b = Math.floor(ts.getTime() / DEDUP_MS);
+          return (
+            facialBuckets.has(`${idVis}:${evento}:${b}`) ||
+            facialBuckets.has(`${pessoa.id}:${evento}:${b}`)
+          );
+        };
+
+        const mergedList: MergedEntry[] = [];
+
+        for (const a of acessosFacial) {
+          let observacao = null;
+          const match = a.nome_pessoa.match(/\(([^)]+)\)/);
+          if (match) {
+            observacao = match[1];
+          }
+          mergedList.push({
+            id: a.id,
+            id_condominio: a.id_condominio,
+            id_device: a.id_device,
+            tipo_dispositivo: a.tipo_dispositivo,
+            face_id: a.face_id,
+            tipo_pessoa: 'visitante',
+            id_pessoa: a.id_pessoa ?? pessoa.id,
+            nome_pessoa: a.nome_pessoa,
+            evento:
+              a.evento === 'saida'
+                ? 'saida'
+                : a.evento === 'negado'
+                  ? 'negado'
+                  : 'entrada',
+            confianca: a.confianca,
+            timestamp: a.timestamp,
+            observacao,
+          });
+        }
+
+        for (const reg of todasVisitas) {
+          if (reg.data_entrada && !isDup(reg.id, 'entrada', reg.data_entrada)) {
+            mergedList.push({
+              id: reg.id * 1000 + 1,
+              id_condominio: reg.id_condominio,
+              tipo_dispositivo: 'pin',
+              tipo_pessoa: 'visitante',
+              id_pessoa: reg.id,
+              nome_pessoa: pessoa.nome,
+              evento: 'entrada',
+              timestamp: reg.data_entrada,
+            });
+          }
+          if (reg.data_saida && !isDup(reg.id, 'saida', reg.data_saida)) {
+            mergedList.push({
+              id: reg.id * 1000 + 2,
+              id_condominio: reg.id_condominio,
+              tipo_dispositivo: 'pin',
+              tipo_pessoa: 'visitante',
+              id_pessoa: reg.id,
+              nome_pessoa: pessoa.nome,
+              evento: 'saida',
+              timestamp: reg.data_saida,
+            });
+          }
+        }
+
+        mergedList.sort((x, y) => y.timestamp.getTime() - x.timestamp.getTime());
+        return mergedList.slice(0, limit);
+      }
+    }
+
     // Para visitantes, precisamos consolidar o histórico completo (acessos faciais + PIN/manual) de todas as visitas da mesma identidade
     const v = await this.prisma.visitantes.findUnique({
       where: { id: idPessoa },
@@ -5200,7 +5386,6 @@ export class FacialService {
         : [];
 
     // Deduplicação (evita duplicar se casar com acesso facial)
-    const DEDUP_MS = 15_000;
     const facialBuckets = new Set<string>();
     for (const a of acessosFacial) {
       const b = Math.floor(a.timestamp.getTime() / DEDUP_MS);
@@ -5211,21 +5396,6 @@ export class FacialService {
     const isDup = (idVis: number, evento: 'entrada' | 'saida', ts: Date) => {
       const b = Math.floor(ts.getTime() / DEDUP_MS);
       return facialBuckets.has(`${idVis}:${evento}:${b}`);
-    };
-
-    type MergedEntry = {
-      id: number;
-      id_condominio: number;
-      id_device?: number | null;
-      tipo_dispositivo?: string | null;
-      face_id?: string | null;
-      tipo_pessoa: 'visitante';
-      id_pessoa: number;
-      nome_pessoa: string;
-      evento: 'entrada' | 'saida' | 'negado';
-      confianca?: number | null;
-      timestamp: Date;
-      observacao?: string | null;
     };
 
     const mergedList: MergedEntry[] = [];
