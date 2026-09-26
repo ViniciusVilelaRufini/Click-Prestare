@@ -1,0 +1,18 @@
+name: Prepare Prestare API Domain
+on: { workflow_dispatch: {} }
+jobs:
+  certificate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          DOMAIN=api.prestarecondominios.com.br
+          ARN=$(aws acm list-certificates --query "CertificateSummaryList[?DomainName=='$DOMAIN'].CertificateArn | [0]" --output text)
+          if [ "$ARN" = None ] || [ -z "$ARN" ]; then ARN=$(aws acm request-certificate --domain-name "$DOMAIN" --validation-method DNS --query CertificateArn --output text); fi
+          aws acm describe-certificate --certificate-arn "$ARN" --query 'Certificate.DomainValidationOptions[0].ResourceRecord' --output json
