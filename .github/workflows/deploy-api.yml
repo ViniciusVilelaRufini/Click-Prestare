@@ -1,0 +1,109 @@
+name: Deploy API to Elastic Beanstalk
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'click-cond-web/apps/api/**'
+      - 'click-cond-web/.platform/**'
+      - 'click-cond-web/scripts/migration/bundle-eb.mjs'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: elastic-beanstalk-api-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and deploy API
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: click-cond-web
+    env:
+      AWS_REGION: sa-east-1
+      ENVIRONMENT_NAME: Clickprestareapi-env
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: click-cond-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build API
+        run: npm exec -- nx build @org/api
+
+      - name: Create Elastic Beanstalk package
+        run: node scripts/migration/bundle-eb.mjs
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload application version
+        id: application
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          APPLICATION_NAME="$(aws elasticbeanstalk describe-environments \
+            --environment-names "$ENVIRONMENT_NAME" \
+            --query 'Environments[0].ApplicationName' \
+            --output text)"
+          VERSION_LABEL="api-${GITHUB_SHA}"
+          BUNDLE_KEY="api/${VERSION_LABEL}.zip"
+          BUNDLE_BUCKET="elasticbeanstalk-${AWS_REGION}-${ACCOUNT_ID}"
+
+          test "$APPLICATION_NAME" != "None"
+          aws s3 cp deploy-api-aws.zip "s3://${BUNDLE_BUCKET}/${BUNDLE_KEY}"
+          aws elasticbeanstalk create-application-version \
+            --application-name "$APPLICATION_NAME" \
+            --version-label "$VERSION_LABEL" \
+            --source-bundle "S3Bucket=${BUNDLE_BUCKET},S3Key=${BUNDLE_KEY}" \
+            --process
+
+          {
+            echo "application_name=$APPLICATION_NAME"
+            echo "version_label=$VERSION_LABEL"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Deploy application version
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws elasticbeanstalk update-environment \
+            --environment-name "$ENVIRONMENT_NAME" \
+            --version-label "${{ steps.application.outputs.version_label }}"
+          aws elasticbeanstalk wait environment-updated \
+            --environment-names "$ENVIRONMENT_NAME"
+
+      - name: Verify environment health
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEALTH="$(aws elasticbeanstalk describe-environments \
+            --environment-names "$ENVIRONMENT_NAME" \
+            --query 'Environments[0].Health' \
+            --output text)"
+          STATUS="$(aws elasticbeanstalk describe-environments \
+            --environment-names "$ENVIRONMENT_NAME" \
+            --query 'Environments[0].Status' \
+            --output text)"
+          echo "Environment status: $STATUS; health: $HEALTH"
+          test "$STATUS" = "Ready"
+          test "$HEALTH" = "Green"
