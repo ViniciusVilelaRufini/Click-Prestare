@@ -30,6 +30,7 @@ import { AppModule } from './app/app.module';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
 import { json, text, urlencoded } from 'express';
 import { requestContext, extractClientIp } from './app/common/context/request-context';
+import { CORS_ORIGINS_PRINCIPAIS } from './app/common/cors-origins';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
@@ -91,14 +92,7 @@ async function bootstrap() {
   // *.vercel.app — a Vercel foi desativada na migração para a AWS, e domínio
   // .vercel.app abandonado pode ser RECLAMADO por terceiros, que passariam a
   // falar com esta API como origem confiável.
-  const alwaysAllowed = [
-    'https://clickprestarecondominios.com.br',
-    'https://www.clickprestarecondominios.com.br',
-    'https://main.d340ziyanv9pav.amplifyapp.com',
-    'http://localhost:5173',
-    'http://localhost:4200',
-    'http://localhost:3000',
-  ];
+  const alwaysAllowed = CORS_ORIGINS_PRINCIPAIS;
 
   // CORS_ORIGINS (env do Beanstalk) acrescenta origens à lista — não a substitui,
   // senão um valor mal preenchido derruba a portaria-web em produção.
