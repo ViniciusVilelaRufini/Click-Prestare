@@ -118,7 +118,7 @@ export class MailService implements OnModuleInit {
 
   async sendWelcomeMorador(email: string, nome: string, senhaInicial: string): Promise<void> {
     const subject = 'PRESTARE - Bem-vindo(a)! Suas credenciais de acesso';
-    const text = `Olá, ${nome}!\n\nO seu acesso ao aplicativo PRESTARE foi criado com sucesso.\nPara acessar sua conta como Morador, baixe o aplicativo e utilize as credenciais abaixo:\n\nLogin (E-mail): ${email}\nSenha Inicial: ${senhaInicial}\n\nRecomendamos que você altere sua senha após o primeiro acesso no menu de Configurações do App.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+    const text = `Olá, ${nome}!\n\nO seu acesso ao aplicativo PRESTARE foi criado com sucesso.\nPara acessar sua conta como Morador, baixe o aplicativo e utilize as credenciais abaixo:\n\nLogin (E-mail): ${email}\nSenha Inicial: ${senhaInicial}\n\nRecomendamos que você altere sua senha após o primeiro acesso no menu de Configurações do App.\n\nEquipe PRESTARE Condomínios\nhttps://www.prestarecondominios.com.br`;
     const html = `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -174,7 +174,7 @@ export class MailService implements OnModuleInit {
 
   async sendWelcomeMoradorExisting(email: string, nome: string): Promise<void> {
     const subject = 'PRESTARE - Bem-vindo(a)! Novo vínculo de condomínio';
-    const text = `Olá, ${nome}!\n\nO seu acesso ao aplicativo PRESTARE foi vinculado a um novo condomínio com sucesso.\nComo você já possui um cadastro ativo no sistema associado a este e-mail (${email}), utilize a sua senha cadastrada anteriormente para acessar.\n\nSe você não se lembra da sua senha atual, basta abrir o aplicativo e tocar em "Esqueci minha senha" na tela de login para redefini-la.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+    const text = `Olá, ${nome}!\n\nO seu acesso ao aplicativo PRESTARE foi vinculado a um novo condomínio com sucesso.\nComo você já possui um cadastro ativo no sistema associado a este e-mail (${email}), utilize a sua senha cadastrada anteriormente para acessar.\n\nSe você não se lembra da sua senha atual, basta abrir o aplicativo e tocar em "Esqueci minha senha" na tela de login para redefini-la.\n\nEquipe PRESTARE Condomínios\nhttps://www.prestarecondominios.com.br`;
     const html = `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -216,7 +216,7 @@ export class MailService implements OnModuleInit {
 
   async sendForgotPassword(email: string, novaSenha: string, tipoUsuario: string): Promise<void> {
     const subject = 'PRESTARE - Recuperação de Senha';
-    const text = `Olá!\n\nVocê ou alguém solicitou a recuperação de senha do aplicativo PRESTARE.\n\nUtilize a senha temporária abaixo para entrar na sua conta como ${tipoUsuario}:\n${novaSenha}\n\nPor segurança, altere sua senha no menu de Configurações logo após o login.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+    const text = `Olá!\n\nVocê ou alguém solicitou a recuperação de senha do aplicativo PRESTARE.\n\nUtilize a senha temporária abaixo para entrar na sua conta como ${tipoUsuario}:\n${novaSenha}\n\nPor segurança, altere sua senha no menu de Configurações logo após o login.\n\nEquipe PRESTARE Condomínios\nhttps://www.prestarecondominios.com.br`;
     const html = `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -260,10 +260,10 @@ export class MailService implements OnModuleInit {
   }
 
   async sendResetPasswordLink(email: string, token: string, tipoUsuario: string): Promise<void> {
-    const webLink = `https://www.clickprestarecondominios.com.br/?redefinir-senha=${encodeURIComponent(token)}`;
+    const webLink = `https://www.prestarecondominios.com.br/?redefinir-senha=${encodeURIComponent(token)}`;
     const deepLink = `clickprestare://redefinir-senha?token=${encodeURIComponent(token)}`;
     const subject = 'PRESTARE - Recuperação de Senha';
-    const text = `Olá!\n\nVocê solicitou a redefinição de senha da sua conta (${tipoUsuario}) no sistema PRESTARE.\n\nPara cadastrar uma nova senha, acesse o link abaixo:\n${webLink}\n\nSe estiver no celular com o aplicativo PRESTARE instalado, você também pode abrir diretamente:\n${deepLink}\n\nEste link é válido por 30 minutos e só pode ser utilizado uma vez.\nSe você não solicitou a redefinição de senha, ignore esta mensagem: sua conta continua segura.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+    const text = `Olá!\n\nVocê solicitou a redefinição de senha da sua conta (${tipoUsuario}) no sistema PRESTARE.\n\nPara cadastrar uma nova senha, acesse o link abaixo:\n${webLink}\n\nSe estiver no celular com o aplicativo PRESTARE instalado, você também pode abrir diretamente:\n${deepLink}\n\nEste link é válido por 30 minutos e só pode ser utilizado uma vez.\nSe você não solicitou a redefinição de senha, ignore esta mensagem: sua conta continua segura.\n\nEquipe PRESTARE Condomínios\nhttps://www.prestarecondominios.com.br`;
     const html = `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -327,7 +327,7 @@ export class MailService implements OnModuleInit {
     tipoUsuario = 'Usuário',
   ): Promise<void> {
     const subject = `Código para redefinição de senha: ${code} - PRESTARE`;
-    const text = `Olá, ${nome}!\n\nRecebemos uma solicitação para redefinir a senha da sua conta (${tipoUsuario}) no aplicativo PRESTARE.\n\nSeu código de segurança de 6 dígitos é: ${code}\n\nDigite este código diretamente no aplicativo para cadastrar sua nova senha.\nEste código é válido por 10 minutos.\nSe você não solicitou a redefinição de senha, desconsidere esta mensagem: sua conta continua segura.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+    const text = `Olá, ${nome}!\n\nRecebemos uma solicitação para redefinir a senha da sua conta (${tipoUsuario}) no aplicativo PRESTARE.\n\nSeu código de segurança de 6 dígitos é: ${code}\n\nDigite este código diretamente no aplicativo para cadastrar sua nova senha.\nEste código é válido por 10 minutos.\nSe você não solicitou a redefinição de senha, desconsidere esta mensagem: sua conta continua segura.\n\nEquipe PRESTARE Condomínios\nhttps://www.prestarecondominios.com.br`;
     const html = `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -378,7 +378,7 @@ export class MailService implements OnModuleInit {
     copiacola?: string,
   ): Promise<void> {
     const subject = `Lembrete de Cobrança: ${descricao}`;
-    const text = `Olá, ${nome}!\n\nEste é um aviso automático sobre a seguinte cobrança pendente:\n\nDescrição: ${descricao}\nValor: ${valor}\nVencimento: ${vencimento}\n\n${copiacola ? `Chave Pix Copia e Cola:\n${copiacola}\n\n` : ''}Regularize sua situação pelo aplicativo PRESTARE.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+    const text = `Olá, ${nome}!\n\nEste é um aviso automático sobre a seguinte cobrança pendente:\n\nDescrição: ${descricao}\nValor: ${valor}\nVencimento: ${vencimento}\n\n${copiacola ? `Chave Pix Copia e Cola:\n${copiacola}\n\n` : ''}Regularize sua situação pelo aplicativo PRESTARE.\n\nEquipe PRESTARE Condomínios\nhttps://www.prestarecondominios.com.br`;
     const html = `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -436,7 +436,7 @@ export class MailService implements OnModuleInit {
 
   async sendMfaCode(email: string, nome: string, code: string): Promise<void> {
     const subject = `Código de verificação: ${code} - PRESTARE`;
-    const text = `Olá, ${nome}!\n\nRecebemos uma solicitação de login no aplicativo PRESTARE Síndico.\n\nSeu código de segurança de 6 dígitos é: ${code}\n\nEste código é válido por 10 minutos.\nSe você não solicitou este acesso, sua senha pode estar comprometida. Altere sua senha imediatamente no aplicativo ou contate o suporte.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+    const text = `Olá, ${nome}!\n\nRecebemos uma solicitação de login no aplicativo PRESTARE Síndico.\n\nSeu código de segurança de 6 dígitos é: ${code}\n\nEste código é válido por 10 minutos.\nSe você não solicitou este acesso, sua senha pode estar comprometida. Altere sua senha imediatamente no aplicativo ou contate o suporte.\n\nEquipe PRESTARE Condomínios\nhttps://www.prestarecondominios.com.br`;
     const html = `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -567,12 +567,12 @@ export class MailService implements OnModuleInit {
       <table style="font-family: Arial, Helvetica, sans-serif; border-collapse: collapse; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
         <tr>
           <td style="vertical-align: middle; padding-right: 14px;">
-            <img src="https://www.clickprestarecondominios.com.br/logo-prestare.png" alt="Logo Prestare" width="46" height="46" style="border-radius: 6px; display: block;" />
+            <img src="https://www.prestarecondominios.com.br/logo-prestare.png" alt="Logo Prestare" width="46" height="46" style="border-radius: 6px; display: block;" />
           </td>
           <td style="vertical-align: middle; font-size: 13px; line-height: 1.4; color: #334155;">
             <strong style="color: #0f172a; font-size: 14px;">Prestare - Gestao</strong><br>
             <span style="font-style: italic; color: #64748b;">Declaração de missão</span><br>
-            <a href="https://www.clickprestarecondominios.com.br" style="color: #2563eb; text-decoration: none;" target="_blank">https://www.clickprestarecondominios.com.br</a>
+            <a href="https://www.prestarecondominios.com.br" style="color: #2563eb; text-decoration: none;" target="_blank">https://www.prestarecondominios.com.br</a>
           </td>
         </tr>
       </table>

@@ -49,4 +49,16 @@ describe('MailService - sendResetPasswordCode', () => {
     expect(html).not.toContain('<b>Hacker</b>');
     expect(html).toContain('&lt;b&gt;Hacker&lt;/b&gt;');
   });
+
+  it('deve emitir o link de redefinição no domínio público oficial', async () => {
+    await service.sendResetPasswordLink('morador@click.com', 'token com espaço', 'Morador');
+
+    const [, , html, text] = sendSpy.mock.calls[0];
+    const expectedLink = 'https://www.prestarecondominios.com.br/?redefinir-senha=token%20com%20espa%C3%A7o';
+
+    expect(html).toContain(expectedLink);
+    expect(text).toContain(expectedLink);
+    expect(html).not.toContain('https://www.clickprestarecondominios.com.br');
+    expect(text).not.toContain('https://www.clickprestarecondominios.com.br');
+  });
 });

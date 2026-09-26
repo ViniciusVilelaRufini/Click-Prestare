@@ -28,7 +28,7 @@ export const HORAS_DE_VALIDADE = 24;
  */
 export const MAX_CONVITES_ATIVOS = 5;
 
-const CONVITE_BASE_URL_PADRAO = 'https://www.clickprestarecondominios.com.br';
+const CONVITE_BASE_URL_PADRAO = 'https://www.prestarecondominios.com.br';
 
 /**
  * Campos que o MORADOR completa ao confirmar — o visitante não tem como

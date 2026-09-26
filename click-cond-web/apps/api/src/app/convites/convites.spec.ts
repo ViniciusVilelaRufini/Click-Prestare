@@ -557,7 +557,7 @@ describe('ConvitesService', () => {
       const convite = await svc.gerar(MORADOR, false);
 
       expect(convite.url).toBe(
-        `https://www.clickprestarecondominios.com.br/?convite=${encodeURIComponent(convite.token)}`,
+        `https://www.prestarecondominios.com.br/?convite=${encodeURIComponent(convite.token)}`,
       );
       expect(prisma.convites_Visita.create).toHaveBeenCalledTimes(1);
     });
@@ -569,7 +569,7 @@ describe('ConvitesService', () => {
       const convite = await svc.gerar(MORADOR, false);
 
       expect(convite.url).toBe(
-        `https://www.clickprestarecondominios.com.br/?convite=${encodeURIComponent(convite.token)}`,
+        `https://www.prestarecondominios.com.br/?convite=${encodeURIComponent(convite.token)}`,
       );
     });
 

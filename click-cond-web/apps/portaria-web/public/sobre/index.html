@@ -13,10 +13,10 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Prestare Gestão">
 <meta property="og:locale" content="pt_BR">
-<meta property="og:url" content="https://www.clickprestarecondominios.com.br/sobre">
+<meta property="og:url" content="https://www.prestarecondominios.com.br/sobre">
 <meta property="og:title" content="Prestare Gestão — o condomínio no app e no console da portaria">
 <meta property="og:description" content="App do morador e console da portaria: visitantes, encomendas, áreas sociais e financeiro. Peça um orçamento para o seu condomínio.">
-<meta property="og:image" content="https://www.clickprestarecondominios.com.br/sobre/assets/og-prestare-gestao.png">
+<meta property="og:image" content="https://www.prestarecondominios.com.br/sobre/assets/og-prestare-gestao.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="800">
 <meta property="og:image:height" content="800">
@@ -24,7 +24,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Prestare Gestão — o condomínio no app e no console da portaria">
 <meta name="twitter:description" content="App do morador e console da portaria: visitantes, encomendas, áreas sociais e financeiro. Peça um orçamento para o seu condomínio.">
-<meta name="twitter:image" content="https://www.clickprestarecondominios.com.br/sobre/assets/og-prestare-gestao.png">
+<meta name="twitter:image" content="https://www.prestarecondominios.com.br/sobre/assets/og-prestare-gestao.png">
 <script src="/sobre/support.js"></script>
 </head>
 <body>
@@ -649,7 +649,7 @@
     <div class="ps-foot" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 28px;">
       <div style="border-top: 1px solid var(--border-row); padding-top: 20px; display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between;">
         <span style="font: var(--type-caption); color: var(--text-faint);">© {{ ano }} Prestare Gestão · Todos os direitos reservados</span>
-        <span style="font: var(--type-caption); color: var(--text-faint);">clickprestarecondominios.com.br</span>
+        <span style="font: var(--type-caption); color: var(--text-faint);">prestarecondominios.com.br</span>
       </div>
     </div>
   </footer>
@@ -1046,7 +1046,7 @@ class Component extends DCLogic {
       "WhatsApp: " + (d ? this.formatarTelefone(d.contato) : ""),
       "Unidades: " + (d ? d.unidades : ""),
       "",
-      "Enviado pelo site clickprestarecondominios.com.br/sobre"
+      "Enviado pelo site prestarecondominios.com.br/sobre"
     ].join("\n");
   }
 
@@ -1170,7 +1170,7 @@ class Component extends DCLogic {
     // pe: sem ela um envio sem o campo viraria um "Unidades: -" na mensagem.
     // Sem sufixo: com o rotulo "Unidades", um "30 unidades" viraria redundante.
     if (unidadesBruto) linhas.push("*Unidades:* " + unidadesBruto);
-    linhas.push("", "_Enviado pelo site clickprestarecondominios.com.br/sobre_");
+    linhas.push("", "_Enviado pelo site prestarecondominios.com.br/sobre_");
 
     const num = (this.props.whatsapp ?? "5517988338147").replace(/\D/g, "");
     window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(linhas.join("\n")), "_blank", "noopener");
