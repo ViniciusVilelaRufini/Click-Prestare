@@ -51,6 +51,8 @@
 <script src="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/_ds_bundle.js"></script>
 <style>
   html { scroll-behavior: smooth; }
+  section[id] { scroll-margin-top: 85px; }
+  #contato { scroll-margin-top: max(90px, calc(50vh - 280px)); }
   body { margin: 0; background: var(--surface-app); color: var(--text-body); font: var(--type-body); -webkit-font-smoothing: antialiased; }
   * { box-sizing: border-box; }
   a { color: var(--text-link); text-decoration: none; transition: color 150ms cubic-bezier(.2,.8,.28,1); }
@@ -216,7 +218,7 @@
         <a href="#modulos" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Módulos</a>
         <a href="#baixar-app" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Baixar app</a>
         <a href="#duvidas" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Dúvidas</a>
-        <a href="#contato" style="display: inline-flex; align-items: center; justify-content: center; padding: 8px 18px; border-radius: var(--radius-md); background: var(--prestare-blue-600); color: #fff; font: var(--type-body-strong); text-decoration: none; box-shadow: 0 2px 8px rgba(37,96,232,.25); transition: background 150ms ease, transform 150ms ease;" style-hover="background: var(--prestare-blue-700); color: #fff; transform: translateY(-1px);">
+        <a href="#contato" onClick="{{ irParaContato }}" style="display: inline-flex; align-items: center; justify-content: center; padding: 8px 18px; border-radius: var(--radius-md); background: var(--prestare-blue-600); color: #fff; font: var(--type-body-strong); text-decoration: none; box-shadow: 0 2px 8px rgba(37,96,232,.25); cursor: pointer; transition: background 150ms ease, transform 150ms ease;" style-hover="background: var(--prestare-blue-700); color: #fff; transform: translateY(-1px);">
           Pedir orçamento
         </a>
       </nav>
@@ -630,7 +632,7 @@
     </section>
   </sc-if>
 
-  <section id="contato" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 72px;">
+  <section id="contato" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 72px; scroll-margin-top: max(90px, calc(50vh - 280px));">
     <div style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: center;">
       <div style="min-width: 0;">
         <h2 style="margin: 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-display); letter-spacing: -.02em; color: var(--text-on-brand); text-wrap: pretty;">Receba um orçamento para o seu condomínio.</h2>
@@ -1260,6 +1262,18 @@ class Component extends DCLogic {
     return String(v ?? "").trim();
   };
 
+  irParaContato = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (this.state.menuAberto) this.fecharMenu();
+    const el = document.getElementById("contato");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (window.history && window.history.pushState) {
+        window.history.pushState(null, "", "#contato");
+      }
+    }
+  };
+
   enviar = (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
@@ -1350,6 +1364,7 @@ class Component extends DCLogic {
       enviado: this.state.enviado,
       mostrarForm: !this.state.enviado,
       enviar: this.enviar,
+      irParaContato: this.irParaContato,
       ano: new Date().getFullYear(),
       cookieBanner: this.state.cookieBanner,
       cookiePainel: this.state.cookiePainel,
