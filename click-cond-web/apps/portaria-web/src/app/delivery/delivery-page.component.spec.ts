@@ -107,6 +107,11 @@ describe('DeliveryPageComponent', () => {
     expect(component.atendimentosFiltrados()).toEqual([atendimentos[0]]);
   });
 
+  it('retorna zero para um contador de status sem atendimentos', () => {
+    expect(component.contador('CHEGOU')).toBe(1);
+    expect(component.contador('AUTORIZADA')).toBe(0);
+  });
+
   it('não permite autorizar atendimento com entregador bloqueado', () => {
     component.selecionar(atendimentos[0]);
     fixture.detectChanges();

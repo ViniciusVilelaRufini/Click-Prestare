@@ -16,7 +16,7 @@
     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <button type="button" *ngFor="let status of ['AGENDADA', 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA']" class="rounded border bg-white p-3 text-left shadow-sm" (click)="filtroStatus.set($any(status))">
         <span class="block text-xs text-slate-500">{{ textoStatus($any(status)) }}</span>
-        <strong class="text-xl">{{ contadores()[$any(status)] ?? 0 }}</strong>
+        <strong class="text-xl">{{ contador($any(status)) }}</strong>
       </button>
     </div>
 

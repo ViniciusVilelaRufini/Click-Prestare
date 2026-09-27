@@ -77,6 +77,10 @@ export class DeliveryPageComponent implements OnInit {
     return contagem;
   });
 
+  contador(status: DeliveryStatus): number {
+    return this.contadores()[status] ?? 0;
+  }
+
   ngOnInit(): void {
     this.carregar();
     this.carregarEntregadores();
