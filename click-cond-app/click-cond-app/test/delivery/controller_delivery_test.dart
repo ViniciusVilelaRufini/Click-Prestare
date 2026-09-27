@@ -53,6 +53,30 @@ void main() {
     expect(request.headers['Authorization'], 'sessao-do-morador');
   });
 
+  test(
+      'lista somente as unidades vinculadas devolvidas pelo endpoint de delivery',
+      () async {
+    late http.Request request;
+    ApiClient.client = MockClient((captured) async {
+      request = captured;
+      return http.Response(
+          jsonEncode([
+            {'id': 101, 'bloco': 'A', 'apto': '101'},
+            {'id': 202, 'bloco': 'B', 'apto': '202'},
+          ]),
+          200);
+    });
+
+    final result = await apiGetDeliveryUnits();
+
+    expect(result.message, isNull);
+    expect(result.units.map((unit) => unit.id), [101, 202]);
+    expect(result.units.last.label, 'Bloco B · Unidade 202');
+    expect(request.method, 'GET');
+    expect(request.url.path, '/api/delivery/unidades');
+    expect(request.url.queryParameters['id_condominio'], '11');
+  });
+
   test('mantém a criação sem sucesso quando a API rejeita o aviso', () async {
     ApiClient.client = MockClient((_) async {
       return http.Response(jsonEncode({'message': 'Dados inválidos'}), 422);

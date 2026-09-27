@@ -22,7 +22,17 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
   final _observation = TextEditingController();
   DateTime? _forecast;
   DeliveryModoEntrega _mode = DeliveryModoEntrega.unidade;
+  List<DeliveryUnit> _units = const [];
+  int? _selectedApartmentId;
+  String? _unitsError;
+  bool _loadingUnits = true;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnits();
+  }
 
   @override
   void dispose() {
@@ -49,16 +59,38 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
         DateTime(date.year, date.month, date.day, time.hour, time.minute));
   }
 
+  Future<void> _loadUnits() async {
+    if (mounted) setState(() => _loadingUnits = true);
+    final result = await apiGetDeliveryUnits();
+    if (!mounted) return;
+    setState(() {
+      _loadingUnits = false;
+      _units = result.units;
+      _selectedApartmentId =
+          result.units.length == 1 ? result.units.single.id : null;
+      _unitsError = result.message ??
+          (result.units.isEmpty
+              ? 'Nenhuma unidade vinculada foi encontrada.'
+              : null);
+    });
+  }
+
   Future<void> _save() async {
+    if (_selectedApartmentId == null) {
+      displayMessage(context, 'Atenção', 'Selecione a unidade do aviso.');
+      return;
+    }
     setState(() => _saving = true);
-    final result = await apiCreateDelivery(DeliveryDraft(
-      estabelecimento: _establishment.text,
-      previsaoEm: _forecast?.toIso8601String(),
-      observacaoMorador: _observation.text,
-      nomeEntregador: _delivererName.text,
-      telefoneEntregador: _delivererPhone.text,
-      modoEntrega: _mode,
-    ));
+    final result = await apiCreateDelivery(
+        DeliveryDraft(
+          estabelecimento: _establishment.text,
+          previsaoEm: _forecast?.toIso8601String(),
+          observacaoMorador: _observation.text,
+          nomeEntregador: _delivererName.text,
+          telefoneEntregador: _delivererPhone.text,
+          modoEntrega: _mode,
+        ),
+        idApartamento: _selectedApartmentId);
     if (!mounted) return;
     setState(() => _saving = false);
     if (result.success) {
@@ -77,8 +109,7 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
         padding: const EdgeInsets.all(AppSpacing.lg),
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('O aviso será criado para a sua unidade atual.',
-              style: Theme.of(context).textTheme.bodyMedium),
+          _buildUnitField(),
           const SizedBox(height: AppSpacing.lg),
           AppInput(
               label: 'Estabelecimento (opcional)',
@@ -120,6 +151,46 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
               onPressed: _saving ? null : _save),
         ]),
       ),
+    );
+  }
+
+  Widget _buildUnitField() {
+    if (_loadingUnits) {
+      return const Row(children: [
+        SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2)),
+        SizedBox(width: AppSpacing.sm),
+        Text('Carregando suas unidades...'),
+      ]);
+    }
+    if (_unitsError != null) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(_unitsError!, style: const TextStyle(color: AppColors.error)),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton(
+            onPressed: _loadUnits,
+            child: const Text('Tentar carregar novamente')),
+      ]);
+    }
+    if (_units.length == 1) {
+      return InputDecorator(
+        key: const Key('delivery-unit-single'),
+        decoration: const InputDecoration(labelText: 'Unidade do aviso'),
+        child: Text(_units.single.label),
+      );
+    }
+    return DropdownButtonFormField<int>(
+      key: const Key('delivery-unit-selector'),
+      initialValue: _selectedApartmentId,
+      decoration: const InputDecoration(labelText: 'Unidade do aviso'),
+      hint: const Text('Selecione a unidade'),
+      items: _units
+          .map((unit) =>
+              DropdownMenuItem(value: unit.id, child: Text(unit.label)))
+          .toList(),
+      onChanged: (value) => setState(() => _selectedApartmentId = value),
     );
   }
 }

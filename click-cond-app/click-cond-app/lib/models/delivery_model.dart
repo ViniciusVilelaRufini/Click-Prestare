@@ -1,5 +1,25 @@
 enum DeliveryModoEntrega { unidade, portaria }
 
+class DeliveryUnit {
+  final int id;
+  final String bloco;
+  final String apto;
+
+  const DeliveryUnit(
+      {required this.id, required this.bloco, required this.apto});
+
+  factory DeliveryUnit.fromJson(Map<String, dynamic> json) => DeliveryUnit(
+        id: json['id'] is num
+            ? (json['id'] as num).toInt()
+            : int.tryParse(json['id']?.toString() ?? '') ?? 0,
+        bloco: json['bloco']?.toString().trim() ?? '',
+        apto: json['apto']?.toString().trim() ?? '',
+      );
+
+  String get label =>
+      bloco.isEmpty ? 'Unidade $apto' : 'Bloco $bloco · Unidade $apto';
+}
+
 extension DeliveryModoEntregaApi on DeliveryModoEntrega {
   String get apiValue =>
       this == DeliveryModoEntrega.portaria ? 'PORTARIA' : 'UNIDADE';
