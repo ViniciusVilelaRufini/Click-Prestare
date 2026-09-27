@@ -65,7 +65,7 @@ export class DeliveryService {
         status: 'AGENDADA',
       },
     });
-    await this.registrarEvento(atendimento.id, null, 'AGENDADA', user);
+    await this.registrarEvento(this.prisma, atendimento.id, null, 'AGENDADA', user);
     return atendimento;
   }
 
@@ -121,10 +121,18 @@ export class DeliveryService {
       ...(statusNovo === 'CANCELADA' && { cancelado_em: agora }),
       ...(statusNovo === 'RECUSADA' && { recusado_em: agora }),
     };
-    const atualizado = await (this.prisma as any).deliveryAtendimentos.update({ where: { id: Number(id) }, data });
-    await this.registrarEvento(atualizado.id, statusAtual, statusNovo, user, dto.observacao ?? dto.motivo);
+    const atualizado = await (this.prisma as any).$transaction(async (tx: any) => {
+      const registro = await tx.deliveryAtendimentos.update({ where: { id: Number(id) }, data });
+      await this.registrarEvento(tx, registro.id, statusAtual, statusNovo, user, dto.observacao ?? dto.motivo);
+      return registro;
+    });
     if (['CHEGOU', 'AUTORIZADA', 'CONCLUIDA'].includes(statusNovo)) {
-      await this.notificarMorador(atualizado.id_apartamento, statusNovo, atualizado.id);
+      await this.notificarMorador(
+        atualizado.id_apartamento,
+        atualizado.id_morador_user,
+        statusNovo,
+        atualizado.id,
+      );
     }
     return atualizado;
   }
@@ -188,12 +196,12 @@ export class DeliveryService {
     return entregador;
   }
 
-  private async registrarEvento(idAtendimento: number, anterior: DeliveryStatus | null, novo: DeliveryStatus, user: JwtPayload, mensagem?: string) {
-    return (this.prisma as any).deliveryEventos.create({ data: { id_atendimento: idAtendimento, status_anterior: anterior, status_novo: novo, id_usuario_autor: this.idUsuario(user), autor_nome: user.nome ?? user.user?.name ?? null, mensagem: mensagem?.trim() || null } });
+  private async registrarEvento(db: any, idAtendimento: number, anterior: DeliveryStatus | null, novo: DeliveryStatus, user: JwtPayload, mensagem?: string) {
+    return db.deliveryEventos.create({ data: { id_atendimento: idAtendimento, status_anterior: anterior, status_novo: novo, id_usuario_autor: this.idUsuario(user), autor_nome: user.nome ?? user.user?.name ?? null, mensagem: mensagem?.trim() || null } });
   }
 
-  private async notificarMorador(idApartamento: number, status: DeliveryStatus, idAtendimento: number) {
-    const vinculo = await this.prisma.apartamentos_Users.findFirst({ where: { id_apto: idApartamento }, include: { user: { select: { fcm_token: true } } } });
+  private async notificarMorador(idApartamento: number, idMorador: number, status: DeliveryStatus, idAtendimento: number) {
+    const vinculo = await this.prisma.apartamentos_Users.findFirst({ where: { id_apto: idApartamento, id_user: idMorador }, include: { user: { select: { fcm_token: true } } } });
     const mensagens: Partial<Record<DeliveryStatus, string>> = { CHEGOU: 'Seu entregador chegou à portaria.', AUTORIZADA: 'Sua entrega foi autorizada.', CONCLUIDA: 'Sua entrega foi concluída.' };
     await this.notifications.sendPushNotification(vinculo?.user?.fcm_token ?? '', 'Delivery', mensagens[status] ?? 'Atualização no seu atendimento.', { id_delivery: String(idAtendimento), status });
   }
