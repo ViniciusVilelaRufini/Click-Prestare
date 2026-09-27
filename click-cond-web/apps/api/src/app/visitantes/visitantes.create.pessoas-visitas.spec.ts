@@ -127,7 +127,7 @@ describe('VisitantesService.create — caminho novo (Pessoas/Visitas)', () => {
 
     const res = await service.create({
       nome: 'Rodrigo Silva',
-      doc_identificacao: '111.222.333-44',
+      doc_identificacao: '529.982.247-25',
       id_apartamento: 101,
       id_condominio: 1,
       foto_pessoa: 'http://foto.jpg',
@@ -143,7 +143,7 @@ describe('VisitantesService.create — caminho novo (Pessoas/Visitas)', () => {
     expect(res).toMatchObject({
       id: visitas[0].id,
       nome: 'Rodrigo Silva',
-      doc_identificacao: '11122233344',
+      doc_identificacao: '52998224725',
       id_apartamento: 101,
       id_condominio: 1,
       is_visitante: 1,
@@ -171,7 +171,7 @@ describe('VisitantesService.create — caminho novo (Pessoas/Visitas)', () => {
 
     const dto = {
       nome: 'Rodrigo Silva',
-      doc_identificacao: '11122233344',
+      doc_identificacao: '52998224725',
       id_apartamento: 101,
       id_condominio: 1,
     };
@@ -182,7 +182,7 @@ describe('VisitantesService.create — caminho novo (Pessoas/Visitas)', () => {
     expect(pessoas).toHaveLength(1); // "Rodrigo em 101" e "Rodrigo em 202" (mesmo apto aqui) = 1 humano
     expect(visitas).toHaveLength(2); // ... mas 2 autorizações, nunca reescritas uma sobre a outra
     expect(r1.id).not.toBe(r2.id);
-    expect(r1.doc_identificacao).toBe('11122233344');
-    expect(r2.doc_identificacao).toBe('11122233344');
+    expect(r1.doc_identificacao).toBe('52998224725');
+    expect(r2.doc_identificacao).toBe('52998224725');
   });
 });

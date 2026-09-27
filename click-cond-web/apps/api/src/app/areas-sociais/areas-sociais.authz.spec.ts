@@ -11,6 +11,11 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
  *    qualquer usuário apagava área/aprovava reserva de qualquer condomínio.
  */
 describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', () => {
+  // As reservas destes testes usam datas fixas de 2026/2027; o relógio fica antes
+  // delas porque reservar no passado agora é recusado.
+  beforeAll(() => jest.useFakeTimers({ advanceTimers: true }).setSystemTime(new Date(Date.UTC(2026, 0, 1, 12, 0, 0))));
+  afterAll(() => jest.useRealTimers());
+
   const areaCond2 = { id: 30, id_condominio: 2, precisa_autorizacao: 1 };
 
   function build(overrides: Partial<any> = {}) {

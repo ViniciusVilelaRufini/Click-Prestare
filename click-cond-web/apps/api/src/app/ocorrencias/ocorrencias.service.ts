@@ -17,6 +17,19 @@ export interface CreateOcorrenciaDto {
   user?: number;
 }
 
+/** Categoria criada pelo monitor de dispositivos (facial.service), não pela portaria. */
+const CATEGORIA_AUTOMATICA = 'Dispositivos';
+
+/** Taxonomia inicial (prioridade: 1 crítica, 2 alta, 3 média, 4 baixa; SLA em horas). */
+const CATEGORIAS_PADRAO = [
+  { nome: 'Segurança', prioridade: 1, sla_horas: 4 },
+  { nome: 'Portaria e acesso', prioridade: 2, sla_horas: 24 },
+  { nome: 'Manutenção', prioridade: 2, sla_horas: 48 },
+  { nome: 'Barulho e convivência', prioridade: 3, sla_horas: 48 },
+  { nome: 'Limpeza', prioridade: 3, sla_horas: 48 },
+  { nome: 'Outros', prioridade: 4, sla_horas: null },
+];
+
 @Injectable()
 export class OcorrenciasService {
   private readonly logger = new Logger(OcorrenciasService.name);
@@ -65,10 +78,14 @@ export class OcorrenciasService {
     return callerId != null && o.user === callerId;
   }
 
-  listCategorias() {
-    return this.prisma.ocorrencias_Categorias.findMany({
-      orderBy: { prioridade: 'asc' },
-    });
+  async listCategorias() {
+    const todas = await this.prisma.ocorrencias_Categorias.findMany({ orderBy: { prioridade: 'asc' } });
+    // Instalação nova só tem "Dispositivos" (criada pelo monitor facial), e aí
+    // toda ocorrência da portaria saía como Crítica. Semeia uma taxonomia
+    // básica uma única vez; depois o síndico edita em "Categorias / SLA".
+    if (todas.some((c) => c.nome !== CATEGORIA_AUTOMATICA)) return todas;
+    await this.prisma.ocorrencias_Categorias.createMany({ data: CATEGORIAS_PADRAO });
+    return this.prisma.ocorrencias_Categorias.findMany({ orderBy: { prioridade: 'asc' } });
   }
 
   // ----- Categorias CRUD (mini-helpdesk: nome, prioridade, SLA em horas) -----

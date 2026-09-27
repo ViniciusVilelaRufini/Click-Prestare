@@ -866,11 +866,15 @@
               : 'Nenhum visitante encontrado'
           }}
         </p>
-        <p class="text-xs text-slate-500 mt-1">
-          Clique em "{{
-            isPrestadorModo() ? 'Cadastrar prestador' : 'Cadastrar visitante'
-          }}" para começar
-        </p>
+        @if (search().trim() || viewFilter() !== 'todos') {
+          <p class="text-xs text-slate-500 mt-1">Nenhum resultado para a busca ou filtro atual.</p>
+        } @else {
+          <p class="text-xs text-slate-500 mt-1">
+            Clique em "{{
+              isPrestadorModo() ? 'Cadastrar prestador' : 'Cadastrar visitante'
+            }}" para começar
+          </p>
+        }
       </div>
     } @else {
       <!-- MOBILE / janela estreita: cards -->

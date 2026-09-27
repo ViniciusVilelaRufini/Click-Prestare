@@ -98,4 +98,14 @@ export class AreasSociaisApi {
       id_condominio: this.cid
     });
   }
+
+  /** Cancela uma reserva (pendente ou aprovada) em nome da administração. */
+  cancelar(id: number, motivo: string = ''): Observable<any> {
+    return this.http.post(`${API_BASE}/areasSociais/agendamento/update-status`, {
+      id,
+      status: 'cancelado',
+      motivo_recusa: motivo,
+      id_condominio: this.cid,
+    });
+  }
 }

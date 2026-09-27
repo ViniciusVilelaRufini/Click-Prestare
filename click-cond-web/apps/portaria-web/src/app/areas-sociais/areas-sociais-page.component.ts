@@ -116,6 +116,19 @@ export class AreasSociaisPageComponent implements OnInit {
     });
   }
 
+  async cancelarReserva(id: number) {
+    const ok = await this.confirm.ask({
+      title: 'Cancelar reserva',
+      message: 'A reserva será cancelada e o horário ficará livre novamente. O morador verá a reserva como cancelada.',
+      confirmLabel: 'Cancelar reserva',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    this.api.cancelar(id, 'Cancelada pela administração').subscribe(() => {
+      this.agendamentos.update(list => list.map(item => item.id === id ? { ...item, status: 'cancelado' } : item));
+    });
+  }
+
   async excluirArea(id: number) {
     const ok = await this.confirm.ask({
       title: 'Excluir espaço',
@@ -355,7 +368,23 @@ export class AreasSociaisPageComponent implements OnInit {
     const r = this.novaReserva;
     if (!r.id_apartamento || !r.data || !r.horaDe || !r.horaAte) return false;
     // hora fim deve ser maior que hora início
-    return this.minutos(r.horaAte) > this.minutos(r.horaDe);
+    return this.minutos(r.horaAte) > this.minutos(r.horaDe) && !this.reservaNoPassado();
+  }
+
+  /** Data de hoje no formato do input (limite mínimo do calendário). */
+  hojeInput(): string {
+    return this.toInputDate(new Date());
+  }
+
+  /** Dia anterior a hoje, ou hoje com término já passado. */
+  reservaNoPassado(): boolean {
+    const r = this.novaReserva;
+    if (!r.data) return false;
+    const hoje = this.hojeInput();
+    if (r.data < hoje) return true;
+    if (r.data > hoje || !r.horaAte) return false;
+    const agora = new Date();
+    return this.minutos(r.horaAte) <= agora.getHours() * 60 + agora.getMinutes();
   }
 
   private minutos(hhmm: string): number {

@@ -9,6 +9,11 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
  * Ausente continua válido (app antigo não manda o campo).
  */
 describe('AreasSociaisService — convidados x capacidade', () => {
+  // As reservas destes testes usam datas fixas de 2026/2027; o relógio fica antes
+  // delas porque reservar no passado agora é recusado.
+  beforeAll(() => jest.useFakeTimers({ advanceTimers: true }).setSystemTime(new Date(Date.UTC(2026, 0, 1, 12, 0, 0))));
+  afterAll(() => jest.useRealTimers());
+
   const morador: JwtPayload = { sub: 6, nome: 'Morador X', id_condominio: 2, typeAccess: 'Morador' };
 
   function build(opts: { capacidade?: number | null } = {}) {

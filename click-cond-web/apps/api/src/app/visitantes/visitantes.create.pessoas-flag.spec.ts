@@ -68,7 +68,7 @@ describe('VisitantesService.create — flag PESSOAS_MIGRATION_ENABLED', () => {
     mockPrisma.visitantes.create.mockResolvedValue({
       id: 501,
       nome: 'Ana',
-      doc_identificacao: '11122233344',
+      doc_identificacao: '52998224725',
       id_apartamento: 101,
       id_condominio: 1,
       foto_pessoa: 'http://foto.jpg',
@@ -97,7 +97,7 @@ describe('VisitantesService.create — flag PESSOAS_MIGRATION_ENABLED', () => {
 
   const dto = {
     nome: 'Ana',
-    doc_identificacao: '11122233344',
+    doc_identificacao: '52998224725',
     id_apartamento: 101,
     id_condominio: 1,
     foto_pessoa: 'http://foto.jpg',
@@ -157,7 +157,7 @@ describe('VisitantesService.create — flag PESSOAS_MIGRATION_ENABLED', () => {
       pessoa: {
         id: 5,
         nome: 'Ana',
-        doc_identificacao: '11122233344',
+        doc_identificacao: '52998224725',
         foto_pessoa: 'http://foto.jpg',
         foto_documento: null,
         face_id: null,
