@@ -29,6 +29,7 @@ import 'package:click/pages/shared/visitantes/list_visitantes.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
+import 'package:click/pages/shared/delivery/list_delivery.dart';
 import 'package:click/pages/shared/enquetes/list_enquetes.dart';
 import 'package:click/pages/shared/chat_ia/chat_ia_page.dart';
 import 'package:click/pages/shared/veiculos/list_veiculos.dart';
@@ -180,6 +181,9 @@ class _MyCondominiumState extends State<MyCondominium> {
           ? _MenuItem(getText('lb_meu_apartamento'), PhosphorIcons.house, const MyApartamentoView())
           : _MenuItem(getText('lb_apartamentos'), PhosphorIcons.house, ListMoradores()),
     ];
+    if (getUserType() == 'morador' || _sindicoEhMorador) {
+      all.add(_MenuItem('Delivery', PhosphorIcons.package, const ListDelivery()));
+    }
     if (getUserType() == 'sindico') {
       all.add(_MenuItem('Moradores', PhosphorIcons.usersThree, const ListMoradoresGeral()));
       all.add(_MenuItem('Relatórios', PhosphorIcons.filePdf, const RelatoriosPage()));

@@ -29,10 +29,12 @@ void main() {
     expect(capturada.headers['Authorization'], 'token-do-usuario');
   });
 
-  test('injeta também no post, put e delete', () async {
+  test('injeta também no post, put, patch e delete', () async {
     await ApiClient.post(url, body: '{}');
     expect(capturada.headers['Authorization'], 'token-do-usuario');
     await ApiClient.put(url, body: '{}');
+    expect(capturada.headers['Authorization'], 'token-do-usuario');
+    await ApiClient.patch(url, body: '{}');
     expect(capturada.headers['Authorization'], 'token-do-usuario');
     await ApiClient.delete(url);
     expect(capturada.headers['Authorization'], 'token-do-usuario');

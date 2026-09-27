@@ -133,6 +133,20 @@ class ApiClient {
     return res;
   }
 
+  static Future<http.Response> patch(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? body,
+    Encoding? encoding,
+    bool skip401Handling = false,
+  }) async {
+    final res = await client
+        .patch(url, headers: _headers(headers, comCorpo: body != null), body: body, encoding: encoding)
+        .timeout(timeout);
+    if (!skip401Handling) _checkAuth(res);
+    return res;
+  }
+
   static Future<http.Response> delete(
     Uri url, {
     Map<String, String>? headers,
