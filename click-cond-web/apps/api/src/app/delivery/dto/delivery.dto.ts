@@ -148,4 +148,9 @@ export class AtualizarEntregadorDto {
   @IsOptional()
   @IsString()
   motivo_bloqueio?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => VeiculoDeliveryDto)
+  veiculo?: VeiculoDeliveryDto | null;
 }

@@ -1057,7 +1057,7 @@ model DeliveryEventos {
   autor_nome       String?              @db.VarChar(255)
   mensagem         String?              @db.Text
   created_at       DateTime             @default(now()) @db.DateTime(0)
-  atendimento      DeliveryAtendimentos @relation(fields: [id_atendimento], references: [id], onDelete: Cascade, map: "fk_delivery_evento_atendimento")
+  atendimento      DeliveryAtendimentos @relation(fields: [id_atendimento], references: [id], onDelete: Restrict, map: "fk_delivery_evento_atendimento")
 
   @@index([id_atendimento, created_at], map: "idx_delivery_evento_atendimento_criado")
   @@index([id_usuario_autor], map: "idx_delivery_evento_autor")

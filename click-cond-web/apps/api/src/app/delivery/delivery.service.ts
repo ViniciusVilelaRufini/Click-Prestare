@@ -53,22 +53,24 @@ export class DeliveryService {
     await this.tenant.assertCondominio(idCondominio, user);
     await this.assertApartamentoDoMorador(idApartamento, idCondominio, idMorador);
 
-    const atendimento = await (this.prisma as any).deliveryAtendimentos.create({
-      data: {
-        id_condominio: idCondominio,
-        id_apartamento: idApartamento,
-        id_morador_user: idMorador,
-        estabelecimento: dto.estabelecimento?.trim() || null,
-        previsao_em: dto.previsao_em ? new Date(dto.previsao_em) : null,
-        observacao_morador: dto.observacao_morador?.trim() || null,
-        nome_entregador: dto.nome_entregador?.trim() || null,
-        telefone_entregador: dto.telefone_entregador?.trim() || null,
-        modo_entrega: dto.modo_entrega === 'PORTARIA' ? 'PORTARIA' : 'UNIDADE',
-        status: 'AGENDADA',
-      },
+    return (this.prisma as any).$transaction(async (tx: any) => {
+      const atendimento = await tx.deliveryAtendimentos.create({
+        data: {
+          id_condominio: idCondominio,
+          id_apartamento: idApartamento,
+          id_morador_user: idMorador,
+          estabelecimento: dto.estabelecimento?.trim() || null,
+          previsao_em: dto.previsao_em ? new Date(dto.previsao_em) : null,
+          observacao_morador: dto.observacao_morador?.trim() || null,
+          nome_entregador: dto.nome_entregador?.trim() || null,
+          telefone_entregador: dto.telefone_entregador?.trim() || null,
+          modo_entrega: dto.modo_entrega === 'PORTARIA' ? 'PORTARIA' : 'UNIDADE',
+          status: 'AGENDADA',
+        },
+      });
+      await this.registrarEvento(tx, atendimento.id, null, 'AGENDADA', user);
+      return atendimento;
     });
-    await this.registrarEvento(this.prisma, atendimento.id, null, 'AGENDADA', user);
-    return atendimento;
   }
 
   async listarAtendimentos(idCondominio: number, status: string | undefined, user: JwtPayload) {
@@ -77,19 +79,42 @@ export class DeliveryService {
     if (status) where.status = status;
     const operador = isOperador(user);
     if (!operador) where.id_morador_user = this.idUsuario(user);
+    if (operador) {
+      return (this.prisma as any).deliveryAtendimentos.findMany({
+        where,
+        include: {
+          apartamento: { select: { id: true, bloco: true, apto: true } },
+          entregador: { include: { veiculos: true } },
+          eventos: { orderBy: { created_at: 'asc' } },
+        },
+        orderBy: { created_at: 'desc' },
+      });
+    }
     return (this.prisma as any).deliveryAtendimentos.findMany({
       where,
-      include: {
-        apartamento: { select: { id: true, bloco: true, apto: true } },
-        entregador: operador
-          ? true
-          : { select: { nome: true, telefone: true, plataforma: true } },
-        eventos: operador
-          ? { orderBy: { created_at: 'asc' } }
-          : {
-              select: { status_novo: true, mensagem: true, created_at: true },
-              orderBy: { created_at: 'asc' },
-            },
+      select: {
+        id: true,
+        estabelecimento: true,
+        previsao_em: true,
+        observacao_morador: true,
+        nome_entregador: true,
+        telefone_entregador: true,
+        status: true,
+        modo_entrega: true,
+        chegou_em: true,
+        autorizado_em: true,
+        concluido_em: true,
+        cancelado_em: true,
+        recusado_em: true,
+        motivo: true,
+        created_at: true,
+        updated_at: true,
+        apartamento: { select: { bloco: true, apto: true } },
+        entregador: { select: { nome: true, telefone: true, plataforma: true } },
+        eventos: {
+          select: { status_novo: true, mensagem: true, created_at: true },
+          orderBy: { created_at: 'asc' },
+        },
       },
       orderBy: { created_at: 'desc' },
     });
@@ -117,7 +142,10 @@ export class DeliveryService {
 
     const idEntregador = dto.id_entregador === undefined ? atendimento.id_entregador : Number(dto.id_entregador);
     if (dto.id_entregador !== undefined) await this.assertEntregadorDoCondominio(idEntregador, atendimento.id_condominio);
-    if (statusNovo === 'AUTORIZADA' && idEntregador) {
+    if (statusNovo === 'AUTORIZADA' && !idEntregador) {
+      throw new BadRequestException('Identifique o entregador antes de autorizar o atendimento.');
+    }
+    if (statusNovo === 'AUTORIZADA') {
       const entregador = await this.assertEntregadorDoCondominio(idEntregador, atendimento.id_condominio);
       if (entregador.status === 'BLOQUEADO') {
         throw new ConflictException('Entregador bloqueado não pode ser autorizado.');
@@ -136,11 +164,19 @@ export class DeliveryService {
       ...(statusNovo === 'RECUSADA' && { recusado_em: agora }),
     };
     const atualizado = await (this.prisma as any).$transaction(async (tx: any) => {
-      const registro = await tx.deliveryAtendimentos.update({ where: { id: Number(id) }, data });
+      const alteracao = await tx.deliveryAtendimentos.updateMany({
+        where: { id: Number(id), status: statusAtual },
+        data,
+      });
+      if (alteracao.count !== 1) {
+        throw new ConflictException('O atendimento foi alterado por outra operação. Recarregue a fila e tente novamente.');
+      }
+      const registro = await tx.deliveryAtendimentos.findUnique({ where: { id: Number(id) } });
+      if (!registro) throw new NotFoundException(`Atendimento de delivery ${id} não encontrado`);
       await this.registrarEvento(tx, registro.id, statusAtual, statusNovo, user, dto.observacao ?? dto.motivo);
       return registro;
     });
-    if (['CHEGOU', 'AUTORIZADA', 'CONCLUIDA'].includes(statusNovo)) {
+    if (['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA'].includes(statusNovo)) {
       await this.notificarMorador(
         atualizado.id_apartamento,
         atualizado.id_morador_user,
@@ -168,33 +204,72 @@ export class DeliveryService {
     this.assertOperador(user, 'cadastrar entregador');
     if (!dto.nome?.trim()) throw new BadRequestException('Nome do entregador é obrigatório.');
     await this.tenant.assertCondominio(Number(dto.id_condominio), user);
-    const entregador = await (this.prisma as any).deliveryEntregadores.create({
-      data: {
-        id_condominio: Number(dto.id_condominio), nome: dto.nome.trim(), telefone: dto.telefone?.trim() || null,
-        documento: dto.documento?.trim() || null, plataforma: dto.plataforma?.trim() || null, foto: dto.foto || null,
-      },
+    return (this.prisma as any).$transaction(async (tx: any) => {
+      const entregador = await tx.deliveryEntregadores.create({
+        data: {
+          id_condominio: Number(dto.id_condominio), nome: dto.nome.trim(), telefone: dto.telefone?.trim() || null,
+          documento: dto.documento?.trim() || null, plataforma: dto.plataforma?.trim() || null, foto: dto.foto || null,
+        },
+      });
+      const veiculo = dto.veiculo
+        ? await this.criarVeiculo(tx, entregador.id, entregador.id_condominio, dto.veiculo)
+        : null;
+      return { ...entregador, veiculos: veiculo ? [veiculo] : [] };
     });
-    if (dto.veiculo) await this.criarVeiculo(entregador.id, entregador.id_condominio, dto.veiculo);
-    return entregador;
   }
 
   async atualizarEntregador(id: number, dto: AtualizarEntregadorDto, user: JwtPayload) {
-    this.assertOperador(user, 'atualizar entregador');
-    const entregador = await (this.prisma as any).deliveryEntregadores.findUnique({ where: { id: Number(id) } });
+    this.assertGestorEntregadores(user);
+    const entregador = await (this.prisma as any).deliveryEntregadores.findUnique({
+      where: { id: Number(id) },
+      include: { veiculos: true },
+    });
     if (!entregador) throw new NotFoundException(`Entregador ${id} não encontrado`);
     await this.tenant.assertEntidade(entregador.id_condominio, user, `entregador #${id}`);
     if (dto.status === 'BLOQUEADO' && !dto.motivo_bloqueio?.trim()) {
       throw new BadRequestException('Bloqueio exige motivo.');
     }
-    return (this.prisma as any).deliveryEntregadores.update({
-      where: { id: Number(id) },
-      data: {
-        ...(dto.nome !== undefined && { nome: dto.nome.trim() }), ...(dto.telefone !== undefined && { telefone: dto.telefone.trim() || null }),
-        ...(dto.documento !== undefined && { documento: dto.documento.trim() || null }), ...(dto.plataforma !== undefined && { plataforma: dto.plataforma.trim() || null }),
-        ...(dto.foto !== undefined && { foto: dto.foto || null }), ...(dto.status !== undefined && { status: dto.status }),
-        ...(dto.status === 'BLOQUEADO' && { motivo_bloqueio: dto.motivo_bloqueio!.trim() }), ...(dto.status === 'ATIVO' && { motivo_bloqueio: null }),
-      },
-    });
+    try {
+      return await (this.prisma as any).$transaction(async (tx: any) => {
+        await tx.deliveryEntregadores.update({
+          where: { id: Number(id) },
+          data: {
+            ...(dto.nome !== undefined && { nome: dto.nome.trim() }), ...(dto.telefone !== undefined && { telefone: dto.telefone.trim() || null }),
+            ...(dto.documento !== undefined && { documento: dto.documento.trim() || null }), ...(dto.plataforma !== undefined && { plataforma: dto.plataforma.trim() || null }),
+            ...(dto.foto !== undefined && { foto: dto.foto || null }), ...(dto.status !== undefined && { status: dto.status }),
+            ...(dto.status === 'BLOQUEADO' && { motivo_bloqueio: dto.motivo_bloqueio!.trim() }), ...(dto.status === 'ATIVO' && { motivo_bloqueio: null }),
+          },
+        });
+
+        if (dto.veiculo === null) {
+          await tx.deliveryVeiculos.deleteMany({ where: { id_entregador: Number(id) } });
+        } else if (dto.veiculo !== undefined) {
+          const atual = entregador.veiculos?.[0];
+          if (atual) {
+            await tx.deliveryVeiculos.update({
+              where: { id: atual.id },
+              data: {
+                tipo: dto.veiculo.tipo?.trim() || null,
+                placa: dto.veiculo.placa ? this.normalizarPlaca(dto.veiculo.placa) : null,
+                modelo: dto.veiculo.modelo?.trim() || null,
+                cor: dto.veiculo.cor?.trim() || null,
+              },
+            });
+          } else {
+            await this.criarVeiculo(tx, Number(id), entregador.id_condominio, dto.veiculo);
+          }
+        }
+
+        return tx.deliveryEntregadores.findUnique({
+          where: { id: Number(id) },
+          include: { veiculos: true },
+        });
+      });
+    } catch (erro: any) {
+      if (erro instanceof ConflictException) throw erro;
+      if (erro?.code === 'P2002') throw new ConflictException('Placa já cadastrada neste condomínio.');
+      throw erro;
+    }
   }
 
   private async assertApartamentoDoMorador(idApartamento: number, idCondominio: number, idMorador: number) {
@@ -216,13 +291,18 @@ export class DeliveryService {
 
   private async notificarMorador(idApartamento: number, idMorador: number, status: DeliveryStatus, idAtendimento: number) {
     const vinculo = await this.prisma.apartamentos_Users.findFirst({ where: { id_apto: idApartamento, id_user: idMorador }, include: { user: { select: { fcm_token: true } } } });
-    const mensagens: Partial<Record<DeliveryStatus, string>> = { CHEGOU: 'Seu entregador chegou à portaria.', AUTORIZADA: 'Sua entrega foi autorizada.', CONCLUIDA: 'Sua entrega foi concluída.' };
+    const mensagens: Partial<Record<DeliveryStatus, string>> = {
+      CHEGOU: 'Seu entregador chegou à portaria.',
+      AGUARDANDO_AUTORIZACAO: 'A portaria aguarda sua autorização para a entrega.',
+      AUTORIZADA: 'Sua entrega foi autorizada.',
+      CONCLUIDA: 'Sua entrega foi concluída.',
+    };
     await this.notifications.sendPushNotification(vinculo?.user?.fcm_token ?? '', 'Delivery', mensagens[status] ?? 'Atualização no seu atendimento.', { id_delivery: String(idAtendimento), status });
   }
 
-  private async criarVeiculo(idEntregador: number, idCondominio: number, veiculo: { tipo?: string; placa?: string; modelo?: string; cor?: string }) {
+  private async criarVeiculo(db: any, idEntregador: number, idCondominio: number, veiculo: { tipo?: string; placa?: string; modelo?: string; cor?: string }) {
     try {
-      return await (this.prisma as any).deliveryVeiculos.create({ data: { id_entregador: idEntregador, id_condominio: idCondominio, tipo: veiculo.tipo?.trim() || null, placa: veiculo.placa ? this.normalizarPlaca(veiculo.placa) : null, modelo: veiculo.modelo?.trim() || null, cor: veiculo.cor?.trim() || null } });
+      return await db.deliveryVeiculos.create({ data: { id_entregador: idEntregador, id_condominio: idCondominio, tipo: veiculo.tipo?.trim() || null, placa: veiculo.placa ? this.normalizarPlaca(veiculo.placa) : null, modelo: veiculo.modelo?.trim() || null, cor: veiculo.cor?.trim() || null } });
     } catch (erro: any) {
       if (erro?.code === 'P2002') throw new ConflictException('Placa já cadastrada neste condomínio.');
       throw erro;
@@ -232,4 +312,14 @@ export class DeliveryService {
   private normalizarPlaca(placa: string) { return placa.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''); }
   private idUsuario(user: JwtPayload) { const id = Number(user?.user?.id ?? user?.sub); if (!id) throw new ForbiddenException('Sessão sem usuário válido.'); return id; }
   private assertOperador(user: JwtPayload, contexto: string) { if (!isOperador(user)) throw new ForbiddenException(`Acesso negado: ${contexto} exige operador.`); }
+  private assertGestorEntregadores(user: JwtPayload) {
+    const papel = String(user?.typeAccess ?? user?.user?.typeAccess ?? user?.role ?? '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const turno = String(user?.turno ?? '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const papeisGestores = ['sindico', 'admin', 'administrador', 'superadmin', 'crm_admin'];
+    if (!papeisGestores.includes(papel) && !papeisGestores.includes(turno)) {
+      throw new ForbiddenException('Acesso negado: gerir entregadores exige síndico ou administrador.');
+    }
+  }
 }

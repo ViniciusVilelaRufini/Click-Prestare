@@ -77,5 +77,5 @@ CREATE TABLE IF NOT EXISTS delivery_eventos (
   PRIMARY KEY (id),
   KEY idx_delivery_evento_atendimento_criado (id_atendimento, created_at),
   KEY idx_delivery_evento_autor (id_usuario_autor),
-  CONSTRAINT fk_delivery_evento_atendimento FOREIGN KEY (id_atendimento) REFERENCES delivery_atendimentos(id) ON DELETE CASCADE
+  CONSTRAINT fk_delivery_evento_atendimento FOREIGN KEY (id_atendimento) REFERENCES delivery_atendimentos(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -8,16 +8,44 @@ import { DeliveryService } from './delivery.service';
 describe('DeliveryService', () => {
   const morador = { sub: 10, typeAccess: 'Morador' } as any;
   const porteiro = { sub: 20, id_condominio: 1, nome: 'Portaria' } as any;
+  const sindico = { sub: 30, id_condominio: 1, nome: 'Síndico', typeAccess: 'Sindico', turno: 'Síndico' } as any;
+  const administrador = { sub: 31, id_condominio: 1, nome: 'Administrador', turno: 'Administrador' } as any;
 
   function montar(opcoes: {
     apartamentoDoMorador?: boolean;
     entregadorBloqueado?: boolean;
     entregadorCondominio?: number;
     falhaEvento?: boolean;
+    falhaPlacaDuplicada?: boolean;
+    transicaoConcorrente?: boolean;
   } = {}) {
     let proximoId = 1;
     const atendimentos: any[] = [];
     const eventos: any[] = [];
+    const entregadores: any[] = [{
+      id: 7,
+      id_condominio: opcoes.entregadorCondominio ?? 1,
+      nome: 'Motoboy Teste',
+      telefone: '11999999999',
+      plataforma: 'Entrega Rápida',
+      documento: '12345678900',
+      status: opcoes.entregadorBloqueado ? 'BLOQUEADO' : 'ATIVO',
+      motivo_bloqueio: opcoes.entregadorBloqueado ? 'Ocorrência interna' : null,
+      foto: 'https://interno/foto.jpg',
+    }];
+    const veiculos: any[] = [];
+    const projetar = (valor: any, select: Record<string, any>): any => Object.fromEntries(
+      Object.entries(select).flatMap(([campo, regra]) => {
+        if (!regra) return [];
+        const atual = valor?.[campo];
+        if (regra === true) return [[campo, atual]];
+        if (regra.select) {
+          if (Array.isArray(atual)) return [[campo, atual.map((item) => projetar(item, regra.select))]];
+          return [[campo, atual == null ? atual : projetar(atual, regra.select)]];
+        }
+        return [[campo, atual]];
+      }),
+    );
     const prisma: any = {
       isConnected: true,
       apartamentos_Users: {
@@ -38,35 +66,80 @@ describe('DeliveryService', () => {
           Object.assign(atendimento, data);
           return atendimento;
         }),
-        findMany: jest.fn(async ({ include }: any) => {
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          if (opcoes.transicaoConcorrente) return { count: 0 };
+          const atendimento = atendimentos.find((a) => a.id === where.id && a.status === where.status);
+          if (!atendimento) return { count: 0 };
+          Object.assign(atendimento, data);
+          return { count: 1 };
+        }),
+        findMany: jest.fn(async ({ include, select }: any) => {
           const entregador = {
-            id: 7,
-            nome: 'Motoboy Teste',
-            telefone: '11999999999',
-            plataforma: 'Entrega Rápida',
-            documento: '12345678900',
+            ...entregadores[0],
             status: 'BLOQUEADO',
             motivo_bloqueio: 'Ocorrência interna',
-            foto: 'https://interno/foto.jpg',
           };
           const selecionado = include?.entregador?.select;
-          return [{
+          const comVeiculos = include?.entregador?.include?.veiculos === true;
+          const registro = {
             id: 91,
             id_condominio: 1,
             id_apartamento: 101,
             id_morador_user: 10,
+            id_entregador: 7,
             status: 'CHEGOU',
+            estabelecimento: 'Mercado',
+            modo_entrega: 'UNIDADE',
+            apartamento: { id: 101, bloco: 'A', apto: '101' },
             entregador: selecionado
               ? Object.fromEntries(Object.keys(selecionado).map((campo) => [campo, entregador[campo as keyof typeof entregador]]))
-              : entregador,
+              : comVeiculos
+                ? { ...entregador, veiculos: [{ id: 70, placa: 'ABC1D23', tipo: 'Moto' }] }
+                : entregador,
             eventos: include?.eventos?.select
               ? [{ status_novo: 'CHEGOU', mensagem: 'Chegou', created_at: new Date() }]
               : [{ id: 88, id_atendimento: 91, id_usuario_autor: 20, autor_nome: 'Portaria', status_novo: 'CHEGOU', mensagem: 'Chegou', created_at: new Date() }],
-          }];
+            created_at: new Date(),
+          };
+          return [select ? projetar(registro, select) : registro];
         }),
       },
       deliveryEntregadores: {
-        findUnique: jest.fn(async () => ({ id: 7, id_condominio: opcoes.entregadorCondominio ?? 1, status: opcoes.entregadorBloqueado ? 'BLOQUEADO' : 'ATIVO' })),
+        create: jest.fn(async ({ data }: any) => {
+          const entregador = { id: proximoId++, status: 'ATIVO', ...data };
+          entregadores.push(entregador);
+          return entregador;
+        }),
+        findUnique: jest.fn(async ({ where }: any) => {
+          const entregador = entregadores.find((item) => item.id === where.id) ?? null;
+          if (!entregador) return null;
+          return { ...entregador, veiculos: veiculos.filter((item) => item.id_entregador === entregador.id) };
+        }),
+        update: jest.fn(async ({ where, data }: any) => {
+          const entregador = entregadores.find((item) => item.id === where.id);
+          Object.assign(entregador, data);
+          return entregador;
+        }),
+      },
+      deliveryVeiculos: {
+        create: jest.fn(async ({ data }: any) => {
+          if (opcoes.falhaPlacaDuplicada) throw Object.assign(new Error('duplicada'), { code: 'P2002' });
+          const veiculo = { id: proximoId++, ...data };
+          veiculos.push(veiculo);
+          return veiculo;
+        }),
+        update: jest.fn(async ({ where, data }: any) => {
+          if (opcoes.falhaPlacaDuplicada) throw Object.assign(new Error('duplicada'), { code: 'P2002' });
+          const veiculo = veiculos.find((item) => item.id === where.id);
+          Object.assign(veiculo, data);
+          return veiculo;
+        }),
+        deleteMany: jest.fn(async ({ where }: any) => {
+          const restantes = veiculos.filter((item) => item.id_entregador !== where.id_entregador);
+          const count = veiculos.length - restantes.length;
+          veiculos.splice(0, veiculos.length, ...restantes);
+          return { count };
+        }),
       },
       deliveryEventos: {
         create: jest.fn(async ({ data }: any) => {
@@ -78,16 +151,30 @@ describe('DeliveryService', () => {
     };
     prisma.$transaction = jest.fn(async (callback: (tx: any) => Promise<any>) => {
       const antes = atendimentos.map((atendimento) => ({ ...atendimento }));
+      const eventosAntes = eventos.map((evento) => ({ ...evento }));
+      const entregadoresAntes = entregadores.map((entregador) => ({ ...entregador }));
+      const veiculosAntes = veiculos.map((veiculo) => ({ ...veiculo }));
       try {
         return await callback(prisma);
       } catch (erro) {
         atendimentos.splice(0, atendimentos.length, ...antes);
+        eventos.splice(0, eventos.length, ...eventosAntes);
+        entregadores.splice(0, entregadores.length, ...entregadoresAntes);
+        veiculos.splice(0, veiculos.length, ...veiculosAntes);
         throw erro;
       }
     });
     const notifications: any = { sendPushNotification: jest.fn(async () => undefined) };
     const tenant: any = { assertCondominio: jest.fn(async () => undefined), assertEntidade: jest.fn(async () => undefined) };
-    return { service: new DeliveryService(prisma, notifications, tenant), atendimentos, eventos, notifications, prisma };
+    return {
+      service: new DeliveryService(prisma, notifications, tenant),
+      atendimentos,
+      eventos,
+      entregadores,
+      veiculos,
+      notifications,
+      prisma,
+    };
   }
 
   it('recusa aviso de morador para apartamento sem vínculo', async () => {
@@ -136,6 +223,18 @@ describe('DeliveryService', () => {
     expect(atendimento.entregador).not.toHaveProperty('foto');
   });
 
+  it('não expõe chaves internas desnecessárias na listagem do morador', async () => {
+    const { service } = montar();
+
+    const [atendimento] = await service.listarAtendimentos(1, undefined, morador);
+
+    expect(atendimento).not.toHaveProperty('id_condominio');
+    expect(atendimento).not.toHaveProperty('id_apartamento');
+    expect(atendimento).not.toHaveProperty('id_morador_user');
+    expect(atendimento).not.toHaveProperty('id_entregador');
+    expect(atendimento.apartamento).toEqual({ bloco: 'A', apto: '101' });
+  });
+
   it('mantém dados completos do entregador na listagem operacional da portaria', async () => {
     const { service } = montar();
 
@@ -146,6 +245,16 @@ describe('DeliveryService', () => {
       status: 'BLOQUEADO',
       motivo_bloqueio: 'Ocorrência interna',
     });
+  });
+
+  it('inclui os veículos do entregador na listagem operacional', async () => {
+    const { service } = montar();
+
+    const [atendimento] = await service.listarAtendimentos(1, undefined, porteiro);
+
+    expect(atendimento.entregador.veiculos).toEqual([
+      expect.objectContaining({ placa: 'ABC1D23', tipo: 'Moto' }),
+    ]);
   });
 
   it('conduz o atendimento de AGENDADA até CONCLUIDA e registra cada transição', async () => {
@@ -217,5 +326,131 @@ describe('DeliveryService', () => {
 
     expect(prisma.$transaction).toHaveBeenCalled();
     expect(atendimentos[0].status).toBe('AGENDADA');
+  });
+
+  it('desfaz a criação do aviso quando o evento inicial falha', async () => {
+    const { service, atendimentos, prisma } = montar({ falhaEvento: true });
+
+    await expect(service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador))
+      .rejects.toThrow('evento indisponível');
+
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(atendimentos).toHaveLength(0);
+  });
+
+  it('recusa a transição quando outra requisição já alterou o status lido', async () => {
+    const { service, eventos } = montar({ transicaoConcorrente: true });
+    const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+
+    await expect(service.atualizarStatus(aviso.id, { status: 'CHEGOU', id_entregador: 7 }, porteiro))
+      .rejects.toBeInstanceOf(ConflictException);
+
+    expect(eventos.map((evento) => evento.status_novo)).toEqual(['AGENDADA']);
+  });
+
+  it('exige entregador associado antes de autorizar o atendimento', async () => {
+    const { service } = montar();
+    const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+    await service.atualizarStatus(aviso.id, { status: 'CHEGOU' }, porteiro);
+
+    await expect(service.atualizarStatus(aviso.id, { status: 'AUTORIZADA' }, porteiro))
+      .rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('notifica o morador quando a portaria solicita autorização', async () => {
+    const { service, notifications } = montar();
+    const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+    await service.atualizarStatus(aviso.id, { status: 'CHEGOU', id_entregador: 7 }, porteiro);
+    notifications.sendPushNotification.mockClear();
+
+    await service.atualizarStatus(aviso.id, { status: 'AGUARDANDO_AUTORIZACAO' }, porteiro);
+
+    expect(notifications.sendPushNotification).toHaveBeenCalledWith(
+      'token-morador',
+      'Delivery',
+      'A portaria aguarda sua autorização para a entrega.',
+      expect.objectContaining({ status: 'AGUARDANDO_AUTORIZACAO' }),
+    );
+  });
+
+  it('impede porteiro de editar ou bloquear cadastro de entregador', async () => {
+    const { service } = montar();
+
+    await expect(service.atualizarEntregador(7, { status: 'BLOQUEADO', motivo_bloqueio: 'Ocorrência' }, porteiro))
+      .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('permite ao síndico editar cadastro de entregador', async () => {
+    const { service } = montar();
+
+    await expect(service.atualizarEntregador(7, { nome: 'Nome revisado' }, sindico))
+      .resolves.toMatchObject({ nome: 'Nome revisado' });
+  });
+
+  it('permite ao administrador editar cadastro de entregador', async () => {
+    const { service } = montar();
+
+    await expect(service.atualizarEntregador(7, { nome: 'Nome revisado' }, administrador))
+      .resolves.toMatchObject({ nome: 'Nome revisado' });
+  });
+
+  it('desfaz o cadastro do entregador quando a placa duplicada impede criar o veículo', async () => {
+    const { service, entregadores } = montar({ falhaPlacaDuplicada: true });
+
+    await expect(service.criarEntregador({
+      id_condominio: 1,
+      nome: 'Novo Motoboy',
+      veiculo: { placa: 'ABC-1D23' },
+    }, porteiro)).rejects.toBeInstanceOf(ConflictException);
+
+    expect(entregadores.map((entregador) => entregador.nome)).not.toContain('Novo Motoboy');
+  });
+
+  it('devolve o veículo criado junto com o cadastro do entregador', async () => {
+    const { service } = montar();
+
+    const criado = await service.criarEntregador({
+      id_condominio: 1,
+      nome: 'Novo Motoboy',
+      veiculo: { placa: 'abc-1d23', tipo: 'Moto' },
+    }, porteiro);
+
+    expect(criado.veiculos).toEqual([
+      expect.objectContaining({ placa: 'ABC1D23', tipo: 'Moto' }),
+    ]);
+  });
+
+  it('permite ao síndico adicionar e corrigir o veículo depois do cadastro', async () => {
+    const { service } = montar();
+
+    const atualizado = await service.atualizarEntregador(7, {
+      veiculo: { placa: 'xyz-9a87', tipo: 'Moto', modelo: 'CG', cor: 'Preta' },
+    } as any, sindico);
+
+    expect(atualizado.veiculos).toEqual([
+      expect.objectContaining({ placa: 'XYZ9A87', tipo: 'Moto', modelo: 'CG', cor: 'Preta' }),
+    ]);
+  });
+
+  it('permite ao síndico remover os veículos do cadastro', async () => {
+    const { service, veiculos } = montar();
+    veiculos.push({ id: 80, id_entregador: 7, id_condominio: 1, placa: 'ABC1D23', tipo: 'Moto' });
+
+    const atualizado = await service.atualizarEntregador(7, { veiculo: null } as any, sindico);
+
+    expect(atualizado.veiculos).toEqual([]);
+    expect(veiculos).toHaveLength(0);
+  });
+
+  it('desfaz a edição do entregador quando a nova placa já existe', async () => {
+    const { service, entregadores, veiculos } = montar({ falhaPlacaDuplicada: true });
+    veiculos.push({ id: 80, id_entregador: 7, id_condominio: 1, placa: 'ABC1D23', tipo: 'Moto' });
+
+    await expect(service.atualizarEntregador(7, {
+      nome: 'Nome parcial',
+      veiculo: { placa: 'DUP-1A23', tipo: 'Moto' },
+    } as any, sindico)).rejects.toBeInstanceOf(ConflictException);
+
+    expect(entregadores.find((entregador) => entregador.id === 7)?.nome).toBe('Motoboy Teste');
   });
 });
