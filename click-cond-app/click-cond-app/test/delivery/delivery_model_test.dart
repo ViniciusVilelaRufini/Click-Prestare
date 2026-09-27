@@ -7,6 +7,8 @@ void main() {
       estabelecimento: 'Pizzaria Central',
       previsaoEm: '2026-09-27T20:30:00.000',
       observacaoMorador: 'Interfone desligado',
+      nomeEntregador: '  João da Silva  ',
+      telefoneEntregador: '  (11) 99999-9999  ',
       modoEntrega: DeliveryModoEntrega.portaria,
     );
 
@@ -16,7 +18,22 @@ void main() {
       'estabelecimento': 'Pizzaria Central',
       'previsao_em': '2026-09-27T20:30:00.000',
       'observacao_morador': 'Interfone desligado',
+      'nome_entregador': 'João da Silva',
+      'telefone_entregador': '(11) 99999-9999',
       'modo_entrega': 'PORTARIA',
+    });
+  });
+
+  test('omite nome e telefone do entregador quando estiverem em branco', () {
+    const aviso = DeliveryDraft(
+      nomeEntregador: '   ',
+      telefoneEntregador: '',
+    );
+
+    expect(aviso.toCreateJson(idCondominio: 9, idApartamento: 42), {
+      'id_condominio': 9,
+      'id_apartamento': 42,
+      'modo_entrega': 'UNIDADE',
     });
   });
 

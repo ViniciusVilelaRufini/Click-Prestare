@@ -17,6 +17,8 @@ class DeliveryFormPage extends StatefulWidget {
 
 class _DeliveryFormPageState extends State<DeliveryFormPage> {
   final _establishment = TextEditingController();
+  final _delivererName = TextEditingController();
+  final _delivererPhone = TextEditingController();
   final _observation = TextEditingController();
   DateTime? _forecast;
   DeliveryModoEntrega _mode = DeliveryModoEntrega.unidade;
@@ -25,6 +27,8 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
   @override
   void dispose() {
     _establishment.dispose();
+    _delivererName.dispose();
+    _delivererPhone.dispose();
     _observation.dispose();
     super.dispose();
   }
@@ -37,9 +41,12 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (date == null || !mounted) return;
-    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_forecast ?? DateTime.now()));
+    final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_forecast ?? DateTime.now()));
     if (time == null || !mounted) return;
-    setState(() => _forecast = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+    setState(() => _forecast =
+        DateTime(date.year, date.month, date.day, time.hour, time.minute));
   }
 
   Future<void> _save() async {
@@ -48,6 +55,8 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
       estabelecimento: _establishment.text,
       previsaoEm: _forecast?.toIso8601String(),
       observacaoMorador: _observation.text,
+      nomeEntregador: _delivererName.text,
+      telefoneEntregador: _delivererPhone.text,
       modoEntrega: _mode,
     ));
     if (!mounted) return;
@@ -56,7 +65,8 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
       Navigator.pop(context, true);
       return;
     }
-    displayMessage(context, 'Erro', result.message ?? 'Não foi possível criar o aviso.');
+    displayMessage(
+        context, 'Erro', result.message ?? 'Não foi possível criar o aviso.');
   }
 
   @override
@@ -65,23 +75,49 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
       title: 'Avisar entrega',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('O aviso será criado para a sua unidade atual.', style: Theme.of(context).textTheme.bodyMedium),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('O aviso será criado para a sua unidade atual.',
+              style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: AppSpacing.lg),
-          AppInput(label: 'Estabelecimento (opcional)', controller: _establishment, textCapitalization: TextCapitalization.words),
+          AppInput(
+              label: 'Estabelecimento (opcional)',
+              controller: _establishment,
+              textCapitalization: TextCapitalization.words),
+          const SizedBox(height: AppSpacing.md),
+          AppInput(
+              label: 'Nome do entregador (opcional)',
+              controller: _delivererName,
+              textCapitalization: TextCapitalization.words),
+          const SizedBox(height: AppSpacing.md),
+          AppInput(
+              label: 'Telefone do entregador (opcional)',
+              controller: _delivererPhone,
+              keyboard: TextInputType.phone),
           const SizedBox(height: AppSpacing.md),
           _ForecastField(value: _forecast, onTap: _chooseForecast),
           const SizedBox(height: AppSpacing.md),
           DropdownButtonFormField<DeliveryModoEntrega>(
             initialValue: _mode,
             decoration: const InputDecoration(labelText: 'Tipo de entrega'),
-            items: DeliveryModoEntrega.values.map((value) => DropdownMenuItem(value: value, child: Text(value.label))).toList(),
-            onChanged: (value) => value == null ? null : setState(() => _mode = value),
+            items: DeliveryModoEntrega.values
+                .map((value) =>
+                    DropdownMenuItem(value: value, child: Text(value.label)))
+                .toList(),
+            onChanged: (value) =>
+                value == null ? null : setState(() => _mode = value),
           ),
           const SizedBox(height: AppSpacing.md),
-          AppInput(label: 'Observação (opcional)', controller: _observation, maxLines: 4, textCapitalization: TextCapitalization.sentences),
+          AppInput(
+              label: 'Observação (opcional)',
+              controller: _observation,
+              maxLines: 4,
+              textCapitalization: TextCapitalization.sentences),
           const SizedBox(height: AppSpacing.xxl),
-          AppButton(label: 'Criar aviso', loading: _saving, onPressed: _saving ? null : _save),
+          AppButton(
+              label: 'Criar aviso',
+              loading: _saving,
+              onPressed: _saving ? null : _save),
         ]),
       ),
     );
@@ -102,7 +138,9 @@ class _ForecastField extends StatelessWidget {
       onPressed: onTap,
       icon: const Icon(Icons.schedule, color: AppColors.primary),
       label: Align(alignment: Alignment.centerLeft, child: Text(text)),
-      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.lg)),
+      style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg, vertical: AppSpacing.lg)),
     );
   }
 }

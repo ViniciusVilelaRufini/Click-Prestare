@@ -1,31 +1,45 @@
 enum DeliveryModoEntrega { unidade, portaria }
 
 extension DeliveryModoEntregaApi on DeliveryModoEntrega {
-  String get apiValue => this == DeliveryModoEntrega.portaria ? 'PORTARIA' : 'UNIDADE';
+  String get apiValue =>
+      this == DeliveryModoEntrega.portaria ? 'PORTARIA' : 'UNIDADE';
 
-  String get label => this == DeliveryModoEntrega.portaria ? 'Retirada na portaria' : 'Entrega na unidade';
+  String get label => this == DeliveryModoEntrega.portaria
+      ? 'Retirada na portaria'
+      : 'Entrega na unidade';
 }
 
 class DeliveryDraft {
   final String? estabelecimento;
   final String? previsaoEm;
   final String? observacaoMorador;
+  final String? nomeEntregador;
+  final String? telefoneEntregador;
   final DeliveryModoEntrega modoEntrega;
 
   const DeliveryDraft({
     this.estabelecimento,
     this.previsaoEm,
     this.observacaoMorador,
+    this.nomeEntregador,
+    this.telefoneEntregador,
     this.modoEntrega = DeliveryModoEntrega.unidade,
   });
 
-  Map<String, dynamic> toCreateJson({required int idCondominio, required int idApartamento}) {
+  Map<String, dynamic> toCreateJson(
+      {required int idCondominio, required int idApartamento}) {
     return {
       'id_condominio': idCondominio,
       'id_apartamento': idApartamento,
-      if (_text(estabelecimento) != null) 'estabelecimento': _text(estabelecimento),
+      if (_text(estabelecimento) != null)
+        'estabelecimento': _text(estabelecimento),
       if (_text(previsaoEm) != null) 'previsao_em': _text(previsaoEm),
-      if (_text(observacaoMorador) != null) 'observacao_morador': _text(observacaoMorador),
+      if (_text(observacaoMorador) != null)
+        'observacao_morador': _text(observacaoMorador),
+      if (_text(nomeEntregador) != null)
+        'nome_entregador': _text(nomeEntregador),
+      if (_text(telefoneEntregador) != null)
+        'telefone_entregador': _text(telefoneEntregador),
       'modo_entrega': modoEntrega.apiValue,
     };
   }
@@ -41,7 +55,8 @@ class DeliveryEvent {
   final String? mensagem;
   final String? createdAt;
 
-  const DeliveryEvent({required this.statusNovo, this.mensagem, this.createdAt});
+  const DeliveryEvent(
+      {required this.statusNovo, this.mensagem, this.createdAt});
 
   factory DeliveryEvent.fromJson(Map<String, dynamic> json) {
     return DeliveryEvent(
@@ -97,7 +112,11 @@ class DeliveryModel {
       motivo: json['motivo']?.toString(),
       createdAt: json['created_at']?.toString(),
       eventos: rawEvents is List
-          ? rawEvents.whereType<Map>().map((event) => DeliveryEvent.fromJson(Map<String, dynamic>.from(event))).toList()
+          ? rawEvents
+              .whereType<Map>()
+              .map((event) =>
+                  DeliveryEvent.fromJson(Map<String, dynamic>.from(event)))
+              .toList()
           : const [],
     );
   }
@@ -106,23 +125,28 @@ class DeliveryModel {
 
   String get statusLabel => deliveryStatusLabel(status);
 
-  String get modoEntregaLabel => modoEntrega == 'PORTARIA' ? 'Retirada na portaria' : 'Entrega na unidade';
+  String get modoEntregaLabel =>
+      modoEntrega == 'PORTARIA' ? 'Retirada na portaria' : 'Entrega na unidade';
 
   Map<String, dynamic> toResidentJson() {
     return {
       if (id != null) 'id': id,
       'status': status,
-      if (_nonBlank(estabelecimento) != null) 'estabelecimento': estabelecimento,
+      if (_nonBlank(estabelecimento) != null)
+        'estabelecimento': estabelecimento,
       if (_nonBlank(previsaoEm) != null) 'previsao_em': previsaoEm,
-      if (_nonBlank(observacaoMorador) != null) 'observacao_morador': observacaoMorador,
+      if (_nonBlank(observacaoMorador) != null)
+        'observacao_morador': observacaoMorador,
       if (_nonBlank(modoEntrega) != null) 'modo_entrega': modoEntrega,
       if (_nonBlank(motivo) != null) 'motivo': motivo,
     };
   }
 
-  static int? _asInt(dynamic value) => value is num ? value.toInt() : int.tryParse(value?.toString() ?? '');
+  static int? _asInt(dynamic value) =>
+      value is num ? value.toInt() : int.tryParse(value?.toString() ?? '');
 
-  static String? _nonBlank(String? value) => value?.trim().isEmpty ?? true ? null : value;
+  static String? _nonBlank(String? value) =>
+      value?.trim().isEmpty ?? true ? null : value;
 }
 
 String deliveryStatusLabel(String status) {
