@@ -192,7 +192,11 @@ export class DeliveryPageComponent implements OnInit {
       motivo_bloqueio: entregador.status === 'BLOQUEADO' ? this.motivoBloqueio.trim() : undefined,
     }).subscribe({
       next: (atualizado) => {
-        this.entregadores.update((lista) => lista.map((item) => item.id === atualizado.id ? atualizado : item));
+        this.entregadores.update((lista) => lista.map((item) =>
+          item.id === atualizado.id
+            ? { ...atualizado, veiculos: atualizado.veiculos ?? item.veiculos ?? [] }
+            : item,
+        ));
         this.entregadorEmEdicao.set(null);
       },
       error: (error) => this.definirErro(error, 'Não foi possível atualizar o entregador.'),

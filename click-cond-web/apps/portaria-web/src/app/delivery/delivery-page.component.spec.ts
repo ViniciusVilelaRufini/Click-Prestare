@@ -131,4 +131,21 @@ describe('DeliveryPageComponent', () => {
 
     expect(component.entregadores().find((entregador) => entregador.id === 31)?.veiculos).toEqual([]);
   });
+
+  it('preserva os veículos na lista quando o PATCH do entregador não os retorna', () => {
+    const api = TestBed.inject(DeliveryApi) as unknown as DeliveryApiStub;
+    const entregador = atendimentos[0].entregador!;
+    component.entregadores.set([entregador]);
+    component.editarEntregador(entregador);
+    component.motivoBloqueio = 'Documento inválido';
+    api.atualizarEntregador.mockReturnValue(of({
+      id: entregador.id,
+      nome: entregador.nome,
+      status: 'BLOQUEADO',
+    }));
+
+    component.salvarEntregador();
+
+    expect(component.entregadores()[0].veiculos).toEqual([{ id: 1, placa: 'ABC1D23' }]);
+  });
 });
