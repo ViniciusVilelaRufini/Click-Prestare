@@ -127,6 +127,7 @@ model Users {
   devices             Users_Devices[]
   mfaChallenges       Mfa_Challenges[]
   trustedDevices      User_Trusted_Devices[]
+  deliveryAtendimentosCriados DeliveryAtendimentos[] @relation("DeliveryMorador")
 
   @@index([address], map: "fk_users_address")
 }
@@ -203,6 +204,9 @@ model Condominios {
   caminhosAcesso       Caminhos_Acesso[]
   veiculos             Veiculos[]
   tags                 Tags[]
+  deliveryEntregadores DeliveryEntregadores[]
+  deliveryVeiculos     DeliveryVeiculos[]
+  deliveryAtendimentos DeliveryAtendimentos[]
 
   // Recorrência Automática
   recorrencia_ativa      Boolean @default(false)
@@ -258,6 +262,7 @@ model Apartamentos {
   convites            Convites_Visita[]
   prestadores         Prestadores_servico[]
   vagas               Vagas[]
+  deliveryAtendimentos DeliveryAtendimentos[]
 
   @@unique([id_condominio, bloco, apto], map: "un_apto_cond")
   // Impede dois apartamentos do mesmo condomínio carregarem o mesmo
@@ -969,6 +974,92 @@ model Encomendas {
   @@index([id_condominio, status])
   @@index([entregue_por_user], map: "fk_enc_entregue")
   @@index([recebido_por_user], map: "fk_enc_recebido")
+}
+
+model DeliveryEntregadores {
+  id              Int                    @id @default(autoincrement())
+  id_condominio   Int
+  nome            String                 @db.VarChar(255)
+  telefone        String?                @db.VarChar(50)
+  documento       String?                @db.VarChar(50)
+  plataforma      String?                @db.VarChar(255)
+  status          String                 @default("ATIVO") @db.VarChar(20)
+  motivo_bloqueio String?                @db.Text
+  foto            String?                @db.VarChar(500)
+  created_at      DateTime               @default(now()) @db.DateTime(0)
+  updated_at      DateTime               @default(now()) @updatedAt @db.DateTime(0)
+  condominio      Condominios            @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_delivery_entregador_cond")
+  veiculos        DeliveryVeiculos[]
+  atendimentos    DeliveryAtendimentos[]
+
+  @@index([id_condominio, status], map: "idx_delivery_entregador_cond_status")
+  @@map("delivery_entregadores")
+}
+
+model DeliveryVeiculos {
+  id            Int                  @id @default(autoincrement())
+  id_condominio Int
+  id_entregador Int
+  tipo          String?              @db.VarChar(50)
+  placa         String?              @db.VarChar(20)
+  modelo        String?              @db.VarChar(100)
+  cor           String?              @db.VarChar(50)
+  created_at    DateTime             @default(now()) @db.DateTime(0)
+  updated_at    DateTime             @default(now()) @updatedAt @db.DateTime(0)
+  condominio    Condominios          @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_delivery_veiculo_cond")
+  entregador    DeliveryEntregadores @relation(fields: [id_entregador], references: [id], onDelete: Cascade, map: "fk_delivery_veiculo_entregador")
+
+  @@unique([id_condominio, placa], map: "un_delivery_veiculo_cond_placa")
+  @@index([id_entregador], map: "fk_delivery_veiculo_entregador")
+  @@map("delivery_veiculos")
+}
+
+model DeliveryAtendimentos {
+  id                 Int                   @id @default(autoincrement())
+  id_condominio      Int
+  id_apartamento     Int
+  id_morador_user    Int
+  id_entregador      Int?
+  estabelecimento    String?               @db.VarChar(255)
+  previsao_em        DateTime?             @db.DateTime(0)
+  observacao_morador String?               @db.Text
+  status             String                @default("AGENDADA") @db.VarChar(30)
+  modo_entrega       String                @default("UNIDADE") @db.VarChar(20)
+  chegou_em          DateTime?             @db.DateTime(0)
+  autorizado_em      DateTime?             @db.DateTime(0)
+  concluido_em       DateTime?             @db.DateTime(0)
+  cancelado_em       DateTime?             @db.DateTime(0)
+  recusado_em        DateTime?             @db.DateTime(0)
+  motivo             String?               @db.Text
+  created_at         DateTime              @default(now()) @db.DateTime(0)
+  updated_at         DateTime              @default(now()) @updatedAt @db.DateTime(0)
+  condominio         Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_delivery_atendimento_cond")
+  apartamento        Apartamentos          @relation(fields: [id_apartamento], references: [id], onDelete: Restrict, map: "fk_delivery_atendimento_apto")
+  morador            Users                 @relation("DeliveryMorador", fields: [id_morador_user], references: [id], onDelete: Restrict, map: "fk_delivery_atendimento_morador")
+  entregador         DeliveryEntregadores? @relation(fields: [id_entregador], references: [id], onDelete: SetNull, map: "fk_delivery_atendimento_entregador")
+  eventos            DeliveryEventos[]
+
+  @@index([id_condominio, status, created_at], map: "idx_delivery_atendimento_cond_status_criado")
+  @@index([id_apartamento], map: "fk_delivery_atendimento_apto")
+  @@index([id_morador_user], map: "fk_delivery_atendimento_morador")
+  @@index([id_entregador], map: "fk_delivery_atendimento_entregador")
+  @@map("delivery_atendimentos")
+}
+
+model DeliveryEventos {
+  id               Int                  @id @default(autoincrement())
+  id_atendimento   Int
+  status_anterior  String?              @db.VarChar(30)
+  status_novo      String               @db.VarChar(30)
+  id_usuario_autor Int?
+  autor_nome       String?              @db.VarChar(255)
+  mensagem         String?              @db.Text
+  created_at       DateTime             @default(now()) @db.DateTime(0)
+  atendimento      DeliveryAtendimentos @relation(fields: [id_atendimento], references: [id], onDelete: Cascade, map: "fk_delivery_evento_atendimento")
+
+  @@index([id_atendimento, created_at], map: "idx_delivery_evento_atendimento_criado")
+  @@index([id_usuario_autor], map: "idx_delivery_evento_autor")
+  @@map("delivery_eventos")
 }
 
 model Auditoria {

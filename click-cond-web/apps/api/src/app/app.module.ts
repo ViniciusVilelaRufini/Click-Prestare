@@ -42,6 +42,7 @@ import { RealtimeModule } from './realtime/realtime.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { ChatIaModule } from './chat-ia/chat-ia.module';
 import { SuperlogicaModule } from './superlogica/superlogica.module';
+import { DeliveryModule } from './delivery/delivery.module';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { THROTTLERS } from './common/throttle/throttlers';
@@ -86,6 +87,7 @@ import { THROTTLERS } from './common/throttle/throttlers';
     AgendaModule,
     ChatIaModule,
     SuperlogicaModule,
+    DeliveryModule,
   ],
   controllers: [AppController],
   providers: [
