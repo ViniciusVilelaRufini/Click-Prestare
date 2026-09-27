@@ -1118,17 +1118,21 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   /**
    * Situação de uma unidade no modal de entrada, em texto claro e com o tom
-   * da cor. `liberado` sozinho não diz QUEM liberou — o cadastro feito pela
-   * portaria/síndico em "Registrar nova visita" também grava `liberado: 1`
-   * (ver `create`/`createViaPessoasVisitas` na API). Só `auth_status ===
-   * 'autorizado'` vem de fato do morador: é setado só em `autorizar()`/
+   * da cor. `liberado` sozinho não diz QUEM liberou — pelo menos três
+   * caminhos gravam `liberado: 1` sem tocar `auth_status`: o cadastro pela
+   * portaria/síndico em "Registrar nova visita" (`create`/
+   * `createViaPessoasVisitas` na API) E a reserva de vaga pelo morador para
+   * o visitante (`mobile-auth.service.ts` ~5036-5058) — os dois caem no
+   * mesmo bucket ambíguo. Só `auth_status === 'autorizado'` vem de fato do
+   * morador de forma inequívoca: setado em `autorizar()`/
    * `autorizarViaPessoasVisitas()` (app do morador) e na transição
-   * pendente→autorizado da portaria remota. Por isso o texto "pelo morador"
-   * exige esse campo — `liberado` sem ele é liberação da portaria.
+   * pendente→autorizado da portaria remota. Sem um campo que separe os dois
+   * outros casos, o texto fica neutro ("Liberado") em vez de arriscar
+   * atribuir a liberação a quem não liberou.
    */
   situacaoUnidade(apto: ApartamentoVisitado): { texto: string; tom: 'ok' | 'aviso' | 'info' | 'neutro' } {
     if (apto.auth_status === 'autorizado') return { texto: 'Liberado pelo morador', tom: 'ok' };
-    if (apto.liberado) return { texto: 'Liberado pela portaria', tom: 'ok' };
+    if (apto.liberado) return { texto: 'Liberado', tom: 'ok' };
     if (apto.auth_status === 'pendente') return { texto: 'Aguardando o morador', tom: 'aviso' };
     if (apto.autorizacao_expirada) return { texto: 'Autorização expirada', tom: 'aviso' };
     if (apto.noLocal) return { texto: 'Dentro do condomínio', tom: 'info' };
