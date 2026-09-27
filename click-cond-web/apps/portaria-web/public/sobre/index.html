@@ -34,6 +34,20 @@
   gtag('js', new Date());
   gtag('config', 'AW-18476913499');
 </script>
+<!-- OpenAI Ads Pixel -->
+<script>!function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");oaiq("init",{pixelId:"17H2XPR4dY5HHBNUs9L5ha"});</script>
+<script>
+  // Conversao "pedido de orcamento": dispara no envio do formulario (enviar)
+  // e em qualquer clique num link direto para o WhatsApp (wa.me).
+  window.psConversaoOrcamento = function () {
+    try { gtag('event', 'conversion', { send_to: 'AW-18476913499/-xRLCNiSs4gdENumvepE', value: 1.0, currency: 'BRL' }); } catch (e) {}
+    try { oaiq('measure', 'lead_created', { type: 'customer_action' }); } catch (e) {}
+  };
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[href*="wa.me/"]') : null;
+    if (a) window.psConversaoOrcamento();
+  }, true);
+</script>
 <script src="/sobre/support.js"></script>
 </head>
 <body>
@@ -1298,6 +1312,7 @@ class Component extends DCLogic {
     linhas.push("", "_Enviado pelo site prestarecondominios.com.br/sobre_");
 
     const num = (this.props.whatsapp ?? "5517988338147").replace(/\D/g, "");
+    if (window.psConversaoOrcamento) window.psConversaoOrcamento();
     window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(linhas.join("\n")), "_blank", "noopener");
     this.setState({ enviado: true });
   };
