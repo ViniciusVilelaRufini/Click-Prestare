@@ -15,6 +15,7 @@ import { RealtimeService } from '../shared/realtime.service';
 import { MaskDocPipe } from '../shared/mask-doc.pipe';
 import { AuthService } from '../auth/auth.service';
 import { ConsentimentosApi } from '../core/consentimentos.service';
+import { erroDocumento } from '../shared/documento.util';
 
 @Component({
   selector: 'app-visitantes-page',
@@ -487,13 +488,21 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       list = list.filter((p) => this.categoriaKpi(p) === f);
     }
 
-    // 2. Busca por nome ou documento
-    const term = this.search().toLowerCase().trim();
-    if (term) {
-      list = list.filter((p) =>
-        p.nome.toLowerCase().includes(term) ||
-        (p.doc_identificacao && p.doc_identificacao.toLowerCase().includes(term))
-      );
+    // 2. Busca por nome, documento ou apartamento. Sem acento/caixa, documento
+    // só pelos dígitos (aceita digitado com máscara) e palavras em qualquer
+    // ordem ("bloco a 106" acha "106/Bloco A").
+    const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const tokens = norm(this.search()).split(/[\s/·-]+/).filter(Boolean);
+    if (tokens.length) {
+      const digitosBusca = this.search().replace(/\D/g, '');
+      list = list.filter((p) => {
+        const doc = (p.doc_identificacao ?? '').replace(/\D/g, '');
+        if (digitosBusca.length >= 3 && digitosBusca.length === this.search().replace(/[\s.\-/]/g, '').length && doc.includes(digitosBusca)) {
+          return true;
+        }
+        const alvo = norm([p.nome, p.doc_identificacao ?? '', ...(p.apartamentosVisitados ?? []).map((a) => a.label)].join(' '));
+        return tokens.every((t) => alvo.includes(t));
+      });
     }
 
     return list;
@@ -864,6 +873,19 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   salvar() {
     this.novo.categorias = Array.from(this.categoriasSelecionadas()).join(';');
+
+    const erroDoc = erroDocumento(this.novo.doc_identificacao);
+    if (erroDoc) {
+      this.error.set(erroDoc);
+      return;
+    }
+    // "Liberado até" antes de "a partir de" deixava a visita liberada com uma
+    // janela impossível. Vazio no término = acesso contínuo (continua valendo).
+    const { data_hora_inicio: ini, data_hora_termino: fim } = this.novo;
+    if (!(this.editingId && this.editandoIdentidade()) && ini && fim && fim <= ini) {
+      this.error.set('"Liberado até" precisa ser depois de "Liberado a partir de".');
+      return;
+    }
 
     // Modo: Nova Visita para pessoa existente (form curto, só apto+validade)
     const novaPara = this.novaVisitaPara();

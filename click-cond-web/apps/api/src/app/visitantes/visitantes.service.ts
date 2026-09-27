@@ -10,6 +10,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { randomInt } from 'crypto';
+import { erroDocumento, erroVisita } from '../common/documento.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
@@ -1314,6 +1315,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     },
     payload?: JwtPayload,
   ) {
+    const erroDados = erroVisita(dto);
+    if (erroDados) throw new BadRequestException(erroDados);
     if (!dto.id_apartamento) {
       throw new BadRequestException('Informe o apartamento da nova visita');
     }
@@ -1668,6 +1671,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       tag_rfid?: string | null;
     },
   ) {
+    const erroDoc = erroDocumento(dto.doc_identificacao);
+    if (erroDoc) throw new BadRequestException(erroDoc);
+
     // Mesmo motivo do `removerPessoa`: com a flag ligada, nunca resolve
     // `idPessoaRef` contra `Visitantes`.
     if (pessoasMigrationEnabled(this.prisma)) {
@@ -1751,6 +1757,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   async create(dto: CreateVisitanteDto, operador?: JwtPayload) {
+    const erroDados = erroVisita(dto);
+    if (erroDados) throw new BadRequestException(erroDados);
     if (!this.prisma.isConnected) {
       return {
         id: Date.now(),

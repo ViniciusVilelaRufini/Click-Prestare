@@ -70,7 +70,7 @@
         <span class="w-2.5 h-2.5 rounded bg-red-500/20 border border-red-400/30"></span> Crítico (7+ dias)
       </span>
     </div>
-    <span class="text-slate-500 text-[11px] hidden md:inline">Notifique moradores diretamento no botão de ação da linha</span>
+    <span class="text-slate-500 text-[11px] hidden md:inline">Notifique moradores diretamente no botão de ação da linha</span>
   </div>
 
   <!-- Barra de Ações em Lote -->
@@ -165,7 +165,7 @@
             class="w-full pl-3 pr-8 py-2 text-xs rounded-xl bg-graphite border border-white/10 text-white focus:outline-none focus:border-emerald-400/60 appearance-none">
             <option value="">Todos os blocos</option>
             @for (b of blocosDisponiveis(); track b) {
-              <option [value]="b">Bloco {{ b }}</option>
+              <option [value]="b">{{ rotuloBloco(b) }}</option>
             }
           </select>
           <span class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
@@ -443,16 +443,14 @@
                   }
                 </td>
                 <td class="px-5 py-3.5 align-middle whitespace-nowrap">
-                  @if (e.status === 'Aguardando') {
-                    @if (e.notificado) {
-                      <p class="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
-                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                        Notificado
-                      </p>
-                      <p class="text-xs text-slate-500 mt-0.5">{{ e.notificado_em | date: 'dd/MM HH:mm' }}</p>
-                    } @else {
-                      <p class="text-sm text-amber-600 dark:text-amber-400 font-medium">Não notificado</p>
-                    }
+                  @if (e.notificado) {
+                    <p class="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+                      <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                      Notificado
+                    </p>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ e.notificado_em | date: 'dd/MM HH:mm' }}</p>
+                  } @else if (e.status === 'Aguardando') {
+                    <p class="text-sm text-amber-600 dark:text-amber-400 font-medium">Não notificado</p>
                   } @else {
                     <span class="text-sm text-slate-500">—</span>
                   }

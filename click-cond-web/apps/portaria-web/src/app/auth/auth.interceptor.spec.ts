@@ -80,8 +80,8 @@ describe('authInterceptor - Tratamento de Erros e Queda de Rede', () => {
       next: () => done(),
     });
 
-    const req = httpMock.expectOne('https://api.clickprestarecondominios.com.br/api/condominios/1/visitantes');
-    expect(req.request.url).toBe('https://api.clickprestarecondominios.com.br/api/condominios/1/visitantes');
+    const req = httpMock.expectOne('https://api.prestarecondominios.com.br/api/condominios/1/visitantes');
+    expect(req.request.url).toBe('https://api.prestarecondominios.com.br/api/condominios/1/visitantes');
     req.flush([]);
   });
 

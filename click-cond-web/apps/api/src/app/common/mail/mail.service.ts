@@ -7,8 +7,10 @@ import { promisify } from 'util';
 dns.setDefaultResultOrder('ipv4first');
 const dnsLookup = promisify(dns.lookup);
 
+/** Conta do Workspace que autentica no SMTP. */
 const OFFICIAL_EMAIL = 'suporte@clickprestarecondominios.com.br';
-const OFFICIAL_PASS = 'njyqoenhmsyzblwa';
+/** Remetente exibido: alias da mesma conta no domínio novo ("enviar como" no Gmail). */
+const OFFICIAL_FROM = 'suporte@prestarecondominios.com.br';
 const OFFICIAL_NAME = 'Prestare Condomínios';
 
 @Injectable()
@@ -25,30 +27,17 @@ export class MailService implements OnModuleInit {
     const clean = (s?: string) => (s ? s.trim().replace(/^["']|["']$/g, '') : undefined);
     this.resendKey = clean(process.env.RESEND_API_KEY);
 
-    let smtpUser = clean(process.env.SMTP_USER);
-    let smtpPass = clean(process.env.SMTP_PASS)?.replace(/\s+/g, '');
-
-    // Se o ambiente ainda contiver o e-mail pessoal antigo remanescente (ex: console do Elastic Beanstalk),
-    // ou se não houver usuário/senha configurados, força o uso exclusivo da conta oficial Google Workspace da Prestare.
-    if (!smtpUser || smtpUser.toLowerCase().includes('viniciusrufini') || !smtpPass || smtpPass.toLowerCase().includes('vjty')) {
-      this.logger.warn(
-        `Substituindo credenciais SMTP residuais/ausentes (${smtpUser}) pelo remetente corporativo oficial: ${OFFICIAL_EMAIL}`,
-      );
-      smtpUser = OFFICIAL_EMAIL;
-      smtpPass = OFFICIAL_PASS;
+    // Credenciais só do ambiente (Elastic Beanstalk): SMTP_USER + SMTP_PASS (senha de app do Workspace).
+    this.smtpUser = clean(process.env.SMTP_USER) || OFFICIAL_EMAIL;
+    this.smtpPass = clean(process.env.SMTP_PASS)?.replace(/\s+/g, '');
+    if (this.smtpUser.toLowerCase().includes('viniciusrufini')) {
+      this.logger.error(`SMTP_USER aponta para conta pessoal (${this.smtpUser}); configure a conta oficial no ambiente.`);
     }
 
-    this.smtpUser = smtpUser;
-    this.smtpPass = smtpPass;
+    let fromEmail = clean(process.env.MAIL_FROM) || clean(process.env.SMTP_FROM) || OFFICIAL_FROM;
 
-    let fromEmail =
-      clean(process.env.MAIL_FROM) ||
-      clean(process.env.SMTP_FROM) ||
-      this.smtpUser ||
-      OFFICIAL_EMAIL;
-
-    if (!fromEmail || fromEmail.toLowerCase().includes('viniciusrufini') || fromEmail === 'onboarding@resend.dev') {
-      fromEmail = OFFICIAL_EMAIL;
+    if (fromEmail.toLowerCase().includes('viniciusrufini') || fromEmail === 'onboarding@resend.dev') {
+      fromEmail = OFFICIAL_FROM;
     }
 
     const fromName =

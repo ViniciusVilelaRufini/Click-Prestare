@@ -253,7 +253,7 @@ describe('VisitantesService — superfície de escrita Pessoas/Visitas (Task 4)'
       const { service, visitas } = buildCreateHarness();
       const dto = {
         nome: 'Rodrigo Silva',
-        doc_identificacao: '11122233344',
+        doc_identificacao: '52998224725',
         id_apartamento: 101,
         id_condominio: 1,
       };
@@ -272,7 +272,7 @@ describe('VisitantesService — superfície de escrita Pessoas/Visitas (Task 4)'
 
     it('registrar com o nome corrigido atualiza o nome da Pessoa, e a resposta carrega o novo nome', async () => {
       const { service, pessoas } = buildCreateHarness();
-      const doc = '99988877766';
+      const doc = '12345678909';
 
       await service.create({
         nome: 'Vinicius dd',

@@ -25,6 +25,24 @@ const DEFAULT_AREA_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89c
  */
 const TIMEZONE_CONDOMINIO = 'America/Sao_Paulo';
 
+/** "Agora" no fuso do condomínio: dia `YYYY-MM-DD` e minutos desde 00:00. */
+export function agoraEmBrasilia(agora = new Date()): { dia: string; minutos: number } {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: TIMEZONE_CONDOMINIO, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(agora).map((x) => [x.type, x.value]),
+  );
+  return { dia: `${p.year}-${p.month}-${p.day}`, minutos: Number(p.hour) * 60 + Number(p.minute) };
+}
+
+/** Timestamp real (ex.: created_at) como "dd/mm/aaaa às HH:mm" no fuso do condomínio. */
+function dataHoraBr(d: Date): string {
+  const dia = d.toLocaleDateString('pt-BR', { timeZone: TIMEZONE_CONDOMINIO });
+  const hora = d.toLocaleTimeString('pt-BR', { timeZone: TIMEZONE_CONDOMINIO, hour: '2-digit', minute: '2-digit' });
+  return `${dia} às ${hora}`;
+}
+
 @Injectable()
 export class AreasSociaisService {
   private readonly logger = new Logger(AreasSociaisService.name);
@@ -714,6 +732,14 @@ export class AreasSociaisService {
     const requestedDe = hDe * 60 + mDe;
     const requestedAte = hAte * 60 + mAte;
 
+    // Reserva no passado não faz sentido (e some da fila, que só lista de ontem
+    // em diante). Compara no fuso do condomínio, não no do servidor (UTC).
+    const agoraBr = agoraEmBrasilia();
+    const diaPedido = `${parts[2]}-${String(parts[1]).padStart(2, '0')}-${String(parts[0]).padStart(2, '0')}`;
+    if (diaPedido < agoraBr.dia || (diaPedido === agoraBr.dia && requestedAte <= agoraBr.minutos)) {
+      throw new BadRequestException('Não é possível reservar uma data ou horário que já passou.');
+    }
+
     const conflito = agendamentosDia.find((a) => {
       if (!a.hora_de || !a.hora_ate) return false;
       const aDe = a.hora_de.getHours() * 60 + a.hora_de.getMinutes();
@@ -1083,14 +1109,14 @@ export class AreasSociaisService {
       status: ag.status,
       bloco: ag.apartamento?.bloco ?? '',
       apto: ag.apartamento?.apto ?? '',
-      data_criacao: ag.created_at.toLocaleDateString('pt-BR') + ' às ' + ag.created_at.toTimeString().substring(0, 5),
+      data_criacao: dataHoraBr(ag.created_at),
       data: ag.data ? ag.data.toLocaleDateString('pt-BR') : '',
       horaDe: ag.hora_de ? ag.hora_de.toTimeString().substring(0, 5) : '',
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
       convidados: ag.convidados ?? null,
       confirmada_em: ag.confirmada_em ?? null,
       aprovado_por: ag.aprovado_por_nome ?? (ag.status === 'aprovado' ? 'Síndico' : null),
-      aprovado_em: ag.aprovado_em ? ag.aprovado_em.toLocaleDateString('pt-BR') + ' às ' + ag.aprovado_em.toTimeString().substring(0, 5) : null,
+      aprovado_em: ag.aprovado_em ? dataHoraBr(ag.aprovado_em) : null,
       motivo_recusa: ag.motivo_recusa ?? null,
     }));
   }
@@ -1142,14 +1168,14 @@ export class AreasSociaisService {
       status: ag.status,
       bloco: ag.apartamento?.bloco ?? '',
       apto: ag.apartamento?.apto ?? '',
-      data_criacao: ag.created_at.toLocaleDateString('pt-BR') + ' às ' + ag.created_at.toTimeString().substring(0, 5),
+      data_criacao: dataHoraBr(ag.created_at),
       data: ag.data ? ag.data.toLocaleDateString('pt-BR') : '',
       horaDe: ag.hora_de ? ag.hora_de.toTimeString().substring(0, 5) : '',
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
       convidados: ag.convidados ?? null,
       confirmada_em: ag.confirmada_em ?? null,
       aprovado_por: ag.aprovado_por_nome ?? (ag.status === 'aprovado' ? 'Síndico' : null),
-      aprovado_em: ag.aprovado_em ? ag.aprovado_em.toLocaleDateString('pt-BR') + ' às ' + ag.aprovado_em.toTimeString().substring(0, 5) : null,
+      aprovado_em: ag.aprovado_em ? dataHoraBr(ag.aprovado_em) : null,
       motivo_recusa: ag.motivo_recusa ?? null,
     }));
   }

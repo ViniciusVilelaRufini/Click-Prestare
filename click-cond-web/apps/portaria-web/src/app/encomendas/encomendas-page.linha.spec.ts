@@ -28,4 +28,12 @@ describe('EncomendasPageComponent — linha da tabela', () => {
   ])('destinatário %o → "%s"', (e, texto) => {
     expect(tela.rotuloDestino(e as any)).toBe(texto);
   });
+
+  it.each([
+    ['A', 'Bloco A'],
+    ['Bloco A', 'Bloco A'],
+    ['bloco b', 'bloco b'],
+  ])('filtro de blocos: "%s" → "%s" (não duplica o prefixo)', (bloco, texto) => {
+    expect(tela.rotuloBloco(bloco)).toBe(texto);
+  });
 });

@@ -1,22 +1,7 @@
-/**
- * Só os dígitos de um documento. "453.466.488-53" → "45346648853".
- *
- * A senha inicial de morador e funcionário é o CPF, e ela vai por e-mail para
- * a pessoa digitar no login. Com a máscara, o que chega é
- * "453.466.488-53" — quem digita erra o ponto ou o traço e não entra. O
- * documento é gravado como veio do formulário (às vezes com máscara, às vezes
- * sem), então normalizar aqui garante que a senha seja sempre a mesma coisa,
- * independente de como foi digitado no cadastro.
- *
- * Devolve string vazia para nulo/indefinido, para o chamador cair no `||`
- * do valor padrão.
- */
-export function somenteDigitos(valor: unknown): string {
-  if (valor === null || valor === undefined) return '';
-  return String(valor).replace(/\D/g, '');
+/** Só os dígitos do documento. */
+export function soDigitos(valor: string | null | undefined): string {
+  return (valor ?? '').replace(/\D/g, '');
 }
-
-const soDigitos = somenteDigitos;
 
 /** CPF pelos dígitos verificadores (rejeita sequências repetidas como 111.111.111-11). */
 export function cpfValido(valor: string): boolean {
@@ -52,21 +37,5 @@ export function erroDocumento(valor: string | null | undefined): string | null {
   const d = soDigitos(valor);
   if (d.length === 11 && !cpfValido(d)) return 'CPF inválido. Confira os números digitados.';
   if (d.length === 14 && !cnpjValido(d)) return 'CNPJ inválido. Confira os números digitados.';
-  return null;
-}
-
-/**
- * Regras de uma visita vindas de qualquer cliente (web ou app): documento
- * CPF/CNPJ com dígito válido e término depois do início. Datas no formato
- * local "YYYY-MM-DDTHH:mm" (ou ISO) — só comparadas entre si.
- */
-export function erroVisita(dto: { doc_identificacao?: string | null; data_hora_inicio?: string | null; data_hora_termino?: string | null }): string | null {
-  const erroDoc = erroDocumento(dto.doc_identificacao);
-  if (erroDoc) return erroDoc;
-  const ini = dto.data_hora_inicio ? Date.parse(dto.data_hora_inicio) : NaN;
-  const fim = dto.data_hora_termino ? Date.parse(dto.data_hora_termino) : NaN;
-  if (!Number.isNaN(ini) && !Number.isNaN(fim) && fim <= ini) {
-    return '"Liberado até" precisa ser depois de "Liberado a partir de".';
-  }
   return null;
 }

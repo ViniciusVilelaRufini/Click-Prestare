@@ -55,7 +55,7 @@ function assertTokenInterno(token: string | undefined): void {
 }
 
 /** Domínio HTTPS da API (CloudFront), o mesmo que o app usa. */
-const API_URL_PUBLICA_PADRAO = 'https://api.clickprestarecondominios.com.br';
+const API_URL_PUBLICA_PADRAO = 'https://api.prestarecondominios.com.br';
 
 @Controller('facial')
 export class FacialController {

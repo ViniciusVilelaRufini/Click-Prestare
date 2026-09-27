@@ -12,12 +12,12 @@ const EMAIL_FOOTER = `
   <table style="font-family: Arial, Helvetica, sans-serif; border-collapse: collapse; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
     <tr>
       <td style="vertical-align: middle; padding-right: 14px;">
-        <img src="https://www.clickprestarecondominios.com.br/logo-prestare.png" alt="Logo Prestare" width="46" height="46" style="border-radius: 6px; display: block;" />
+        <img src="https://www.prestarecondominios.com.br/logo-prestare.png" alt="Logo Prestare" width="46" height="46" style="border-radius: 6px; display: block;" />
       </td>
       <td style="vertical-align: middle; font-size: 13px; line-height: 1.4; color: #334155;">
         <strong style="color: #0f172a; font-size: 14px;">Prestare - Gestao</strong><br>
         <span style="font-style: italic; color: #64748b;">Declaração de missão</span><br>
-        <a href="https://www.clickprestarecondominios.com.br" style="color: #2563eb; text-decoration: none;" target="_blank">https://www.clickprestarecondominios.com.br</a>
+        <a href="https://www.prestarecondominios.com.br" style="color: #2563eb; text-decoration: none;" target="_blank">https://www.prestarecondominios.com.br</a>
       </td>
     </tr>
   </table>
@@ -27,7 +27,7 @@ module.exports = {
 
     mailForgotPassword: async function(emailToSend, newPassword, login_type){
       return new Promise( (resolve, reject) => {
-        const text = `Olá!\n\nVocê ou alguém solicitou a recuperação de senha do aplicativo PRESTARE.\n\nUtilize a nova senha temporária abaixo para entrar na sua conta como ${login_type}:\n${newPassword}\n\nPor segurança, altere sua senha nas configurações logo após o primeiro acesso.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+        const text = `Olá!\n\nVocê ou alguém solicitou a recuperação de senha do aplicativo PRESTARE.\n\nUtilize a nova senha temporária abaixo para entrar na sua conta como ${login_type}:\n${newPassword}\n\nPor segurança, altere sua senha nas configurações logo após o primeiro acesso.\n\nEquipe PRESTARE Condomínios\nhttps://www.prestarecondominios.com.br`;
         const html = `
           <!DOCTYPE html>
           <html lang="pt-BR">
@@ -96,7 +96,7 @@ module.exports = {
 
     mailWelcomeMorador: async function(emailToSend, nomeMorador, documentoSenha){
       return new Promise( (resolve, reject) => {
-        const text = `Olá, ${nomeMorador}!\n\nO seu acesso ao aplicativo PRESTARE foi criado com sucesso.\nPara acessar sua conta como Morador, baixe o aplicativo e utilize as credenciais abaixo:\n\nLogin (E-mail): ${emailToSend}\nSenha Inicial: ${documentoSenha || '123456'}\n\nRecomendamos que você altere sua senha após o primeiro acesso no menu de Configurações do App.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
+        const text = `Olá, ${nomeMorador}!\n\nO seu acesso ao aplicativo PRESTARE foi criado com sucesso.\nPara acessar sua conta como Morador, baixe o aplicativo e utilize as credenciais abaixo:\n\nLogin (E-mail): ${emailToSend}\nSenha Inicial: ${documentoSenha || '123456'}\n\nRecomendamos que você altere sua senha após o primeiro acesso no menu de Configurações do App.\n\nEquipe PRESTARE Condomínios\nhttps://www.prestarecondominios.com.br`;
         const html = `
           <!DOCTYPE html>
           <html lang="pt-BR">

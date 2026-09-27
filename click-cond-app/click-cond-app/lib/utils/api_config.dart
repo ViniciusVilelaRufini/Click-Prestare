@@ -13,7 +13,7 @@ class ApiConfig {
 
   /// Host dinâmico
   static String get host {
-    if (isProduction) return "api.clickprestarecondominios.com.br";
+    if (isProduction) return "api.prestarecondominios.com.br";
     if (kIsWeb) return "localhost:3000";
     // 10.0.2.2 é o endereço especial para acessar o localhost do seu PC de dentro do Emulador Android
     return "10.0.2.2:3000";
