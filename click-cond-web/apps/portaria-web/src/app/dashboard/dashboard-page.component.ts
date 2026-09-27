@@ -478,11 +478,11 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     const direcao = evento?.direcao;
     const tipo = typeof evento === 'string' ? evento : (evento?.tipo ?? '');
 
-    if (direcao === 'entrada') {
+    if (direcao === 'entrada' || direcao === 'online') {
       return 'text-emerald-550 bg-emerald-500/10 border-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-400/10 dark:border-emerald-400/20';
     } else if (direcao === 'saida') {
       return 'text-rose-550 bg-rose-500/10 border-rose-500/20 dark:text-rose-400 dark:bg-rose-400/10 dark:border-rose-400/20';
-    } else if (direcao === 'negado' || direcao === 'bloqueado') {
+    } else if (direcao === 'negado' || direcao === 'bloqueado' || direcao === 'offline') {
       return 'text-rose-600 bg-rose-500/10 border-rose-500/20 dark:text-rose-400 dark:bg-rose-500/10 dark:border-rose-500/20';
     }
 
@@ -493,6 +493,24 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     }
     return tipo === 'Encomenda' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
       : 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+  }
+
+  /**
+   * Selo (badge) do evento na lista/modal de detalhes. Eventos reais de
+   * acesso de pessoas mostram Entrada/Saída/Bloqueado; eventos de status de
+   * dispositivo (dashboard.service#ultAuditLogs, "dispositivos") têm selo
+   * próprio Offline/Online — não são entrada/saída de ninguém.
+   */
+  direcaoLabel(direcao: string | undefined, tipo: string): string {
+    switch (direcao) {
+      case 'entrada': return 'Entrada';
+      case 'saida': return 'Saída';
+      case 'offline': return 'Offline';
+      case 'online': return 'Online';
+      case 'negado':
+      case 'bloqueado': return 'Bloqueado';
+      default: return tipo;
+    }
   }
 
   abrirDetalhes(evento: any) {

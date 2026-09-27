@@ -16,7 +16,7 @@ export interface DashboardSummary {
     tipo: string;
     descricao: string;
     quando: string;
-    direcao?: 'entrada' | 'saida' | 'negado' | 'bloqueado';
+    direcao?: 'entrada' | 'saida' | 'negado' | 'bloqueado' | 'offline' | 'online';
     detalhes: {
       id: number;
       nome?: string;
@@ -538,7 +538,9 @@ export class DashboardService {
         tipo: 'Ocorrência',
         descricao: a.descricao,
         quando: a.created_at.toISOString(),
-        direcao: isOffline ? 'saida' : 'entrada',
+        // Evento de status de dispositivo (não é entrada/saída de pessoa):
+        // selo próprio Offline/Online, ver dashboard-page.component.ts#direcaoLabel.
+        direcao: isOffline ? 'offline' : 'online',
         detalhes: {
           id: a.id,
           nome: 'Dispositivos',
