@@ -53,7 +53,7 @@ export class DeliveryService {
     await this.tenant.assertCondominio(idCondominio, user);
     await this.assertApartamentoDoMorador(idApartamento, idCondominio, idMorador);
 
-    return (this.prisma as any).$transaction(async (tx: any) => {
+    const atendimento = await (this.prisma as any).$transaction(async (tx: any) => {
       const atendimento = await tx.deliveryAtendimentos.create({
         data: {
           id_condominio: idCondominio,
@@ -70,6 +70,34 @@ export class DeliveryService {
       });
       await this.registrarEvento(tx, atendimento.id, null, 'AGENDADA', user);
       return atendimento;
+    });
+    return this.paraMorador(atendimento);
+  }
+
+  async listarUnidadesMorador(idCondominio: number, user: JwtPayload) {
+    const condominio = Number(idCondominio);
+    const idMorador = this.idUsuario(user);
+    await this.tenant.assertCondominio(condominio, user);
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: {
+        id_user: idMorador,
+        apartamento: { id_condominio: condominio },
+      },
+      select: {
+        apartamento: { select: { id: true, bloco: true, apto: true } },
+      },
+    });
+    const unidades = new Map<number, { id: number; bloco: string | null; apto: string | null }>();
+    for (const vinculo of vinculos) {
+      unidades.set(vinculo.apartamento.id, {
+        id: vinculo.apartamento.id,
+        bloco: vinculo.apartamento.bloco,
+        apto: vinculo.apartamento.apto,
+      });
+    }
+    return [...unidades.values()].sort((a, b) => {
+      const bloco = (a.bloco ?? '').localeCompare(b.bloco ?? '', 'pt-BR', { numeric: true });
+      return bloco || (a.apto ?? '').localeCompare(b.apto ?? '', 'pt-BR', { numeric: true });
     });
   }
 
@@ -184,7 +212,7 @@ export class DeliveryService {
         atualizado.id,
       );
     }
-    return atualizado;
+    return isOperador(user) ? atualizado : this.paraMorador(atualizado);
   }
 
   async listarEntregadores(idCondominio: number, busca: string | undefined, user: JwtPayload) {
@@ -310,6 +338,16 @@ export class DeliveryService {
   }
 
   private normalizarPlaca(placa: string) { return placa.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  private paraMorador(atendimento: any) {
+    const {
+      id_condominio: _idCondominio,
+      id_apartamento: _idApartamento,
+      id_morador_user: _idMorador,
+      id_entregador: _idEntregador,
+      ...seguro
+    } = atendimento;
+    return seguro;
+  }
   private idUsuario(user: JwtPayload) { const id = Number(user?.user?.id ?? user?.sub); if (!id) throw new ForbiddenException('Sessão sem usuário válido.'); return id; }
   private assertOperador(user: JwtPayload, contexto: string) { if (!isOperador(user)) throw new ForbiddenException(`Acesso negado: ${contexto} exige operador.`); }
   private assertGestorEntregadores(user: JwtPayload) {

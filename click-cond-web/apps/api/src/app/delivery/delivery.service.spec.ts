@@ -50,6 +50,11 @@ describe('DeliveryService', () => {
       isConnected: true,
       apartamentos_Users: {
         findFirst: jest.fn(async () => (opcoes.apartamentoDoMorador === false ? null : { id: 1, user: { fcm_token: 'token-morador' } })),
+        findMany: jest.fn(async () => [
+          { apartamento: { id: 202, id_condominio: 1, bloco: 'B', apto: '202' } },
+          { apartamento: { id: 101, id_condominio: 1, bloco: 'A', apto: '101' } },
+          { apartamento: { id: 202, id_condominio: 1, bloco: 'B', apto: '202' } },
+        ]),
       },
       apartamentos: {
         findUnique: jest.fn(async () => ({ id: 101, id_condominio: 1 })),
@@ -200,6 +205,29 @@ describe('DeliveryService', () => {
     });
   });
 
+  it('minimiza identificadores internos na resposta de criação ao morador', async () => {
+    const { service } = montar();
+
+    const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+
+    expect(aviso).toMatchObject({ id: expect.any(Number), status: 'AGENDADA' });
+    expect(aviso).not.toHaveProperty('id_condominio');
+    expect(aviso).not.toHaveProperty('id_apartamento');
+    expect(aviso).not.toHaveProperty('id_morador_user');
+    expect(aviso).not.toHaveProperty('id_entregador');
+  });
+
+  it('lista somente campos seguros dos vínculos de unidade do morador sem duplicar', async () => {
+    const { service } = montar();
+
+    const unidades = await service.listarUnidadesMorador(1, morador);
+
+    expect(unidades).toEqual([
+      { id: 101, bloco: 'A', apto: '101' },
+      { id: 202, bloco: 'B', apto: '202' },
+    ]);
+  });
+
   it('oculta documento, bloqueio e motivos do entregador na listagem do morador', async () => {
     const { service } = montar();
 
@@ -277,6 +305,23 @@ describe('DeliveryService', () => {
 
     await expect(service.atualizarStatus(aviso.id, { status: 'RECUSADA' }, porteiro))
       .rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('minimiza identificadores internos na resposta de cancelamento ao morador', async () => {
+    const { service } = montar();
+    const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+
+    const cancelado = await service.atualizarStatus(
+      aviso.id,
+      { status: 'CANCELADA', motivo: 'Desisti da entrega' },
+      morador,
+    );
+
+    expect(cancelado).toMatchObject({ id: aviso.id, status: 'CANCELADA' });
+    expect(cancelado).not.toHaveProperty('id_condominio');
+    expect(cancelado).not.toHaveProperty('id_apartamento');
+    expect(cancelado).not.toHaveProperty('id_morador_user');
+    expect(cancelado).not.toHaveProperty('id_entregador');
   });
 
   it('impede autorização quando o entregador associado está bloqueado', async () => {

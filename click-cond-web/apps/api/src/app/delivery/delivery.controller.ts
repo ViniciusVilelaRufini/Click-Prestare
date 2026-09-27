@@ -27,6 +27,14 @@ export class DeliveryController {
     return this.service.criarAviso(dto, user);
   }
 
+  @Get('unidades')
+  listarUnidades(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.service.listarUnidadesMorador(idCondominio, user);
+  }
+
   @Patch(':id')
   atualizarStatus(
     @Param('id', ParseIntPipe) id: number,
