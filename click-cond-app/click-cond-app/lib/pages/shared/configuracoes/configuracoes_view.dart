@@ -332,12 +332,12 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
               icon: PhosphorIcons.fileText,
               label: getText('config_termos_uso'),
               // As páginas são servidas pelo portaria-web hospedado no AWS Amplify Hosting.
-              onTap: () => launchInBrowser('https://www.clickprestarecondominios.com.br/termos-de-uso.html', context),
+              onTap: () => launchInBrowser('https://www.prestarecondominios.com.br/termos-de-uso.html', context),
             ),
             _SettingsTile(
               icon: PhosphorIcons.shieldCheck,
               label: getText('config_politica_privacidade'),
-              onTap: () => launchInBrowser('https://www.clickprestarecondominios.com.br/politica-de-privacidade.html', context),
+              onTap: () => launchInBrowser('https://www.prestarecondominios.com.br/politica-de-privacidade.html', context),
             ),
             _SettingsTile(
               icon: PhosphorIcons.chatCircle,
