@@ -537,6 +537,12 @@ export class EncomendasPageComponent implements OnInit {
     return blocoTxt ? `Apto ${e.destinatario_apto} · ${blocoTxt}` : `Apto ${e.destinatario_apto}`;
   }
 
+  /** Rótulo do filtro de blocos: evita duplicar o prefixo quando o nome já vem como "Bloco A". */
+  rotuloBloco(bloco: string): string {
+    const b = (bloco ?? '').toString().trim();
+    return /^bloco\s/i.test(b) ? b : `Bloco ${b}`;
+  }
+
   getBrandBadgeClass(recebidoDe: string | undefined): { bg: string, text: string, border: string } {
     const val = (recebidoDe || '').toLowerCase();
     if (val.includes('ifood') || val.includes('food') || val.includes('delivery')) {
