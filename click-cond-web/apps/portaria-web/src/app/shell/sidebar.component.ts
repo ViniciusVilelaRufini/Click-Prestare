@@ -58,6 +58,7 @@ export class SidebarComponent {
         { label: 'Visitantes', path: '/visitantes', icon: '◆' },
         { label: 'Prestadores', path: '/prestadores', icon: '✦' },
         { label: 'Encomendas', path: '/encomendas', icon: '⬚' },
+        { label: 'Delivery', path: '/delivery', icon: 'D' },
         { label: 'Ocorrências', path: '/ocorrencias', icon: '!' }
       ]
     },

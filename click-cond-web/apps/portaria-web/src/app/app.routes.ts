@@ -174,6 +174,13 @@ export const appRoutes: Route[] = [
           ),
       },
       {
+        path: 'delivery',
+        loadComponent: () =>
+          import('./delivery/delivery-page.component').then(
+            (m) => m.DeliveryPageComponent,
+          ),
+      },
+      {
         path: 'areas-sociais',
         loadComponent: () =>
           import('./areas-sociais/areas-sociais-page.component').then(
