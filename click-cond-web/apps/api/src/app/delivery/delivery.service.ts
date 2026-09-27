@@ -83,8 +83,13 @@ export class DeliveryService {
         apartamento: { select: { id: true, bloco: true, apto: true } },
         entregador: operador
           ? true
-          : { select: { id: true, nome: true, telefone: true, plataforma: true } },
-        eventos: { orderBy: { created_at: 'asc' } },
+          : { select: { nome: true, telefone: true, plataforma: true } },
+        eventos: operador
+          ? { orderBy: { created_at: 'asc' } }
+          : {
+              select: { status_novo: true, mensagem: true, created_at: true },
+              orderBy: { created_at: 'asc' },
+            },
       },
       orderBy: { created_at: 'desc' },
     });

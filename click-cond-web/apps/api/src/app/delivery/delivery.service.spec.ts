@@ -59,7 +59,9 @@ describe('DeliveryService', () => {
             entregador: selecionado
               ? Object.fromEntries(Object.keys(selecionado).map((campo) => [campo, entregador[campo as keyof typeof entregador]]))
               : entregador,
-            eventos: [],
+            eventos: include?.eventos?.select
+              ? [{ status_novo: 'CHEGOU', mensagem: 'Chegou', created_at: new Date() }]
+              : [{ id: 88, id_atendimento: 91, id_usuario_autor: 20, autor_nome: 'Portaria', status_novo: 'CHEGOU', mensagem: 'Chegou', created_at: new Date() }],
           }];
         }),
       },
@@ -117,11 +119,17 @@ describe('DeliveryService', () => {
     const [atendimento] = await service.listarAtendimentos(1, undefined, morador);
 
     expect(atendimento.entregador).toEqual({
-      id: 7,
       nome: 'Motoboy Teste',
       telefone: '11999999999',
       plataforma: 'Entrega Rápida',
     });
+    expect(atendimento.eventos).toEqual([
+      expect.objectContaining({ status_novo: 'CHEGOU', mensagem: 'Chegou' }),
+    ]);
+    expect(atendimento.eventos[0]).not.toHaveProperty('id');
+    expect(atendimento.eventos[0]).not.toHaveProperty('id_usuario_autor');
+    expect(atendimento.eventos[0]).not.toHaveProperty('autor_nome');
+    expect(atendimento.entregador).not.toHaveProperty('id');
     expect(atendimento.entregador).not.toHaveProperty('documento');
     expect(atendimento.entregador).not.toHaveProperty('status');
     expect(atendimento.entregador).not.toHaveProperty('motivo_bloqueio');
