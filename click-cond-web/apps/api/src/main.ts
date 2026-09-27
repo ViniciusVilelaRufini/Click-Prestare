@@ -12,13 +12,7 @@ if (typeof (process as any).loadEnvFile === 'function') {
   }
 }
 
-// Sanitização global: impede que resíduos de e-mail pessoal antigo fiquem no process.env
-if (process.env.SMTP_USER?.toLowerCase().includes('viniciusrufini') || !process.env.SMTP_USER) {
-  process.env.SMTP_USER = 'suporte@clickprestarecondominios.com.br';
-  process.env.SMTP_PASS = 'njyqoenhmsyzblwa';
-  process.env.SMTP_FROM = 'suporte@clickprestarecondominios.com.br';
-  process.env.MAIL_FROM = 'suporte@clickprestarecondominios.com.br';
-}
+// Credenciais SMTP vêm só do ambiente (Elastic Beanstalk). Nada de senha no código.
 
 
 import { Logger, ValidationPipe } from '@nestjs/common';
