@@ -20,7 +20,7 @@ describe('DTOs de Delivery — ValidationPipe', () => {
   }
 
   it.each([
-    [CriarDeliveryDto, { id_condominio: 1, id_apartamento: 101, modo_entrega: 'UNIDADE' }, ['id_condominio', 'id_apartamento', 'modo_entrega']],
+    [CriarDeliveryDto, { id_condominio: 1, id_apartamento: 101, modo_entrega: 'UNIDADE', nome_entregador: 'Motoboy', telefone_entregador: '11999999999' }, ['id_condominio', 'id_apartamento', 'modo_entrega', 'nome_entregador', 'telefone_entregador']],
     [AtualizarStatusDeliveryDto, { status: 'CHEGOU', id_entregador: 7 }, ['status', 'id_entregador']],
     [CriarEntregadorDto, { id_condominio: 1, nome: 'Motoboy', veiculo: { placa: 'abc-1234' } }, ['id_condominio', 'nome', 'veiculo']],
     [AtualizarEntregadorDto, { status: 'BLOQUEADO', motivo_bloqueio: 'Ocorrência registrada' }, ['status', 'motivo_bloqueio']],

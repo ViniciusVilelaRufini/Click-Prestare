@@ -61,6 +61,8 @@ export class DeliveryService {
         estabelecimento: dto.estabelecimento?.trim() || null,
         previsao_em: dto.previsao_em ? new Date(dto.previsao_em) : null,
         observacao_morador: dto.observacao_morador?.trim() || null,
+        nome_entregador: dto.nome_entregador?.trim() || null,
+        telefone_entregador: dto.telefone_entregador?.trim() || null,
         modo_entrega: dto.modo_entrega === 'PORTARIA' ? 'PORTARIA' : 'UNIDADE',
         status: 'AGENDADA',
       },
@@ -73,10 +75,17 @@ export class DeliveryService {
     await this.tenant.assertCondominio(Number(idCondominio), user);
     const where: any = { id_condominio: Number(idCondominio) };
     if (status) where.status = status;
-    if (!isOperador(user)) where.id_morador_user = this.idUsuario(user);
+    const operador = isOperador(user);
+    if (!operador) where.id_morador_user = this.idUsuario(user);
     return (this.prisma as any).deliveryAtendimentos.findMany({
       where,
-      include: { apartamento: { select: { id: true, bloco: true, apto: true } }, entregador: true, eventos: { orderBy: { created_at: 'asc' } } },
+      include: {
+        apartamento: { select: { id: true, bloco: true, apto: true } },
+        entregador: operador
+          ? true
+          : { select: { id: true, nome: true, telefone: true, plataforma: true } },
+        eventos: { orderBy: { created_at: 'asc' } },
+      },
       orderBy: { created_at: 'desc' },
     });
   }

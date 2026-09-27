@@ -38,6 +38,30 @@ describe('DeliveryService', () => {
           Object.assign(atendimento, data);
           return atendimento;
         }),
+        findMany: jest.fn(async ({ include }: any) => {
+          const entregador = {
+            id: 7,
+            nome: 'Motoboy Teste',
+            telefone: '11999999999',
+            plataforma: 'Entrega Rápida',
+            documento: '12345678900',
+            status: 'BLOQUEADO',
+            motivo_bloqueio: 'Ocorrência interna',
+            foto: 'https://interno/foto.jpg',
+          };
+          const selecionado = include?.entregador?.select;
+          return [{
+            id: 91,
+            id_condominio: 1,
+            id_apartamento: 101,
+            id_morador_user: 10,
+            status: 'CHEGOU',
+            entregador: selecionado
+              ? Object.fromEntries(Object.keys(selecionado).map((campo) => [campo, entregador[campo as keyof typeof entregador]]))
+              : entregador,
+            eventos: [],
+          }];
+        }),
       },
       deliveryEntregadores: {
         findUnique: jest.fn(async () => ({ id: 7, id_condominio: opcoes.entregadorCondominio ?? 1, status: opcoes.entregadorBloqueado ? 'BLOQUEADO' : 'ATIVO' })),
@@ -69,6 +93,51 @@ describe('DeliveryService', () => {
 
     await expect(service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador))
       .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('preserva nome e telefone opcionais do entregador informados no aviso', async () => {
+    const { service, atendimentos } = montar();
+
+    await service.criarAviso({
+      id_condominio: 1,
+      id_apartamento: 101,
+      nome_entregador: 'Motoboy Teste',
+      telefone_entregador: '11999999999',
+    } as any, morador);
+
+    expect(atendimentos[0]).toMatchObject({
+      nome_entregador: 'Motoboy Teste',
+      telefone_entregador: '11999999999',
+    });
+  });
+
+  it('oculta documento, bloqueio e motivos do entregador na listagem do morador', async () => {
+    const { service } = montar();
+
+    const [atendimento] = await service.listarAtendimentos(1, undefined, morador);
+
+    expect(atendimento.entregador).toEqual({
+      id: 7,
+      nome: 'Motoboy Teste',
+      telefone: '11999999999',
+      plataforma: 'Entrega Rápida',
+    });
+    expect(atendimento.entregador).not.toHaveProperty('documento');
+    expect(atendimento.entregador).not.toHaveProperty('status');
+    expect(atendimento.entregador).not.toHaveProperty('motivo_bloqueio');
+    expect(atendimento.entregador).not.toHaveProperty('foto');
+  });
+
+  it('mantém dados completos do entregador na listagem operacional da portaria', async () => {
+    const { service } = montar();
+
+    const [atendimento] = await service.listarAtendimentos(1, undefined, porteiro);
+
+    expect(atendimento.entregador).toMatchObject({
+      documento: '12345678900',
+      status: 'BLOQUEADO',
+      motivo_bloqueio: 'Ocorrência interna',
+    });
   });
 
   it('conduz o atendimento de AGENDADA até CONCLUIDA e registra cada transição', async () => {

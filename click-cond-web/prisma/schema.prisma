@@ -1023,6 +1023,8 @@ model DeliveryAtendimentos {
   estabelecimento    String?               @db.VarChar(255)
   previsao_em        DateTime?             @db.DateTime(0)
   observacao_morador String?               @db.Text
+  nome_entregador    String?               @db.VarChar(255)
+  telefone_entregador String?              @db.VarChar(50)
   status             String                @default("AGENDADA") @db.VarChar(30)
   modo_entrega       String                @default("UNIDADE") @db.VarChar(20)
   chegou_em          DateTime?             @db.DateTime(0)

@@ -59,6 +59,14 @@ export class CriarDeliveryDto {
   observacao_morador?: string;
 
   @IsOptional()
+  @IsString()
+  nome_entregador?: string;
+
+  @IsOptional()
+  @IsString()
+  telefone_entregador?: string;
+
+  @IsOptional()
   @IsIn(['UNIDADE', 'PORTARIA'])
   modo_entrega?: 'UNIDADE' | 'PORTARIA';
 }
