@@ -42,6 +42,8 @@ export interface DeliveryAtendimento {
   id: number;
   status: DeliveryStatus;
   estabelecimento?: string | null;
+  nome_entregador?: string | null;
+  telefone_entregador?: string | null;
   modo_entrega: 'UNIDADE' | 'PORTARIA';
   observacao_morador?: string | null;
   motivo?: string | null;
@@ -57,4 +59,10 @@ export interface CriarEntregadorDelivery {
   documento?: string;
   plataforma?: string;
   veiculo?: Omit<DeliveryVeiculo, 'id'>;
+}
+
+export interface AtualizarEntregadorDelivery extends Partial<Omit<CriarEntregadorDelivery, 'veiculo'>> {
+  status?: EntregadorStatus;
+  motivo_bloqueio?: string;
+  veiculo?: Omit<DeliveryVeiculo, 'id'> | null;
 }

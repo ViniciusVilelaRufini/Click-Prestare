@@ -39,12 +39,29 @@ const atendimentos: DeliveryAtendimento[] = [
     id: 2,
     status: 'AGENDADA',
     estabelecimento: 'Mercado',
+    nome_entregador: 'Maria Avulsa',
+    telefone_entregador: '11888887777',
     modo_entrega: 'PORTARIA',
     apartamento: { id: 11, bloco: 'B', apto: '202' },
     entregador: null,
     eventos: [],
     created_at: '2026-09-27T11:00:00.000Z',
-  },
+  } as DeliveryAtendimento,
+  {
+    id: 3,
+    status: 'CONCLUIDA',
+    estabelecimento: 'Farmácia Histórica',
+    nome_entregador: 'Carlos Entregas',
+    telefone_entregador: '11777776666',
+    modo_entrega: 'UNIDADE',
+    apartamento: { id: 12, bloco: 'C', apto: '303' },
+    entregador: null,
+    eventos: [
+      { id: 30, status_novo: 'AGENDADA', created_at: '2026-09-26T10:00:00.000Z' },
+      { id: 31, status_anterior: 'AUTORIZADA', status_novo: 'CONCLUIDA', created_at: '2026-09-26T10:30:00.000Z' },
+    ],
+    created_at: '2026-09-26T10:00:00.000Z',
+  } as DeliveryAtendimento,
 ];
 
 class DeliveryApiStub {
@@ -58,14 +75,16 @@ class DeliveryApiStub {
 describe('DeliveryPageComponent', () => {
   let fixture: ComponentFixture<DeliveryPageComponent>;
   let component: DeliveryPageComponent;
+  let authInfo: any;
 
   beforeEach(async () => {
+    authInfo = { id_condominio: 1, nome: 'Síndico', turno: 'Síndico' };
     await TestBed.configureTestingModule({
       imports: [DeliveryPageComponent],
       providers: [
         provideHttpClient(),
         provideRouter([]),
-        { provide: AuthService, useValue: { porteiroInfo: () => null } },
+        { provide: AuthService, useValue: { porteiroInfo: () => authInfo } },
         { provide: ThemeService, useValue: { isLight: signal(false), toggleTheme: jest.fn() } },
         { provide: DeliveryApi, useClass: DeliveryApiStub },
       ],
@@ -107,6 +126,19 @@ describe('DeliveryPageComponent', () => {
     expect(component.atendimentosFiltrados()).toEqual([atendimentos[0]]);
   });
 
+  it('mostra e pesquisa nome e telefone informados pelo morador antes do cadastro', () => {
+    component.busca.set('Maria Avulsa');
+    expect(component.atendimentosFiltrados()).toEqual([atendimentos[1]]);
+
+    component.busca.set('11 88888-7777');
+    expect(component.atendimentosFiltrados()).toEqual([atendimentos[1]]);
+
+    component.busca.set('');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Maria Avulsa');
+    expect(fixture.nativeElement.textContent).toContain('11888887777');
+  });
+
   it('retorna zero para um contador de status sem atendimentos', () => {
     expect(component.contador('CHEGOU')).toBe(1);
     expect(component.contador('AUTORIZADA')).toBe(0);
@@ -123,18 +155,32 @@ describe('DeliveryPageComponent', () => {
     expect(authorizeButton.disabled).toBe(true);
   });
 
+  it('não permite autorizar atendimento sem entregador associado', () => {
+    const semEntregador = { ...atendimentos[1], status: 'CHEGOU' as const };
+    component.selecionar(semEntregador);
+
+    expect(component.podeAutorizar(semEntregador)).toBe(false);
+  });
+
   it('não oferece cancelamento à portaria para um aviso agendado', () => {
     expect(component.proximosStatus(atendimentos[1])).not.toContain('CANCELADA');
   });
 
-  it('normaliza o entregador recém-cadastrado mesmo quando a API não retorna veículos', () => {
+  it('mostra imediatamente o veículo devolvido no cadastro do entregador', () => {
     const api = TestBed.inject(DeliveryApi) as unknown as DeliveryApiStub;
-    api.criarEntregador.mockReturnValue(of({ id: 31, nome: 'Maria Moto', status: 'ATIVO' }));
+    api.criarEntregador.mockReturnValue(of({
+      id: 31,
+      nome: 'Maria Moto',
+      status: 'ATIVO',
+      veiculos: [{ id: 81, placa: 'XYZ9A87', tipo: 'Moto' }],
+    }));
     component.novoEntregador.nome = 'Maria Moto';
 
     component.criarEntregador();
 
-    expect(component.entregadores().find((entregador) => entregador.id === 31)?.veiculos).toEqual([]);
+    expect(component.entregadores().find((entregador) => entregador.id === 31)?.veiculos).toEqual([
+      expect.objectContaining({ placa: 'XYZ9A87' }),
+    ]);
   });
 
   it('preserva os veículos na lista quando o PATCH do entregador não os retorna', () => {
@@ -152,5 +198,61 @@ describe('DeliveryPageComponent', () => {
     component.salvarEntregador();
 
     expect(component.entregadores()[0].veiculos).toEqual([{ id: 1, placa: 'ABC1D23' }]);
+  });
+
+  it('envia correções dos dados do veículo ao salvar o entregador', () => {
+    const api = TestBed.inject(DeliveryApi) as unknown as DeliveryApiStub;
+    const entregador = atendimentos[0].entregador!;
+    component.entregadores.set([entregador]);
+    component.editarEntregador(entregador);
+    component.motivoBloqueio = 'Ocorrência confirmada';
+    component.entregadorEmEdicao()!.veiculos[0] = {
+      ...component.entregadorEmEdicao()!.veiculos[0],
+      placa: 'XYZ9A87',
+      tipo: 'Moto',
+      modelo: 'CG',
+      cor: 'Preta',
+    };
+    api.atualizarEntregador.mockReturnValue(of({
+      ...entregador,
+      veiculos: [{ id: 1, placa: 'XYZ9A87', tipo: 'Moto', modelo: 'CG', cor: 'Preta' }],
+    }));
+
+    component.salvarEntregador();
+
+    expect(api.atualizarEntregador).toHaveBeenCalledWith(
+      entregador.id,
+      expect.objectContaining({
+        veiculo: { placa: 'XYZ9A87', tipo: 'Moto', modelo: 'CG', cor: 'Preta' },
+      }),
+    );
+    expect(component.entregadores()[0].veiculos[0]).toMatchObject({ placa: 'XYZ9A87', modelo: 'CG' });
+  });
+
+  it('não expõe edição e bloqueio de entregador para porteiro', () => {
+    authInfo = { id_condominio: 1, nome: 'Porteiro', turno: 'Noturno' };
+    component.entregadores.set([atendimentos[0].entregador!]);
+    component.aba.set('entregadores');
+    fixture.detectChanges();
+
+    const botaoEntregador = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
+      (button: HTMLButtonElement) => button.textContent?.includes('João Motoboy'),
+    ) as HTMLButtonElement;
+    botaoEntregador?.click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Editar entregador');
+    expect(component.entregadorEmEdicao()).toBeNull();
+  });
+
+  it('oferece histórico terminal e resumo básico ao síndico', () => {
+    component.aba.set('historico' as any);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Relatório básico');
+    expect(fixture.nativeElement.textContent).toContain('Farmácia Histórica');
+    expect(component.contador('CONCLUIDA')).toBe(1);
+    expect(fixture.nativeElement.textContent).toContain('concluído');
+    expect(fixture.nativeElement.textContent).not.toContain('Pizzaria Central');
   });
 });

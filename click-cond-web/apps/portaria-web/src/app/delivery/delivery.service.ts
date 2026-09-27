@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { API_BASE } from '../shared/api.config';
 import {
+  AtualizarEntregadorDelivery,
   CriarEntregadorDelivery,
   DeliveryAtendimento,
   DeliveryEntregador,
@@ -11,6 +12,7 @@ import {
 } from './delivery.model';
 
 export type {
+  AtualizarEntregadorDelivery,
   CriarEntregadorDelivery,
   DeliveryAtendimento,
   DeliveryEntregador,
@@ -55,7 +57,7 @@ export class DeliveryApi {
 
   atualizarEntregador(
     id: number,
-    dto: Partial<CriarEntregadorDelivery> & { status?: 'ATIVO' | 'BLOQUEADO'; motivo_bloqueio?: string },
+    dto: AtualizarEntregadorDelivery,
   ): Observable<DeliveryEntregador> {
     return this.http.patch<DeliveryEntregador>(`${API_BASE}/delivery/entregadores/${id}`, dto);
   }

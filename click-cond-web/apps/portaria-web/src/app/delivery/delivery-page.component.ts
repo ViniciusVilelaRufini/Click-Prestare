@@ -7,6 +7,7 @@ import {
   DeliveryEntregador,
   DeliveryStatus,
 } from './delivery.model';
+import { AuthService } from '../auth/auth.service';
 import { DeliveryApi } from './delivery.service';
 
 const TERMINAIS: readonly DeliveryStatus[] = ['CONCLUIDA', 'CANCELADA', 'RECUSADA'];
@@ -30,6 +31,7 @@ const PROXIMOS_STATUS: Record<DeliveryStatus, readonly DeliveryStatus[]> = {
 })
 export class DeliveryPageComponent implements OnInit {
   private readonly api = inject(DeliveryApi);
+  private readonly auth = inject(AuthService);
 
   readonly atendimentos = signal<DeliveryAtendimento[]>([]);
   readonly entregadores = signal<DeliveryEntregador[]>([]);
@@ -40,7 +42,7 @@ export class DeliveryPageComponent implements OnInit {
   readonly erro = signal<string | null>(null);
   readonly entregadorSelecionadoId = signal<number | null>(null);
   readonly motivo = signal('');
-  readonly aba = signal<'fila' | 'entregadores'>('fila');
+  readonly aba = signal<'fila' | 'entregadores' | 'historico'>('fila');
   readonly entregadorEmEdicao = signal<DeliveryEntregador | null>(null);
 
   novoEntregador: CriarEntregadorDelivery = this.novoEntregadorVazio();
@@ -51,23 +53,20 @@ export class DeliveryPageComponent implements OnInit {
     const status = this.filtroStatus();
     return this.atendimentos().filter((atendimento) => {
       if (status && atendimento.status !== status) return false;
-      if (!busca) return true;
-      const unidade = `${atendimento.apartamento.bloco ?? ''}${atendimento.apartamento.apto}`;
-      const entregador = atendimento.entregador;
-      const valores = [
-        unidade,
-        atendimento.estabelecimento,
-        entregador?.nome,
-        entregador?.telefone,
-        ...((entregador?.veiculos ?? []).map((veiculo) => veiculo.placa)),
-      ];
-      return valores.some((valor) => this.normalizar(valor ?? '').includes(busca));
+      return this.correspondeBusca(atendimento, busca);
     });
   });
 
   readonly filaAtiva = computed(() =>
     this.atendimentosFiltrados().filter((atendimento) => !TERMINAIS.includes(atendimento.status)),
   );
+
+  readonly historicoTerminal = computed(() => {
+    const busca = this.normalizar(this.busca());
+    return this.atendimentos().filter(
+      (atendimento) => TERMINAIS.includes(atendimento.status) && this.correspondeBusca(atendimento, busca),
+    );
+  });
 
   readonly contadores = computed(() => {
     const contagem: Partial<Record<DeliveryStatus, number>> = {};
@@ -122,17 +121,37 @@ export class DeliveryPageComponent implements OnInit {
     return [atendimento.apartamento.bloco, atendimento.apartamento.apto].filter(Boolean).join(' ');
   }
 
+  nomeEntregador(atendimento: DeliveryAtendimento): string {
+    return atendimento.entregador?.nome?.trim()
+      || atendimento.nome_entregador?.trim()
+      || 'Entregador ainda não identificado';
+  }
+
+  telefoneEntregador(atendimento: DeliveryAtendimento): string | null {
+    return atendimento.entregador?.telefone?.trim()
+      || atendimento.telefone_entregador?.trim()
+      || null;
+  }
+
+  podeGerenciarEntregadores(): boolean {
+    const turno = this.normalizarPapel(this.auth.porteiroInfo()?.turno);
+    return ['SINDICO', 'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN'].includes(turno);
+  }
+
   podeAutorizar(atendimento: DeliveryAtendimento): boolean {
     const idEntregador = this.entregadorSelecionadoId() ?? atendimento.entregador?.id;
     const entregador = this.entregadores().find((item) => item.id === idEntregador) ?? atendimento.entregador;
-    return entregador?.status !== 'BLOQUEADO';
+    return !!entregador && entregador.status === 'ATIVO';
   }
 
   atualizarStatus(status: DeliveryStatus): void {
     const atendimento = this.selecionado();
     if (!atendimento || !this.proximosStatus(atendimento).includes(status)) return;
     if (status === 'AUTORIZADA' && !this.podeAutorizar(atendimento)) {
-      this.erro.set('Entregador bloqueado não pode ser autorizado.');
+      const idEntregador = this.entregadorSelecionadoId() ?? atendimento.entregador?.id;
+      this.erro.set(idEntregador
+        ? 'Entregador bloqueado não pode ser autorizado.'
+        : 'Identifique o entregador antes de autorizar.');
       return;
     }
     const motivo = this.motivo().trim();
@@ -176,17 +195,33 @@ export class DeliveryPageComponent implements OnInit {
   }
 
   editarEntregador(entregador: DeliveryEntregador): void {
-    this.entregadorEmEdicao.set({ ...entregador, veiculos: [...entregador.veiculos] });
+    if (!this.podeGerenciarEntregadores()) return;
+    const veiculos = entregador.veiculos.length
+      ? entregador.veiculos.map((veiculo) => ({ ...veiculo }))
+      : [{ tipo: 'Moto', placa: '', modelo: '', cor: '' }];
+    this.entregadorEmEdicao.set({ ...entregador, veiculos });
     this.motivoBloqueio = entregador.motivo_bloqueio ?? '';
+  }
+
+  removerVeiculoEmEdicao(): void {
+    const entregador = this.entregadorEmEdicao();
+    if (entregador) entregador.veiculos = [{ tipo: '', placa: '', modelo: '', cor: '' }];
   }
 
   salvarEntregador(): void {
     const entregador = this.entregadorEmEdicao();
     if (!entregador) return;
+    if (!this.podeGerenciarEntregadores()) {
+      this.erro.set('Somente síndico ou administrador pode editar entregadores.');
+      return;
+    }
     if (entregador.status === 'BLOQUEADO' && !this.motivoBloqueio.trim()) {
       this.erro.set('Informe o motivo do bloqueio.');
       return;
     }
+    const principal = entregador.veiculos[0];
+    const temVeiculo = principal && [principal.placa, principal.tipo, principal.modelo, principal.cor]
+      .some((valor) => !!valor?.trim());
     this.api.atualizarEntregador(entregador.id, {
       nome: entregador.nome,
       telefone: entregador.telefone ?? undefined,
@@ -194,6 +229,14 @@ export class DeliveryPageComponent implements OnInit {
       plataforma: entregador.plataforma ?? undefined,
       status: entregador.status,
       motivo_bloqueio: entregador.status === 'BLOQUEADO' ? this.motivoBloqueio.trim() : undefined,
+      veiculo: temVeiculo
+        ? {
+            placa: principal.placa ?? '',
+            tipo: principal.tipo ?? '',
+            modelo: principal.modelo ?? '',
+            cor: principal.cor ?? '',
+          }
+        : null,
     }).subscribe({
       next: (atualizado) => {
         this.entregadores.update((lista) => lista.map((item) =>
@@ -213,6 +256,26 @@ export class DeliveryPageComponent implements OnInit {
 
   private normalizar(valor: string): string {
     return valor.toLocaleUpperCase('pt-BR').replace(/[^A-Z0-9]/g, '');
+  }
+
+  private normalizarPapel(valor: string | null | undefined): string {
+    return (valor ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  }
+
+  private correspondeBusca(atendimento: DeliveryAtendimento, busca: string): boolean {
+    if (!busca) return true;
+    const unidade = `${atendimento.apartamento.bloco ?? ''}${atendimento.apartamento.apto}`;
+    const entregador = atendimento.entregador;
+    const valores = [
+      unidade,
+      atendimento.estabelecimento,
+      atendimento.nome_entregador,
+      atendimento.telefone_entregador,
+      entregador?.nome,
+      entregador?.telefone,
+      ...((entregador?.veiculos ?? []).map((veiculo) => veiculo.placa)),
+    ];
+    return valores.some((valor) => this.normalizar(valor ?? '').includes(busca));
   }
 
   private definirErro(error: unknown, fallback: string): void {
