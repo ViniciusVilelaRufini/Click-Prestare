@@ -7,7 +7,10 @@ import { promisify } from 'util';
 dns.setDefaultResultOrder('ipv4first');
 const dnsLookup = promisify(dns.lookup);
 
+/** Conta do Workspace que autentica no SMTP. */
 const OFFICIAL_EMAIL = 'suporte@clickprestarecondominios.com.br';
+/** Remetente exibido: alias da mesma conta no domínio novo ("enviar como" no Gmail). */
+const OFFICIAL_FROM = 'suporte@prestarecondominios.com.br';
 const OFFICIAL_NAME = 'Prestare Condomínios';
 
 @Injectable()
@@ -31,14 +34,10 @@ export class MailService implements OnModuleInit {
       this.logger.error(`SMTP_USER aponta para conta pessoal (${this.smtpUser}); configure a conta oficial no ambiente.`);
     }
 
-    let fromEmail =
-      clean(process.env.MAIL_FROM) ||
-      clean(process.env.SMTP_FROM) ||
-      this.smtpUser ||
-      OFFICIAL_EMAIL;
+    let fromEmail = clean(process.env.MAIL_FROM) || clean(process.env.SMTP_FROM) || OFFICIAL_FROM;
 
-    if (!fromEmail || fromEmail.toLowerCase().includes('viniciusrufini') || fromEmail === 'onboarding@resend.dev') {
-      fromEmail = OFFICIAL_EMAIL;
+    if (fromEmail.toLowerCase().includes('viniciusrufini') || fromEmail === 'onboarding@resend.dev') {
+      fromEmail = OFFICIAL_FROM;
     }
 
     const fromName =
