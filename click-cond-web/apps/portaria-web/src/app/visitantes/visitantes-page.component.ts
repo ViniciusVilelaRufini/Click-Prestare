@@ -1116,9 +1116,19 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.entradaJanelaFim.set(this.localDateTime(4));
   }
 
-  /** Situação de uma unidade no modal de entrada, em texto claro e com o tom da cor. */
+  /**
+   * Situação de uma unidade no modal de entrada, em texto claro e com o tom
+   * da cor. `liberado` sozinho não diz QUEM liberou — o cadastro feito pela
+   * portaria/síndico em "Registrar nova visita" também grava `liberado: 1`
+   * (ver `create`/`createViaPessoasVisitas` na API). Só `auth_status ===
+   * 'autorizado'` vem de fato do morador: é setado só em `autorizar()`/
+   * `autorizarViaPessoasVisitas()` (app do morador) e na transição
+   * pendente→autorizado da portaria remota. Por isso o texto "pelo morador"
+   * exige esse campo — `liberado` sem ele é liberação da portaria.
+   */
   situacaoUnidade(apto: ApartamentoVisitado): { texto: string; tom: 'ok' | 'aviso' | 'info' | 'neutro' } {
-    if (apto.liberado || apto.auth_status === 'autorizado') return { texto: 'Liberado pelo morador', tom: 'ok' };
+    if (apto.auth_status === 'autorizado') return { texto: 'Liberado pelo morador', tom: 'ok' };
+    if (apto.liberado) return { texto: 'Liberado pela portaria', tom: 'ok' };
     if (apto.auth_status === 'pendente') return { texto: 'Aguardando o morador', tom: 'aviso' };
     if (apto.autorizacao_expirada) return { texto: 'Autorização expirada', tom: 'aviso' };
     if (apto.noLocal) return { texto: 'Dentro do condomínio', tom: 'info' };
