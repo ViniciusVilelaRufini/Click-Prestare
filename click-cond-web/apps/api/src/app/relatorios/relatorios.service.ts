@@ -5,6 +5,7 @@ import { TDocumentDefinitions } from 'pdfmake/interfaces';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial-visitante-lookup.util';
 import { csvCelula } from '../common/csv.util';
+import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 
 const pdfmake = require('pdfmake');
 
@@ -292,7 +293,7 @@ export class RelatoriosService {
         Descrição: o.descricao || 'Sem descrição',
         Status: o.status,
         Criado: formatDateTime(o.created_at),
-        'Criado Por': o.criadoPor?.name || (o.categoria?.nome === 'Dispositivos' ? 'Sistema' : 'Morador'),
+        'Criado Por': autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
         Resposta: o.resposta || 'Sem resposta',
         'Respondido Em': o.resposta_at ? formatDateTime(o.resposta_at) : '-',
       }));
@@ -326,7 +327,7 @@ export class RelatoriosService {
                 o.descricao || '-',
                 formatDateTime(o.created_at),
                 o.status,
-                o.criadoPor?.name || (o.categoria?.nome === 'Dispositivos' ? 'Sistema' : 'Morador'),
+                autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
               ]),
             ],
           },
@@ -989,9 +990,7 @@ export class RelatoriosService {
           descricao: o.descricao || 'Sem descrição',
           status: o.status,
           dataEntrada: o.created_at.toISOString(),
-          // Ocorrência sem `user` vinculado costuma ser gerada pelo monitoramento
-          // de dispositivo (categoria "Dispositivos"), não por um morador.
-          autorizadoPor: o.criadoPor?.name || (o.categoria?.nome === 'Dispositivos' ? 'Sistema' : 'Morador'),
+          autorizadoPor: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
           resposta: o.resposta || undefined,
           dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
         },

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial-visitante-lookup.util';
+import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 
 export interface DashboardSummary {
   visitantesAtivos: number;
@@ -524,9 +525,7 @@ export class DashboardService {
           descricao: o.descricao || 'Sem descrição',
           status: o.status,
           dataEntrada: o.created_at.toISOString(),
-          // Sem `user` vinculado costuma ser ocorrência gerada pelo monitoramento
-          // de dispositivo (categoria "Dispositivos"), não por um morador.
-          autorizadoPor: o.criadoPor?.name || (o.categoria?.nome === 'Dispositivos' ? 'Sistema' : 'Morador'),
+          autorizadoPor: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
           resposta: o.resposta || undefined,
           dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
         },

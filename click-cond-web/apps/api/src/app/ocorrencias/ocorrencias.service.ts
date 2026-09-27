@@ -5,6 +5,7 @@ import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { autorOcorrencia } from './autor-ocorrencia.util';
 
 export type OcorrenciaStatus = 'Pendente' | 'Ciente' | 'Solucionado';
 
@@ -190,21 +191,10 @@ export class OcorrenciasService {
       prazo: o.prazo,
       id_responsavel: o.id_responsavel,
       responsavelNome: o.id_responsavel ? nomes.get(o.id_responsavel) ?? null : null,
-      criadoPorNome: o.criadoPor?.name ?? this.autorPadrao(o.categoria?.nome),
+      criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
       created_at: o.created_at,
       publica: o.publica,
     }));
-  }
-
-  /**
-   * Sem `user` (ocorrência sem autor humano vinculado), o front mostrava
-   * "Autor: Morador" mesmo quando a ocorrência foi gerada automaticamente
-   * pelo monitoramento de dispositivo (categoria "Dispositivos" — ver
-   * facial.service.ts). Não há coluna de origem; a categoria já denuncia
-   * quem gerou o ticket, então usamos ela como sinal.
-   */
-  private autorPadrao(categoriaNome?: string | null): string {
-    return categoriaNome === 'Dispositivos' ? 'Sistema' : 'Morador';
   }
 
   async findOne(id: number, requester?: JwtPayload) {
@@ -224,7 +214,7 @@ export class OcorrenciasService {
       tipoNome: o.categoria?.nome ?? null,
       sla_horas: o.categoria?.sla_horas ?? null,
       responsavelNome: o.id_responsavel ? nomes.get(o.id_responsavel) ?? null : null,
-      criadoPorNome: o.criadoPor?.name ?? this.autorPadrao(o.categoria?.nome),
+      criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
     };
   }
 
