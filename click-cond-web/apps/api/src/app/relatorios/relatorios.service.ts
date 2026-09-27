@@ -1005,7 +1005,9 @@ export class RelatoriosService {
         tipo: 'Ocorrência',
         descricao: a.descricao,
         quando: a.created_at.toISOString(),
-        direcao: isOffline ? 'saida' : 'entrada',
+        // Evento de status de dispositivo (não é entrada/saída de pessoa):
+        // selo próprio Offline/Online, ver shared/direcao-label.util.ts.
+        direcao: isOffline ? 'offline' : 'online',
         detalhes: {
           id: a.id,
           nome: 'Dispositivos',

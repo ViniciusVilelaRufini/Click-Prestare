@@ -1047,11 +1047,11 @@
                     @if (ev.direcao) {
                       <span class="inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded border"
                             [ngClass]="{
-                              'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25': ev.direcao === 'entrada',
-                              'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25': ev.direcao === 'saida',
+                              'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25': ev.direcao === 'entrada' || ev.direcao === 'online',
+                              'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25': ev.direcao === 'saida' || ev.direcao === 'offline',
                               'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25': ev.direcao === 'bloqueado'
                             }">
-                        {{ ev.direcao === 'entrada' ? 'Entrada' : ev.direcao === 'saida' ? 'Saída' : 'Bloqueado' }}
+                        {{ direcaoLabel(ev.direcao, ev.tipo) }}
                       </span>
                     } @else {
                       <span class="text-slate-400">—</span>

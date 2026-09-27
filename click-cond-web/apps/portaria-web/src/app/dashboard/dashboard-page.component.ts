@@ -9,6 +9,7 @@ import { VisitantesService, Pessoa } from '../visitantes/visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ServerClockService } from '../core/server-clock.service';
 import { NetworkStatusService } from '../core/network-status.service';
+import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
 
 @Component({
   selector: 'app-dashboard-page',
@@ -496,21 +497,12 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Selo (badge) do evento na lista/modal de detalhes. Eventos reais de
-   * acesso de pessoas mostram Entrada/Saída/Bloqueado; eventos de status de
-   * dispositivo (dashboard.service#ultAuditLogs, "dispositivos") têm selo
-   * próprio Offline/Online — não são entrada/saída de ninguém.
+   * Selo (badge) do evento na lista/modal de detalhes. Lógica compartilhada
+   * com a página de Relatórios em shared/direcao-label.util.ts — ver lá o
+   * porquê de dispositivo (Offline/Online) não poder herdar Entrada/Saída.
    */
   direcaoLabel(direcao: string | undefined, tipo: string): string {
-    switch (direcao) {
-      case 'entrada': return 'Entrada';
-      case 'saida': return 'Saída';
-      case 'offline': return 'Offline';
-      case 'online': return 'Online';
-      case 'negado':
-      case 'bloqueado': return 'Bloqueado';
-      default: return tipo;
-    }
+    return direcaoLabelUtil(direcao, tipo);
   }
 
   abrirDetalhes(evento: any) {

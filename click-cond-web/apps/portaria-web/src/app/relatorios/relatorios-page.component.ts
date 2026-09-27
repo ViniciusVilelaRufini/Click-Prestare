@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RelatoriosApi } from './relatorios.service';
+import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
 
 @Component({
   selector: 'app-relatorios-page',
@@ -356,6 +357,17 @@ export class RelatoriosPageComponent {
     const h = String(d.getHours()).padStart(2, '0');
     const m = String(d.getMinutes()).padStart(2, '0');
     return `${dia}/${mes}/${ano} ${h}:${m}`;
+  }
+
+  /**
+   * Selo (badge) da coluna "Direção" do log de eventos. Lógica compartilhada
+   * com o Dashboard em shared/direcao-label.util.ts: eventos reais de acesso
+   * de pessoas mostram Entrada/Saída/Bloqueado; eventos de status de
+   * dispositivo (relatorios.service.ts#getEventos, AuditLog "dispositivos")
+   * têm selo próprio Offline/Online — não são entrada/saída de ninguém.
+   */
+  direcaoLabel(direcao: string | undefined, tipo: string): string {
+    return direcaoLabelUtil(direcao, tipo);
   }
 
   setTipo(t: 'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro') {
