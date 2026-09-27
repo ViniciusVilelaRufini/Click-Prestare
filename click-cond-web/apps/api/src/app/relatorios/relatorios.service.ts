@@ -292,7 +292,7 @@ export class RelatoriosService {
         Descrição: o.descricao || 'Sem descrição',
         Status: o.status,
         Criado: formatDateTime(o.created_at),
-        'Criado Por': o.criadoPor?.name || 'Morador',
+        'Criado Por': o.criadoPor?.name || (o.categoria?.nome === 'Dispositivos' ? 'Sistema' : 'Morador'),
         Resposta: o.resposta || 'Sem resposta',
         'Respondido Em': o.resposta_at ? formatDateTime(o.resposta_at) : '-',
       }));
@@ -312,7 +312,7 @@ export class RelatoriosService {
           metrics: [
             { label: 'Total Registrado', value: list.length.toString() },
             { label: 'Ocorrências Pendentes', value: list.filter((o) => o.status === 'Pendente').length.toString() },
-            { label: 'Resolvidas', value: list.filter((o) => o.status === 'Resolvido').length.toString() },
+            { label: 'Resolvidas', value: list.filter((o) => o.status === 'Solucionado').length.toString() },
           ],
           table: {
             widths: ['auto', '*', 'auto', 'auto', 'auto'],
@@ -326,7 +326,7 @@ export class RelatoriosService {
                 o.descricao || '-',
                 formatDateTime(o.created_at),
                 o.status,
-                o.criadoPor?.name || 'Morador',
+                o.criadoPor?.name || (o.categoria?.nome === 'Dispositivos' ? 'Sistema' : 'Morador'),
               ]),
             ],
           },
@@ -989,7 +989,9 @@ export class RelatoriosService {
           descricao: o.descricao || 'Sem descrição',
           status: o.status,
           dataEntrada: o.created_at.toISOString(),
-          autorizadoPor: o.criadoPor?.name || 'Morador',
+          // Ocorrência sem `user` vinculado costuma ser gerada pelo monitoramento
+          // de dispositivo (categoria "Dispositivos"), não por um morador.
+          autorizadoPor: o.criadoPor?.name || (o.categoria?.nome === 'Dispositivos' ? 'Sistema' : 'Morador'),
           resposta: o.resposta || undefined,
           dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
         },

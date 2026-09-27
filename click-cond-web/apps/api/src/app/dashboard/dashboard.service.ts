@@ -524,7 +524,9 @@ export class DashboardService {
           descricao: o.descricao || 'Sem descrição',
           status: o.status,
           dataEntrada: o.created_at.toISOString(),
-          autorizadoPor: o.criadoPor?.name || 'Morador',
+          // Sem `user` vinculado costuma ser ocorrência gerada pelo monitoramento
+          // de dispositivo (categoria "Dispositivos"), não por um morador.
+          autorizadoPor: o.criadoPor?.name || (o.categoria?.nome === 'Dispositivos' ? 'Sistema' : 'Morador'),
           resposta: o.resposta || undefined,
           dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
         },

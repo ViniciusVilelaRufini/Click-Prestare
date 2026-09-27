@@ -220,7 +220,7 @@ async function generate(idCondominio, tipo, formato, dataInicio, dataFim) {
       metrics: [
         { label: 'Total Registrado', value: String(list.length) },
         { label: 'Ocorrências Pendentes', value: String(list.filter((o) => o.status === 'Pendente').length) },
-        { label: 'Resolvidas', value: String(list.filter((o) => o.status === 'Resolvido').length) },
+        { label: 'Resolvidas', value: String(list.filter((o) => o.status === 'Solucionado').length) },
       ],
       table: {
         widths: ['auto', '*', 'auto', 'auto', 'auto'],

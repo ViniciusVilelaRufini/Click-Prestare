@@ -744,7 +744,7 @@ export class FacialService {
         await this.prisma.ocorrencias.update({
           where: { id: oco.id },
           data: {
-            status: 'Resolvido',
+            status: 'Solucionado',
             resposta: 'O dispositivo voltou a ficar online.',
             resposta_at: new Date(),
           },
