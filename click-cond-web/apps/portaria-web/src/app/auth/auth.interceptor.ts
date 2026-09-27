@@ -20,11 +20,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     req = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
   }
 
-  // Em produção, direciona chamadas /api diretamente para api.clickprestarecondominios.com.br
+  // Em produção, direciona chamadas /api diretamente para api.prestarecondominios.com.br
   // contornando o proxy reverso do Amplify para preservar o IP real do cliente.
   if (shouldDirectToApi() && req.url.startsWith('/api')) {
     req = req.clone({
-      url: `https://api.clickprestarecondominios.com.br${req.url}`,
+      url: `https://api.prestarecondominios.com.br${req.url}`,
     });
   }
 

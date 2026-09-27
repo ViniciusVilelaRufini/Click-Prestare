@@ -9,7 +9,7 @@ export function shouldDirectToApi(hostname?: string): boolean {
 }
 
 export const API_BASE = (() => {
-  return isLocalHost() ? '/api' : 'https://api.clickprestarecondominios.com.br/api';
+  return isLocalHost() ? '/api' : 'https://api.prestarecondominios.com.br/api';
 })();
 
 /**
@@ -19,5 +19,5 @@ export const API_BASE = (() => {
  * Em desenvolvimento local, conecta na porta 3000.
  */
 export const REALTIME_ORIGIN = (() => {
-  return isLocalHost() ? 'http://localhost:3000' : 'https://api.clickprestarecondominios.com.br';
+  return isLocalHost() ? 'http://localhost:3000' : 'https://api.prestarecondominios.com.br';
 })();

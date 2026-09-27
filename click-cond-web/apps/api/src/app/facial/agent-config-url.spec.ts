@@ -35,7 +35,7 @@ describe('FacialController.agentConfig — API_URL gravado no instalador', () =>
 
   it.each([['env'], ['bat']])('formato %s usa o domínio HTTPS da API, não os cabeçalhos', async (format) => {
     delete process.env['PUBLIC_API_URL'];
-    await expect(baixar(format)).resolves.toBe('https://api.clickprestarecondominios.com.br');
+    await expect(baixar(format)).resolves.toBe('https://api.prestarecondominios.com.br');
   });
 
   it('PUBLIC_API_URL continua mandando quando definido', async () => {
