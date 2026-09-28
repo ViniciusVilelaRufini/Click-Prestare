@@ -70,12 +70,22 @@ jobs:
           BUNDLE_BUCKET="elasticbeanstalk-${AWS_REGION}-${ACCOUNT_ID}"
 
           test "$APPLICATION_NAME" != "None"
-          aws s3 cp deploy-api-aws.zip "s3://${BUNDLE_BUCKET}/${BUNDLE_KEY}"
-          aws elasticbeanstalk create-application-version \
+          # Re-execução do mesmo commit (ex.: 1ª tentativa pegou o ambiente
+          # ocupado): a versão já existe — reaproveita em vez de falhar.
+          EXISTE="$(aws elasticbeanstalk describe-application-versions \
             --application-name "$APPLICATION_NAME" \
-            --version-label "$VERSION_LABEL" \
-            --source-bundle "S3Bucket=${BUNDLE_BUCKET},S3Key=${BUNDLE_KEY}" \
-            --process
+            --version-labels "$VERSION_LABEL" \
+            --query 'length(ApplicationVersions)' --output text)"
+          if [ "$EXISTE" = "0" ]; then
+            aws s3 cp deploy-api-aws.zip "s3://${BUNDLE_BUCKET}/${BUNDLE_KEY}"
+            aws elasticbeanstalk create-application-version \
+              --application-name "$APPLICATION_NAME" \
+              --version-label "$VERSION_LABEL" \
+              --source-bundle "S3Bucket=${BUNDLE_BUCKET},S3Key=${BUNDLE_KEY}" \
+              --process
+          else
+            echo "Versão $VERSION_LABEL já existe; reaproveitando."
+          fi
 
           {
             echo "application_name=$APPLICATION_NAME"
@@ -86,6 +96,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Push em master e main disparam dois deploys: espera o anterior
+          # terminar (ambiente Ready) em vez de falhar com "invalid state".
+          aws elasticbeanstalk wait environment-updated \
+            --environment-names "$ENVIRONMENT_NAME"
           aws elasticbeanstalk update-environment \
             --environment-name "$ENVIRONMENT_NAME" \
             --version-label "${{ steps.application.outputs.version_label }}"
