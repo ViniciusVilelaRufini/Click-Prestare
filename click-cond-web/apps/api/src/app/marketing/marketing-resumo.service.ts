@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { diaBrt, inicioDiaBrt, fimDiaBrt } from './datas-brt';
 
 type Canal = 'google' | 'openai' | 'instagram' | 'organico';
 const CANAIS: Canal[] = ['google', 'openai', 'instagram', 'organico'];
@@ -30,15 +31,18 @@ export interface ResumoMarketing {
 }
 
 const div = (a: number, b: number) => (b > 0 ? a / b : null);
-const dia = (d: Date) => new Date(d).toISOString().slice(0, 10);
+// crm_Anuncios_Diario.dia já é a data-calendário BRT armazenada como meia-noite
+// UTC (ver marketing-ads.service upsert) — não precisa (nem deve) passar por
+// diaBrt de novo, só fatiar a string ISO.
+const diaAds = (d: Date) => new Date(d).toISOString().slice(0, 10);
 
 @Injectable()
 export class MarketingResumoService {
   constructor(private readonly prisma: PrismaService) {}
 
   async resumo(de: Date, ate: Date): Promise<ResumoMarketing> {
-    const deDia = new Date(`${dia(de)}T00:00:00.000Z`);
-    const ateDia = new Date(`${dia(ate)}T00:00:00.000Z`);
+    const deDia = new Date(`${diaBrt(de)}T00:00:00.000Z`);
+    const ateDia = new Date(`${diaBrt(ate)}T00:00:00.000Z`);
     const [ads, leads, fg, fo] = await Promise.all([
       this.prisma.crm_Anuncios_Diario.findMany({ where: { dia: { gte: deDia, lte: ateDia } } }),
       this.prisma.crm_Leads.findMany({ where: { criado_em: { gte: de, lte: ate } }, select: { origem: true, status: true, criado_em: true } }),
@@ -68,20 +72,20 @@ export class MarketingResumoService {
 
     const porDia = new Map<string, { gasto: number; leads: number }>();
     for (const a of ads as any[]) {
-      const k = dia(a.dia);
+      const k = diaAds(a.dia);
       const v = porDia.get(k) ?? { gasto: 0, leads: 0 };
       v.gasto += Number(a.gasto);
       porDia.set(k, v);
     }
     for (const l of leads as any[]) {
-      const k = dia(l.criado_em);
+      const k = diaBrt(l.criado_em);
       const v = porDia.get(k) ?? { gasto: 0, leads: 0 };
       v.leads += 1;
       porDia.set(k, v);
     }
 
     return {
-      periodo: { de: dia(de), ate: dia(ate) },
+      periodo: { de: diaBrt(de), ate: diaBrt(ate) },
       investimento,
       leads: leads.length,
       custoPorLead: div(investimento, leads.length),

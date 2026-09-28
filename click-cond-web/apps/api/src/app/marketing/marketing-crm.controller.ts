@@ -2,10 +2,21 @@ import { Body, Controller, Get, Param, ParseIntPipe, Patch, Query, UseGuards } f
 import { CrmAdminGuard } from '../crm/crm-admin.guard';
 import { MarketingLeadsService } from './marketing-leads.service';
 import { MarketingResumoService } from './marketing-resumo.service';
+import { diaBrt, fimDiaBrt, inicioDiaBrt } from './datas-brt';
 
-function data(v?: string): Date | undefined {
+// 'de'/'ate' chegam como YYYY-MM-DD (filtro do CRM) e viram início/fim do dia
+// em BRT (America/Sao_Paulo, UTC-3), não UTC — servidor roda em UTC mas quem
+// filtra pensa em dia local. Uma string ISO completa (com 'T') é aceita como
+// veio, sem reinterpretar o horário.
+function dataInicio(v?: string): Date | undefined {
   if (!v) return undefined;
-  const d = new Date(v);
+  const d = v.includes('T') ? new Date(v) : inicioDiaBrt(v);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+function dataFim(v?: string): Date | undefined {
+  if (!v) return undefined;
+  const d = v.includes('T') ? new Date(v) : fimDiaBrt(v);
   return isNaN(d.getTime()) ? undefined : d;
 }
 
@@ -16,7 +27,7 @@ export class MarketingCrmController {
 
   @Get('leads')
   listar(@Query('status') status?: string, @Query('origem') origem?: string, @Query('de') de?: string, @Query('ate') ate?: string) {
-    return this.leads.listar({ status, origem, de: data(de), ate: data(ate) });
+    return this.leads.listar({ status, origem, de: dataInicio(de), ate: dataFim(ate) });
   }
 
   @Patch('leads/:id')
@@ -26,9 +37,8 @@ export class MarketingCrmController {
 
   @Get('resumo')
   resumo(@Query('de') de?: string, @Query('ate') ate?: string) {
-    const fim = data(ate) ?? new Date();
-    const inicio = data(de) ?? new Date(fim.getTime() - 29 * 24 * 60 * 60 * 1000);
-    fim.setUTCHours(23, 59, 59, 999);
+    const fim = dataFim(ate) ?? fimDiaBrt(diaBrt(new Date()));
+    const inicio = dataInicio(de) ?? inicioDiaBrt(diaBrt(new Date(fim.getTime() - 29 * 24 * 60 * 60 * 1000)));
     return this.resumoSvc.resumo(inicio, fim);
   }
 }

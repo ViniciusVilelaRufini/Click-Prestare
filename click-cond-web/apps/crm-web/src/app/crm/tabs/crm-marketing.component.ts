@@ -7,7 +7,15 @@ import { Canal, Lead, LeadStatus, MarketingApi, ResumoMarketing } from '../marke
 
 type Periodo = '7d' | '30d' | 'mes' | 'custom';
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Usa partes locais (não toISOString, que é UTC): o navegador do usuário já
+// está em horário local (BRT), então getFullYear/getMonth/getDate dão o dia
+// certo mesmo perto da meia-noite.
+const iso = (d: Date) => {
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+};
 
 /**
  * Aba Marketing: quanto as campanhas custam, quantos pedidos de orçamento
@@ -74,7 +82,7 @@ export class CrmMarketingComponent implements OnInit {
     const hoje = new Date();
     if (p === '7d') this.de.set(iso(new Date(Date.now() - 6 * 864e5)));
     if (p === '30d') this.de.set(iso(new Date(Date.now() - 29 * 864e5)));
-    if (p === 'mes') this.de.set(iso(new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), 1))));
+    if (p === 'mes') this.de.set(iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)));
     if (p !== 'custom') this.ate.set(iso(hoje));
     if (p !== 'custom') this.carregar();
   }
@@ -83,7 +91,7 @@ export class CrmMarketingComponent implements OnInit {
     this.carregando.set(true);
     forkJoin({
       resumo: this.api.resumo(this.de(), this.ate()),
-      leads: this.api.leads({ de: this.de(), ate: `${this.ate()}T23:59:59`, status: this.filtroStatus() || undefined, origem: this.filtroOrigem() || undefined }),
+      leads: this.api.leads({ de: this.de(), ate: this.ate(), status: this.filtroStatus() || undefined, origem: this.filtroOrigem() || undefined }),
     }).subscribe({
       next: ({ resumo, leads }) => {
         this.resumo.set(resumo);

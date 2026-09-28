@@ -47,6 +47,20 @@ describe('MarketingResumoService', () => {
     expect(r.frescor.google).toBe('2026-09-27T10:00:00.000Z');
   });
 
+  it('bucketiza lead noturno (BRT) no dia correto mesmo virando o dia em UTC', async () => {
+    const svc = montar(
+      [],
+      [
+        // 2026-09-10T23:30:00-03:00 = 2026-09-11T02:30:00Z: em UTC já é dia 11,
+        // mas em BRT ainda é dia 10 — o resumo deve contar no dia 10.
+        { origem: 'organico', status: 'novo', criado_em: new Date('2026-09-11T02:30:00.000Z') },
+      ],
+    );
+    const r = await svc.resumo(de, ate);
+    expect(r.diario.find((d) => d.dia === '2026-09-10')).toEqual({ dia: '2026-09-10', gasto: 0, leads: 1 });
+    expect(r.diario.find((d) => d.dia === '2026-09-11')).toBeUndefined();
+  });
+
   it('sem leads nem gasto não divide por zero', async () => {
     const r = await montar([], []).resumo(de, ate);
     expect(r.custoPorLead).toBeNull();
