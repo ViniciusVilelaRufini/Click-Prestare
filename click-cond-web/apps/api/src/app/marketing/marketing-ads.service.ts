@@ -39,10 +39,6 @@ function linhaValida(r: any): LinhaAnuncio {
   };
 }
 
-function isoDia(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 @Injectable()
 export class MarketingAdsService implements OnModuleInit {
   private readonly logger = new Logger(MarketingAdsService.name);
@@ -101,9 +97,7 @@ export class MarketingAdsService implements OnModuleInit {
       this.logger.warn('OPENAI_ADS_API_KEY ausente — sync da OpenAI Ads desligado');
       return 0;
     }
-    const ate = new Date();
-    const de = new Date(ate.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const linhas = await this.openai.buscarDiario(isoDia(de), isoDia(ate));
+    const linhas = await this.openai.buscarDiario(7);
     return this.upsert('openai', linhas.filter((l) => DIA.test(l.dia) && l.campanha_id));
   }
 }
