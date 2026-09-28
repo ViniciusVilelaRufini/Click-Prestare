@@ -666,8 +666,10 @@
           </a>
         </div>
 
-        <a href="https://www.instagram.com/prestare.gestao/" target="_blank" rel="noopener noreferrer" aria-label="Ver fotos do escritório no Instagram da Prestare" style="display: block; min-width: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-app); border: 1px solid var(--border-subtle); box-shadow: 0 12px 28px rgba(15, 23, 42, .1);">
-          <img src="/sobre/assets/instagram-prestare-office.png" alt="Recepção e espaço de trabalho do escritório Prestare Gestão" width="1776" height="888" loading="lazy" style="display: block; width: 100%; aspect-ratio: 2 / 1; object-fit: cover; transition: transform 300ms ease;" style-hover="transform: scale(1.02);">
+        <a href="https://www.instagram.com/prestare.gestao/" target="_blank" rel="noopener noreferrer" aria-label="Ver fotos do escritório no Instagram da Prestare" style="display: block; position: relative; min-width: 0; width: 100%; aspect-ratio: 2 / 1; max-height: 340px; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-app); border: 1px solid var(--border-subtle); box-shadow: 0 12px 28px rgba(15, 23, 42, .1);">
+          <!-- A proporção fica no contêiner: aplicada só na <img>, o runtime da página
+               respeitava os atributos width/height e a foto saía em retrato. -->
+          <img src="/sobre/assets/instagram-prestare-office.png" alt="Recepção e espaço de trabalho do escritório Prestare Gestão" width="1776" height="888" loading="lazy" style="position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-width: none; object-fit: cover; transition: transform 300ms ease;" style-hover="transform: scale(1.02);">
         </a>
       </div>
     </div>
