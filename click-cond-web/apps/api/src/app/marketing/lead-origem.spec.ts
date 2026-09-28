@@ -45,6 +45,11 @@ describe('leadDeClique', () => {
     expect(r.nome).toBe('Clique no Instagram (sem dados)');
     expect(derivarOrigem(r)).toBe('organico');
   });
+  it('clique do simulador guarda a simulação nas unidades', () => {
+    const r = leadDeClique({ clique: 'whatsapp', unidades: '80 unidades · Plus · R$ 773,00/mês' })!;
+    expect(r.unidades).toBe('80 unidades · Plus · R$ 773,00/mês');
+    expect(leadDeClique({ clique: 'whatsapp' })!.unidades).toBe('—');
+  });
   it('corpo sem clique conhecido não é clique', () => {
     expect(leadDeClique({ clique: 'telefone' })).toBeNull();
     expect(leadDeClique({ nome: 'Ana' })).toBeNull();

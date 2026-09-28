@@ -71,7 +71,8 @@ export function leadDeClique(body: unknown): LeadEntrada | null {
   return {
     nome: `Clique no ${canal} (sem dados)`,
     condominio: '—',
-    unidades: '—',
+    // O simulador de valor manda o resumo da simulação (unidades · plano · valor).
+    unidades: opcional(b.unidades, 60) ?? '—',
     whatsapp: '',
     gclid: opcional(b.gclid, 255),
     oppref: opcional(b.oppref, 255),

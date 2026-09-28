@@ -77,11 +77,13 @@
     window.psConversaoOrcamento();
     // Clique direto (sem formulário) também vira lead no CRM, uma vez por canal na sessão.
     var canal = a.href.indexOf('ig.me/') >= 0 ? 'instagram' : 'whatsapp';
+    // Botão do simulador leva a simulação junto (vira as unidades do lead).
+    var sim = a.getAttribute('data-sim') || '';
     try {
-      if (sessionStorage.getItem('psClique_' + canal)) return;
-      sessionStorage.setItem('psClique_' + canal, '1');
+      if (sessionStorage.getItem('psClique_' + canal + sim)) return;
+      sessionStorage.setItem('psClique_' + canal + sim, '1');
     } catch (e2) {}
-    if (window.psRegistrarLead) window.psRegistrarLead({ clique: canal });
+    if (window.psRegistrarLead) window.psRegistrarLead(sim ? { clique: canal, unidades: sim } : { clique: canal });
   }, true);
 </script>
 <script src="/sobre/support.js"></script>
@@ -709,6 +711,35 @@
     </section>
   </sc-if>
 
+  <section id="simulador" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px; scroll-margin-top: 90px;">
+    <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: clamp(24px, 4vw, 44px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 36px; align-items: center;">
+      <div style="min-width: 0;">
+        <span style="font: var(--type-caption); color: var(--prestare-blue-600); text-transform: uppercase; letter-spacing: .08em;">Simulador de valor</span>
+        <h2 style="margin: 10px 0 0; font: var(--weight-extrabold) clamp(24px, 2.5vw, 34px)/1.15 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong);">Quanto custa para o seu condomínio?</h2>
+        <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted);">Informe o número de unidades e veja na hora o plano indicado e a mensalidade. Sem cadastro.</p>
+        <label style="display: grid; gap: 8px; margin-top: 22px;">
+          <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Número de unidades</span>
+          <input type="number" inputmode="numeric" min="1" max="5000" value="{{ simUnidades }}" onChange="{{ simAlterar }}" aria-label="Número de unidades do condomínio" style="font: var(--weight-extrabold) 28px/1.2 var(--font-ui); max-width: 200px;">
+          <input type="range" min="1" max="300" value="{{ simSlider }}" onChange="{{ simAlterar }}" aria-label="Ajustar número de unidades" style="width: 100%; accent-color: var(--prestare-blue-500);">
+        </label>
+        <p style="margin: 18px 0 0; font: var(--type-sub); color: var(--text-muted);">Funciona junto com o seu porteiro: ele ganha agilidade com visitantes, encomendas e acesso facial. Sem porteiro? Também atendemos.</p>
+      </div>
+      <div style="min-width: 0; background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-lg); padding: clamp(20px, 3vw, 32px);">
+        <sc-if value="{{ simTemValor }}" hint-placeholder-val="{{ true }}">
+          <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Plano indicado</span>
+          <div style="margin-top: 4px; font: var(--type-h2); color: var(--prestare-blue-700);">{{ simPlano }}</div>
+          <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">{{ simIncluso }}</p>
+          <div style="margin-top: 18px; font: var(--weight-extrabold) clamp(32px, 4vw, 44px)/1.05 var(--font-ui); color: var(--text-strong);">{{ simMensal }}<span style="font: var(--type-body); color: var(--text-muted);">/mês</span></div>
+          <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-body);">Equivale a <strong>{{ simPorUnidade }}</strong> por unidade · implantação única de {{ simImplantacao }}</p>
+          <a href="{{ simLink }}" data-sim="{{ simResumo }}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; justify-content: center; margin-top: 22px; padding: 14px 22px; border-radius: var(--radius-md); background: var(--prestare-blue-600); color: #fff; font: var(--type-body-strong); text-decoration: none; box-shadow: 0 2px 8px rgba(37,96,232,.25); transition: background 150ms ease, transform 150ms ease;" style-hover="background: var(--prestare-blue-700); color: #fff; transform: translateY(-1px);">Quero essa proposta pelo WhatsApp</a>
+        </sc-if>
+        <sc-if value="{{ simSemValor }}" hint-placeholder-val="{{ false }}">
+          <p style="margin: 0; font: var(--type-body); color: var(--text-muted);">Digite o número de unidades para ver o valor.</p>
+        </sc-if>
+      </div>
+    </div>
+  </section>
+
   <section id="contato" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 72px; scroll-margin-top: max(90px, calc(50vh - 280px));">
     <div style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: center;">
       <div style="min-width: 0;">
@@ -1057,7 +1088,8 @@ class Component extends DCLogic {
     consoleIndice: 0, menuAberto: false,
     cookieBanner: false, cookiePainel: false,
     cookieAnalytics: false, cookieMarketing: false,
-    emailPainel: false, emailCopiado: false
+    emailPainel: false, emailCopiado: false,
+    simUnidades: 60
   };
 
   // Ordem do carrossel do console. As legendas e os textos moram no TELAS,
@@ -1363,6 +1395,54 @@ class Component extends DCLogic {
     }
   };
 
+  // Tabela de preço em curva de U: as 30 primeiras unidades pagam o Compacto
+  // (valor fixo) e cada unidade seguinte paga o preço da sua faixa.
+  PLANOS = [
+    { nome: "Compacto", ate: 30, incluso: "1 bloco · 1 terminal facial · suporte comercial" },
+    { nome: "Padrão", ate: 60, incluso: "Até 2 blocos · 1 terminal facial" },
+    { nome: "Plus", ate: 120, incluso: "Até 3 blocos · 2 terminais faciais" },
+    { nome: "Corporativo", ate: Infinity, incluso: "Blocos ilimitados · terminais adicionais · gestor de conta · SLA prioritário · relatório mensal ao conselho" }
+  ];
+  IMPLANTACAO = 490;
+
+  calcularPlano = (n) => {
+    const faixa = (de, ate, valor) => Math.max(0, Math.min(n, ate) - de) * valor;
+    const mensal = 298 + faixa(30, 60, 9.9) + faixa(60, 120, 8.9) + faixa(120, Infinity, 11.9);
+    const plano = this.PLANOS.find((p) => n <= p.ate);
+    return { plano: plano.nome, incluso: plano.incluso, mensal: Math.round(mensal * 100) / 100 };
+  };
+
+  brl = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  simAlterar = (e) => {
+    const v = parseInt(String(e.target.value).replace(/\D/g, ""), 10);
+    this.setState({ simUnidades: Number.isFinite(v) ? Math.min(v, 5000) : "" });
+  };
+
+  simVals(num) {
+    const n = Number(this.state.simUnidades);
+    const ok = this.state.simUnidades !== "" && Number.isFinite(n) && n >= 1;
+    const c = ok ? this.calcularPlano(n) : null;
+    const resumo = ok ? n + " unidades · " + c.plano + " · " + this.brl(c.mensal) + "/mês" : "";
+    const msg = ok
+      ? "Olá! Simulei no site o plano " + c.plano + " para " + n + " unidades (" + this.brl(c.mensal) + "/mês + implantação de " + this.brl(this.IMPLANTACAO) + ") e quero uma proposta para o meu condomínio."
+      : "Olá! Quero um orçamento do Prestare Gestão para o meu condomínio.";
+    return {
+      simUnidades: this.state.simUnidades,
+      simSlider: ok ? Math.min(n, 300) : 1,
+      simAlterar: this.simAlterar,
+      simTemValor: ok,
+      simSemValor: !ok,
+      simPlano: c ? c.plano : "",
+      simIncluso: c ? c.incluso : "",
+      simMensal: c ? this.brl(c.mensal) : "",
+      simPorUnidade: c ? this.brl(c.mensal / n) : "",
+      simImplantacao: this.brl(this.IMPLANTACAO),
+      simResumo: resumo,
+      simLink: "https://wa.me/" + num + "?text=" + encodeURIComponent(msg)
+    };
+  }
+
   enviar = (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
@@ -1458,6 +1538,7 @@ class Component extends DCLogic {
       mostrarFaq: this.props.mostrarFaq ?? true,
       telefone: this.formatarTelefone(this.props.whatsapp ?? "5517996608148"),
       linkWhatsapp: "https://wa.me/" + num + "?text=" + encodeURIComponent("Olá! Quero um orçamento do Prestare Gestão para o meu condomínio."),
+      ...this.simVals(num),
       enviado: this.state.enviado,
       mostrarForm: !this.state.enviado,
       enviar: this.enviar,
