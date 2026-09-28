@@ -35,6 +35,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { CrmModule } from './crm/crm.module';
 import { MarketingModule } from './marketing/marketing.module';
+import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { VeiculosModule } from './veiculos/veiculos.module';
 import { VagasModule } from './vagas/vagas.module';
@@ -81,6 +82,7 @@ import { THROTTLERS } from './common/throttle/throttlers';
     AuditoriaModule,
     CrmModule,
     MarketingModule,
+    WhatsappModule,
     IntegrationsModule,
     VeiculosModule,
     VagasModule,

@@ -111,7 +111,7 @@
         <nav class="scrollbar-none flex min-h-0 flex-col items-center gap-1.5 overflow-y-auto">
           @for (item of navItens; track item.rota) {
             <a
-              class="rail-item press"
+              class="rail-item press relative"
               [routerLink]="item.rota"
               routerLinkActive="is-active"
               [routerLinkActiveOptions]="{ exact: false }"
@@ -122,6 +122,9 @@
                 <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="item.icone" />
               </svg>
               <span class="rail-tip">{{ item.label }}</span>
+              @if (item.rota === 'whatsapp' && naoLidasWa() > 0) {
+                <span class="absolute right-0.5 top-0.5 rounded-full bg-emerald-600 px-1.5 text-[10px] font-semibold leading-4 text-white">{{ naoLidasWa() }}</span>
+              }
             </a>
           }
         </nav>
@@ -157,6 +160,9 @@
                 <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="item.icone" />
               </svg>
               {{ item.labelCurto }}
+              @if (item.rota === 'whatsapp' && naoLidasWa() > 0) {
+                <span class="rounded-full bg-emerald-600 px-1.5 text-[10px] font-semibold text-white">{{ naoLidasWa() }}</span>
+              }
             </a>
           }
           <button

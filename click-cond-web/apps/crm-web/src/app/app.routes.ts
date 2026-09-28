@@ -49,6 +49,10 @@ export const appRoutes: Route[] = [
             loadComponent: () => import('./crm/tabs/crm-marketing.component').then((m) => m.CrmMarketingComponent),
           },
           {
+            path: 'whatsapp',
+            loadComponent: () => import('./crm/tabs/crm-whatsapp.component').then((m) => m.CrmWhatsappComponent),
+          },
+          {
             path: 'chamados',
             loadComponent: () => import('./crm/tabs/crm-chamados.component').then((m) => m.CrmChamadosComponent),
           },

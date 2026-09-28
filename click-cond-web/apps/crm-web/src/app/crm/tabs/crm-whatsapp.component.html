@@ -1,0 +1,71 @@
+<div class="grid h-[calc(100vh-10rem)] min-h-[480px] grid-cols-1 overflow-hidden rounded-xl border border-slate-200 bg-white md:grid-cols-[320px_1fr]">
+  <aside class="flex min-h-0 flex-col border-b border-slate-200 md:border-b-0 md:border-r" [class.hidden]="selecionadaId() !== null" [class.md:flex]="true">
+    <h2 class="border-b border-slate-200 px-4 py-3 text-sm font-semibold">Conversas</h2>
+    <ul class="min-h-0 flex-1 overflow-y-auto">
+      @for (c of conversas(); track c.id) {
+        <li>
+          <button type="button" (click)="abrir(c)" class="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-slate-50" [class.bg-emerald-50]="c.id === selecionadaId()">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-2">
+                <span class="truncate text-sm font-medium">{{ c.nome }}</span>
+                <span class="shrink-0 text-xs text-slate-500">{{ c.ultimaMsgEm | date: 'dd/MM HH:mm' }}</span>
+              </div>
+              <p class="truncate text-xs text-slate-500">{{ c.trecho }}</p>
+            </div>
+            @if (c.naoLidas > 0) {
+              <span class="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">{{ c.naoLidas }}</span>
+            }
+          </button>
+        </li>
+      } @empty {
+        <li class="px-4 py-6 text-sm text-slate-500">Nenhuma conversa ainda. Quando alguém mandar mensagem para o WhatsApp comercial, ela aparece aqui.</li>
+      }
+    </ul>
+  </aside>
+
+  <section class="flex min-h-0 flex-col" [class.hidden]="selecionadaId() === null" [class.md:flex]="true">
+    @if (selecionada(); as c) {
+      <header class="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
+        <div class="flex items-center gap-2">
+          <button type="button" class="md:hidden text-sm text-emerald-700" (click)="selecionadaId.set(null)">‹ Voltar</button>
+          <div>
+            <div class="text-sm font-semibold">{{ c.nome }}</div>
+            <div class="text-xs text-slate-500">+{{ c.waId }}</div>
+          </div>
+        </div>
+        @if (c.leadId) {
+          <a routerLink="../marketing" class="text-xs text-emerald-700 hover:underline">Ver lead</a>
+        }
+      </header>
+      <div class="min-h-0 flex-1 space-y-2 overflow-y-auto bg-slate-50 px-4 py-3">
+        @for (m of mensagens(); track m.id) {
+          <div class="flex" [class.justify-end]="m.direcao === 'saida'">
+            <div class="max-w-[75%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm shadow-sm"
+                 [class.bg-emerald-100]="m.direcao === 'saida'" [class.bg-white]="m.direcao === 'entrada'">
+              {{ m.texto }}
+              <div class="mt-1 text-right text-[11px] text-slate-500">
+                {{ m.criadoEm | date: 'dd/MM HH:mm' }} @if (m.direcao === 'saida') { · {{ marca(m) }} }
+              </div>
+            </div>
+          </div>
+        }
+        <div #fim></div>
+      </div>
+      @if (erro()) { <p class="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">{{ erro() }}</p> }
+      @if (c.janelaAberta) {
+        <form class="flex gap-2 border-t border-slate-200 p-3" (submit)="$event.preventDefault(); enviar()">
+          <textarea [(ngModel)]="texto" name="texto" rows="2" maxlength="4096" placeholder="Escreva a resposta…"
+                    (keydown.enter)="teclaEnter($any($event))"
+                    class="min-w-0 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm"></textarea>
+          <button type="submit" [disabled]="enviando() || !texto.trim()" class="rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Enviar</button>
+        </form>
+      } @else {
+        <p class="border-t border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          Janela de 24h fechada: pela regra do WhatsApp, só dá para responder depois que o cliente mandar uma nova mensagem.
+        </p>
+      }
+    } @else {
+      <div class="m-auto p-6 text-sm text-slate-500">Escolha uma conversa.</div>
+    }
+  </section>
+</div>
