@@ -410,7 +410,6 @@ export class PrestadoresPageComponent implements OnInit {
 
   salvar() {
     if (!this.novo.nome?.trim()) { this.error.set('Nome é obrigatório.'); return; }
-    if (!this.novo.id_apartamento) { this.error.set('Selecione a unidade de destino.'); return; }
 
     if (this.novo.hasPortariaAccess) {
       if (!this.novo.email?.trim()) { this.error.set('E-mail é obrigatório para liberar acesso.'); return; }

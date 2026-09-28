@@ -20,6 +20,17 @@ export interface CreatePrestadorDto {
   dias_semana?: string;
 }
 
+/**
+ * Unidade do prestador. Sem unidade (null) = funcionário/prestador do
+ * condomínio, visível para todos os moradores. O console manda 0 quando
+ * nenhuma unidade é escolhida; `undefined` = campo não enviado (update não mexe).
+ */
+export function normalizarIdApartamento(v: number | string | null | undefined): number | null | undefined {
+  if (v === undefined) return undefined;
+  const n = Number(v);
+  return v === null || v === '' || !Number.isFinite(n) || n <= 0 ? null : n;
+}
+
 @Injectable()
 export class PrestadoresService {
   private readonly logger = new Logger(PrestadoresService.name);
@@ -288,7 +299,7 @@ export class PrestadoresService {
           telefone: dto.telefone ?? existing.telefone,
           email: dto.email !== undefined ? (dto.email ? dto.email.trim() : null) : existing.email,
           categorias: dto.categorias ?? existing.categorias,
-          id_apartamento: dto.id_apartamento ?? existing.id_apartamento,
+          id_apartamento: normalizarIdApartamento(dto.id_apartamento) ?? existing.id_apartamento,
           foto_pessoa: fotoPes ?? existing.foto_pessoa,
           foto_documento: fotoDoc ?? existing.foto_documento,
           dias_semana: dto.dias_semana !== undefined ? dto.dias_semana : existing.dias_semana,
@@ -302,7 +313,7 @@ export class PrestadoresService {
           email: dto.email ? dto.email.trim() : null,
           categorias: dto.categorias ?? null,
           id_condominio: dto.id_condominio,
-          id_apartamento: dto.id_apartamento ?? null,
+          id_apartamento: normalizarIdApartamento(dto.id_apartamento) ?? null,
           foto_pessoa: fotoPes,
           foto_documento: fotoDoc,
           dias_semana: dto.dias_semana ?? null,
@@ -423,7 +434,7 @@ export class PrestadoresService {
           ...(dto.telefone !== undefined && { telefone: dto.telefone }),
           ...(dto.email !== undefined && { email: dto.email ? dto.email.trim() : null }),
           ...(dto.categorias !== undefined && { categorias: dto.categorias }),
-          ...(dto.id_apartamento !== undefined && { id_apartamento: dto.id_apartamento }),
+          ...(dto.id_apartamento !== undefined && { id_apartamento: normalizarIdApartamento(dto.id_apartamento) }),
           ...(fotoPes !== undefined && { foto_pessoa: fotoPes }),
           ...(fotoDoc !== undefined && { foto_documento: fotoDoc }),
           ...(dto.dias_semana !== undefined && { dias_semana: dto.dias_semana }),

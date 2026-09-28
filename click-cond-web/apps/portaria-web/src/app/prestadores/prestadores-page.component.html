@@ -123,10 +123,11 @@
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60" />
         </label>
         <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Unidade de destino *</span>
+          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Unidade de destino</span>
           <select [(ngModel)]="novo.id_apartamento"
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60">
-            <option [ngValue]="0">Selecione...</option>
+            <!-- Sem unidade = funcionário do condomínio, visível para todos os moradores. -->
+            <option [ngValue]="0">Condomínio (todos os moradores)</option>
             @for (a of apartamentos(); track a.id) {
               <option [ngValue]="a.id">{{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}</option>
             }
@@ -562,7 +563,7 @@
               @if (p.apartamento) {
                 <span class="text-slate-300 font-medium truncate">{{ p.apartamento.bloco ? p.apartamento.bloco + ' / ' : '' }}{{ p.apartamento.apto }}</span>
               } @else {
-                <span class="text-slate-600 italic">Não definida</span>
+                <span class="text-slate-300 font-medium">Condomínio (todos os moradores)</span>
               }
             </div>
             <div class="flex items-center gap-1.5 text-xs text-slate-400">

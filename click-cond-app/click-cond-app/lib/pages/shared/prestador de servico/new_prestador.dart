@@ -162,7 +162,10 @@ class _NewPrestadorPageState extends State<NewPrestador> {
   Future<void> save() async {
     try {
       final idApto = idMyApartment ?? getIdApto();
-      if (idApto == null) {
+      // Síndico/funcionário podem cadastrar sem unidade: é funcionário do
+      // condomínio, visível para todos os moradores. O prestador do morador
+      // continua preso ao apartamento dele (privacidade).
+      if (idApto == null && getUserType() == 'morador') {
         displayMessage(context, getText('alert_ops'), 'Selecione a unidade de destino do prestador.');
         return;
       }
