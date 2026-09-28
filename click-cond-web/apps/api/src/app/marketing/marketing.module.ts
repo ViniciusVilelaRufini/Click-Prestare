@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { CrmAdminGuard } from '../crm/crm-admin.guard';
+import { MarketingAdsService } from './marketing-ads.service';
 import { MarketingLeadsService } from './marketing-leads.service';
 import { MarketingPublicController } from './marketing-public.controller';
 import { MarketingCrmController } from './marketing-crm.controller';
+import { OpenAiAdsClient } from './openai-ads.client';
 
 /**
  * Não importa `CrmModule`: `CrmAdminGuard` depende só de `PrismaService`
@@ -13,7 +15,7 @@ import { MarketingCrmController } from './marketing-crm.controller';
  */
 @Module({
   controllers: [MarketingPublicController, MarketingCrmController],
-  providers: [MarketingLeadsService, CrmAdminGuard],
+  providers: [MarketingLeadsService, MarketingAdsService, OpenAiAdsClient, CrmAdminGuard],
   exports: [MarketingLeadsService],
 })
 export class MarketingModule {}

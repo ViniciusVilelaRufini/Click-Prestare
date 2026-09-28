@@ -1,6 +1,7 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
+import { MarketingAdsService } from './marketing-ads.service';
 import { MarketingLeadsService } from './marketing-leads.service';
 
 /**
@@ -10,7 +11,7 @@ import { MarketingLeadsService } from './marketing-leads.service';
  */
 @Controller('public')
 export class MarketingPublicController {
-  constructor(private readonly leads: MarketingLeadsService) {}
+  constructor(private readonly leads: MarketingLeadsService, private readonly ads: MarketingAdsService) {}
 
   @Public()
   @Throttle({ medium: { limit: 5, ttl: 60_000 } })
@@ -18,5 +19,12 @@ export class MarketingPublicController {
   @HttpCode(204)
   async criarLead(@Body() body: unknown): Promise<void> {
     await this.leads.criar(body);
+  }
+
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('ads/google')
+  ingestGoogle(@Headers('x-ingest-token') token: string | undefined, @Body() body: unknown) {
+    return this.ads.ingestGoogle(token, body);
   }
 }
