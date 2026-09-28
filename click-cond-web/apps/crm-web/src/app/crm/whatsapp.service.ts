@@ -17,5 +17,8 @@ export class WhatsappApi {
   conversas(): Observable<Conversa[]> { return this.http.get<Conversa[]>(`${this.base}/conversas`); }
   mensagens(id: number): Observable<Mensagem[]> { return this.http.get<Mensagem[]>(`${this.base}/conversas/${id}/mensagens`); }
   enviar(id: number, texto: string): Observable<Mensagem> { return this.http.post<Mensagem>(`${this.base}/conversas/${id}/mensagens`, { texto }); }
+  iniciarConversa(leadId: number): Observable<{ conversaId: number; mensagem: Mensagem }> {
+    return this.http.post<{ conversaId: number; mensagem: Mensagem }>(`${this.base}/leads/${leadId}/iniciar`, {});
+  }
   naoLidas(): Observable<{ total: number }> { return this.http.get<{ total: number }>(`${this.base}/nao-lidas`); }
 }

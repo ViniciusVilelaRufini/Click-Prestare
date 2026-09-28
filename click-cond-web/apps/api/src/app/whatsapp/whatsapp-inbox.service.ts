@@ -6,6 +6,13 @@ import { EntradaWa, janelaAberta, StatusWa, statusAvanca } from './whatsapp-puro
 
 const JUNCAO_MS = 30 * 60 * 1000;
 
+/** Modelo aprovado no Meta para o primeiro contato com um lead (texto espelhado para o histórico). */
+export const MODELO_PRIMEIRO_CONTATO = {
+  nome: 'primeiro_contato_orcamento',
+  texto:
+    'Olá! Aqui é a Prestare Gestão. Recebemos seu interesse em controle de acesso e portaria digital para o condomínio. Podemos conversar para montar um orçamento?',
+};
+
 export interface ConversaDto {
   id: number; waId: string; nome: string; leadId: number | null; ultimaMsgEm: string;
   ultimaDoClienteEm: string | null; naoLidas: number; trecho: string; janelaAberta: boolean;
@@ -126,6 +133,39 @@ export class WhatsappInboxService {
     });
     await this.prisma.crm_WhatsApp_Conversas.update({ where: { id: conversaId }, data: { ultima_msg_em: agora } });
     return msgDto(m);
+  }
+
+  /** Abre (ou reaproveita) a conversa do lead e envia o modelo de primeiro contato. */
+  async iniciarConversa(leadId: number): Promise<{ conversaId: number; mensagem: MensagemDto }> {
+    const lead = await this.prisma.crm_Leads.findUnique({ where: { id: leadId } });
+    if (!lead) throw new NotFoundException('Lead não encontrado.');
+    let waId = String(lead.whatsapp ?? '').replace(/\D/g, '');
+    if (!waId) throw new BadRequestException('Lead sem número de WhatsApp.');
+    if (!waId.startsWith('55')) waId = `55${waId}`;
+    const agora = new Date();
+    let conversa = await this.prisma.crm_WhatsApp_Conversas.findUnique({ where: { wa_id: waId } });
+    if (!conversa) {
+      conversa = await this.prisma.crm_WhatsApp_Conversas.create({
+        data: { wa_id: waId, nome_perfil: lead.nome.slice(0, 120), lead_id: lead.id, ultima_msg_em: agora },
+      });
+    } else if (!conversa.lead_id) {
+      conversa = await this.prisma.crm_WhatsApp_Conversas.update({ where: { id: conversa.id }, data: { lead_id: lead.id } });
+    }
+    let wamid: string;
+    let status = 'enviada';
+    let erro: string | null = null;
+    try {
+      wamid = await this.graph.enviarModelo(waId, MODELO_PRIMEIRO_CONTATO.nome);
+    } catch (e: any) {
+      wamid = `falha-${randomUUID()}`;
+      status = 'falhou';
+      erro = String(e?.message ?? e).slice(0, 500);
+    }
+    const m = await this.prisma.crm_WhatsApp_Mensagens.create({
+      data: { conversa_id: conversa.id, wamid, direcao: 'saida', tipo: 'template', texto: MODELO_PRIMEIRO_CONTATO.texto, status, erro, criado_em: agora },
+    });
+    await this.prisma.crm_WhatsApp_Conversas.update({ where: { id: conversa.id }, data: { ultima_msg_em: agora } });
+    return { conversaId: conversa.id, mensagem: msgDto(m) };
   }
 
   async naoLidas(): Promise<{ total: number }> {

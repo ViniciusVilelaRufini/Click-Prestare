@@ -1,7 +1,7 @@
 import { Component, DestroyRef, ElementRef, OnInit, computed, inject, signal, viewChild } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Conversa, Mensagem, WhatsappApi } from '../whatsapp.service';
 
 @Component({
@@ -12,6 +12,7 @@ import { Conversa, Mensagem, WhatsappApi } from '../whatsapp.service';
 })
 export class CrmWhatsappComponent implements OnInit {
   private api = inject(WhatsappApi);
+  private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
   private fim = viewChild<ElementRef<HTMLElement>>('fim');
 
@@ -34,7 +35,18 @@ export class CrmWhatsappComponent implements OnInit {
   }
 
   carregarConversas() {
-    this.api.conversas().subscribe({ next: (c) => this.conversas.set(c), error: () => this.erro.set('Falha ao carregar conversas.') });
+    this.api.conversas().subscribe({
+      next: (c) => {
+        this.conversas.set(c);
+        // Vindo do botão "Iniciar conversa" da aba Marketing: abre direto a conversa pedida.
+        const alvo = Number(this.route.snapshot.queryParamMap.get('conversa'));
+        if (alvo && this.selecionadaId() === null) {
+          const conv = c.find((x) => x.id === alvo);
+          if (conv) this.abrir(conv);
+        }
+      },
+      error: () => this.erro.set('Falha ao carregar conversas.'),
+    });
   }
 
   abrir(c: Conversa) {

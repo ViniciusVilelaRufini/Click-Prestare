@@ -18,6 +18,11 @@ export class WhatsappCrmController {
     return this.inbox.enviar(id, body?.texto ?? '');
   }
 
+  @Post('leads/:leadId/iniciar')
+  iniciar(@Param('leadId', ParseIntPipe) leadId: number) {
+    return this.inbox.iniciarConversa(leadId);
+  }
+
   @Get('nao-lidas')
   naoLidas() { return this.inbox.naoLidas(); }
 }

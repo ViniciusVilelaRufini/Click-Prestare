@@ -30,6 +30,14 @@ export class WhatsappGraphClient {
     return String(id);
   }
 
+  /** Modelo aprovado no Meta — única forma de iniciar conversa fora da janela de 24h. */
+  async enviarModelo(para: string, nome: string, idioma = 'pt_BR'): Promise<string> {
+    const json = await this.post({ to: para, type: 'template', template: { name: nome, language: { code: idioma } } });
+    const id = json?.messages?.[0]?.id;
+    if (!id) throw new Error('Graph API não devolveu o id da mensagem');
+    return String(id);
+  }
+
   async marcarLida(wamid: string): Promise<void> {
     try {
       await this.post({ status: 'read', message_id: wamid });

@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { ToastService } from '../../shared/toast.service';
+import { Router } from '@angular/router';
 import { Canal, Lead, LeadStatus, MarketingApi, ResumoMarketing } from '../marketing.service';
+import { WhatsappApi } from '../whatsapp.service';
 
 type Periodo = '7d' | '30d' | 'mes' | 'custom';
 
@@ -31,6 +33,26 @@ const iso = (d: Date) => {
 export class CrmMarketingComponent implements OnInit {
   private api = inject(MarketingApi);
   private toast = inject(ToastService);
+  private waApi = inject(WhatsappApi);
+  private router = inject(Router);
+  readonly iniciando = signal(false);
+
+  /** Envia o modelo de primeiro contato pelo número comercial e abre a conversa na aba WhatsApp. */
+  iniciarConversa(l: Lead) {
+    if (this.iniciando()) return;
+    this.iniciando.set(true);
+    this.waApi.iniciarConversa(l.id).subscribe({
+      next: (r) => {
+        this.iniciando.set(false);
+        if (r.mensagem.status === 'falhou') this.toast.trigger(`Mensagem não enviada: ${r.mensagem.erro}`, 'error');
+        this.router.navigate(['/painel/whatsapp'], { queryParams: { conversa: r.conversaId } });
+      },
+      error: (e) => {
+        this.iniciando.set(false);
+        this.toast.trigger(e?.error?.message ?? 'Não foi possível iniciar a conversa.', 'error');
+      },
+    });
+  }
 
   readonly periodo = signal<Periodo>('30d');
   readonly de = signal(iso(new Date(Date.now() - 29 * 864e5)));

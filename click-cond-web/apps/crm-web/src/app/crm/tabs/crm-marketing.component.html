@@ -115,6 +115,14 @@
     </div>
     <dl class="mt-4 space-y-2 text-sm">
       <div><dt class="text-ink-muted">WhatsApp</dt><dd>@if (l.whatsapp) {<a [href]="linkWhatsapp(l)" target="_blank" rel="noopener" class="text-emerald-700 hover:underline">{{ l.whatsapp }}</a>} @else {<span class="text-ink-muted">Veio direto pelo botão — veja a conversa no WhatsApp/Instagram</span>}</dd></div>
+    </dl>
+    @if (l.whatsapp) {
+      <button type="button" class="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50" [disabled]="iniciando()" (click)="iniciarConversa(l)">
+        {{ iniciando() ? 'Enviando…' : 'Iniciar conversa pelo CRM' }}
+      </button>
+      <p class="mt-1 text-xs text-ink-muted">Envia a mensagem de primeiro contato aprovada pelo WhatsApp comercial e abre a conversa.</p>
+    }
+    <dl class="mt-4 space-y-2 text-sm">
       <div><dt class="text-ink-muted">Origem</dt><dd>{{ canalLabel[l.origem] }}</dd></div>
       <div><dt class="text-ink-muted">Recebido em</dt><dd>{{ l.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</dd></div>
     </dl>
