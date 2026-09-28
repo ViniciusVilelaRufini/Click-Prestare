@@ -1,4 +1,5 @@
 import { Controller, Get, Header, Headers, HttpCode, Logger, Post, Query, Req, UnauthorizedException } from '@nestjs/common';
+import { Public } from '../auth/public.decorator';
 import { MarketingSegredosService } from '../marketing/marketing-segredos.service';
 import { WhatsappInboxService } from './whatsapp-inbox.service';
 import { assinaturaValida, interpretarWebhook } from './whatsapp-puro';
@@ -9,6 +10,7 @@ export class WhatsappWebhookController {
 
   constructor(private readonly segredos: MarketingSegredosService, private readonly inbox: WhatsappInboxService) {}
 
+  @Public()
   @Get('webhook')
   @Header('Content-Type', 'text/plain')
   async verificar(@Query('hub.mode') modo: string, @Query('hub.verify_token') token: string, @Query('hub.challenge') desafio: string) {
@@ -17,6 +19,7 @@ export class WhatsappWebhookController {
     return desafio;
   }
 
+  @Public()
   @Post('webhook')
   @HttpCode(200)
   async receber(@Req() req: { rawBody?: Buffer; body: unknown }, @Headers('x-hub-signature-256') assinatura: string) {

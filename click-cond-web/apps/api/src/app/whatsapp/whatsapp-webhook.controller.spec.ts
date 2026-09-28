@@ -1,5 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { createHmac } from 'crypto';
+import { Reflector } from '@nestjs/core';
+import { IS_PUBLIC_KEY } from '../auth/public.decorator';
 import { WhatsappWebhookController } from './whatsapp-webhook.controller';
 
 function montar() {
@@ -9,6 +11,11 @@ function montar() {
 }
 
 describe('WhatsappWebhookController', () => {
+  it('rotas são públicas (o Meta não tem JWT)', () => {
+    const r = new Reflector();
+    expect(r.get(IS_PUBLIC_KEY, WhatsappWebhookController.prototype.verificar)).toBe(true);
+    expect(r.get(IS_PUBLIC_KEY, WhatsappWebhookController.prototype.receber)).toBe(true);
+  });
   it('handshake devolve o challenge com token certo', async () => {
     await expect(montar().ctrl.verificar('subscribe', 'vt', '123')).resolves.toBe('123');
   });
