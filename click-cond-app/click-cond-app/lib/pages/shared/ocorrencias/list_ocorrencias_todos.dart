@@ -176,7 +176,16 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
         // Lista
         Expanded(
           child: filteredList.isEmpty
-              ? Center(
+              // Vazio também aceita puxar para atualizar: era exatamente o
+              // estado em que o morador ficava preso após abrir a 1ª ocorrência.
+              ? RefreshIndicator(
+                  onRefresh: loadList,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: constraints.maxHeight,
+                        child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -203,6 +212,10 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                         style: AppTypography.caption(context),
                       ),
                     ],
+                  ),
+                        ),
+                      ),
+                    ),
                   ),
                 )
               : RefreshIndicator(

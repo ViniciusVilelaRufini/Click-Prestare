@@ -16,6 +16,11 @@ class ListOcorrencias extends StatefulWidget {
 }
 
 class _ListOcorrenciasPageState extends State<ListOcorrencias> {
+  /// Muda a cada ocorrência criada: recria as abas (e o initState delas
+  /// recarrega a lista). Antes o setState do pai não chegava nas abas e a
+  /// ocorrência recém-aberta só aparecia saindo e entrando da tela.
+  int _versao = 0;
+
   @override
   Widget build(BuildContext context) {
     final canManage = getUserType() == 'sindico' || getUserPermission('ocorrencias') == 1;
@@ -38,7 +43,7 @@ class _ListOcorrenciasPageState extends State<ListOcorrencias> {
         floatingActionButton: FloatingActionButton(
           onPressed: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const NewOcorrencia(isEdit: false)))
-              .then((_) => setState(() {})),
+              .then((_) => setState(() => _versao++)),
           backgroundColor: AppColors.primary,
           child: const Icon(PhosphorIcons.plus, color: Colors.white),
         ),
@@ -61,13 +66,13 @@ class _ListOcorrenciasPageState extends State<ListOcorrencias> {
                 ],
               ),
             ),
-            const Expanded(
+            Expanded(
               child: TabBarView(
                 children: [
-                  ListOcorrenciasTodos(),
-                  ListOcorrenciasTodos(statusFilter: 'Pendente'),
-                  ListOcorrenciasTodos(statusFilter: 'Em andamento'),
-                  ListOcorrenciasTodos(statusFilter: 'Solucionado'),
+                  ListOcorrenciasTodos(key: ValueKey('todas-$_versao')),
+                  ListOcorrenciasTodos(key: ValueKey('pendentes-$_versao'), statusFilter: 'Pendente'),
+                  ListOcorrenciasTodos(key: ValueKey('andamento-$_versao'), statusFilter: 'Em andamento'),
+                  ListOcorrenciasTodos(key: ValueKey('solucionadas-$_versao'), statusFilter: 'Solucionado'),
                 ],
               ),
             ),

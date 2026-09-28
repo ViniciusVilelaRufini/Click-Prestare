@@ -706,7 +706,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                 if (valor != null && valor > 0) ...[
                   const SizedBox(height: 6),
                   Text(
-                    "BRL ${formatMoeda(valor)}",
+                    "R\$ ${formatMoeda(valor)}",
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -824,7 +824,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                 if (valor != null && valor > 0) ...[
                   const SizedBox(height: 6),
                   Text(
-                    "BRL ${formatMoeda(valor)}",
+                    "R\$ ${formatMoeda(valor)}",
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -962,7 +962,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                         subtitle: Text(it['data_vencimento'] != null ? "Vencimento: ${it['data_vencimento']}" : "Pendente"),
                         trailing: Text(
-                          "BRL ${formatMoeda(val)}",
+                          "R\$ ${formatMoeda(val)}",
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF2563EB)),
                         ),
                         onTap: () {

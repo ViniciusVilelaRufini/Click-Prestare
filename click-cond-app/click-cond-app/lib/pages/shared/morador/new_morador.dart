@@ -484,6 +484,9 @@ class _NewMoradorPageState extends State<NewMorador> {
                       builder: (_) => ModalCupertino(
                         onPressed: (text) => _onDataNascimentoChanged(text),
                         initialDate: null,
+                        // Data de nascimento não pode ser no futuro (fim de hoje:
+                        // folga para o initialDateTime = agora do seletor).
+                        maximumDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59),
                         type: 'date',
                       ),
                     ),

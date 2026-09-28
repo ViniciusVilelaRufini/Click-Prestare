@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -238,7 +239,7 @@ class _AptoCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Apto ${item['numero'] ?? ''} - Bloco ${item['bloco'] ?? ''}',
+                  Text('Apto ${item['numero'] ?? ''} - ${rotuloBloco(item['bloco']?.toString())}',
                       style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
                   if (item['tipo'] != null)
                     Text(item['tipo'], style: AppTypography.caption(context)),

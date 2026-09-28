@@ -10,6 +10,7 @@ class ModalCupertino extends StatefulWidget {
   final Function(String) onPressed;
   final DateTime? initialDate;
   final DateTime? minimumDate;
+  final DateTime? maximumDate;
 
   const ModalCupertino({
     super.key,
@@ -17,6 +18,7 @@ class ModalCupertino extends StatefulWidget {
     required this.initialDate,
     required this.type,
     this.minimumDate,
+    this.maximumDate,
   });
 
   @override
@@ -116,6 +118,7 @@ class _ModalCupertinoState extends State<ModalCupertino> {
                   initialDateTime: widget.initialDate ?? DateTime.now(),
                   use24hFormat: true,
                   minimumDate: widget.minimumDate ?? widget.initialDate,
+                  maximumDate: widget.maximumDate,
                   mode: widget.type == "datetime"
                       ? CupertinoDatePickerMode.dateAndTime
                       : widget.type == "date"

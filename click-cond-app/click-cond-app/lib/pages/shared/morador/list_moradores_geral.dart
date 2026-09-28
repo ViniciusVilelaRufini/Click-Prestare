@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
@@ -400,7 +401,7 @@ class _MoradorGeralCard extends StatelessWidget {
                       Icon(PhosphorIcons.door, size: 12, color: AppColors.textTertiary(context)),
                       const SizedBox(width: 4),
                       Text(
-                        'Apto ${item['apartamento'] ?? item['numero'] ?? ''} • Bloco ${item['bloco'] ?? ''}',
+                        'Apto ${item['apartamento'] ?? item['numero'] ?? ''} • ${rotuloBloco(item['bloco']?.toString())}',
                         style: AppTypography.tiny(context),
                       ),
                     ],

@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -1012,7 +1013,7 @@ class _EncomendaCard extends StatelessWidget {
                             const Icon(PhosphorIcons.buildings, size: 13, color: AppColors.primary),
                             const SizedBox(width: 5),
                             Text(
-                              '${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? "Bloco ${encomenda.destinatarioBloco!} • " : ""}Apto ${encomenda.destinatarioApto}',
+                              '${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? "${rotuloBloco(encomenda.destinatarioBloco)} • " : ""}Apto ${encomenda.destinatarioApto}',
                               style: AppTypography.tiny(context).copyWith(
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.bold,
@@ -1328,7 +1329,7 @@ class _EncomendaCard extends StatelessWidget {
                         context,
                         icon: PhosphorIcons.house,
                         label: 'Destinatário',
-                        value: 'Apto ${encomenda.destinatarioApto}${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? " — Bloco ${encomenda.destinatarioBloco!}" : ""}',
+                        value: 'Apto ${encomenda.destinatarioApto}${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? " — ${rotuloBloco(encomenda.destinatarioBloco)}" : ""}',
                       ),
                       const Divider(height: 24),
                       _buildDetailRow(

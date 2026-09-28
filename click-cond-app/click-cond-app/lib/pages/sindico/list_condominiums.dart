@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/utils/log.dart';
 import 'package:click/widgets/app/grid_background.dart';
 import 'dart:convert';
@@ -1791,7 +1792,7 @@ class _CondominioCard extends StatelessWidget {
       final apto = item['apto']?.toString() ?? '';
       final bloco = item['apto_bloco']?.toString() ?? '';
       if (apto.isNotEmpty) {
-        subtitleText = bloco.isNotEmpty ? 'Bloco $bloco · Apto $apto' : 'Apto $apto';
+        subtitleText = bloco.isNotEmpty ? '${rotuloBloco(bloco)} · Apto $apto' : 'Apto $apto';
       } else {
         subtitleText = 'Morador';
       }

@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
@@ -210,7 +211,7 @@ class _MyApartamentoViewState extends State<MyApartamentoView> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${getText('lb_bloco')} $_bloco',
+                  rotuloBloco(_bloco),
                   style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 15, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 10),

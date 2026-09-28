@@ -45,8 +45,11 @@ class Singleton {
     return moeda == text;
   }
 
-  getCurrentMoeda(){    
-    return moeda.isEmpty ? "R\$" : moeda;
+  getCurrentMoeda(){
+    // Condomínios cadastrados com o código ISO ("BRL") exibiam "BRL 0,00".
+    final m = moeda.trim();
+    if (m.isEmpty || m.toUpperCase() == 'BRL') return "R\$";
+    return m;
   }
 
   /// Limpa o estado em memória para evitar vazamento de apartamento/bloco

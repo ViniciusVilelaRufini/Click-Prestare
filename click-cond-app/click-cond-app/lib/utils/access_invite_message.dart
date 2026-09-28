@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 String buildVisitorAccessInvite({
   required String condominioNome,
   required String bloco,
@@ -26,7 +27,7 @@ String buildVisitorAccessInvite({
   }
 
   final destino = [
-    if (bloco.trim().isNotEmpty && bloco.trim() != 'null') 'Bloco ${bloco.trim()}',
+    if (bloco.trim().isNotEmpty && bloco.trim() != 'null') rotuloBloco(bloco),
     if (apartamento.trim().isNotEmpty) 'Apto ${apartamento.trim()}',
   ].join(', ');
   if (destino.isNotEmpty) {

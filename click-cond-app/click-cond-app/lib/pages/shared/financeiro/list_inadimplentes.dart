@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/financeiro/detail_inadimplente.dart';
 import 'package:click/theme/app_colors.dart';
@@ -90,7 +91,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                     const SizedBox(width: AppSpacing.md),
                                     Expanded(
                                       child: Text(
-                                        '${getText('lb_bloco')} ${bloco['bloco']}', 
+                                        rotuloBloco(bloco['bloco']?.toString()), 
                                         style: AppTypography.bodyMedium(context).copyWith(
                                           fontWeight: FontWeight.bold,
                                         ),

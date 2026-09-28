@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -61,7 +62,7 @@ class CellMoradorAgendamento extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${getText('lb_bloco')} ${item['bloco']}  •  ${getText('lb_apto')} ${item['apto']}',
+                    '${rotuloBloco(item['bloco']?.toString())}  •  ${getText('lb_apto')} ${item['apto']}',
                     style: AppTypography.bodyMedium(context).copyWith(
                       color: AppColors.textPrimary(context),
                     ),

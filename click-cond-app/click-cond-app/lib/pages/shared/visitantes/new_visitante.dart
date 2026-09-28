@@ -23,6 +23,7 @@ import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../singleton.dart';
+import 'package:click/utils/hora_brasilia.dart';
 
 String tipoCadastroVisitante({
   String? defaultType,
@@ -617,7 +618,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                           txtDataInicio.text = text;
                           _erroDataInicio = null;
                         }),
-                        initialDate: DateTime.now(),
+                        initialDate: agoraBrasilia(),
                         type: 'datetime',
                       ),
                     ),
@@ -639,7 +640,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                         }),
                         initialDate:
                             convertStringToDateTimeFormat(txtDataInicio.text) ??
-                                DateTime.now(),
+                                agoraBrasilia(),
                         type: 'datetime',
                       ),
                     ),

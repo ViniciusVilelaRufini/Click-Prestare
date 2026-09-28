@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -123,7 +124,7 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
                 children: [
                   Center(
                     child: Text(
-                      '${getText('lb_bloco')} ${widget.bloco} · ${getText('lb_apartamento')} ${widget.apto}',
+                      '${rotuloBloco(widget.bloco?.toString())} · ${getText('lb_apartamento')} ${widget.apto}',
                       style: AppTypography.title(context).copyWith(color: AppColors.primary),
                       textAlign: TextAlign.center,
                     ),

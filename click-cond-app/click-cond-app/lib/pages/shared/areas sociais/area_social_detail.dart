@@ -132,6 +132,17 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     }
   }
 
+  /// Só reservas que ocupam o horário (pendente/aprovado). A API devolve a
+  /// agenda inteira, e canceladas/recusadas apareciam como se valessem.
+  List<dynamic> _agendamentosAtivos(dynamic area) {
+    final lista = area['agendamentos'];
+    if (lista is! List) return const [];
+    return lista
+        .where((a) => const ['pendente', 'aprovado']
+            .contains((a['status'] ?? '').toString().toLowerCase().trim()))
+        .toList();
+  }
+
   bool _canEditAgendamento(dynamic item) {
     return getUserType() == 'sindico' ||
         getUserPermission('areas_sociais') == 1 ||
@@ -506,7 +517,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                                     ],
                                   ),
                                   const SizedBox(height: AppSpacing.md),
-                                  if (obj['agendamentos'].isEmpty)
+                                  if (_agendamentosAtivos(obj).isEmpty)
                                     Container(
                                       padding: const EdgeInsets.symmetric(vertical: 40),
                                       width: double.infinity,
@@ -536,7 +547,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                                         ),
                                       ),
                                     ),
-                                  for (var item in obj['agendamentos'])
+                                  for (var item in _agendamentosAtivos(obj))
                                     GestureDetector(
                                       onTap: () {
                                         if (_canEditAgendamento(item)) {
