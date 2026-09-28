@@ -1223,6 +1223,16 @@ class Component extends DCLogic {
   fechar = () => this.setState({ tela: null });
 
   componentDidMount() {
+    // Anúncios apontam para /sobre/?simular=1: leva direto ao simulador de
+    // valor (parâmetro de busca em vez de #âncora, que pode quebrar o gclid).
+    try {
+      if (new URLSearchParams(location.search).has("simular")) {
+        setTimeout(() => {
+          const el = document.getElementById("simulador");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 400);
+      }
+    } catch (e) {}
     this._esc = (e) => {
       if (e.key !== "Escape") return;
       this.fechar();
