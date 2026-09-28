@@ -1,6 +1,9 @@
 <div class="grid h-[calc(100vh-10rem)] min-h-[480px] grid-cols-1 overflow-hidden rounded-xl border border-slate-200 bg-white md:grid-cols-[320px_1fr]">
   <aside class="flex min-h-0 flex-col border-b border-slate-200 md:border-b-0 md:border-r" [class.hidden]="selecionadaId() !== null" [class.md:flex]="true">
-    <h2 class="border-b border-slate-200 px-4 py-3 text-sm font-semibold">Conversas</h2>
+    <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <h2 class="text-sm font-semibold">Conversas</h2>
+      <button type="button" class="text-slate-500 hover:text-slate-800" (click)="configAberta.set(true)" title="Respostas rápidas e automáticas" aria-label="Configurações do WhatsApp">⚙</button>
+    </div>
     <ul class="min-h-0 flex-1 overflow-y-auto">
       @for (c of conversas(); track c.id) {
         <li>
@@ -44,6 +47,7 @@
                  [class.bg-emerald-100]="m.direcao === 'saida'" [class.bg-white]="m.direcao === 'entrada'">
               {{ m.texto }}
               <div class="mt-1 text-right text-[11px] text-slate-500">
+                @if (automatica(m)) { <span class="mr-1 rounded bg-slate-200 px-1 text-[10px] text-slate-600">automática</span> }
                 {{ m.criadoEm | date: 'dd/MM HH:mm' }} @if (m.direcao === 'saida') { · {{ marca(m) }} }
               </div>
             </div>
@@ -53,12 +57,27 @@
       </div>
       @if (erro()) { <p class="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">{{ erro() }}</p> }
       @if (c.janelaAberta) {
-        <form class="flex gap-2 border-t border-slate-200 p-3" (submit)="$event.preventDefault(); enviar()">
-          <textarea [(ngModel)]="texto" name="texto" rows="2" maxlength="4096" placeholder="Escreva a resposta…"
+        <div class="relative border-t border-slate-200">
+        @if (sugestoes().length || menuRespostas()) {
+          <ul class="absolute bottom-full left-3 right-3 mb-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+            @for (r of (menuRespostas() ? respostas() : sugestoes()); track r.id) {
+              <li><button type="button" class="w-full px-3 py-2 text-left hover:bg-slate-50" (click)="usarResposta(r)">
+                <span class="text-sm font-medium">{{ r.titulo }}</span> <span class="text-xs text-slate-400">/{{ r.atalho }}</span>
+                <p class="truncate text-xs text-slate-500">{{ r.texto }}</p>
+              </button></li>
+            } @empty {
+              <li class="px-3 py-2 text-xs text-slate-500">Nenhuma resposta rápida. Cadastre na engrenagem ⚙.</li>
+            }
+          </ul>
+        }
+        <form class="flex gap-2 p-3" (submit)="$event.preventDefault(); enviar()">
+          <button type="button" class="shrink-0 rounded-lg border border-slate-300 px-2 text-lg leading-none text-slate-600 hover:bg-slate-50" title="Respostas rápidas (ou digite /)" aria-label="Respostas rápidas" (click)="menuRespostas.set(!menuRespostas())">⚡</button>
+          <textarea [(ngModel)]="texto" (ngModelChange)="digitado.set($event)" name="texto" rows="2" maxlength="4096" placeholder="Escreva a resposta… (digite / para respostas rápidas)"
                     (keydown.enter)="teclaEnter($any($event))"
                     class="min-w-0 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm"></textarea>
           <button type="submit" [disabled]="enviando() || !texto.trim()" class="rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Enviar</button>
         </form>
+        </div>
       } @else {
         <p class="border-t border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
           Janela de 24h fechada: pela regra do WhatsApp, só dá para responder depois que o cliente mandar uma nova mensagem.
@@ -69,3 +88,7 @@
     }
   </section>
 </div>
+
+@if (configAberta()) {
+  <app-crm-whatsapp-config (fechar)="configAberta.set(false)" (respostasMudaram)="respostas.set($event)" />
+}

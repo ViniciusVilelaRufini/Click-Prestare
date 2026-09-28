@@ -1,10 +1,14 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappGraphClient } from './whatsapp-graph.client';
 import { EntradaWa, janelaAberta, StatusWa, statusAvanca } from './whatsapp-puro';
+import { decidirAutomacao } from './whatsapp-automacao';
+import { WhatsappConfigService } from './whatsapp-config.service';
 
 const JUNCAO_MS = 30 * 60 * 1000;
+/** Webhook reenviado depois de uma queda não dispara resposta automática atrasada. */
+const AUTO_ATRASO_MAX_MS = 10 * 60 * 1000;
 
 /** Modelo aprovado no Meta para o primeiro contato com um lead (texto espelhado para o histórico). */
 export const MODELO_PRIMEIRO_CONTATO = {
@@ -18,20 +22,27 @@ export interface ConversaDto {
   ultimaDoClienteEm: string | null; naoLidas: number; trecho: string; janelaAberta: boolean;
 }
 export interface MensagemDto {
-  id: number; direcao: 'entrada' | 'saida'; texto: string; status: string; erro: string | null; criadoEm: string;
+  id: number; direcao: 'entrada' | 'saida'; tipo: string; texto: string; status: string; erro: string | null; criadoEm: string;
 }
 
 function msgDto(m: any): MensagemDto {
-  return { id: m.id, direcao: m.direcao, texto: m.texto, status: m.status, erro: m.erro ?? null, criadoEm: new Date(m.criado_em).toISOString() };
+  return { id: m.id, direcao: m.direcao, tipo: m.tipo, texto: m.texto, status: m.status, erro: m.erro ?? null, criadoEm: new Date(m.criado_em).toISOString() };
 }
 
 @Injectable()
 export class WhatsappInboxService {
-  constructor(private readonly prisma: PrismaService, private readonly graph: WhatsappGraphClient) {}
+  private readonly logger = new Logger(WhatsappInboxService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly graph: WhatsappGraphClient,
+    @Optional() private readonly config?: WhatsappConfigService,
+  ) {}
 
   async registrarEntrada(m: EntradaWa): Promise<void> {
     if (await this.prisma.crm_WhatsApp_Mensagens.findUnique({ where: { wamid: m.wamid } })) return;
     let conversa = await this.prisma.crm_WhatsApp_Conversas.findUnique({ where: { wa_id: m.waId } });
+    const conversaNova = !conversa;
     if (!conversa) {
       const leadId = await this.ligarLead(m);
       conversa = await this.prisma.crm_WhatsApp_Conversas.create({
@@ -48,6 +59,44 @@ export class WhatsappInboxService {
         ...(m.nomePerfil ? { nome_perfil: m.nomePerfil } : {}),
       },
     });
+    await this.responderAutomatico(conversa.id, m.waId, conversaNova, m.em).catch((e) =>
+      this.logger.error(`Resposta automática falhou (${m.wamid}): ${e?.message ?? e}`),
+    );
+  }
+
+  private async responderAutomatico(conversaId: number, waId: string, conversaNova: boolean, em: Date): Promise<void> {
+    if (!this.config) return;
+    const agora = new Date();
+    if (agora.getTime() - em.getTime() > AUTO_ATRASO_MAX_MS) return;
+    const cfg = await this.config.automacoes();
+    const ultimaFora = await this.prisma.crm_WhatsApp_Mensagens.findFirst({
+      where: { conversa_id: conversaId, tipo: 'auto_fora_horario' },
+      orderBy: { criado_em: 'desc' },
+    });
+    const d = decidirAutomacao({
+      cfg, conversaNova, agora, ultimaForaHorarioEm: ultimaFora ? new Date(ultimaFora.criado_em) : null,
+    });
+    if (d) await this.enviarRegistrando(conversaId, waId, d.texto, d.tipo);
+  }
+
+  /** Envia texto livre e grava no histórico (falha do Graph vira mensagem 'falhou', sem exceção). */
+  private async enviarRegistrando(conversaId: number, waId: string, texto: string, tipo: string): Promise<MensagemDto> {
+    const agora = new Date();
+    let wamid: string;
+    let status = 'enviada';
+    let erro: string | null = null;
+    try {
+      wamid = await this.graph.enviarTexto(waId, texto);
+    } catch (e: any) {
+      wamid = `falha-${randomUUID()}`;
+      status = 'falhou';
+      erro = String(e?.message ?? e).slice(0, 500);
+    }
+    const m = await this.prisma.crm_WhatsApp_Mensagens.create({
+      data: { conversa_id: conversaId, wamid, direcao: 'saida', tipo, texto, status, erro, criado_em: agora },
+    });
+    await this.prisma.crm_WhatsApp_Conversas.update({ where: { id: conversaId }, data: { ultima_msg_em: agora } });
+    return msgDto(m);
   }
 
   /** Clique no botão do site nos últimos 30 min sem conversa → mesmo lead (mantém a origem do anúncio). */
@@ -117,22 +166,7 @@ export class WhatsappInboxService {
     if (!janelaAberta(conversa.ultima_do_cliente_em ? new Date(conversa.ultima_do_cliente_em) : null)) {
       throw new ConflictException('Janela de 24h fechada: o cliente precisa mandar mensagem primeiro.');
     }
-    const agora = new Date();
-    let wamid: string;
-    let status = 'enviada';
-    let erro: string | null = null;
-    try {
-      wamid = await this.graph.enviarTexto(conversa.wa_id, corpo);
-    } catch (e: any) {
-      wamid = `falha-${randomUUID()}`;
-      status = 'falhou';
-      erro = String(e?.message ?? e).slice(0, 500);
-    }
-    const m = await this.prisma.crm_WhatsApp_Mensagens.create({
-      data: { conversa_id: conversaId, wamid, direcao: 'saida', tipo: 'text', texto: corpo, status, erro, criado_em: agora },
-    });
-    await this.prisma.crm_WhatsApp_Conversas.update({ where: { id: conversaId }, data: { ultima_msg_em: agora } });
-    return msgDto(m);
+    return this.enviarRegistrando(conversaId, conversa.wa_id, corpo, 'text');
   }
 
   /** Abre (ou reaproveita) a conversa do lead e envia o modelo de primeiro contato. */

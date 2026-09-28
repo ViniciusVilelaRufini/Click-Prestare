@@ -1,0 +1,80 @@
+<div class="fixed inset-0 z-40 bg-black/30" (click)="fechar.emit()"></div>
+<div class="fixed inset-x-4 top-8 bottom-8 z-50 mx-auto flex max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+  <header class="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+    <h3 class="text-base font-semibold">Configurações do WhatsApp</h3>
+    <button type="button" class="text-slate-500 hover:text-slate-800" (click)="fechar.emit()" aria-label="Fechar">✕</button>
+  </header>
+  <nav class="flex gap-1 border-b border-slate-200 px-5 pt-2 text-sm">
+    <button type="button" class="rounded-t-lg px-3 py-2" [class.bg-slate-100]="aba() === 'respostas'" [class.font-semibold]="aba() === 'respostas'" (click)="aba.set('respostas')">Respostas rápidas</button>
+    <button type="button" class="rounded-t-lg px-3 py-2" [class.bg-slate-100]="aba() === 'automacoes'" [class.font-semibold]="aba() === 'automacoes'" (click)="aba.set('automacoes')">Respostas automáticas</button>
+  </nav>
+
+  <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+    @if (erro()) { <p class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{{ erro() }}</p> }
+    @if (ok()) { <p class="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">{{ ok() }}</p> }
+
+    @if (aba() === 'respostas') {
+      @if (rascunho(); as r) {
+        <div class="space-y-3">
+          <label class="block text-sm">Atalho
+            <div class="mt-1 flex items-center rounded-lg border border-slate-300 px-3"><span class="text-slate-400">/</span>
+              <input class="min-w-0 flex-1 py-2 pl-1 text-sm outline-none" [(ngModel)]="r.atalho" placeholder="proposta" maxlength="40" /></div>
+          </label>
+          <label class="block text-sm">Título
+            <input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" [(ngModel)]="r.titulo" maxlength="80" /></label>
+          <label class="block text-sm">Texto
+            <textarea class="mt-1 h-40 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" [(ngModel)]="r.texto" maxlength="4096"></textarea></label>
+          <div class="flex gap-2">
+            <button type="button" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" [disabled]="salvando()" (click)="salvarResposta()">Salvar</button>
+            <button type="button" class="rounded-lg border border-slate-300 px-4 py-2 text-sm" (click)="rascunho.set(null)">Cancelar</button>
+          </div>
+        </div>
+      } @else {
+        <button type="button" class="mb-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white" (click)="nova()">+ Nova resposta</button>
+        <ul class="divide-y divide-slate-100">
+          @for (r of respostas(); track r.id) {
+            <li class="flex items-start gap-3 py-3">
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-medium">{{ r.titulo }} <span class="ml-1 text-xs text-slate-400">/{{ r.atalho }}</span></div>
+                <p class="line-clamp-2 text-xs text-slate-500">{{ r.texto }}</p>
+              </div>
+              <button type="button" class="text-xs text-emerald-700 hover:underline" (click)="editar(r)">Editar</button>
+              <button type="button" class="text-xs text-red-600 hover:underline" (click)="excluir(r)">Excluir</button>
+            </li>
+          } @empty {
+            <li class="py-4 text-sm text-slate-500">Nenhuma resposta cadastrada.</li>
+          }
+        </ul>
+      }
+    } @else if (auto(); as a) {
+      <section class="space-y-2">
+        <label class="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" [(ngModel)]="a.boasVindas.ativo" /> Boas-vindas na primeira mensagem
+        </label>
+        <p class="text-xs text-slate-500">Enviada automaticamente quando alguém escreve pela primeira vez.</p>
+        <textarea class="h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" [(ngModel)]="a.boasVindas.texto" maxlength="1000"></textarea>
+      </section>
+
+      <section class="mt-6 space-y-2">
+        <label class="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" [(ngModel)]="a.foraHorario.ativo" /> Mensagem fora do horário
+        </label>
+        <p class="text-xs text-slate-500">Fora do expediente, responde uma vez (no máximo a cada 12h por conversa). Horário de Brasília.</p>
+        <div class="flex flex-wrap gap-1">
+          @for (d of dias; track $index) {
+            <button type="button" class="rounded-full px-3 py-1 text-xs"
+              [class]="a.foraHorario.dias.includes($index) ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'"
+              (click)="alternarDia($index)">{{ d }}</button>
+          }
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+          Atendimento das <input type="time" class="rounded-lg border border-slate-300 px-2 py-1" [(ngModel)]="a.foraHorario.inicio" />
+          às <input type="time" class="rounded-lg border border-slate-300 px-2 py-1" [(ngModel)]="a.foraHorario.fim" />
+        </div>
+        <textarea class="h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" [(ngModel)]="a.foraHorario.texto" maxlength="1000"></textarea>
+      </section>
+
+      <button type="button" class="mt-6 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" [disabled]="salvando()" (click)="salvarAutomacoes()">Salvar automações</button>
+    }
+  </div>
+</div>

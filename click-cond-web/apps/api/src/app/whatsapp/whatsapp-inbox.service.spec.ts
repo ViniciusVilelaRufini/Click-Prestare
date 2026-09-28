@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { WhatsappInboxService } from './whatsapp-inbox.service';
+import { AUTOMACOES_PADRAO, normalizarConfig } from './whatsapp-automacao';
 
-function montar() {
+function montar(config?: any) {
   const conversas: any[] = [];
   const msgs: any[] = [];
   const leads: any[] = [];
@@ -22,7 +23,7 @@ function montar() {
       create: jest.fn(async ({ data }: any) => { const m = { id: msgs.length + 1, criado_em: new Date(), erro: null, ...data }; msgs.push(m); return m; }),
       update: jest.fn(async ({ where, data }: any) => Object.assign(msgs.find((m) => m.wamid === where.wamid), data)),
       findMany: jest.fn(async ({ where }: any) => msgs.filter((m) => m.conversa_id === where.conversa_id)),
-      findFirst: jest.fn(async ({ where }: any) => msgs.filter((m) => m.conversa_id === where.conversa_id && m.direcao === 'entrada').pop() ?? null),
+      findFirst: jest.fn(async ({ where }: any) => msgs.filter((m) => Object.entries(where).every(([k, v]) => m[k] === v)).pop() ?? null),
     },
     crm_Leads: {
       findFirst: jest.fn(async () => leads.find((l) => l.nome.startsWith('Clique no WhatsApp') && l.whatsapp === '') ?? null),
@@ -32,7 +33,7 @@ function montar() {
     },
   };
   const graph = { enviarTexto: jest.fn(async () => 'wamid.saida'), enviarModelo: jest.fn(async () => 'wamid.modelo'), marcarLida: jest.fn(async () => undefined) };
-  return { conversas, msgs, leads, prisma, graph, svc: new WhatsappInboxService(prisma, graph as any) };
+  return { conversas, msgs, leads, prisma, graph, svc: new WhatsappInboxService(prisma, graph as any, config) };
 }
 
 const entrada = (over: any = {}) => ({ wamid: 'w1', waId: '5521999369814', nomePerfil: 'Ana', tipo: 'text', texto: 'Oi', em: new Date(), ...over });
@@ -135,6 +136,50 @@ describe('WhatsappInboxService', () => {
       t.leads.push({ id: 6, nome: 'Clique', whatsapp: '' });
       await expect(t.svc.iniciarConversa(99)).rejects.toBeInstanceOf(NotFoundException);
       await expect(t.svc.iniciarConversa(6)).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('respostas automáticas', () => {
+    const seg10h = new Date('2026-09-28T13:00:00Z'); // segunda 10:00 em Brasília
+    const cfg = (boasVindas: boolean, fora = false) => ({
+      automacoes: jest.fn(async () => normalizarConfig({ boasVindas: { ativo: boasVindas }, foraHorario: { ativo: fora } })),
+    });
+    beforeEach(() => { jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }); jest.setSystemTime(seg10h); });
+    afterEach(() => jest.useRealTimers());
+
+    it('primeira mensagem recebe boas-vindas marcada como automática', async () => {
+      const t = montar(cfg(true));
+      await t.svc.registrarEntrada(entrada({ em: seg10h }));
+      expect(t.graph.enviarTexto).toHaveBeenCalledWith('5521999369814', AUTOMACOES_PADRAO.boasVindas.texto);
+      expect(t.msgs.find((m) => m.direcao === 'saida')).toMatchObject({ tipo: 'auto_boas_vindas', status: 'enviada' });
+    });
+
+    it('segunda mensagem da mesma conversa não repete a boas-vindas', async () => {
+      const t = montar(cfg(true));
+      await t.svc.registrarEntrada(entrada({ em: seg10h }));
+      await t.svc.registrarEntrada(entrada({ wamid: 'w2', em: seg10h }));
+      expect(t.graph.enviarTexto).toHaveBeenCalledTimes(1);
+    });
+
+    it('mensagem antiga (webhook reenviado) não dispara automação', async () => {
+      const t = montar(cfg(true));
+      await t.svc.registrarEntrada(entrada({ em: new Date(seg10h.getTime() - 3600e3) }));
+      expect(t.graph.enviarTexto).not.toHaveBeenCalled();
+    });
+
+    it('fora do horário manda uma vez e não repete na mensagem seguinte', async () => {
+      jest.setSystemTime(new Date('2026-09-28T23:00:00Z')); // segunda 20:00
+      const t = montar(cfg(true, true));
+      await t.svc.registrarEntrada(entrada({ em: new Date() }));
+      await t.svc.registrarEntrada(entrada({ wamid: 'w2', em: new Date() }));
+      expect(t.graph.enviarTexto).toHaveBeenCalledTimes(1);
+      expect(t.msgs.filter((m) => m.direcao === 'saida')[0].tipo).toBe('auto_fora_horario');
+    });
+
+    it('erro ao ler a configuração não impede gravar a mensagem', async () => {
+      const t = montar({ automacoes: jest.fn(async () => { throw new Error('db'); }) });
+      await t.svc.registrarEntrada(entrada({ em: seg10h }));
+      expect(t.msgs).toHaveLength(1);
     });
   });
 });

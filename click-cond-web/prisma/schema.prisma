@@ -1732,6 +1732,18 @@ model Crm_WhatsApp_Mensagens {
   @@map("crm_whatsapp_mensagens")
 }
 
+model Crm_WhatsApp_Respostas {
+  id        Int      @id @default(autoincrement())
+  atalho    String   @unique(map: "uq_crm_wa_respostas_atalho") @db.VarChar(40)
+  titulo    String   @db.VarChar(80)
+  texto     String   @db.Text
+  ordem     Int      @default(0)
+  criado_em DateTime @default(now()) @db.DateTime(0)
+
+  @@map("crm_whatsapp_respostas")
+}
+
+
 model Crm_Anuncios_Diario {
   id            Int               @id @default(autoincrement())
   plataforma    Crm_AdsPlataforma
