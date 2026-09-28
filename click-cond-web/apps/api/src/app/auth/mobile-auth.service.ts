@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { MailService } from '../common/mail/mail.service';
+import { validarPlaca } from '../common/placa.util';
 import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
@@ -4639,8 +4640,9 @@ export class MobileAuthService {
     return { id: morador.id, id_condominio: morador.id_condominio };
   }
 
+  /** Normaliza e valida (padrão antigo ou Mercosul); lança 400 se inválida. */
   private normalizarPlaca(v: any) {
-    return (v?.placa ?? '').toString().toUpperCase().trim();
+    return validarPlaca((v?.placa ?? '').toString());
   }
 
   async listVeiculosByUser(idUser: number, idCondominio?: number) {

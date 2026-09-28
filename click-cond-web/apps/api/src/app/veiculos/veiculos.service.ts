@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { validarPlaca } from '../common/placa.util';
 
 export interface VeiculoDto {
   placa: string;
@@ -43,7 +44,7 @@ export class VeiculosService {
 
   async create(idCondominio: number, idMorador: number, dto: VeiculoDto) {
     const data = this.normalizar(dto);
-    if (!data.placa) throw new BadRequestException('Placa é obrigatória.');
+    data.placa = validarPlaca(data.placa);
     try {
       return await this.prisma.veiculos.create({
         data: { ...data, id_condominio: idCondominio, id_morador: idMorador },
@@ -63,7 +64,7 @@ export class VeiculosService {
     });
     if (!existing) throw new NotFoundException(`Veículo ${id} não encontrado`);
     const data = this.normalizar(dto);
-    if (!data.placa) throw new BadRequestException('Placa é obrigatória.');
+    data.placa = validarPlaca(data.placa);
     try {
       return await this.prisma.veiculos.update({
         where: { id: Number(id) },
