@@ -39,6 +39,12 @@ Plano: `docs/superpowers/plans/2026-09-28-correcoes-varredura.md`.
 - Após instalar do zero e logar, `POST_NOTIFICATIONS` ficou `granted=false`; nenhum push aparece até conceder manualmente.
 - O app pede a câmera ao abrir e o Firebase pede notificação em `firebase_service.dart:41` no mesmo momento. Hipótese: dois pedidos simultâneos e o Android descarta o segundo. A confirmar antes de corrigir.
 
+### 22. 🔴 Funcionários do condomínio não apareciam para o morador — ✅ corrigido
+- App "Funcionários do Condomínio" vazio; web mostrava o porteiro João Junior.
+- Causa: a unidade de destino ficou obrigatória para prestador/funcionário (`b26c4079`) e o filtro de privacidade do morador (`escopoDeLeitura`) só libera prestadores sem unidade ou da unidade dele. O porteiro foi cadastrado em "Bloco Condominio / 01" e sumia para todos.
+- Correção (`2c6dbe0f`): unidade opcional no console e no app (síndico/funcionário); sem unidade = "Condomínio (todos os moradores)"; backend grava 0/vazio como null. Dado do João ajustado (id_apartamento → NULL). Retestado: aparece no app do morador.
+- O CI de `master` também faz deploy no EB e colide com o `deploy-api.yml` de `main` (o de `main` passou). A mesma espera por "Ready" precisa ir para o passo de deploy do CI.
+
 ## Bugs
 
 ### 1. 🔴 App mostra "Você é o proprietário" para qualquer morador
