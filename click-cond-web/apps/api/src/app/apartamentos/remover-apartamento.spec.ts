@@ -29,7 +29,8 @@ describe('ApartamentosService — remover unidade', () => {
           return { id: 5 };
         }),
       },
-      apartamentos_Users: { count: jest.fn(async () => 2) },
+      apartamentos_Users: { count: jest.fn(async () => 2), findMany: jest.fn(async () => [{ id_user: 7 }]) },
+      moradores: { updateMany: jest.fn(async () => ({ count: 1 })) },
       visitantes: { count: jest.fn(async () => 7) },
       vagas: { count: jest.fn(async () => 1) },
       areas_Sociais_Agendamentos: { count: jest.fn(async () => 3) },

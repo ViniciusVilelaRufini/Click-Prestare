@@ -19,6 +19,12 @@ jobs:
   api:
     name: API (typecheck, testes, build)
     runs-on: ubuntu-latest
+    # No master este job publica no mesmo ambiente EB que o deploy-api.yml
+    # (push em main). Mesmo grupo = fila: sem isso os dois colidiam e um
+    # falhava com "Environment ... Must be Ready".
+    concurrency:
+      group: ${{ github.ref == 'refs/heads/master' && 'elastic-beanstalk-api-production' || format('ci-api-{0}', github.ref) }}
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: click-cond-web

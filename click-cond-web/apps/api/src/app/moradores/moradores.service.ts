@@ -1012,8 +1012,13 @@ export class MoradoresService {
 
         if (dto.id_apartamento !== undefined) {
           if (atual.id_user) {
+            // Só os vínculos DESTE condomínio: sem o filtro, editar o morador
+            // aqui apagava o vínculo dele (ou do síndico) em outros prédios.
             await tx.apartamentos_Users.deleteMany({
-              where: { id_user: atual.id_user },
+              where: {
+                id_user: atual.id_user,
+                ...(atual.id_condominio != null && { apartamento: { id_condominio: atual.id_condominio } }),
+              },
             });
           }
 
@@ -1044,7 +1049,10 @@ export class MoradoresService {
           }
         } else if (tipoNorm !== undefined && atual.id_user) {
           await tx.apartamentos_Users.updateMany({
-            where: { id_user: atual.id_user },
+            where: {
+                id_user: atual.id_user,
+                ...(atual.id_condominio != null && { apartamento: { id_condominio: atual.id_condominio } }),
+              },
             data: { tipo: tipoNorm },
           });
         }

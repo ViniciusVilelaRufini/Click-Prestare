@@ -273,6 +273,16 @@ export class ApartamentosService {
       );
     }
 
+    // Quem estava vinculado — a cascata leva o vínculo, mas o cadastro do
+    // morador guarda bloco/apto em texto (usado por encomendas). Capturado
+    // antes do delete para limpar depois.
+    const vinculados = moradores > 0
+      ? await this.prisma.apartamentos_Users.findMany({
+          where: { id_apto: Number(id) },
+          select: { id_user: true },
+        })
+      : [];
+
     try {
       await this.prisma.apartamentos.delete({ where: { id: Number(id) } });
     } catch (err: any) {
@@ -286,6 +296,21 @@ export class ApartamentosService {
       throw new BadRequestException(
         `Não foi possível remover o apartamento. (${err?.code ?? err?.name ?? 'erro'})`,
       );
+    }
+
+    // Sem isto o ex-morador seguia "morando" no 101 para as encomendas: push
+    // e contador casam por bloco/apto em texto, e um 101 recriado herdava ele.
+    const idsUsers = [...new Set(vinculados.map((v) => v.id_user))];
+    if (idsUsers.length > 0) {
+      await this.prisma.moradores.updateMany({
+        where: {
+          id_condominio: atual.id_condominio,
+          id_user: { in: idsUsers },
+          apartamento: atual.apto,
+          bloco: atual.bloco,
+        },
+        data: { bloco: null, apartamento: null },
+      });
     }
 
     const label = atual.bloco ? `Apto ${atual.apto} Bloco ${atual.bloco}` : `Apto ${atual.apto}`;
