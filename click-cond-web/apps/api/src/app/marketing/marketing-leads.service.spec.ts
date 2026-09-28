@@ -52,6 +52,20 @@ describe('MarketingLeadsService', () => {
     expect(prisma.crm_Leads.update.mock.calls[0][0].data).toEqual({ observacao: 'ligar segunda' });
   });
 
+  it('atualizar observacao null grava null (não a string "null")', async () => {
+    const lead = { id: 5, ...base, origem: 'google', status: 'novo', observacao: 'algo', criado_em: new Date(), status_em: null };
+    const { prisma, svc } = montar(lead);
+    await svc.atualizar(5, { observacao: null as any });
+    expect(prisma.crm_Leads.update.mock.calls[0][0].data).toEqual({ observacao: null });
+  });
+
+  it('atualizar observacao string vazia grava null', async () => {
+    const lead = { id: 5, ...base, origem: 'google', status: 'novo', observacao: 'algo', criado_em: new Date(), status_em: null };
+    const { prisma, svc } = montar(lead);
+    await svc.atualizar(5, { observacao: '' });
+    expect(prisma.crm_Leads.update.mock.calls[0][0].data).toEqual({ observacao: null });
+  });
+
   it('status inválido é rejeitado', async () => {
     const lead = { id: 5, ...base, origem: 'google', status: 'novo', observacao: null, criado_em: new Date(), status_em: null };
     const { svc } = montar(lead);

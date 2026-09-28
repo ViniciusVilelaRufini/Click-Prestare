@@ -71,7 +71,10 @@ export class MarketingLeadsService {
         data.status_em = new Date();
       }
     }
-    if (p.observacao !== undefined) data.observacao = String(p.observacao).slice(0, 5000);
+    if (p.observacao !== undefined) {
+      const texto = p.observacao == null ? '' : String(p.observacao).trim().slice(0, 5000);
+      data.observacao = texto ? texto : null;
+    }
     const salvo = await this.prisma.crm_Leads.update({ where: { id }, data });
     return paraDto(salvo);
   }
