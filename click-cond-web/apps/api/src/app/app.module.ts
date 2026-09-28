@@ -34,6 +34,7 @@ import { CaminhosAcessoModule } from './caminhos-acesso/caminhos-acesso.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { CrmModule } from './crm/crm.module';
+import { MarketingModule } from './marketing/marketing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { VeiculosModule } from './veiculos/veiculos.module';
 import { VagasModule } from './vagas/vagas.module';
@@ -79,6 +80,7 @@ import { THROTTLERS } from './common/throttle/throttlers';
     CaminhosAcessoModule,
     AuditoriaModule,
     CrmModule,
+    MarketingModule,
     IntegrationsModule,
     VeiculosModule,
     VagasModule,
