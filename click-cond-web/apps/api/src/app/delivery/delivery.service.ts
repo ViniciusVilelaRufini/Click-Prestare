@@ -204,12 +204,15 @@ export class DeliveryService {
       await this.registrarEvento(tx, registro.id, statusAtual, statusNovo, user, dto.observacao ?? dto.motivo);
       return registro;
     });
-    if (['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA'].includes(statusNovo)) {
+    // Recusada e retirada na portaria também mudam o que o morador precisa
+    // fazer (buscar lá embaixo / saber que não vem) — ficavam sem aviso.
+    if (['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'].includes(statusNovo)) {
       await this.notificarMorador(
         atualizado.id_apartamento,
         atualizado.id_morador_user,
         statusNovo,
         atualizado.id,
+        dto.motivo,
       );
     }
     return isOperador(user) ? atualizado : this.paraMorador(atualizado);
@@ -317,13 +320,15 @@ export class DeliveryService {
     return db.deliveryEventos.create({ data: { id_atendimento: idAtendimento, status_anterior: anterior, status_novo: novo, id_usuario_autor: this.idUsuario(user), autor_nome: user.nome ?? user.user?.name ?? null, mensagem: mensagem?.trim() || null } });
   }
 
-  private async notificarMorador(idApartamento: number, idMorador: number, status: DeliveryStatus, idAtendimento: number) {
+  private async notificarMorador(idApartamento: number, idMorador: number, status: DeliveryStatus, idAtendimento: number, motivo?: string) {
     const vinculo = await this.prisma.apartamentos_Users.findFirst({ where: { id_apto: idApartamento, id_user: idMorador }, include: { user: { select: { fcm_token: true } } } });
     const mensagens: Partial<Record<DeliveryStatus, string>> = {
       CHEGOU: 'Seu entregador chegou à portaria.',
       AGUARDANDO_AUTORIZACAO: 'A portaria aguarda sua autorização para a entrega.',
       AUTORIZADA: 'Sua entrega foi autorizada.',
       CONCLUIDA: 'Sua entrega foi concluída.',
+      RECUSADA: `Sua entrega foi recusada pela portaria.${motivo?.trim() ? ` Motivo: ${motivo.trim()}` : ''}`,
+      RETIRADA_NA_PORTARIA: 'Sua entrega ficou na portaria. Retire quando puder.',
     };
     await this.notifications.sendPushNotification(vinculo?.user?.fcm_token ?? '', 'Delivery', mensagens[status] ?? 'Atualização no seu atendimento.', { id_delivery: String(idAtendimento), status });
   }

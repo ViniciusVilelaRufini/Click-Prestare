@@ -19,6 +19,7 @@ import {
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { ConsentimentosTerceirosService } from '../consentimentos/consentimentos-terceiros.service';
 
+import { rotuloBloco } from '../common/rotulo-bloco.util';
 /** Horas de validade do link. Depois disso ele não serve para mais nada. */
 export const HORAS_DE_VALIDADE = 24;
 
@@ -302,7 +303,7 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
     return {
       condominio: convite.condominio?.nome ?? '',
       unidade: convite.apartamento?.bloco
-        ? `Apartamento ${convite.apartamento.apto} · Bloco ${convite.apartamento.bloco}`
+        ? `Apartamento ${convite.apartamento.apto} · ${rotuloBloco(convite.apartamento.bloco)}`
         : `Apartamento ${convite.apartamento?.apto ?? ''}`,
       is_prestador: convite.is_prestador === 1,
       expira_em: convite.expira_em,

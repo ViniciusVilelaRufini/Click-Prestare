@@ -402,6 +402,38 @@ describe('DeliveryService', () => {
       .rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('avisa o morador quando a entrega é recusada, com o motivo', async () => {
+    const { service, notifications } = montar();
+    const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+    await service.atualizarStatus(aviso.id, { status: 'CHEGOU' }, porteiro);
+    notifications.sendPushNotification.mockClear();
+
+    await service.atualizarStatus(aviso.id, { status: 'RECUSADA', motivo: 'Entregador sem identificação' }, porteiro);
+
+    expect(notifications.sendPushNotification).toHaveBeenCalledWith(
+      'token-morador',
+      'Delivery',
+      'Sua entrega foi recusada pela portaria. Motivo: Entregador sem identificação',
+      expect.objectContaining({ status: 'RECUSADA' }),
+    );
+  });
+
+  it('avisa o morador quando a entrega fica na portaria', async () => {
+    const { service, notifications } = montar();
+    const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+    await service.atualizarStatus(aviso.id, { status: 'CHEGOU' }, porteiro);
+    notifications.sendPushNotification.mockClear();
+
+    await service.atualizarStatus(aviso.id, { status: 'RETIRADA_NA_PORTARIA' }, porteiro);
+
+    expect(notifications.sendPushNotification).toHaveBeenCalledWith(
+      'token-morador',
+      'Delivery',
+      'Sua entrega ficou na portaria. Retire quando puder.',
+      expect.objectContaining({ status: 'RETIRADA_NA_PORTARIA' }),
+    );
+  });
+
   it('notifica o morador quando a portaria solicita autorização', async () => {
     const { service, notifications } = montar();
     const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);

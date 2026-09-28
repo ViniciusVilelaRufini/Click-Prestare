@@ -6,6 +6,7 @@ import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 
+import { rotuloBloco } from '../common/rotulo-bloco.util';
 export interface CreateApartamentoDto {
   bloco?: string;
   apto: string;
@@ -158,7 +159,7 @@ export class ApartamentosService {
       // mostrava um texto técnico. O operador precisa saber que a unidade já
       // existe, não que houve falha no servidor.
       if (err?.code === 'P2002') {
-        const label = dto.bloco ? `Apto ${dto.apto} Bloco ${dto.bloco}` : `Apto ${dto.apto}`;
+        const label = dto.bloco ? `Apto ${dto.apto} ${rotuloBloco(dto.bloco)}` : `Apto ${dto.apto}`;
         throw new BadRequestException(`${label} já está cadastrado neste condomínio.`);
       }
       this.logger.error(
@@ -210,7 +211,7 @@ export class ApartamentosService {
       if (err?.code === 'P2002') {
         const apto = dto.apto ?? atual.apto;
         const bloco = dto.bloco ?? atual.bloco;
-        const label = bloco ? `Apto ${apto} Bloco ${bloco}` : `Apto ${apto}`;
+        const label = bloco ? `Apto ${apto} ${rotuloBloco(bloco)}` : `Apto ${apto}`;
         throw new BadRequestException(`${label} já está cadastrado neste condomínio.`);
       }
       this.logger.error(
@@ -313,7 +314,7 @@ export class ApartamentosService {
       });
     }
 
-    const label = atual.bloco ? `Apto ${atual.apto} Bloco ${atual.bloco}` : `Apto ${atual.apto}`;
+    const label = atual.bloco ? `Apto ${atual.apto} ${rotuloBloco(atual.bloco)}` : `Apto ${atual.apto}`;
     await this.auditoria.registrar({
       id_condominio: atual.id_condominio,
       usuario_nome: user?.nome ?? 'Sistema',

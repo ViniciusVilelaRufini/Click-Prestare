@@ -7,6 +7,7 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import axios from 'axios';
 
+import { rotuloBloco } from '../common/rotulo-bloco.util';
 export interface CreateEncomendaDto {
   descricao: string;
   destinatario_apto: string;
@@ -73,7 +74,7 @@ export class EncomendasService implements OnModuleInit {
       d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }) : null;
 
     const aptoLabel = e.destinatario_bloco
-      ? `Bloco ${e.destinatario_bloco}, Apto ${e.destinatario_apto}`
+      ? `${rotuloBloco(e.destinatario_bloco)}, Apto ${e.destinatario_apto}`
       : `Apto ${e.destinatario_apto}`;
 
     return {

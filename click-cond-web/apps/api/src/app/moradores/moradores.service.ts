@@ -12,6 +12,7 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 
+import { rotuloBloco } from '../common/rotulo-bloco.util';
 export interface CreateMoradorDto {
   nome: string;
   documento?: string;
@@ -88,7 +89,7 @@ export class MoradoresService {
     if (!m) return null;
 
     const aptoLabel = m.bloco
-      ? `Bloco ${m.bloco}, Apto ${m.apartamento}`
+      ? `${rotuloBloco(m.bloco)}, Apto ${m.apartamento}`
       : (m.apartamento ? `Apto ${m.apartamento}` : null);
 
     return {

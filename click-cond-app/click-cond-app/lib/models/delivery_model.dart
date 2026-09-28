@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 enum DeliveryModoEntrega { unidade, portaria }
 
 class DeliveryUnit {
@@ -17,7 +18,7 @@ class DeliveryUnit {
       );
 
   String get label =>
-      bloco.isEmpty ? 'Unidade $apto' : 'Bloco $bloco · Unidade $apto';
+      bloco.isEmpty ? 'Unidade $apto' : '${rotuloBloco(bloco)} · Unidade $apto';
 }
 
 extension DeliveryModoEntregaApi on DeliveryModoEntrega {

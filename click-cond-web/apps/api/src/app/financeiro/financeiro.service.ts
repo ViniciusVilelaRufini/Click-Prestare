@@ -13,6 +13,7 @@ import { FechamentoService } from './fechamento.service';
 import { SuperlogicaService } from '../superlogica/superlogica.service';
 import { csvCelula } from '../common/csv.util';
 
+import { rotuloBloco } from '../common/rotulo-bloco.util';
 @Injectable()
 export class FinanceiroService implements OnModuleInit {
   private readonly logger = new Logger(FinanceiroService.name);
@@ -1614,7 +1615,7 @@ export class FinanceiroService implements OnModuleInit {
       return {
         success: false,
         message:
-          `Nenhum morador cadastrado no Apto ${apto}${blocoNorm ? ` Bloco ${blocoNorm}` : ''} para notificar. ` +
+          `Nenhum morador cadastrado no Apto ${apto}${blocoNorm ? ` ${rotuloBloco(blocoNorm)}` : ''} para notificar. ` +
           'Cadastre o morador da unidade e tente de novo.',
         totalFaturas: pendingFaturas.length,
         totalDivida,
@@ -1635,7 +1636,7 @@ export class FinanceiroService implements OnModuleInit {
           await this.notifications.sendPushNotification(
             morador.fcm_token,
             'Lembrete de Inadimplência',
-            `Constatamos ${pendingFaturas.length} fatura(s) pendente(s) para o Apto ${apto} Bloco ${bloco}, totalizando ${totalFormatted}. Regularize pelo App.`,
+            `Constatamos ${pendingFaturas.length} fatura(s) pendente(s) para o Apto ${apto} ${rotuloBloco(bloco)}, totalizando ${totalFormatted}. Regularize pelo App.`,
             { type: 'financeiro' },
           );
           sentPushCount++;
@@ -1670,7 +1671,7 @@ export class FinanceiroService implements OnModuleInit {
       return {
         success: false,
         message:
-          `Nenhuma notificação pôde ser entregue ao Apto ${apto}${blocoNorm ? ` Bloco ${blocoNorm}` : ''}. ` +
+          `Nenhuma notificação pôde ser entregue ao Apto ${apto}${blocoNorm ? ` ${rotuloBloco(blocoNorm)}` : ''}. ` +
           'O morador não tem e-mail cadastrado nem o app instalado.',
         totalFaturas: pendingFaturas.length,
         totalDivida,
