@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { diaBrt, inicioDiaBrt, fimDiaBrt } from './datas-brt';
+import { diaBrt } from './datas-brt';
 
 type Canal = 'google' | 'openai' | 'instagram' | 'organico';
 const CANAIS: Canal[] = ['google', 'openai', 'instagram', 'organico'];
