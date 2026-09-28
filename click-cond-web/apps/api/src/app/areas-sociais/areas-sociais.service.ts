@@ -43,6 +43,21 @@ function dataHoraBr(d: Date): string {
   return `${dia} às ${hora}`;
 }
 
+/**
+ * Um bloco de horário livre deixa de estar livre se INTERSECTA uma reserva
+ * ativa — a mesma regra de sobreposição que insertAgendamento aplica no POST.
+ */
+export function blocoColideComReserva(
+  bloco: { horarioDe: string; horarioAte: string },
+  ag: { horaDe: string; horaAte: string },
+): boolean {
+  const min = (s: string) => {
+    const [h, m] = (s || '0:0').split(':').map(Number);
+    return h * 60 + (m || 0);
+  };
+  return min(bloco.horarioDe) < min(ag.horaAte) && min(bloco.horarioAte) > min(ag.horaDe);
+}
+
 @Injectable()
 export class AreasSociaisService {
   private readonly logger = new Logger(AreasSociaisService.name);
@@ -581,10 +596,7 @@ export class AreasSociaisService {
     agendamentosOcupam.forEach(ag => {
       const dataAg = ag.data;
       if (horariosLivres[dataAg]) {
-        horariosLivres[dataAg] = horariosLivres[dataAg].filter(h => {
-          const isMesmo = h.horarioDe === ag.horaDe && h.horarioAte === ag.horaAte;
-          return !isMesmo;
-        });
+        horariosLivres[dataAg] = horariosLivres[dataAg].filter(h => !blocoColideComReserva(h, ag));
 
         if (horariosLivres[dataAg].length === 0) {
           delete horariosLivres[dataAg];
