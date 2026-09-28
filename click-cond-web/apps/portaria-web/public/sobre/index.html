@@ -38,13 +38,14 @@
 <script>!function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");oaiq("init",{pixelId:"17H2XPR4dY5HHBNUs9L5ha"});</script>
 <script>
   // Conversao "pedido de orcamento": dispara no envio do formulario (enviar)
-  // e em qualquer clique num link direto para o WhatsApp (wa.me).
+  // e em qualquer clique num link direto para o WhatsApp (wa.me) ou para a DM
+  // do Instagram (ig.me/m).
   window.psConversaoOrcamento = function () {
     try { gtag('event', 'conversion', { send_to: 'AW-18476913499/-xRLCNiSs4gdENumvepE', value: 1.0, currency: 'BRL' }); } catch (e) {}
     try { oaiq('measure', 'lead_created', { type: 'customer_action' }); } catch (e) {}
   };
   document.addEventListener('click', function (e) {
-    var a = e.target && e.target.closest ? e.target.closest('a[href*="wa.me/"]') : null;
+    var a = e.target && e.target.closest ? e.target.closest('a[href*="wa.me/"], a[href*="ig.me/m/"]') : null;
     if (a) window.psConversaoOrcamento();
   }, true);
 </script>
@@ -656,6 +657,11 @@
           <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="align-self: flex-start;" class="ps-cta">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="lg" icon-left="phone" hint-size="220px,52px">Falar no WhatsApp agora</x-import>
           </a>
+          <!-- ig.me/m abre a conversa direta (DM) com o perfil, nao so o feed. -->
+          <a href="https://ig.me/m/prestare.gestao" target="_blank" rel="noopener" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; font: var(--type-sub); color: rgba(255,255,255,.9); text-decoration: underline; text-underline-offset: 3px;" style-hover="color: #fff;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"></circle></svg>
+            Mandar mensagem no Instagram · @prestare.gestao
+          </a>
           <!-- mailto: sozinho so funciona para quem tem cliente de e-mail
                configurado; no resto o clique nao faz nada e sobra copiar o
                endereco na mao. Por isso a escolha explicita de onde escrever,
@@ -742,6 +748,10 @@
         <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font: var(--type-sub); color: var(--prestare-blue-600);">
           <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="phone" size="16" color="var(--prestare-blue-500)" hint-size="16px,16px"></x-import>Falar no WhatsApp
         </a>
+        <br>
+        <a href="https://www.instagram.com/prestare.gestao/" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font: var(--type-sub); color: var(--prestare-blue-600);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--prestare-blue-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1" fill="var(--prestare-blue-500)" stroke="none"></circle></svg>@prestare.gestao no Instagram
+        </a>
       </div>
 
       <nav style="flex: 0 1 165px; min-width: 0; display: grid; gap: 11px; align-content: start;">
@@ -759,6 +769,7 @@
         <a href="/login" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Console da portaria</a>
         <a href="#contato" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Pedir orçamento</a>
         <a href="mailto:suporte@clickprestarecondominios.com.br" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Suporte</a>
+        <a href="https://ig.me/m/prestare.gestao" target="_blank" rel="noopener" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Instagram (mensagem)</a>
       </nav>
 
       <nav style="flex: 0 1 185px; min-width: 0; display: grid; gap: 11px; align-content: start;">
