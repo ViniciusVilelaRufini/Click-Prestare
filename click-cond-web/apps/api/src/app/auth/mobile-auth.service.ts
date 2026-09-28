@@ -644,6 +644,7 @@ export class MobileAuthService {
           apto_id: apto.id,
           apto: apto.apto,
           apto_bloco: apto.bloco ?? '',
+          apto_tipo: r.tipo ?? null,
           vencimento_morador: r.vencimento ? r.vencimento.toLocaleDateString('pt-BR') : '',
           dias_restantes_morador: r.vencimento ? Math.ceil((r.vencimento.getTime() - Date.now()) / 86400000) : 100,
         };

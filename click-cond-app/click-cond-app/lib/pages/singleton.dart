@@ -20,12 +20,12 @@ class Singleton {
   var apto_tipo; // vínculo do morador no apto: Proprietário/Inquilino/Membro/morador/null
 
   /// O morador logado é o "dono" do apto (pode cadastrar familiares)?
-  /// Dados legados usam tipos inconsistentes; tratamos como proprietário tudo que
-  /// NÃO for explicitamente Inquilino/dependente/Membro.
+  /// Exige o vínculo explícito — a mesma regra do backend (insertFamiliar).
+  /// Tratar vazio como dono mostrava o selo e o botão de familiar para quem
+  /// o servidor depois recusava.
   bool isProprietarioApto() {
-    final t = (apto_tipo ?? '').toString().toLowerCase().trim();
-    if (t.isEmpty) return true;
-    return !(t == 'inquilino' || t == 'dependente' || t == 'membro');
+    final t = (apto_tipo ?? '').toString().toLowerCase().trim().replaceAll('á', 'a');
+    return t == 'proprietario';
   }
   var vencimento_morador = "";
   var dias_restantes_morador = 10;
