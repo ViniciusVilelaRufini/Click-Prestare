@@ -27,14 +27,15 @@ function linhaValida(r: any): LinhaAnuncio {
     throw new BadRequestException('Linha de anúncio inválida.');
   }
   const n = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
   return {
     campanha_id: String(r.campanha_id).slice(0, 64),
     campanha_nome: String(r.campanha_nome ?? r.campanha_id).slice(0, 200),
     dia: String(r.dia),
-    impressoes: Math.round(n(r.impressoes)),
-    cliques: Math.round(n(r.cliques)),
-    gasto: n(r.gasto),
-    conversoes: n(r.conversoes),
+    impressoes: clamp(Math.round(n(r.impressoes)), 0, 2_000_000_000),
+    cliques: clamp(Math.round(n(r.cliques)), 0, 2_000_000_000),
+    gasto: clamp(n(r.gasto), 0, 1e9),
+    conversoes: clamp(n(r.conversoes), 0, 1e9),
   };
 }
 

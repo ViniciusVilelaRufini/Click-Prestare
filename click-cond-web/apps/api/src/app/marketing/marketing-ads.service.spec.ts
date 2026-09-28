@@ -36,6 +36,14 @@ describe('MarketingAdsService', () => {
     restaurar();
   });
 
+  it('ingestGoogle clampa valores negativos para 0', async () => {
+    const { prisma, svc, restaurar } = montar();
+    await svc.ingestGoogle('segredo', { rows: [{ ...linha, impressoes: -5, cliques: -1, gasto: -10, conversoes: -2 }] });
+    const arg = prisma.crm_Anuncios_Diario.upsert.mock.calls[0][0];
+    expect(arg.update).toEqual(expect.objectContaining({ impressoes: 0, cliques: 0, gasto: 0, conversoes: 0 }));
+    restaurar();
+  });
+
   it('ingestGoogle rejeita linha com dia inválido', async () => {
     const { svc, restaurar } = montar();
     await expect(svc.ingestGoogle('segredo', { rows: [{ ...linha, dia: '27/09' }] })).rejects.toBeInstanceOf(BadRequestException);
