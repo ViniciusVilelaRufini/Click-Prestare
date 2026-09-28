@@ -481,10 +481,13 @@ export class MoradoresPageComponent implements OnInit {
       this.fotoPessoaBase64.set(null);
       this.novo.sendCredentials = false;
       this.novo.tipo = 'dependente';
+      this.novo.email = '';
     } else if (ehMenor) {
       this.novo.foto_pessoa = undefined;
       this.novo.sendCredentials = false;
       this.novo.tipo = 'dependente';
+      // E-mail cria conta no app; o backend recusa para menor (Cláusula 8.3).
+      this.novo.email = '';
     }
 
     this.saving.set(true);

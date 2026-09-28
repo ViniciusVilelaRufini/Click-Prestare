@@ -101,7 +101,13 @@ export class VeiculosPageComponent implements OnInit {
     }
     this.buscandoMoradores.set(true);
     this.moradoresApi.list(termo).subscribe({
-      next: (data) => { this.moradoresEncontrados.set(data); this.buscandoMoradores.set(false); },
+      next: (data) => {
+        // Resposta de uma busca anterior ("Vi") chegando depois da atual
+        // ("Vinicius Fam") sobrescrevia a lista com resultados errados.
+        if (this.buscaMorador().trim() !== termo) return;
+        this.moradoresEncontrados.set(data);
+        this.buscandoMoradores.set(false);
+      },
       error: () => this.buscandoMoradores.set(false),
     });
   }

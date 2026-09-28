@@ -70,10 +70,12 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
       }
     });
 
-    // Atualiza a listagem de ocorrencias a cada 10 segundos em segundo plano
+    // Atualiza a listagem a cada 30 s em segundo plano — e não consulta a API
+    // enquanto a aba do navegador está oculta.
     this.ocorrenciasInterval = setInterval(() => {
+      if (document.hidden) return;
       this.carregarSilenciosamente();
-    }, 10000);
+    }, 30000);
   }
 
   carregar() {

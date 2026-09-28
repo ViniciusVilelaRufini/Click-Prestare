@@ -1274,6 +1274,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     // 3. Autorização do morador vencida numa visita não usada: o check-in
     // seria recusado — não é "Liberado" (o botão só falhava).
     if ((v as Pessoa).autorizacao_expirada) return 'expirado';
+    // Janela ainda não começou: o PIN/facial seriam recusados agora — é
+    // "Agendado", mesmo com liberado === 1.
+    if (v.data_hora_inicio && new Date(v.data_hora_inicio).getTime() > Date.now()) return 'agendado';
     // 4. Pré-autorizado manualmente/app (liberado === 1 e não expirado)
     if ((v as any).liberado === 1 && !this.autorizacaoExpirada(v)) return 'liberado';
     

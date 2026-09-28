@@ -25,6 +25,13 @@ describe('VisitantesPageComponent.getStatusVisitante', () => {
     expect(tela.getStatusVisitante(v)).toBe('presente');
   });
 
+  it('liberado com janela ainda não iniciada é "agendado"', () => {
+    const inicio = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+    const fim = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+    const v: any = { liberado: 1, data_entrada: null, data_saida: null, data_hora_inicio: inicio, data_hora_termino: fim };
+    expect(tela.getStatusVisitante(v)).toBe('agendado');
+  });
+
   it('saída da visita atual continua "saiu"', () => {
     const v: any = { liberado: 0, data_entrada: saidaAntiga, data_saida: saidaAntiga, ultSaida: saidaAntiga };
     expect(tela.getStatusVisitante(v)).toBe('saiu');

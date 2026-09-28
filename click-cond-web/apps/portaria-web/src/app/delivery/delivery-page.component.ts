@@ -114,7 +114,8 @@ export class DeliveryPageComponent implements OnInit {
   }
 
   textoStatus(status: DeliveryStatus): string {
-    return status.replaceAll('_', ' ');
+    // O enum não tem acento; o rótulo exibido tem.
+    return status.replaceAll('_', ' ').replace('AUTORIZACAO', 'AUTORIZAÇÃO');
   }
 
   unidade(atendimento: DeliveryAtendimento): string {
