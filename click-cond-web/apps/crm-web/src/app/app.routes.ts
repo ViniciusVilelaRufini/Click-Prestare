@@ -45,6 +45,10 @@ export const appRoutes: Route[] = [
             loadComponent: () => import('./crm/tabs/crm-relatorios.component').then((m) => m.CrmRelatoriosComponent),
           },
           {
+            path: 'marketing',
+            loadComponent: () => import('./crm/tabs/crm-marketing.component').then((m) => m.CrmMarketingComponent),
+          },
+          {
             path: 'chamados',
             loadComponent: () => import('./crm/tabs/crm-chamados.component').then((m) => m.CrmChamadosComponent),
           },

@@ -1,0 +1,133 @@
+<div class="space-y-6">
+  <!-- Período -->
+  <div class="flex flex-wrap items-center gap-2">
+    @for (p of [['7d','7 dias'],['30d','30 dias'],['mes','Mês atual'],['custom','Personalizado']]; track p[0]) {
+      <button type="button" (click)="escolherPeriodo($any(p[0]))"
+        class="rounded-full px-4 py-1.5 text-sm"
+        [class]="periodo() === p[0] ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'">{{ p[1] }}</button>
+    }
+    @if (periodo() === 'custom') {
+      <input type="date" class="rounded-lg border px-2 py-1 text-sm" [ngModel]="de()" (ngModelChange)="de.set($event)">
+      <input type="date" class="rounded-lg border px-2 py-1 text-sm" [ngModel]="ate()" (ngModelChange)="ate.set($event)">
+      <button type="button" class="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white" (click)="carregar()">Aplicar</button>
+    }
+  </div>
+
+  @for (a of avisosFrescor(); track a) {
+    <div class="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{{ a }}</div>
+  }
+
+  <!-- KPIs -->
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="card p-6"><p class="text-sm text-ink-muted">Investimento</p><p class="mt-2 text-3xl font-bold">{{ brl(resumo()?.investimento) }}</p><p class="mt-1 text-xs text-ink-muted">Google + OpenAI no período</p></div>
+    <div class="card p-6"><p class="text-sm text-ink-muted">Leads</p><p class="mt-2 text-3xl font-bold">{{ num(resumo()?.leads) }}</p><p class="mt-1 text-xs text-ink-muted">Pedidos de orçamento</p></div>
+    <div class="card p-6"><p class="text-sm text-ink-muted">Custo por lead</p><p class="mt-2 text-3xl font-bold">{{ brl(resumo()?.custoPorLead) }}</p><p class="mt-1 text-xs text-ink-muted">Investimento ÷ leads</p></div>
+    <div class="card p-6"><p class="text-sm text-ink-muted">Contratos fechados</p><p class="mt-2 text-3xl font-bold">{{ num(resumo()?.fechados) }}</p><p class="mt-1 text-xs text-ink-muted">Custo por contrato: {{ brl(resumo()?.custoPorContrato) }}</p></div>
+  </div>
+
+  <!-- Por canal -->
+  <div class="card p-6">
+    <h3 class="text-lg font-semibold">Por canal</h3>
+    <div class="mt-4 overflow-x-auto">
+      <table class="w-full min-w-[720px] text-sm">
+        <thead class="text-left text-ink-muted"><tr>
+          <th class="py-2">Canal</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>Gasto</th><th>Leads</th><th>Custo/lead</th><th>Fechados</th>
+        </tr></thead>
+        <tbody>
+          @for (c of resumo()?.canais ?? []; track c.canal) {
+            <tr class="border-t">
+              <td class="py-2"><span class="rounded-full px-2 py-0.5 text-xs" [class]="canalCor[c.canal]">{{ canalLabel[c.canal] }}</span></td>
+              <td>{{ num(c.impressoes) }}</td><td>{{ num(c.cliques) }}</td><td>{{ pct(c.ctr) }}</td>
+              <td>{{ brl(c.gasto) }}</td><td>{{ c.leads }}</td><td>{{ brl(c.custoPorLead) }}</td><td>{{ c.fechados }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Diário -->
+  <div class="card p-6">
+    <h3 class="text-lg font-semibold">Gasto e leads por dia</h3>
+    @if ((resumo()?.diario ?? []).length === 0) {
+      <p class="mt-4 text-sm text-ink-muted">Sem dados no período.</p>
+    } @else {
+      <div class="mt-4 flex h-40 items-end gap-1 overflow-x-auto">
+        @for (d of resumo()!.diario; track d.dia) {
+          <div class="flex min-w-[14px] flex-1 flex-col items-center justify-end gap-0.5" [title]="d.dia + ' · ' + brl(d.gasto) + ' · ' + d.leads + ' lead(s)'">
+            <div class="w-full rounded-t bg-emerald-500" [style.height.%]="(d.leads / maxDiario().leads) * 45"></div>
+            <div class="w-full rounded-t bg-slate-300" [style.height.%]="(d.gasto / maxDiario().gasto) * 55"></div>
+          </div>
+        }
+      </div>
+      <p class="mt-2 text-xs text-ink-muted"><span class="inline-block h-2 w-2 rounded bg-slate-300"></span> gasto · <span class="inline-block h-2 w-2 rounded bg-emerald-500"></span> leads</p>
+    }
+  </div>
+
+  <!-- Leads -->
+  <div class="card p-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h3 class="text-lg font-semibold">Leads</h3>
+      <div class="flex gap-2">
+        <select class="rounded-lg border px-2 py-1 text-sm" [ngModel]="filtroStatus()" (ngModelChange)="filtroStatus.set($event); carregar()">
+          <option value="">Todos os status</option>
+          @for (s of statusOpcoes; track s.valor) { <option [value]="s.valor">{{ s.label }}</option> }
+        </select>
+        <select class="rounded-lg border px-2 py-1 text-sm" [ngModel]="filtroOrigem()" (ngModelChange)="filtroOrigem.set($event); carregar()">
+          <option value="">Todas as origens</option>
+          <option value="google">Google Ads</option><option value="openai">OpenAI Ads</option>
+          <option value="instagram">Instagram</option><option value="organico">Orgânico</option>
+        </select>
+      </div>
+    </div>
+    @if (leads().length === 0) {
+      <p class="mt-4 text-sm text-ink-muted">Nenhum pedido de orçamento no período.</p>
+    } @else {
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full min-w-[720px] text-sm">
+          <thead class="text-left text-ink-muted"><tr><th class="py-2">Data</th><th>Nome</th><th>Condomínio</th><th>Unidades</th><th>Origem</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            @for (l of leads(); track l.id) {
+              <tr class="cursor-pointer border-t hover:bg-surface-sunken" [class.font-semibold]="l.status === 'novo'" (click)="abrir(l)">
+                <td class="py-2">{{ l.criadoEm | date: 'dd/MM HH:mm' }}</td>
+                <td>{{ l.nome }}</td><td>{{ l.condominio }}</td><td>{{ l.unidades }}</td>
+                <td><span class="rounded-full px-2 py-0.5 text-xs" [class]="canalCor[l.origem]">{{ canalLabel[l.origem] }}</span></td>
+                <td>{{ statusLabel(l.status) }}</td>
+                <td><a [href]="linkWhatsapp(l)" target="_blank" rel="noopener" (click)="$event.stopPropagation()" class="text-emerald-700 hover:underline">WhatsApp</a></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+
+  <p class="text-xs text-ink-muted">Google atualizado {{ tempo(resumo()?.frescor?.google) }} · OpenAI atualizado {{ tempo(resumo()?.frescor?.openai) }}</p>
+</div>
+
+<!-- Painel lateral do lead -->
+@if (selecionado(); as l) {
+  <div class="fixed inset-0 z-40 bg-black/30" (click)="fechar()"></div>
+  <aside class="fixed right-0 top-0 z-50 h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-xl">
+    <div class="flex items-start justify-between">
+      <div><h3 class="text-xl font-semibold">{{ l.nome }}</h3><p class="text-sm text-ink-muted">{{ l.condominio }} · {{ l.unidades }}</p></div>
+      <button type="button" class="text-ink-muted hover:text-ink" (click)="fechar()" aria-label="Fechar">✕</button>
+    </div>
+    <dl class="mt-4 space-y-2 text-sm">
+      <div><dt class="text-ink-muted">WhatsApp</dt><dd><a [href]="linkWhatsapp(l)" target="_blank" rel="noopener" class="text-emerald-700 hover:underline">{{ l.whatsapp }}</a></dd></div>
+      <div><dt class="text-ink-muted">Origem</dt><dd>{{ canalLabel[l.origem] }}</dd></div>
+      <div><dt class="text-ink-muted">Recebido em</dt><dd>{{ l.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</dd></div>
+    </dl>
+    <p class="mt-6 text-sm font-medium">Status</p>
+    <div class="mt-2 flex flex-wrap gap-2">
+      @for (s of statusOpcoes; track s.valor) {
+        <button type="button" [disabled]="salvando()" (click)="salvar({ status: s.valor })"
+          class="rounded-full px-3 py-1 text-sm"
+          [class]="l.status === s.valor ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'">{{ s.label }}</button>
+      }
+    </div>
+    <p class="mt-6 text-sm font-medium">Observação</p>
+    <textarea class="mt-2 h-32 w-full rounded-xl border p-3 text-sm" [(ngModel)]="observacaoEdit"></textarea>
+    <button type="button" class="mt-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50" [disabled]="salvando()" (click)="salvar({ observacao: observacaoEdit })">Salvar observação</button>
+  </aside>
+}
