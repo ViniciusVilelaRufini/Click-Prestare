@@ -1057,6 +1057,17 @@ export class MobileAuthService {
         ? await this.prisma.visitas.count({ where: visitsCountWhere })
         : await this.prisma.visitantes.count({ where: visitsCountWhere });
 
+      // Quem está dentro agora (selo "X no local" do card do condomínio).
+      // Sem este campo o app usava as visitas do dia como presença.
+      const insideWhere = {
+        id_apartamento: { in: aptoIds },
+        data_entrada: { not: null },
+        data_saida: null,
+      };
+      const insideCount = pessoasMigrationEnabled(this.prisma)
+        ? await this.prisma.visitas.count({ where: insideWhere })
+        : await this.prisma.visitantes.count({ where: insideWhere });
+
       const moras = await this.prisma.moradores.findMany({
         where: { id_user: idUser },
       });
@@ -1095,6 +1106,7 @@ export class MobileAuthService {
       return {
         visits: visitsCount,
         packages: packagesCount,
+        inside_condo: insideCount,
       };
     }
   }

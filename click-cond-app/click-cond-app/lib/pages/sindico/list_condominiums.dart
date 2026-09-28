@@ -1907,7 +1907,8 @@ class _CondominioCard extends StatelessWidget {
     } else if (item['moradores_no_local'] != null) {
       noLocalCount = int.tryParse(item['moradores_no_local'].toString()) ?? 0;
     } else if (isFirst && summary != null) {
-      noLocalCount = int.tryParse((summary?['inside_condo'] ?? summary?['visitantesAtivos'] ?? summary?['visits_today'] ?? summary?['visits'])?.toString() ?? '0') ?? 0;
+      // Só presença real: visitas do dia incluem quem ainda nem chegou.
+      noLocalCount = int.tryParse((summary?['inside_condo'] ?? summary?['visitantesAtivos'])?.toString() ?? '0') ?? 0;
     }
 
     int packageCount = 0;
