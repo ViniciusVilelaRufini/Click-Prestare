@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { LinhaAnuncio } from './marketing-ads.service';
 import { diaBrt } from './datas-brt';
+import { MarketingSegredosService } from './marketing-segredos.service';
 
 const BASE = 'https://api.ads.openai.com/v1';
 const HORA = 3600;
@@ -41,12 +42,15 @@ const faixa = (j: { start: number; end: number }) =>
 export class OpenAiAdsClient {
   private readonly logger = new Logger(OpenAiAdsClient.name);
 
-  estaConfigurado(): boolean {
-    return !!process.env.OPENAI_ADS_API_KEY;
+  constructor(private readonly segredos: MarketingSegredosService) {}
+
+  async estaConfigurado(): Promise<boolean> {
+    return !!(await this.segredos.obter('OPENAI_ADS_API_KEY'));
   }
 
-  private headers() {
-    return { Authorization: `Bearer ${process.env.OPENAI_ADS_API_KEY}`, 'Content-Type': 'application/json' };
+  private async headers() {
+    const chave = await this.segredos.obter('OPENAI_ADS_API_KEY');
+    return { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' };
   }
 
   async buscarDiario(dias: number, agora = new Date()): Promise<LinhaAnuncio[]> {
@@ -58,7 +62,7 @@ export class OpenAiAdsClient {
     for (const f of ['campaign.id', 'campaign.name', 'impressions', 'clicks', 'spend']) qs.append('fields[]', f);
     qs.set('limit', '2000');
 
-    const r = await fetch(`${BASE}/ad_account/insights?${qs}`, { headers: this.headers() });
+    const r = await fetch(`${BASE}/ad_account/insights?${qs}`, { headers: await this.headers() });
     if (!r.ok) throw new Error(`OpenAI Ads insights ${r.status}: ${(await r.text()).slice(0, 300)}`);
     const insights: any = await r.json();
     const linhas: any[] = insights.data ?? [];
@@ -68,7 +72,7 @@ export class OpenAiAdsClient {
     if (campanhas.length && janelas.conversoes.end > janelas.conversoes.start) {
       const c = await fetch(`${BASE}/conversions/insights`, {
         method: 'POST',
-        headers: this.headers(),
+        headers: await this.headers(),
         body: JSON.stringify({
           aggregation_level: 'campaign',
           time_ranges: [faixa(janelas.conversoes)],

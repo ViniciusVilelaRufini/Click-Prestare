@@ -3,8 +3,9 @@ import { MarketingAdsService } from './marketing-ads.service';
 
 function montar(env: Record<string, string | undefined> = { ADS_INGEST_TOKEN: 'segredo' }) {
   const prisma: any = { crm_Anuncios_Diario: { upsert: jest.fn(async () => ({})) } };
-  const openai: any = { estaConfigurado: jest.fn(() => true), buscarDiario: jest.fn(async () => []) };
-  const svc = new MarketingAdsService(prisma, openai);
+  const openai: any = { estaConfigurado: jest.fn(async () => true), buscarDiario: jest.fn(async () => []) };
+  const segredos: any = { obter: jest.fn(async (n: string) => process.env[n] || undefined) };
+  const svc = new MarketingAdsService(prisma, openai, segredos);
   const antigo = { ...process.env };
   Object.assign(process.env, env);
   return { prisma, openai, svc, restaurar: () => { process.env = antigo; } };
@@ -58,7 +59,7 @@ describe('MarketingAdsService', () => {
 
   it('sincronizarOpenAi não chama a API sem chave', async () => {
     const { openai, svc, restaurar } = montar();
-    openai.estaConfigurado.mockReturnValue(false);
+    openai.estaConfigurado.mockResolvedValue(false);
     await expect(svc.sincronizarOpenAi()).resolves.toBe(0);
     expect(openai.buscarDiario).not.toHaveBeenCalled();
     restaurar();

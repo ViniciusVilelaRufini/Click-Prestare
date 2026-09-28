@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, OnModuleInit, UnauthorizedExce
 import { timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpenAiAdsClient } from './openai-ads.client';
+import { MarketingSegredosService } from './marketing-segredos.service';
 
 export interface LinhaAnuncio {
   campanha_id: string;
@@ -44,7 +45,11 @@ export class MarketingAdsService implements OnModuleInit {
   private readonly logger = new Logger(MarketingAdsService.name);
   private openAiRodando = false;
 
-  constructor(private readonly prisma: PrismaService, private readonly openai: OpenAiAdsClient) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly openai: OpenAiAdsClient,
+    private readonly segredos: MarketingSegredosService,
+  ) {}
 
   onModuleInit() {
     // OpenAI Ads: sincroniza de hora em hora os últimos 7 dias (números do dia
@@ -85,7 +90,7 @@ export class MarketingAdsService implements OnModuleInit {
   }
 
   async ingestGoogle(token: string | undefined, body: unknown): Promise<{ gravadas: number }> {
-    if (!tokenConfere(token, process.env.ADS_INGEST_TOKEN)) throw new UnauthorizedException();
+    if (!tokenConfere(token, await this.segredos.obter('ADS_INGEST_TOKEN'))) throw new UnauthorizedException();
     const rows = (body as any)?.rows;
     if (!Array.isArray(rows) || rows.length > 5000) throw new BadRequestException('Corpo inválido.');
     const linhas = rows.map(linhaValida);
@@ -93,7 +98,7 @@ export class MarketingAdsService implements OnModuleInit {
   }
 
   async sincronizarOpenAi(): Promise<number> {
-    if (!this.openai.estaConfigurado()) {
+    if (!(await this.openai.estaConfigurado())) {
       this.logger.warn('OPENAI_ADS_API_KEY ausente — sync da OpenAI Ads desligado');
       return 0;
     }
