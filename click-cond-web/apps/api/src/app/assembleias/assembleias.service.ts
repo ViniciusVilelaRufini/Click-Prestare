@@ -280,6 +280,12 @@ export class AssembleiasService {
 
     const dIni = parseDate(votacao.data_inicio);
     const dFim = parseDate(votacao.data_termino);
+    if (Number.isNaN(dIni.getTime()) || Number.isNaN(dFim.getTime())) {
+      throw new BadRequestException('Datas da votação inválidas.');
+    }
+    if (dFim < dIni) {
+      throw new BadRequestException('A data de término não pode ser anterior à data de início.');
+    }
     const isEnquete = votacao.is_enquete ? 1 : 0;
 
     // Criar a votação
