@@ -45,6 +45,24 @@ Plano: `docs/superpowers/plans/2026-09-28-correcoes-varredura.md`.
 - Correção (`2c6dbe0f`): unidade opcional no console e no app (síndico/funcionário); sem unidade = "Condomínio (todos os moradores)"; backend grava 0/vazio como null. Dado do João ajustado (id_apartamento → NULL). Retestado: aparece no app do morador.
 - O CI de `master` também faz deploy no EB e colide com o `deploy-api.yml` de `main` (o de `main` passou). A mesma espera por "Ready" precisa ir para o passo de deploy do CI.
 
+## Varredura em ciclos (28/09, noite)
+
+### Ciclo 1 — console web + consistência de dados
+- Todas as 17 rotas do console carregam sem erro de console nem 4xx/5xx.
+- **23. 🔴 Editar morador apagava vínculos em outros condomínios — ✅ corrigido (`bb9e970a`)**. `moradores.update` fazia `apartamentos_Users.deleteMany/updateMany({ where: { id_user } })`: trocar o apto (ou o tipo) de alguém aqui apagava/alterava o vínculo dele em todos os prédios. Agora filtra pelo condomínio do morador. Teste: `moradores-vinculo-escopo.spec.ts`.
+- **24. 🟠 Excluir apartamento deixava moradores com bloco/apto antigos — ✅ corrigido (`bb9e970a`)**. A cascata levava o vínculo, mas `Moradores.bloco/apartamento` ficava; encomendas casam destinatário por esse texto, então um "101" recriado herdaria o ex-morador. Agora o `remove` limpa esses campos. Dados: 6 moradores órfãos (ids 1–5, 31) limpos.
+- **25. 🟡 Telefone faltando em 38 moradores** (legado do bug 3) — dados preenchidos a partir de `Users.phone`.
+- **26. 🟡 CI e deploy-api publicavam o mesmo ambiente EB em paralelo** — ✅ job da API no `master` entra no mesmo grupo de concorrência (fila). Confirmado: os dois passaram no push seguinte.
+- Pendências de dados (teste): vínculo sem cadastro de morador (user 12, Bloco B/101, carga inicial); morador 39 com texto D/110 e vínculo em "Bloco Condominio/01"; tabela `Encomendas` com collation `utf8mb4_unicode_ci` e as demais `utf8mb4_0900_ai_ci` (join direto por texto falha).
+
+### Ciclo 2 — app (Delivery)
+- Fluxo morador → portaria funciona: aviso criado no app aparece na fila do web; push "Seu entregador chegou à portaria." chega na hora (o primeiro teste perdeu o push por coincidir com um deploy da API).
+- **27. 🟠 Delivery ilegível no tema escuro do console — ✅ corrigido (`91c1b97e`)**: cartões `bg-white` com texto branco; passou aos tokens `bg-graphite-200`/`border-white/10`; ganhou a margem das outras telas.
+- **28. 🟠 "Recusada" e "Retirada na portaria" não avisavam o morador — ✅ corrigido (`91c1b97e`)**, com o motivo da recusa no push.
+- **29. 🟡 "Bloco Bloco A" no aviso de delivery (app) e em textos do backend** (auditoria, convites, encomendas, avisos do financeiro) — ✅ corrigido. Nomes de fatura do financeiro mantidos (são chave de busca `startsWith/contains`).
+- **30. 🟠 (produto) "Aguardando autorização" sem ação para o morador**: status e push dizem "a portaria aguarda sua autorização", mas o app só permite cancelar; autorizar é exclusivo da portaria. Decidir: botão "Autorizar" no app ou trocar o texto.
+- **31. 🟡 UX**: painel do atendimento no console fecha ao mudar o status; lista de delivery do app não atualiza ao voltar do segundo plano (só com pull-to-refresh); detalhe usa o objeto da lista sem buscar de novo.
+
 ## Bugs
 
 ### 1. 🔴 App mostra "Você é o proprietário" para qualquer morador
