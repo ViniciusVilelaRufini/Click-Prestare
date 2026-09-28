@@ -114,7 +114,7 @@
       <button type="button" class="text-ink-muted hover:text-ink" (click)="fechar()" aria-label="Fechar">✕</button>
     </div>
     <dl class="mt-4 space-y-2 text-sm">
-      <div><dt class="text-ink-muted">WhatsApp</dt><dd><a [href]="linkWhatsapp(l)" target="_blank" rel="noopener" class="text-emerald-700 hover:underline">{{ l.whatsapp }}</a></dd></div>
+      <div><dt class="text-ink-muted">WhatsApp</dt><dd>@if (l.whatsapp) {<a [href]="linkWhatsapp(l)" target="_blank" rel="noopener" class="text-emerald-700 hover:underline">{{ l.whatsapp }}</a>} @else {<span class="text-ink-muted">Veio direto pelo botão — veja a conversa no WhatsApp/Instagram</span>}</dd></div>
       <div><dt class="text-ink-muted">Origem</dt><dd>{{ canalLabel[l.origem] }}</dd></div>
       <div><dt class="text-ink-muted">Recebido em</dt><dd>{{ l.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</dd></div>
     </dl>

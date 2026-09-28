@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { derivarOrigem, validarLead } from './lead-origem';
+import { derivarOrigem, validarLead, leadDeClique } from './lead-origem';
 
 describe('derivarOrigem', () => {
   it('gclid vence tudo', () => {
@@ -31,4 +31,22 @@ describe('validarLead', () => {
   });
   it('rejeita corpo que não é objeto', () =>
     expect(() => validarLead(null)).toThrow(BadRequestException));
+});
+
+describe('leadDeClique', () => {
+  it('clique direto no WhatsApp vira lead sem dados, com canal no nome', () => {
+    const r = leadDeClique({ clique: 'whatsapp', gclid: 'g1', pagina: '/sobre' })!;
+    expect(r.nome).toBe('Clique no WhatsApp (sem dados)');
+    expect(r.whatsapp).toBe('');
+    expect(derivarOrigem(r)).toBe('google');
+  });
+  it('clique no Instagram sem anúncio é orgânico', () => {
+    const r = leadDeClique({ clique: 'instagram' })!;
+    expect(r.nome).toBe('Clique no Instagram (sem dados)');
+    expect(derivarOrigem(r)).toBe('organico');
+  });
+  it('corpo sem clique conhecido não é clique', () => {
+    expect(leadDeClique({ clique: 'telefone' })).toBeNull();
+    expect(leadDeClique({ nome: 'Ana' })).toBeNull();
+  });
 });

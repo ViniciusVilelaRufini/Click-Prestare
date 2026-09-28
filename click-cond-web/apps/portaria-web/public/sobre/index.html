@@ -71,7 +71,15 @@
   };
   document.addEventListener('click', function (e) {
     var a = e.target && e.target.closest ? e.target.closest('a[href*="wa.me/"], a[href*="ig.me/m/"]') : null;
-    if (a) window.psConversaoOrcamento();
+    if (!a) return;
+    window.psConversaoOrcamento();
+    // Clique direto (sem formulário) também vira lead no CRM, uma vez por canal na sessão.
+    var canal = a.href.indexOf('ig.me/') >= 0 ? 'instagram' : 'whatsapp';
+    try {
+      if (sessionStorage.getItem('psClique_' + canal)) return;
+      sessionStorage.setItem('psClique_' + canal, '1');
+    } catch (e2) {}
+    if (window.psRegistrarLead) window.psRegistrarLead({ clique: canal });
   }, true);
 </script>
 <script src="/sobre/support.js"></script>

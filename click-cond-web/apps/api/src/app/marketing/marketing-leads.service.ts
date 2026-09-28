@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { derivarOrigem, LeadOrigem, validarLead } from './lead-origem';
+import { derivarOrigem, leadDeClique, LeadOrigem, validarLead } from './lead-origem';
 
 export type LeadStatus = 'novo' | 'em_contato' | 'proposta' | 'fechado' | 'perdido';
 export const LEAD_STATUS: LeadStatus[] = ['novo', 'em_contato', 'proposta', 'fechado', 'perdido'];
@@ -45,7 +45,7 @@ export class MarketingLeadsService {
     if (body && typeof body === 'object' && typeof (body as any).site === 'string' && (body as any).site.trim()) {
       return;
     }
-    const lead = validarLead(body);
+    const lead = leadDeClique(body) ?? validarLead(body);
     await this.prisma.crm_Leads.create({
       data: { ...lead, origem: derivarOrigem(lead) },
     });

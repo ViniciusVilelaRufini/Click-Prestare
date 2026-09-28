@@ -55,3 +55,29 @@ export function validarLead(body: unknown): LeadEntrada {
     pagina: opcional(b.pagina, 255),
   };
 }
+
+const CANAIS: Record<string, string> = { whatsapp: 'WhatsApp', instagram: 'Instagram' };
+
+/**
+ * Clique direto no botão de WhatsApp/Instagram da landing: a pessoa não
+ * preencheu nada, mas o contato chega na conversa — registra o lead com a
+ * origem do anúncio para ele aparecer no CRM e ser completado lá.
+ */
+export function leadDeClique(body: unknown): LeadEntrada | null {
+  if (!body || typeof body !== 'object') return null;
+  const b = body as Record<string, unknown>;
+  const canal = typeof b.clique === 'string' ? CANAIS[b.clique] : undefined;
+  if (!canal) return null;
+  return {
+    nome: `Clique no ${canal} (sem dados)`,
+    condominio: '—',
+    unidades: '—',
+    whatsapp: '',
+    gclid: opcional(b.gclid, 255),
+    oppref: opcional(b.oppref, 255),
+    utm_source: opcional(b.utm_source, 120),
+    utm_medium: opcional(b.utm_medium, 120),
+    utm_campaign: opcional(b.utm_campaign, 120),
+    pagina: opcional(b.pagina, 255),
+  };
+}
