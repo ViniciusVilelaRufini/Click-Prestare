@@ -874,6 +874,7 @@ export class MoradoresService {
           nome: dto.nome,
           documento: dto.documento ?? null,
           email: dto.email ?? null,
+          telefone: dto.telefone?.trim() || null,
           data_nascimento: dto.data_nascimento ? this.parseDate(dto.data_nascimento) : null,
           tipo: tipoNorm,
           id_user: userId,
