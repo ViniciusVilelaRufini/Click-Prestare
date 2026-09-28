@@ -1655,3 +1655,62 @@ model Redefinicoes_Senha {
   @@map("redefinicoes_senha")
 }
 
+enum Crm_LeadOrigem {
+  google
+  openai
+  instagram
+  organico
+}
+
+enum Crm_LeadStatus {
+  novo
+  em_contato
+  proposta
+  fechado
+  perdido
+}
+
+enum Crm_AdsPlataforma {
+  google
+  openai
+}
+
+model Crm_Leads {
+  id           Int            @id @default(autoincrement())
+  nome         String         @db.VarChar(120)
+  condominio   String         @db.VarChar(160)
+  unidades     String         @db.VarChar(60)
+  whatsapp     String         @db.VarChar(20)
+  origem       Crm_LeadOrigem
+  gclid        String?        @db.VarChar(255)
+  oppref       String?        @db.VarChar(255)
+  utm_source   String?        @db.VarChar(120)
+  utm_medium   String?        @db.VarChar(120)
+  utm_campaign String?        @db.VarChar(120)
+  pagina       String?        @db.VarChar(255)
+  status       Crm_LeadStatus @default(novo)
+  observacao   String?        @db.Text
+  status_em    DateTime?      @db.DateTime(0)
+  criado_em    DateTime       @default(now()) @db.DateTime(0)
+
+  @@index([criado_em], map: "idx_crm_leads_criado")
+  @@index([status], map: "idx_crm_leads_status")
+  @@map("crm_leads")
+}
+
+model Crm_Anuncios_Diario {
+  id            Int               @id @default(autoincrement())
+  plataforma    Crm_AdsPlataforma
+  campanha_id   String            @db.VarChar(64)
+  campanha_nome String            @db.VarChar(200)
+  dia           DateTime          @db.Date
+  impressoes    Int               @default(0)
+  cliques       Int               @default(0)
+  gasto         Decimal           @default(0) @db.Decimal(12, 2)
+  conversoes    Decimal           @default(0) @db.Decimal(10, 2)
+  atualizado_em DateTime          @updatedAt @db.DateTime(0)
+
+  @@unique([plataforma, campanha_id, dia], map: "uq_crm_anuncios_dia")
+  @@map("crm_anuncios_diario")
+}
+
