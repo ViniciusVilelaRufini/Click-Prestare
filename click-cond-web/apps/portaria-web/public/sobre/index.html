@@ -1046,7 +1046,7 @@
   </sc-if>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;whatsapp&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;5517992559990&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Contato&quot;},&quot;mostrarNumeros&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Seções&quot;},&quot;mostrarFaq&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Seções&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;whatsapp&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;5517996608148&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Contato&quot;},&quot;mostrarNumeros&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Seções&quot;},&quot;mostrarFaq&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Seções&quot;}}">
 class Component extends DCLogic {
   state = {
     enviado: false, tela: null,
@@ -1338,7 +1338,7 @@ class Component extends DCLogic {
     ).join(" ");
   };
 
-  // "17992559990" -> "(17) 99255-9990".
+  // "17992559990" -> "(17) 99660-8148".
   formatarTelefone = (v) => {
     let d = String(v ?? "").replace(/\D/g, "");
     // Só tira o 55 do país quando sobra número demais para ser um DDD — o 55
@@ -1383,7 +1383,7 @@ class Component extends DCLogic {
     if (unidadesBruto) linhas.push("*Unidades:* " + unidadesBruto);
     linhas.push("", "_Enviado pelo site prestarecondominios.com.br/sobre_");
 
-    const num = (this.props.whatsapp ?? "5517992559990").replace(/\D/g, "");
+    const num = (this.props.whatsapp ?? "5517996608148").replace(/\D/g, "");
     if (window.psRegistrarLead) window.psRegistrarLead({
       nome: String(f.get("nome") || ""),
       condominio: String(f.get("condominio") || ""),
@@ -1397,7 +1397,7 @@ class Component extends DCLogic {
   };
 
   renderVals() {
-    const num = (this.props.whatsapp ?? "5517992559990").replace(/\D/g, "");
+    const num = (this.props.whatsapp ?? "5517996608148").replace(/\D/g, "");
     const t = this.state.tela ? this.TELAS[this.state.tela] : null;
     const ci = this.state.consoleIndice;
     const chaveConsole = this.CONSOLE_TELAS[ci];
@@ -1454,7 +1454,7 @@ class Component extends DCLogic {
       consoleLarg2: ci === 2 ? "22px" : "7px",
       mostrarNumeros: this.props.mostrarNumeros ?? true,
       mostrarFaq: this.props.mostrarFaq ?? true,
-      telefone: this.formatarTelefone(this.props.whatsapp ?? "5517992559990"),
+      telefone: this.formatarTelefone(this.props.whatsapp ?? "5517996608148"),
       linkWhatsapp: "https://wa.me/" + num + "?text=" + encodeURIComponent("Olá! Quero um orçamento do Prestare Gestão para o meu condomínio."),
       enviado: this.state.enviado,
       mostrarForm: !this.state.enviado,
