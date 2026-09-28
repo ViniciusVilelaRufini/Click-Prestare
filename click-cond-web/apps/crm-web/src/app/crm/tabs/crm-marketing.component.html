@@ -54,7 +54,7 @@
     } @else {
       <div class="mt-4 flex h-40 items-end gap-1 overflow-x-auto">
         @for (d of resumo()!.diario; track d.dia) {
-          <div class="flex min-w-[14px] flex-1 flex-col items-center justify-end gap-0.5" [title]="d.dia + ' · ' + brl(d.gasto) + ' · ' + d.leads + ' lead(s)'">
+          <div class="flex h-full min-w-[14px] flex-1 flex-col items-center justify-end gap-0.5" [title]="d.dia + ' · ' + brl(d.gasto) + ' · ' + d.leads + ' lead(s)'">
             <div class="w-full rounded-t bg-emerald-500" [style.height.%]="(d.leads / maxDiario().leads) * 45"></div>
             <div class="w-full rounded-t bg-slate-300" [style.height.%]="(d.gasto / maxDiario().gasto) * 55"></div>
           </div>
