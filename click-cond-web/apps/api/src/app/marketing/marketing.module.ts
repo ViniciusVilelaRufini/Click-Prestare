@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CrmAdminGuard } from '../crm/crm-admin.guard';
 import { MarketingAdsService } from './marketing-ads.service';
 import { MarketingLeadsService } from './marketing-leads.service';
+import { MarketingResumoService } from './marketing-resumo.service';
 import { MarketingPublicController } from './marketing-public.controller';
 import { MarketingCrmController } from './marketing-crm.controller';
 import { OpenAiAdsClient } from './openai-ads.client';
@@ -15,7 +16,7 @@ import { OpenAiAdsClient } from './openai-ads.client';
  */
 @Module({
   controllers: [MarketingPublicController, MarketingCrmController],
-  providers: [MarketingLeadsService, MarketingAdsService, OpenAiAdsClient, CrmAdminGuard],
+  providers: [MarketingLeadsService, MarketingAdsService, MarketingResumoService, OpenAiAdsClient, CrmAdminGuard],
   exports: [MarketingLeadsService],
 })
 export class MarketingModule {}
