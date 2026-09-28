@@ -4,6 +4,41 @@ Ambiente: produção, condomínio de teste **Boa Vista** (id 1).
 - Web (portaria-web) logado como síndico `suporte@clickprestarecondominios.com.br`.
 - App (emulador Pixel_10, Android 17) logado como morador **Vinicius Família** (`viniciusrufini17@gmail.com`), Bloco A / Apto 106.
 
+## Status das correções (reteste 28/09, após deploy de `48b8353d` + APK novo)
+
+Plano: `docs/superpowers/plans/2026-09-28-correcoes-varredura.md`.
+
+| # | Situação |
+|---|----------|
+| 1 | ✅ Corrigido e retestado — app mostra "Você é membro da família" e some o botão "+" para quem não é proprietário |
+| 2 | ✅ Dado corrigido (id 45 → proprietario). Depois disso o síndico editou o morador pelo console às 20:07 e o vínculo virou `dependente` (id 53) — edição manual, não bug |
+| 3 | ✅ Corrigido (teste automatizado); não retestado na tela |
+| 4 | ⚪ Não reproduzido — pull-to-refresh levou o card de 3 para 4 encomendas |
+| 5 | ✅ Corrigido (e-mail desabilitado/limpo para menor); não retestado na tela |
+| 6 | ✅ Data de nascimento sem futuro; CPF sem máscara e "voltar sem confirmar" ficaram de fora |
+| 7 | ✅ Corrigido e retestado — ocorrência nova aparece ao voltar para a lista |
+| 8 | ✅ Corrigido e retestado — push "Ocorrência atualizada" chegou na hora; push de comunicado não retestado |
+| 9 | ✅ Polling 30 s e pausado com a aba oculta |
+| 10 | ✅ Corrigido; não retestado na tela |
+| 11 | ✅ Corrigido (teste automatizado) |
+| 12 | ✅ Corrigido e retestado — "X2" recusada com "Placa inválida…" |
+| 13 | ✅ Corrigido e retestado — busca "Vinicius Fam" traz só o morador certo |
+| 14 | ✅ Corrigido e retestado — enquete não é criada (ver item 20) |
+| 15 | ⚪ Não era bug (contador ainda carregando) |
+| 16 | ✅ "Agora" do seletor usa o relógio de Brasília; não retestado na tela |
+| 17 | ✅ Corrigido (teste automatizado) |
+| 18 | ✅ "Bloco Bloco" corrigido e retestado; "R$" e acento do Delivery corrigidos |
+| 19 | ✅ Corrigido e retestado — "1 no local" |
+
+## Achados do reteste
+
+### 20. 🟡 Modal de enquete não mostra o erro do backend
+- Com término antes do início o backend recusa (400) e a enquete não é criada, mas o modal só fica aberto, sem mensagem — o erro aparece apenas no console.
+
+### 21. 🟠 Instalação nova não pede permissão de notificação (Android 13+)
+- Após instalar do zero e logar, `POST_NOTIFICATIONS` ficou `granted=false`; nenhum push aparece até conceder manualmente.
+- O app pede a câmera ao abrir e o Firebase pede notificação em `firebase_service.dart:41` no mesmo momento. Hipótese: dois pedidos simultâneos e o Android descarta o segundo. A confirmar antes de corrigir.
+
 ## Bugs
 
 ### 1. 🔴 App mostra "Você é o proprietário" para qualquer morador
