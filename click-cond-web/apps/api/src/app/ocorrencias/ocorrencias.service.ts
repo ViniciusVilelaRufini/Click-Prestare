@@ -274,16 +274,37 @@ export class OcorrenciasService {
     }
   }
 
+  /** Push ao autor da ocorrência, respeitando a preferência `notif_ocorrencias`. */
+  private async notificarAutor(ocorrenciaId: number, idUser: number | null | undefined, titulo: string, corpo: string) {
+    if (!idUser) return;
+    try {
+      const u = await this.prisma.users.findUnique({
+        where: { id: idUser },
+        select: { fcm_token: true, notif_ocorrencias: true },
+      });
+      if (!u?.fcm_token || u.notif_ocorrencias === 0) return;
+      await this.notifications.sendPushNotification(u.fcm_token, titulo, corpo, {
+        type: 'ocorrencia',
+        id: String(ocorrenciaId),
+      });
+    } catch (e: any) {
+      this.logger.error(`[ocorrencias.push] ${e?.message ?? e}`);
+    }
+  }
+
   async updateStatus(id: number, status: OcorrenciaStatus, user?: JwtPayload) {
     await this.loadParaMutacaoStaff(id, user, 'alterar status da ocorrência');
+    let atualizado;
     try {
-      return await this.prisma.ocorrencias.update({
+      atualizado = await this.prisma.ocorrencias.update({
         where: { id },
         data: { status },
       });
     } catch {
       throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     }
+    await this.notificarAutor(id, atualizado.user, 'Ocorrência atualizada', `Sua ocorrência #${id} agora está: ${status}.`);
+    return atualizado;
   }
 
   async updatePublica(id: number, publica: boolean, user?: JwtPayload) {
@@ -300,8 +321,9 @@ export class OcorrenciasService {
 
   async updateResposta(id: number, resposta: string, user?: JwtPayload) {
     await this.loadParaMutacaoStaff(id, user, 'responder ocorrência');
+    let atualizado;
     try {
-      return await this.prisma.ocorrencias.update({
+      atualizado = await this.prisma.ocorrencias.update({
         where: { id },
         data: {
           resposta,
@@ -311,6 +333,8 @@ export class OcorrenciasService {
     } catch {
       throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     }
+    await this.notificarAutor(id, atualizado.user, 'Ocorrência respondida', resposta.slice(0, 140));
+    return atualizado;
   }
 
   async remove(id: number, user?: JwtPayload) {

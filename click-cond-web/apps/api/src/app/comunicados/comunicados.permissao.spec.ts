@@ -33,7 +33,9 @@ describe('ComunicadosService — exige a flag comunicados', () => {
       },
     };
     const auditoria = { registrar: jest.fn(async () => undefined) };
-    const service = new ComunicadosService(prisma, auditoria as any, tenant as any);
+    const service = new ComunicadosService(prisma, auditoria as any, tenant as any, {
+      sendPushNotification: jest.fn(async () => null),
+    } as any);
     return { service, prisma, tenant };
   }
 
