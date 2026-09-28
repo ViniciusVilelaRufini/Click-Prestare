@@ -2,7 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret } from '../facial/device-secret.util';
 
-export type SegredoMarketing = 'ADS_INGEST_TOKEN' | 'OPENAI_ADS_API_KEY';
+export type SegredoMarketing =
+  | 'ADS_INGEST_TOKEN'
+  | 'OPENAI_ADS_API_KEY'
+  | 'WA_ACCESS_TOKEN'
+  | 'WA_APP_SECRET'
+  | 'WA_VERIFY_TOKEN';
 
 const CACHE_MS = 5 * 60 * 1000;
 

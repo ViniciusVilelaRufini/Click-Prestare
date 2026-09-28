@@ -19,6 +19,6 @@ import { MarketingSegredosService } from './marketing-segredos.service';
   controllers: [MarketingPublicController, MarketingCrmController],
   providers: [MarketingLeadsService, MarketingAdsService, MarketingResumoService, OpenAiAdsClient,
     MarketingSegredosService, CrmAdminGuard],
-  exports: [MarketingLeadsService],
+  exports: [MarketingLeadsService, MarketingSegredosService],
 })
 export class MarketingModule {}

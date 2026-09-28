@@ -1692,10 +1692,44 @@ model Crm_Leads {
   observacao   String?        @db.Text
   status_em    DateTime?      @db.DateTime(0)
   criado_em    DateTime       @default(now()) @db.DateTime(0)
+  conversas_whatsapp Crm_WhatsApp_Conversas[]
 
   @@index([criado_em], map: "idx_crm_leads_criado")
   @@index([status], map: "idx_crm_leads_status")
   @@map("crm_leads")
+}
+
+model Crm_WhatsApp_Conversas {
+  id                   Int                      @id @default(autoincrement())
+  wa_id                String                   @unique(map: "uq_crm_wa_conversas_wa_id") @db.VarChar(20)
+  nome_perfil          String?                  @db.VarChar(120)
+  lead_id              Int?
+  lead                 Crm_Leads?               @relation(fields: [lead_id], references: [id], onDelete: SetNull, map: "fk_crm_wa_conversas_lead")
+  ultima_msg_em        DateTime                 @db.DateTime(0)
+  ultima_do_cliente_em DateTime?                @db.DateTime(0)
+  nao_lidas            Int                      @default(0)
+  criado_em            DateTime                 @default(now()) @db.DateTime(0)
+  mensagens            Crm_WhatsApp_Mensagens[]
+
+  @@index([ultima_msg_em], map: "idx_crm_wa_conversas_ultima")
+  @@index([lead_id], map: "fk_crm_wa_conversas_lead")
+  @@map("crm_whatsapp_conversas")
+}
+
+model Crm_WhatsApp_Mensagens {
+  id          Int                    @id @default(autoincrement())
+  conversa_id Int
+  conversa    Crm_WhatsApp_Conversas @relation(fields: [conversa_id], references: [id], onDelete: Cascade, map: "fk_crm_wa_mensagens_conversa")
+  wamid       String                 @unique(map: "uq_crm_wa_mensagens_wamid") @db.VarChar(191)
+  direcao     String                 @db.VarChar(10)
+  tipo        String                 @db.VarChar(20)
+  texto       String                 @db.Text
+  status      String                 @db.VarChar(12)
+  erro        String?                @db.VarChar(500)
+  criado_em   DateTime               @default(now()) @db.DateTime(0)
+
+  @@index([conversa_id, criado_em], map: "idx_crm_wa_mensagens_conversa")
+  @@map("crm_whatsapp_mensagens")
 }
 
 model Crm_Anuncios_Diario {

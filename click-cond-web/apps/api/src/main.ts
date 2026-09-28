@@ -44,7 +44,16 @@ async function bootstrap() {
     });
   });
 
-  app.use(json({ limit: '50mb' }));
+  // O webhook do WhatsApp valida a assinatura HMAC sobre o corpo exato
+  // recebido; só essas rotas guardam a cópia bruta.
+  app.use(
+    json({
+      limit: '50mb',
+      verify: (req: any, _res, buf) => {
+        if (req.originalUrl?.startsWith('/api/public/whatsapp')) req.rawBody = buf;
+      },
+    }),
+  );
   app.use(urlencoded({ limit: '50mb', extended: true }));
   // Câmeras Hikvision postam notificação de evento em XML (não em JSON). Sem
   // este parser o corpo chegava VAZIO no webhook e a leitura de placa era
