@@ -44,6 +44,31 @@
     try { gtag('event', 'conversion', { send_to: 'AW-18476913499/-xRLCNiSs4gdENumvepE', value: 1.0, currency: 'BRL' }); } catch (e) {}
     try { oaiq('measure', 'lead_created', { type: 'customer_action' }); } catch (e) {}
   };
+  // Origem do lead: parâmetros dos anúncios guardados na chegada, para não se
+  // perderem se a pessoa navegar pela página antes de pedir orçamento.
+  (function () {
+    try {
+      var q = new URLSearchParams(location.search);
+      var chaves = ['gclid', 'oppref', 'utm_source', 'utm_medium', 'utm_campaign'];
+      var salvo = JSON.parse(sessionStorage.getItem('psOrigem') || '{}');
+      chaves.forEach(function (k) { if (q.get(k)) salvo[k] = q.get(k); });
+      sessionStorage.setItem('psOrigem', JSON.stringify(salvo));
+    } catch (e) {}
+  })();
+  window.psRegistrarLead = function (dados) {
+    try {
+      var origem = {};
+      try { origem = JSON.parse(sessionStorage.getItem('psOrigem') || '{}'); } catch (e) {}
+      var api = location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.prestarecondominios.com.br';
+      // keepalive: a requisição sobrevive à abertura do WhatsApp em outra aba.
+      fetch(api + '/api/public/leads', {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({}, dados, origem, { pagina: location.pathname })),
+      }).catch(function () {});
+    } catch (e) {}
+  };
   document.addEventListener('click', function (e) {
     var a = e.target && e.target.closest ? e.target.closest('a[href*="wa.me/"], a[href*="ig.me/m/"]') : null;
     if (a) window.psConversaoOrcamento();
@@ -1323,6 +1348,12 @@ class Component extends DCLogic {
     linhas.push("", "_Enviado pelo site prestarecondominios.com.br/sobre_");
 
     const num = (this.props.whatsapp ?? "5517992559990").replace(/\D/g, "");
+    if (window.psRegistrarLead) window.psRegistrarLead({
+      nome: String(f.get("nome") || ""),
+      condominio: String(f.get("condominio") || ""),
+      unidades: unidadesBruto,
+      whatsapp: String(f.get("contato") || ""),
+    });
     if (window.psConversaoOrcamento) window.psConversaoOrcamento();
     window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(linhas.join("\n")), "_blank", "noopener");
     this.setState({ enviado: true });
