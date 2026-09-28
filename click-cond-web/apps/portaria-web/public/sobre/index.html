@@ -752,6 +752,8 @@
               <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Quantas unidades · define o valor</span>
               <input name="unidades" required placeholder="Ex: 59 apartamentos">
             </label>
+            <!-- Honeypot anti-spam: invisível para gente, bots preenchem tudo. -->
+            <input name="site" tabindex="-1" autocomplete="off" aria-hidden="true" style="position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" type="submit" size="lg" full-width="{{ true }}" icon-right="arrow-right" hint-size="100%,52px">Enviar e abrir o WhatsApp</x-import>
             <span style="font: var(--type-caption); color: var(--text-faint);">Usamos os dados só para responder este contato.</span>
           </form>
@@ -1353,6 +1355,7 @@ class Component extends DCLogic {
       condominio: String(f.get("condominio") || ""),
       unidades: unidadesBruto,
       whatsapp: String(f.get("contato") || ""),
+      site: String(f.get("site") || ""),
     });
     if (window.psConversaoOrcamento) window.psConversaoOrcamento();
     window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(linhas.join("\n")), "_blank", "noopener");

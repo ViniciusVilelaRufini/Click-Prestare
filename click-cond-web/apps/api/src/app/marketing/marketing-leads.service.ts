@@ -39,6 +39,12 @@ export class MarketingLeadsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async criar(body: unknown): Promise<void> {
+    // Honeypot: campo "site" é invisível para gente e só bots de spam
+    // preenchem. Ignora silenciosamente (sem 400, sem gravar) para não
+    // ensinar o bot a se adaptar.
+    if (body && typeof body === 'object' && typeof (body as any).site === 'string' && (body as any).site.trim()) {
+      return;
+    }
     const lead = validarLead(body);
     await this.prisma.crm_Leads.create({
       data: { ...lead, origem: derivarOrigem(lead) },

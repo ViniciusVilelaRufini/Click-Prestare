@@ -24,6 +24,12 @@ describe('MarketingLeadsService', () => {
     });
   });
 
+  it('honeypot preenchido: ignora silenciosamente sem gravar', async () => {
+    const { prisma, svc } = montar();
+    await expect(svc.criar({ ...base, site: 'http://spam.com' })).resolves.toBeUndefined();
+    expect(prisma.crm_Leads.create).not.toHaveBeenCalled();
+  });
+
   it('rejeita lead inválido sem gravar', async () => {
     const { prisma, svc } = montar();
     await expect(svc.criar({ ...base, whatsapp: '1' })).rejects.toBeInstanceOf(BadRequestException);

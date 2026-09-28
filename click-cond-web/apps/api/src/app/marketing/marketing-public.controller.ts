@@ -1,8 +1,9 @@
-import { Body, Controller, Headers, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Headers, HttpCode, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
 import { MarketingAdsService } from './marketing-ads.service';
 import { MarketingLeadsService } from './marketing-leads.service';
+import { origemPermitida } from './origem-permitida';
 
 /**
  * Entradas públicas de marketing. Sem login: o formulário da landing (/sobre)
@@ -17,7 +18,8 @@ export class MarketingPublicController {
   @Throttle({ medium: { limit: 5, ttl: 60_000 } })
   @Post('leads')
   @HttpCode(204)
-  async criarLead(@Body() body: unknown): Promise<void> {
+  async criarLead(@Headers('origin') origin: string | undefined, @Body() body: unknown): Promise<void> {
+    if (!origemPermitida(origin)) throw new ForbiddenException();
     await this.leads.criar(body);
   }
 
