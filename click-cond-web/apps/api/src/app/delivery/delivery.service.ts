@@ -164,16 +164,28 @@ export class DeliveryService {
     if (statusNovo === 'CANCELADA' && atendimento.id_morador_user !== this.idUsuario(user) && !isOperador(user)) {
       throw new ForbiddenException('Somente o morador solicitante pode cancelar este aviso.');
     }
-    if (statusNovo !== 'CANCELADA' && !isOperador(user)) {
+    // O morador que abriu o aviso responde ao pedido de autorização da
+    // portaria (autorizar ou recusar). Qualquer outra mudança é da portaria.
+    const respostaDoMorador =
+      !isOperador(user) &&
+      statusAtual === 'AGUARDANDO_AUTORIZACAO' &&
+      ['AUTORIZADA', 'RECUSADA'].includes(statusNovo) &&
+      atendimento.id_morador_user === this.idUsuario(user);
+    if (statusNovo !== 'CANCELADA' && !isOperador(user) && !respostaDoMorador) {
       throw new ForbiddenException('Apenas a portaria pode atualizar este atendimento.');
+    }
+    if (respostaDoMorador && dto.id_entregador !== undefined) {
+      throw new ForbiddenException('Apenas a portaria identifica o entregador.');
     }
 
     const idEntregador = dto.id_entregador === undefined ? atendimento.id_entregador : Number(dto.id_entregador);
     if (dto.id_entregador !== undefined) await this.assertEntregadorDoCondominio(idEntregador, atendimento.id_condominio);
-    if (statusNovo === 'AUTORIZADA' && !idEntregador) {
+    // A autorização do próprio morador vale mesmo antes de a portaria
+    // identificar o entregador; a da portaria continua exigindo.
+    if (statusNovo === 'AUTORIZADA' && !idEntregador && !respostaDoMorador) {
       throw new BadRequestException('Identifique o entregador antes de autorizar o atendimento.');
     }
-    if (statusNovo === 'AUTORIZADA') {
+    if (statusNovo === 'AUTORIZADA' && idEntregador) {
       const entregador = await this.assertEntregadorDoCondominio(idEntregador, atendimento.id_condominio);
       if (entregador.status === 'BLOQUEADO') {
         throw new ConflictException('Entregador bloqueado não pode ser autorizado.');
@@ -206,7 +218,8 @@ export class DeliveryService {
     });
     // Recusada e retirada na portaria também mudam o que o morador precisa
     // fazer (buscar lá embaixo / saber que não vem) — ficavam sem aviso.
-    if (['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'].includes(statusNovo)) {
+    // Quem respondeu foi o próprio morador: não há o que avisar a ele.
+    if (!respostaDoMorador && ['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'].includes(statusNovo)) {
       await this.notificarMorador(
         atualizado.id_apartamento,
         atualizado.id_morador_user,

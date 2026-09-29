@@ -64,4 +64,52 @@ void main() {
     expect(find.byType(DeliveryDetailsPage), findsOneWidget);
     expect(find.text('Cancelamento indisponível'), findsOneWidget);
   });
+
+  group('aguardando autorização', () {
+    const aguardando = DeliveryModel(id: 7, status: 'AGUARDANDO_AUTORIZACAO');
+
+    testWidgets('oferece autorizar e recusar, e não cancelar', (tester) async {
+      await tester.pumpWidget(
+          const MaterialApp(home: DeliveryDetailsPage(delivery: aguardando)));
+
+      expect(find.text('Autorizar entrega'), findsOneWidget);
+      expect(find.text('Recusar'), findsOneWidget);
+      expect(find.text('Cancelar aviso'), findsNothing);
+    });
+
+    testWidgets('autorizar envia AUTORIZADA e avisa a lista', (tester) async {
+      var changes = 0;
+      Map<String, dynamic>? enviado;
+      ApiClient.client = MockClient((req) async {
+        enviado = jsonDecode(req.body) as Map<String, dynamic>;
+        return http.Response(jsonEncode({'id': 7, 'status': 'AUTORIZADA'}), 200);
+      });
+
+      await tester.pumpWidget(MaterialApp(
+        home: DeliveryDetailsPage(delivery: aguardando, onChanged: () => changes++),
+      ));
+      await tester.tap(find.text('Autorizar entrega'));
+      await tester.pumpAndSettle();
+
+      expect(enviado, {'status': 'AUTORIZADA'});
+      expect(changes, 1);
+    });
+
+    testWidgets('recusar envia RECUSADA com motivo', (tester) async {
+      Map<String, dynamic>? enviado;
+      ApiClient.client = MockClient((req) async {
+        enviado = jsonDecode(req.body) as Map<String, dynamic>;
+        return http.Response(jsonEncode({'id': 7, 'status': 'RECUSADA'}), 200);
+      });
+
+      await tester.pumpWidget(
+          const MaterialApp(home: DeliveryDetailsPage(delivery: aguardando)));
+      await tester.tap(find.text('Recusar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sim'));
+      await tester.pumpAndSettle();
+
+      expect(enviado, {'status': 'RECUSADA', 'motivo': 'Recusada pelo morador.'});
+    });
+  });
 }

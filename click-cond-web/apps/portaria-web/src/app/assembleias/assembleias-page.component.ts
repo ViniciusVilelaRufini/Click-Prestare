@@ -25,6 +25,8 @@ export class AssembleiasPageComponent implements OnInit {
   // Modais
   readonly modalAssembleia = signal(false);
   readonly modalEnquete = signal(false);
+  /** Erro do backend no modal de votação/enquete — antes o modal só ficava aberto, mudo. */
+  readonly erroModal = signal<string | null>(null);
 
   novaAssembleia: any = { titulo: '', descricao: '', data: '', hora: '', local: '', link: '' };
   novaVotacao: any = { titulo: '', descricao: '', data_inicio: '', data_termino: '', is_enquete: false, id_assembleia: null, opcoes: ['Sim', 'Não'] };
@@ -109,6 +111,7 @@ export class AssembleiasPageComponent implements OnInit {
       titulo: '', descricao: '', data_inicio: dIni, data_termino: dFim,
       is_enquete: true, id_assembleia: null, opcoes: ['Sim, concordo', 'Não concordo']
     };
+    this.erroModal.set(null);
     this.modalEnquete.set(true);
   }
 
@@ -122,6 +125,7 @@ export class AssembleiasPageComponent implements OnInit {
       titulo: '', descricao: '', data_inicio: dIni, data_termino: dFim,
       is_enquete: false, id_assembleia: idAssembleia, opcoes: ['Aprovar', 'Rejeitar', 'Abster']
     };
+    this.erroModal.set(null);
     this.modalEnquete.set(true);
   }
 
@@ -130,13 +134,17 @@ export class AssembleiasPageComponent implements OnInit {
     const filtradas = this.novaVotacao.opcoes.filter((o: string) => o.trim() !== '');
     const payload = { ...this.novaVotacao, opcoes: filtradas };
 
-    this.api.insertVotacao(payload).subscribe(() => {
-      this.modalEnquete.set(false);
-      if (this.novaVotacao.id_assembleia) {
-        this.verAssembleia(this.novaVotacao.id_assembleia);
-      } else {
-        this.carregarGeral();
-      }
+    this.erroModal.set(null);
+    this.api.insertVotacao(payload).subscribe({
+      next: () => {
+        this.modalEnquete.set(false);
+        if (this.novaVotacao.id_assembleia) {
+          this.verAssembleia(this.novaVotacao.id_assembleia);
+        } else {
+          this.carregarGeral();
+        }
+      },
+      error: (e) => this.erroModal.set(e?.error?.message ?? 'Não foi possível salvar. Confira os dados e tente novamente.'),
     });
   }
 

@@ -19,7 +19,7 @@ class ListDelivery extends StatefulWidget {
   ListDeliveryState createState() => ListDeliveryState();
 }
 
-class ListDeliveryState extends State<ListDelivery> {
+class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver {
   List<DeliveryModel> _deliveries = const [];
   String? _error;
   bool _loading = false;
@@ -27,7 +27,21 @@ class ListDeliveryState extends State<ListDelivery> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     loadList();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// O status muda na portaria enquanto o app está em segundo plano (o push
+  /// chega, o morador volta ao app): recarrega em vez de mostrar o antigo.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) loadList();
   }
 
   Future<void> loadList() async {

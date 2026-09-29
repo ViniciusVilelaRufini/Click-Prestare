@@ -22,6 +22,31 @@ class DeliveryDetailsPage extends StatefulWidget {
 
 class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
   bool _cancelling = false;
+  bool _respondendo = false;
+
+  Future<void> _responder(bool autorizar) async {
+    if (!autorizar) {
+      final confirmed = await showConfirmDialog(
+        context,
+        text: 'Recusar esta entrega? A portaria será avisada.',
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    setState(() => _respondendo = true);
+    final result = await apiResponderDelivery(widget.delivery, autorizar: autorizar);
+    if (!mounted) return;
+    setState(() => _respondendo = false);
+    if (result.success) {
+      widget.onChanged?.call();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(autorizar ? 'Entrega autorizada.' : 'Entrega recusada.')));
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(result.message ?? 'Não foi possível enviar sua resposta.'),
+          backgroundColor: AppColors.error));
+    }
+  }
 
   Future<void> _cancel() async {
     final confirmed = await showConfirmDialog(
@@ -70,6 +95,20 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
             ),
             const SizedBox(height: AppSpacing.lg),
             _Timeline(events: delivery.eventos, currentStatus: delivery.status),
+            if (delivery.canRespond) ...[
+              const SizedBox(height: AppSpacing.xl),
+              AppButton(
+                label: 'Autorizar entrega',
+                loading: _respondendo,
+                onPressed: _respondendo ? null : () => _responder(true),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                label: 'Recusar',
+                variant: AppButtonVariant.danger,
+                onPressed: _respondendo ? null : () => _responder(false),
+              ),
+            ],
             if (delivery.canCancel) ...[
               const SizedBox(height: AppSpacing.xl),
               AppButton(
@@ -109,7 +148,12 @@ class _StatusCard extends StatelessWidget {
               children: [
                 Text(delivery.statusLabel, style: AppTypography.title(context).copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: AppSpacing.xs),
-                Text('Acompanhe as atualizações da portaria.', style: AppTypography.caption(context)),
+                Text(
+                  delivery.canRespond
+                      ? 'A portaria aguarda sua resposta para liberar a entrega.'
+                      : 'Acompanhe as atualizações da portaria.',
+                  style: AppTypography.caption(context),
+                ),
               ],
             ),
           ),

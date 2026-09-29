@@ -402,6 +402,54 @@ describe('DeliveryService', () => {
       .rejects.toBeInstanceOf(BadRequestException);
   });
 
+  describe('resposta do morador a "aguardando autorização"', () => {
+    async function aguardando(montado: ReturnType<typeof montar>) {
+      const aviso = await montado.service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+      await montado.service.atualizarStatus(aviso.id, { status: 'CHEGOU' }, porteiro);
+      await montado.service.atualizarStatus(aviso.id, { status: 'AGUARDANDO_AUTORIZACAO' }, porteiro);
+      montado.notifications.sendPushNotification.mockClear();
+      return aviso;
+    }
+
+    it('o morador autoriza, mesmo sem entregador identificado', async () => {
+      const m = montar();
+      const aviso = await aguardando(m);
+
+      await m.service.atualizarStatus(aviso.id, { status: 'AUTORIZADA' }, morador);
+
+      expect(m.atendimentos[0]).toMatchObject({ status: 'AUTORIZADA', autorizado_em: expect.any(Date) });
+      // Ele mesmo deu a resposta: não recebe push da própria ação.
+      expect(m.notifications.sendPushNotification).not.toHaveBeenCalled();
+    });
+
+    it('o morador recusa com motivo', async () => {
+      const m = montar();
+      const aviso = await aguardando(m);
+
+      await m.service.atualizarStatus(aviso.id, { status: 'RECUSADA', motivo: 'Não pedi nada' }, morador);
+
+      expect(m.atendimentos[0]).toMatchObject({ status: 'RECUSADA', motivo: 'Não pedi nada' });
+    });
+
+    it('o morador não avança outros status', async () => {
+      const m = montar();
+      const aviso = await m.service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+      await m.service.atualizarStatus(aviso.id, { status: 'CHEGOU' }, porteiro);
+
+      await expect(m.service.atualizarStatus(aviso.id, { status: 'AUTORIZADA' }, morador))
+        .rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('outro morador não responde pelo aviso', async () => {
+      const m = montar();
+      const aviso = await aguardando(m);
+      const vizinho = { sub: 99, typeAccess: 'Morador' } as any;
+
+      await expect(m.service.atualizarStatus(aviso.id, { status: 'AUTORIZADA' }, vizinho))
+        .rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
   it('avisa o morador quando a entrega é recusada, com o motivo', async () => {
     const { service, notifications } = montar();
     const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);

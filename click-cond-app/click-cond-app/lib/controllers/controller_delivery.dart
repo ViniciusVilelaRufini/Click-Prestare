@@ -145,6 +145,36 @@ Future<DeliveryResult> apiCreateDelivery(
   }
 }
 
+/// Resposta do morador ao pedido de autorização da portaria.
+Future<DeliveryResult> apiResponderDelivery(DeliveryModel delivery,
+    {required bool autorizar}) async {
+  if (delivery.id == null || !delivery.canRespond) {
+    return DeliveryResult.error(
+        'Esta entrega não está aguardando sua autorização.');
+  }
+
+  try {
+    final response = await ApiClient.patch(
+      ApiConfig.buildUri('/delivery/${delivery.id}'),
+      body: jsonEncode(autorizar
+          ? {'status': 'AUTORIZADA'}
+          : {'status': 'RECUSADA', 'motivo': 'Recusada pelo morador.'}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return DeliveryResult.error(mensagemDeErroApi(response.body));
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      return DeliveryResult.error('A resposta da portaria é inválida.');
+    }
+    return DeliveryResult.ok(
+        DeliveryModel.fromJson(Map<String, dynamic>.from(decoded)));
+  } catch (_) {
+    return DeliveryResult.error(
+        'Não foi possível enviar sua resposta. Verifique a conexão e tente novamente.');
+  }
+}
+
 Future<DeliveryResult> apiCancelDelivery(DeliveryModel delivery) async {
   if (delivery.id == null || !delivery.canCancel) {
     return DeliveryResult.error(

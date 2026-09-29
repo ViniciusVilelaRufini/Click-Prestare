@@ -144,6 +144,9 @@ class DeliveryModel {
 
   bool get canCancel => status == 'AGENDADA';
 
+  /// A portaria pediu a autorização do morador (autorizar ou recusar).
+  bool get canRespond => status == 'AGUARDANDO_AUTORIZACAO';
+
   String get statusLabel => deliveryStatusLabel(status);
 
   String get modoEntregaLabel =>

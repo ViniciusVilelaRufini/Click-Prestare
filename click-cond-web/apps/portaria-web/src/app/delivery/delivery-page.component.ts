@@ -90,6 +90,10 @@ export class DeliveryPageComponent implements OnInit {
     this.api.listAtendimentos().subscribe({
       next: (atendimentos) => {
         this.atendimentos.set(atendimentos);
+        // Mantém o painel no mesmo atendimento, com o status/linha do tempo
+        // novos. Some sozinho se ele saiu da lista.
+        const aberto = this.selecionado();
+        if (aberto) this.selecionado.set(atendimentos.find((a) => a.id === aberto.id) ?? null);
         this.carregando.set(false);
       },
       error: (error) => this.definirErro(error, 'Não foi possível carregar a fila de delivery.'),
@@ -165,10 +169,7 @@ export class DeliveryPageComponent implements OnInit {
       id_entregador: this.entregadorSelecionadoId() ?? undefined,
       motivo: motivo || undefined,
     }).subscribe({
-      next: () => {
-        this.selecionado.set(null);
-        this.carregar();
-      },
+      next: () => this.carregar(),
       error: (error) => this.definirErro(error, 'Não foi possível atualizar o atendimento.'),
     });
   }

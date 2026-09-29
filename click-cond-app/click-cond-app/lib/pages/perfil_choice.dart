@@ -49,6 +49,15 @@ class _HomePageState extends State<HomePage> {
         await Permission.camera.request();
       }
     } catch (_) {}
+    // Notificação em sequência, depois da câmera. O Firebase pede a mesma
+    // permissão no init, em paralelo com este pedido; o Android só atende um
+    // diálogo por vez e o outro some — instalação nova ficava sem push
+    // (POST_NOTIFICATIONS negado) sem o morador nunca ter visto a pergunta.
+    try {
+      if (!await Permission.notification.isGranted) {
+        await Permission.notification.request();
+      }
+    } catch (_) {}
   }
 
   void _verifyUserLogin() {
