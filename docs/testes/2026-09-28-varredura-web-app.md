@@ -63,6 +63,12 @@ Plano: `docs/superpowers/plans/2026-09-28-correcoes-varredura.md`.
 - **30. 🟠 (produto) "Aguardando autorização" sem ação para o morador**: status e push dizem "a portaria aguarda sua autorização", mas o app só permite cancelar; autorizar é exclusivo da portaria. Decidir: botão "Autorizar" no app ou trocar o texto.
 - **31. 🟡 UX**: painel do atendimento no console fecha ao mudar o status; lista de delivery do app não atualiza ao voltar do segundo plano (só com pull-to-refresh); detalhe usa o objeto da lista sem buscar de novo.
 
+### Ciclo 3 — app (Mudança) + verificação
+- Verificado em produção: Delivery legível nos temas escuro e claro; push "Sua entrega foi recusada pela portaria. Motivo: …" chega na hora.
+- **32. 🟠 Mudança agendada sem horário — ✅ corrigido no app**: `new_mudanca.dart` não validava a hora (o backend aceita nula) e a data vazia caía em "Data informada inválida!". Agora exige data e hora com mensagens claras. O seletor já bloqueia datas passadas.
+- **33. 🟠 (produto) Console web sem tela de Mudanças**: o morador agenda e a mudança fica "Pendente", mas a portaria no console não vê nem aprova (só em Relatórios / app do síndico).
+- APK com as correções de app dos ciclos 1–3 instalado no emulador.
+
 ## Bugs
 
 ### 1. 🔴 App mostra "Você é o proprietário" para qualquer morador
