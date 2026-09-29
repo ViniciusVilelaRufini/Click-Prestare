@@ -126,8 +126,23 @@
   .ps-download-panel { border-color: var(--prestare-blue-200) !important; background: linear-gradient(145deg, var(--surface-card), var(--prestare-blue-50)) !important; }
   .ps-download-card { background: rgba(255,255,255,.82) !important; box-shadow: 0 10px 26px rgba(6,42,93,.07); }
   .ps-faq { background: linear-gradient(145deg, var(--prestare-blue-50), transparent 68%); border-radius: var(--radius-xl); }
-  .ps-faq-item { box-shadow: 0 4px 14px rgba(6,42,93,.045); transition: border-color 150ms ease, box-shadow 150ms ease; }
-  .ps-faq-item[open] { border-color: var(--prestare-blue-300) !important; box-shadow: 0 10px 24px rgba(6,42,93,.1); }
+  /* Sem sombra "de botao" nos itens (pedido explicito para o celular): so
+     borda/fundo mudam de estado, o <details> some por baixo de summary+chevron
+     proprios porque o marker nativo nao gira nem estiliza entre navegadores. */
+  .ps-faq-item { transition: border-color 150ms ease, background 150ms ease; }
+  .ps-faq-item summary { list-style: none; }
+  .ps-faq-item summary::-webkit-details-marker { display: none; }
+  .ps-faq-item > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 19px 20px; cursor: pointer; color: var(--text-strong); }
+  .ps-faq-item:hover { border-color: var(--prestare-blue-200) !important; background: var(--prestare-blue-50) !important; }
+  .ps-faq-item[open] { border-color: var(--prestare-blue-300) !important; background: var(--prestare-blue-50) !important; }
+  .ps-faq-item[open] > summary { color: var(--prestare-blue-700) !important; }
+  .ps-faq-item > summary:focus-visible { outline: 2px solid var(--prestare-blue-500); outline-offset: -2px; border-radius: var(--radius-lg); }
+  .ps-faq-chevron { flex: none; color: var(--text-muted); transition: transform 200ms cubic-bezier(.2,.8,.28,1); }
+  .ps-faq-item[open] .ps-faq-chevron { color: var(--prestare-blue-600); transform: rotate(180deg); }
+  .ps-faq-answer { margin: 0; padding: 14px 20px 20px; border-top: 1px solid var(--border-subtle); font-size: 15px !important; line-height: 1.65 !important; }
+  @media (prefers-reduced-motion: reduce) {
+    .ps-faq-chevron { transition: none; }
+  }
   .ps-contact-panel { background: linear-gradient(135deg, var(--prestare-blue-900), #173f73) !important; border: 1px solid rgba(255,255,255,.14); }
   .ps-contact-panel h2, .ps-contact-panel h3 { color: var(--text-on-brand); }
   /* O card branco é o único aqui: a superfície do formulário vem do container
@@ -179,6 +194,7 @@
     .ps-hero { grid-template-columns: 1fr !important; gap: 36px !important; padding-top: 44px !important; padding-bottom: 40px !important; }
     .ps-nav { display: none !important; }
     .ps-sec { padding-top: 48px !important; padding-bottom: 48px !important; }
+    .ps-faq-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
   }
 
   /* Celular: a barra do topo nao cabe — logo (~210px) + botao (~150px)
@@ -720,26 +736,52 @@
   </section>
 
   <sc-if value="{{ mostrarFaq }}" hint-placeholder-val="{{ true }}">
-    <section id="duvidas" class="ps-faq" style="max-width: 1440px; margin: 0 auto; padding: 32px 24px 56px;">
-      <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600);">Decisão com clareza</span>
-      <h2 style="margin: 10px 0 24px; font: var(--weight-extrabold) clamp(24px, 2.4vw, 30px)/1.15 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong);">Dúvidas frequentes</h2>
-      <div style="display: grid; gap: 10px;">
-        <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
-          <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Precisa trocar os equipamentos da portaria?</summary>
-          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Não. O console roda no navegador do computador que já existe na portaria. Leitor facial e catraca são opcionais e entram depois, se o condomínio quiser.</p>
-        </details>
-        <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
-          <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">E o morador que não tem paciência com aplicativo?</summary>
-          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">A portaria registra tudo do mesmo jeito. O app é o atalho: quem usa libera visitante e vê a conta em segundos; quem não usa continua atendido no balcão.</p>
-        </details>
-        <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
-          <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Quanto tempo leva para começar a rodar?</summary>
-          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Blocos, apartamentos e moradores são importados de planilha. Com a lista em mãos, a portaria começa a registrar no mesmo dia.</p>
-        </details>
-        <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
-          <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Se a internet cair, para tudo?</summary>
-          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Não. A portaria continua registrando e o sistema sincroniza quando a conexão volta — o status <strong style="font-weight: 600;">Sinc.</strong> mostra o que ainda está subindo.</p>
-        </details>
+    <section id="duvidas" class="ps-faq" style="max-width: 1440px; margin: 0 auto; padding: 48px 24px 64px;">
+      <div class="ps-faq-grid" style="display: grid; grid-template-columns: minmax(240px, 320px) 1fr; gap: 40px; align-items: start;">
+        <div style="min-width: 0;">
+          <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600);">Decisão com clareza</span>
+          <h2 style="margin: 10px 0 0; font: var(--weight-extrabold) clamp(24px, 2.4vw, 30px)/1.15 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong);">Dúvidas frequentes</h2>
+          <p style="margin: 12px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 34ch;">O que mais pesa na hora de trocar a portaria por um sistema novo.</p>
+
+          <div style="margin-top: 24px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px;">
+            <h3 style="margin: 0; font: var(--type-body-strong); color: var(--text-strong);">Ainda tem dúvidas?</h3>
+            <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-muted);">Fale direto com a gente pelo WhatsApp.</p>
+            <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" class="ps-cta" style="display: inline-block; margin-top: 14px;">
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="md" icon-left="phone" hint-size="180px,44px">Falar no WhatsApp</x-import>
+            </a>
+          </div>
+        </div>
+
+        <div style="min-width: 0; display: grid; gap: 12px;">
+          <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
+            <summary>
+              <span style="font: var(--type-body-strong); color: inherit;">Precisa trocar os equipamentos da portaria?</span>
+              <svg class="ps-faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </summary>
+            <p class="ps-faq-answer" style="font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Não. O console roda no navegador do computador que já existe na portaria. Leitor facial e catraca são opcionais e entram depois, se o condomínio quiser.</p>
+          </details>
+          <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
+            <summary>
+              <span style="font: var(--type-body-strong); color: inherit;">E o morador que não tem paciência com aplicativo?</span>
+              <svg class="ps-faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </summary>
+            <p class="ps-faq-answer" style="font: var(--type-body); color: var(--text-muted); max-width: 82ch;">A portaria registra tudo do mesmo jeito. O app é o atalho: quem usa libera visitante e vê a conta em segundos; quem não usa continua atendido no balcão.</p>
+          </details>
+          <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
+            <summary>
+              <span style="font: var(--type-body-strong); color: inherit;">Quanto tempo leva para começar a rodar?</span>
+              <svg class="ps-faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </summary>
+            <p class="ps-faq-answer" style="font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Blocos, apartamentos e moradores são importados de planilha. Com a lista em mãos, a portaria começa a registrar no mesmo dia.</p>
+          </details>
+          <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
+            <summary>
+              <span style="font: var(--type-body-strong); color: inherit;">Se a internet cair, para tudo?</span>
+              <svg class="ps-faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </summary>
+            <p class="ps-faq-answer" style="font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Não. A portaria continua registrando e o sistema sincroniza quando a conexão volta — o status <strong style="font-weight: 600;">Sinc.</strong> mostra o que ainda está subindo.</p>
+          </details>
+        </div>
       </div>
     </section>
   </sc-if>
