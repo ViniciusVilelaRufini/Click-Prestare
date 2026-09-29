@@ -39,11 +39,13 @@
 <!-- OpenAI Ads Pixel -->
 <script>!function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");oaiq("init",{pixelId:"17H2XPR4dY5HHBNUs9L5ha"});</script>
 <script>
-  // Conversao "pedido de orcamento": dispara no envio do formulario (enviar)
-  // e em qualquer clique num link direto para o WhatsApp (wa.me) ou para a DM
-  // do Instagram (ig.me/m).
+  // A conversão do Google acompanha pedidos de orçamento e cliques diretos.
+  // Para a OpenAI, somente um envio válido do formulário conta como lead: abrir
+  // o WhatsApp sem enviar uma solicitação não deve orientar a otimização.
   window.psConversaoOrcamento = function () {
     try { gtag('event', 'conversion', { send_to: 'AW-18476913499/-xRLCNiSs4gdENumvepE', value: 1.0, currency: 'BRL' }); } catch (e) {}
+  };
+  window.psConversaoLeadReal = function () {
     try { oaiq('measure', 'lead_created', { type: 'customer_action' }); } catch (e) {}
   };
   // Origem do lead: parâmetros dos anúncios guardados na chegada, para não se
@@ -1683,6 +1685,7 @@ class Component extends DCLogic {
       site: String(f.get("site") || ""),
     });
     if (window.psConversaoOrcamento) window.psConversaoOrcamento();
+    if (window.psConversaoLeadReal) window.psConversaoLeadReal();
     window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(linhas.join("\n")), "_blank", "noopener");
     this.setState({ enviado: true });
   };
