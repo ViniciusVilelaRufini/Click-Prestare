@@ -130,13 +130,16 @@
   .ps-faq-item[open] { border-color: var(--prestare-blue-300) !important; box-shadow: 0 10px 24px rgba(6,42,93,.1); }
   .ps-contact-panel { background: linear-gradient(135deg, var(--prestare-blue-900), #173f73) !important; border: 1px solid rgba(255,255,255,.14); }
   .ps-contact-panel h2, .ps-contact-panel h3 { color: var(--text-on-brand); }
-  .ps-contact-form { background: var(--surface-card); border: 1px solid rgba(255,255,255,.18); border-radius: var(--radius-lg); padding: clamp(20px, 3vw, 28px); box-shadow: 0 12px 30px rgba(6,42,93,.12); }
+  .ps-contact-form { background: var(--surface-card); border: 1px solid rgba(255,255,255,.18); border-radius: var(--radius-lg); padding: 0; box-shadow: 0 12px 30px rgba(6,42,93,.12); }
   .ps-footer { background: var(--prestare-blue-900) !important; border-top-color: rgba(255,255,255,.16) !important; }
   .ps-footer a:hover { color: #fff !important; }
   .ps-footer .ps-foot > div > p, .ps-footer .ps-foot nav a, .ps-footer .ps-foot nav span:not(:first-child), .ps-footer .ps-foot > div + div span { color: var(--text-on-brand-muted) !important; }
   .ps-footer .ps-foot nav > span:first-child { color: var(--text-on-brand) !important; }
   .ps-footer .ps-foot > div > span span { color: var(--text-on-brand) !important; }
   .ps-footer .ps-foot > div:last-child > div { border-top-color: rgba(255,255,255,.16) !important; }
+  .ps-footer-contact-link { color: var(--text-on-brand) !important; }
+  .ps-footer-contact-link svg { color: var(--text-on-brand); stroke: currentColor !important; }
+  .ps-footer-contact-link svg [fill="currentColor"] { fill: currentColor !important; }
 
   /* As setas moram na calha lateral do .ps-console (padding de 58px), nunca
      sobre o cartao. Em tela estreita a calha aperta, mas continua existindo. */
@@ -879,12 +882,12 @@
           <span style="font: var(--weight-extrabold) 17px/1 var(--font-display); letter-spacing: .04em; color: var(--prestare-blue-900);">PRESTARE <span style="color: var(--prestare-blue-500);">GESTÃO</span></span>
         </span>
         <p style="margin: 16px 0 0; font: var(--type-sub); color: var(--text-muted); text-wrap: pretty;">Controle de acesso, encomendas, áreas sociais e a conta do condomínio — no celular do morador e no console da portaria.</p>
-        <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font: var(--type-sub); color: var(--prestare-blue-600);">
-          <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="phone" size="16" color="var(--prestare-blue-500)" hint-size="16px,16px"></x-import>Falar no WhatsApp
+        <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" class="ps-footer-contact-link" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font: var(--type-sub); color: var(--prestare-blue-600);">
+          <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="phone" size="16" color="var(--text-on-brand)" hint-size="16px,16px"></x-import>Falar no WhatsApp
         </a>
         <br>
-        <a href="https://www.instagram.com/prestare.gestao/" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font: var(--type-sub); color: var(--prestare-blue-600);">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--prestare-blue-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1" fill="var(--prestare-blue-500)" stroke="none"></circle></svg>@prestare.gestao no Instagram
+        <a href="https://www.instagram.com/prestare.gestao/" target="_blank" rel="noopener" class="ps-footer-contact-link" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font: var(--type-sub); color: var(--prestare-blue-600);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"></circle></svg>@prestare.gestao no Instagram
         </a>
       </div>
 
