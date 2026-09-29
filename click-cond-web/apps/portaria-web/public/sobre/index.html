@@ -121,6 +121,26 @@
   @keyframes ps-fade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes ps-zoom { from { opacity: 0; transform: translateY(14px) scale(.965) } to { opacity: 1; transform: none } }
 
+  /* Fechamento corporativo: a conversao ganha contraste sem alterar os
+     controles que alimentam WhatsApp, CRM e a preferencia de cookies. */
+  .ps-download-panel { border-color: var(--prestare-blue-200) !important; background: linear-gradient(145deg, var(--surface-card), var(--prestare-blue-50)) !important; }
+  .ps-download-card { background: rgba(255,255,255,.82) !important; box-shadow: 0 10px 26px rgba(6,42,93,.07); }
+  .ps-faq { background: linear-gradient(145deg, var(--prestare-blue-50), transparent 68%); border-radius: var(--radius-xl); }
+  .ps-faq-item { box-shadow: 0 4px 14px rgba(6,42,93,.045); transition: border-color 150ms ease, box-shadow 150ms ease; }
+  .ps-faq-item[open] { border-color: var(--prestare-blue-300) !important; box-shadow: 0 10px 24px rgba(6,42,93,.1); }
+  .ps-contact-panel { background: linear-gradient(135deg, var(--prestare-blue-900), #173f73) !important; border: 1px solid rgba(255,255,255,.14); }
+  .ps-contact-panel h2, .ps-contact-panel h3 { color: var(--text-on-brand); }
+  .ps-contact-form { background: var(--surface-card); border: 1px solid rgba(255,255,255,.18); border-radius: var(--radius-lg); padding: 0; box-shadow: 0 12px 30px rgba(6,42,93,.12); }
+  .ps-footer { background: var(--prestare-blue-900) !important; border-top-color: rgba(255,255,255,.16) !important; }
+  .ps-footer a:hover { color: #fff !important; }
+  .ps-footer .ps-foot > div > p, .ps-footer .ps-foot nav a, .ps-footer .ps-foot nav span:not(:first-child), .ps-footer .ps-foot > div + div span { color: var(--text-on-brand-muted) !important; }
+  .ps-footer .ps-foot nav > span:first-child { color: var(--text-on-brand) !important; }
+  .ps-footer .ps-foot > div > span span { color: var(--text-on-brand) !important; }
+  .ps-footer .ps-foot > div:last-child > div { border-top-color: rgba(255,255,255,.16) !important; }
+  .ps-footer-contact-link { color: var(--text-on-brand) !important; }
+  .ps-footer-contact-link svg { color: var(--text-on-brand); stroke: currentColor !important; }
+  .ps-footer-contact-link svg [fill="currentColor"] { fill: currentColor !important; }
+
   /* As setas moram na calha lateral do .ps-console (padding de 58px), nunca
      sobre o cartao. Em tela estreita a calha aperta, mas continua existindo. */
   .ps-seta-esq { left: 8px; }
@@ -239,6 +259,7 @@
       scroll-snap-type: x mandatory;
       gap: 14px !important;
       padding-bottom: 10px;
+      scroll-padding-inline: 18px;
       /* Sem margem negativa para sangrar ate a borda: ela deixaria a faixa
          mais larga que o container e voltaria o scroll horizontal da pagina. */
       scrollbar-width: none;
@@ -252,7 +273,28 @@
       min-width: 0 !important;
       scroll-snap-align: center;
     }
+    .ps-telas img { width: 100%; height: auto; object-fit: contain; }
   }
+  /* Tema operacional corporativo: mantém conteúdo e telas reais. */
+  .ps-hdr { background:rgba(255,255,255,.94) !important; border-bottom:1px solid var(--border-row); }
+  .ps-hero { background:linear-gradient(120deg,#f7faff,#eaf1f9) !important; overflow:hidden; }
+  .ps-hero::before { content:""; position:absolute; inset:0; pointer-events:none; background-image:linear-gradient(rgba(40,99,206,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(40,99,206,.07) 1px,transparent 1px); background-size:40px 40px; mask-image:linear-gradient(90deg,#000,transparent 72%); }
+  .ps-hero > * { position:relative; }
+  .ps-corporate-card { background:var(--surface-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); box-shadow:var(--shadow-card); }
+  .ps-corporate-inverse { background:var(--prestare-blue-900); color:var(--text-on-brand); box-shadow:var(--shadow-floating); }
+  .ps-corporate-inverse > span { color:var(--prestare-blue-200) !important; }
+  .ps-corporate-inverse h3 { color:var(--text-on-brand) !important; }
+  .ps-corporate-inverse p { color:var(--text-on-brand-muted) !important; }
+  .ps-corporate-inverse > p strong, .ps-corporate-inverse > a { color:var(--text-on-brand) !important; }
+  .ps-hero h1 { letter-spacing:-.055em !important; font-weight:800 !important; }
+  .ps-hero h1 strong, .ps-hero h1 span { color:var(--prestare-blue-500); }
+  @media (max-width:560px) {
+    .ps-hero::before { background-size:32px 32px; }
+    #baixar-app div[style*="gap: 16px"] { flex-wrap:wrap !important; }
+  }
+  #contato { background:linear-gradient(135deg,#102d57,#1a4eaa) !important; }
+  #contato h2, #contato h3 { color:#fff; }
+  #contato form { background:#fff; border-radius:14px; }
 </style>
 </helmet>
 
@@ -271,7 +313,7 @@
         <a href="#modulos" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Módulos</a>
         <a href="#baixar-app" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Baixar app</a>
         <a href="#duvidas" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Dúvidas</a>
-        <a href="#contato" onClick="{{ irParaContato }}" style="display: inline-flex; align-items: center; justify-content: center; padding: 8px 18px; border-radius: var(--radius-md); background: var(--prestare-blue-600); color: #fff; font: var(--type-body-strong); text-decoration: none; box-shadow: 0 2px 8px rgba(37,96,232,.25); cursor: pointer; transition: background 150ms ease, transform 150ms ease;" style-hover="background: var(--prestare-blue-700); color: #fff; transform: translateY(-1px);">
+        <a href="#contato" onClick="{{ irParaContato }}" style="display: inline-flex; align-items: center; justify-content: center; padding: 8px 18px; border-radius: var(--radius-md); background: var(--prestare-blue-500); color: #fff; font: var(--type-body-strong); text-decoration: none; box-shadow: 0 2px 8px rgba(37,96,232,.25); cursor: pointer; transition: background 150ms ease, transform 150ms ease;" style-hover="background: var(--prestare-blue-600); color: #fff; transform: translateY(-1px);">
           Pedir orçamento
         </a>
       </nav>
@@ -288,8 +330,8 @@
           <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--green-500); animation: ps-pulse 2s infinite;"></span>
           App do morador + console da portaria
         </span>
-        <h1 style="margin: 22px 0 0; font: var(--weight-extrabold) clamp(34px, 4.4vw, 50px)/1.06 var(--font-ui); letter-spacing: -.026em; color: var(--text-strong); max-width: 17ch; text-wrap: balance;">Todo o condomínio<br><span style="color: var(--prestare-blue-500);">na palma da mão</span></h1>
-        <p style="margin: 18px 0 0; font: var(--weight-regular) clamp(16px, 1.3vw, 18px)/1.55 var(--font-ui); color: var(--text-muted); max-width: 46ch; text-wrap: pretty;">Visitantes, encomendas e a conta do condomínio no celular do morador — e o síndico vendo tudo acontecer no sistema web, sem planilha e sem livro de papel.</p>
+        <h1 style="margin: 22px 0 0; font: var(--weight-extrabold) clamp(34px, 4.4vw, 50px)/1.06 var(--font-ui); letter-spacing: -.026em; color: var(--text-strong); max-width: 17ch; text-wrap: balance;">Controle para decidir.<br><span style="color: var(--prestare-blue-500);">Visibilidade para agir.</span></h1>
+        <p style="margin: 18px 0 0; font: var(--weight-regular) clamp(16px, 1.3vw, 18px)/1.55 var(--font-ui); color: var(--text-muted); max-width: 46ch; text-wrap: pretty;">Centralize visitantes, encomendas e a rotina do condomínio em uma operação segura, rastreável e acessível em tempo real.</p>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 8px 20px; margin-top: 26px; max-width: 420px;">
           <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Controle de acesso</span>
@@ -300,7 +342,7 @@
 
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px;">
           <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" class="ps-cta">
-            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" hint-size="240px,52px">Quero um orçamento</x-import>
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" hint-size="240px,52px">Pedir orçamento</x-import>
           </a>
           <a href="#modulos" class="ps-cta">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="ghost" size="lg" hint-size="170px,52px">Ver os módulos</x-import>
@@ -406,7 +448,7 @@
 
     <!-- Fluxo de autorizacao remota: dois lados do mesmo momento, por isso as
          duas telas ficam lado a lado em vez de virarem cartoes separados. -->
-    <div style="margin-top: 40px; background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); padding: clamp(24px, 3vw, 36px);">
+    <div class="ps-corporate-inverse" style="margin-top: 40px; border-radius: var(--radius-xl); padding: clamp(24px, 3vw, 36px);">
       <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600);">Portaria remota</span>
       <h3 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(22px, 2.4vw, 30px)/1.14 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong); max-width: 24ch; text-wrap: pretty;">O visitante chega e o morador libera pelo celular.</h3>
       <p style="margin: 12px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 58ch;">Acabou a ligação do interfone no meio da reunião. O porteiro toca em <strong style="font-weight: 600; color: var(--text-body);">Solicitar</strong>, o morador recebe a notificação com a foto de quem está no portão e responde do lugar onde estiver — e a portaria vê a resposta na hora.</p>
@@ -501,7 +543,7 @@
     </div>
 
     <div style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 16px;">
-      <article style="min-width: 0; background: var(--surface-card); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 26px;">
+      <article class="ps-corporate-card" style="min-width: 0; padding: 26px;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="contact-round" tone="brand" size="lg" hint-size="52px,52px"></x-import>
         <h3 style="margin: 18px 0 0; font: var(--weight-bold) 20px/1.2 var(--font-ui); letter-spacing: -.012em; color: var(--text-strong);">Visitantes</h3>
         <p style="margin: 8px 0 0; font: var(--type-body); color: var(--text-muted);">Cadastro pelo morador, validação de PIN na portaria e status <strong style="font-weight: 600; color: var(--green-600);">No local</strong> em tempo real.</p>
@@ -512,7 +554,7 @@
         </ul>
       </article>
 
-      <article style="min-width: 0; background: var(--surface-card); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 26px;">
+      <article class="ps-corporate-card" style="min-width: 0; padding: 26px;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="wallet" tone="success" size="lg" hint-size="52px,52px"></x-import>
         <h3 style="margin: 18px 0 0; font: var(--weight-bold) 20px/1.2 var(--font-ui); letter-spacing: -.012em; color: var(--text-strong);">Financeiro</h3>
         <p style="margin: 8px 0 0; font: var(--type-body); color: var(--text-muted);">Receitas, despesas e inadimplência por bloco. O morador vê a própria conta; o síndico vê o caixa.</p>
@@ -523,7 +565,7 @@
         </ul>
       </article>
 
-      <article style="min-width: 0; background: var(--surface-card); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 26px;">
+      <article class="ps-corporate-card" style="min-width: 0; padding: 26px;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="package" tone="violet" size="lg" hint-size="52px,52px"></x-import>
         <h3 style="margin: 18px 0 0; font: var(--weight-bold) 20px/1.2 var(--font-ui); letter-spacing: -.012em; color: var(--text-strong);">Encomendas</h3>
         <p style="margin: 8px 0 0; font: var(--type-body); color: var(--text-muted);">Recebimento registrado na portaria, aviso no app e retirada com responsável identificado.</p>
@@ -549,7 +591,7 @@
   </section>
 
   <section style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
-    <div style="background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); padding: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 28px;">
+    <div class="ps-corporate-inverse" style="border-radius: var(--radius-xl); padding: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 28px;">
       <div style="min-width: 0;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="id-card" tone="brand" hint-size="44px,44px"></x-import>
         <h3 style="margin: 14px 0 0; font: var(--type-h3); color: var(--text-strong);">Dados pessoais sob a LGPD</h3>
@@ -568,8 +610,8 @@
     </div>
   </section>
 
-    <section id="baixar-app" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
-    <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: clamp(28px, 4vw, 44px);">
+    <section id="baixar-app" class="ps-download" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
+    <div class="ps-download-panel" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: clamp(28px, 4vw, 44px);">
       <div style="max-width: 680px; margin-bottom: 32px;">
         <span style="display: inline-flex; align-items: center; gap: 8px; font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600); background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-pill); padding: 5px 12px;">
           <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="smartphone" size="14" color="var(--prestare-blue-600)" hint-size="14px,14px"></x-import>
@@ -585,7 +627,7 @@
 
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 24px; align-items: stretch;">
         <!-- Card Google Play -->
-        <div style="background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; display: flex; flex-direction: column; justify-content: space-between; gap: 24px;">
+        <div class="ps-download-card" style="background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; display: flex; flex-direction: column; justify-content: space-between; gap: 24px;">
           <div>
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
               <span style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.06); flex-shrink: 0;">
@@ -622,7 +664,7 @@
         </div>
 
         <!-- Card Apple App Store -->
-        <div style="background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; display: flex; flex-direction: column; justify-content: space-between; gap: 24px;">
+        <div class="ps-download-card" style="background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; display: flex; flex-direction: column; justify-content: space-between; gap: 24px;">
           <div>
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
               <span style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.06); color: #0f172a; flex-shrink: 0;">
@@ -688,22 +730,23 @@
   </section>
 
   <sc-if value="{{ mostrarFaq }}" hint-placeholder-val="{{ true }}">
-    <section id="duvidas" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
-      <h2 style="margin: 0 0 24px; font: var(--weight-extrabold) clamp(24px, 2.4vw, 30px)/1.15 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong);">Dúvidas frequentes</h2>
+    <section id="duvidas" class="ps-faq" style="max-width: 1440px; margin: 0 auto; padding: 32px 24px 56px;">
+      <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600);">Decisão com clareza</span>
+      <h2 style="margin: 10px 0 24px; font: var(--weight-extrabold) clamp(24px, 2.4vw, 30px)/1.15 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong);">Dúvidas frequentes</h2>
       <div style="display: grid; gap: 10px;">
-        <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
+        <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
           <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Precisa trocar os equipamentos da portaria?</summary>
           <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Não. O console roda no navegador do computador que já existe na portaria. Leitor facial e catraca são opcionais e entram depois, se o condomínio quiser.</p>
         </details>
-        <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
+        <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
           <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">E o morador que não tem paciência com aplicativo?</summary>
           <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">A portaria registra tudo do mesmo jeito. O app é o atalho: quem usa libera visitante e vê a conta em segundos; quem não usa continua atendido no balcão.</p>
         </details>
-        <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
+        <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
           <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Quanto tempo leva para começar a rodar?</summary>
           <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Blocos, apartamentos e moradores são importados de planilha. Com a lista em mãos, a portaria começa a registrar no mesmo dia.</p>
         </details>
-        <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
+        <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
           <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Se a internet cair, para tudo?</summary>
           <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Não. A portaria continua registrando e o sistema sincroniza quando a conexão volta — o status <strong style="font-weight: 600;">Sinc.</strong> mostra o que ainda está subindo.</p>
         </details>
@@ -740,8 +783,8 @@
     </div>
   </section>
 
-  <section id="contato" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 72px; scroll-margin-top: max(90px, calc(50vh - 280px));">
-    <div style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: center;">
+  <section id="contato" class="ps-contact" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 72px; scroll-margin-top: max(90px, calc(50vh - 280px));">
+    <div class="ps-contact-panel" style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: center;">
       <div style="min-width: 0;">
         <h2 style="margin: 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-display); letter-spacing: -.02em; color: var(--text-on-brand); text-wrap: pretty;">Receba um orçamento para o seu condomínio.</h2>
         <p style="margin: 14px 0 0; font: var(--type-body); color: rgba(255,255,255,.85); max-width: 44ch;">O valor acompanha o tamanho do condomínio. Diga quantas unidades e eu respondo com o orçamento e os módulos que fazem sentido para vocês.</p>
@@ -798,7 +841,7 @@
           </div>
         </sc-if>
         <sc-if value="{{ mostrarForm }}" hint-placeholder-val="{{ true }}">
-          <form id="ps-form-demo" onSubmit="{{ enviar }}" style="display: grid; gap: 14px;">
+          <form id="ps-form-demo" class="ps-contact-form" onSubmit="{{ enviar }}" style="display: grid; gap: 14px;">
             <div>
               <h3 style="margin: 0; font: var(--type-h2); color: var(--text-strong);">Pedir orçamento</h3>
               <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">Preencha e eu respondo com o valor pelo WhatsApp.</p>
@@ -829,7 +872,7 @@
     </div>
   </section>
 
-  <footer style="border-top: 1px solid var(--border-row); background: var(--surface-card);">
+  <footer class="ps-footer" style="border-top: 1px solid var(--border-row); background: var(--surface-card);">
     <!-- Flex em vez de grid: a marca ocupa a esquerda e as colunas de links sao
          empurradas para a direita, quebrando uma a uma conforme a tela estreita. -->
     <div class="ps-foot" style="max-width: 1440px; margin: 0 auto; padding: 56px 24px 36px; display: flex; flex-wrap: wrap; gap: 44px; justify-content: space-between;">
@@ -839,12 +882,12 @@
           <span style="font: var(--weight-extrabold) 17px/1 var(--font-display); letter-spacing: .04em; color: var(--prestare-blue-900);">PRESTARE <span style="color: var(--prestare-blue-500);">GESTÃO</span></span>
         </span>
         <p style="margin: 16px 0 0; font: var(--type-sub); color: var(--text-muted); text-wrap: pretty;">Controle de acesso, encomendas, áreas sociais e a conta do condomínio — no celular do morador e no console da portaria.</p>
-        <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font: var(--type-sub); color: var(--prestare-blue-600);">
-          <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="phone" size="16" color="var(--prestare-blue-500)" hint-size="16px,16px"></x-import>Falar no WhatsApp
+        <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" class="ps-footer-contact-link" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font: var(--type-sub); color: var(--prestare-blue-600);">
+          <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="phone" size="16" color="var(--text-on-brand)" hint-size="16px,16px"></x-import>Falar no WhatsApp
         </a>
         <br>
-        <a href="https://www.instagram.com/prestare.gestao/" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font: var(--type-sub); color: var(--prestare-blue-600);">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--prestare-blue-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1" fill="var(--prestare-blue-500)" stroke="none"></circle></svg>@prestare.gestao no Instagram
+        <a href="https://www.instagram.com/prestare.gestao/" target="_blank" rel="noopener" class="ps-footer-contact-link" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font: var(--type-sub); color: var(--prestare-blue-600);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"></circle></svg>@prestare.gestao no Instagram
         </a>
       </div>
 
