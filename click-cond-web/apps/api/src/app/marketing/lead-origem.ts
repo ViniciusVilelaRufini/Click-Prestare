@@ -12,6 +12,9 @@ export interface LeadEntrada {
   utm_source?: string;
   utm_medium?: string;
   utm_campaign?: string;
+  campaign_id?: string;
+  ad_group_id?: string;
+  ad_id?: string;
   pagina?: string;
 }
 
@@ -52,6 +55,9 @@ export function validarLead(body: unknown): LeadEntrada {
     utm_source: opcional(b.utm_source, 120),
     utm_medium: opcional(b.utm_medium, 120),
     utm_campaign: opcional(b.utm_campaign, 120),
+    campaign_id: opcional(b.campaign_id, 100),
+    ad_group_id: opcional(b.ad_group_id, 100),
+    ad_id: opcional(b.ad_id, 100),
     pagina: opcional(b.pagina, 255),
   };
 }
@@ -79,6 +85,9 @@ export function leadDeClique(body: unknown): LeadEntrada | null {
     utm_source: opcional(b.utm_source, 120),
     utm_medium: opcional(b.utm_medium, 120),
     utm_campaign: opcional(b.utm_campaign, 120),
+    campaign_id: opcional(b.campaign_id, 100),
+    ad_group_id: opcional(b.ad_group_id, 100),
+    ad_id: opcional(b.ad_id, 100),
     pagina: opcional(b.pagina, 255),
   };
 }

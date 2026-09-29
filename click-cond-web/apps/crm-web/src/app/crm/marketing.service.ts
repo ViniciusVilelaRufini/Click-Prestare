@@ -19,6 +19,7 @@ export interface ResumoMarketing {
 }
 export interface Lead {
   id: number; nome: string; condominio: string; unidades: string; whatsapp: string; origem: Canal;
+  campaignId: string | null; adGroupId: string | null; adId: string | null;
   status: LeadStatus; observacao: string | null; criadoEm: string; statusEm: string | null;
 }
 

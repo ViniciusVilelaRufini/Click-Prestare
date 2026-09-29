@@ -13,6 +13,9 @@ export interface LeadDto {
   unidades: string;
   whatsapp: string;
   origem: LeadOrigem;
+  campaignId: string | null;
+  adGroupId: string | null;
+  adId: string | null;
   status: LeadStatus;
   observacao: string | null;
   criadoEm: string;
@@ -27,6 +30,9 @@ function paraDto(l: any): LeadDto {
     unidades: l.unidades,
     whatsapp: l.whatsapp,
     origem: l.origem,
+    campaignId: l.campaign_id ?? null,
+    adGroupId: l.ad_group_id ?? null,
+    adId: l.ad_id ?? null,
     status: l.status,
     observacao: l.observacao ?? null,
     criadoEm: new Date(l.criado_em).toISOString(),

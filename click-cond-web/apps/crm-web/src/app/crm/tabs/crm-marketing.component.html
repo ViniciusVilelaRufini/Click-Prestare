@@ -124,6 +124,13 @@
     }
     <dl class="mt-4 space-y-2 text-sm">
       <div><dt class="text-ink-muted">Origem</dt><dd>{{ canalLabel[l.origem] }}</dd></div>
+      @if (l.campaignId || l.adGroupId || l.adId) {
+        <div><dt class="text-ink-muted">Atribuição do anúncio</dt><dd class="break-all">
+          @if (l.campaignId) {<div>Campanha: {{ l.campaignId }}</div>}
+          @if (l.adGroupId) {<div>Grupo: {{ l.adGroupId }}</div>}
+          @if (l.adId) {<div>Anúncio: {{ l.adId }}</div>}
+        </dd></div>
+      }
       <div><dt class="text-ink-muted">Recebido em</dt><dd>{{ l.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</dd></div>
     </dl>
     <p class="mt-6 text-sm font-medium">Status</p>
