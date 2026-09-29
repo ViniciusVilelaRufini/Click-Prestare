@@ -89,6 +89,16 @@ class _NewMudancaPageState extends State<NewMudanca> {
   }
 
   Future<void> save() async {
+    // Sem isto a data vazia caía em "Data informada inválida!" e a hora vazia
+    // passava: a mudança era criada sem horário para a portaria.
+    if (txtData.text.trim().isEmpty) {
+      displayMessage(context, getText('alert_ops'), 'Informe a data da mudança.');
+      return;
+    }
+    if (txtHora.text.trim().isEmpty) {
+      displayMessage(context, getText('alert_ops'), 'Informe a hora de início da mudança.');
+      return;
+    }
     try {
       var mudanca = MudancaModel(
         id: widget.myId ?? -1,
