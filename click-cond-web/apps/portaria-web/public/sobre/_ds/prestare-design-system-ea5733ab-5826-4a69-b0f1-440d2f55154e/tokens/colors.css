@@ -1,15 +1,15 @@
 :root{
 /* ---------- Brand ---------- */
---prestare-blue-900:#102d57; /* logo gradient end / deepest navy */
+--prestare-blue-900:#062a5d; /* logo gradient end / deepest navy */
 --prestare-blue-800:#0b4a9b; /* logo gradient start */
---prestare-blue-700:#1a4eaa;
---prestare-blue-600:#245cc7; /* hero gradient end */
---prestare-blue-500:#2863ce; /* PRIMARY — buttons, active tab, links */
+--prestare-blue-700:#1a45b8;
+--prestare-blue-600:#1e4fd8; /* hero gradient end */
+--prestare-blue-500:#2560e8; /* PRIMARY — buttons, active tab, links */
 --prestare-blue-400:#4a7bf0;
 --prestare-blue-300:#93b1ff;
 --prestare-blue-200:#c2d3ff;
 --prestare-blue-100:#dde7ff; /* icon chip fill */
---prestare-blue-50:#eaf1ff;  /* tint surface */
+--prestare-blue-50:#eef3ff;  /* tint surface */
 --prestare-yellow:#ffd400;   /* logo mark accent — mark only, never UI chrome */
 --prestare-yellow-dark:#e0bb00;
 
@@ -48,7 +48,7 @@
 --cyan-50:#eaf5fb;
 
 /* ---------- Semantic aliases ---------- */
---surface-app:#f6f9fd;
+--surface-app:var(--neutral-50);
 --surface-card:var(--neutral-0);
 --surface-sunken:var(--neutral-50);
 --surface-row:var(--neutral-50);
@@ -58,7 +58,7 @@
 --surface-chip:var(--prestare-blue-100);
 --surface-overlay:rgba(26,29,35,.45);
 
---text-strong:#1b2838;
+--text-strong:var(--neutral-900);
 --text-body:var(--neutral-800);
 --text-muted:var(--neutral-600);
 --text-faint:var(--neutral-500);
@@ -68,7 +68,7 @@
 --text-danger:var(--red-500);
 --text-success:var(--green-600);
 
---border-subtle:#dbe4ee;
+--border-subtle:var(--neutral-200);
 --border-row:var(--neutral-100);
 --border-strong:var(--neutral-300);
 --border-brand:var(--prestare-blue-500);
