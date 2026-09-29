@@ -12,6 +12,7 @@ Reposicionar visualmente a landing pública em `/sobre/` como uma solução empr
 - Alterar somente a apresentação: tema, paleta, tipografia, hierarquia, espaçamento, superfícies, CTAs, componentes e textos de interface/marketing.
 - Preservar todas as informações, imagens, recursos, links, formulários, rastreamento, acessibilidade existente e comportamento responsivo.
 - Não remover seções para simplificar a página nem trocar imagens atuais.
+- Manter em destaque as imagens reais do app do morador, app da portaria e sistema web já presentes na landing. Elas não serão substituídas por ilustrações ou mockups genéricos.
 - Manter o azul da marca, complementado por azul-marinho institucional.
 
 ## Direção aprovada
@@ -43,7 +44,7 @@ Será usada a família sans-serif já carregada pela landing/design system. Tít
 
 - Navegação branca, mais contida, com CTA azul retangular de baixo raio.
 - Hero com fundo técnico muito claro e grade discreta, limitada à área de destaque.
-- O material visual existente permanece; sua moldura, sombra e posicionamento passam a parecer parte de uma plataforma de operação.
+- As imagens reais já usadas pela página — telas do app do morador, app da portaria e sistema web — permanecem. Moldura, sombra e posicionamento passam a integrá-las à linguagem de plataforma de operação.
 - Estatísticas existentes recebem maior prioridade numérica e rótulos discretos.
 
 ### Seções internas
@@ -59,6 +60,7 @@ Será usada a família sans-serif já carregada pela landing/design system. Tít
 - Grades viram uma coluna sem esconder conteúdo.
 - Botões preservam área de toque confortável.
 - A implementação mantém contraste adequado, foco visível, labels e hierarquia semântica existentes.
+- As imagens reais mantêm proporção, `alt` e boa leitura em telas pequenas; galerias deixam de competir horizontalmente e passam a refluír ou rolar de modo explícito quando necessário.
 
 ## Fluxo e compatibilidade
 
@@ -82,7 +84,7 @@ Antes de editar, a implementação identificará as regras que de fato controlam
 
 ## Verificação
 
-1. Servir `apps/portaria-web/public` localmente e inspecionar `/sobre/` em desktop e mobile.
-2. Confirmar que imagens, links, âncoras, modal de imagens, formulário e CTAs continuam presentes e funcionais.
+1. Servir `apps/portaria-web/public` localmente e inspecionar `/sobre/` em desktop e larguras de 320px, 375px, 768px e desktop.
+2. Confirmar que todas as imagens reais do app e sistema web, links, âncoras, modal de imagens, formulário e CTAs continuam presentes e funcionais.
 3. Executar a verificação/build relevante de `portaria-web` quando os estilos finais estiverem aplicados.
 4. Revisar contraste, foco de teclado, overflow e console do navegador.
