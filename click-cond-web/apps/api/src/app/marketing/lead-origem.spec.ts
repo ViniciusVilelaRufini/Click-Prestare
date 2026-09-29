@@ -29,6 +29,19 @@ describe('validarLead', () => {
     expect(r.nome.length).toBe(120);
     expect(r.gclid!.length).toBe(255);
   });
+  it('preserva os identificadores de campanha e anúncio para atribuição no CRM', () => {
+    const r = validarLead({
+      ...ok,
+      campaign_id: 'cmpn_a9183a2556f481a285ed3928e2020d43',
+      ad_group_id: 'adg_condominios_sp',
+      ad_id: 'ad_simulador_01',
+    });
+    expect(r).toMatchObject({
+      campaign_id: 'cmpn_a9183a2556f481a285ed3928e2020d43',
+      ad_group_id: 'adg_condominios_sp',
+      ad_id: 'ad_simulador_01',
+    });
+  });
   it('rejeita corpo que não é objeto', () =>
     expect(() => validarLead(null)).toThrow(BadRequestException));
 });
@@ -49,6 +62,10 @@ describe('leadDeClique', () => {
     const r = leadDeClique({ clique: 'whatsapp', unidades: '80 unidades · Plus · R$ 773,00/mês' })!;
     expect(r.unidades).toBe('80 unidades · Plus · R$ 773,00/mês');
     expect(leadDeClique({ clique: 'whatsapp' })!.unidades).toBe('—');
+  });
+  it('clique direto preserva os identificadores de atribuição', () => {
+    const r = leadDeClique({ clique: 'whatsapp', campaign_id: 'cmpn_1', ad_group_id: 'adg_1', ad_id: 'ad_1' })!;
+    expect(r).toMatchObject({ campaign_id: 'cmpn_1', ad_group_id: 'adg_1', ad_id: 'ad_1' });
   });
   it('corpo sem clique conhecido não é clique', () => {
     expect(leadDeClique({ clique: 'telefone' })).toBeNull();

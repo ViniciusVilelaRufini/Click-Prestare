@@ -51,7 +51,7 @@
   (function () {
     try {
       var q = new URLSearchParams(location.search);
-      var chaves = ['gclid', 'oppref', 'utm_source', 'utm_medium', 'utm_campaign'];
+      var chaves = ['gclid', 'oppref', 'utm_source', 'utm_medium', 'utm_campaign', 'campaign_id', 'ad_group_id', 'ad_id'];
       var salvo = JSON.parse(sessionStorage.getItem('psOrigem') || '{}');
       chaves.forEach(function (k) { if (q.get(k)) salvo[k] = q.get(k); });
       sessionStorage.setItem('psOrigem', JSON.stringify(salvo));

@@ -24,6 +24,16 @@ describe('MarketingLeadsService', () => {
     });
   });
 
+  it('grava os identificadores da campanha e do anúncio no lead', async () => {
+    const { prisma, svc } = montar();
+    await svc.criar({ ...base, oppref: 'openai-ref', campaign_id: 'cmpn_1', ad_group_id: 'adg_1', ad_id: 'ad_1' });
+    expect(prisma.crm_Leads.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        origem: 'openai', campaign_id: 'cmpn_1', ad_group_id: 'adg_1', ad_id: 'ad_1',
+      }),
+    });
+  });
+
   it('honeypot preenchido: ignora silenciosamente sem gravar', async () => {
     const { prisma, svc } = montar();
     await expect(svc.criar({ ...base, site: 'http://spam.com' })).resolves.toBeUndefined();

@@ -1687,6 +1687,9 @@ model Crm_Leads {
   utm_source   String?        @db.VarChar(120)
   utm_medium   String?        @db.VarChar(120)
   utm_campaign String?        @db.VarChar(120)
+  campaign_id  String?        @db.VarChar(100)
+  ad_group_id  String?        @db.VarChar(100)
+  ad_id        String?        @db.VarChar(100)
   pagina       String?        @db.VarChar(255)
   status       Crm_LeadStatus @default(novo)
   observacao   String?        @db.Text
