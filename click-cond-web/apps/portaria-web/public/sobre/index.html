@@ -130,7 +130,22 @@
   .ps-faq-item[open] { border-color: var(--prestare-blue-300) !important; box-shadow: 0 10px 24px rgba(6,42,93,.1); }
   .ps-contact-panel { background: linear-gradient(135deg, var(--prestare-blue-900), #173f73) !important; border: 1px solid rgba(255,255,255,.14); }
   .ps-contact-panel h2, .ps-contact-panel h3 { color: var(--text-on-brand); }
-  .ps-contact-form { background: var(--surface-card); border: 1px solid rgba(255,255,255,.18); border-radius: var(--radius-lg); padding: clamp(20px, 3vw, 28px); box-shadow: 0 12px 30px rgba(6,42,93,.12); }
+  /* O card branco é o único aqui: a superfície do formulário vem do container
+     externo (a div que o envolve), não desta classe — antes as duas
+     empilhavam fundo+borda+sombra e virava branco sobre branco. Os campos
+     também ganham um tingimento leve para não somar uma terceira superfície. */
+  .ps-contact-form input:not([type="checkbox"]) { background: #f5f7fb; border-color: var(--border-subtle); padding: 11px 13px; }
+  /* Especificidade igual à regra global de :focus (input.css linha ~118) — sem
+     repetir border-color/box-shadow aqui o foco do teclado ficava invisível
+     nestes campos, porque a regra de cima (mesma especificidade, veio depois)
+     vencia mesmo com o campo focado. */
+  .ps-contact-form input:not([type="checkbox"]):focus { background: var(--surface-card); border-color: var(--border-brand); box-shadow: 0 0 0 3px rgba(37,96,232,.28); }
+  /* Nome+WhatsApp e Condomínio+Unidades lado a lado a partir de 640px — os
+     campos são curtos e sobra espaço ocioso em 1 coluna no desktop. */
+  .ps-field-row { display: grid; gap: 14px; }
+  @media (min-width: 640px) {
+    .ps-field-row { grid-template-columns: 1fr 1fr; }
+  }
   .ps-footer { background: var(--prestare-blue-900) !important; border-top-color: rgba(255,255,255,.16) !important; }
   .ps-footer a:hover { color: #fff !important; }
   .ps-footer .ps-foot > div > p, .ps-footer .ps-foot nav a, .ps-footer .ps-foot nav span:not(:first-child), .ps-footer .ps-foot > div + div span { color: var(--text-on-brand-muted) !important; }
@@ -759,10 +774,34 @@
   </section>
 
   <section id="contato" class="ps-contact" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 72px; scroll-margin-top: max(90px, calc(50vh - 280px));">
-    <div class="ps-contact-panel" style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: center;">
+    <div class="ps-contact-panel" style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: stretch;">
       <div style="min-width: 0;">
         <h2 style="margin: 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-display); letter-spacing: -.02em; color: var(--text-on-brand); text-wrap: pretty;">Receba um orçamento para o seu condomínio.</h2>
         <p style="margin: 14px 0 0; font: var(--type-body); color: rgba(255,255,255,.85); max-width: 44ch;">O valor acompanha o tamanho do condomínio. Diga quantas unidades e eu respondo com o orçamento e os módulos que fazem sentido para vocês.</p>
+
+        <!-- Etapas com os mesmos ícones do formulário (check/clock/shield-check),
+             para a coluna azul conversar com o card ao lado em vez de só decorar. -->
+        <ul style="margin: 22px 0 0; padding: 0; list-style: none; display: grid; gap: 12px; max-width: 40ch;">
+          <li style="display: flex; align-items: center; gap: 10px; font: var(--type-sub); color: rgba(255,255,255,.88);">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 999px; background: rgba(255,255,255,.14); flex: none;">
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="14" color="#fff" hint-size="14px,14px"></x-import>
+            </span>
+            Conte o nome do condomínio e quantas unidades
+          </li>
+          <li style="display: flex; align-items: center; gap: 10px; font: var(--type-sub); color: rgba(255,255,255,.88);">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 999px; background: rgba(255,255,255,.14); flex: none;">
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="clock" size="14" color="#fff" hint-size="14px,14px"></x-import>
+            </span>
+            Resposta em até 1 dia útil, pelo WhatsApp
+          </li>
+          <li style="display: flex; align-items: center; gap: 10px; font: var(--type-sub); color: rgba(255,255,255,.88);">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 999px; background: rgba(255,255,255,.14); flex: none;">
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="shield-check" size="14" color="#fff" hint-size="14px,14px"></x-import>
+            </span>
+            Sem compromisso, seus dados ficam protegidos
+          </li>
+        </ul>
+
         <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 10px;">
           <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="align-self: flex-start;" class="ps-cta">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="lg" icon-left="phone" hint-size="220px,52px">Falar no WhatsApp agora</x-import>
@@ -807,7 +846,7 @@
         </div>
       </div>
 
-      <div style="min-width: 0; background: var(--surface-card); border-radius: var(--radius-xl); padding: 24px; box-shadow: 0 18px 40px rgba(6,42,93,.28);">
+      <div style="min-width: 0; background: var(--surface-card); border-radius: var(--radius-xl); padding: 24px; box-shadow: 0 18px 40px rgba(6,42,93,.28); display: flex; flex-direction: column; justify-content: center;">
         <sc-if value="{{ enviado }}" hint-placeholder-val="{{ false }}">
           <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 12px 0;">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="circle-check" tone="success" size="lg" hint-size="52px,52px"></x-import>
@@ -821,26 +860,43 @@
               <h3 style="margin: 0; font: var(--type-h2); color: var(--text-strong);">Pedir orçamento</h3>
               <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">Preencha e eu respondo com o valor pelo WhatsApp.</p>
             </div>
-            <label style="display: grid; gap: 6px;">
-              <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Seu nome</span>
-              <input name="nome" required placeholder="Ex: Vinicius Rufini">
-            </label>
-            <label style="display: grid; gap: 6px;">
-              <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Condomínio</span>
-              <input name="condominio" required placeholder="Ex: Edifício Demo">
-            </label>
-            <label style="display: grid; gap: 6px;">
-              <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">WhatsApp</span>
-              <input name="contato" required placeholder="(00) 00000-0000">
-            </label>
-            <label style="display: grid; gap: 6px;">
-              <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Quantas unidades · define o valor</span>
-              <input name="unidades" required placeholder="Ex: 59 apartamentos">
-            </label>
+            <div class="ps-field-row">
+              <label style="display: grid; gap: 6px;">
+                <span style="font: var(--weight-semibold) var(--text-sub-size)/var(--text-sub-lh) var(--font-ui); color: var(--text-strong);">Seu nome</span>
+                <input name="nome" required placeholder="Ex: Vinicius Rufini">
+              </label>
+              <label style="display: grid; gap: 6px;">
+                <span style="font: var(--weight-semibold) var(--text-sub-size)/var(--text-sub-lh) var(--font-ui); color: var(--text-strong);">WhatsApp</span>
+                <input name="contato" required placeholder="(00) 00000-0000">
+              </label>
+            </div>
+            <div class="ps-field-row">
+              <label style="display: grid; gap: 6px;">
+                <span style="font: var(--weight-semibold) var(--text-sub-size)/var(--text-sub-lh) var(--font-ui); color: var(--text-strong);">Condomínio</span>
+                <input name="condominio" required placeholder="Ex: Edifício Demo">
+              </label>
+              <label style="display: grid; gap: 6px;">
+                <span style="font: var(--weight-semibold) var(--text-sub-size)/var(--text-sub-lh) var(--font-ui); color: var(--text-strong);">Quantas unidades · define o valor</span>
+                <input name="unidades" required placeholder="Ex: 59 apartamentos">
+              </label>
+            </div>
             <!-- Honeypot anti-spam: invisível para gente, bots preenchem tudo. -->
             <input name="site" tabindex="-1" autocomplete="off" aria-hidden="true" style="position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" type="submit" size="lg" full-width="{{ true }}" icon-right="arrow-right" hint-size="100%,52px">Enviar e abrir o WhatsApp</x-import>
-            <span style="font: var(--type-caption); color: var(--text-faint);">Usamos os dados só para responder este contato.</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px 16px;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-faint);">
+                <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="clock" size="14" color="var(--text-faint)" hint-size="14px,14px"></x-import>
+                Resposta em até 1 dia útil
+              </span>
+              <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-faint);">
+                <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="shield-check" size="14" color="var(--text-faint)" hint-size="14px,14px"></x-import>
+                Seus dados sob a LGPD, sem spam
+              </span>
+              <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-faint);">
+                <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="phone" size="14" color="var(--text-faint)" hint-size="14px,14px"></x-import>
+                Atendimento comercial humano
+              </span>
+            </div>
           </form>
         </sc-if>
       </div>
