@@ -295,6 +295,300 @@
   #contato { background:linear-gradient(135deg,#102d57,#1a4eaa) !important; }
   #contato h2, #contato h3 { color:#fff; }
   #contato form { background:#fff; border-radius:14px; }
+
+  /* Sistema visual operacional: cada bloco da landing participa da mesma
+     linguagem de produto, sem esconder as telas reais nem alterar interacoes. */
+  :root {
+    --ps-ops-navy: #0b2a52;
+    --ps-ops-navy-2: #123d73;
+    --ps-ops-ink: #10243f;
+    --ps-ops-line: #cfdaea;
+    --ps-ops-grid: rgba(36, 92, 174, .055);
+    --ps-ops-surface: #f3f7fc;
+  }
+  body { background: var(--ps-ops-surface); }
+  .ps-metrics,
+  .ps-console-section,
+  .ps-modules-section,
+  .ps-evidence,
+  .ps-download-section,
+  .ps-instagram-section,
+  .ps-faq-section,
+  .ps-simulator-section,
+  .ps-contact-section { position: relative; }
+  .ps-app-section,
+  .ps-console-section,
+  .ps-portaria-section,
+  .ps-modules-section,
+  .ps-download-section,
+  .ps-instagram-section,
+  .ps-faq-section,
+  .ps-simulator-section { isolation: isolate; }
+  .ps-app-section::before,
+  .ps-console-section::before,
+  .ps-portaria-section::before,
+  .ps-modules-section::before,
+  .ps-download-section::before,
+  .ps-instagram-section::before,
+  .ps-faq-section::before,
+  .ps-simulator-section::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  /* Indicadores: uma faixa de telemetria, nao quatro numeros soltos. */
+  .ps-metrics { padding-top: 30px !important; padding-bottom: 30px !important; }
+  .ps-metrics > div {
+    border-color: var(--ps-ops-line) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 14px 34px rgba(13, 43, 82, .08) !important;
+    background:
+      linear-gradient(90deg, var(--prestare-blue-600) 0 6px, transparent 6px),
+      linear-gradient(135deg, #fff, #f8fbff) !important;
+  }
+  .ps-metrics > div > div { position: relative; padding-left: 18px; }
+  .ps-metrics > div > div:not(:first-child)::before {
+    content: ""; position: absolute; left: -12px; top: 2px; bottom: 2px;
+    width: 1px; background: var(--border-row);
+  }
+
+  /* App do morador: superficie tecnica clara + linhas operacionais brancas. */
+  .ps-app-section {
+    position: relative;
+    background: linear-gradient(135deg, #edf4fc, #f7faff) !important;
+    border-color: var(--ps-ops-line) !important;
+  }
+  .ps-app-section::before {
+    background-image:
+      linear-gradient(var(--ps-ops-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--ps-ops-grid) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(90deg, #000, transparent 72%);
+  }
+  .ps-app-section .ps-sec { padding-top: 76px !important; padding-bottom: 76px !important; }
+  .ps-app-section .ps-sec > div:last-child > div:first-child > div {
+    position: relative;
+    background: rgba(255,255,255,.96) !important;
+    border: 1px solid var(--ps-ops-line);
+    border-left: 4px solid var(--prestare-blue-500);
+    border-radius: 12px !important;
+    box-shadow: 0 8px 22px rgba(15, 45, 82, .055);
+  }
+  .ps-app-section .ps-telas {
+    padding: 26px 18px 18px !important;
+    border: 1px solid var(--ps-ops-line);
+    border-radius: 18px;
+    background: rgba(255,255,255,.66);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+  }
+
+  /* Console: galeria central sobre uma prancha branca de sistema. */
+  .ps-console-section { padding-top: 84px !important; padding-bottom: 82px !important; }
+  .ps-console-section::before {
+    left: 50%; right: auto; width: 100vw; transform: translateX(-50%);
+    background: #fff;
+    border-top: 1px solid var(--border-row);
+    border-bottom: 1px solid var(--border-row);
+  }
+  .ps-console-section > .ps-console {
+    margin-top: 38px !important;
+    padding-top: 18px !important;
+    padding-bottom: 18px !important;
+    border-radius: 20px;
+    background: linear-gradient(145deg, #edf3fa, #f8fbff);
+    border: 1px solid var(--ps-ops-line);
+  }
+  .ps-console-section > .ps-console figure {
+    border-color: #bfcde0 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 18px 42px rgba(10, 39, 76, .14) !important;
+  }
+  .ps-console-section > .ps-corporate-inverse {
+    margin-top: 52px !important;
+    border: 1px solid rgba(255,255,255,.14);
+    background:
+      radial-gradient(circle at 90% 0, rgba(66,132,236,.32), transparent 36%),
+      linear-gradient(135deg, var(--ps-ops-navy), var(--ps-ops-navy-2)) !important;
+  }
+  .ps-console-section > .ps-corporate-inverse ol > li {
+    border-color: rgba(255,255,255,.2) !important;
+    box-shadow: 0 10px 28px rgba(4,20,42,.16);
+  }
+
+  /* Aplicativo da portaria: deck de dispositivos sobre superficie de operacao. */
+  .ps-portaria-section {
+    position: relative;
+    background: linear-gradient(180deg, #eef4fb, #e8f0f9) !important;
+    border-color: var(--ps-ops-line) !important;
+  }
+  .ps-portaria-section::before {
+    background: radial-gradient(circle at 50% 20%, rgba(61,119,214,.13), transparent 42%);
+  }
+  .ps-portaria-section .ps-sec { padding-top: 76px !important; padding-bottom: 76px !important; }
+  .ps-portaria-section .ps-slide {
+    background: #fff !important;
+    border-color: #c5d3e5 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 14px 34px rgba(11,42,82,.09) !important;
+  }
+
+  /* Modulos: cards brancos estruturados e inventario secundario disciplinado. */
+  .ps-modules-section { padding-top: 82px !important; padding-bottom: 64px !important; }
+  .ps-modules-section::before {
+    left: 50%; right: auto; width: 100vw; transform: translateX(-50%);
+    background: #fff;
+  }
+  .ps-modules-section article {
+    position: relative;
+    overflow: hidden;
+    border-color: var(--ps-ops-line) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 10px 30px rgba(11,42,82,.075) !important;
+  }
+  .ps-modules-section article::before {
+    content: ""; position: absolute; inset: 0 0 auto; height: 4px;
+    background: linear-gradient(90deg, var(--prestare-blue-600), #61a0f5);
+  }
+  .ps-modules-section > div:last-child > span {
+    border-color: var(--ps-ops-line) !important;
+    background: #f7faff !important;
+    border-radius: 8px !important;
+  }
+
+  /* Evidencia e conformidade: faixa navy com separadores de auditoria. */
+  .ps-evidence { padding-top: 0 !important; padding-bottom: 72px !important; }
+  .ps-evidence > .ps-corporate-inverse {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.16);
+    border-radius: 16px !important;
+    background:
+      linear-gradient(90deg, rgba(79,145,240,.14) 1px, transparent 1px),
+      linear-gradient(var(--ps-ops-navy), var(--ps-ops-navy-2)) !important;
+    background-size: 72px 100%, 100% 100% !important;
+  }
+  .ps-evidence > .ps-corporate-inverse > div { padding: 4px 22px 6px 0; }
+  .ps-evidence > .ps-corporate-inverse > div:not(:last-child) {
+    border-right: 1px solid rgba(255,255,255,.16);
+  }
+
+  /* Downloads e rede social: paineis de servico, nao banners promocionais. */
+  .ps-download-section { padding-top: 72px !important; padding-bottom: 72px !important; }
+  .ps-download-section::before {
+    left: 50%; right: auto; width: 100vw; transform: translateX(-50%);
+    background:
+      linear-gradient(var(--ps-ops-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--ps-ops-grid) 1px, transparent 1px),
+      #eef4fb;
+    background-size: 48px 48px;
+  }
+  .ps-download-panel {
+    border-color: #bdcde2 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 16px 40px rgba(11,42,82,.09) !important;
+  }
+  .ps-download-card {
+    border-color: var(--ps-ops-line) !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+  .ps-instagram-section { padding-top: 72px !important; padding-bottom: 72px !important; }
+  .ps-instagram-section::before {
+    left: 50%; right: auto; width: 100vw; transform: translateX(-50%);
+    background: #fff;
+    border-bottom: 1px solid var(--border-row);
+  }
+  .ps-instagram-section > div {
+    border-color: var(--ps-ops-line) !important;
+    border-left: 6px solid var(--prestare-blue-600) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 14px 34px rgba(11,42,82,.08) !important;
+  }
+
+  /* FAQ e simulador: tomada de decisao em superficies legiveis e densas. */
+  .ps-faq-section {
+    padding-top: 72px !important;
+    padding-bottom: 72px !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+  .ps-faq-section::before {
+    left: 50%; right: auto; width: 100vw; transform: translateX(-50%);
+    background: linear-gradient(145deg, #eef4fb, #f7faff);
+  }
+  .ps-faq-item {
+    border-color: var(--ps-ops-line) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 5px 16px rgba(11,42,82,.045) !important;
+  }
+  .ps-faq-item summary { list-style-position: outside; padding-left: 2px; }
+  .ps-simulator-section { padding-top: 72px !important; padding-bottom: 72px !important; }
+  .ps-simulator-section::before {
+    left: 50%; right: auto; width: 100vw; transform: translateX(-50%);
+    background: #fff;
+  }
+  .ps-simulator-section > div {
+    border-color: var(--ps-ops-line) !important;
+    border-top: 5px solid var(--prestare-blue-600) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 16px 40px rgba(11,42,82,.09) !important;
+  }
+  .ps-simulator-section > div > div:last-child {
+    background: linear-gradient(145deg, #e9f1ff, #f5f8ff) !important;
+    border-color: #b8cbed !important;
+    border-radius: 10px !important;
+  }
+
+  /* Conversao: termina como uma area operacional segura e claramente separada. */
+  .ps-contact-section {
+    padding-top: 72px !important;
+    background:
+      linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px),
+      linear-gradient(135deg,#0b2a52,#174987) !important;
+    background-size: 52px 52px, 52px 52px, 100% 100% !important;
+  }
+  .ps-contact-section .ps-contact-panel {
+    border-radius: 16px !important;
+    box-shadow: 0 22px 58px rgba(3,18,39,.32) !important;
+  }
+  .ps-contact-section .ps-contact-form { padding: 0 !important; }
+
+  @media (max-width: 720px) {
+    .ps-metrics { padding: 18px !important; }
+    .ps-metrics > div { grid-template-columns: 1fr 1fr !important; gap: 22px 16px !important; padding: 22px 18px !important; }
+    .ps-metrics > div > div { padding-left: 12px; }
+    .ps-metrics > div > div:not(:first-child)::before { left: -8px; }
+    .ps-metrics > div > div:nth-child(3)::before { display: none; }
+    .ps-app-section .ps-sec,
+    .ps-portaria-section .ps-sec { padding-top: 54px !important; padding-bottom: 54px !important; }
+    .ps-app-section .ps-telas { padding: 18px 14px 14px !important; }
+    .ps-console-section,
+    .ps-modules-section,
+    .ps-download-section,
+    .ps-instagram-section,
+    .ps-faq-section,
+    .ps-simulator-section,
+    .ps-contact-section { padding-top: 54px !important; padding-bottom: 54px !important; }
+    .ps-evidence { padding-left: 18px !important; padding-right: 18px !important; padding-bottom: 54px !important; }
+    .ps-evidence > .ps-corporate-inverse { padding: 24px !important; gap: 0 !important; }
+    .ps-evidence > .ps-corporate-inverse > div { padding: 22px 0 !important; }
+    .ps-evidence > .ps-corporate-inverse > div:first-child { padding-top: 0 !important; }
+    .ps-evidence > .ps-corporate-inverse > div:last-child { padding-bottom: 0 !important; }
+    .ps-evidence > .ps-corporate-inverse > div:not(:last-child) { border-right: 0; border-bottom: 1px solid rgba(255,255,255,.16); }
+    .ps-download-card > div:last-child { flex-wrap: wrap; }
+    .ps-instagram-section > div { border-left-width: 4px !important; }
+  }
+  @media (max-width: 420px) {
+    .ps-metrics > div { grid-template-columns: 1fr !important; }
+    .ps-metrics > div > div:not(:first-child)::before { display: none; }
+    .ps-metrics > div > div:not(:last-child) { padding-bottom: 16px; border-bottom: 1px solid var(--border-row); }
+    .ps-download-card > div:last-child > div { width: 100%; justify-content: space-between; }
+  }
 </style>
 </helmet>
 
@@ -358,7 +652,7 @@
   </div>
 
   <sc-if value="{{ mostrarNumeros }}" hint-placeholder-val="{{ true }}">
-    <section style="max-width: 1440px; margin: 0 auto; padding: 24px;">
+    <section class="ps-metrics" style="max-width: 1440px; margin: 0 auto; padding: 24px;">
       <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 28px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 24px;">
         <div style="min-width: 0;">
           <div style="font: var(--weight-extrabold) 34px/1 var(--font-ui); letter-spacing: -.02em; color: var(--prestare-blue-500); font-variant-numeric: tabular-nums;">1 app</div>
@@ -380,7 +674,7 @@
     </section>
   </sc-if>
 
-  <section id="app" style="background: var(--surface-card); border-top: 1px solid var(--border-row); border-bottom: 1px solid var(--border-row);">
+  <section id="app" class="ps-app-section" style="background: var(--surface-card); border-top: 1px solid var(--border-row); border-bottom: 1px solid var(--border-row);">
     <div class="ps-sec" style="max-width: 1440px; margin: 0 auto; padding: 64px 24px;">
       <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Para o morador</span>
       <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 26ch; text-wrap: pretty;">O morador resolve sozinho, sem ligar para a portaria.</h2>
@@ -418,7 +712,7 @@
     </div>
   </section>
 
-  <section id="console" class="ps-sec" style="max-width: 1440px; margin: 0 auto; padding: 64px 24px 24px;">
+  <section id="console" class="ps-sec ps-console-section" style="max-width: 1440px; margin: 0 auto; padding: 64px 24px 24px;">
     <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Para o síndico e a portaria</span>
     <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 28ch; text-wrap: pretty;">O sistema web mostra quem está no condomínio agora.</h2>
     <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">Mesma informação do app, do outro lado do balcão: ativos no local, liberados aguardando, quem saiu e o total registrado — com PIN, documento protegido e baixa por apartamento.</p>
@@ -485,7 +779,7 @@
     </div>
   </section>
 
-  <section id="portaria-app" style="background: var(--surface-card); border-top: 1px solid var(--border-row); border-bottom: 1px solid var(--border-row);">
+  <section id="portaria-app" class="ps-portaria-section" style="background: var(--surface-card); border-top: 1px solid var(--border-row); border-bottom: 1px solid var(--border-row);">
     <div class="ps-sec" style="max-width: 1440px; margin: 0 auto; padding: 56px 24px;">
       <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">App do porteiro</span>
       <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 26ch; text-wrap: pretty;">A portaria inteira na palma da mão, em tempo real.</h2>
@@ -533,7 +827,7 @@
     </div>
   </section>
 
-  <section id="modulos" style="max-width: 1440px; margin: 0 auto; padding: 48px 24px 56px;">
+  <section id="modulos" class="ps-modules-section" style="max-width: 1440px; margin: 0 auto; padding: 48px 24px 56px;">
     <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: baseline; justify-content: space-between;">
       <div style="min-width: 0;">
         <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Módulos</span>
@@ -590,7 +884,7 @@
     </div>
   </section>
 
-  <section style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
+  <section class="ps-evidence" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
     <div class="ps-corporate-inverse" style="border-radius: var(--radius-xl); padding: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 28px;">
       <div style="min-width: 0;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="id-card" tone="brand" hint-size="44px,44px"></x-import>
@@ -610,7 +904,7 @@
     </div>
   </section>
 
-    <section id="baixar-app" class="ps-download" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
+    <section id="baixar-app" class="ps-download ps-download-section" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
     <div class="ps-download-panel" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: clamp(28px, 4vw, 44px);">
       <div style="max-width: 680px; margin-bottom: 32px;">
         <span style="display: inline-flex; align-items: center; gap: 8px; font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600); background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-pill); padding: 5px 12px;">
@@ -703,7 +997,7 @@
     </div>
   </section>
 
-  <section id="instagram" aria-labelledby="instagram-title" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
+  <section id="instagram" class="ps-instagram-section" aria-labelledby="instagram-title" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
     <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: clamp(28px, 4vw, 44px); overflow: hidden;">
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: clamp(24px, 4vw, 44px); align-items: center;">
         <div style="min-width: 0;">
@@ -730,7 +1024,7 @@
   </section>
 
   <sc-if value="{{ mostrarFaq }}" hint-placeholder-val="{{ true }}">
-    <section id="duvidas" class="ps-faq" style="max-width: 1440px; margin: 0 auto; padding: 32px 24px 56px;">
+    <section id="duvidas" class="ps-faq ps-faq-section" style="max-width: 1440px; margin: 0 auto; padding: 32px 24px 56px;">
       <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600);">Decisão com clareza</span>
       <h2 style="margin: 10px 0 24px; font: var(--weight-extrabold) clamp(24px, 2.4vw, 30px)/1.15 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong);">Dúvidas frequentes</h2>
       <div style="display: grid; gap: 10px;">
@@ -754,7 +1048,7 @@
     </section>
   </sc-if>
 
-  <section id="simulador" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px; scroll-margin-top: 90px;">
+  <section id="simulador" class="ps-simulator-section" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px; scroll-margin-top: 90px;">
     <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: clamp(24px, 4vw, 44px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 36px; align-items: center;">
       <div style="min-width: 0;">
         <span style="font: var(--type-caption); color: var(--prestare-blue-600); text-transform: uppercase; letter-spacing: .08em;">Simulador de valor</span>
@@ -783,7 +1077,7 @@
     </div>
   </section>
 
-  <section id="contato" class="ps-contact" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 72px; scroll-margin-top: max(90px, calc(50vh - 280px));">
+  <section id="contato" class="ps-contact ps-contact-section" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 72px; scroll-margin-top: max(90px, calc(50vh - 280px));">
     <div class="ps-contact-panel" style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: center;">
       <div style="min-width: 0;">
         <h2 style="margin: 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-display); letter-spacing: -.02em; color: var(--text-on-brand); text-wrap: pretty;">Receba um orçamento para o seu condomínio.</h2>
