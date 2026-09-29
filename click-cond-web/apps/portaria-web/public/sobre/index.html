@@ -239,6 +239,7 @@
       scroll-snap-type: x mandatory;
       gap: 14px !important;
       padding-bottom: 10px;
+      scroll-padding-inline: 18px;
       /* Sem margem negativa para sangrar ate a borda: ela deixaria a faixa
          mais larga que o container e voltaria o scroll horizontal da pagina. */
       scrollbar-width: none;
@@ -252,6 +253,7 @@
       min-width: 0 !important;
       scroll-snap-align: center;
     }
+    .ps-telas img { width: 100%; height: auto; object-fit: contain; }
   }
   /* Tema operacional corporativo: mantém conteúdo e telas reais. */
   .ps-hdr { background:rgba(255,255,255,.94) !important; border-bottom:1px solid var(--border-row); }
@@ -259,7 +261,9 @@
   .ps-hero::before { content:""; position:absolute; inset:0; pointer-events:none; background-image:linear-gradient(rgba(40,99,206,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(40,99,206,.07) 1px,transparent 1px); background-size:40px 40px; mask-image:linear-gradient(90deg,#000,transparent 72%); }
   .ps-hero > * { position:relative; }
   .ps-corporate-card { background:var(--surface-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); box-shadow:var(--shadow-card); }
-  .ps-corporate-inverse { background:linear-gradient(135deg,var(--prestare-blue-900),var(--prestare-blue-700)); color:var(--text-on-brand); box-shadow:var(--shadow-floating); }
+  .ps-corporate-inverse { background:var(--prestare-blue-900); color:var(--text-on-brand); box-shadow:var(--shadow-floating); }
+  .ps-corporate-inverse h3 { color:var(--text-on-brand) !important; }
+  .ps-corporate-inverse p { color:var(--text-on-brand-muted) !important; }
   .ps-hero h1 { letter-spacing:-.055em !important; font-weight:800 !important; }
   .ps-hero h1 strong, .ps-hero h1 span { color:var(--prestare-blue-500); }
   @media (max-width:560px) {
@@ -422,7 +426,7 @@
 
     <!-- Fluxo de autorizacao remota: dois lados do mesmo momento, por isso as
          duas telas ficam lado a lado em vez de virarem cartoes separados. -->
-    <div style="margin-top: 40px; background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); padding: clamp(24px, 3vw, 36px);">
+    <div class="ps-corporate-inverse" style="margin-top: 40px; border-radius: var(--radius-xl); padding: clamp(24px, 3vw, 36px);">
       <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600);">Portaria remota</span>
       <h3 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(22px, 2.4vw, 30px)/1.14 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong); max-width: 24ch; text-wrap: pretty;">O visitante chega e o morador libera pelo celular.</h3>
       <p style="margin: 12px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 58ch;">Acabou a ligação do interfone no meio da reunião. O porteiro toca em <strong style="font-weight: 600; color: var(--text-body);">Solicitar</strong>, o morador recebe a notificação com a foto de quem está no portão e responde do lugar onde estiver — e a portaria vê a resposta na hora.</p>
@@ -517,7 +521,7 @@
     </div>
 
     <div style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 16px;">
-      <article style="min-width: 0; background: var(--surface-card); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 26px;">
+      <article class="ps-corporate-card" style="min-width: 0; padding: 26px;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="contact-round" tone="brand" size="lg" hint-size="52px,52px"></x-import>
         <h3 style="margin: 18px 0 0; font: var(--weight-bold) 20px/1.2 var(--font-ui); letter-spacing: -.012em; color: var(--text-strong);">Visitantes</h3>
         <p style="margin: 8px 0 0; font: var(--type-body); color: var(--text-muted);">Cadastro pelo morador, validação de PIN na portaria e status <strong style="font-weight: 600; color: var(--green-600);">No local</strong> em tempo real.</p>
@@ -528,7 +532,7 @@
         </ul>
       </article>
 
-      <article style="min-width: 0; background: var(--surface-card); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 26px;">
+      <article class="ps-corporate-card" style="min-width: 0; padding: 26px;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="wallet" tone="success" size="lg" hint-size="52px,52px"></x-import>
         <h3 style="margin: 18px 0 0; font: var(--weight-bold) 20px/1.2 var(--font-ui); letter-spacing: -.012em; color: var(--text-strong);">Financeiro</h3>
         <p style="margin: 8px 0 0; font: var(--type-body); color: var(--text-muted);">Receitas, despesas e inadimplência por bloco. O morador vê a própria conta; o síndico vê o caixa.</p>
@@ -539,7 +543,7 @@
         </ul>
       </article>
 
-      <article style="min-width: 0; background: var(--surface-card); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 26px;">
+      <article class="ps-corporate-card" style="min-width: 0; padding: 26px;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="package" tone="violet" size="lg" hint-size="52px,52px"></x-import>
         <h3 style="margin: 18px 0 0; font: var(--weight-bold) 20px/1.2 var(--font-ui); letter-spacing: -.012em; color: var(--text-strong);">Encomendas</h3>
         <p style="margin: 8px 0 0; font: var(--type-body); color: var(--text-muted);">Recebimento registrado na portaria, aviso no app e retirada com responsável identificado.</p>
@@ -565,7 +569,7 @@
   </section>
 
   <section style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
-    <div style="background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); padding: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 28px;">
+    <div class="ps-corporate-inverse" style="border-radius: var(--radius-xl); padding: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 28px;">
       <div style="min-width: 0;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="id-card" tone="brand" hint-size="44px,44px"></x-import>
         <h3 style="margin: 14px 0 0; font: var(--type-h3); color: var(--text-strong);">Dados pessoais sob a LGPD</h3>
