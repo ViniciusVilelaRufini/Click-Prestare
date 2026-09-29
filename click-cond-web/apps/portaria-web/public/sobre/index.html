@@ -287,7 +287,7 @@
         <a href="#modulos" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Módulos</a>
         <a href="#baixar-app" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Baixar app</a>
         <a href="#duvidas" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Dúvidas</a>
-        <a href="#contato" onClick="{{ irParaContato }}" style="display: inline-flex; align-items: center; justify-content: center; padding: 8px 18px; border-radius: var(--radius-md); background: var(--prestare-blue-600); color: #fff; font: var(--type-body-strong); text-decoration: none; box-shadow: 0 2px 8px rgba(37,96,232,.25); cursor: pointer; transition: background 150ms ease, transform 150ms ease;" style-hover="background: var(--prestare-blue-700); color: #fff; transform: translateY(-1px);">
+        <a href="#contato" onClick="{{ irParaContato }}" style="display: inline-flex; align-items: center; justify-content: center; padding: 8px 18px; border-radius: var(--radius-md); background: var(--prestare-blue-500); color: #fff; font: var(--type-body-strong); text-decoration: none; box-shadow: 0 2px 8px rgba(37,96,232,.25); cursor: pointer; transition: background 150ms ease, transform 150ms ease;" style-hover="background: var(--prestare-blue-600); color: #fff; transform: translateY(-1px);">
           Pedir orçamento
         </a>
       </nav>
@@ -304,8 +304,8 @@
           <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--green-500); animation: ps-pulse 2s infinite;"></span>
           App do morador + console da portaria
         </span>
-        <h1 style="margin: 22px 0 0; font: var(--weight-extrabold) clamp(34px, 4.4vw, 50px)/1.06 var(--font-ui); letter-spacing: -.026em; color: var(--text-strong); max-width: 17ch; text-wrap: balance;">Todo o condomínio<br><span style="color: var(--prestare-blue-500);">na palma da mão</span></h1>
-        <p style="margin: 18px 0 0; font: var(--weight-regular) clamp(16px, 1.3vw, 18px)/1.55 var(--font-ui); color: var(--text-muted); max-width: 46ch; text-wrap: pretty;">Visitantes, encomendas e a conta do condomínio no celular do morador — e o síndico vendo tudo acontecer no sistema web, sem planilha e sem livro de papel.</p>
+        <h1 style="margin: 22px 0 0; font: var(--weight-extrabold) clamp(34px, 4.4vw, 50px)/1.06 var(--font-ui); letter-spacing: -.026em; color: var(--text-strong); max-width: 17ch; text-wrap: balance;">Controle para decidir.<br><span style="color: var(--prestare-blue-500);">Visibilidade para agir.</span></h1>
+        <p style="margin: 18px 0 0; font: var(--weight-regular) clamp(16px, 1.3vw, 18px)/1.55 var(--font-ui); color: var(--text-muted); max-width: 46ch; text-wrap: pretty;">Centralize visitantes, encomendas e a rotina do condomínio em uma operação segura, rastreável e acessível em tempo real.</p>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 8px 20px; margin-top: 26px; max-width: 420px;">
           <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Controle de acesso</span>
@@ -316,7 +316,7 @@
 
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px;">
           <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" class="ps-cta">
-            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" hint-size="240px,52px">Quero um orçamento</x-import>
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" hint-size="240px,52px">Pedir orçamento</x-import>
           </a>
           <a href="#modulos" class="ps-cta">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="ghost" size="lg" hint-size="170px,52px">Ver os módulos</x-import>
