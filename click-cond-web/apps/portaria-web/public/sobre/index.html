@@ -1396,10 +1396,15 @@ class Component extends DCLogic {
   componentDidMount() {
     // Anúncios apontam para /sobre/?simular=1: leva direto ao simulador de
     // valor (parâmetro de busca em vez de #âncora, que pode quebrar o gclid).
+    // ?ir=<seção> (sitelinks dos anúncios) tem prioridade sobre ?simular.
     try {
-      if (new URLSearchParams(location.search).has("simular")) {
+      const q = new URLSearchParams(location.search);
+      const SECOES = ["app", "console", "portaria-app", "modulos", "baixar-app", "simulador", "duvidas", "contato"];
+      const ir = q.get("ir");
+      const alvo = SECOES.indexOf(ir) >= 0 ? ir : q.has("simular") ? "simulador" : null;
+      if (alvo) {
         setTimeout(() => {
-          const el = document.getElementById("simulador");
+          const el = document.getElementById(alvo);
           if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 400);
       }
