@@ -88,12 +88,16 @@ export class MarketingLeadsService {
       const texto = p.observacao == null ? '' : String(p.observacao).trim().slice(0, 5000);
       data.observacao = texto ? texto : null;
     }
-    const salvo = await this.prisma.crm_Leads.update({ where: { id }, data });
+    const salvo = await this.prisma.crm_Leads.update({
+      where: { id },
+      data,
+      include: { _count: { select: { conversas_whatsapp: true } } },
+    });
     return paraDto(salvo);
   }
 
   async removerOrganico(id: number): Promise<void> {
-    const lead = await this.prisma.crm_Leads.findFirst({
+    const resultado = await this.prisma.crm_Leads.deleteMany({
       where: {
         id,
         origem: 'organico',
@@ -101,7 +105,6 @@ export class MarketingLeadsService {
         conversas_whatsapp: { none: {} },
       },
     });
-    if (!lead) throw new BadRequestException('Apenas leads orgânicos sem dados ou conversa no WhatsApp podem ser excluídos.');
-    await this.prisma.crm_Leads.delete({ where: { id } });
+    if (resultado.count !== 1) throw new BadRequestException('Apenas leads orgânicos sem dados ou conversa no WhatsApp podem ser excluídos.');
   }
 }

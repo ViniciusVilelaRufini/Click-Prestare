@@ -10,6 +10,7 @@ function montar(existente: any = null) {
       findUnique: jest.fn(async () => existente),
       update: jest.fn(async ({ data }: any) => ({ ...existente, ...data })),
       delete: jest.fn(async () => undefined),
+      deleteMany: jest.fn(async () => ({ count: 1 })),
     },
   };
   return { prisma, svc: new MarketingLeadsService(prisma) };
@@ -89,24 +90,39 @@ describe('MarketingLeadsService', () => {
     await expect(svc.atualizar(9, { status: 'novo' })).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('atualizar returns the WhatsApp conversation eligibility state', async () => {
+    const lead = {
+      id: 5, ...base, origem: 'organico', status: 'novo', observacao: null,
+      criado_em: new Date(), status_em: null, _count: { conversas_whatsapp: 1 },
+    };
+    const { prisma, svc } = montar(lead);
+
+    const atualizado = await svc.atualizar(5, { observacao: 'ligar segunda' });
+
+    expect(atualizado.temConversaWhatsapp).toBe(true);
+    expect(prisma.crm_Leads.update).toHaveBeenCalledWith(expect.objectContaining({
+      include: { _count: { select: { conversas_whatsapp: true } } },
+    }));
+  });
+
   it('removes an organic lead without WhatsApp conversation', async () => {
     const lead = { id: 7, ...base, whatsapp: '', origem: 'organico', conversas_whatsapp: [] };
     const { prisma, svc } = montar(lead);
 
     await expect((svc as any).removerOrganico(7)).resolves.toBeUndefined();
-    expect(prisma.crm_Leads.findFirst).toHaveBeenCalledWith({
+    expect(prisma.crm_Leads.deleteMany).toHaveBeenCalledWith({
       where: { id: 7, origem: 'organico', whatsapp: '', conversas_whatsapp: { none: {} } },
     });
-    expect(prisma.crm_Leads.delete).toHaveBeenCalledWith({ where: { id: 7 } });
+    expect(prisma.crm_Leads.delete).not.toHaveBeenCalled();
   });
 
-  it('rejects paid leads and leads linked to a WhatsApp conversation', async () => {
+  it('rejects when the atomic eligibility delete affects no lead', async () => {
     const lead = { id: 8, ...base, origem: 'google', conversas_whatsapp: [] };
     const { prisma, svc } = montar(lead);
-    prisma.crm_Leads.findFirst.mockResolvedValue(null);
+    prisma.crm_Leads.deleteMany.mockResolvedValue({ count: 0 });
 
     await expect((svc as any).removerOrganico(8)).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.crm_Leads.findFirst).toHaveBeenCalledWith({
+    expect(prisma.crm_Leads.deleteMany).toHaveBeenCalledWith({
       where: { id: 8, origem: 'organico', whatsapp: '', conversas_whatsapp: { none: {} } },
     });
     expect(prisma.crm_Leads.delete).not.toHaveBeenCalled();
