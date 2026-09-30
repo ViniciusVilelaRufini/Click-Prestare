@@ -10,6 +10,10 @@ const JUNCAO_MS = 30 * 60 * 1000;
 /** Webhook reenviado depois de uma queda não dispara resposta automática atrasada. */
 const AUTO_ATRASO_MAX_MS = 10 * 60 * 1000;
 
+function normalizarWhatsapp(numero: string | null | undefined): string {
+  return String(numero ?? '').replace(/\D/g, '');
+}
+
 /** Modelo aprovado no Meta para o primeiro contato com um lead (texto espelhado para o histórico). */
 export const MODELO_PRIMEIRO_CONTATO = {
   nome: 'primeiro_contato_orcamento',
@@ -102,10 +106,20 @@ export class WhatsappInboxService {
   /** Clique no botão do site nos últimos 30 min sem conversa → mesmo lead (mantém a origem do anúncio). */
   private async ligarLead(m: EntradaWa): Promise<number> {
     const nome = (m.nomePerfil || `WhatsApp ${m.waId}`).slice(0, 120);
+    const inicioJanela = new Date(m.em.getTime() - JUNCAO_MS);
+    const leadsRecentes = await this.prisma.crm_Leads.findMany({
+      where: { criado_em: { gte: inicioJanela, lte: m.em } },
+      orderBy: { criado_em: 'desc' },
+      take: 200,
+    });
+    const leadDoFormulario = leadsRecentes
+      .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())
+      .find((lead) => normalizarWhatsapp(lead.whatsapp) === normalizarWhatsapp(m.waId));
+    if (leadDoFormulario) return leadDoFormulario.id;
     const clique = await this.prisma.crm_Leads.findFirst({
       where: {
         nome: { startsWith: 'Clique no WhatsApp' }, whatsapp: '',
-        criado_em: { gte: new Date(m.em.getTime() - JUNCAO_MS) }, conversas_whatsapp: { none: {} },
+        criado_em: { gte: inicioJanela }, conversas_whatsapp: { none: {} },
       },
       orderBy: { criado_em: 'desc' },
     });

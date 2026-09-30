@@ -27,6 +27,7 @@ function montar(config?: any) {
     },
     crm_Leads: {
       findFirst: jest.fn(async () => leads.find((l) => l.nome.startsWith('Clique no WhatsApp') && l.whatsapp === '') ?? null),
+      findMany: jest.fn(async () => [...leads]),
       findUnique: jest.fn(async ({ where }: any) => leads.find((l) => l.id === where.id) ?? null),
       update: jest.fn(async ({ where, data }: any) => Object.assign(leads.find((l) => l.id === where.id), data)),
       create: jest.fn(async ({ data }: any) => { const l = { id: leads.length + 1, ...data }; leads.push(l); return l; }),
@@ -45,6 +46,19 @@ describe('WhatsappInboxService', () => {
     await t.svc.registrarEntrada(entrada());
     expect(t.conversas[0]).toMatchObject({ wa_id: '5521999369814', lead_id: 7, nao_lidas: 1 });
     expect(t.leads[0]).toMatchObject({ whatsapp: '5521999369814', nome: 'Ana' });
+  });
+
+  it('links an inbound message to the newest recent lead with the same normalized WhatsApp number', async () => {
+    const t = montar();
+    const now = new Date('2026-09-30T12:00:00Z');
+    t.leads.push(
+      { id: 41, nome: 'Ana antiga', whatsapp: '(17) 99660-8148', criado_em: new Date('2026-09-30T11:40:00Z') },
+      { id: 42, nome: 'Ana recente', whatsapp: '+55 17 99660-8148', criado_em: new Date('2026-09-30T11:55:00Z') },
+    );
+
+    await t.svc.registrarEntrada(entrada({ em: now, waId: '5517996608148' }));
+
+    expect(t.conversas[0]).toMatchObject({ lead_id: 42 });
   });
 
   it('sem clique cria lead orgânico', async () => {

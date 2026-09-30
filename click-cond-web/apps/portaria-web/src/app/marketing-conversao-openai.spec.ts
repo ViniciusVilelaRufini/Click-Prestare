@@ -31,16 +31,19 @@ describe('conversão da OpenAI na landing', () => {
     );
   });
 
-  it('registra lead_created quando o formulário válido é enviado', () => {
+  it('does not call paid conversions when a valid form is submitted', () => {
     document.body.innerHTML = '';
+    const gtag = jest.fn();
     const oaiq = jest.fn();
-    Object.assign(window, { gtag: jest.fn(), oaiq, fetch: jest.fn(() => Promise.resolve(new Response())) });
+    Object.assign(window, { gtag, oaiq, fetch: jest.fn(() => Promise.resolve(new Response())) });
 
     carregarRastreadorDaLanding();
 
-    expect(typeof (window as any).psConversaoLeadReal).toBe('function');
-    (window as any).psConversaoLeadReal();
+    (window as any).psRegistrarLead({ nome: 'Ana', whatsapp: '5517996608148' });
 
-    expect(oaiq).toHaveBeenCalledWith('measure', 'lead_created', { type: 'customer_action' });
+    expect(oaiq).not.toHaveBeenCalledWith('measure', 'lead_created', expect.anything());
+    expect(gtag).not.toHaveBeenCalledWith('event', 'conversion', expect.anything());
+    expect((window as any).psConversaoLeadReal).toBeUndefined();
+    expect((window as any).psConversaoOrcamento).toBeUndefined();
   });
 });
