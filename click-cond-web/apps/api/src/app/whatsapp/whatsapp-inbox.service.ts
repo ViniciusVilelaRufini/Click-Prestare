@@ -5,6 +5,7 @@ import { WhatsappGraphClient } from './whatsapp-graph.client';
 import { EntradaWa, janelaAberta, StatusWa, statusAvanca } from './whatsapp-puro';
 import { decidirAutomacao } from './whatsapp-automacao';
 import { WhatsappConfigService } from './whatsapp-config.service';
+import { MarketingConversionsService } from '../marketing/marketing-conversions.service';
 
 const JUNCAO_MS = 30 * 60 * 1000;
 /** Webhook reenviado depois de uma queda não dispara resposta automática atrasada. */
@@ -41,6 +42,7 @@ export class WhatsappInboxService {
     private readonly prisma: PrismaService,
     private readonly graph: WhatsappGraphClient,
     @Optional() private readonly config?: WhatsappConfigService,
+    @Optional() private readonly conversions?: MarketingConversionsService,
   ) {}
 
   async registrarEntrada(m: EntradaWa): Promise<void> {
@@ -63,6 +65,12 @@ export class WhatsappInboxService {
         ...(m.nomePerfil ? { nome_perfil: m.nomePerfil } : {}),
       },
     });
+    if (conversa.lead_id && this.conversions) {
+      const lead = await this.prisma.crm_Leads.findUnique({ where: { id: conversa.lead_id } });
+      if (lead) await this.conversions.confirmarLeadWhatsApp({ wamid: m.wamid, em: m.em, lead }).catch((e) =>
+        this.logger.error(`Conversão confirmada falhou (${m.wamid}): ${e?.message ?? e}`),
+      );
+    }
     await this.responderAutomatico(conversa.id, m.waId, conversaNova, m.em).catch((e) =>
       this.logger.error(`Resposta automática falhou (${m.wamid}): ${e?.message ?? e}`),
     );

@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { WhatsappInboxService } from './whatsapp-inbox.service';
 import { AUTOMACOES_PADRAO, normalizarConfig } from './whatsapp-automacao';
 
-function montar(config?: any) {
+function montar(config?: any, conversions?: any) {
   const conversas: any[] = [];
   const msgs: any[] = [];
   const leads: any[] = [];
@@ -41,7 +41,7 @@ function montar(config?: any) {
     },
   };
   const graph = { enviarTexto: jest.fn(async () => 'wamid.saida'), enviarModelo: jest.fn(async () => 'wamid.modelo'), marcarLida: jest.fn(async () => undefined) };
-  return { conversas, msgs, leads, prisma, graph, svc: new WhatsappInboxService(prisma, graph as any, config) };
+  return { conversas, msgs, leads, prisma, graph, svc: new (WhatsappInboxService as any)(prisma, graph, config, conversions) };
 }
 
 const entrada = (over: any = {}) => ({ wamid: 'w1', waId: '5521999369814', nomePerfil: 'Ana', tipo: 'text', texto: 'Oi', em: new Date(), ...over });
@@ -71,6 +71,21 @@ describe('WhatsappInboxService', () => {
       where: { criado_em: { gte: new Date('2026-09-30T11:30:00Z'), lte: now } },
       orderBy: { criado_em: 'desc' },
     });
+  });
+
+  it('dispatches the confirmed paid lead only after persisting the inbound message and conversation', async () => {
+    const conversions = { confirmarLeadWhatsApp: jest.fn(async () => undefined) };
+    const t = montar(undefined, conversions);
+    const now = new Date('2026-09-30T12:00:00Z');
+    t.leads.push({ id: 42, nome: 'Ana', whatsapp: '5517996608148', origem: 'openai', oppref: 'op-1', criado_em: now });
+
+    await t.svc.registrarEntrada(entrada({ wamid: 'wamid-1', em: now, waId: '5517996608148' }));
+
+    expect(conversions.confirmarLeadWhatsApp).toHaveBeenCalledWith(expect.objectContaining({
+      wamid: 'wamid-1', em: now, lead: expect.objectContaining({ id: 42, origem: 'openai', oppref: 'op-1' }),
+    }));
+    expect(t.msgs).toHaveLength(1);
+    expect(t.conversas[0].nao_lidas).toBe(1);
   });
 
   it('sem clique cria lead orgânico', async () => {

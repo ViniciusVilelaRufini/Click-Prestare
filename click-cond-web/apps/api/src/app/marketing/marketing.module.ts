@@ -7,6 +7,7 @@ import { MarketingPublicController } from './marketing-public.controller';
 import { MarketingCrmController } from './marketing-crm.controller';
 import { OpenAiAdsClient } from './openai-ads.client';
 import { MarketingSegredosService } from './marketing-segredos.service';
+import { MarketingConversionsService } from './marketing-conversions.service';
 
 /**
  * Não importa `CrmModule`: `CrmAdminGuard` depende só de `PrismaService`
@@ -18,7 +19,7 @@ import { MarketingSegredosService } from './marketing-segredos.service';
 @Module({
   controllers: [MarketingPublicController, MarketingCrmController],
   providers: [MarketingLeadsService, MarketingAdsService, MarketingResumoService, OpenAiAdsClient,
-    MarketingSegredosService, CrmAdminGuard],
-  exports: [MarketingLeadsService, MarketingSegredosService],
+    MarketingSegredosService, MarketingConversionsService, CrmAdminGuard],
+  exports: [MarketingLeadsService, MarketingSegredosService, MarketingConversionsService],
 })
 export class MarketingModule {}
