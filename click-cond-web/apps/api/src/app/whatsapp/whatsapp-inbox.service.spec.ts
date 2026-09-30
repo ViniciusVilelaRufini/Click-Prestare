@@ -27,7 +27,14 @@ function montar(config?: any) {
     },
     crm_Leads: {
       findFirst: jest.fn(async () => leads.find((l) => l.nome.startsWith('Clique no WhatsApp') && l.whatsapp === '') ?? null),
-      findMany: jest.fn(async () => [...leads]),
+      findMany: jest.fn(async ({ where, orderBy }: any) => leads
+        .filter((lead) => !where?.criado_em || (
+          new Date(lead.criado_em).getTime() >= where.criado_em.gte.getTime()
+          && new Date(lead.criado_em).getTime() <= where.criado_em.lte.getTime()
+        ))
+        .sort((a, b) => orderBy?.criado_em === 'desc'
+          ? new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime()
+          : 0)),
       findUnique: jest.fn(async ({ where }: any) => leads.find((l) => l.id === where.id) ?? null),
       update: jest.fn(async ({ where, data }: any) => Object.assign(leads.find((l) => l.id === where.id), data)),
       create: jest.fn(async ({ data }: any) => { const l = { id: leads.length + 1, ...data }; leads.push(l); return l; }),
@@ -52,13 +59,18 @@ describe('WhatsappInboxService', () => {
     const t = montar();
     const now = new Date('2026-09-30T12:00:00Z');
     t.leads.push(
-      { id: 41, nome: 'Ana antiga', whatsapp: '(17) 99660-8148', criado_em: new Date('2026-09-30T11:40:00Z') },
-      { id: 42, nome: 'Ana recente', whatsapp: '+55 17 99660-8148', criado_em: new Date('2026-09-30T11:55:00Z') },
+      { id: 40, nome: 'Ana stale', whatsapp: '+55 (17) 99660-8148', criado_em: new Date('2026-09-30T11:29:59Z') },
+      { id: 41, nome: 'Ana antiga', whatsapp: '+55 (17) 99660-8148', criado_em: new Date('2026-09-30T11:40:00Z') },
+      { id: 42, nome: 'Ana recente', whatsapp: '55 17 99660-8148', criado_em: new Date('2026-09-30T11:55:00Z') },
     );
 
     await t.svc.registrarEntrada(entrada({ em: now, waId: '5517996608148' }));
 
     expect(t.conversas[0]).toMatchObject({ lead_id: 42 });
+    expect(t.prisma.crm_Leads.findMany).toHaveBeenCalledWith({
+      where: { criado_em: { gte: new Date('2026-09-30T11:30:00Z'), lte: now } },
+      orderBy: { criado_em: 'desc' },
+    });
   });
 
   it('sem clique cria lead orgânico', async () => {

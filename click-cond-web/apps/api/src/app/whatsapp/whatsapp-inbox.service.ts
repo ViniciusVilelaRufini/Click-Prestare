@@ -110,7 +110,6 @@ export class WhatsappInboxService {
     const leadsRecentes = await this.prisma.crm_Leads.findMany({
       where: { criado_em: { gte: inicioJanela, lte: m.em } },
       orderBy: { criado_em: 'desc' },
-      take: 200,
     });
     const leadDoFormulario = leadsRecentes
       .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())
