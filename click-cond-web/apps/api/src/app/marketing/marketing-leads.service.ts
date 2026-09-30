@@ -20,6 +20,7 @@ export interface LeadDto {
   observacao: string | null;
   criadoEm: string;
   statusEm: string | null;
+  temConversaWhatsapp: boolean;
 }
 
 function paraDto(l: any): LeadDto {
@@ -37,6 +38,7 @@ function paraDto(l: any): LeadDto {
     observacao: l.observacao ?? null,
     criadoEm: new Date(l.criado_em).toISOString(),
     statusEm: l.status_em ? new Date(l.status_em).toISOString() : null,
+    temConversaWhatsapp: (l._count?.conversas_whatsapp ?? 0) > 0,
   };
 }
 
@@ -62,7 +64,12 @@ export class MarketingLeadsService {
     if (f.status && (LEAD_STATUS as string[]).includes(f.status)) where.status = f.status;
     if (f.origem && (ORIGENS as string[]).includes(f.origem)) where.origem = f.origem;
     if (f.de || f.ate) where.criado_em = { ...(f.de ? { gte: f.de } : {}), ...(f.ate ? { lte: f.ate } : {}) };
-    const rows = await this.prisma.crm_Leads.findMany({ where, orderBy: { criado_em: 'desc' }, take: 500 });
+    const rows = await this.prisma.crm_Leads.findMany({
+      where,
+      orderBy: { criado_em: 'desc' },
+      take: 500,
+      include: { _count: { select: { conversas_whatsapp: true } } },
+    });
     return rows.map(paraDto);
   }
 
@@ -83,5 +90,18 @@ export class MarketingLeadsService {
     }
     const salvo = await this.prisma.crm_Leads.update({ where: { id }, data });
     return paraDto(salvo);
+  }
+
+  async removerOrganico(id: number): Promise<void> {
+    const lead = await this.prisma.crm_Leads.findFirst({
+      where: {
+        id,
+        origem: 'organico',
+        whatsapp: '',
+        conversas_whatsapp: { none: {} },
+      },
+    });
+    if (!lead) throw new BadRequestException('Apenas leads orgânicos sem dados ou conversa no WhatsApp podem ser excluídos.');
+    await this.prisma.crm_Leads.delete({ where: { id } });
   }
 }

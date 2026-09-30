@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Query, UseGuards } from '@nestjs/common';
 import { CrmAdminGuard } from '../crm/crm-admin.guard';
 import { MarketingLeadsService } from './marketing-leads.service';
 import { MarketingResumoService } from './marketing-resumo.service';
@@ -33,6 +33,11 @@ export class MarketingCrmController {
   @Patch('leads/:id')
   atualizar(@Param('id', ParseIntPipe) id: number, @Body() body: { status?: string; observacao?: string }) {
     return this.leads.atualizar(id, body ?? {});
+  }
+
+  @Delete('leads/:id')
+  removerOrganico(@Param('id', ParseIntPipe) id: number) {
+    return this.leads.removerOrganico(id);
   }
 
   @Get('resumo')

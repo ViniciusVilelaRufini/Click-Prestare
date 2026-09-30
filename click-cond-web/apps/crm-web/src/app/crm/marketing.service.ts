@@ -20,7 +20,7 @@ export interface ResumoMarketing {
 export interface Lead {
   id: number; nome: string; condominio: string; unidades: string; whatsapp: string; origem: Canal;
   campaignId: string | null; adGroupId: string | null; adId: string | null;
-  status: LeadStatus; observacao: string | null; criadoEm: string; statusEm: string | null;
+  status: LeadStatus; observacao: string | null; criadoEm: string; statusEm: string | null; temConversaWhatsapp: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -39,5 +39,8 @@ export class MarketingApi {
   }
   atualizar(id: number, p: { status?: LeadStatus; observacao?: string }): Observable<Lead> {
     return this.http.patch<Lead>(`${this.base}/leads/${id}`, p);
+  }
+  removerOrganico(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/leads/${id}`);
   }
 }

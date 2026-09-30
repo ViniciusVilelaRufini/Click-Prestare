@@ -36,6 +36,7 @@ export class CrmMarketingComponent implements OnInit {
   private waApi = inject(WhatsappApi);
   private router = inject(Router);
   readonly iniciando = signal(false);
+  readonly removendo = signal(false);
 
   /** Envia o modelo de primeiro contato pelo número comercial e abre a conversa na aba WhatsApp. */
   iniciarConversa(l: Lead) {
@@ -134,6 +135,27 @@ export class CrmMarketingComponent implements OnInit {
 
   fechar() {
     this.selecionado.set(null);
+  }
+
+  podeRemoverTeste(l: Lead): boolean {
+    return l.origem === 'organico' && !l.whatsapp && !l.temConversaWhatsapp;
+  }
+
+  removerTeste(l: Lead): void {
+    if (!this.podeRemoverTeste(l) || this.removendo()) return;
+    if (!window.confirm('Excluir este lead orgânico de teste? Esta ação não pode ser desfeita.')) return;
+    this.removendo.set(true);
+    this.api.removerOrganico(l.id).subscribe({
+      next: () => {
+        this.removendo.set(false);
+        this.fechar();
+        this.carregar();
+      },
+      error: (e) => {
+        this.removendo.set(false);
+        this.toast.trigger(e?.error?.message ?? 'Não foi possível excluir o lead de teste.', 'error');
+      },
+    });
   }
 
   salvar(p: { status?: LeadStatus; observacao?: string }) {

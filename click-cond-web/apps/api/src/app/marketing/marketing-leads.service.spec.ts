@@ -6,8 +6,10 @@ function montar(existente: any = null) {
     crm_Leads: {
       create: jest.fn(async ({ data }: any) => ({ id: 1, ...data })),
       findMany: jest.fn(async () => []),
+      findFirst: jest.fn(async () => existente),
       findUnique: jest.fn(async () => existente),
       update: jest.fn(async ({ data }: any) => ({ ...existente, ...data })),
+      delete: jest.fn(async () => undefined),
     },
   };
   return { prisma, svc: new MarketingLeadsService(prisma) };
@@ -85,5 +87,28 @@ describe('MarketingLeadsService', () => {
   it('lead inexistente dá 404', async () => {
     const { svc } = montar(null);
     await expect(svc.atualizar(9, { status: 'novo' })).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('removes an organic lead without WhatsApp conversation', async () => {
+    const lead = { id: 7, ...base, whatsapp: '', origem: 'organico', conversas_whatsapp: [] };
+    const { prisma, svc } = montar(lead);
+
+    await expect((svc as any).removerOrganico(7)).resolves.toBeUndefined();
+    expect(prisma.crm_Leads.findFirst).toHaveBeenCalledWith({
+      where: { id: 7, origem: 'organico', whatsapp: '', conversas_whatsapp: { none: {} } },
+    });
+    expect(prisma.crm_Leads.delete).toHaveBeenCalledWith({ where: { id: 7 } });
+  });
+
+  it('rejects paid leads and leads linked to a WhatsApp conversation', async () => {
+    const lead = { id: 8, ...base, origem: 'google', conversas_whatsapp: [] };
+    const { prisma, svc } = montar(lead);
+    prisma.crm_Leads.findFirst.mockResolvedValue(null);
+
+    await expect((svc as any).removerOrganico(8)).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.crm_Leads.findFirst).toHaveBeenCalledWith({
+      where: { id: 8, origem: 'organico', whatsapp: '', conversas_whatsapp: { none: {} } },
+    });
+    expect(prisma.crm_Leads.delete).not.toHaveBeenCalled();
   });
 });
