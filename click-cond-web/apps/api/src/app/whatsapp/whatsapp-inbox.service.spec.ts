@@ -96,11 +96,14 @@ describe('WhatsappInboxService', () => {
   });
 
   it('wamid repetido não duplica', async () => {
-    const t = montar();
+    const conversions = { confirmarLeadWhatsApp: jest.fn(async () => undefined) };
+    const t = montar(undefined, conversions);
+    t.leads.push({ id: 7, nome: 'Ana', whatsapp: '5521999369814', origem: 'openai', oppref: 'op-1', criado_em: new Date() });
     await t.svc.registrarEntrada(entrada());
     await t.svc.registrarEntrada(entrada());
     expect(t.msgs).toHaveLength(1);
     expect(t.conversas[0].nao_lidas).toBe(1);
+    expect(conversions.confirmarLeadWhatsApp).toHaveBeenCalledTimes(1);
   });
 
   it('status só avança', async () => {

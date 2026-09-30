@@ -31,14 +31,27 @@ describe('MarketingConversionsService', () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining('bzr.openai.com/v1/events'),
+      'https://bzr.openai.com/v1/events?pid=pixel-1',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
-          events: [{ event_id: 'wamid-1', type: 'lead_created', timestamp_ms: now.getTime(), oppref: 'op-1', action_source: 'offline' }],
+          events: [{ id: 'wamid-1', type: 'lead_created', timestamp_ms: now.getTime(), oppref: 'op-1', action_source: 'offline' }],
         }),
       }),
     );
+  });
+
+  it.each([
+    ['a non-OK response', () => ({ ok: false, status: 422 })],
+    ['a rejected request', () => Promise.reject(new Error('offline'))],
+  ])('does not reject the WhatsApp flow after %s', async (_description, resposta) => {
+    const service = new MarketingConversionsService();
+    fetchSpy.mockImplementation(resposta as any);
+
+    await expect(service.confirmarLeadWhatsApp({
+      wamid: 'wamid-falha', em: new Date('2026-09-30T12:00:00.000Z'),
+      lead: { origem: 'openai', oppref: 'op-1' } as any,
+    })).resolves.toBeUndefined();
   });
 
   it('does not post for organic, Google, missing oppref, or missing API key', async () => {

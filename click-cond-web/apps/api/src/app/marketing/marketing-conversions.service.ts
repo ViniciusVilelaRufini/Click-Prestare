@@ -31,15 +31,14 @@ export class MarketingConversionsService {
     if (!pixelId || !apiKey || !oppref) return;
 
     try {
-      const resposta = await fetch(OPENAI_EVENTS_URL, {
+      const resposta = await fetch(`${OPENAI_EVENTS_URL}?pid=${encodeURIComponent(pixelId)}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
-          'X-OpenAI-Ads-Pixel-Id': pixelId,
         },
         body: JSON.stringify({
-          events: [{ event_id: wamid, type: 'lead_created', timestamp_ms: em.getTime(), oppref, action_source: 'offline' }],
+          events: [{ id: wamid, type: 'lead_created', timestamp_ms: em.getTime(), oppref, action_source: 'offline' }],
         }),
       });
       if (!resposta.ok) this.logger.warn(`OpenAI Ads conversão rejeitada (${resposta.status})`);
