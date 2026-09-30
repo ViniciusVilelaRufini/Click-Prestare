@@ -23,7 +23,7 @@ describe('conversão da OpenAI na landing', () => {
     carregarRastreadorDaLanding();
     document.querySelector<HTMLAnchorElement>('#whatsapp')!.click();
 
-    expect(gtag).toHaveBeenCalledWith('event', 'conversion', expect.any(Object));
+    expect(gtag).not.toHaveBeenCalled();
     expect(oaiq).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/public/leads'),

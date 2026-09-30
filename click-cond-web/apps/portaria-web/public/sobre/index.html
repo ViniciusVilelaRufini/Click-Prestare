@@ -76,7 +76,6 @@
   document.addEventListener('click', function (e) {
     var a = e.target && e.target.closest ? e.target.closest('a[href*="wa.me/"], a[href*="ig.me/m/"]') : null;
     if (!a) return;
-    window.psConversaoOrcamento();
     // Clique direto (sem formulário) também vira lead no CRM, uma vez por canal na sessão.
     var canal = a.href.indexOf('ig.me/') >= 0 ? 'instagram' : 'whatsapp';
     // Botão do simulador leva a simulação junto (vira as unidades do lead).
