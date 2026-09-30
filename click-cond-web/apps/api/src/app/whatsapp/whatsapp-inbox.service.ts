@@ -12,7 +12,8 @@ const JUNCAO_MS = 30 * 60 * 1000;
 const AUTO_ATRASO_MAX_MS = 10 * 60 * 1000;
 
 function normalizarWhatsapp(numero: string | null | undefined): string {
-  return String(numero ?? '').replace(/\D/g, '');
+  const digitos = String(numero ?? '').replace(/\D/g, '');
+  return digitos.length === 10 || digitos.length === 11 ? `55${digitos}` : digitos;
 }
 
 /** Modelo aprovado no Meta para o primeiro contato com um lead (texto espelhado para o histórico). */
@@ -49,10 +50,15 @@ export class WhatsappInboxService {
     if (await this.prisma.crm_WhatsApp_Mensagens.findUnique({ where: { wamid: m.wamid } })) return;
     let conversa = await this.prisma.crm_WhatsApp_Conversas.findUnique({ where: { wa_id: m.waId } });
     const conversaNova = !conversa;
+    const leadDoFormulario = await this.encontrarLeadDoFormulario(m);
     if (!conversa) {
-      const leadId = await this.ligarLead(m);
+      const leadId = await this.ligarLead(m, leadDoFormulario);
       conversa = await this.prisma.crm_WhatsApp_Conversas.create({
         data: { wa_id: m.waId, nome_perfil: m.nomePerfil ?? null, lead_id: leadId, ultima_msg_em: m.em },
+      });
+    } else if (leadDoFormulario && conversa.lead_id !== leadDoFormulario.id) {
+      conversa = await this.prisma.crm_WhatsApp_Conversas.update({
+        where: { id: conversa.id }, data: { lead_id: leadDoFormulario.id },
       });
     }
     await this.prisma.crm_WhatsApp_Mensagens.create({
@@ -112,16 +118,20 @@ export class WhatsappInboxService {
   }
 
   /** Clique no botão do site nos últimos 30 min sem conversa → mesmo lead (mantém a origem do anúncio). */
-  private async ligarLead(m: EntradaWa): Promise<number> {
-    const nome = (m.nomePerfil || `WhatsApp ${m.waId}`).slice(0, 120);
+  private async encontrarLeadDoFormulario(m: EntradaWa): Promise<any | null> {
     const inicioJanela = new Date(m.em.getTime() - JUNCAO_MS);
     const leadsRecentes = await this.prisma.crm_Leads.findMany({
       where: { criado_em: { gte: inicioJanela, lte: m.em } },
       orderBy: { criado_em: 'desc' },
     });
-    const leadDoFormulario = leadsRecentes
+    return leadsRecentes
       .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())
-      .find((lead) => normalizarWhatsapp(lead.whatsapp) === normalizarWhatsapp(m.waId));
+      .find((lead) => normalizarWhatsapp(lead.whatsapp) === normalizarWhatsapp(m.waId)) ?? null;
+  }
+
+  private async ligarLead(m: EntradaWa, leadDoFormulario?: any | null): Promise<number> {
+    const nome = (m.nomePerfil || `WhatsApp ${m.waId}`).slice(0, 120);
+    const inicioJanela = new Date(m.em.getTime() - JUNCAO_MS);
     if (leadDoFormulario) return leadDoFormulario.id;
     const clique = await this.prisma.crm_Leads.findFirst({
       where: {

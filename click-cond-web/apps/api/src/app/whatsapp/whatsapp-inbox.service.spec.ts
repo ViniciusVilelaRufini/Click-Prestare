@@ -59,9 +59,9 @@ describe('WhatsappInboxService', () => {
     const t = montar();
     const now = new Date('2026-09-30T12:00:00Z');
     t.leads.push(
-      { id: 40, nome: 'Ana stale', whatsapp: '+55 (17) 99660-8148', criado_em: new Date('2026-09-30T11:29:59Z') },
-      { id: 41, nome: 'Ana antiga', whatsapp: '+55 (17) 99660-8148', criado_em: new Date('2026-09-30T11:40:00Z') },
-      { id: 42, nome: 'Ana recente', whatsapp: '55 17 99660-8148', criado_em: new Date('2026-09-30T11:55:00Z') },
+      { id: 40, nome: 'Ana stale', whatsapp: '(17) 99660-8148', criado_em: new Date('2026-09-30T11:29:59Z') },
+      { id: 41, nome: 'Ana antiga', whatsapp: '(17) 99660-8148', criado_em: new Date('2026-09-30T11:40:00Z') },
+      { id: 42, nome: 'Ana recente', whatsapp: '17 99660-8148', criado_em: new Date('2026-09-30T11:55:00Z') },
     );
 
     await t.svc.registrarEntrada(entrada({ em: now, waId: '5517996608148' }));
@@ -71,6 +71,23 @@ describe('WhatsappInboxService', () => {
       where: { criado_em: { gte: new Date('2026-09-30T11:30:00Z'), lte: now } },
       orderBy: { criado_em: 'desc' },
     });
+  });
+
+  it('rebinds an existing conversation to the newest matching recent submitted lead', async () => {
+    const t = montar();
+    const now = new Date('2026-09-30T12:00:00Z');
+    t.conversas.push({ id: 1, wa_id: '5517996608148', lead_id: 7, nao_lidas: 0 });
+    t.leads.push(
+      { id: 7, nome: 'Lead anterior', whatsapp: '5517996608148', criado_em: new Date('2026-09-30T10:00:00Z') },
+      { id: 42, nome: 'Novo envio', whatsapp: '(17) 99660-8148', criado_em: new Date('2026-09-30T11:55:00Z') },
+    );
+
+    await t.svc.registrarEntrada(entrada({ wamid: 'wamid-rebind', em: now, waId: '5517996608148' }));
+
+    expect(t.conversas[0].lead_id).toBe(42);
+    expect(t.prisma.crm_WhatsApp_Conversas.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 1 }, data: expect.objectContaining({ lead_id: 42 }),
+    }));
   });
 
   it('dispatches the confirmed paid lead only after persisting the inbound message and conversation', async () => {
