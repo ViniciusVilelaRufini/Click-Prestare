@@ -1731,6 +1731,11 @@ model Crm_WhatsApp_Mensagens {
   texto       String                 @db.Text
   status      String                 @db.VarChar(12)
   erro        String?                @db.VarChar(500)
+  media_chave String?                @db.VarChar(500)
+  media_mime  String?                @db.VarChar(255)
+  media_nome  String?                @db.VarChar(255)
+  media_tamanho Int?
+  media_status String?               @db.VarChar(20)
   criado_em   DateTime               @default(now()) @db.DateTime(0)
 
   @@index([conversa_id, criado_em], map: "idx_crm_wa_mensagens_conversa")

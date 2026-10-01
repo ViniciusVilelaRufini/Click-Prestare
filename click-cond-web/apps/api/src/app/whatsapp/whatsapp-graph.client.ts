@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Readable } from 'node:stream';
 import { MarketingSegredosService } from '../marketing/marketing-segredos.service';
 
 const PHONE_ID = process.env.WA_PHONE_ID || '1356887267509002';
@@ -44,5 +45,31 @@ export class WhatsappGraphClient {
     } catch (e: any) {
       this.logger.warn(`Falha ao marcar ${wamid} como lida: ${e?.message}`);
     }
+  }
+
+  async obterMidia(mediaId: string): Promise<{ mime: string; nome?: string; tamanho: number }> {
+    const token = await this.segredos.obter('WA_ACCESS_TOKEN');
+    if (!token) throw new Error('WA_ACCESS_TOKEN não configurado');
+    const r = await fetch(`https://graph.facebook.com/v25.0/${encodeURIComponent(mediaId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json: any = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(json?.error?.message ?? `Graph API ${r.status}`);
+    const tamanho = Number(json?.file_size);
+    if (!json?.mime_type || !Number.isSafeInteger(tamanho)) throw new Error('Graph API não devolveu metadados da mídia');
+    return { mime: String(json.mime_type), ...(json.filename ? { nome: String(json.filename) } : {}), tamanho };
+  }
+
+  async baixarMidia(mediaId: string): Promise<Readable> {
+    const token = await this.segredos.obter('WA_ACCESS_TOKEN');
+    if (!token) throw new Error('WA_ACCESS_TOKEN não configurado');
+    const metadados = await fetch(`https://graph.facebook.com/v25.0/${encodeURIComponent(mediaId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json: any = await metadados.json().catch(() => ({}));
+    if (!metadados.ok || !json?.url) throw new Error(json?.error?.message ?? `Graph API ${metadados.status}`);
+    const arquivo = await fetch(String(json.url), { headers: { Authorization: `Bearer ${token}` } });
+    if (!arquivo.ok || !arquivo.body) throw new Error(`Graph API ${arquivo.status}`);
+    return Readable.fromWeb(arquivo.body as any);
   }
 }
