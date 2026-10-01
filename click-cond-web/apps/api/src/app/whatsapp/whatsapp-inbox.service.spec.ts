@@ -456,4 +456,91 @@ describe('WhatsappInboxService', () => {
       expect(t.msgs).toHaveLength(1);
     });
   });
+
+  describe('enviarMidia', () => {
+    const arquivoValido: any = {
+      fieldname: 'arquivo',
+      originalname: 'teste.jpg',
+      encoding: '7bit',
+      mimetype: 'image/jpeg',
+      buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+      size: 4,
+    };
+
+    it('envia midia via Graph mesmo se o storage falhar, marcando mensagem como enviada e midia como indisponivel', async () => {
+      const mediaMock = {
+        guardarSaida: jest.fn().mockRejectedValue(new Error('Storage indisponivel')),
+        apagar: jest.fn(),
+      };
+      const t = montar(undefined, undefined, mediaMock);
+      t.conversas.push({
+        id: 10,
+        wa_id: '5517992559990',
+        ultima_do_cliente_em: new Date(),
+        nao_lidas: 0,
+      });
+
+      const res = await t.svc.enviarMidia(10, {
+        tipo: 'image',
+        arquivo: arquivoValido,
+        legenda: 'Foto da proposta',
+      });
+
+      expect(t.graph.enviarMidia).toHaveBeenCalledWith(expect.objectContaining({
+        para: '5517992559990',
+        tipo: 'image',
+        arquivo: arquivoValido,
+        legenda: 'Foto da proposta',
+      }));
+      expect(res).toMatchObject({
+        status: 'enviada',
+        mediaStatus: 'indisponivel',
+        tipo: 'image',
+      });
+      expect(t.msgs[0]).toMatchObject({
+        conversa_id: 10,
+        status: 'enviada',
+        media_status: 'indisponivel',
+        media_chave: null,
+      });
+    });
+
+    it('armazena midia e envia via Graph quando storage esta disponivel', async () => {
+      const mediaMock = {
+        guardarSaida: jest.fn().mockResolvedValue({
+          chave: 'whatsapp/saida-123/uuid',
+          mime: 'image/jpeg',
+          nome: 'teste.jpg',
+          tamanho: 4,
+          status: 'armazenada',
+        }),
+        apagar: jest.fn(),
+      };
+      const t = montar(undefined, undefined, mediaMock);
+      t.conversas.push({
+        id: 10,
+        wa_id: '5517992559990',
+        ultima_do_cliente_em: new Date(),
+        nao_lidas: 0,
+      });
+
+      const res = await t.svc.enviarMidia(10, {
+        tipo: 'image',
+        arquivo: arquivoValido,
+      });
+
+      expect(mediaMock.guardarSaida).toHaveBeenCalled();
+      expect(t.graph.enviarMidia).toHaveBeenCalled();
+      expect(res).toMatchObject({
+        status: 'enviada',
+        mediaStatus: 'enviada',
+        mediaChave: 'whatsapp/saida-123/uuid',
+      });
+      expect(t.msgs[0]).toMatchObject({
+        media_chave: 'whatsapp/saida-123/uuid',
+        media_status: 'enviada',
+      });
+    });
+  });
 });
+

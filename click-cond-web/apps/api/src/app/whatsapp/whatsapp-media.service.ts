@@ -62,11 +62,35 @@ export class WhatsappMediaService {
     s3?: S3Client,
     config?: StorageConfig,
   ) {
-    const endpoint = process.env.WA_MEDIA_ENDPOINT || process.env.WA_MEDIA_S3_ENDPOINT;
-    const accessKeyId = process.env.WA_MEDIA_ACCESS_KEY_ID || process.env.WA_MEDIA_S3_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.WA_MEDIA_SECRET_ACCESS_KEY || process.env.WA_MEDIA_S3_SECRET_ACCESS_KEY;
-    const region = process.env.WA_MEDIA_REGION || process.env.WA_MEDIA_S3_REGION || (endpoint ? 'auto' : 'us-east-1');
-    this.bucket = config?.bucket ?? process.env.WA_MEDIA_BUCKET ?? process.env.WA_MEDIA_S3_BUCKET ?? '';
+    const endpoint =
+      process.env.WA_MEDIA_ENDPOINT ||
+      process.env.WA_MEDIA_S3_ENDPOINT ||
+      process.env.R2_ENDPOINT;
+    const accessKeyId =
+      process.env.WA_MEDIA_ACCESS_KEY_ID ||
+      process.env.WA_MEDIA_S3_ACCESS_KEY_ID ||
+      process.env.R2_ACCESS_KEY_ID ||
+      process.env.AWS_ACCESS_KEY ||
+      process.env.AWS_ACCESS_KEY_ID;
+    const secretAccessKey =
+      process.env.WA_MEDIA_SECRET_ACCESS_KEY ||
+      process.env.WA_MEDIA_S3_SECRET_ACCESS_KEY ||
+      process.env.R2_SECRET_ACCESS_KEY ||
+      process.env.AWS_SECRET_KEY ||
+      process.env.AWS_SECRET_ACCESS_KEY;
+    const region =
+      process.env.WA_MEDIA_REGION ||
+      process.env.WA_MEDIA_S3_REGION ||
+      process.env.AWS_S3_BUCKET_REGION ||
+      (endpoint ? 'auto' : 'us-east-1');
+    this.bucket =
+      config?.bucket !== undefined
+        ? config.bucket
+        : (process.env.WA_MEDIA_BUCKET ??
+           process.env.WA_MEDIA_S3_BUCKET ??
+           process.env.AWS_S3_BUCKET_NAME ??
+           process.env.R2_BUCKET ??
+           '');
     this.maxBytes = config?.maxBytes ?? Number(process.env.WA_MEDIA_MAX_BYTES || LIMITE_PADRAO);
     if (!Number.isSafeInteger(this.maxBytes) || this.maxBytes <= 0) throw new Error('WA_MEDIA_MAX_BYTES inválido');
     this.s3 = this.bucket ? s3 ?? new S3Client({
@@ -124,14 +148,18 @@ export class WhatsappMediaService {
     if (!/^whatsapp\/[A-Za-z0-9._-]+\/[0-9a-f-]{36}$/.test(chave)) throw new Error('Chave de mídia inválida');
     if (!this.s3) throw new Error('Armazenamento de mídia indisponível');
     const objeto = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: chave, ...(intervalo ? { Range: `bytes=${intervalo.inicio}-${intervalo.fim}` } : {}) }));
-    if (!objeto.Body || typeof (objeto.Body as any).pipe !== 'function') throw new Error('Mídia não encontrada');
+    if (!objeto.Body) throw new Error('Mídia não encontrada');
+    const stream =
+      typeof (objeto.Body as any)?.pipe === 'function'
+        ? (objeto.Body as Readable)
+        : Readable.from(objeto.Body as any);
     const tamanho = Number(objeto.ContentLength ?? 0);
     const contentRange = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(String(objeto.ContentRange ?? ''));
     const inicio = contentRange ? Number(contentRange[1]) : intervalo?.inicio ?? 0;
     const fim = contentRange ? Number(contentRange[2]) : intervalo?.fim ?? Math.max(0, tamanho - 1);
     const total = contentRange ? Number(contentRange[3]) : tamanho;
     return {
-      stream: objeto.Body as Readable,
+      stream,
       mime: this.mimePermitido(objeto.ContentType ?? '') ?? 'application/octet-stream',
       nome: objeto.Metadata?.nome ?? null,
       tamanho, total, inicio, fim,

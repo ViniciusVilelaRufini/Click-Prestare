@@ -73,7 +73,7 @@ describe('WhatsappMediaService', () => {
   });
 
   it('returns unavailable without calling Graph or S3 when media storage is not configured', async () => {
-    const service = new WhatsappMediaService(graph as any, s3 as any, {});
+    const service = new WhatsappMediaService(graph as any, s3 as any, { bucket: '' });
 
     await expect(service.guardarEntrada({ wamid: 'wamid.none', tipo: 'audio', mediaId: 'media-none' }))
       .resolves.toEqual({ chave: null, mime: null, nome: null, tamanho: null, status: 'indisponivel' });
@@ -151,22 +151,35 @@ describe('WhatsappMediaService', () => {
     const chaves = s3.send.mock.calls.map(([comando]: any[]) => comando.input.Key);
     expect(new Set(chaves).size).toBe(1);
   });
-  it('sem configuracao S3 (sem WA_MEDIA_BUCKET), midia inbound retorna status indisponivel sem lancar erro', async () => {
+  it('sem configuracao S3 (sem WA_MEDIA_BUCKET e sem AWS_S3_BUCKET_NAME), midia inbound retorna status indisponivel sem lancar erro', async () => {
+    const origWa = process.env.WA_MEDIA_BUCKET;
+    const origWaS3 = process.env.WA_MEDIA_S3_BUCKET;
+    const origAws = process.env.AWS_S3_BUCKET_NAME;
+    const origR2 = process.env.R2_BUCKET;
     delete process.env.WA_MEDIA_BUCKET;
     delete process.env.WA_MEDIA_S3_BUCKET;
-    const service = new WhatsappMediaService(graph as any);
+    delete process.env.AWS_S3_BUCKET_NAME;
+    delete process.env.R2_BUCKET;
+    try {
+      const service = new WhatsappMediaService(graph as any);
 
-    const resultado = await service.guardarEntrada({ wamid: 'wamid.no-bucket', tipo: 'audio', mediaId: 'media-no-bucket' });
+      const resultado = await service.guardarEntrada({ wamid: 'wamid.no-bucket', tipo: 'audio', mediaId: 'media-no-bucket' });
 
-    expect(resultado).toEqual({
-      chave: null,
-      mime: null,
-      nome: null,
-      tamanho: null,
-      status: 'indisponivel',
-    });
-    expect(graph.obterMidia).not.toHaveBeenCalled();
-    expect(graph.baixarMidia).not.toHaveBeenCalled();
+      expect(resultado).toEqual({
+        chave: null,
+        mime: null,
+        nome: null,
+        tamanho: null,
+        status: 'indisponivel',
+      });
+      expect(graph.obterMidia).not.toHaveBeenCalled();
+      expect(graph.baixarMidia).not.toHaveBeenCalled();
+    } finally {
+      if (origWa) process.env.WA_MEDIA_BUCKET = origWa;
+      if (origWaS3) process.env.WA_MEDIA_S3_BUCKET = origWaS3;
+      if (origAws) process.env.AWS_S3_BUCKET_NAME = origAws;
+      if (origR2) process.env.R2_BUCKET = origR2;
+    }
   });
 
   it('le o bucket de WA_MEDIA_BUCKET quando definido no ambiente', async () => {
@@ -184,4 +197,20 @@ describe('WhatsappMediaService', () => {
     delete process.env.WA_MEDIA_BUCKET;
   });
 
+  it('faz fallback para AWS_S3_BUCKET_NAME presente no ambiente do Elastic Beanstalk', async () => {
+    delete process.env.WA_MEDIA_BUCKET;
+    delete process.env.WA_MEDIA_S3_BUCKET;
+    process.env.AWS_S3_BUCKET_NAME = 'elasticbeanstalk-sa-east-1-teste';
+    const s3Mock = { send: jest.fn().mockResolvedValue({}) };
+    graph.obterMidia.mockResolvedValue({ mime: 'image/jpeg', tamanho: 10 });
+    graph.baixarMidia.mockResolvedValue(Readable.from([Buffer.from('jpeg-data')]));
+
+    const service = new WhatsappMediaService(graph as any, s3Mock as any);
+    const resultado = await service.guardarEntrada({ wamid: 'wamid.eb', tipo: 'image', mediaId: 'media-eb' });
+
+    expect(resultado.status).toBe('armazenada');
+    expect(s3Mock.send).toHaveBeenCalled();
+    expect(s3Mock.send.mock.calls[0][0].input.Bucket).toBe('elasticbeanstalk-sa-east-1-teste');
+    delete process.env.AWS_S3_BUCKET_NAME;
+  });
 });

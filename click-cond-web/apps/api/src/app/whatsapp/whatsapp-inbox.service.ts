@@ -289,10 +289,23 @@ export class WhatsappInboxService {
     let erro: string | null = null;
     let guardada: any = null;
     try {
-      if (!this.media) throw new Error('Armazenamento de mídia indisponível.');
-      guardada = await this.media.guardarSaida({ referencia: `saida-${randomUUID()}`, tipo: entrada.tipo, arquivo: entrada.arquivo });
-      if (!guardada.chave) throw new Error('Armazenamento de mídia indisponível.');
-      wamid = await this.graph.enviarMidia({ para: conversa.wa_id, tipo: entrada.tipo, arquivo: entrada.arquivo, ...(legenda ? { legenda } : {}) });
+      if (this.media) {
+        try {
+          guardada = await this.media.guardarSaida({
+            referencia: `saida-${randomUUID()}`,
+            tipo: entrada.tipo,
+            arquivo: entrada.arquivo,
+          });
+        } catch (erroStorage: any) {
+          this.logger.warn(`Armazenamento privado de saída falhou: ${erroStorage?.message}`);
+        }
+      }
+      wamid = await this.graph.enviarMidia({
+        para: conversa.wa_id,
+        tipo: entrada.tipo,
+        arquivo: entrada.arquivo,
+        ...(legenda ? { legenda } : {}),
+      });
     } catch (e: any) {
       wamid = `falha-${randomUUID()}`;
       status = 'falhou';
@@ -302,9 +315,19 @@ export class WhatsappInboxService {
     try {
       m = await this.prisma.crm_WhatsApp_Mensagens.create({
         data: {
-          conversa_id: conversaId, wamid, direcao: 'saida', tipo: entrada.tipo, texto, status, erro, criado_em: agora,
-          media_chave: guardada?.chave ?? null, media_mime: guardada?.mime ?? entrada.arquivo.mimetype, media_nome: guardada?.nome ?? entrada.arquivo.originalname.slice(0, 255),
-          media_tamanho: guardada?.tamanho ?? entrada.arquivo.buffer.length, media_status: status,
+          conversa_id: conversaId,
+          wamid,
+          direcao: 'saida',
+          tipo: entrada.tipo,
+          texto,
+          status,
+          erro,
+          criado_em: agora,
+          media_chave: guardada?.chave ?? null,
+          media_mime: guardada?.mime ?? entrada.arquivo.mimetype,
+          media_nome: guardada?.nome ?? entrada.arquivo.originalname.slice(0, 255),
+          media_tamanho: guardada?.tamanho ?? entrada.arquivo.buffer.length,
+          media_status: status === 'enviada' ? (guardada?.chave ? 'enviada' : 'indisponivel') : 'falhou',
         },
       });
     } catch (e) {
