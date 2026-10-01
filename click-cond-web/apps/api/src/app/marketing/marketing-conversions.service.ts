@@ -38,7 +38,7 @@ export class MarketingConversionsService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          events: [{ id: wamid, type: 'lead_created', timestamp_ms: em.getTime(), oppref, action_source: 'offline' }],
+          events: [{ id: wamid, type: 'lead_created', timestamp_ms: em.getTime(), oppref, action_source: 'offline', data: { type: 'customer_action' } }],
         }),
       });
       if (!resposta.ok) this.logger.warn(`OpenAI Ads conversão rejeitada (${resposta.status})`);

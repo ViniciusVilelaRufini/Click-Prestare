@@ -35,7 +35,7 @@ describe('MarketingConversionsService', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
-          events: [{ id: 'wamid-1', type: 'lead_created', timestamp_ms: now.getTime(), oppref: 'op-1', action_source: 'offline' }],
+          events: [{ id: 'wamid-1', type: 'lead_created', timestamp_ms: now.getTime(), oppref: 'op-1', action_source: 'offline', data: { type: 'customer_action' } }],
         }),
       }),
     );

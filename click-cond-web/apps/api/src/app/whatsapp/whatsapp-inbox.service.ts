@@ -71,7 +71,13 @@ export class WhatsappInboxService {
         ...(m.nomePerfil ? { nome_perfil: m.nomePerfil } : {}),
       },
     });
-    if (conversa.lead_id && this.conversions) {
+    // A primeira mensagem inbound persistida é o marcador durável de confirmação
+    // da conversa; mensagens posteriores não podem contar o mesmo lead de novo.
+    const entradaAnterior = await this.prisma.crm_WhatsApp_Mensagens.findFirst({
+      where: { conversa_id: conversa.id, direcao: 'entrada', wamid: { not: m.wamid } },
+      orderBy: { criado_em: 'asc' },
+    });
+    if (!entradaAnterior && conversa.lead_id && this.conversions) {
       const lead = await this.prisma.crm_Leads.findUnique({ where: { id: conversa.lead_id } });
       if (lead) await this.conversions.confirmarLeadWhatsApp({ wamid: m.wamid, em: m.em, lead }).catch((e) =>
         this.logger.error(`Conversão confirmada falhou (${m.wamid}): ${e?.message ?? e}`),

@@ -23,7 +23,10 @@ function montar(config?: any, conversions?: any) {
       create: jest.fn(async ({ data }: any) => { const m = { id: msgs.length + 1, criado_em: new Date(), erro: null, ...data }; msgs.push(m); return m; }),
       update: jest.fn(async ({ where, data }: any) => Object.assign(msgs.find((m) => m.wamid === where.wamid), data)),
       findMany: jest.fn(async ({ where }: any) => msgs.filter((m) => m.conversa_id === where.conversa_id)),
-      findFirst: jest.fn(async ({ where }: any) => msgs.filter((m) => Object.entries(where).every(([k, v]) => m[k] === v)).pop() ?? null),
+      findFirst: jest.fn(async ({ where }: any) => msgs.filter((m) => Object.entries(where).every(([k, v]) => {
+        if (typeof v === 'object' && v && 'not' in v) return m[k] !== (v as any).not;
+        return m[k] === v;
+      })).pop() ?? null),
     },
     crm_Leads: {
       findFirst: jest.fn(async () => leads.find((l) => l.nome.startsWith('Clique no WhatsApp') && l.whatsapp === '') ?? null),
@@ -120,6 +123,19 @@ describe('WhatsappInboxService', () => {
     await t.svc.registrarEntrada(entrada());
     expect(t.msgs).toHaveLength(1);
     expect(t.conversas[0].nao_lidas).toBe(1);
+    expect(conversions.confirmarLeadWhatsApp).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispatches a paid conversation only for its first distinct inbound wamid', async () => {
+    const conversions = { confirmarLeadWhatsApp: jest.fn(async () => undefined) };
+    const t = montar(undefined, conversions);
+    const now = new Date('2026-09-30T12:00:00Z');
+    t.leads.push({ id: 7, nome: 'Ana', whatsapp: '5521999369814', origem: 'openai', oppref: 'op-1', criado_em: now });
+
+    await t.svc.registrarEntrada(entrada({ wamid: 'wamid-1', em: now }));
+    await t.svc.registrarEntrada(entrada({ wamid: 'wamid-2', em: new Date(now.getTime() + 1_000) }));
+
+    expect(t.msgs.filter((m) => m.direcao === 'entrada')).toHaveLength(2);
     expect(conversions.confirmarLeadWhatsApp).toHaveBeenCalledTimes(1);
   });
 
