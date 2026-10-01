@@ -15,6 +15,12 @@ function montar(config?: any, conversions?: any) {
         for (const [k, v] of Object.entries(data)) c[k] = (v as any)?.increment !== undefined ? c[k] + (v as any).increment : v;
         return c;
       }),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const c = conversas.find((x) => x.id === where.id && x.conversao_lead_id !== data.conversao_lead_id);
+        if (!c) return { count: 0 };
+        Object.assign(c, data);
+        return { count: 1 };
+      }),
       findMany: jest.fn(async () => conversas),
       aggregate: jest.fn(async () => ({ _sum: { nao_lidas: conversas.reduce((s, c) => s + c.nao_lidas, 0) } })),
     },
@@ -137,6 +143,10 @@ describe('WhatsappInboxService', () => {
 
     expect(t.msgs.filter((m) => m.direcao === 'entrada')).toHaveLength(2);
     expect(conversions.confirmarLeadWhatsApp).toHaveBeenCalledTimes(1);
+    expect(t.prisma.crm_WhatsApp_Conversas.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ OR: [{ conversao_lead_id: null }, { conversao_lead_id: { not: 7 } }] }),
+      data: expect.objectContaining({ conversao_lead_id: 7 }),
+    }));
   });
 
   it('status só avança', async () => {

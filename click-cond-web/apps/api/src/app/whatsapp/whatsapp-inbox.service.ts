@@ -71,13 +71,18 @@ export class WhatsappInboxService {
         ...(m.nomePerfil ? { nome_perfil: m.nomePerfil } : {}),
       },
     });
-    // A primeira mensagem inbound persistida é o marcador durável de confirmação
-    // da conversa; mensagens posteriores não podem contar o mesmo lead de novo.
-    const entradaAnterior = await this.prisma.crm_WhatsApp_Mensagens.findFirst({
-      where: { conversa_id: conversa.id, direcao: 'entrada', wamid: { not: m.wamid } },
-      orderBy: { criado_em: 'asc' },
-    });
-    if (!entradaAnterior && conversa.lead_id && this.conversions) {
+    // A atualização condicional é o marcador durável e atômico: somente uma
+    // mensagem pode confirmar cada lead nesta conversa, inclusive em webhooks simultâneos.
+    const marcacao = conversa.lead_id && this.conversions
+      ? await this.prisma.crm_WhatsApp_Conversas.updateMany({
+        where: {
+          id: conversa.id,
+          OR: [{ conversao_lead_id: null }, { conversao_lead_id: { not: conversa.lead_id } }],
+        },
+        data: { conversao_lead_id: conversa.lead_id },
+      })
+      : { count: 0 };
+    if (marcacao.count === 1 && conversa.lead_id && this.conversions) {
       const lead = await this.prisma.crm_Leads.findUnique({ where: { id: conversa.lead_id } });
       if (lead) await this.conversions.confirmarLeadWhatsApp({ wamid: m.wamid, em: m.em, lead }).catch((e) =>
         this.logger.error(`Conversão confirmada falhou (${m.wamid}): ${e?.message ?? e}`),

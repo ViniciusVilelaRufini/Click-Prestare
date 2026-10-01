@@ -1707,6 +1707,7 @@ model Crm_WhatsApp_Conversas {
   wa_id                String                   @unique(map: "uq_crm_wa_conversas_wa_id") @db.VarChar(20)
   nome_perfil          String?                  @db.VarChar(120)
   lead_id              Int?
+  conversao_lead_id    Int?
   lead                 Crm_Leads?               @relation(fields: [lead_id], references: [id], onDelete: SetNull, map: "fk_crm_wa_conversas_lead")
   ultima_msg_em        DateTime                 @db.DateTime(0)
   ultima_do_cliente_em DateTime?                @db.DateTime(0)
@@ -1716,6 +1717,7 @@ model Crm_WhatsApp_Conversas {
 
   @@index([ultima_msg_em], map: "idx_crm_wa_conversas_ultima")
   @@index([lead_id], map: "fk_crm_wa_conversas_lead")
+  @@index([conversao_lead_id], map: "idx_crm_wa_conversas_conversao_lead")
   @@map("crm_whatsapp_conversas")
 }
 
