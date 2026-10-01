@@ -128,4 +128,14 @@ describe('WhatsappMediaService', () => {
       await new Promise<void>((resolve, reject) => servidor.close((erro) => erro ? reject(erro) : resolve()));
     }
   });
+
+  it('pede somente o intervalo validado ao S3 ao abrir mídia privada', async () => {
+    s3.send.mockResolvedValue({ Body: Readable.from([Buffer.from('bcd')]), ContentType: 'audio/ogg', ContentLength: 3, ContentRange: 'bytes 1-3/6' });
+    const service = new WhatsappMediaService(graph as any, s3 as any, { bucket: 'whatsapp-private' });
+
+    const aberta = await service.abrir('whatsapp/wamid.range/00000000-0000-4000-8000-000000000001', { inicio: 1, fim: 3 });
+
+    expect(s3.send.mock.calls[0][0].input).toMatchObject({ Bucket: 'whatsapp-private', Range: 'bytes=1-3' });
+    expect(aberta).toMatchObject({ tamanho: 3, total: 6, inicio: 1, fim: 3 });
+  });
 });

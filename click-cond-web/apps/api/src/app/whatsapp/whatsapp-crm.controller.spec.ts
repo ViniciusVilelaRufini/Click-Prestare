@@ -51,7 +51,7 @@ describe('WhatsappCrmController', () => {
 
   it('transmite mídia autenticada com MIME e intervalo solicitado', async () => {
     const inbox = {
-      abrirMidia: jest.fn(async () => ({ stream: Readable.from([Buffer.from('abcdef')]), mime: 'audio/ogg', nome: 'audio.ogg', tamanho: 6 })),
+      abrirMidia: jest.fn(async () => ({ stream: Readable.from([Buffer.from('bcd')]), mime: 'audio/ogg', nome: 'audio.ogg', tamanho: 3, total: 6, inicio: 1, fim: 3 })),
     };
     const res: any = new PassThrough();
     res.status = jest.fn(() => res);
@@ -67,5 +67,6 @@ describe('WhatsappCrmController', () => {
     expect(res.status).toHaveBeenCalledWith(206);
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'audio/ogg');
     expect(res.setHeader).toHaveBeenCalledWith('Content-Range', 'bytes 1-3/6');
+    expect(inbox.abrirMidia).toHaveBeenCalledWith(9, 'bytes=1-3');
   });
 });

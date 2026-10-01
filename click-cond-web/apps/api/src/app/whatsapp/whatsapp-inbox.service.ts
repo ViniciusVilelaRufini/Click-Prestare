@@ -7,6 +7,7 @@ import { decidirAutomacao } from './whatsapp-automacao';
 import { WhatsappConfigService } from './whatsapp-config.service';
 import { MarketingConversionsService } from '../marketing/marketing-conversions.service';
 import { WhatsappMediaService } from './whatsapp-media.service';
+import { TipoMidiaSaida, validarMidiaSaida } from './whatsapp-media.validation';
 
 const JUNCAO_MS = 30 * 60 * 1000;
 /** Webhook reenviado depois de uma queda não dispara resposta automática atrasada. */
@@ -33,6 +34,10 @@ export interface MensagemDto {
   mediaChave: string | null; mediaMime: string | null; mediaNome: string | null; mediaTamanho: number | null; mediaStatus: string | null;
 }
 
+export class RangeMidiaInvalido extends Error {
+  constructor(readonly total: number) { super('Intervalo de mídia inválido'); }
+}
+
 function msgDto(m: any): MensagemDto {
   return {
     id: m.id, direcao: m.direcao, tipo: m.tipo, texto: m.texto, status: m.status, erro: m.erro ?? null, criadoEm: new Date(m.criado_em).toISOString(),
@@ -54,7 +59,16 @@ export class WhatsappInboxService {
   ) {}
 
   async registrarEntrada(m: EntradaWa): Promise<void> {
-    if (await this.prisma.crm_WhatsApp_Mensagens.findUnique({ where: { wamid: m.wamid } })) return;
+    const existente = await this.prisma.crm_WhatsApp_Mensagens.findUnique({ where: { wamid: m.wamid } });
+    if (existente) {
+      if (m.mediaId && this.media && ['pendente', 'falhou'].includes(existente.media_status ?? '')) {
+        const claim = await this.prisma.crm_WhatsApp_Mensagens.updateMany({
+          where: { wamid: m.wamid, media_status: { in: ['pendente', 'falhou'] } }, data: { media_status: 'importando' },
+        });
+        if (claim.count === 1) await this.importarMidia(m);
+      }
+      return;
+    }
     let conversa = await this.prisma.crm_WhatsApp_Conversas.findUnique({ where: { wa_id: m.waId } });
     const conversaNova = !conversa;
     const leadDoFormulario = await this.encontrarLeadDoFormulario(m);
@@ -75,19 +89,10 @@ export class WhatsappInboxService {
       },
     });
     if (m.mediaId && this.media) {
-      try {
-        const guardada = await this.media.guardarEntrada({ wamid: m.wamid, tipo: m.tipo, mediaId: m.mediaId });
-        await this.prisma.crm_WhatsApp_Mensagens.update({
-          where: { wamid: m.wamid },
-          data: {
-            media_chave: guardada.chave, media_mime: guardada.mime ?? m.mime ?? null, media_nome: guardada.nome ?? m.nome ?? null,
-            media_tamanho: guardada.tamanho, media_status: guardada.status,
-          },
-        });
-      } catch (e: any) {
-        await this.prisma.crm_WhatsApp_Mensagens.update({ where: { wamid: m.wamid }, data: { media_status: 'falhou' } });
-        this.logger.error(`Armazenamento de mídia falhou (${m.wamid}): ${e?.message ?? e}`);
-      }
+      const claim = await this.prisma.crm_WhatsApp_Mensagens.updateMany({
+        where: { wamid: m.wamid, media_status: { in: ['pendente'] } }, data: { media_status: 'importando' },
+      });
+      if (claim.count === 1) await this.importarMidia(m);
     }
     await this.prisma.crm_WhatsApp_Conversas.update({
       where: { id: conversa.id },
@@ -165,6 +170,23 @@ export class WhatsappInboxService {
       .find((lead) => normalizarWhatsapp(lead.whatsapp) === normalizarWhatsapp(m.waId)) ?? null;
   }
 
+  private async importarMidia(m: EntradaWa): Promise<void> {
+    if (!m.mediaId || !this.media) return;
+    try {
+      const guardada = await this.media.guardarEntrada({ wamid: m.wamid, tipo: m.tipo, mediaId: m.mediaId });
+      await this.prisma.crm_WhatsApp_Mensagens.update({
+        where: { wamid: m.wamid },
+        data: {
+          media_chave: guardada.chave, media_mime: guardada.mime ?? m.mime ?? null, media_nome: guardada.nome ?? m.nome ?? null,
+          media_tamanho: guardada.tamanho, media_status: guardada.status,
+        },
+      });
+    } catch (e: any) {
+      await this.prisma.crm_WhatsApp_Mensagens.update({ where: { wamid: m.wamid }, data: { media_status: 'falhou' } });
+      this.logger.error(`Armazenamento de mídia falhou (${m.wamid}): ${e?.message ?? e}`);
+    }
+  }
+
   private async ligarLead(m: EntradaWa, leadDoFormulario?: any | null): Promise<number> {
     const nome = (m.nomePerfil || `WhatsApp ${m.waId}`).slice(0, 120);
     const inicioJanela = new Date(m.em.getTime() - JUNCAO_MS);
@@ -238,13 +260,11 @@ export class WhatsappInboxService {
 
   async enviarMidia(
     conversaId: number,
-    entrada: { tipo: 'image' | 'video' | 'document'; arquivo: ArquivoWhatsapp; legenda?: string },
+    entrada: { tipo: TipoMidiaSaida; arquivo: ArquivoWhatsapp; legenda?: string },
   ): Promise<MensagemDto> {
     const conversa = await this.prisma.crm_WhatsApp_Conversas.findUnique({ where: { id: conversaId } });
     if (!conversa) throw new NotFoundException('Conversa não encontrada.');
-    if (!['image', 'video', 'document'].includes(entrada?.tipo) || !entrada?.arquivo?.buffer?.length) {
-      throw new BadRequestException('Mídia inválida.');
-    }
+    validarMidiaSaida({ tipo: entrada.tipo, ...entrada.arquivo });
     if (!janelaAberta(conversa.ultima_do_cliente_em ? new Date(conversa.ultima_do_cliente_em) : null)) {
       throw new ConflictException('Janela de 24h fechada: o cliente precisa mandar mensagem primeiro.');
     }
@@ -254,7 +274,11 @@ export class WhatsappInboxService {
     let wamid: string;
     let status = 'enviada';
     let erro: string | null = null;
+    let guardada: any = null;
     try {
+      if (!this.media) throw new Error('Armazenamento de mídia indisponível.');
+      guardada = await this.media.guardarSaida({ referencia: `saida-${randomUUID()}`, tipo: entrada.tipo, arquivo: entrada.arquivo });
+      if (!guardada.chave) throw new Error('Armazenamento de mídia indisponível.');
       wamid = await this.graph.enviarMidia({ para: conversa.wa_id, tipo: entrada.tipo, arquivo: entrada.arquivo, ...(legenda ? { legenda } : {}) });
     } catch (e: any) {
       wamid = `falha-${randomUUID()}`;
@@ -264,19 +288,34 @@ export class WhatsappInboxService {
     const m = await this.prisma.crm_WhatsApp_Mensagens.create({
       data: {
         conversa_id: conversaId, wamid, direcao: 'saida', tipo: entrada.tipo, texto, status, erro, criado_em: agora,
-        media_mime: entrada.arquivo.mimetype, media_nome: entrada.arquivo.originalname.slice(0, 255),
-        media_tamanho: entrada.arquivo.buffer.length, media_status: status,
+        media_chave: guardada?.chave ?? null, media_mime: guardada?.mime ?? entrada.arquivo.mimetype, media_nome: guardada?.nome ?? entrada.arquivo.originalname.slice(0, 255),
+        media_tamanho: guardada?.tamanho ?? entrada.arquivo.buffer.length, media_status: status,
       },
     });
     await this.prisma.crm_WhatsApp_Conversas.update({ where: { id: conversaId }, data: { ultima_msg_em: agora } });
     return msgDto(m);
   }
 
-  async abrirMidia(mensagemId: number) {
+  async abrirMidia(mensagemId: number, range?: string) {
     const mensagem = await this.prisma.crm_WhatsApp_Mensagens.findUnique({ where: { id: mensagemId } });
     if (!mensagem?.media_chave) throw new NotFoundException('Mídia não encontrada.');
     if (!this.media) throw new NotFoundException('Armazenamento de mídia indisponível.');
-    return this.media.abrir(mensagem.media_chave);
+    const total = Number(mensagem.media_tamanho);
+    const intervalo = this.intervalo(range, total);
+    if (range && !intervalo) throw new RangeMidiaInvalido(total);
+    return this.media.abrir(mensagem.media_chave, intervalo ?? undefined);
+  }
+
+  private intervalo(range: string | undefined, total: number): { inicio: number; fim: number } | null {
+    if (!range) return null;
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+    if (!match || !Number.isSafeInteger(total) || total <= 0) return null;
+    const [, inicioValor, fimValor] = match;
+    if (!inicioValor && !fimValor) return null;
+    const inicio = inicioValor ? Number(inicioValor) : Math.max(0, total - Number(fimValor));
+    const fim = fimValor && inicioValor ? Math.min(Number(fimValor), total - 1) : total - 1;
+    if (!Number.isSafeInteger(inicio) || !Number.isSafeInteger(fim) || inicio < 0 || inicio > fim || inicio >= total) return null;
+    return { inicio, fim };
   }
 
   /** Abre (ou reaproveita) a conversa do lead e envia o modelo de primeiro contato. */

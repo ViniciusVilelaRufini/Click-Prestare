@@ -1,8 +1,9 @@
 import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseIntPipe, Post, Put, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream';
 import { CrmAdminGuard } from '../crm/crm-admin.guard';
-import { WhatsappInboxService } from './whatsapp-inbox.service';
+import { RangeMidiaInvalido, WhatsappInboxService } from './whatsapp-inbox.service';
+import { LIMITE_MULTIPART } from './whatsapp-media.validation';
 import { WhatsappConfigService } from './whatsapp-config.service';
 
 @Controller('crm/whatsapp')
@@ -22,7 +23,7 @@ export class WhatsappCrmController {
   }
 
   @Post('conversas/:id/midias')
-  @UseInterceptors(FileInterceptor('arquivo'))
+  @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: LIMITE_MULTIPART } }))
   enviarMidia(
     @Param('id', ParseIntPipe) id: number,
     @UploadedFile() arquivo: { buffer: Buffer; mimetype: string; originalname: string } | undefined,
@@ -38,49 +39,27 @@ export class WhatsappCrmController {
     @Headers('range') range: string | undefined,
     @Res() res: any,
   ) {
-    const midia = await this.inbox.abrirMidia(mensagemId);
-    const intervalo = this.intervalo(range, midia.tamanho);
-    if (range && !intervalo) {
-      res.status(416).setHeader('Content-Range', `bytes */${midia.tamanho}`);
-      return res.end();
+    let midia: any;
+    try {
+      midia = await this.inbox.abrirMidia(mensagemId, range);
+    } catch (e) {
+      if (e instanceof RangeMidiaInvalido) {
+        res.status(416).setHeader('Content-Range', `bytes */${e.total}`);
+        return res.end();
+      }
+      throw e;
     }
-    const inicio = intervalo?.inicio ?? 0;
-    const fim = intervalo?.fim ?? midia.tamanho - 1;
-    const tamanho = Math.max(0, fim - inicio + 1);
-    res.status(intervalo ? 206 : 200);
+    res.status(range ? 206 : 200);
     res.setHeader('Content-Type', midia.mime);
-    res.setHeader('Content-Length', tamanho);
+    res.setHeader('Content-Length', midia.tamanho);
     res.setHeader('Accept-Ranges', 'bytes');
     if (midia.nome) res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(midia.nome)}`);
-    if (intervalo) res.setHeader('Content-Range', `bytes ${inicio}-${fim}/${midia.tamanho}`);
-    return (intervalo ? midia.stream.pipe(this.fatiar(inicio, fim)) : midia.stream).pipe(res);
-  }
-
-  private intervalo(range: string | undefined, total: number): { inicio: number; fim: number } | null {
-    if (!range) return null;
-    const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
-    if (!match || total <= 0) return null;
-    const [, inicioValor, fimValor] = match;
-    if (!inicioValor && !fimValor) return null;
-    const inicio = inicioValor ? Number(inicioValor) : Math.max(0, total - Number(fimValor));
-    const fim = fimValor && inicioValor ? Math.min(Number(fimValor), total - 1) : total - 1;
-    if (!Number.isSafeInteger(inicio) || !Number.isSafeInteger(fim) || inicio < 0 || inicio > fim || inicio >= total) return null;
-    return { inicio, fim };
-  }
-
-  private fatiar(inicio: number, fim: number): Transform {
-    let posicao = 0;
-    return new Transform({
-      transform(chunk, _encoding, callback) {
-        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        const doChunk = posicao;
-        posicao += buffer.length;
-        const de = Math.max(inicio - doChunk, 0);
-        const ate = Math.min(fim - doChunk + 1, buffer.length);
-        if (de < ate) this.push(buffer.subarray(de, ate));
-        callback();
-      },
-    });
+    if (range) res.setHeader('Content-Range', `bytes ${midia.inicio}-${midia.fim}/${midia.total}`);
+    return new Promise<void>((resolve) => pipeline(midia.stream, res, (erro: Error | null) => {
+      if (erro && !res.headersSent) res.status(502).end();
+      else if (erro && typeof res.destroy === 'function') res.destroy(erro);
+      resolve();
+    }));
   }
 
   @Post('leads/:leadId/iniciar')

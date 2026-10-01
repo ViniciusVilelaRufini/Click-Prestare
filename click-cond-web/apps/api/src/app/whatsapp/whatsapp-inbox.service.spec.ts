@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { WhatsappInboxService } from './whatsapp-inbox.service';
+import { RangeMidiaInvalido, WhatsappInboxService } from './whatsapp-inbox.service';
 import { AUTOMACOES_PADRAO, normalizarConfig } from './whatsapp-automacao';
 
 function montar(config?: any, conversions?: any, media?: any) {
@@ -25,9 +25,15 @@ function montar(config?: any, conversions?: any, media?: any) {
       aggregate: jest.fn(async () => ({ _sum: { nao_lidas: conversas.reduce((s, c) => s + c.nao_lidas, 0) } })),
     },
     crm_WhatsApp_Mensagens: {
-      findUnique: jest.fn(async ({ where }: any) => msgs.find((m) => m.wamid === where.wamid) ?? null),
+      findUnique: jest.fn(async ({ where }: any) => msgs.find((m) => where.id ? m.id === where.id : m.wamid === where.wamid) ?? null),
       create: jest.fn(async ({ data }: any) => { const m = { id: msgs.length + 1, criado_em: new Date(), erro: null, ...data }; msgs.push(m); return m; }),
       update: jest.fn(async ({ where, data }: any) => Object.assign(msgs.find((m) => m.wamid === where.wamid), data)),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const m = msgs.find((x) => x.wamid === where.wamid && (!where.media_status?.in || where.media_status.in.includes(x.media_status)));
+        if (!m) return { count: 0 };
+        Object.assign(m, data);
+        return { count: 1 };
+      }),
       findMany: jest.fn(async ({ where }: any) => msgs.filter((m) => m.conversa_id === where.conversa_id)),
       findFirst: jest.fn(async ({ where }: any) => msgs.filter((m) => Object.entries(where).every(([k, v]) => {
         if (typeof v === 'object' && v && 'not' in v) return m[k] !== (v as any).not;
@@ -163,6 +169,21 @@ describe('WhatsappInboxService', () => {
     });
   });
 
+  it('repete a importação de mídia falhada sem duplicar a mensagem', async () => {
+    const media = { guardarEntrada: jest.fn()
+      .mockRejectedValueOnce(new Error('S3 temporariamente indisponível'))
+      .mockResolvedValueOnce({ chave: 'whatsapp/w-retry/00000000-0000-4000-8000-000000000001', mime: 'audio/ogg', nome: null, tamanho: 3, status: 'armazenada' }) };
+    const t = montar(undefined, undefined, media);
+    const recebida = entrada({ wamid: 'w-retry', tipo: 'audio', mediaId: 'media-retry', mime: 'audio/ogg' });
+
+    await t.svc.registrarEntrada(recebida);
+    await t.svc.registrarEntrada(recebida);
+
+    expect(t.msgs).toHaveLength(1);
+    expect(media.guardarEntrada).toHaveBeenCalledTimes(2);
+    expect(t.msgs[0]).toMatchObject({ media_chave: 'whatsapp/w-retry/00000000-0000-4000-8000-000000000001', media_status: 'armazenada' });
+  });
+
   it('dispatches a paid conversation only for its first distinct inbound wamid', async () => {
     const conversions = { confirmarLeadWhatsApp: jest.fn(async () => undefined) };
     const t = montar(undefined, conversions);
@@ -203,12 +224,12 @@ describe('WhatsappInboxService', () => {
   });
 
   it('envia imagem pela Graph API e registra a saída', async () => {
-    const t = montar();
+    const t = montar(undefined, undefined, { guardarSaida: jest.fn(async () => ({ chave: 'whatsapp/saida-ok/00000000-0000-4000-8000-000000000001', mime: 'image/png', nome: 'portaria.png', tamanho: 8, status: 'armazenada' })) });
     await t.svc.registrarEntrada(entrada());
 
     const m = await t.svc.enviarMidia(1, {
       tipo: 'image', legenda: 'Portaria',
-      arquivo: { buffer: Buffer.from('png'), mimetype: 'image/png', originalname: 'portaria.png' },
+      arquivo: { buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), mimetype: 'image/png', originalname: 'portaria.png' },
     });
 
     expect(t.graph.enviarMidia).toHaveBeenCalledWith({
@@ -218,16 +239,67 @@ describe('WhatsappInboxService', () => {
     expect(m).toMatchObject({ direcao: 'saida', tipo: 'image', texto: 'Portaria', status: 'enviada' });
   });
 
-  it('registra mídia como falhou quando o upload ou envio Graph falha', async () => {
+  it.each([
+    ['image', 'image/png', Buffer.from('MZ executável'), Buffer.alloc(6 * 1024 * 1024)],
+    ['video', 'video/mp4', Buffer.from('MZ executável'), Buffer.alloc(17 * 1024 * 1024)],
+    ['document', 'application/pdf', Buffer.from('MZ executável'), Buffer.alloc(101 * 1024 * 1024)],
+  ] as const)('rejeita %s com assinatura falsa ou acima do limite antes do Graph', async (tipo, mimetype, assinaturaFalsa, grande) => {
     const t = montar();
+    await t.svc.registrarEntrada(entrada());
+    await expect(t.svc.enviarMidia(1, { tipo, arquivo: { buffer: assinaturaFalsa, mimetype, originalname: 'arquivo.bin' } })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(t.svc.enviarMidia(1, { tipo, arquivo: { buffer: grande, mimetype, originalname: 'arquivo.bin' } })).rejects.toBeInstanceOf(BadRequestException);
+    expect(t.graph.enviarMidia).not.toHaveBeenCalled();
+  });
+
+  it('rejeita MIME que não pertence à categoria antes de chamar o Graph', async () => {
+    const t = montar();
+    await t.svc.registrarEntrada(entrada());
+
+    await expect(t.svc.enviarMidia(1, {
+      tipo: 'image', arquivo: { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', originalname: 'falso.pdf' },
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(t.graph.enviarMidia).not.toHaveBeenCalled();
+  });
+
+  it('persiste a mídia de saída privada para reabertura após o envio', async () => {
+    const media = {
+      guardarSaida: jest.fn(async () => ({ chave: 'whatsapp/saida-1/00000000-0000-4000-8000-000000000001', mime: 'image/png', nome: 'portaria.png', tamanho: 8, status: 'armazenada' })),
+      abrir: jest.fn(async () => ({ stream: {} })),
+    };
+    const t = montar(undefined, undefined, media);
+    await t.svc.registrarEntrada(entrada());
+    const enviada = await t.svc.enviarMidia(1, { tipo: 'image', arquivo: { buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), mimetype: 'image/png', originalname: 'portaria.png' } });
+
+    await t.svc.abrirMidia(enviada.id);
+
+    expect(media.guardarSaida).toHaveBeenCalled();
+    expect(media.abrir).toHaveBeenCalledWith('whatsapp/saida-1/00000000-0000-4000-8000-000000000001', undefined);
+  });
+
+  it('registra mídia como falhou quando o upload ou envio Graph falha', async () => {
+    const t = montar(undefined, undefined, { guardarSaida: jest.fn(async () => ({ chave: 'whatsapp/saida-falha/00000000-0000-4000-8000-000000000001', mime: 'application/pdf', nome: 'proposta.pdf', tamanho: 8, status: 'armazenada' })) });
     t.graph.enviarMidia.mockRejectedValueOnce(new Error('upload recusado'));
     await t.svc.registrarEntrada(entrada());
 
     const m = await t.svc.enviarMidia(1, {
-      tipo: 'document', arquivo: { buffer: Buffer.from('pdf'), mimetype: 'application/pdf', originalname: 'proposta.pdf' },
+      tipo: 'document', arquivo: { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', originalname: 'proposta.pdf' },
     });
 
-    expect(m).toMatchObject({ direcao: 'saida', tipo: 'document', status: 'falhou', erro: 'upload recusado', mediaStatus: 'falhou' });
+    expect(m).toMatchObject({ direcao: 'saida', tipo: 'document', status: 'falhou', erro: 'upload recusado', mediaStatus: 'falhou', mediaChave: 'whatsapp/saida-falha/00000000-0000-4000-8000-000000000001' });
+  });
+
+  it('traduz intervalos suffix, aberto e inválido antes de consultar S3', async () => {
+    const media = { abrir: jest.fn(async () => ({ stream: {}, mime: 'audio/ogg', nome: null, tamanho: 2, total: 6, inicio: 4, fim: 5 })) };
+    const t = montar(undefined, undefined, media);
+    t.msgs.push({ id: 9, wamid: 'w-range', media_chave: 'whatsapp/w-range/00000000-0000-4000-8000-000000000001', media_tamanho: 6 });
+
+    await t.svc.abrirMidia(9, 'bytes=-2');
+    await t.svc.abrirMidia(9, 'bytes=3-');
+    await expect(t.svc.abrirMidia(9, 'bytes=9-')).rejects.toBeInstanceOf(RangeMidiaInvalido);
+
+    expect(media.abrir).toHaveBeenNthCalledWith(1, expect.any(String), { inicio: 4, fim: 5 });
+    expect(media.abrir).toHaveBeenNthCalledWith(2, expect.any(String), { inicio: 3, fim: 5 });
+    expect(media.abrir).toHaveBeenCalledTimes(2);
   });
 
   it('falha do Graph grava mensagem com status falhou', async () => {

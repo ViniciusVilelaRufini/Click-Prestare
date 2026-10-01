@@ -2,6 +2,8 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
+import { ArquivoWhatsapp } from './whatsapp-graph.client';
+import { TipoMidiaSaida, validarMidiaSaida } from './whatsapp-media.validation';
 
 export interface MidiaEntradaWhatsApp {
   wamid: string;
@@ -100,16 +102,33 @@ export class WhatsappMediaService {
     return { chave, mime, nome: metadados.nome ? this.nomeSeguro(metadados.nome) : null, tamanho: corpo.length, status: 'armazenada' };
   }
 
-  async abrir(chave: string): Promise<{ stream: Readable; mime: string; nome: string | null; tamanho: number }> {
+  async guardarSaida({ referencia, tipo, arquivo }: { referencia: string; tipo: TipoMidiaSaida; arquivo: ArquivoWhatsapp }): Promise<MidiaWhatsApp> {
+    validarMidiaSaida({ tipo, ...arquivo });
+    if (!this.s3) return { chave: null, mime: null, nome: null, tamanho: null, status: 'indisponivel' };
+    const chave = `whatsapp/${this.segmentoSeguro(referencia)}/${randomUUID()}`;
+    const nome = this.nomeSeguro(arquivo.originalname);
+    await this.s3.send(new PutObjectCommand({
+      Bucket: this.bucket, Key: chave, Body: arquivo.buffer, ContentType: arquivo.mimetype,
+      ContentLength: arquivo.buffer.length, Metadata: { nome },
+    }));
+    return { chave, mime: arquivo.mimetype, nome, tamanho: arquivo.buffer.length, status: 'armazenada' };
+  }
+
+  async abrir(chave: string, intervalo?: { inicio: number; fim: number }): Promise<{ stream: Readable; mime: string; nome: string | null; tamanho: number; total: number; inicio: number; fim: number }> {
     if (!/^whatsapp\/[A-Za-z0-9._-]+\/[0-9a-f-]{36}$/.test(chave)) throw new Error('Chave de mídia inválida');
     if (!this.s3) throw new Error('Armazenamento de mídia indisponível');
-    const objeto = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: chave }));
+    const objeto = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: chave, ...(intervalo ? { Range: `bytes=${intervalo.inicio}-${intervalo.fim}` } : {}) }));
     if (!objeto.Body || typeof (objeto.Body as any).pipe !== 'function') throw new Error('Mídia não encontrada');
+    const tamanho = Number(objeto.ContentLength ?? 0);
+    const contentRange = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(String(objeto.ContentRange ?? ''));
+    const inicio = contentRange ? Number(contentRange[1]) : intervalo?.inicio ?? 0;
+    const fim = contentRange ? Number(contentRange[2]) : intervalo?.fim ?? Math.max(0, tamanho - 1);
+    const total = contentRange ? Number(contentRange[3]) : tamanho;
     return {
       stream: objeto.Body as Readable,
       mime: this.mimePermitido(objeto.ContentType ?? '') ?? 'application/octet-stream',
       nome: objeto.Metadata?.nome ?? null,
-      tamanho: Number(objeto.ContentLength ?? 0),
+      tamanho, total, inicio, fim,
     };
   }
 
