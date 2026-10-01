@@ -1,6 +1,6 @@
 # CRM WhatsApp — mídias e áudio Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Enviar imagem, vídeo e documento pelo CRM e renderizar mídia recebida, com player de áudio.
 
@@ -32,12 +32,12 @@
 
 **Interfaces:** `WhatsAppMediaService.guardarEntrada({ wamid, tipo, mediaId })` retorna `{ chave, mime, nome, tamanho, status }`; `abrir(chave)` retorna stream e metadados.
 
-- [ ] Escrever testes falhando para áudio inbound persistido sob chave `whatsapp/<wamid>/<uuid>` e para MIME `application/x-msdownload` rejeitado antes de Graph/S3.
-- [ ] Executar `npx nx test @org/api --skip-nx-cache -- whatsapp-media.service.spec.ts --runInBand` e confirmar RED.
-- [ ] Adicionar `media_chave`, `media_mime`, `media_nome`, `media_tamanho`, `media_status` nulos a `Crm_WhatsApp_Mensagens`, SQL idempotente e allowlists.
-- [ ] Implementar serviço injetável, allowlist MIME/categoria, limites configuráveis, S3 privado e streams sem URL pública.
-- [ ] Executar `npx prisma generate --schema prisma/schema.prisma`, teste focado e `npx nx run @org/api:typecheck`; confirmar GREEN.
-- [ ] Commit: `feat(whatsapp): armazenar mídias privadas`.
+- [x] Escrever testes falhando para áudio inbound persistido sob chave `whatsapp/<wamid>/<uuid>` e para MIME `application/x-msdownload` rejeitado antes de Graph/S3.
+- [x] Executar `npx nx test @org/api --skip-nx-cache -- whatsapp-media.service.spec.ts --runInBand` e confirmar RED.
+- [x] Adicionar `media_chave`, `media_mime`, `media_nome`, `media_tamanho`, `media_status` nulos a `Crm_WhatsApp_Mensagens`, SQL idempotente e allowlists.
+- [x] Implementar serviço injetável, allowlist MIME/categoria, limites configuráveis, S3 privado e streams sem URL pública.
+- [x] Executar `npx prisma generate --schema prisma/schema.prisma`, teste focado e `npx nx run @org/api:typecheck`; confirmar GREEN.
+- [x] Commit: `feat(whatsapp): armazenar mídias privadas`.
 
 ### Task 2: Graph API, webhook e rotas
 
@@ -45,12 +45,12 @@
 
 **Interfaces:** estender `EntradaWa` com `mediaId`, `mime`, `nome`; criar `enviarMidia({ para, tipo, arquivo, legenda? })`; expor `POST /crm/whatsapp/conversas/:id/midias` e `GET /crm/whatsapp/midias/:mensagemId`.
 
-- [ ] Escrever testes falhando: webhook de áudio extrai `mediaId`; imagem outbound chama `enviarMidia`; download sem autenticação retorna 401.
-- [ ] Executar `npx nx test @org/api --skip-nx-cache -- whatsapp-puro.spec.ts whatsapp-inbox.service.spec.ts whatsapp-crm.controller.spec.ts --runInBand` e confirmar RED.
-- [ ] Implementar upload multipart Graph seguido da mensagem `image`, `video` ou `document`; preservar metadados inbound e chamar o serviço da tarefa 1 após persistir a mensagem.
-- [ ] Implementar interceptor multipart, validação da janela, stream autenticado com MIME/Range e mensagem `falhou` em erro outbound.
-- [ ] Executar specs Graph/webhook/inbox/controller e typecheck; confirmar GREEN, incluindo `wamid` duplicado e acesso sem sessão.
-- [ ] Commit: `feat(whatsapp): enviar e receber mídias`.
+- [x] Escrever testes falhando: webhook de áudio extrai `mediaId`; imagem outbound chama `enviarMidia`; download sem autenticação retorna 401.
+- [x] Executar `npx nx test @org/api --skip-nx-cache -- whatsapp-puro.spec.ts whatsapp-inbox.service.spec.ts whatsapp-crm.controller.spec.ts --runInBand` e confirmar RED.
+- [x] Implementar upload multipart Graph seguido da mensagem `image`, `video` ou `document`; preservar metadados inbound e chamar o serviço da tarefa 1 após persistir a mensagem.
+- [x] Implementar interceptor multipart, validação da janela, stream autenticado com MIME/Range e mensagem `falhou` em erro outbound.
+- [x] Executar specs Graph/webhook/inbox/controller e typecheck; confirmar GREEN, incluindo `wamid` duplicado e acesso sem sessão.
+- [x] Commit: `feat(whatsapp): enviar e receber mídias`.
 
 ### Task 3: Anexos e reprodução no CRM
 
@@ -58,18 +58,18 @@
 
 **Interfaces:** criar `WhatsappApi.enviarMidia(id, arquivo, legenda)` e ampliar `Mensagem` com os metadados de mídia.
 
-- [ ] Escrever testes falhando para `<audio controls>` em áudio pronto e PDF selecionado enviado via `enviarMidia(1, filePdf, '')`.
-- [ ] Executar `npx nx test crm-web --skip-nx-cache -- crm-whatsapp.component.spec.ts --runInBand` e confirmar RED.
-- [ ] Implementar botão de anexo, input acessível, chip com remoção, upload/erro; preservar respostas rápidas, textarea, Enter e aviso de janela.
-- [ ] Renderizar miniatura de imagem, áudio nativo, vídeo nativo, cartão baixável de documento e estado indisponível.
-- [ ] Executar spec do componente e `npm run build:crm`; confirmar GREEN.
-- [ ] Commit: `feat(crm): anexar e reproduzir mídias WhatsApp`.
+- [x] Escrever testes falhando para `<audio controls>` em áudio pronto e PDF selecionado enviado via `enviarMidia(1, filePdf, '')`.
+- [x] Executar `npx nx test crm-web --skip-nx-cache -- crm-whatsapp.component.spec.ts --runInBand` e confirmar RED.
+- [x] Implementar botão de anexo, input acessível, chip com remoção, upload/erro; preservar respostas rápidas, textarea, Enter e aviso de janela.
+- [x] Renderizar miniatura de imagem, áudio nativo, vídeo nativo, cartão baixável de documento e estado indisponível.
+- [x] Executar spec do componente e `npm run build:crm`; confirmar GREEN.
+- [x] Commit: `feat(crm): anexar e reproduzir mídias WhatsApp`.
 
 ### Task 4: Configuração e verificação integrada
 
 **Files:** `click-cond-web/.env.example`.
 
-- [ ] Escrever teste falhando: sem configuração S3, mídia inbound retorna `status: 'indisponivel'` sem lançar no webhook.
-- [ ] Executar o spec de mídia e confirmar RED; documentar apenas `WA_MEDIA_BUCKET`, região/credenciais de runtime, sem segredos; implementar o estado seguro; confirmar GREEN.
-- [ ] Executar `npx nx test @org/api --skip-nx-cache -- --runInBand`, `npx nx test crm-web --skip-nx-cache -- --runInBand`, typecheck, build CRM e `git diff --check`.
-- [ ] Commit: `docs: configurar mídias privadas do WhatsApp`.
+- [x] Escrever teste falhando: sem configuração S3, mídia inbound retorna `status: 'indisponivel'` sem lançar no webhook.
+- [x] Executar o spec de mídia e confirmar RED; documentar apenas `WA_MEDIA_BUCKET`, região/credenciais de runtime, sem segredos; implementar o estado seguro; confirmar GREEN.
+- [x] Executar `npx nx test @org/api --skip-nx-cache -- --runInBand`, `npx nx test crm-web --skip-nx-cache -- --runInBand`, typecheck, build CRM e `git diff --check`.
+- [x] Commit: `docs: configurar mídias privadas do WhatsApp`.
