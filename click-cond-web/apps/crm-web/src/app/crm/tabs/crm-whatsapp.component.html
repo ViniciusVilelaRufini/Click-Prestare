@@ -1,4 +1,4 @@
-<div class="grid h-[calc(100vh-10rem)] min-h-[480px] grid-cols-1 overflow-hidden rounded-xl border border-slate-200 bg-white md:grid-cols-[320px_1fr]">
+﻿<div class="grid h-[calc(100vh-10rem)] min-h-[480px] grid-cols-1 overflow-hidden rounded-xl border border-slate-200 bg-white md:grid-cols-[320px_1fr]">
   <aside class="flex min-h-0 flex-col border-b border-slate-200 md:border-b-0 md:border-r" [class.hidden]="selecionadaId() !== null" [class.md:flex]="true">
     <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
       <h2 class="text-sm font-semibold">Conversas</h2>
@@ -43,9 +43,48 @@
       <div class="min-h-0 flex-1 space-y-2 overflow-y-auto bg-slate-50 px-4 py-3">
         @for (m of mensagens(); track m.id) {
           <div class="flex" [class.justify-end]="m.direcao === 'saida'">
-            <div class="max-w-[75%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm shadow-sm"
+            <div class="max-w-[75%] rounded-lg px-3 py-2 text-sm shadow-sm"
                  [class.bg-emerald-100]="m.direcao === 'saida'" [class.bg-white]="m.direcao === 'entrada'">
-              {{ m.texto }}
+
+              @if (temMidia(m)) {
+                <div class="mb-2">
+                  @if (midiaDisponivel(m)) {
+                    @if (m.tipo === 'audio') {
+                      <audio controls class="max-w-full rounded" [src]="urlMidia(m)">
+                        Seu navegador não suporta áudio.
+                      </audio>
+                    } @else if (m.tipo === 'image') {
+                      <a [href]="urlMidia(m)" target="_blank" rel="noopener noreferrer" class="block overflow-hidden rounded border border-slate-200">
+                        <img [src]="urlMidia(m)" [alt]="m.mediaNome || 'Imagem'" class="max-h-60 w-auto rounded object-contain" />
+                      </a>
+                    } @else if (m.tipo === 'video') {
+                      <video controls class="max-h-64 max-w-full rounded" [src]="urlMidia(m)">
+                        Seu navegador não suporta vídeo.
+                      </video>
+                    } @else {
+                      <a [href]="urlMidia(m)" target="_blank" download [attr.download]="m.mediaNome || 'documento'"
+                         class="flex items-center gap-2 rounded border border-slate-300 bg-white/80 p-2 text-xs font-medium text-slate-800 hover:bg-white">
+                        <span class="text-base">📄</span>
+                        <span class="truncate flex-1">{{ m.mediaNome || 'Baixar documento' }}</span>
+                        @if (m.mediaTamanho) {
+                          <span class="text-slate-400 text-[10px]">{{ formatarTamanho(m.mediaTamanho) }}</span>
+                        }
+                        <span class="text-emerald-700 font-semibold">⬇</span>
+                      </a>
+                    }
+                  } @else {
+                    <div class="flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50/80 px-2.5 py-1.5 text-xs text-amber-800">
+                      <span>⚠️</span>
+                      <span>Mídia indisponível</span>
+                    </div>
+                  }
+                </div>
+              }
+
+              @if (mostrarTexto(m)) {
+                <div class="whitespace-pre-wrap">{{ m.texto }}</div>
+              }
+
               <div class="mt-1 text-right text-[11px] text-slate-500">
                 @if (automatica(m)) { <span class="mr-1 rounded bg-slate-200 px-1 text-[10px] text-slate-600">automática</span> }
                 {{ m.criadoEm | date: 'dd/MM HH:mm' }} @if (m.direcao === 'saida') { · {{ marca(m) }} }
@@ -70,12 +109,31 @@
             }
           </ul>
         }
-        <form class="flex gap-2 p-3" (submit)="$event.preventDefault(); enviar()">
-          <button type="button" class="shrink-0 rounded-lg border border-slate-300 px-2 text-lg leading-none text-slate-600 hover:bg-slate-50" title="Respostas rápidas (ou digite /)" aria-label="Respostas rápidas" (click)="menuRespostas.set(!menuRespostas())">⚡</button>
-          <textarea [(ngModel)]="texto" (ngModelChange)="digitado.set($event)" name="texto" rows="2" maxlength="4096" placeholder="Escreva a resposta… (digite / para respostas rápidas)"
+
+        @if (anexo(); as a) {
+          <div class="flex items-center justify-between border-b border-slate-200 bg-slate-100 px-3 py-1.5 text-xs text-slate-700">
+            <div class="flex items-center gap-2 truncate">
+              <span class="font-medium text-emerald-700">📎 Anexo:</span>
+              <span class="truncate font-semibold">{{ a.name }}</span>
+              <span class="text-slate-500">({{ formatarTamanho(a.size) }})</span>
+            </div>
+            <button type="button" (click)="removerAnexo()" class="ml-2 font-bold text-slate-400 hover:text-red-600" title="Remover anexo" aria-label="Remover anexo">✕</button>
+          </div>
+        }
+
+        <form class="flex items-end gap-2 p-3" (submit)="$event.preventDefault(); enviar()">
+          <button type="button" class="shrink-0 rounded-lg border border-slate-300 p-2 text-lg leading-none text-slate-600 hover:bg-slate-50" title="Respostas rápidas (ou digite /)" aria-label="Respostas rápidas" (click)="menuRespostas.set(!menuRespostas())">⚡</button>
+          
+          <label class="shrink-0 cursor-pointer rounded-lg border border-slate-300 p-2 text-lg leading-none text-slate-600 hover:bg-slate-50" title="Anexar arquivo" aria-label="Anexar arquivo">
+            📎
+            <input #inputArquivo type="file" class="sr-only" (change)="selecionarArquivo($event)"
+                   accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" />
+          </label>
+
+          <textarea [(ngModel)]="texto" (ngModelChange)="digitado.set($event)" name="texto" rows="2" maxlength="4096" placeholder="Escreva a resposta... (digite / para respostas rápidas)"
                     (keydown.enter)="teclaEnter($any($event))"
                     class="min-w-0 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm"></textarea>
-          <button type="submit" [disabled]="enviando() || !texto.trim()" class="rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Enviar</button>
+          <button type="submit" [disabled]="enviando() || (!texto.trim() && !anexo())" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Enviar</button>
         </form>
         </div>
       } @else {

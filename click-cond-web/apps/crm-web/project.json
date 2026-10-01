@@ -72,6 +72,16 @@
         "cwd": "apps/crm-web",
         "command": "tsc -p tsconfig.app.json --noEmit"
       }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": [
+        "{projectRoot}/test-output/jest/coverage"
+      ],
+      "options": {
+        "jestConfig": "apps/crm-web/jest.config.cts",
+        "tsConfig": "apps/crm-web/tsconfig.spec.json"
+      }
     }
   }
 }
