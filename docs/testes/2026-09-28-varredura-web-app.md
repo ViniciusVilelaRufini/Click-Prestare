@@ -69,6 +69,15 @@ Plano: `docs/superpowers/plans/2026-09-28-correcoes-varredura.md`.
 - **33. 🟠 (produto) Console web sem tela de Mudanças**: o morador agenda e a mudança fica "Pendente", mas a portaria no console não vê nem aprova (só em Relatórios / app do síndico).
 - APK com as correções de app dos ciclos 1–3 instalado no emulador.
 
+### Correções dos pendentes (29/09, `a3be2d5a`)
+- **21. Permissão de notificação** — ✅ corrigido (código): o app pede notificação logo após a câmera (antes eram dois pedidos simultâneos e o Android descartava um). **Não retestado** — emulador desligado.
+- **30. Delivery "Aguardando autorização"** — ✅ o morador ganhou "Autorizar entrega" e "Recusar" no detalhe; a API aceita só a resposta do morador que abriu o aviso (testes: outro morador e outros status seguem proibidos). Push não volta para quem respondeu. Não retestado no app.
+- **31. UX do Delivery** — ✅ lista do app recarrega ao voltar do segundo plano; painel do console segue aberto após mudar o status (com a linha do tempo nova).
+- **20. Erro da enquete** — ✅ o modal mostra a mensagem do backend.
+- **33. Mudanças no web** — decisão: manter como está (aprovação só pelo app do síndico).
+- Suítes: API 1714, web 123, app 215 — verdes. Deploy da API e CI verdes.
+- **Pendente**: reinstalar o APK novo (`click-cond-app/build/app/outputs/flutter-apk/app-release.apk`) e retestar 21 e 30 no emulador.
+
 ## Bugs
 
 ### 1. 🔴 App mostra "Você é o proprietário" para qualquer morador
