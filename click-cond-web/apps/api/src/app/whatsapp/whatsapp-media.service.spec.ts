@@ -1,4 +1,7 @@
-import { Readable, Writable } from 'node:stream';
+import { S3Client } from '@aws-sdk/client-s3';
+import { createServer } from 'node:http';
+import { AddressInfo } from 'node:net';
+import { Readable } from 'node:stream';
 import { WhatsappMediaService } from './whatsapp-media.service';
 
 describe('WhatsappMediaService', () => {
@@ -14,7 +17,7 @@ describe('WhatsappMediaService', () => {
     graph.obterMidia.mockResolvedValue({
       mime: 'audio/ogg; codecs=opus',
       nome: undefined,
-      tamanho: 12,
+      tamanho: 5,
     });
     graph.baixarMidia.mockResolvedValue(Readable.from([Buffer.from('audio')]));
     s3.send.mockResolvedValue({});
@@ -29,7 +32,7 @@ describe('WhatsappMediaService', () => {
       chave: expect.stringMatching(/^whatsapp\/wamid\.inbound\.1\/[0-9a-f-]{36}$/),
       mime: 'audio/ogg',
       nome: null,
-      tamanho: 12,
+      tamanho: 5,
       status: 'armazenada',
     }));
     expect(graph.baixarMidia).toHaveBeenCalledWith('media-1');
@@ -90,29 +93,39 @@ describe('WhatsappMediaService', () => {
       .rejects.toThrow('Mídia excede o limite permitido');
   });
 
-  it('aborts a Smithy-style Node upload and rejects promptly when the stream overflows', async () => {
+  it('does not start a real Smithy Node upload when a delayed byte exceeds the limit', async () => {
     graph.obterMidia.mockResolvedValue({ mime: 'audio/ogg', tamanho: 4 });
-    graph.baixarMidia.mockResolvedValue(Readable.from([Buffer.alloc(4), Buffer.alloc(1)]));
-    let abortou = false;
-    s3.send.mockImplementation((command: any, options: any) => new Promise((_resolve, reject) => {
-      // The Smithy Node handler pipes the body to an HTTP request; body errors
-      // alone do not reject this promise. Only aborting the request does.
-      const request = new Writable({ write(_chunk, _encoding, callback) { callback(); } });
-      command.input.Body.on('error', () => undefined);
-      command.input.Body.pipe(request);
-      options?.abortSignal?.addEventListener('abort', () => {
-        abortou = true;
-        reject(new Error('request aborted'));
-      }, { once: true });
+    let primeiroEnviado = false;
+    graph.baixarMidia.mockResolvedValue(new Readable({
+      read() {
+        if (primeiroEnviado) return;
+        primeiroEnviado = true;
+        this.push(Buffer.alloc(4));
+        setTimeout(() => { this.push(Buffer.alloc(1)); this.push(null); }, 25);
+      },
     }));
-    const service = new WhatsappMediaService(graph as any, s3 as any, { bucket: 'whatsapp-private', maxBytes: 4 });
-    const resultado = service.guardarEntrada({ wamid: 'wamid.abort', tipo: 'audio', mediaId: 'media-abort' });
-    const dentroDoPrazo = Promise.race([
-      resultado,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('upload timeout')), 100)),
-    ]);
+    let requisicoes = 0;
+    const servidor = createServer((req, res) => {
+      requisicoes++;
+      req.resume();
+      req.on('end', () => { res.statusCode = 200; res.setHeader('etag', '"teste"'); res.end(); });
+    });
+    await new Promise<void>((resolve) => servidor.listen(0, '127.0.0.1', resolve));
+    const porta = (servidor.address() as AddressInfo).port;
+    const client = new S3Client({
+      region: 'us-east-1', endpoint: `http://127.0.0.1:${porta}`, forcePathStyle: true,
+      credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+    });
+    const service = new WhatsappMediaService(graph as any, client, { bucket: 'whatsapp-private', maxBytes: 4 });
 
-    await expect(dentroDoPrazo).rejects.toThrow('Mídia excede o limite permitido');
-    expect(abortou).toBe(true);
+    try {
+      await expect(service.guardarEntrada({ wamid: 'wamid.delayed', tipo: 'audio', mediaId: 'media-delayed' }))
+        .rejects.toThrow('Mídia excede o limite permitido');
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      expect(requisicoes).toBe(0);
+    } finally {
+      client.destroy();
+      await new Promise<void>((resolve, reject) => servidor.close((erro) => erro ? reject(erro) : resolve()));
+    }
   });
 });

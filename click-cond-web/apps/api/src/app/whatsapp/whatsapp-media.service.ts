@@ -1,7 +1,7 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { Readable, Transform } from 'node:stream';
+import { Readable } from 'node:stream';
 
 export interface MidiaEntradaWhatsApp {
   wamid: string;
@@ -88,18 +88,16 @@ export class WhatsappMediaService {
     }
 
     const chave = `whatsapp/${this.segmentoSeguro(wamid)}/${randomUUID()}`;
-    const controleUpload = new AbortController();
-    const limite = this.limitarStream(await this.graph.baixarMidia(mediaId), () => controleUpload.abort());
-    const envio = this.s3.send(new PutObjectCommand({
+    const corpo = await this.lerAteLimite(await this.graph.baixarMidia(mediaId));
+    await this.s3.send(new PutObjectCommand({
       Bucket: this.bucket,
       Key: chave,
-      Body: limite.stream,
+      Body: corpo,
       ContentType: mime,
-      ContentLength: metadados.tamanho,
+      ContentLength: corpo.length,
       Metadata: metadados.nome ? { nome: this.nomeSeguro(metadados.nome) } : undefined,
-    }), { abortSignal: controleUpload.signal });
-    await Promise.race([envio, limite.excedeu]);
-    return { chave, mime, nome: metadados.nome ? this.nomeSeguro(metadados.nome) : null, tamanho: metadados.tamanho, status: 'armazenada' };
+    }));
+    return { chave, mime, nome: metadados.nome ? this.nomeSeguro(metadados.nome) : null, tamanho: corpo.length, status: 'armazenada' };
   }
 
   async abrir(chave: string): Promise<{ stream: Readable; mime: string; nome: string | null; tamanho: number }> {
@@ -125,24 +123,19 @@ export class WhatsappMediaService {
     return mime.startsWith(`${tipo}/`);
   }
 
-  private limitarStream(stream: Readable, aoExceder: () => void): { stream: Transform; excedeu: Promise<never> } {
+  private async lerAteLimite(stream: Readable): Promise<Buffer> {
     let total = 0;
-    const limite = this.maxBytes;
-    let rejeitarExcesso!: (erro: Error) => void;
-    const excedeu = new Promise<never>((_resolve, reject) => { rejeitarExcesso = reject; });
-    const transform = new Transform({
-      transform(chunk, _encoding, callback) {
-        total += Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk);
-        if (total > limite) {
-          const erro = new Error('Mídia excede o limite permitido');
-          rejeitarExcesso(erro);
-          aoExceder();
-          return callback(erro);
-        }
-        callback(null, chunk);
-      },
-    });
-    return { stream: stream.pipe(transform), excedeu };
+    const partes: Buffer[] = [];
+    for await (const chunk of stream) {
+      const parte = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += parte.length;
+      if (total > this.maxBytes) {
+        stream.destroy();
+        throw new Error('Mídia excede o limite permitido');
+      }
+      partes.push(parte);
+    }
+    return Buffer.concat(partes, total);
   }
 
   private segmentoSeguro(valor: string): string {
