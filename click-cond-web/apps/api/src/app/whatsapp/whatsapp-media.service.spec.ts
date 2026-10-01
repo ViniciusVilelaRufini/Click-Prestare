@@ -1,4 +1,4 @@
-import { Readable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 import { WhatsappMediaService } from './whatsapp-media.service';
 
 describe('WhatsappMediaService', () => {
@@ -88,5 +88,31 @@ describe('WhatsappMediaService', () => {
 
     await expect(service.guardarEntrada({ wamid: 'wamid.large', tipo: 'audio', mediaId: 'media-large' }))
       .rejects.toThrow('Mídia excede o limite permitido');
+  });
+
+  it('aborts a Smithy-style Node upload and rejects promptly when the stream overflows', async () => {
+    graph.obterMidia.mockResolvedValue({ mime: 'audio/ogg', tamanho: 4 });
+    graph.baixarMidia.mockResolvedValue(Readable.from([Buffer.alloc(4), Buffer.alloc(1)]));
+    let abortou = false;
+    s3.send.mockImplementation((command: any, options: any) => new Promise((_resolve, reject) => {
+      // The Smithy Node handler pipes the body to an HTTP request; body errors
+      // alone do not reject this promise. Only aborting the request does.
+      const request = new Writable({ write(_chunk, _encoding, callback) { callback(); } });
+      command.input.Body.on('error', () => undefined);
+      command.input.Body.pipe(request);
+      options?.abortSignal?.addEventListener('abort', () => {
+        abortou = true;
+        reject(new Error('request aborted'));
+      }, { once: true });
+    }));
+    const service = new WhatsappMediaService(graph as any, s3 as any, { bucket: 'whatsapp-private', maxBytes: 4 });
+    const resultado = service.guardarEntrada({ wamid: 'wamid.abort', tipo: 'audio', mediaId: 'media-abort' });
+    const dentroDoPrazo = Promise.race([
+      resultado,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('upload timeout')), 100)),
+    ]);
+
+    await expect(dentroDoPrazo).rejects.toThrow('Mídia excede o limite permitido');
+    expect(abortou).toBe(true);
   });
 });

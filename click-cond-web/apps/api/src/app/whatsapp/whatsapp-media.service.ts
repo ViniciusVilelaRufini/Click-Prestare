@@ -88,14 +88,17 @@ export class WhatsappMediaService {
     }
 
     const chave = `whatsapp/${this.segmentoSeguro(wamid)}/${randomUUID()}`;
-    await this.s3.send(new PutObjectCommand({
+    const controleUpload = new AbortController();
+    const limite = this.limitarStream(await this.graph.baixarMidia(mediaId), () => controleUpload.abort());
+    const envio = this.s3.send(new PutObjectCommand({
       Bucket: this.bucket,
       Key: chave,
-      Body: this.limitarStream(await this.graph.baixarMidia(mediaId)),
+      Body: limite.stream,
       ContentType: mime,
       ContentLength: metadados.tamanho,
       Metadata: metadados.nome ? { nome: this.nomeSeguro(metadados.nome) } : undefined,
-    }));
+    }), { abortSignal: controleUpload.signal });
+    await Promise.race([envio, limite.excedeu]);
     return { chave, mime, nome: metadados.nome ? this.nomeSeguro(metadados.nome) : null, tamanho: metadados.tamanho, status: 'armazenada' };
   }
 
@@ -122,16 +125,24 @@ export class WhatsappMediaService {
     return mime.startsWith(`${tipo}/`);
   }
 
-  private limitarStream(stream: Readable): Transform {
+  private limitarStream(stream: Readable, aoExceder: () => void): { stream: Transform; excedeu: Promise<never> } {
     let total = 0;
     const limite = this.maxBytes;
-    return stream.pipe(new Transform({
+    let rejeitarExcesso!: (erro: Error) => void;
+    const excedeu = new Promise<never>((_resolve, reject) => { rejeitarExcesso = reject; });
+    const transform = new Transform({
       transform(chunk, _encoding, callback) {
         total += Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk);
-        if (total > limite) return callback(new Error('Mídia excede o limite permitido'));
+        if (total > limite) {
+          const erro = new Error('Mídia excede o limite permitido');
+          rejeitarExcesso(erro);
+          aoExceder();
+          return callback(erro);
+        }
         callback(null, chunk);
       },
-    }));
+    });
+    return { stream: stream.pipe(transform), excedeu };
   }
 
   private segmentoSeguro(valor: string): string {
