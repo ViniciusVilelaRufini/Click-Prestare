@@ -62,14 +62,15 @@ export class WhatsappMediaService {
     s3?: S3Client,
     config?: StorageConfig,
   ) {
-    const endpoint = process.env.WA_MEDIA_S3_ENDPOINT;
-    const accessKeyId = process.env.WA_MEDIA_S3_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.WA_MEDIA_S3_SECRET_ACCESS_KEY;
-    this.bucket = config?.bucket ?? process.env.WA_MEDIA_S3_BUCKET ?? '';
+    const endpoint = process.env.WA_MEDIA_ENDPOINT || process.env.WA_MEDIA_S3_ENDPOINT;
+    const accessKeyId = process.env.WA_MEDIA_ACCESS_KEY_ID || process.env.WA_MEDIA_S3_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.WA_MEDIA_SECRET_ACCESS_KEY || process.env.WA_MEDIA_S3_SECRET_ACCESS_KEY;
+    const region = process.env.WA_MEDIA_REGION || process.env.WA_MEDIA_S3_REGION || (endpoint ? 'auto' : 'us-east-1');
+    this.bucket = config?.bucket ?? process.env.WA_MEDIA_BUCKET ?? process.env.WA_MEDIA_S3_BUCKET ?? '';
     this.maxBytes = config?.maxBytes ?? Number(process.env.WA_MEDIA_MAX_BYTES || LIMITE_PADRAO);
     if (!Number.isSafeInteger(this.maxBytes) || this.maxBytes <= 0) throw new Error('WA_MEDIA_MAX_BYTES inválido');
     this.s3 = this.bucket ? s3 ?? new S3Client({
-      region: process.env.WA_MEDIA_S3_REGION || (endpoint ? 'auto' : 'us-east-1'),
+      region,
       ...(endpoint ? { endpoint } : {}),
       ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
     }) : null;
