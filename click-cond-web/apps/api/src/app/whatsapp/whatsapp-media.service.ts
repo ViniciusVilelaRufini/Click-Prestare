@@ -1,7 +1,7 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { Readable } from 'node:stream';
+import { Readable, Transform } from 'node:stream';
 
 export interface MidiaEntradaWhatsApp {
   wamid: string;
@@ -9,7 +9,7 @@ export interface MidiaEntradaWhatsApp {
   mediaId: string;
 }
 
-export interface MidiaWhatsApp {
+export interface MidiaWhatsAppArmazenada {
   chave: string;
   mime: string;
   nome: string | null;
@@ -17,13 +17,23 @@ export interface MidiaWhatsApp {
   status: 'armazenada';
 }
 
+export interface MidiaWhatsAppIndisponivel {
+  chave: null;
+  mime: null;
+  nome: null;
+  tamanho: null;
+  status: 'indisponivel';
+}
+
+export type MidiaWhatsApp = MidiaWhatsAppArmazenada | MidiaWhatsAppIndisponivel;
+
 interface GraphMidia {
   obterMidia(mediaId: string): Promise<{ mime: string; nome?: string; tamanho: number }>;
   baixarMidia(mediaId: string): Promise<Readable>;
 }
 
 interface StorageConfig {
-  bucket: string;
+  bucket?: string;
   maxBytes?: number;
 }
 
@@ -43,7 +53,7 @@ const LIMITE_PADRAO = 16 * 1024 * 1024;
 export class WhatsappMediaService {
   private readonly bucket: string;
   private readonly maxBytes: number;
-  private readonly s3: S3Client;
+  private readonly s3: S3Client | null;
 
   constructor(
     private readonly graph: GraphMidia,
@@ -55,22 +65,22 @@ export class WhatsappMediaService {
     const secretAccessKey = process.env.WA_MEDIA_S3_SECRET_ACCESS_KEY;
     this.bucket = config?.bucket ?? process.env.WA_MEDIA_S3_BUCKET ?? '';
     this.maxBytes = config?.maxBytes ?? Number(process.env.WA_MEDIA_MAX_BYTES || LIMITE_PADRAO);
-    if (!this.bucket) throw new Error('WA_MEDIA_S3_BUCKET não configurado');
     if (!Number.isSafeInteger(this.maxBytes) || this.maxBytes <= 0) throw new Error('WA_MEDIA_MAX_BYTES inválido');
-    this.s3 = s3 ?? new S3Client({
+    this.s3 = this.bucket ? s3 ?? new S3Client({
       region: process.env.WA_MEDIA_S3_REGION || (endpoint ? 'auto' : 'us-east-1'),
       ...(endpoint ? { endpoint } : {}),
       ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
-    });
+    }) : null;
   }
 
   async guardarEntrada({ wamid, tipo, mediaId }: MidiaEntradaWhatsApp): Promise<MidiaWhatsApp> {
     if (!CATEGORIAS_PERMITIDAS.has(tipo)) throw new Error('Tipo de mídia não permitido');
     if (!wamid || !mediaId) throw new Error('wamid e mediaId são obrigatórios');
+    if (!this.s3) return { chave: null, mime: null, nome: null, tamanho: null, status: 'indisponivel' };
 
     const metadados = await this.graph.obterMidia(mediaId);
     const mime = this.mimePermitido(metadados.mime);
-    if (!mime || !mime.startsWith(`${tipo}/`) && !(tipo === 'document' && !mime.startsWith('application/') && mime !== 'text/plain')) {
+    if (!mime || !this.mimeDaCategoria(tipo, mime)) {
       throw new Error('Tipo de mídia não permitido');
     }
     if (!Number.isSafeInteger(metadados.tamanho) || metadados.tamanho < 0 || metadados.tamanho > this.maxBytes) {
@@ -81,7 +91,7 @@ export class WhatsappMediaService {
     await this.s3.send(new PutObjectCommand({
       Bucket: this.bucket,
       Key: chave,
-      Body: await this.graph.baixarMidia(mediaId),
+      Body: this.limitarStream(await this.graph.baixarMidia(mediaId)),
       ContentType: mime,
       ContentLength: metadados.tamanho,
       Metadata: metadados.nome ? { nome: this.nomeSeguro(metadados.nome) } : undefined,
@@ -91,6 +101,7 @@ export class WhatsappMediaService {
 
   async abrir(chave: string): Promise<{ stream: Readable; mime: string; nome: string | null; tamanho: number }> {
     if (!/^whatsapp\/[A-Za-z0-9._-]+\/[0-9a-f-]{36}$/.test(chave)) throw new Error('Chave de mídia inválida');
+    if (!this.s3) throw new Error('Armazenamento de mídia indisponível');
     const objeto = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: chave }));
     if (!objeto.Body || typeof (objeto.Body as any).pipe !== 'function') throw new Error('Mídia não encontrada');
     return {
@@ -104,6 +115,23 @@ export class WhatsappMediaService {
   private mimePermitido(valor: string): string | null {
     const mime = valor.split(';', 1)[0].trim().toLowerCase();
     return MIME_PERMITIDOS.has(mime) ? mime : null;
+  }
+
+  private mimeDaCategoria(tipo: string, mime: string): boolean {
+    if (tipo === 'document') return mime.startsWith('application/') || mime === 'text/plain';
+    return mime.startsWith(`${tipo}/`);
+  }
+
+  private limitarStream(stream: Readable): Transform {
+    let total = 0;
+    const limite = this.maxBytes;
+    return stream.pipe(new Transform({
+      transform(chunk, _encoding, callback) {
+        total += Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk);
+        if (total > limite) return callback(new Error('Mídia excede o limite permitido'));
+        callback(null, chunk);
+      },
+    }));
   }
 
   private segmentoSeguro(valor: string): string {
