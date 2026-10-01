@@ -26,6 +26,16 @@ describe('interpretarWebhook', () => {
     const r = interpretarWebhook(env({ messages: [{ from: '55', id: 'w2', timestamp: '1', type: 'audio', audio: {} }] }));
     expect(r.mensagens[0].texto).toBe('[áudio recebido]');
   });
+  it('preserva o identificador e MIME do áudio para armazenamento privado', () => {
+    const r = interpretarWebhook(env({ messages: [{
+      from: '55', id: 'w-audio', timestamp: '1', type: 'audio',
+      audio: { id: 'media-audio-1', mime_type: 'audio/ogg; codecs=opus' },
+    }] }));
+
+    expect(r.mensagens[0]).toMatchObject({
+      wamid: 'w-audio', tipo: 'audio', mediaId: 'media-audio-1', mime: 'audio/ogg; codecs=opus',
+    });
+  });
   it('status traduzido, com erro', () => {
     const r = interpretarWebhook(env({ statuses: [
       { id: 'w3', status: 'delivered' },

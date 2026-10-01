@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { WhatsappInboxService } from './whatsapp-inbox.service';
 import { AUTOMACOES_PADRAO, normalizarConfig } from './whatsapp-automacao';
 
-function montar(config?: any, conversions?: any) {
+function montar(config?: any, conversions?: any, media?: any) {
   const conversas: any[] = [];
   const msgs: any[] = [];
   const leads: any[] = [];
@@ -49,8 +49,8 @@ function montar(config?: any, conversions?: any) {
       create: jest.fn(async ({ data }: any) => { const l = { id: leads.length + 1, ...data }; leads.push(l); return l; }),
     },
   };
-  const graph = { enviarTexto: jest.fn(async () => 'wamid.saida'), enviarModelo: jest.fn(async () => 'wamid.modelo'), marcarLida: jest.fn(async () => undefined) };
-  return { conversas, msgs, leads, prisma, graph, svc: new (WhatsappInboxService as any)(prisma, graph, config, conversions) };
+  const graph = { enviarTexto: jest.fn(async () => 'wamid.saida'), enviarModelo: jest.fn(async () => 'wamid.modelo'), enviarMidia: jest.fn(async () => 'wamid.midia'), marcarLida: jest.fn(async () => undefined) };
+  return { conversas, msgs, leads, prisma, graph, svc: new (WhatsappInboxService as any)(prisma, graph, config, conversions, media) };
 }
 
 const entrada = (over: any = {}) => ({ wamid: 'w1', waId: '5521999369814', nomePerfil: 'Ana', tipo: 'text', texto: 'Oi', em: new Date(), ...over });
@@ -132,6 +132,37 @@ describe('WhatsappInboxService', () => {
     expect(conversions.confirmarLeadWhatsApp).toHaveBeenCalledTimes(1);
   });
 
+  it('persiste a mensagem inbound antes de guardar sua mídia privada', async () => {
+    const media = { guardarEntrada: jest.fn(async () => ({
+      chave: 'whatsapp/w-audio/00000000-0000-4000-8000-000000000001', mime: 'audio/ogg', nome: null, tamanho: 12, status: 'armazenada',
+    })) };
+    const t = montar(undefined, undefined, media);
+
+    await t.svc.registrarEntrada(entrada({ wamid: 'w-audio', tipo: 'audio', mediaId: 'media-audio-1', mime: 'audio/ogg' }));
+
+    expect(media.guardarEntrada).toHaveBeenCalledWith({ wamid: 'w-audio', tipo: 'audio', mediaId: 'media-audio-1' });
+    expect(t.msgs[0]).toMatchObject({
+      media_chave: 'whatsapp/w-audio/00000000-0000-4000-8000-000000000001', media_mime: 'audio/ogg',
+      media_tamanho: 12, media_status: 'armazenada',
+    });
+  });
+
+  it('mantém MIME e nome recebidos no webhook quando o armazenamento está indisponível', async () => {
+    const media = { guardarEntrada: jest.fn(async () => ({
+      chave: null, mime: null, nome: null, tamanho: null, status: 'indisponivel',
+    })) };
+    const t = montar(undefined, undefined, media);
+
+    await t.svc.registrarEntrada(entrada({
+      wamid: 'w-documento', tipo: 'document', mediaId: 'media-documento-1',
+      mime: 'application/pdf', nome: 'proposta.pdf',
+    }));
+
+    expect(t.msgs[0]).toMatchObject({
+      media_mime: 'application/pdf', media_nome: 'proposta.pdf', media_status: 'indisponivel',
+    });
+  });
+
   it('dispatches a paid conversation only for its first distinct inbound wamid', async () => {
     const conversions = { confirmarLeadWhatsApp: jest.fn(async () => undefined) };
     const t = montar(undefined, conversions);
@@ -169,6 +200,34 @@ describe('WhatsappInboxService', () => {
     await t.svc.registrarEntrada(entrada({ em: new Date(Date.now() - 25 * 3600 * 1000) }));
     await expect(t.svc.enviar(1, 'Oi')).rejects.toBeInstanceOf(ConflictException);
     expect(t.graph.enviarTexto).not.toHaveBeenCalled();
+  });
+
+  it('envia imagem pela Graph API e registra a saída', async () => {
+    const t = montar();
+    await t.svc.registrarEntrada(entrada());
+
+    const m = await t.svc.enviarMidia(1, {
+      tipo: 'image', legenda: 'Portaria',
+      arquivo: { buffer: Buffer.from('png'), mimetype: 'image/png', originalname: 'portaria.png' },
+    });
+
+    expect(t.graph.enviarMidia).toHaveBeenCalledWith({
+      para: '5521999369814', tipo: 'image', legenda: 'Portaria',
+      arquivo: expect.objectContaining({ mimetype: 'image/png', originalname: 'portaria.png' }),
+    });
+    expect(m).toMatchObject({ direcao: 'saida', tipo: 'image', texto: 'Portaria', status: 'enviada' });
+  });
+
+  it('registra mídia como falhou quando o upload ou envio Graph falha', async () => {
+    const t = montar();
+    t.graph.enviarMidia.mockRejectedValueOnce(new Error('upload recusado'));
+    await t.svc.registrarEntrada(entrada());
+
+    const m = await t.svc.enviarMidia(1, {
+      tipo: 'document', arquivo: { buffer: Buffer.from('pdf'), mimetype: 'application/pdf', originalname: 'proposta.pdf' },
+    });
+
+    expect(m).toMatchObject({ direcao: 'saida', tipo: 'document', status: 'falhou', erro: 'upload recusado', mediaStatus: 'falhou' });
   });
 
   it('falha do Graph grava mensagem com status falhou', async () => {

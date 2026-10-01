@@ -4,6 +4,20 @@ import { MarketingSegredosService } from '../marketing/marketing-segredos.servic
 
 const PHONE_ID = process.env.WA_PHONE_ID || '1356887267509002';
 const BASE = `https://graph.facebook.com/v25.0/${PHONE_ID}/messages`;
+const MEDIA_BASE = `https://graph.facebook.com/v25.0/${PHONE_ID}/media`;
+
+export interface ArquivoWhatsapp {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+}
+
+export interface EnvioMidiaWhatsapp {
+  para: string;
+  tipo: 'image' | 'video' | 'document';
+  arquivo: ArquivoWhatsapp;
+  legenda?: string;
+}
 
 @Injectable()
 export class WhatsappGraphClient {
@@ -47,6 +61,30 @@ export class WhatsappGraphClient {
     }
   }
 
+  /** Faz upload privado no Graph e só então referencia o media id na mensagem. */
+  async enviarMidia({ para, tipo, arquivo, legenda }: EnvioMidiaWhatsapp): Promise<string> {
+    if (!['image', 'video', 'document'].includes(tipo)) throw new Error('Tipo de mídia não permitido');
+    if (!arquivo?.buffer?.length || !arquivo.mimetype || !arquivo.originalname) throw new Error('Arquivo de mídia inválido');
+    const token = await this.segredos.obter('WA_ACCESS_TOKEN');
+    if (!token) throw new Error('WA_ACCESS_TOKEN não configurado');
+
+    const form = new FormData();
+    const conteudoArquivo = new Uint8Array(arquivo.buffer.length);
+    conteudoArquivo.set(arquivo.buffer);
+    form.append('messaging_product', 'whatsapp');
+    form.append('file', new Blob([conteudoArquivo], { type: arquivo.mimetype }), this.nomeArquivoSeguro(arquivo.originalname));
+    const upload = await fetch(MEDIA_BASE, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+    const uploadJson: any = await upload.json().catch(() => ({}));
+    if (!upload.ok) throw new Error(uploadJson?.error?.message ?? `Graph API ${upload.status}`);
+    if (!uploadJson?.id) throw new Error('Graph API não devolveu o id da mídia');
+
+    const conteudo = { id: String(uploadJson.id), ...(legenda?.trim() ? { caption: legenda.trim() } : {}) };
+    const json = await this.post({ to: para, type: tipo, [tipo]: conteudo });
+    const wamid = json?.messages?.[0]?.id;
+    if (!wamid) throw new Error('Graph API não devolveu o id da mensagem');
+    return String(wamid);
+  }
+
   async obterMidia(mediaId: string): Promise<{ mime: string; nome?: string; tamanho: number }> {
     const token = await this.segredos.obter('WA_ACCESS_TOKEN');
     if (!token) throw new Error('WA_ACCESS_TOKEN não configurado');
@@ -71,5 +109,9 @@ export class WhatsappGraphClient {
     const arquivo = await fetch(String(json.url), { headers: { Authorization: `Bearer ${token}` } });
     if (!arquivo.ok || !arquivo.body) throw new Error(`Graph API ${arquivo.status}`);
     return Readable.fromWeb(arquivo.body as any);
+  }
+
+  private nomeArquivoSeguro(nome: string): string {
+    return nome.replace(/[\r\n\\/:*?"<>|\x00-\x1F]/g, '_').slice(0, 255) || 'arquivo';
   }
 }

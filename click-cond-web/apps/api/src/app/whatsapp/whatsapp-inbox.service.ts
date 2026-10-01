@@ -1,11 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { WhatsappGraphClient } from './whatsapp-graph.client';
+import { ArquivoWhatsapp, WhatsappGraphClient } from './whatsapp-graph.client';
 import { EntradaWa, janelaAberta, StatusWa, statusAvanca } from './whatsapp-puro';
 import { decidirAutomacao } from './whatsapp-automacao';
 import { WhatsappConfigService } from './whatsapp-config.service';
 import { MarketingConversionsService } from '../marketing/marketing-conversions.service';
+import { WhatsappMediaService } from './whatsapp-media.service';
 
 const JUNCAO_MS = 30 * 60 * 1000;
 /** Webhook reenviado depois de uma queda não dispara resposta automática atrasada. */
@@ -29,10 +30,15 @@ export interface ConversaDto {
 }
 export interface MensagemDto {
   id: number; direcao: 'entrada' | 'saida'; tipo: string; texto: string; status: string; erro: string | null; criadoEm: string;
+  mediaChave: string | null; mediaMime: string | null; mediaNome: string | null; mediaTamanho: number | null; mediaStatus: string | null;
 }
 
 function msgDto(m: any): MensagemDto {
-  return { id: m.id, direcao: m.direcao, tipo: m.tipo, texto: m.texto, status: m.status, erro: m.erro ?? null, criadoEm: new Date(m.criado_em).toISOString() };
+  return {
+    id: m.id, direcao: m.direcao, tipo: m.tipo, texto: m.texto, status: m.status, erro: m.erro ?? null, criadoEm: new Date(m.criado_em).toISOString(),
+    mediaChave: m.media_chave ?? null, mediaMime: m.media_mime ?? null, mediaNome: m.media_nome ?? null,
+    mediaTamanho: m.media_tamanho ?? null, mediaStatus: m.media_status ?? null,
+  };
 }
 
 @Injectable()
@@ -44,6 +50,7 @@ export class WhatsappInboxService {
     private readonly graph: WhatsappGraphClient,
     @Optional() private readonly config?: WhatsappConfigService,
     @Optional() private readonly conversions?: MarketingConversionsService,
+    @Optional() private readonly media?: WhatsappMediaService,
   ) {}
 
   async registrarEntrada(m: EntradaWa): Promise<void> {
@@ -62,8 +69,26 @@ export class WhatsappInboxService {
       });
     }
     await this.prisma.crm_WhatsApp_Mensagens.create({
-      data: { conversa_id: conversa.id, wamid: m.wamid, direcao: 'entrada', tipo: m.tipo, texto: m.texto, status: 'recebida', criado_em: m.em },
+      data: {
+        conversa_id: conversa.id, wamid: m.wamid, direcao: 'entrada', tipo: m.tipo, texto: m.texto, status: 'recebida', criado_em: m.em,
+        ...(m.mediaId ? { media_mime: m.mime ?? null, media_nome: m.nome ?? null, media_status: 'pendente' } : {}),
+      },
     });
+    if (m.mediaId && this.media) {
+      try {
+        const guardada = await this.media.guardarEntrada({ wamid: m.wamid, tipo: m.tipo, mediaId: m.mediaId });
+        await this.prisma.crm_WhatsApp_Mensagens.update({
+          where: { wamid: m.wamid },
+          data: {
+            media_chave: guardada.chave, media_mime: guardada.mime ?? m.mime ?? null, media_nome: guardada.nome ?? m.nome ?? null,
+            media_tamanho: guardada.tamanho, media_status: guardada.status,
+          },
+        });
+      } catch (e: any) {
+        await this.prisma.crm_WhatsApp_Mensagens.update({ where: { wamid: m.wamid }, data: { media_status: 'falhou' } });
+        this.logger.error(`Armazenamento de mídia falhou (${m.wamid}): ${e?.message ?? e}`);
+      }
+    }
     await this.prisma.crm_WhatsApp_Conversas.update({
       where: { id: conversa.id },
       data: {
@@ -209,6 +234,49 @@ export class WhatsappInboxService {
       throw new ConflictException('Janela de 24h fechada: o cliente precisa mandar mensagem primeiro.');
     }
     return this.enviarRegistrando(conversaId, conversa.wa_id, corpo, 'text');
+  }
+
+  async enviarMidia(
+    conversaId: number,
+    entrada: { tipo: 'image' | 'video' | 'document'; arquivo: ArquivoWhatsapp; legenda?: string },
+  ): Promise<MensagemDto> {
+    const conversa = await this.prisma.crm_WhatsApp_Conversas.findUnique({ where: { id: conversaId } });
+    if (!conversa) throw new NotFoundException('Conversa não encontrada.');
+    if (!['image', 'video', 'document'].includes(entrada?.tipo) || !entrada?.arquivo?.buffer?.length) {
+      throw new BadRequestException('Mídia inválida.');
+    }
+    if (!janelaAberta(conversa.ultima_do_cliente_em ? new Date(conversa.ultima_do_cliente_em) : null)) {
+      throw new ConflictException('Janela de 24h fechada: o cliente precisa mandar mensagem primeiro.');
+    }
+    const legenda = typeof entrada.legenda === 'string' ? entrada.legenda.trim().slice(0, 4096) : '';
+    const texto = legenda || `[${entrada.tipo} enviada]`;
+    const agora = new Date();
+    let wamid: string;
+    let status = 'enviada';
+    let erro: string | null = null;
+    try {
+      wamid = await this.graph.enviarMidia({ para: conversa.wa_id, tipo: entrada.tipo, arquivo: entrada.arquivo, ...(legenda ? { legenda } : {}) });
+    } catch (e: any) {
+      wamid = `falha-${randomUUID()}`;
+      status = 'falhou';
+      erro = String(e?.message ?? e).slice(0, 500);
+    }
+    const m = await this.prisma.crm_WhatsApp_Mensagens.create({
+      data: {
+        conversa_id: conversaId, wamid, direcao: 'saida', tipo: entrada.tipo, texto, status, erro, criado_em: agora,
+        media_mime: entrada.arquivo.mimetype, media_nome: entrada.arquivo.originalname.slice(0, 255),
+        media_tamanho: entrada.arquivo.buffer.length, media_status: status,
+      },
+    });
+    await this.prisma.crm_WhatsApp_Conversas.update({ where: { id: conversaId }, data: { ultima_msg_em: agora } });
+    return msgDto(m);
+  }
+
+  async abrirMidia(mensagemId: number) {
+    const mensagem = await this.prisma.crm_WhatsApp_Mensagens.findUnique({ where: { id: mensagemId } });
+    if (!mensagem?.media_chave) throw new NotFoundException('Mídia não encontrada.');
+    if (!this.media) throw new NotFoundException('Armazenamento de mídia indisponível.');
+    return this.media.abrir(mensagem.media_chave);
   }
 
   /** Abre (ou reaproveita) a conversa do lead e envia o modelo de primeiro contato. */

@@ -1,6 +1,9 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
-export interface EntradaWa { wamid: string; waId: string; nomePerfil?: string; tipo: string; texto: string; em: Date }
+export interface EntradaWa {
+  wamid: string; waId: string; nomePerfil?: string; tipo: string; texto: string; em: Date;
+  mediaId?: string; mime?: string; nome?: string;
+}
 export interface StatusWa { wamid: string; status: 'enviada' | 'entregue' | 'lida' | 'falhou'; erro?: string }
 
 const JANELA_MS = 24 * 60 * 60 * 1000;
@@ -40,9 +43,14 @@ export function interpretarWebhook(body: unknown): { mensagens: EntradaWa[]; sta
         if (!m?.id || !m?.from) continue;
         const waId = String(m.from).replace(/\D/g, '');
         const nome = nomes.get(waId);
+        const midia = m?.[m.type];
+        const mediaId = typeof midia?.id === 'string' ? midia.id : undefined;
+        const mime = typeof midia?.mime_type === 'string' ? midia.mime_type : undefined;
+        const nomeArquivo = typeof midia?.filename === 'string' ? midia.filename : undefined;
         mensagens.push({
           wamid: String(m.id), waId, ...(nome ? { nomePerfil: nome } : {}), tipo: String(m.type ?? 'desconhecido'),
           texto: textoDe(m), em: new Date(Number(m.timestamp) * 1000),
+          ...(mediaId ? { mediaId } : {}), ...(mime ? { mime } : {}), ...(nomeArquivo ? { nome: nomeArquivo } : {}),
         });
       }
       for (const s of Array.isArray(v.statuses) ? v.statuses : []) {
