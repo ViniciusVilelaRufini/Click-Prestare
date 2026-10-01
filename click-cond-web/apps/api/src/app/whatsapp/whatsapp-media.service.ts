@@ -193,8 +193,8 @@ export class WhatsappMediaService {
   }
 
   private segmentoSeguro(valor: string): string {
-    if (!/^[A-Za-z0-9._-]+$/.test(valor)) throw new Error('wamid inválido');
-    return valor;
+    if (!valor || typeof valor !== 'string') throw new Error('wamid inválido');
+    return valor.replace(/[^A-Za-z0-9._-]/g, '_');
   }
 
   private uuidDeterministico(valor: string): string {

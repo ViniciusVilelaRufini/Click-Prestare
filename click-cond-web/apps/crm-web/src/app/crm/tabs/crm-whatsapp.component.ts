@@ -1,4 +1,4 @@
-﻿import { Component, DestroyRef, ElementRef, OnInit, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, OnInit, computed, inject, signal, viewChild } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -83,7 +83,23 @@ export class CrmWhatsappComponent implements OnInit {
   selecionarArquivo(e: Event) {
     const target = e.target as HTMLInputElement;
     if (target?.files && target.files.length > 0) {
-      this.anexo.set(target.files[0]);
+      const file = target.files[0];
+      if (file.type.startsWith('video/') && file.size > 16 * 1024 * 1024) {
+        this.erro.set(`O WhatsApp permite vídeos de até 16 MB (este arquivo possui ${this.formatarTamanho(file.size)}). Comprima o vídeo para enviar.`);
+        this.removerAnexo();
+        return;
+      }
+      if (file.type.startsWith('image/') && file.size > 5 * 1024 * 1024) {
+        this.erro.set(`O WhatsApp permite imagens de até 5 MB (este arquivo possui ${this.formatarTamanho(file.size)}).`);
+        this.removerAnexo();
+        return;
+      }
+      if (file.size > 100 * 1024 * 1024) {
+        this.erro.set(`O WhatsApp permite documentos de até 100 MB (este arquivo possui ${this.formatarTamanho(file.size)}).`);
+        this.removerAnexo();
+        return;
+      }
+      this.anexo.set(file);
       this.erro.set(null);
     }
   }

@@ -45,25 +45,26 @@ describe('WhatsappGraphClient', () => {
     });
   });
 
-  it('envia video maior que 16MB como document no Graph com filename para nao estourar limite da Meta', async () => {
+  it('envia video no Graph incluindo type no upload multipart', async () => {
     const f = jest.spyOn(global, 'fetch' as any)
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'media.video.big' }) } as any)
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: 'wamid.video.big' }] }) } as any);
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'media.video.1' }) } as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: 'wamid.video.1' }] }) } as any);
 
-    const videoGrande = Buffer.alloc(17 * 1024 * 1024);
+    const videoBuffer = Buffer.from('mp4-data');
     await expect(new WhatsappGraphClient(segredos).enviarMidia({
       para: '5517999', tipo: 'video', legenda: 'Apresentação',
-      arquivo: { buffer: videoGrande, mimetype: 'video/mp4', originalname: 'anuncio-30s.mp4' },
-    })).resolves.toBe('wamid.video.big');
+      arquivo: { buffer: videoBuffer, mimetype: 'video/mp4', originalname: 'anuncio.mp4' },
+    })).resolves.toBe('wamid.video.1');
 
+    const [uploadUrl, uploadInit] = f.mock.calls[0] as any;
+    expect(uploadInit.body.get('type')).toBe('video/mp4');
     expect(JSON.parse((f.mock.calls[1] as any)[1].body)).toEqual({
       messaging_product: 'whatsapp',
       to: '5517999',
-      type: 'document',
-      document: {
-        id: 'media.video.big',
+      type: 'video',
+      video: {
+        id: 'media.video.1',
         caption: 'Apresentação',
-        filename: 'anuncio-30s.mp4',
       },
     });
   });

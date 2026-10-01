@@ -213,4 +213,19 @@ describe('WhatsappMediaService', () => {
     expect(s3Mock.send.mock.calls[0][0].input.Bucket).toBe('elasticbeanstalk-sa-east-1-teste');
     delete process.env.AWS_S3_BUCKET_NAME;
   });
+
+  it('aceita e normaliza wamid real da Meta com padding base64 == sem rejeitar', async () => {
+    const s3Mock = { send: jest.fn().mockResolvedValue({}) };
+    graph.obterMidia.mockResolvedValue({ mime: 'audio/ogg; codecs=opus', tamanho: 8 });
+    graph.baixarMidia.mockResolvedValue(Readable.from([Buffer.from('opus-data')]));
+
+    const service = new WhatsappMediaService(graph as any, s3Mock as any, { bucket: 'whatsapp-bucket' });
+    const wamidReal = 'wamid.HBgNNTUxNzk5MjU1OTk5MBUCABIYFDNBMUJGMEIwRDJGNzNFQTQwNUQ3AA==';
+    const resultado = await service.guardarEntrada({ wamid: wamidReal, tipo: 'audio', mediaId: 'media-audio' });
+
+    expect(resultado.status).toBe('armazenada');
+    expect(s3Mock.send).toHaveBeenCalled();
+    const key = s3Mock.send.mock.calls[0][0].input.Key;
+    expect(key).toMatch(/^whatsapp\/wamid\.HBgNNTUxNzk5MjU1OTk5MBUCABIYFDNBMUJGMEIwRDJGNzNFQTQwNUQ3AA__\/[0-9a-f-]{36}$/);
+  });
 });

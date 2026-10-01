@@ -283,7 +283,7 @@ describe('WhatsappInboxService', () => {
 
   it.each([
     ['image', 'image/png', Buffer.from('MZ executável'), Buffer.alloc(6 * 1024 * 1024)],
-    ['video', 'video/mp4', Buffer.from('MZ executável'), Buffer.alloc(101 * 1024 * 1024)],
+    ['video', 'video/mp4', Buffer.from('MZ executável'), Buffer.alloc(17 * 1024 * 1024)],
     ['document', 'application/pdf', Buffer.from('MZ executável'), Buffer.alloc(101 * 1024 * 1024)],
   ] as const)('rejeita %s com assinatura falsa ou acima do limite antes do Graph', async (tipo, mimetype, assinaturaFalsa, grande) => {
     const t = montar();
@@ -291,31 +291,6 @@ describe('WhatsappInboxService', () => {
     await expect(t.svc.enviarMidia(1, { tipo, arquivo: { buffer: assinaturaFalsa, mimetype, originalname: 'arquivo.bin' } })).rejects.toBeInstanceOf(BadRequestException);
     await expect(t.svc.enviarMidia(1, { tipo, arquivo: { buffer: grande, mimetype, originalname: 'arquivo.bin' } })).rejects.toBeInstanceOf(BadRequestException);
     expect(t.graph.enviarMidia).not.toHaveBeenCalled();
-  });
-
-  it('aceita video de 17MB (ex.: 16.4 MB) e envia com sucesso', async () => {
-    const media = {
-      guardarSaida: jest.fn(async () => ({ chave: 'whatsapp/saida-video/00000000-0000-4000-8000-000000000001', mime: 'video/mp4', nome: 'anuncio.mp4', tamanho: 17 * 1024 * 1024, status: 'armazenada' })),
-      apagar: jest.fn(),
-    };
-    const t = montar(undefined, undefined, media);
-    await t.svc.registrarEntrada(entrada());
-
-    const bufferVideo = Buffer.alloc(17 * 1024 * 1024);
-    bufferVideo.write('ftyp', 4, 4, 'binary');
-
-    const m = await t.svc.enviarMidia(1, {
-      tipo: 'video',
-      arquivo: { buffer: bufferVideo, mimetype: 'video/mp4', originalname: 'anuncio.mp4' },
-      legenda: 'Vídeo institucional',
-    });
-
-    expect(t.graph.enviarMidia).toHaveBeenCalledWith(expect.objectContaining({
-      para: '5521999369814',
-      tipo: 'video',
-      legenda: 'Vídeo institucional',
-    }));
-    expect(m).toMatchObject({ tipo: 'video', status: 'enviada' });
   });
 
   it('rejeita MIME que não pertence à categoria antes de chamar o Graph', async () => {

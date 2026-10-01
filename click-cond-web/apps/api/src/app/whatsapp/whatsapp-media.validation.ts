@@ -15,7 +15,7 @@ const MIMES: Record<TipoMidiaSaida, Set<string>> = {
 
 const PADROES: Record<TipoMidiaSaida, number> = {
   image: 5 * 1024 * 1024,
-  video: 100 * 1024 * 1024,
+  video: 16 * 1024 * 1024,
   document: 100 * 1024 * 1024,
 };
 
@@ -31,7 +31,12 @@ export function validarMidiaSaida(entrada: { tipo: TipoMidiaSaida; buffer: Buffe
   if (!MIMES[tipo]?.has(mimetype) || !Buffer.isBuffer(buffer) || !buffer.length || !originalname?.trim()) {
     throw new BadRequestException('Mídia inválida.');
   }
-  if (buffer.length > limite(tipo)) throw new BadRequestException('Mídia excede o limite permitido.');
+  if (buffer.length > limite(tipo)) {
+    if (tipo === 'video') {
+      throw new BadRequestException('O WhatsApp permite vídeos de até 16 MB. Comprima o vídeo para enviar.');
+    }
+    throw new BadRequestException('Mídia excede o limite permitido.');
+  }
   if (!assinaturaValida(tipo, mimetype, buffer)) throw new BadRequestException('Conteúdo da mídia não corresponde ao tipo informado.');
 }
 

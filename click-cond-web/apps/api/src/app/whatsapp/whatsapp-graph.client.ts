@@ -34,7 +34,10 @@ export class WhatsappGraphClient {
       body: JSON.stringify({ messaging_product: 'whatsapp', ...corpo }),
     });
     const json: any = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(json?.error?.message ?? `Graph API ${r.status}`);
+    if (!r.ok) {
+      const detalhe = json?.error?.error_data?.details ? ` (${json.error.error_data.details})` : '';
+      throw new Error(`${json?.error?.message ?? `Graph API ${r.status}`}${detalhe}`);
+    }
     return json;
   }
 
@@ -72,18 +75,18 @@ export class WhatsappGraphClient {
     const conteudoArquivo = new Uint8Array(arquivo.buffer.length);
     conteudoArquivo.set(arquivo.buffer);
     form.append('messaging_product', 'whatsapp');
+    form.append('type', arquivo.mimetype);
     form.append('file', new Blob([conteudoArquivo], { type: arquivo.mimetype }), this.nomeArquivoSeguro(arquivo.originalname));
     const upload = await fetch(MEDIA_BASE, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
     const uploadJson: any = await upload.json().catch(() => ({}));
     if (!upload.ok) throw new Error(uploadJson?.error?.message ?? `Graph API ${upload.status}`);
     if (!uploadJson?.id) throw new Error('Graph API não devolveu o id da mídia');
 
-    const tipoMeta = tipo === 'video' && arquivo.buffer.length > 16 * 1024 * 1024 ? 'document' : tipo;
     const conteudo: any = { id: String(uploadJson.id), ...(legenda?.trim() ? { caption: legenda.trim() } : {}) };
-    if (tipoMeta === 'document' && tipo === 'video') {
+    if (tipo === 'document') {
       conteudo.filename = this.nomeArquivoSeguro(arquivo.originalname);
     }
-    const json = await this.post({ to: para, type: tipoMeta, [tipoMeta]: conteudo });
+    const json = await this.post({ to: para, type: tipo, [tipo]: conteudo });
     const wamid = json?.messages?.[0]?.id;
     if (!wamid) throw new Error('Graph API não devolveu o id da mensagem');
     return String(wamid);
