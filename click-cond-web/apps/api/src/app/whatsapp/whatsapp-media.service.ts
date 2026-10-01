@@ -1,6 +1,6 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { ArquivoWhatsapp } from './whatsapp-graph.client';
 import { TipoMidiaSaida, validarMidiaSaida } from './whatsapp-media.validation';
@@ -89,7 +89,7 @@ export class WhatsappMediaService {
       throw new Error('Mídia excede o limite permitido');
     }
 
-    const chave = `whatsapp/${this.segmentoSeguro(wamid)}/${randomUUID()}`;
+    const chave = `whatsapp/${this.segmentoSeguro(wamid)}/${this.uuidDeterministico(wamid)}`;
     const corpo = await this.lerAteLimite(await this.graph.baixarMidia(mediaId));
     await this.s3.send(new PutObjectCommand({
       Bucket: this.bucket,
@@ -112,6 +112,11 @@ export class WhatsappMediaService {
       ContentLength: arquivo.buffer.length, Metadata: { nome },
     }));
     return { chave, mime: arquivo.mimetype, nome, tamanho: arquivo.buffer.length, status: 'armazenada' };
+  }
+
+  async apagar(chave: string): Promise<void> {
+    if (!/^whatsapp\/[A-Za-z0-9._-]+\/[0-9a-f-]{36}$/.test(chave) || !this.s3) return;
+    await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: chave }));
   }
 
   async abrir(chave: string, intervalo?: { inicio: number; fim: number }): Promise<{ stream: Readable; mime: string; nome: string | null; tamanho: number; total: number; inicio: number; fim: number }> {
@@ -160,6 +165,11 @@ export class WhatsappMediaService {
   private segmentoSeguro(valor: string): string {
     if (!/^[A-Za-z0-9._-]+$/.test(valor)) throw new Error('wamid inválido');
     return valor;
+  }
+
+  private uuidDeterministico(valor: string): string {
+    const hash = createHash('sha256').update(valor).digest('hex');
+    return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
   }
 
   private nomeSeguro(valor: string): string {

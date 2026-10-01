@@ -29,7 +29,9 @@ function montar(config?: any, conversions?: any, media?: any) {
       create: jest.fn(async ({ data }: any) => { const m = { id: msgs.length + 1, criado_em: new Date(), erro: null, ...data }; msgs.push(m); return m; }),
       update: jest.fn(async ({ where, data }: any) => Object.assign(msgs.find((m) => m.wamid === where.wamid), data)),
       updateMany: jest.fn(async ({ where, data }: any) => {
-        const m = msgs.find((x) => x.wamid === where.wamid && (!where.media_status?.in || where.media_status.in.includes(x.media_status)));
+        const m = msgs.find((x) => x.wamid === where.wamid && (
+          !where.media_status || where.media_status === x.media_status || where.media_status?.in?.includes(x.media_status)
+        ));
         if (!m) return { count: 0 };
         Object.assign(m, data);
         return { count: 1 };
@@ -184,6 +186,46 @@ describe('WhatsappInboxService', () => {
     expect(t.msgs[0]).toMatchObject({ media_chave: 'whatsapp/w-retry/00000000-0000-4000-8000-000000000001', media_status: 'armazenada' });
   });
 
+  it('retenta mídia indisponível quando o armazenamento volta', async () => {
+    const media = { guardarEntrada: jest.fn()
+      .mockResolvedValueOnce({ chave: null, mime: null, nome: null, tamanho: null, status: 'indisponivel' })
+      .mockResolvedValueOnce({ chave: 'whatsapp/w-indisponivel/00000000-0000-4000-8000-000000000001', mime: 'audio/ogg', nome: null, tamanho: 3, status: 'armazenada' }) };
+    const t = montar(undefined, undefined, media);
+    const recebida = entrada({ wamid: 'w-indisponivel', tipo: 'audio', mediaId: 'media-indisponivel' });
+
+    await t.svc.registrarEntrada(recebida);
+    await t.svc.registrarEntrada(recebida);
+
+    expect(t.msgs).toHaveLength(1);
+    expect(media.guardarEntrada).toHaveBeenCalledTimes(2);
+    expect(t.msgs[0]).toMatchObject({ media_status: 'armazenada', media_chave: 'whatsapp/w-indisponivel/00000000-0000-4000-8000-000000000001' });
+  });
+
+  it('recupera uma claim importando expirada', async () => {
+    const media = { guardarEntrada: jest.fn(async () => ({ chave: 'whatsapp/w-stale/00000000-0000-4000-8000-000000000001', mime: 'audio/ogg', nome: null, tamanho: 3, status: 'armazenada' })) };
+    const t = montar(undefined, undefined, media);
+    t.msgs.push({ id: 9, wamid: 'w-stale', media_status: `importando-${Math.floor((Date.now() - 20 * 60_000) / 1000).toString(36)}` });
+
+    await t.svc.registrarEntrada(entrada({ wamid: 'w-stale', tipo: 'audio', mediaId: 'media-stale' }));
+
+    expect(media.guardarEntrada).toHaveBeenCalledWith({ wamid: 'w-stale', tipo: 'audio', mediaId: 'media-stale' });
+    expect(t.msgs).toHaveLength(1);
+  });
+
+  it('reusa a única mensagem após falha de finalização da importação', async () => {
+    const media = { guardarEntrada: jest.fn(async () => ({ chave: 'whatsapp/w-finalizar/00000000-0000-4000-8000-000000000001', mime: 'audio/ogg', nome: null, tamanho: 3, status: 'armazenada' })) };
+    const t = montar(undefined, undefined, media);
+    t.prisma.crm_WhatsApp_Mensagens.update.mockRejectedValueOnce(new Error('DB indisponível'));
+    const recebida = entrada({ wamid: 'w-finalizar', tipo: 'audio', mediaId: 'media-finalizar' });
+
+    await t.svc.registrarEntrada(recebida);
+    await t.svc.registrarEntrada(recebida);
+
+    expect(t.msgs).toHaveLength(1);
+    expect(media.guardarEntrada).toHaveBeenCalledTimes(2);
+    expect(t.msgs[0]).toMatchObject({ media_chave: 'whatsapp/w-finalizar/00000000-0000-4000-8000-000000000001', media_status: 'armazenada' });
+  });
+
   it('dispatches a paid conversation only for its first distinct inbound wamid', async () => {
     const conversions = { confirmarLeadWhatsApp: jest.fn(async () => undefined) };
     const t = montar(undefined, conversions);
@@ -274,6 +316,20 @@ describe('WhatsappInboxService', () => {
 
     expect(media.guardarSaida).toHaveBeenCalled();
     expect(media.abrir).toHaveBeenCalledWith('whatsapp/saida-1/00000000-0000-4000-8000-000000000001', undefined);
+  });
+
+  it('remove o objeto de saída se a criação da mensagem falhar', async () => {
+    const media = {
+      guardarSaida: jest.fn(async () => ({ chave: 'whatsapp/saida-orfa/00000000-0000-4000-8000-000000000001', mime: 'image/png', nome: 'portaria.png', tamanho: 8, status: 'armazenada' })),
+      apagar: jest.fn(async () => undefined),
+    };
+    const t = montar(undefined, undefined, media);
+    await t.svc.registrarEntrada(entrada());
+    t.prisma.crm_WhatsApp_Mensagens.create.mockRejectedValueOnce(new Error('DB indisponível'));
+
+    await expect(t.svc.enviarMidia(1, { tipo: 'image', arquivo: { buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), mimetype: 'image/png', originalname: 'portaria.png' } })).rejects.toThrow('DB indisponível');
+
+    expect(media.apagar).toHaveBeenCalledWith('whatsapp/saida-orfa/00000000-0000-4000-8000-000000000001');
   });
 
   it('registra mídia como falhou quando o upload ou envio Graph falha', async () => {

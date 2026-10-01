@@ -12,6 +12,7 @@ import { TipoMidiaSaida, validarMidiaSaida } from './whatsapp-media.validation';
 const JUNCAO_MS = 30 * 60 * 1000;
 /** Webhook reenviado depois de uma queda não dispara resposta automática atrasada. */
 const AUTO_ATRASO_MAX_MS = 10 * 60 * 1000;
+const LEASE_IMPORTACAO_MS = 10 * 60 * 1000;
 
 function normalizarWhatsapp(numero: string | null | undefined): string {
   const digitos = String(numero ?? '').replace(/\D/g, '');
@@ -61,9 +62,9 @@ export class WhatsappInboxService {
   async registrarEntrada(m: EntradaWa): Promise<void> {
     const existente = await this.prisma.crm_WhatsApp_Mensagens.findUnique({ where: { wamid: m.wamid } });
     if (existente) {
-      if (m.mediaId && this.media && ['pendente', 'falhou'].includes(existente.media_status ?? '')) {
+      if (m.mediaId && this.media && this.importacaoReivindicavel(existente.media_status)) {
         const claim = await this.prisma.crm_WhatsApp_Mensagens.updateMany({
-          where: { wamid: m.wamid, media_status: { in: ['pendente', 'falhou'] } }, data: { media_status: 'importando' },
+          where: { wamid: m.wamid, media_status: existente.media_status }, data: { media_status: this.novaLeaseImportacao() },
         });
         if (claim.count === 1) await this.importarMidia(m);
       }
@@ -90,7 +91,7 @@ export class WhatsappInboxService {
     });
     if (m.mediaId && this.media) {
       const claim = await this.prisma.crm_WhatsApp_Mensagens.updateMany({
-        where: { wamid: m.wamid, media_status: { in: ['pendente'] } }, data: { media_status: 'importando' },
+        where: { wamid: m.wamid, media_status: 'pendente' }, data: { media_status: this.novaLeaseImportacao() },
       });
       if (claim.count === 1) await this.importarMidia(m);
     }
@@ -185,6 +186,18 @@ export class WhatsappInboxService {
       await this.prisma.crm_WhatsApp_Mensagens.update({ where: { wamid: m.wamid }, data: { media_status: 'falhou' } });
       this.logger.error(`Armazenamento de mídia falhou (${m.wamid}): ${e?.message ?? e}`);
     }
+  }
+
+  private novaLeaseImportacao(): string {
+    return `importando-${Math.floor(Date.now() / 1000).toString(36)}`;
+  }
+
+  private importacaoReivindicavel(status: string | null | undefined): boolean {
+    if (['pendente', 'falhou', 'indisponivel', 'importando'].includes(status ?? '')) return true;
+    const match = /^importando-([0-9a-z]+)$/.exec(status ?? '');
+    if (!match) return false;
+    const inicio = parseInt(match[1], 36) * 1000;
+    return Number.isSafeInteger(inicio) && Date.now() - inicio >= LEASE_IMPORTACAO_MS;
   }
 
   private async ligarLead(m: EntradaWa, leadDoFormulario?: any | null): Promise<number> {
@@ -285,13 +298,21 @@ export class WhatsappInboxService {
       status = 'falhou';
       erro = String(e?.message ?? e).slice(0, 500);
     }
-    const m = await this.prisma.crm_WhatsApp_Mensagens.create({
-      data: {
-        conversa_id: conversaId, wamid, direcao: 'saida', tipo: entrada.tipo, texto, status, erro, criado_em: agora,
-        media_chave: guardada?.chave ?? null, media_mime: guardada?.mime ?? entrada.arquivo.mimetype, media_nome: guardada?.nome ?? entrada.arquivo.originalname.slice(0, 255),
-        media_tamanho: guardada?.tamanho ?? entrada.arquivo.buffer.length, media_status: status,
-      },
-    });
+    let m: any;
+    try {
+      m = await this.prisma.crm_WhatsApp_Mensagens.create({
+        data: {
+          conversa_id: conversaId, wamid, direcao: 'saida', tipo: entrada.tipo, texto, status, erro, criado_em: agora,
+          media_chave: guardada?.chave ?? null, media_mime: guardada?.mime ?? entrada.arquivo.mimetype, media_nome: guardada?.nome ?? entrada.arquivo.originalname.slice(0, 255),
+          media_tamanho: guardada?.tamanho ?? entrada.arquivo.buffer.length, media_status: status,
+        },
+      });
+    } catch (e) {
+      if (guardada?.chave && this.media) await this.media.apagar(guardada.chave).catch((erro) =>
+        this.logger.error(`Limpeza de mídia de saída falhou (${guardada.chave}): ${erro?.message ?? erro}`),
+      );
+      throw e;
+    }
     await this.prisma.crm_WhatsApp_Conversas.update({ where: { id: conversaId }, data: { ultima_msg_em: agora } });
     return msgDto(m);
   }

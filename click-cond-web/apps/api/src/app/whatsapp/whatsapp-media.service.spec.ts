@@ -138,4 +138,17 @@ describe('WhatsappMediaService', () => {
     expect(s3.send.mock.calls[0][0].input).toMatchObject({ Bucket: 'whatsapp-private', Range: 'bytes=1-3' });
     expect(aberta).toMatchObject({ tamanho: 3, total: 6, inicio: 1, fim: 3 });
   });
+
+  it('reusa a chave determinística do wamid em uma repetição após finalização falhar', async () => {
+    graph.obterMidia.mockResolvedValue({ mime: 'audio/ogg', tamanho: 3 });
+    graph.baixarMidia.mockResolvedValue(Readable.from([Buffer.from('ogg')]));
+    s3.send.mockResolvedValue({});
+    const service = new WhatsappMediaService(graph as any, s3 as any, { bucket: 'whatsapp-private' });
+
+    await service.guardarEntrada({ wamid: 'wamid.finalizar', tipo: 'audio', mediaId: 'media-finalizar' });
+    await service.guardarEntrada({ wamid: 'wamid.finalizar', tipo: 'audio', mediaId: 'media-finalizar' });
+
+    const chaves = s3.send.mock.calls.map(([comando]: any[]) => comando.input.Key);
+    expect(new Set(chaves).size).toBe(1);
+  });
 });
