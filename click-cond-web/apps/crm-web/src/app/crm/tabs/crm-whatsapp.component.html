@@ -1,79 +1,252 @@
-<div class="grid h-[calc(100vh-10rem)] min-h-[480px] grid-cols-1 overflow-hidden rounded-xl border border-slate-200 bg-white md:grid-cols-[320px_1fr]">
-  <aside class="flex min-h-0 flex-col border-b border-slate-200 md:border-b-0 md:border-r" [class.hidden]="selecionadaId() !== null" [class.md:flex]="true">
-    <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-      <h2 class="text-sm font-semibold">Conversas</h2>
-      <button type="button" class="text-slate-500 hover:text-slate-800" (click)="configAberta.set(true)" title="Respostas rápidas e automáticas" aria-label="Configurações do WhatsApp">⚙</button>
+<div class="grid h-[calc(100vh-8.5rem)] min-h-[580px] grid-cols-1 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm md:grid-cols-[360px_1fr]">
+  <!-- Painel Lateral: Lista de Conversas -->
+  <aside class="flex min-h-0 flex-col border-b border-slate-200 md:border-b-0 md:border-r"
+         [class.hidden]="selecionadaId() !== null" [class.md:flex]="true">
+    
+    <!-- Header do Painel Lateral -->
+    <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-3.5">
+      <div class="flex items-center gap-2">
+        <h2 class="text-base font-bold text-slate-800">Conversas</h2>
+        @if (totalNaoLidas() > 0) {
+          <span class="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-bold text-white shadow-xs">
+            {{ totalNaoLidas() }}
+          </span>
+        }
+      </div>
+      <button type="button"
+              class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-800"
+              (click)="configAberta.set(true)"
+              title="Respostas rápidas e automações"
+              aria-label="Configurações do WhatsApp">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
     </div>
-    <ul class="min-h-0 flex-1 overflow-y-auto">
-      @for (c of conversas(); track c.id) {
+
+    <!-- Barra de Pesquisa de Conversas -->
+    <div class="border-b border-slate-100 bg-white p-3">
+      <div class="relative flex items-center">
+        <span class="pointer-events-none absolute left-3 text-slate-400">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </span>
+        <input type="text"
+               [ngModel]="filtro()"
+               (ngModelChange)="filtro.set($event)"
+               placeholder="Buscar conversa ou telefone..."
+               class="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2 pl-9 pr-8 text-xs text-slate-800 placeholder-slate-400 transition-all focus:border-emerald-500 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-emerald-500" />
+        @if (filtro()) {
+          <button type="button"
+                  (click)="filtro.set('')"
+                  class="absolute right-2.5 text-slate-400 hover:text-slate-600"
+                  title="Limpar busca">
+            ✕
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Lista de Contatos -->
+    <ul class="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
+      @for (c of conversasFiltradas(); track c.id) {
         <li>
-          <button type="button" (click)="abrir(c)" class="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-slate-50" [class.bg-emerald-50]="c.id === selecionadaId()">
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center justify-between gap-2">
-                <span class="truncate text-sm font-medium">{{ c.nome }}</span>
-                <span class="shrink-0 text-xs text-slate-500">{{ c.ultimaMsgEm | date: 'dd/MM HH:mm' }}</span>
+          <button type="button"
+                  (click)="abrir(c)"
+                  class="group flex w-full items-center gap-3.5 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+                  [class.bg-emerald-50]="c.id === selecionadaId()"
+                  [class.border-l-4]="c.id === selecionadaId()"
+                  [class.border-emerald-600]="c.id === selecionadaId()">
+            
+            <!-- Avatar com Iniciais e Indicador de Janela -->
+            <div class="relative shrink-0">
+              <div class="flex h-11 w-11 items-center justify-center rounded-full text-xs font-bold shadow-xs select-none"
+                   [class]="obterCorAvatar(c.nome)">
+                {{ obterIniciais(c.nome) }}
               </div>
-              <p class="truncate text-xs text-slate-500">{{ c.trecho }}</p>
+              @if (c.janelaAberta) {
+                <span class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
+                      title="Janela de 24h ativa"></span>
+              }
             </div>
-            @if (c.naoLidas > 0) {
-              <span class="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">{{ c.naoLidas }}</span>
-            }
+
+            <!-- Dados da Conversa -->
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-1">
+                <span class="truncate text-sm font-semibold text-slate-800 group-hover:text-emerald-700"
+                      [class.text-emerald-800]="c.id === selecionadaId()">
+                  {{ c.nome }}
+                </span>
+                <span class="shrink-0 text-[11px] text-slate-400">
+                  {{ c.ultimaMsgEm | date: 'dd/MM HH:mm' }}
+                </span>
+              </div>
+
+              <div class="mt-0.5 flex items-center justify-between gap-2">
+                <p class="truncate text-xs text-slate-500">
+                  @if (detectarTipoTrecho(c.trecho); as d) {
+                    @if (d.ehMidia) {
+                      <span class="mr-1 text-slate-600">{{ d.icone }}</span>
+                    }
+                  }
+                  {{ c.trecho || 'Nenhuma mensagem' }}
+                </p>
+                @if (c.naoLidas > 0) {
+                  <span class="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-xs">
+                    {{ c.naoLidas }}
+                  </span>
+                }
+              </div>
+            </div>
           </button>
         </li>
       } @empty {
-        <li class="px-4 py-6 text-sm text-slate-500">Nenhuma conversa ainda. Quando alguém mandar mensagem para o WhatsApp comercial, ela aparece aqui.</li>
+        <li class="px-6 py-12 text-center text-xs text-slate-400">
+          @if (filtro()) {
+            Nenhuma conversa encontrada para "{{ filtro() }}".
+          } @else {
+            Nenhuma conversa recebida até o momento. As mensagens enviadas ao WhatsApp oficial aparecerão aqui.
+          }
+        </li>
       }
     </ul>
   </aside>
 
-  <section class="flex min-h-0 flex-col" [class.hidden]="selecionadaId() === null" [class.md:flex]="true">
+  <!-- Área Principal: Conversa Ativa -->
+  <section class="flex min-h-0 flex-col bg-slate-50"
+           [class.hidden]="selecionadaId() === null" [class.md:flex]="true">
     @if (selecionada(); as c) {
-      <header class="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
-        <div class="flex items-center gap-2">
-          <button type="button" class="md:hidden text-sm text-emerald-700" (click)="selecionadaId.set(null)">‹ Voltar</button>
+      
+      <!-- Cabeçalho do Chat Ativo -->
+      <header class="flex items-center justify-between gap-3 border-b border-slate-200/90 bg-white px-5 py-3 shadow-xs">
+        <div class="flex items-center gap-3">
+          <button type="button"
+                  class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 md:hidden"
+                  (click)="selecionadaId.set(null)"
+                  aria-label="Voltar para a lista">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+
+          <!-- Avatar Grande -->
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold shadow-xs select-none"
+               [class]="obterCorAvatar(c.nome)">
+            {{ obterIniciais(c.nome) }}
+          </div>
+
           <div>
-            <div class="text-sm font-semibold">{{ c.nome }}</div>
-            <div class="text-xs text-slate-500">+{{ c.waId }}</div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-900 leading-tight">{{ c.nome }}</h3>
+              @if (c.janelaAberta) {
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                  Janela 24h ativa
+                </span>
+              } @else {
+                <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
+                  <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                  Aguardando cliente
+                </span>
+              }
+            </div>
+            <div class="text-xs text-slate-500">{{ formatarTelefone(c.waId) }}</div>
           </div>
         </div>
+
         @if (c.leadId) {
-          <a routerLink="../marketing" class="text-xs text-emerald-700 hover:underline">Ver lead</a>
+          <a routerLink="../marketing"
+             class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-100">
+            <span>Ver Lead no Marketing</span>
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
         }
       </header>
-      <div class="min-h-0 flex-1 space-y-2 overflow-y-auto bg-slate-50 px-4 py-3">
+
+      <!-- Mensagens (Área de Rolagem com Fundo Estilizado) -->
+      <div class="min-h-0 flex-1 space-y-2.5 overflow-y-auto bg-[#F0F2F5] px-4 py-4 md:px-6">
         @for (m of mensagens(); track m.id) {
           <div class="flex" [class.justify-end]="m.direcao === 'saida'">
-            <div class="max-w-[75%] rounded-lg px-3 py-2 text-sm shadow-sm"
-                 [class.bg-emerald-100]="m.direcao === 'saida'" [class.bg-white]="m.direcao === 'entrada'">
+            
+            <!-- Balão de Mensagem -->
+            <div class="relative max-w-[85%] rounded-2xl px-3.5 py-2 text-sm shadow-xs transition-all md:max-w-[70%]"
+                 [class.bg-[#DCF8C6]]="m.direcao === 'saida'"
+                 [class.text-slate-900]="m.direcao === 'saida'"
+                 [class.rounded-tr-xs]="m.direcao === 'saida'"
+                 [class.border]="m.direcao === 'saida'"
+                 [class.border-emerald-200/50]="m.direcao === 'saida'"
+                 [class.bg-white]="m.direcao === 'entrada'"
+                 [class.text-slate-800]="m.direcao === 'entrada'"
+                 [class.rounded-tl-xs]="m.direcao === 'entrada'"
+                 [class.border]="m.direcao === 'entrada'"
+                 [class.border-slate-200/60]="m.direcao === 'entrada'">
 
+              <!-- Mídias (Áudio, Imagem, Vídeo, Documento) -->
               @if (temMidia(m)) {
                 <div class="mb-2">
                   @if (midiaDisponivel(m)) {
+                    
+                    <!-- Player de Áudio Estilizado -->
                     @if (m.tipo === 'audio' || m.mediaMime?.startsWith('audio/')) {
-                      <audio controls class="max-w-full rounded" [src]="urlMidia(m)">
-                        Seu navegador não suporta áudio.
-                      </audio>
+                      <div class="flex items-center gap-2 rounded-xl bg-white/90 p-2 border border-slate-200/70 shadow-xs">
+                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+                          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd" />
+                          </svg>
+                        </div>
+                        <audio controls preload="metadata" class="h-8 max-w-full flex-1" [src]="urlMidia(m)">
+                          Seu navegador não suporta áudio.
+                        </audio>
+                      </div>
+
+                    <!-- Imagem com Moldura -->
                     } @else if (m.tipo === 'image' || m.mediaMime?.startsWith('image/')) {
-                      <a [href]="urlMidia(m)" target="_blank" rel="noopener noreferrer" class="block overflow-hidden rounded border border-slate-200">
-                        <img [src]="urlMidia(m)" [alt]="m.mediaNome || 'Imagem'" class="max-h-60 w-auto rounded object-contain" />
+                      <a [href]="urlMidia(m)" target="_blank" rel="noopener noreferrer"
+                         class="group block overflow-hidden rounded-xl border border-black/10 bg-black/5 shadow-xs transition-transform hover:scale-[1.01]"
+                         title="Clique para abrir imagem original">
+                        <img [src]="urlMidia(m)" [alt]="m.mediaNome || 'Imagem do WhatsApp'"
+                             class="max-h-72 w-auto rounded-xl object-contain" />
                       </a>
+
+                    <!-- Vídeo com Player Nativo -->
                     } @else if (m.tipo === 'video' || m.mediaMime?.startsWith('video/')) {
-                      <video controls class="max-h-64 max-w-full rounded" [src]="urlMidia(m)">
-                        Seu navegador não suporta vídeo.
-                      </video>
+                      <div class="overflow-hidden rounded-xl border border-black/10 bg-black shadow-xs">
+                        <video controls preload="metadata" class="max-h-80 max-w-full rounded-xl" [src]="urlMidia(m)">
+                          Seu navegador não suporta vídeo.
+                        </video>
+                      </div>
+
+                    <!-- Documento (PDF, DOCX, etc.) -->
                     } @else {
                       <a [href]="urlMidia(m)" target="_blank" download [attr.download]="m.mediaNome || 'documento'"
-                         class="flex items-center gap-2 rounded border border-slate-300 bg-white/80 p-2 text-xs font-medium text-slate-800 hover:bg-white">
-                        <span class="text-base">📄</span>
-                        <span class="truncate flex-1">{{ m.mediaNome || 'Baixar documento' }}</span>
-                        @if (m.mediaTamanho) {
-                          <span class="text-slate-400 text-[10px]">{{ formatarTamanho(m.mediaTamanho) }}</span>
-                        }
-                        <span class="text-emerald-700 font-semibold">⬇</span>
+                         class="flex items-center gap-3 rounded-xl border border-slate-200/90 bg-white/95 p-3 text-xs font-semibold text-slate-800 shadow-xs transition-colors hover:bg-slate-50">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-700">
+                          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                          <div class="truncate text-xs font-bold text-slate-800">{{ m.mediaNome || 'Documento' }}</div>
+                          @if (m.mediaTamanho) {
+                            <div class="text-[11px] font-normal text-slate-400">{{ formatarTamanho(m.mediaTamanho) }}</div>
+                          }
+                        </div>
+                        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-emerald-600 hover:text-white"
+                             title="Baixar arquivo">
+                          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                        </div>
                       </a>
                     }
                   } @else {
-                    <div class="flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50/80 px-2.5 py-1.5 text-xs text-amber-800">
+                    <div class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                       <span>⚠️</span>
                       <span>Mídia indisponível</span>
                     </div>
@@ -81,72 +254,178 @@
                 </div>
               }
 
+              <!-- Texto da Mensagem -->
               @if (mostrarTexto(m)) {
-                <div class="whitespace-pre-wrap">{{ m.texto }}</div>
+                <div class="whitespace-pre-wrap leading-relaxed">{{ m.texto }}</div>
               }
 
-              <div class="mt-1 text-right text-[11px] text-slate-500">
-                @if (automatica(m)) { <span class="mr-1 rounded bg-slate-200 px-1 text-[10px] text-slate-600">automática</span> }
-                {{ m.criadoEm | date: 'dd/MM HH:mm' }} @if (m.direcao === 'saida') { · {{ marca(m) }} }
+              <!-- Horário e Status -->
+              <div class="mt-1 flex items-center justify-end gap-1 text-[11px] text-slate-500/90 select-none">
+                @if (automatica(m)) {
+                  <span class="rounded bg-black/10 px-1 py-0.2 text-[9px] font-medium text-slate-600">automática</span>
+                }
+                <span>{{ m.criadoEm | date: 'dd/MM HH:mm' }}</span>
+                @if (m.direcao === 'saida') {
+                  <span class="font-bold"
+                        [class.text-sky-600]="m.status === 'lida'"
+                        [class.text-slate-500]="m.status === 'entregue' || m.status === 'enviada'"
+                        [class.text-red-500]="m.status === 'falhou'">
+                    {{ marca(m) }}
+                  </span>
+                }
               </div>
             </div>
           </div>
         }
         <div #fim></div>
       </div>
-      @if (erro()) { <p class="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">{{ erro() }}</p> }
+
+      <!-- Erros de Envio -->
+      @if (erro()) {
+        <div class="flex items-center justify-between border-t border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700">
+          <span>{{ erro() }}</span>
+          <button type="button" (click)="erro.set(null)" class="text-red-500 hover:text-red-800">✕</button>
+        </div>
+      }
+
+      <!-- Barra de Ações e Digitação -->
       @if (c.janelaAberta) {
-        <div class="relative border-t border-slate-200">
-        @if (sugestoes().length || menuRespostas()) {
-          <ul class="absolute bottom-full left-3 right-3 mb-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-            @for (r of (menuRespostas() ? respostas() : sugestoes()); track r.id) {
-              <li><button type="button" class="w-full px-3 py-2 text-left hover:bg-slate-50" (click)="usarResposta(r)">
-                <span class="text-sm font-medium">{{ r.titulo }}</span> <span class="text-xs text-slate-400">/{{ r.atalho }}</span>
-                <p class="truncate text-xs text-slate-500">{{ r.texto }}</p>
-              </button></li>
-            } @empty {
-              <li class="px-3 py-2 text-xs text-slate-500">Nenhuma resposta rápida. Cadastre na engrenagem ⚙.</li>
-            }
-          </ul>
-        }
-
-        @if (anexo(); as a) {
-          <div class="flex items-center justify-between border-b border-slate-200 bg-slate-100 px-3 py-1.5 text-xs text-slate-700">
-            <div class="flex items-center gap-2 truncate">
-              <span class="font-medium text-emerald-700">📎 Anexo:</span>
-              <span class="truncate font-semibold">{{ a.name }}</span>
-              <span class="text-slate-500">({{ formatarTamanho(a.size) }})</span>
-            </div>
-            <button type="button" (click)="removerAnexo()" class="ml-2 font-bold text-slate-400 hover:text-red-600" title="Remover anexo" aria-label="Remover anexo">✕</button>
-          </div>
-        }
-
-        <form class="flex items-end gap-2 p-3" (submit)="$event.preventDefault(); enviar()">
-          <button type="button" class="shrink-0 rounded-lg border border-slate-300 p-2 text-lg leading-none text-slate-600 hover:bg-slate-50" title="Respostas rápidas (ou digite /)" aria-label="Respostas rápidas" (click)="menuRespostas.set(!menuRespostas())">⚡</button>
+        <div class="relative border-t border-slate-200/80 bg-white">
           
-          <label class="shrink-0 cursor-pointer rounded-lg border border-slate-300 p-2 text-lg leading-none text-slate-600 hover:bg-slate-50" title="Anexar arquivo" aria-label="Anexar arquivo">
-            📎
-            <input #inputArquivo type="file" class="sr-only" (change)="selecionarArquivo($event)"
-                   accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp,video/quicktime,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" />
-          </label>
+          <!-- Menu Flutuante de Respostas Rápidas -->
+          @if (sugestoes().length || menuRespostas()) {
+            <ul class="absolute bottom-full left-4 right-4 mb-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl divide-y divide-slate-100 z-10">
+              @for (r of (menuRespostas() ? respostas() : sugestoes()); track r.id) {
+                <li>
+                  <button type="button"
+                          class="flex w-full items-start justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-emerald-50/70"
+                          (click)="usarResposta(r)">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-slate-800">{{ r.titulo }}</span>
+                        <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">/{{ r.atalho }}</span>
+                      </div>
+                      <p class="truncate text-xs text-slate-500 mt-0.5">{{ r.texto }}</p>
+                    </div>
+                    <span class="text-xs text-emerald-700 font-bold">Usar ↵</span>
+                  </button>
+                </li>
+              } @empty {
+                <li class="px-4 py-3 text-center text-xs text-slate-400">
+                  Nenhuma resposta rápida cadastrada. Clique na engrenagem ⚙ para cadastrar.
+                </li>
+              }
+            </ul>
+          }
 
-          <textarea [(ngModel)]="texto" (ngModelChange)="digitado.set($event)" name="texto" rows="2" maxlength="4096" placeholder="Escreva a resposta... (digite / para respostas rápidas)"
-                    (keydown.enter)="teclaEnter($any($event))"
-                    class="min-w-0 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm"></textarea>
-          <button type="submit" [disabled]="enviando() || (!texto.trim() && !anexo())" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Enviar</button>
-        </form>
+          <!-- Preview de Anexo Selecionado -->
+          @if (anexo(); as a) {
+            <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs">
+              <div class="flex items-center gap-3 truncate">
+                @if (previewAnexoUrl()) {
+                  <img [src]="previewAnexoUrl()" alt="Preview" class="h-10 w-10 rounded-lg object-cover border border-slate-200 shadow-xs" />
+                } @else {
+                  <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-800 text-base">
+                    📎
+                  </div>
+                }
+                <div class="truncate">
+                  <div class="truncate font-bold text-slate-800">{{ a.name }}</div>
+                  <div class="text-[11px] text-slate-400">{{ formatarTamanho(a.size) }}</div>
+                </div>
+              </div>
+              <button type="button"
+                      (click)="removerAnexo()"
+                      class="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-red-600"
+                      title="Remover anexo"
+                      aria-label="Remover anexo">
+                ✕
+              </button>
+            </div>
+          }
+
+          <!-- Formulário de Digitação -->
+          <form class="flex items-end gap-2 p-3" (submit)="$event.preventDefault(); enviar()">
+            
+            <!-- Botão Respostas Rápidas -->
+            <button type="button"
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100 hover:text-emerald-700"
+                    title="Respostas rápidas (ou digite /)"
+                    aria-label="Respostas rápidas"
+                    (click)="menuRespostas.set(!menuRespostas())">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </button>
+            
+            <!-- Botão Anexar Arquivo -->
+            <label class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100 hover:text-emerald-700"
+                   title="Anexar arquivo, foto ou vídeo"
+                   aria-label="Anexar arquivo">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              <input #inputArquivo type="file" class="sr-only" (change)="selecionarArquivo($event)"
+                     accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp,video/quicktime,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" />
+            </label>
+
+            <!-- Campo de Texto -->
+            <textarea [(ngModel)]="texto"
+                      (ngModelChange)="digitado.set($event)"
+                      name="texto"
+                      rows="1"
+                      maxlength="4096"
+                      placeholder="Escreva sua resposta... (digite / para respostas rápidas)"
+                      (keydown.enter)="teclaEnter($any($event))"
+                      class="min-h-[40px] max-h-32 min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 transition-all focus:border-emerald-500 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-emerald-500"></textarea>
+
+            <!-- Botão Enviar -->
+            <button type="submit"
+                    [disabled]="enviando() || (!texto.trim() && !anexo())"
+                    class="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white shadow-xs transition-all hover:bg-emerald-700 active:scale-98 disabled:opacity-40 disabled:pointer-events-none">
+              @if (enviando()) {
+                <span>Enviando...</span>
+              } @else {
+                <span>Enviar</span>
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              }
+            </button>
+          </form>
         </div>
       } @else {
-        <p class="border-t border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-          Janela de 24h fechada: pela regra do WhatsApp, só dá para responder depois que o cliente mandar uma nova mensagem.
-        </p>
+        <!-- Aviso de Janela de 24h Expirada -->
+        <div class="flex items-center gap-3 border-t border-amber-200 bg-amber-50/90 px-5 py-3.5 text-xs text-amber-900">
+          <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-base">
+            ⏳
+          </div>
+          <div>
+            <div class="font-bold text-amber-950">Janela de 24h encerrada</div>
+            <p class="text-amber-800/90">
+              Pelas diretrizes oficiais da Meta, respostas de atendimento livre só podem ser enviadas dentro de 24h após a última mensagem do cliente. Assim que ele responder, a janela reabre automaticamente.
+            </p>
+          </div>
+        </div>
       }
     } @else {
-      <div class="m-auto p-6 text-sm text-slate-500">Escolha uma conversa.</div>
+      <!-- Estado Vazio: Nenhuma Conversa Selecionada -->
+      <div class="m-auto flex max-w-sm flex-col items-center justify-center p-8 text-center">
+        <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 shadow-xs mb-4">
+          <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm.01 18.08c-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.188 8.188 0 01-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24 2.2 0 4.27.86 5.82 2.42a8.183 8.183 0 012.41 5.83c.02 4.54-3.68 8.23-8.22 8.23z"/>
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-slate-800">WhatsApp Comercial</h3>
+        <p class="mt-1 text-xs text-slate-500 leading-relaxed">
+          Selecione uma conversa na lista ao lado para interagir com seus leads e clientes em tempo real.
+        </p>
+      </div>
     }
   </section>
 </div>
 
+<!-- Modal de Configurações do WhatsApp -->
 @if (configAberta()) {
   <app-crm-whatsapp-config (fechar)="configAberta.set(false)" (respostasMudaram)="respostas.set($event)" />
 }

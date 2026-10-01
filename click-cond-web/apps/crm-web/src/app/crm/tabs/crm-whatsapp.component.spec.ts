@@ -1,4 +1,4 @@
-﻿import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { Conversa, Mensagem, WhatsappApi } from '../whatsapp.service';
@@ -186,5 +186,32 @@ describe('CrmWhatsappComponent (Mídias)', () => {
 
     component.removerAnexo();
     expect(component.anexo()).toBeNull();
+  });
+
+  it('deve filtrar lista de conversas por nome ou telefone', () => {
+    component.conversas.set([
+      { id: 1, waId: '5511999991111', nome: 'Angelica Silva', leadId: null, ultimaMsgEm: '', ultimaDoClienteEm: null, naoLidas: 0, trecho: 'Olá', janelaAberta: true },
+      { id: 2, waId: '5511988882222', nome: 'Carlos Souza', leadId: null, ultimaMsgEm: '', ultimaDoClienteEm: null, naoLidas: 0, trecho: 'Boa tarde', janelaAberta: false },
+    ]);
+
+    component.filtro.set('angelica');
+    expect(component.conversasFiltradas().length).toBe(1);
+    expect(component.conversasFiltradas()[0].nome).toBe('Angelica Silva');
+
+    component.filtro.set('98888');
+    expect(component.conversasFiltradas().length).toBe(1);
+    expect(component.conversasFiltradas()[0].nome).toBe('Carlos Souza');
+
+    component.filtro.set('inexistente');
+    expect(component.conversasFiltradas().length).toBe(0);
+  });
+
+  it('deve formatar telefone e gerar iniciais de avatar corretamente', () => {
+    expect(component.obterIniciais('Angelica Silva')).toBe('AS');
+    expect(component.obterIniciais('Carlos')).toBe('CA');
+    expect(component.obterIniciais('+5511999998888')).toBe('55');
+
+    expect(component.formatarTelefone('5511999887766')).toBe('+55 (11) 99988-7766');
+    expect(component.formatarTelefone('551133334444')).toBe('+55 (11) 3333-4444');
   });
 });

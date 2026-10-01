@@ -19,10 +19,24 @@ export class CrmWhatsappComponent implements OnInit {
   private inputArquivo = viewChild<ElementRef<HTMLInputElement>>('inputArquivo');
 
   conversas = signal<Conversa[]>([]);
+  filtro = signal<string>('');
+  conversasFiltradas = computed(() => {
+    const q = this.filtro().trim().toLowerCase();
+    if (!q) return this.conversas();
+    return this.conversas().filter((c) => {
+      const nome = (c.nome || '').toLowerCase();
+      const waId = (c.waId || '').toLowerCase();
+      const trecho = (c.trecho || '').toLowerCase();
+      return nome.includes(q) || waId.includes(q) || trecho.includes(q);
+    });
+  });
+  totalNaoLidas = computed(() => this.conversas().reduce((acc, c) => acc + (c.naoLidas || 0), 0));
+
   selecionadaId = signal<number | null>(null);
   mensagens = signal<Mensagem[]>([]);
   texto = '';
   anexo = signal<File | null>(null);
+  previewAnexoUrl = signal<string | null>(null);
   enviando = signal(false);
   erro = signal<string | null>(null);
   respostas = signal<Resposta[]>([]);
@@ -153,14 +167,79 @@ export class CrmWhatsappComponent implements OnInit {
         return;
       }
       this.anexo.set(file);
+      if (file.type.startsWith('image/')) {
+        this.previewAnexoUrl.set(URL.createObjectURL(file));
+      } else {
+        this.previewAnexoUrl.set(null);
+      }
       this.erro.set(null);
     }
   }
 
   removerAnexo() {
+    const prev = this.previewAnexoUrl();
+    if (prev) {
+      try { URL.revokeObjectURL(prev); } catch { /* noop */ }
+      this.previewAnexoUrl.set(null);
+    }
     this.anexo.set(null);
     const input = this.inputArquivo()?.nativeElement;
     if (input) input.value = '';
+  }
+
+  obterIniciais(nome?: string | null): string {
+    if (!nome) return 'WA';
+    const partes = nome.trim().replace(/^\+/, '').split(/\s+/).filter(Boolean);
+    if (partes.length === 0) return 'WA';
+    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+  }
+
+  obterCorAvatar(nome?: string | null): string {
+    if (!nome) return 'bg-emerald-600 text-white';
+    const cores = [
+      'bg-emerald-600 text-white',
+      'bg-teal-600 text-white',
+      'bg-sky-600 text-white',
+      'bg-indigo-600 text-white',
+      'bg-violet-600 text-white',
+      'bg-purple-600 text-white',
+      'bg-amber-600 text-white',
+      'bg-rose-600 text-white',
+      'bg-cyan-600 text-white',
+    ];
+    let hash = 0;
+    for (let i = 0; i < nome.length; i++) {
+      hash = (hash << 5) - hash + nome.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % cores.length;
+    return cores[idx];
+  }
+
+  formatarTelefone(waId?: string | null): string {
+    if (!waId) return '';
+    const limpo = waId.replace(/\D/g, '');
+    if (limpo.length === 13 && limpo.startsWith('55')) {
+      return `+${limpo.slice(0, 2)} (${limpo.slice(2, 4)}) ${limpo.slice(4, 9)}-${limpo.slice(9)}`;
+    }
+    if (limpo.length === 12 && limpo.startsWith('55')) {
+      return `+${limpo.slice(0, 2)} (${limpo.slice(2, 4)}) ${limpo.slice(4, 8)}-${limpo.slice(8)}`;
+    }
+    if (limpo.length === 11) {
+      return `(${limpo.slice(0, 2)}) ${limpo.slice(2, 7)}-${limpo.slice(7)}`;
+    }
+    return `+${limpo}`;
+  }
+
+  detectarTipoTrecho(trecho?: string | null): { icone: string; ehMidia: boolean } {
+    if (!trecho) return { icone: '', ehMidia: false };
+    const t = trecho.toLowerCase();
+    if (t.includes('áudio') || t.includes('audio')) return { icone: '🎤', ehMidia: true };
+    if (t.includes('imagem') || t.includes('image') || t.includes('foto')) return { icone: '📷', ehMidia: true };
+    if (t.includes('vídeo') || t.includes('video')) return { icone: '🎥', ehMidia: true };
+    if (t.includes('document') || t.includes('pdf') || t.includes('arquivo')) return { icone: '📄', ehMidia: true };
+    return { icone: '', ehMidia: false };
   }
 
   formatarTamanho(bytes?: number | null): string {
