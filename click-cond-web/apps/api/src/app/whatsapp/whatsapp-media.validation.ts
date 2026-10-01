@@ -4,7 +4,7 @@ export type TipoMidiaSaida = 'image' | 'video' | 'document';
 
 const MIMES: Record<TipoMidiaSaida, Set<string>> = {
   image: new Set(['image/jpeg', 'image/png', 'image/webp']),
-  video: new Set(['video/3gpp', 'video/mp4']),
+  video: new Set(['video/3gpp', 'video/mp4', 'video/quicktime']),
   document: new Set([
     'application/pdf', 'text/plain', 'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -15,7 +15,7 @@ const MIMES: Record<TipoMidiaSaida, Set<string>> = {
 
 const PADROES: Record<TipoMidiaSaida, number> = {
   image: 5 * 1024 * 1024,
-  video: 16 * 1024 * 1024,
+  video: 100 * 1024 * 1024,
   document: 100 * 1024 * 1024,
 };
 
@@ -41,7 +41,10 @@ function assinaturaValida(tipo: TipoMidiaSaida, mime: string, buffer: Buffer): b
     if (mime === 'image/png') return buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
     return buffer.subarray(0, 4).equals(Buffer.from('RIFF')) && buffer.subarray(8, 12).equals(Buffer.from('WEBP'));
   }
-  if (tipo === 'video') return buffer.subarray(4, 8).equals(Buffer.from('ftyp'));
+  if (tipo === 'video') {
+    const box = buffer.subarray(4, 8).toString('binary');
+    return box === 'ftyp' || box === 'moov' || box === 'wide';
+  }
   if (mime === 'application/pdf') return buffer.subarray(0, 5).equals(Buffer.from('%PDF-'));
   if (mime === 'text/plain') return !buffer.subarray(0, 4096).includes(0);
   if (mime === 'application/msword' || mime === 'application/vnd.ms-excel' || mime === 'application/vnd.ms-powerpoint') {

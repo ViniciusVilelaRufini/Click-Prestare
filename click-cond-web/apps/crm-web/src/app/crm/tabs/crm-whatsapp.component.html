@@ -1,4 +1,4 @@
-﻿<div class="grid h-[calc(100vh-10rem)] min-h-[480px] grid-cols-1 overflow-hidden rounded-xl border border-slate-200 bg-white md:grid-cols-[320px_1fr]">
+<div class="grid h-[calc(100vh-10rem)] min-h-[480px] grid-cols-1 overflow-hidden rounded-xl border border-slate-200 bg-white md:grid-cols-[320px_1fr]">
   <aside class="flex min-h-0 flex-col border-b border-slate-200 md:border-b-0 md:border-r" [class.hidden]="selecionadaId() !== null" [class.md:flex]="true">
     <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
       <h2 class="text-sm font-semibold">Conversas</h2>
@@ -49,15 +49,15 @@
               @if (temMidia(m)) {
                 <div class="mb-2">
                   @if (midiaDisponivel(m)) {
-                    @if (m.tipo === 'audio') {
+                    @if (m.tipo === 'audio' || m.mediaMime?.startsWith('audio/')) {
                       <audio controls class="max-w-full rounded" [src]="urlMidia(m)">
                         Seu navegador não suporta áudio.
                       </audio>
-                    } @else if (m.tipo === 'image') {
+                    } @else if (m.tipo === 'image' || m.mediaMime?.startsWith('image/')) {
                       <a [href]="urlMidia(m)" target="_blank" rel="noopener noreferrer" class="block overflow-hidden rounded border border-slate-200">
                         <img [src]="urlMidia(m)" [alt]="m.mediaNome || 'Imagem'" class="max-h-60 w-auto rounded object-contain" />
                       </a>
-                    } @else if (m.tipo === 'video') {
+                    } @else if (m.tipo === 'video' || m.mediaMime?.startsWith('video/')) {
                       <video controls class="max-h-64 max-w-full rounded" [src]="urlMidia(m)">
                         Seu navegador não suporta vídeo.
                       </video>
@@ -127,7 +127,7 @@
           <label class="shrink-0 cursor-pointer rounded-lg border border-slate-300 p-2 text-lg leading-none text-slate-600 hover:bg-slate-50" title="Anexar arquivo" aria-label="Anexar arquivo">
             📎
             <input #inputArquivo type="file" class="sr-only" (change)="selecionarArquivo($event)"
-                   accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" />
+                   accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp,video/quicktime,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" />
           </label>
 
           <textarea [(ngModel)]="texto" (ngModelChange)="digitado.set($event)" name="texto" rows="2" maxlength="4096" placeholder="Escreva a resposta... (digite / para respostas rápidas)"

@@ -78,8 +78,12 @@ export class WhatsappGraphClient {
     if (!upload.ok) throw new Error(uploadJson?.error?.message ?? `Graph API ${upload.status}`);
     if (!uploadJson?.id) throw new Error('Graph API não devolveu o id da mídia');
 
-    const conteudo = { id: String(uploadJson.id), ...(legenda?.trim() ? { caption: legenda.trim() } : {}) };
-    const json = await this.post({ to: para, type: tipo, [tipo]: conteudo });
+    const tipoMeta = tipo === 'video' && arquivo.buffer.length > 16 * 1024 * 1024 ? 'document' : tipo;
+    const conteudo: any = { id: String(uploadJson.id), ...(legenda?.trim() ? { caption: legenda.trim() } : {}) };
+    if (tipoMeta === 'document' && tipo === 'video') {
+      conteudo.filename = this.nomeArquivoSeguro(arquivo.originalname);
+    }
+    const json = await this.post({ to: para, type: tipoMeta, [tipoMeta]: conteudo });
     const wamid = json?.messages?.[0]?.id;
     if (!wamid) throw new Error('Graph API não devolveu o id da mensagem');
     return String(wamid);
@@ -89,7 +93,10 @@ export class WhatsappGraphClient {
     const token = await this.segredos.obter('WA_ACCESS_TOKEN');
     if (!token) throw new Error('WA_ACCESS_TOKEN não configurado');
     const r = await fetch(`https://graph.facebook.com/v25.0/${encodeURIComponent(mediaId)}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'curl/7.64.1',
+      },
     });
     const json: any = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(json?.error?.message ?? `Graph API ${r.status}`);
@@ -102,13 +109,26 @@ export class WhatsappGraphClient {
     const token = await this.segredos.obter('WA_ACCESS_TOKEN');
     if (!token) throw new Error('WA_ACCESS_TOKEN não configurado');
     const metadados = await fetch(`https://graph.facebook.com/v25.0/${encodeURIComponent(mediaId)}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'curl/7.64.1',
+      },
     });
     const json: any = await metadados.json().catch(() => ({}));
     if (!metadados.ok || !json?.url) throw new Error(json?.error?.message ?? `Graph API ${metadados.status}`);
-    const arquivo = await fetch(String(json.url), { headers: { Authorization: `Bearer ${token}` } });
-    if (!arquivo.ok || !arquivo.body) throw new Error(`Graph API ${arquivo.status}`);
-    return Readable.fromWeb(arquivo.body as any);
+    const arquivo = await fetch(String(json.url), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'curl/7.64.1',
+      },
+    });
+    if (!arquivo.ok) throw new Error(`Graph API download ${arquivo.status}`);
+    const contentType = arquivo.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      throw new Error('Graph API lookaside retornou HTML ao invés do binário da mídia');
+    }
+    const buffer = Buffer.from(await arquivo.arrayBuffer());
+    return Readable.from(buffer);
   }
 
   private nomeArquivoSeguro(nome: string): string {

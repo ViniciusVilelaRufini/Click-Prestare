@@ -44,4 +44,65 @@ describe('WhatsappGraphClient', () => {
       messaging_product: 'whatsapp', to: '5517999', type: 'image', image: { id: 'media.1', caption: 'A fachada' },
     });
   });
+
+  it('envia video maior que 16MB como document no Graph com filename para nao estourar limite da Meta', async () => {
+    const f = jest.spyOn(global, 'fetch' as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'media.video.big' }) } as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [{ id: 'wamid.video.big' }] }) } as any);
+
+    const videoGrande = Buffer.alloc(17 * 1024 * 1024);
+    await expect(new WhatsappGraphClient(segredos).enviarMidia({
+      para: '5517999', tipo: 'video', legenda: 'Apresentação',
+      arquivo: { buffer: videoGrande, mimetype: 'video/mp4', originalname: 'anuncio-30s.mp4' },
+    })).resolves.toBe('wamid.video.big');
+
+    expect(JSON.parse((f.mock.calls[1] as any)[1].body)).toEqual({
+      messaging_product: 'whatsapp',
+      to: '5517999',
+      type: 'document',
+      document: {
+        id: 'media.video.big',
+        caption: 'Apresentação',
+        filename: 'anuncio-30s.mp4',
+      },
+    });
+  });
+
+  it('baixa midia enviando User-Agent curl e lendo binario em stream', async () => {
+    const f = jest.spyOn(global, 'fetch' as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ url: 'https://lookaside.fbsbx.com/midia/audio.ogg' }),
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'audio/ogg' }),
+        arrayBuffer: async () => new TextEncoder().encode('opus-audio-data').buffer,
+      } as any);
+
+    const stream = await new WhatsappGraphClient(segredos).baixarMidia('media.audio.123');
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    expect(Buffer.concat(chunks).toString()).toBe('opus-audio-data');
+
+    expect(f.mock.calls[0][1].headers['User-Agent']).toBe('curl/7.64.1');
+    expect(f.mock.calls[1][1].headers['User-Agent']).toBe('curl/7.64.1');
+  });
+
+  it('rejeita download se o lookaside retornar pagina HTML', async () => {
+    jest.spyOn(global, 'fetch' as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ url: 'https://lookaside.fbsbx.com/midia/erro' }),
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+        arrayBuffer: async () => Buffer.from('<html>Browser not supported</html>').buffer,
+      } as any);
+
+    await expect(new WhatsappGraphClient(segredos).baixarMidia('media.audio.html'))
+      .rejects.toThrow('Graph API lookaside retornou HTML ao invés do binário da mídia');
+  });
 });
+

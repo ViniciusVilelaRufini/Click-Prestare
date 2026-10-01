@@ -183,8 +183,9 @@ export class WhatsappInboxService {
         },
       });
     } catch (e: any) {
-      await this.prisma.crm_WhatsApp_Mensagens.update({ where: { wamid: m.wamid }, data: { media_status: 'falhou' } });
-      this.logger.error(`Armazenamento de mídia falhou (${m.wamid}): ${e?.message ?? e}`);
+      const msgErro = String(e?.message ?? e).slice(0, 500);
+      await this.prisma.crm_WhatsApp_Mensagens.update({ where: { wamid: m.wamid }, data: { media_status: 'falhou', erro: msgErro } });
+      this.logger.error(`Armazenamento de mídia falhou (${m.wamid}): ${msgErro}`);
     }
   }
 

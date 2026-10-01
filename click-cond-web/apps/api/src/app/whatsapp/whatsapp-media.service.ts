@@ -40,16 +40,17 @@ interface StorageConfig {
 }
 
 const MIME_PERMITIDOS = new Set([
-  'audio/aac', 'audio/amr', 'audio/mpeg', 'audio/mp4', 'audio/ogg',
+  'audio/aac', 'audio/amr', 'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/opus',
+  'audio/webm', 'audio/3gpp', 'audio/wav', 'audio/x-wav', 'audio/m4a', 'audio/x-m4a',
   'image/jpeg', 'image/png', 'image/webp',
-  'video/3gpp', 'video/mp4',
+  'video/3gpp', 'video/mp4', 'video/quicktime', 'video/webm',
   'application/pdf', 'text/plain',
   'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 ]);
 const CATEGORIAS_PERMITIDAS = new Set(['audio', 'image', 'video', 'document']);
-const LIMITE_PADRAO = 16 * 1024 * 1024;
+const LIMITE_PADRAO = 100 * 1024 * 1024;
 
 @Injectable()
 export class WhatsappMediaService {
