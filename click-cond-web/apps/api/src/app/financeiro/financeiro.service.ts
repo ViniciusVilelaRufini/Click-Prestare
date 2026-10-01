@@ -2497,8 +2497,7 @@ export class FinanceiroService implements OnModuleInit {
       if (!fat.data_vencimento) continue;
 
       const venc = new Date(fat.data_vencimento);
-      venc.setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil((venc.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+      const diffDays = Math.round((venc.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
 
       let tipo: 'antecipado' | 'hoje' | 'vencido' | null = null;
       let title = '';

@@ -1,3 +1,4 @@
+import { hojeBrasilia } from '../common/hora-brasilia.util';
 import { FinanceiroService } from './financeiro.service';
 
 /**
@@ -14,9 +15,8 @@ import { FinanceiroService } from './financeiro.service';
 describe('FinanceiroService — job de lembretes de cobrança', () => {
   /** Vencimento daqui a 5 dias: o gatilho do lembrete antecipado. */
   function em5Dias(): Date {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + 5);
+    const d = hojeBrasilia();
+    d.setUTCDate(d.getUTCDate() + 5);
     return d;
   }
 
