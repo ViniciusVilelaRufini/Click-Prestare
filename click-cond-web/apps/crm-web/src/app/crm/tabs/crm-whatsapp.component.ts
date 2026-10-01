@@ -38,21 +38,54 @@ export class CrmWhatsappComponent implements OnInit {
   });
   selecionada = computed(() => this.conversas().find((c) => c.id === this.selecionadaId()) ?? null);
 
+  private carregandoConversas = false;
+  private carregandoMensagens = false;
+
   ngOnInit() {
     this.carregarConversas();
     this.api.respostas().subscribe({ next: (r) => this.respostas.set(r), error: () => undefined });
+
+    // Polling ágil a cada 2s para mensagens e conversas em tempo real
     const t = setInterval(() => {
-      this.carregarConversas();
-      const id = this.selecionadaId();
-      if (id) this.carregarMensagens(id, false);
-    }, 10_000);
-    this.destroyRef.onDestroy(() => clearInterval(t));
+      if (typeof document !== 'undefined' && document.hidden) return;
+      this.sincronizar(false);
+    }, 2_000);
+
+    // Atualização instantânea ao focar ou reabrir a aba do CRM
+    const onVisChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        this.sincronizar(false);
+      }
+    };
+    const onFocus = () => this.sincronizar(false);
+
+    if (typeof window !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisChange);
+      window.addEventListener('focus', onFocus);
+    }
+
+    this.destroyRef.onDestroy(() => {
+      clearInterval(t);
+      if (typeof window !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisChange);
+        window.removeEventListener('focus', onFocus);
+      }
+    });
+  }
+
+  sincronizar(rolar = false) {
+    this.carregarConversas();
+    const id = this.selecionadaId();
+    if (id) this.carregarMensagens(id, rolar);
   }
 
   carregarConversas() {
+    if (this.carregandoConversas) return;
+    this.carregandoConversas = true;
     this.api.conversas().subscribe({
       next: (c) => {
         this.conversas.set(c);
+        this.carregandoConversas = false;
         // Vindo do botão "Iniciar conversa" da aba Marketing: abre direto a conversa pedida.
         const alvo = Number(this.route.snapshot.queryParamMap.get('conversa'));
         if (alvo && this.selecionadaId() === null) {
@@ -60,7 +93,10 @@ export class CrmWhatsappComponent implements OnInit {
           if (conv) this.abrir(conv);
         }
       },
-      error: () => this.erro.set('Falha ao carregar conversas.'),
+      error: () => {
+        this.carregandoConversas = false;
+        this.erro.set('Falha ao carregar conversas.');
+      },
     });
   }
 
@@ -72,11 +108,28 @@ export class CrmWhatsappComponent implements OnInit {
   }
 
   private carregarMensagens(id: number, rolar: boolean) {
-    this.api.mensagens(id).subscribe((m) => {
-      const cresceu = m.length !== this.mensagens().length;
-      this.mensagens.set(m);
-      this.conversas.update((cs) => cs.map((c) => (c.id === id ? { ...c, naoLidas: 0 } : c)));
-      if (rolar || cresceu) setTimeout(() => this.fim()?.nativeElement.scrollIntoView({ block: 'end' }));
+    if (this.carregandoMensagens) return;
+    this.carregandoMensagens = true;
+    this.api.mensagens(id).subscribe({
+      next: (m) => {
+        this.carregandoMensagens = false;
+        const atuais = this.mensagens();
+        const mudou =
+          m.length !== atuais.length ||
+          (m.length > 0 && atuais.length > 0 && (
+            m[m.length - 1].id !== atuais[atuais.length - 1].id ||
+            m[m.length - 1].status !== atuais[atuais.length - 1].status ||
+            m[m.length - 1].mediaStatus !== atuais[atuais.length - 1].mediaStatus
+          ));
+        if (mudou || rolar) {
+          this.mensagens.set(m);
+          this.conversas.update((cs) => cs.map((c) => (c.id === id ? { ...c, naoLidas: 0 } : c)));
+          setTimeout(() => this.fim()?.nativeElement.scrollIntoView({ block: 'end', behavior: rolar ? 'auto' : 'smooth' }));
+        }
+      },
+      error: () => {
+        this.carregandoMensagens = false;
+      },
     });
   }
 
@@ -156,6 +209,7 @@ export class CrmWhatsappComponent implements OnInit {
           this.mensagens.update((ms) => [...ms, m]);
           if (m.status === 'falhou') this.erro.set(`Não enviada: ${m.erro}`);
           this.enviando.set(false);
+          this.carregarConversas();
           setTimeout(() => this.fim()?.nativeElement.scrollIntoView({ block: 'end' }));
         },
         error: (e) => {
@@ -173,6 +227,7 @@ export class CrmWhatsappComponent implements OnInit {
         this.mensagens.update((ms) => [...ms, m]);
         if (m.status === 'falhou') this.erro.set(`Não enviada: ${m.erro}`);
         this.enviando.set(false);
+        this.carregarConversas();
         setTimeout(() => this.fim()?.nativeElement.scrollIntoView({ block: 'end' }));
       },
       error: (e) => {
