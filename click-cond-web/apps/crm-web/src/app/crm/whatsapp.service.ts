@@ -1,7 +1,8 @@
-﻿import { Injectable, inject } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
+import { AuthService } from '../auth/auth.service';
 
 export interface Conversa {
   id: number; waId: string; nome: string; leadId: number | null; ultimaMsgEm: string;
@@ -30,6 +31,7 @@ export interface Automacoes {
 @Injectable({ providedIn: 'root' })
 export class WhatsappApi {
   private http = inject(HttpClient);
+  private auth = inject(AuthService);
   private base = `${API_BASE}/crm/whatsapp`;
 
   conversas(): Observable<Conversa[]> { return this.http.get<Conversa[]>(`${this.base}/conversas`); }
@@ -45,7 +47,11 @@ export class WhatsappApi {
     if (legenda && legenda.trim()) form.append('legenda', legenda.trim());
     return this.http.post<Mensagem>(`${this.base}/conversas/${id}/midias`, form);
   }
-  urlMidia(id: number): string { return `${this.base}/midias/${id}`; }
+  urlMidia(id: number): string {
+    const token = this.auth.token;
+    const qs = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${this.base}/midias/${id}${qs}`;
+  }
   iniciarConversa(leadId: number): Observable<{ conversaId: number; mensagem: Mensagem }> {
     return this.http.post<{ conversaId: number; mensagem: Mensagem }>(`${this.base}/leads/${leadId}/iniciar`, {});
   }

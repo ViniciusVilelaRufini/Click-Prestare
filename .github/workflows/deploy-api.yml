@@ -102,7 +102,12 @@ jobs:
             --environment-names "$ENVIRONMENT_NAME"
           aws elasticbeanstalk update-environment \
             --environment-name "$ENVIRONMENT_NAME" \
-            --version-label "${{ steps.application.outputs.version_label }}"
+            --version-label "${{ steps.application.outputs.version_label }}" \
+            --option-settings \
+              Namespace=aws:elasticbeanstalk:application:environment,OptionName=WA_MEDIA_BUCKET,Value=elasticbeanstalk-sa-east-1-850401152034 \
+              Namespace=aws:elasticbeanstalk:application:environment,OptionName=WA_MEDIA_REGION,Value=sa-east-1 \
+              Namespace=aws:elasticbeanstalk:application:environment,OptionName=WA_MEDIA_ACCESS_KEY_ID,Value="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+              Namespace=aws:elasticbeanstalk:application:environment,OptionName=WA_MEDIA_SECRET_ACCESS_KEY,Value="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
           aws elasticbeanstalk wait environment-updated \
             --environment-names "$ENVIRONMENT_NAME"
 
@@ -110,15 +115,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          HEALTH="$(aws elasticbeanstalk describe-environments \
-            --environment-names "$ENVIRONMENT_NAME" \
-            --query 'Environments[0].Health' \
-            --output text)"
-          STATUS="$(aws elasticbeanstalk describe-environments \
-            --environment-names "$ENVIRONMENT_NAME" \
-            --query 'Environments[0].Status' \
-            --output text)"
-          echo "Environment status: $STATUS; health: $HEALTH"
+          for i in {1..12}; do
+            HEALTH="$(aws elasticbeanstalk describe-environments \
+              --environment-names "$ENVIRONMENT_NAME" \
+              --query 'Environments[0].Health' \
+              --output text)"
+            STATUS="$(aws elasticbeanstalk describe-environments \
+              --environment-names "$ENVIRONMENT_NAME" \
+              --query 'Environments[0].Status' \
+              --output text)"
+            echo "Verificação $i: status=$STATUS health=$HEALTH"
+            if [ "$STATUS" = "Ready" ] && [ "$HEALTH" != "Red" ]; then
+              break
+            fi
+            sleep 5
+          done
           test "$STATUS" = "Ready"
           test "$HEALTH" != "Red"
 

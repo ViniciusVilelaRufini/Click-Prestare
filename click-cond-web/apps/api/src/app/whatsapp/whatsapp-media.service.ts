@@ -1,9 +1,56 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { Readable } from 'node:stream';
 import { ArquivoWhatsapp } from './whatsapp-graph.client';
 import { TipoMidiaSaida, validarMidiaSaida } from './whatsapp-media.validation';
+
+const CACHE_DIR = path.join(os.tmpdir(), 'crm-whatsapp-media');
+
+function caminhoCache(chave: string): string {
+  return path.join(CACHE_DIR, chave.replace(/[^A-Za-z0-9._-]/g, '_'));
+}
+
+function salvarCacheLocal(chave: string, buffer: Buffer, meta: { mime: string; nome: string | null }): void {
+  try {
+    const arquivo = caminhoCache(chave);
+    fs.mkdirSync(path.dirname(arquivo), { recursive: true });
+    fs.writeFileSync(arquivo, buffer);
+    fs.writeFileSync(`${arquivo}.meta.json`, JSON.stringify(meta));
+  } catch {
+    // Falha silenciosa de cache em disco
+  }
+}
+
+function lerCacheLocal(chave: string): { buffer: Buffer; meta: { mime: string; nome: string | null } } | null {
+  try {
+    const arquivo = caminhoCache(chave);
+    if (!fs.existsSync(arquivo)) return null;
+    const buffer = fs.readFileSync(arquivo);
+    let meta = { mime: 'application/octet-stream', nome: null as string | null };
+    const metaPath = `${arquivo}.meta.json`;
+    if (fs.existsSync(metaPath)) {
+      meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    }
+    return { buffer, meta };
+  } catch {
+    return null;
+  }
+}
+
+function apagarCacheLocal(chave: string): void {
+  try {
+    const arquivo = caminhoCache(chave);
+    if (fs.existsSync(arquivo)) fs.unlinkSync(arquivo);
+    const metaPath = `${arquivo}.meta.json`;
+    if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
+  } catch {
+    // Falha silenciosa
+  }
+}
 
 export interface MidiaEntradaWhatsApp {
   wamid: string;
@@ -54,6 +101,7 @@ const LIMITE_PADRAO = 100 * 1024 * 1024;
 
 @Injectable()
 export class WhatsappMediaService {
+  private readonly logger = new Logger(WhatsappMediaService.name);
   private readonly bucket: string;
   private readonly maxBytes: number;
   private readonly s3: S3Client | null;
@@ -117,15 +165,22 @@ export class WhatsappMediaService {
 
     const chave = `whatsapp/${this.segmentoSeguro(wamid)}/${this.uuidDeterministico(wamid)}`;
     const corpo = await this.lerAteLimite(await this.graph.baixarMidia(mediaId));
-    await this.s3.send(new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: chave,
-      Body: corpo,
-      ContentType: mime,
-      ContentLength: corpo.length,
-      Metadata: metadados.nome ? { nome: this.nomeSeguro(metadados.nome) } : undefined,
-    }));
-    return { chave, mime, nome: metadados.nome ? this.nomeSeguro(metadados.nome) : null, tamanho: corpo.length, status: 'armazenada' };
+    const nome = metadados.nome ? this.nomeSeguro(metadados.nome) : null;
+    salvarCacheLocal(chave, corpo, { mime, nome });
+
+    try {
+      await this.s3.send(new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: chave,
+        Body: corpo,
+        ContentType: mime,
+        ContentLength: corpo.length,
+        Metadata: nome ? { nome } : undefined,
+      }));
+    } catch (e: any) {
+      this.logger.warn(`Upload S3 de mídia de entrada falhou, mantendo em cache local: ${e?.message}`);
+    }
+    return { chave, mime, nome, tamanho: corpo.length, status: 'armazenada' };
   }
 
   async guardarSaida({ referencia, tipo, arquivo }: { referencia: string; tipo: TipoMidiaSaida; arquivo: ArquivoWhatsapp }): Promise<MidiaWhatsApp> {
@@ -133,20 +188,53 @@ export class WhatsappMediaService {
     if (!this.s3) return { chave: null, mime: null, nome: null, tamanho: null, status: 'indisponivel' };
     const chave = `whatsapp/${this.segmentoSeguro(referencia)}/${randomUUID()}`;
     const nome = this.nomeSeguro(arquivo.originalname);
-    await this.s3.send(new PutObjectCommand({
-      Bucket: this.bucket, Key: chave, Body: arquivo.buffer, ContentType: arquivo.mimetype,
-      ContentLength: arquivo.buffer.length, Metadata: { nome },
-    }));
+    salvarCacheLocal(chave, arquivo.buffer, { mime: arquivo.mimetype, nome });
+
+    try {
+      await this.s3.send(new PutObjectCommand({
+        Bucket: this.bucket, Key: chave, Body: arquivo.buffer, ContentType: arquivo.mimetype,
+        ContentLength: arquivo.buffer.length, Metadata: { nome },
+      }));
+    } catch (e: any) {
+      this.logger.warn(`Upload S3 de mídia de saída falhou, mantendo em cache local: ${e?.message}`);
+    }
     return { chave, mime: arquivo.mimetype, nome, tamanho: arquivo.buffer.length, status: 'armazenada' };
   }
 
   async apagar(chave: string): Promise<void> {
-    if (!/^whatsapp\/[A-Za-z0-9._-]+\/[0-9a-f-]{36}$/.test(chave) || !this.s3) return;
-    await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: chave }));
+    if (!/^whatsapp\/[A-Za-z0-9._-]+\/[0-9a-f-]{36}$/.test(chave)) return;
+    apagarCacheLocal(chave);
+    if (this.s3) {
+      try {
+        await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: chave }));
+      } catch (e: any) {
+        this.logger.warn(`Exclusão S3 falhou: ${e?.message}`);
+      }
+    }
   }
 
   async abrir(chave: string, intervalo?: { inicio: number; fim: number }): Promise<{ stream: Readable; mime: string; nome: string | null; tamanho: number; total: number; inicio: number; fim: number }> {
     if (!/^whatsapp\/[A-Za-z0-9._-]+\/[0-9a-f-]{36}$/.test(chave)) throw new Error('Chave de mídia inválida');
+
+    // 1. Tenta cache local primeiro (latência zero, áudios tocam instantaneamente)
+    const emCache = lerCacheLocal(chave);
+    if (emCache) {
+      const tamanho = emCache.buffer.length;
+      const inicio = intervalo?.inicio ?? 0;
+      const fim = intervalo?.fim ?? Math.max(0, tamanho - 1);
+      const fatia = emCache.buffer.subarray(inicio, fim + 1);
+      return {
+        stream: Readable.from(fatia),
+        mime: this.mimePermitido(emCache.meta.mime) ?? 'application/octet-stream',
+        nome: emCache.meta.nome,
+        tamanho: fatia.length,
+        total: tamanho,
+        inicio,
+        fim,
+      };
+    }
+
+    // 2. Se não estiver em cache local, busca no S3
     if (!this.s3) throw new Error('Armazenamento de mídia indisponível');
     const objeto = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: chave, ...(intervalo ? { Range: `bytes=${intervalo.inicio}-${intervalo.fim}` } : {}) }));
     if (!objeto.Body) throw new Error('Mídia não encontrada');

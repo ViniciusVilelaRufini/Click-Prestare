@@ -9,12 +9,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {
     super({
       jwtFromRequest: (req: any) => {
-        if (!req || !req.headers) return null;
-        const authHeader = req.headers['authorization'];
-        if (!authHeader) return null;
-        return authHeader.startsWith('Bearer ')
-          ? authHeader.substring(7)
-          : authHeader;
+        if (!req) return null;
+        if (req.headers && req.headers['authorization']) {
+          const authHeader = req.headers['authorization'];
+          if (authHeader) {
+            return authHeader.startsWith('Bearer ')
+              ? authHeader.substring(7)
+              : authHeader;
+          }
+        }
+        if (req.query && req.query.token) {
+          return req.query.token;
+        }
+        return null;
       },
       ignoreExpiration: false,
       secretOrKey: resolveJwtSecret(),
