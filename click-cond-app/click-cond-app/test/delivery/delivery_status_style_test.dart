@@ -193,4 +193,193 @@ void main() {
       expect(find.text('Chegou'), findsOneWidget);
     }
   });
+  group('etapas: ícones e horários', () {
+    test('cada etapa tem um ícone próprio', () {
+      final icons = List.generate(4, deliveryStepIcon);
+      expect(icons.toSet().length, 4);
+    });
+
+    test('horário de cada etapa vem do primeiro evento que a alcançou', () {
+      final d = DeliveryModel.fromJson({
+        'status': 'CONCLUIDA',
+        'created_at': '2026-10-04T13:55:00',
+        'eventos': [
+          {'status_novo': 'AGENDADA', 'created_at': '2026-10-04T14:00:00'},
+          {'status_novo': 'CHEGOU', 'created_at': '2026-10-04T14:20:00'},
+          {
+            'status_novo': 'AGUARDANDO_AUTORIZACAO',
+            'created_at': '2026-10-04T14:21:00'
+          },
+          {'status_novo': 'AUTORIZADA', 'created_at': '2026-10-04T14:23:00'},
+          {'status_novo': 'CONCLUIDA', 'created_at': '2026-10-04T14:40:00'},
+        ],
+      });
+      expect(deliveryStepTimes(d), [
+        '2026-10-04T14:00:00',
+        '2026-10-04T14:20:00',
+        '2026-10-04T14:21:00',
+        '2026-10-04T14:40:00',
+      ]);
+    });
+
+    test('sem evento de aviso usa a criação; etapas não alcançadas ficam vazias',
+        () {
+      const d =
+          DeliveryModel(status: 'AGENDADA', createdAt: '2026-10-04T13:55:00');
+      expect(deliveryStepTimes(d), ['2026-10-04T13:55:00', null, null, null]);
+    });
+
+    test('formatStepTime: HH:mm no dia, dd/MM em outros dias', () {
+      final now = DateTime(2026, 10, 4, 15);
+      expect(formatStepTime('2026-10-04T14:20:00', now: now), '14:20');
+      expect(formatStepTime('2026-10-02T14:20:00', now: now), '02/10');
+      expect(formatStepTime('x', now: now), '');
+    });
+  });
+
+  group('deliveryContextLine', () {
+    final now = DateTime(2026, 10, 4, 22, 30);
+    DeliveryModel com(String status, String? quando,
+            {String? previsao, String? criado}) =>
+        DeliveryModel(
+          status: status,
+          previsaoEm: previsao,
+          createdAt: criado,
+          eventos: quando == null
+              ? const []
+              : [DeliveryEvent(statusNovo: status, createdAt: quando)],
+        );
+
+    test('concluída mostra o horário e o relativo', () {
+      expect(
+          deliveryContextLine(com('CONCLUIDA', '2026-10-04T21:22:00'),
+              now: now),
+          'Concluída às 21:22 · há 1 h');
+      expect(
+          deliveryContextLine(com('CONCLUIDA', '2026-10-03T21:22:00'),
+              now: now),
+          'Concluída ontem 21:22');
+    });
+
+    test('chegou mostra há quanto tempo', () {
+      expect(
+          deliveryContextLine(com('CHEGOU', '2026-10-04T22:25:00'), now: now),
+          'Chegou há 5 min');
+    });
+
+    test('agendada usa a previsão, senão a criação', () {
+      expect(
+          deliveryContextLine(
+              com('AGENDADA', null, previsao: '2026-10-05T14:30:00'),
+              now: DateTime(2026, 10, 5, 9)),
+          'Aviso para hoje 14:30');
+      expect(
+          deliveryContextLine(
+              com('AGENDADA', null, previsao: '2026-10-04T22:50:00'),
+              now: now),
+          'Previsão em 20 min');
+      expect(
+          deliveryContextLine(
+              com('AGENDADA', null, criado: '2026-10-04T22:28:00'),
+              now: now),
+          'Avisado há 2 min');
+    });
+
+    test('demais status com e sem horário', () {
+      expect(
+          deliveryContextLine(
+              com('AGUARDANDO_AUTORIZACAO', '2026-10-04T22:28:00'),
+              now: now),
+          'Autorização pedida há 2 min');
+      expect(
+          deliveryContextLine(com('RECUSADA', '2026-09-27T10:00:00'),
+              now: now),
+          'Recusada em 27/09 10:00');
+      expect(deliveryContextLine(com('CANCELADA', null), now: now),
+          'Cancelada');
+    });
+  });
+
+  group('deliveryNextStep (O que acontece agora?)', () {
+    const casos = {
+      'AGENDADA':
+          'Avisamos a portaria. Quando o entregador chegar, você será notificado.',
+      'CHEGOU':
+          'O entregador está na portaria. A portaria vai pedir sua autorização.',
+      'AGUARDANDO_AUTORIZACAO':
+          'A portaria só libera a entrada depois da sua resposta.',
+      'AUTORIZADA':
+          'Entrega liberada. O entregador está a caminho do seu apartamento.',
+      'RETIRADA_NA_PORTARIA':
+          'Sua entrega ficou na portaria. Retire quando puder.',
+      'CONCLUIDA': 'Tudo certo — nada a fazer.',
+      'CANCELADA':
+          'Este aviso foi cancelado. Se ainda precisar, avise uma nova entrega.',
+      'RECUSADA':
+          'A entrega foi recusada e o entregador não foi liberado. Se precisar, avise uma nova entrega.',
+    };
+    casos.forEach((status, texto) {
+      test(status, () {
+        expect(deliveryNextStep(DeliveryModel(status: status)).text, texto);
+      });
+    });
+
+    test('autorizada para retirar na portaria muda a frase', () {
+      expect(
+          deliveryNextStep(const DeliveryModel(
+                  status: 'AUTORIZADA', modoEntrega: 'PORTARIA'))
+              .text,
+          'Entrega liberada. Ela vai ficar na portaria para você retirar.');
+    });
+  });
+
+  group('agrupamento por dia', () {
+    final now = DateTime(2026, 10, 4, 15);
+
+    test('rótulos do dia', () {
+      expect(deliveryDayLabel(DateTime(2026, 10, 4, 1), now: now), 'Hoje');
+      expect(deliveryDayLabel(DateTime(2026, 10, 3, 23), now: now), 'Ontem');
+      expect(
+          deliveryDayLabel(DateTime(2026, 9, 27, 8), now: now), '27 de set');
+      expect(deliveryDayLabel(DateTime(2025, 12, 31, 8), now: now),
+          '31 de dez de 2025');
+      expect(deliveryDayLabel(null, now: now), 'Sem data');
+    });
+
+    test('junta o mesmo dia mantendo a ordem da primeira aparição', () {
+      const a = DeliveryModel(id: 1, createdAt: '2026-10-04T12:00:00');
+      const b = DeliveryModel(id: 2, createdAt: '2026-10-03T12:00:00');
+      const c = DeliveryModel(id: 3, createdAt: '2026-10-04T09:00:00');
+      const d = DeliveryModel(id: 4, createdAt: '2026-09-27T09:00:00');
+      final grupos = groupDeliveriesByDay([a, b, c, d], now: now);
+      expect(grupos.map((g) => g.label), ['Hoje', 'Ontem', '27 de set']);
+      expect(grupos.first.items.map((x) => x.id), [1, 3]);
+    });
+  });
+
+  test('deliverySummary conta o que importa e esconde zeros', () {
+    expect(deliverySummary(const []), isEmpty);
+    expect(
+        deliverySummary(const [
+          DeliveryModel(status: 'AGUARDANDO_AUTORIZACAO'),
+          DeliveryModel(status: 'CHEGOU'),
+          DeliveryModel(status: 'CONCLUIDA'),
+          DeliveryModel(status: 'CONCLUIDA'),
+          DeliveryModel(status: 'CANCELADA'),
+        ]),
+        ['1 aguardando você', '1 em andamento', '2 concluídas']);
+    expect(deliverySummary(const [DeliveryModel(status: 'CONCLUIDA')]),
+        ['1 concluída']);
+  });
+
+  test('deliveryTitle usa o estabelecimento ou um texto padrão', () {
+    expect(deliveryTitle(const DeliveryModel(estabelecimento: ' Mercado ')),
+        'Mercado');
+    expect(deliveryTitle(const DeliveryModel()), 'Entrega avisada');
+  });
+
+  test('onColor garante contraste sobre a cor do status', () {
+    expect(DeliveryStatusStyle.of('CHEGOU').onColor, isNot(Colors.white));
+    expect(DeliveryStatusStyle.of('AGENDADA').onColor, Colors.white);
+  });
 }
