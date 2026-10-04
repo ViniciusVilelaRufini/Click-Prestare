@@ -396,20 +396,17 @@ class _DeliveryCard extends StatelessWidget {
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    DeliveryStatusBadge(status: delivery.status),
-                  ]),
+                  // Título com a linha inteira (o selo ao lado cortava nomes
+                  // como "Teste UI Hamburgueria").
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w600, height: 1.3),
+                  ),
                   const SizedBox(height: 6),
-                  Wrap(spacing: 6, runSpacing: 6, children: [
+                  Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                    DeliveryStatusBadge(status: delivery.status),
                     _MetaChip(icon: portaria ? PhosphorIcons.storefront : PhosphorIcons.house, label: modo),
                     if (time != null) _MetaChip(icon: PhosphorIcons.clock, label: time),
                   ]),

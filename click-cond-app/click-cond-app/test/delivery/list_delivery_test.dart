@@ -137,6 +137,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Nenhuma entrega em andamento'), findsOneWidget);
+    // Com o FAB na tela, o vazio não repete o botão "Avisar entrega".
+    expect(find.text('Avisar entrega'), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsOneWidget);
     await tester.tap(find.text('Histórico (0)'));
     await tester.pumpAndSettle();
     expect(find.text('Nenhuma entrega no histórico'), findsOneWidget);
@@ -173,5 +176,39 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('A portaria aguarda sua resposta'), findsOneWidget);
+  });
+  testWidgets('sem FAB, o vazio das ativas oferece o botão "Avisar entrega"',
+      (tester) async {
+    ApiClient.client =
+        MockClient((_) async => http.Response(jsonEncode([]), 200));
+
+    await tester.pumpWidget(
+        const MaterialApp(home: ListDelivery(showFab: false)));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FloatingActionButton), findsNothing);
+    expect(find.text('Avisar entrega'), findsOneWidget);
+  });
+
+  testWidgets('título do card tem a linha inteira, sem dividir com o selo',
+      (tester) async {
+    tester.view.physicalSize = const Size(360 * 3, 720 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    ApiClient.client = MockClient((_) async => http.Response(
+        jsonEncode([aviso(1, 'AGENDADA', 'Teste UI Hamburgueria')]), 200));
+
+    await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
+    await tester.pumpAndSettle();
+
+    final titulo = find.text('Teste UI Hamburgueria');
+    final selo = find.text('Agendada');
+    expect(titulo, findsOneWidget);
+    expect(selo, findsOneWidget);
+    // O selo fica abaixo do título (linha própria), não ao lado.
+    expect(tester.getRect(selo).top,
+        greaterThanOrEqualTo(tester.getRect(titulo).bottom));
+    final text = tester.widget<Text>(titulo);
+    expect(text.maxLines, 2);
   });
 }
