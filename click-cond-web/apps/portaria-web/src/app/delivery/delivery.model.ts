@@ -51,6 +51,10 @@ export interface DeliveryAtendimento {
   entregador?: DeliveryEntregador | null;
   eventos: DeliveryEvento[];
   created_at: string;
+  chegou_em?: string | null;
+  autorizado_em?: string | null;
+  concluido_em?: string | null;
+  updated_at?: string | null;
 }
 
 export interface CriarEntregadorDelivery {
@@ -65,4 +69,10 @@ export interface AtualizarEntregadorDelivery extends Partial<Omit<CriarEntregado
   status?: EntregadorStatus;
   motivo_bloqueio?: string;
   veiculo?: Omit<DeliveryVeiculo, 'id'> | null;
+}
+
+export interface DeliveryResumo {
+  ativos: Partial<Record<DeliveryStatus, number>>;
+  periodo: { de: string; ate: string; CONCLUIDA: number; CANCELADA: number; RECUSADA: number; total: number };
+  tempo_medio_atendimento_min: number | null;
 }

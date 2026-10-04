@@ -8,6 +8,7 @@ import {
   CriarEntregadorDelivery,
   DeliveryAtendimento,
   DeliveryEntregador,
+  DeliveryResumo,
   DeliveryStatus,
 } from './delivery.model';
 
@@ -16,6 +17,7 @@ export type {
   CriarEntregadorDelivery,
   DeliveryAtendimento,
   DeliveryEntregador,
+  DeliveryResumo,
   DeliveryStatus,
 } from './delivery.model';
 
@@ -32,6 +34,22 @@ export class DeliveryApi {
     let params = new HttpParams().set('id_condominio', this.idCondominio);
     if (status) params = params.set('status', status);
     return this.http.get<DeliveryAtendimento[]>(`${API_BASE}/delivery`, { params });
+  }
+
+  listAtivos(): Observable<DeliveryAtendimento[]> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio).set('escopo', 'ativos');
+    return this.http.get<DeliveryAtendimento[]>(`${API_BASE}/delivery`, { params });
+  }
+
+  listHistorico(de: string, ate: string): Observable<DeliveryAtendimento[]> {
+    const params = new HttpParams()
+      .set('id_condominio', this.idCondominio).set('escopo', 'historico').set('de', de).set('ate', ate);
+    return this.http.get<DeliveryAtendimento[]>(`${API_BASE}/delivery`, { params });
+  }
+
+  resumo(de: string, ate: string): Observable<DeliveryResumo> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio).set('de', de).set('ate', ate);
+    return this.http.get<DeliveryResumo>(`${API_BASE}/delivery/resumo`, { params });
   }
 
   atualizarStatus(
