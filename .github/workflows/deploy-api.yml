@@ -111,6 +111,22 @@ jobs:
           aws elasticbeanstalk wait environment-updated \
             --environment-names "$ENVIRONMENT_NAME"
 
+      - name: Verify deployed version
+        shell: bash
+        run: |
+          set -euo pipefail
+          # update-environment que falha (ex.: env acima de 4096 chars) deixa o
+          # ambiente "Ready" na versão antiga e o wait volta sem erro.
+          EXPECTED="${{ steps.application.outputs.version_label }}"
+          ACTUAL="$(aws elasticbeanstalk describe-environments             --environment-names "$ENVIRONMENT_NAME"             --query 'Environments[0].VersionLabel' --output text)"
+          echo "Versão esperada: $EXPECTED"
+          echo "Versão no ambiente: $ACTUAL"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::O ambiente não está na versão implantada. Últimos eventos:"
+            aws elasticbeanstalk describe-events               --environment-name "$ENVIRONMENT_NAME" --max-items 15               --query 'Events[].[EventDate,Severity,Message]' --output text
+            exit 1
+          fi
+
       - name: Verify environment health
         shell: bash
         run: |
