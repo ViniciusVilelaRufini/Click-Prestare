@@ -23,6 +23,11 @@ describe('DeliveryEntregadoresComponent', () => {
     return { fixture, store };
   }
 
+  it('host renderiza como bloco para respeitar o espaçamento do casco', () => {
+    const { fixture } = montar('Síndico');
+    expect(fixture.nativeElement.classList.contains('block')).toBe(true);
+  });
+
   it('lista com selo de bloqueado e formulário de novo cadastro', () => {
     const { fixture } = montar('Síndico');
     const texto = fixture.nativeElement.textContent;

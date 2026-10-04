@@ -27,6 +27,12 @@ describe('DeliveryFilaComponent', () => {
   const botaoCom = (el: HTMLElement, texto: string) =>
     Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.includes(texto)) as HTMLButtonElement;
 
+  it('hosts da fila e do detalhe renderizam como bloco', () => {
+    const el: HTMLElement = montar().nativeElement;
+    expect(el.classList.contains('block')).toBe(true);
+    expect(el.querySelector('app-delivery-detalhe')?.classList.contains('block')).toBe(true);
+  });
+
   it('lista a fila com rótulo amigável, unidade e modo; painel orienta sem seleção', () => {
     const el: HTMLElement = montar().nativeElement;
     expect(el.textContent).toContain('Pizzaria Central');

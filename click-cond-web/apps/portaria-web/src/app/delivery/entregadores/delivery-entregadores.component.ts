@@ -5,6 +5,7 @@ import { DeliveryStore } from '../delivery.store';
 @Component({
   selector: 'app-delivery-entregadores',
   standalone: true,
+  host: { class: 'block' },
   imports: [FormsModule],
   templateUrl: './delivery-entregadores.component.html',
 })

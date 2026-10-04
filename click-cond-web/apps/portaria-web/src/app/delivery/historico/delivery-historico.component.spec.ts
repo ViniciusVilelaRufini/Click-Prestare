@@ -47,6 +47,12 @@ describe('DeliveryHistoricoComponent', () => {
     expect(texto).toContain('Concluídos');
   });
 
+  it('host renderiza como bloco', () => {
+    const fixture = TestBed.createComponent(DeliveryHistoricoComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.classList.contains('block')).toBe(true);
+  });
+
   it('troca de período recarrega com o novo intervalo', () => {
     const fixture = TestBed.createComponent(DeliveryHistoricoComponent);
     fixture.detectChanges();

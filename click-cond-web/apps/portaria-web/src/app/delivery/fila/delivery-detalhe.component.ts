@@ -9,6 +9,7 @@ import { DeliveryTimelineComponent } from '../shared/delivery-timeline.component
 @Component({
   selector: 'app-delivery-detalhe',
   standalone: true,
+  host: { class: 'block' },
   imports: [FormsModule, DeliveryStatusBadgeComponent, DeliveryTimelineComponent],
   templateUrl: './delivery-detalhe.component.html',
 })

@@ -10,6 +10,7 @@ import { DeliveryDetalheComponent } from './delivery-detalhe.component';
 @Component({
   selector: 'app-delivery-fila',
   standalone: true,
+  host: { class: 'block' },
   imports: [FormsModule, DeliveryStatusBadgeComponent, DeliveryDetalheComponent],
   templateUrl: './delivery-fila.component.html',
 })

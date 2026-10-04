@@ -13,6 +13,7 @@ import { PeriodoHistorico, intervaloPeriodo, textoDuracao } from '../shared/temp
 @Component({
   selector: 'app-delivery-historico',
   standalone: true,
+  host: { class: 'block' },
   imports: [DatePipe, FormsModule, DeliveryStatusBadgeComponent, DeliveryTimelineComponent],
   templateUrl: './delivery-historico.component.html',
 })

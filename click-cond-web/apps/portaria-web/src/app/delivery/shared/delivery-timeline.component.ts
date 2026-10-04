@@ -6,6 +6,7 @@ import { classesStatus, rotuloStatus } from './delivery-status';
 @Component({
   selector: 'app-delivery-timeline',
   standalone: true,
+  host: { class: 'block' },
   imports: [DatePipe],
   template: `
     @if (eventos().length) {

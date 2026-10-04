@@ -12,6 +12,11 @@ describe('componentes compartilhados de delivery', () => {
     expect(el.querySelector('span')?.className).toContain('text-sky-700');
   });
 
+  it('host da linha do tempo renderiza como bloco', () => {
+    const fixture = TestBed.createComponent(DeliveryTimelineComponent);
+    expect(fixture.nativeElement.classList.contains('block')).toBe(true);
+  });
+
   it('linha do tempo lista eventos com autor e mensagem; vazio orienta', () => {
     const fixture = TestBed.createComponent(DeliveryTimelineComponent);
     fixture.componentRef.setInput('eventos', [
