@@ -631,6 +631,7 @@ describe('DeliveryService', () => {
     });
 
     it('aceita só de ou só ate válidos', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-10-04T15:00:00Z'));
       const { service, prisma } = montar();
       await service.listarAtendimentos(1, undefined, porteiro, { escopo: 'historico', de: '2026-10-01' });
       expect(prisma.deliveryAtendimentos.findMany.mock.calls[0][0].where.created_at).toEqual({
