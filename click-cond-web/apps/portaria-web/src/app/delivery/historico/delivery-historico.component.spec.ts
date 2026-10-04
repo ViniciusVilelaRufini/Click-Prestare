@@ -8,7 +8,7 @@ import { DeliveryHistoricoComponent } from './delivery-historico.component';
 
 const terminado = {
   id: 3, status: 'CONCLUIDA', estabelecimento: 'Farmácia Histórica', nome_entregador: 'Carlos Entregas',
-  modo_entrega: 'UNIDADE', apartamento: { id: 12, bloco: 'C', apto: '303' }, entregador: null,
+  modo_entrega: 'UNIDADE', apartamento: { id: 12, bloco: 'Bloco C', apto: '303' }, entregador: null,
   eventos: [{ id: 30, status_novo: 'CONCLUIDA', created_at: '2026-10-03T10:30:00.000Z' }],
   created_at: '2026-10-03T10:00:00.000Z',
 } as DeliveryAtendimento;
@@ -45,6 +45,8 @@ describe('DeliveryHistoricoComponent', () => {
     expect(texto).toContain('Farmácia Histórica');
     expect(texto).toContain('8 min');
     expect(texto).toContain('Concluídos');
+    expect(texto).toContain('Bloco C 303');
+    expect(texto).not.toContain('Bloco Bloco');
   });
 
   it('host renderiza como bloco', () => {

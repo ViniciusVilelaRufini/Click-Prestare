@@ -31,7 +31,7 @@ describe('DeliveryStore', () => {
   });
 
   it('filtra por unidade, placa, nome e telefone avulsos', () => {
-    store.busca.set('A 101');
+    store.busca.set('Bloco A 101');
     expect(store.fila()).toEqual([ATENDIMENTOS[0]]);
     store.busca.set('abc-1d23');
     expect(store.fila()).toEqual([ATENDIMENTOS[0]]);

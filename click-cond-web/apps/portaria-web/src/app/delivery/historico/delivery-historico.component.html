@@ -48,7 +48,7 @@
               <strong class="truncate text-sm font-semibold text-white">{{ a.estabelecimento || 'Entrega sem estabelecimento' }}</strong>
               <app-delivery-status-badge [status]="a.status" />
             </span>
-            <span class="mt-1 block text-sm text-slate-300">{{ a.apartamento.bloco ? 'Bloco ' : '' }}{{ store.unidade(a) }} · {{ store.nomeEntregador(a) }}</span>
+            <span class="mt-1 block text-sm text-slate-300">{{ store.unidade(a) }} · {{ store.nomeEntregador(a) }}</span>
             <span class="mt-1 block text-xs text-slate-500">{{ a.created_at | date: 'dd/MM/yyyy HH:mm' }}</span>
           </button>
         } @empty {
@@ -62,7 +62,7 @@
         <div class="mb-4 flex items-start justify-between gap-2">
           <div>
             <p class="text-xs text-slate-500">Atendimento #{{ a.id }}</p>
-            <h3 class="text-sm font-semibold text-white">{{ a.apartamento.bloco ? 'Bloco ' : '' }}{{ store.unidade(a) }}</h3>
+            <h3 class="text-sm font-semibold text-white">{{ store.unidade(a) }}</h3>
             @if (a.motivo) { <p class="mt-1 text-xs text-slate-400">Motivo: {{ a.motivo }}</p> }
           </div>
           <button type="button" (click)="selecionado.set(null)" class="text-xs text-slate-400 hover:text-white">Fechar</button>

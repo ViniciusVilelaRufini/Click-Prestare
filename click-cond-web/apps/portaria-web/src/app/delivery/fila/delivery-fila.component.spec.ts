@@ -39,6 +39,7 @@ describe('DeliveryFilaComponent', () => {
     expect(el.textContent).toContain('Maria Avulsa');
     expect(el.textContent).toContain('11888887777');
     expect(el.textContent).toContain('Bloco B 202');
+    expect(el.textContent).not.toContain('Bloco Bloco');
     expect(el.textContent).toContain('Na portaria');
     expect(el.textContent).toContain('Selecione um atendimento');
   });

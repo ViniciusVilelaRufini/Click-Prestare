@@ -4,7 +4,7 @@
       <div class="min-w-0">
         <p class="text-xs text-slate-500">Atendimento #{{ a.id }}</p>
         <h2 class="truncate text-base font-semibold text-white">{{ a.estabelecimento || 'Entrega sem estabelecimento' }}</h2>
-        <p class="mt-0.5 text-sm text-slate-400">{{ a.apartamento.bloco ? 'Bloco ' : '' }}{{ store.unidade(a) }} · {{ a.modo_entrega === 'PORTARIA' ? 'Na portaria' : 'Na unidade' }}</p>
+        <p class="mt-0.5 text-sm text-slate-400">{{ store.unidade(a) }} · {{ a.modo_entrega === 'PORTARIA' ? 'Na portaria' : 'Na unidade' }}</p>
       </div>
       <div class="flex shrink-0 items-center gap-2">
         <app-delivery-status-badge [status]="a.status" />
