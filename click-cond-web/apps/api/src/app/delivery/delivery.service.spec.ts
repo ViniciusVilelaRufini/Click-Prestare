@@ -578,4 +578,64 @@ describe('DeliveryService', () => {
 
     expect(entregadores.find((entregador) => entregador.id === 7)?.nome).toBe('Motoboy Teste');
   });
+
+  describe('escopos da listagem operacional', () => {
+    afterEach(() => jest.useRealTimers());
+
+    it('escopo=ativos exclui terminais', async () => {
+      const { service, prisma } = montar();
+      await service.listarAtendimentos(1, undefined, porteiro, { escopo: 'ativos' });
+      const { where } = prisma.deliveryAtendimentos.findMany.mock.calls[0][0];
+      expect(where.AND).toEqual([{ status: { notIn: ['CONCLUIDA', 'CANCELADA', 'RECUSADA'] } }]);
+      expect(where.created_at).toBeUndefined();
+    });
+
+    it('escopo=historico usa últimos 30 dias, ate inclusivo e limite de 500', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-10-04T15:00:00Z'));
+      const { service, prisma } = montar();
+      await service.listarAtendimentos(1, undefined, porteiro, { escopo: 'historico' });
+      const args = prisma.deliveryAtendimentos.findMany.mock.calls[0][0];
+      expect(args.where.AND).toEqual([{ status: { in: ['CONCLUIDA', 'CANCELADA', 'RECUSADA'] } }]);
+      expect(args.where.created_at).toEqual({
+        gte: new Date('2026-09-05T00:00:00-03:00'),
+        lte: new Date('2026-10-04T23:59:59.999-03:00'),
+      });
+      expect(args.take).toBe(500);
+    });
+
+    it('escopo=historico respeita de/ate informados', async () => {
+      const { service, prisma } = montar();
+      await service.listarAtendimentos(1, undefined, sindico, { escopo: 'historico', de: '2026-10-01', ate: '2026-10-02' });
+      expect(prisma.deliveryAtendimentos.findMany.mock.calls[0][0].where.created_at).toEqual({
+        gte: new Date('2026-10-01T00:00:00-03:00'),
+        lte: new Date('2026-10-02T23:59:59.999-03:00'),
+      });
+    });
+
+    it('rejeita escopo inválido e datas malformadas', async () => {
+      const { service } = montar();
+      await expect(service.listarAtendimentos(1, undefined, porteiro, { escopo: 'tudo' }))
+        .rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.listarAtendimentos(1, undefined, porteiro, { escopo: 'historico', de: '01/10/2026' }))
+        .rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.listarAtendimentos(1, undefined, porteiro, { escopo: 'historico', de: '2026-10-05', ate: '2026-10-01' }))
+        .rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('morador ignora escopo e mantém o formato atual', async () => {
+      const { service, prisma } = montar();
+      await service.listarAtendimentos(1, undefined, morador, { escopo: 'tudo' });
+      const args = prisma.deliveryAtendimentos.findMany.mock.calls[0][0];
+      expect(args.where).toEqual({ id_condominio: 1, id_morador_user: 10 });
+      expect(args.take).toBeUndefined();
+    });
+
+    it('sem escopo o operador recebe a listagem de sempre', async () => {
+      const { service, prisma } = montar();
+      await service.listarAtendimentos(1, undefined, porteiro);
+      const args = prisma.deliveryAtendimentos.findMany.mock.calls[0][0];
+      expect(args.where).toEqual({ id_condominio: 1 });
+      expect(args.take).toBeUndefined();
+    });
+  });
 });

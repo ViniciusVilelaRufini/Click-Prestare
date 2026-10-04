@@ -38,6 +38,11 @@ const TRANSICOES: Record<DeliveryStatus, readonly DeliveryStatus[]> = {
   RECUSADA: [],
 };
 
+const TERMINAIS: readonly DeliveryStatus[] = ['CONCLUIDA', 'CANCELADA', 'RECUSADA'];
+const LIMITE_HISTORICO = 500;
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const DIA_MS = 86_400_000;
+
 @Injectable()
 export class DeliveryService {
   constructor(
@@ -101,13 +106,29 @@ export class DeliveryService {
     });
   }
 
-  async listarAtendimentos(idCondominio: number, status: string | undefined, user: JwtPayload) {
+  async listarAtendimentos(
+    idCondominio: number,
+    status: string | undefined,
+    user: JwtPayload,
+    filtro: { escopo?: string; de?: string; ate?: string } = {},
+  ) {
     await this.tenant.assertCondominio(Number(idCondominio), user);
     const where: any = { id_condominio: Number(idCondominio) };
     if (status) where.status = status;
     const operador = isOperador(user);
     if (!operador) where.id_morador_user = this.idUsuario(user);
     if (operador) {
+      let take: number | undefined;
+      if (filtro.escopo === 'ativos') {
+        where.AND = [{ status: { notIn: [...TERMINAIS] } }];
+      } else if (filtro.escopo === 'historico') {
+        const { gte, lte } = this.periodo(filtro.de, filtro.ate);
+        where.AND = [{ status: { in: [...TERMINAIS] } }];
+        where.created_at = { gte, lte };
+        take = LIMITE_HISTORICO;
+      } else if (filtro.escopo !== undefined && filtro.escopo !== '') {
+        throw new BadRequestException('escopo deve ser "ativos" ou "historico".');
+      }
       return (this.prisma as any).deliveryAtendimentos.findMany({
         where,
         include: {
@@ -116,6 +137,7 @@ export class DeliveryService {
           eventos: { orderBy: { created_at: 'asc' } },
         },
         orderBy: { created_at: 'desc' },
+        ...(take ? { take } : {}),
       });
     }
     return (this.prisma as any).deliveryAtendimentos.findMany({
@@ -314,6 +336,22 @@ export class DeliveryService {
       if (erro?.code === 'P2002') throw new ConflictException('Placa já cadastrada neste condomínio.');
       throw erro;
     }
+  }
+
+  /** Intervalo em datas locais (America/Sao_Paulo, -03:00 fixo); padrão: últimos 30 dias. */
+  private periodo(de?: string, ate?: string) {
+    if ((de && !DATA_ISO.test(de)) || (ate && !DATA_ISO.test(ate))) {
+      throw new BadRequestException('Datas devem estar no formato AAAA-MM-DD.');
+    }
+    const hojeLocal = new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10);
+    const fim = ate || hojeLocal;
+    const inicio = de || new Date(Date.parse(`${fim}T00:00:00Z`) - 29 * DIA_MS).toISOString().slice(0, 10);
+    const gte = new Date(`${inicio}T00:00:00-03:00`);
+    const lte = new Date(`${fim}T23:59:59.999-03:00`);
+    if (Number.isNaN(gte.getTime()) || Number.isNaN(lte.getTime()) || gte > lte) {
+      throw new BadRequestException('Período inválido.');
+    }
+    return { de: inicio, ate: fim, gte, lte };
   }
 
   private async assertApartamentoDoMorador(idApartamento: number, idCondominio: number, idMorador: number) {

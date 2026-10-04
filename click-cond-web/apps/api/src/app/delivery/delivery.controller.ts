@@ -18,8 +18,11 @@ export class DeliveryController {
     @Query('id_condominio', ParseIntPipe) idCondominio: number,
     @Query('status') status: string | undefined,
     @ReqUser() user: JwtPayload,
+    @Query('escopo') escopo?: string,
+    @Query('de') de?: string,
+    @Query('ate') ate?: string,
   ) {
-    return this.service.listarAtendimentos(idCondominio, status, user);
+    return this.service.listarAtendimentos(idCondominio, status, user, { escopo, de, ate });
   }
 
   @Post()
