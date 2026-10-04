@@ -114,6 +114,7 @@ export class DeliveryStore {
   }
 
   atualizarStatus(status: DeliveryStatus): void {
+    this.erro.set(null);
     const a = this.selecionado();
     if (!a || !this.proximosStatus(a).includes(status)) return;
     if (status === 'AUTORIZADA' && !this.podeAutorizar(a)) {

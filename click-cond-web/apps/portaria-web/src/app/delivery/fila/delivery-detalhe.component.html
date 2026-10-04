@@ -59,7 +59,7 @@
               </div>
             }
             @if (acoes()?.recusar) {
-              <button type="button" (click)="confirmandoRecusa.set(true)"
+              <button type="button" (click)="abrirRecusa()"
                 class="w-full rounded-lg border border-red-500/30 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-500/10 dark:text-red-300">Recusar entrega</button>
             }
           </div>
@@ -71,7 +71,7 @@
                 [ngModel]="store.motivo()" (ngModelChange)="store.motivo.set($event)" placeholder="Ex.: pedido não reconhecido pelo morador">
             </label>
             <div class="flex gap-2">
-              <button type="button" (click)="confirmandoRecusa.set(false)" class="flex-1 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">Voltar</button>
+              <button type="button" (click)="fecharRecusa()" class="flex-1 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">Voltar</button>
               <button type="button" (click)="confirmarRecusa()" [disabled]="store.carregando()" class="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40">Confirmar recusa</button>
             </div>
           </div>

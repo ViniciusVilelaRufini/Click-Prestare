@@ -70,4 +70,39 @@ describe('DeliveryFilaComponent', () => {
     botaoCom(fixture.nativeElement, 'Confirmar recusa').click();
     expect(api.atualizarStatus).toHaveBeenCalledWith(1, 'RECUSADA', expect.objectContaining({ motivo: 'Pedido errado' }));
   });
+
+  it('trocar de atendimento fecha o formulário de recusa, mesmo se o novo não aceita recusa', () => {
+    const fixture = montar();
+    store.selecionar(ATENDIMENTOS[0]);
+    fixture.detectChanges();
+    botaoCom(fixture.nativeElement, 'Recusar').click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('input[name="motivoRecusa"]')).not.toBeNull();
+    store.selecionar({ ...ATENDIMENTOS[1], id: 3, status: 'AUTORIZADA' });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('input[name="motivoRecusa"]')).toBeNull();
+    expect(botaoCom(fixture.nativeElement, 'Confirmar recusa')).toBeUndefined();
+    // volta ao primeiro atendimento: o formulário não reaparece sozinho
+    store.selecionar(ATENDIMENTOS[0]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('input[name="motivoRecusa"]')).toBeNull();
+    expect(botaoCom(fixture.nativeElement, 'Recusar entrega')).toBeDefined();
+  });
+
+  it('confirmar recusa sem motivo não envia, mostra erro e mantém o formulário aberto; Voltar fecha', () => {
+    const fixture = montar();
+    const api = TestBed.inject(DeliveryApi) as unknown as DeliveryApiStub;
+    store.selecionar(ATENDIMENTOS[0]);
+    fixture.detectChanges();
+    botaoCom(fixture.nativeElement, 'Recusar').click();
+    fixture.detectChanges();
+    botaoCom(fixture.nativeElement, 'Confirmar recusa').click();
+    fixture.detectChanges();
+    expect(api.atualizarStatus).not.toHaveBeenCalled();
+    expect(store.erro()).toBe('Informe o motivo da recusa.');
+    expect(fixture.nativeElement.querySelector('input[name="motivoRecusa"]')).not.toBeNull();
+    botaoCom(fixture.nativeElement, 'Voltar').click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('input[name="motivoRecusa"]')).toBeNull();
+  });
 });

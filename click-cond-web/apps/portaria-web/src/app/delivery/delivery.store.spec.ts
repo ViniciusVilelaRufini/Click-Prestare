@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { DeliveryApi } from './delivery.service';
 import { DeliveryStore } from './delivery.store';
@@ -57,6 +57,16 @@ describe('DeliveryStore', () => {
     store.atualizarStatus('AUTORIZADA');
     expect(api.atualizarStatus).not.toHaveBeenCalled();
     expect(store.erro()).toBe('Identifique o entregador antes de autorizar.');
+  });
+
+  it('limpa erro antigo ao iniciar uma nova ação de status', () => {
+    store.selecionar(ATENDIMENTOS[0]);
+    store.erro.set('erro antigo');
+    store.motivo.set('Pedido errado');
+    api.atualizarStatus.mockReturnValueOnce(NEVER); // requisição ainda em andamento
+    store.atualizarStatus('RECUSADA');
+    expect(api.atualizarStatus).toHaveBeenCalled();
+    expect(store.erro()).toBeNull();
   });
 
   it('exige motivo para recusar', () => {

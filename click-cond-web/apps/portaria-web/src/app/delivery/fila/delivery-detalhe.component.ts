@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DeliveryStatus } from '../delivery.model';
 import { DeliveryStore } from '../delivery.store';
@@ -14,12 +14,23 @@ import { DeliveryTimelineComponent } from '../shared/delivery-timeline.component
 })
 export class DeliveryDetalheComponent {
   readonly store = inject(DeliveryStore);
-  readonly confirmandoRecusa = signal(false);
+  private readonly recusaAberta = signal(false);
+  private readonly idSelecionado = computed(() => this.store.selecionado()?.id);
   readonly verbo = verboAcao;
   readonly acoes = computed(() => {
     const a = this.store.selecionado();
     return a ? organizarAcoes(this.store.proximosStatus(a)) : null;
   });
+  /** Formulário de recusa: só aparece enquanto o atendimento aberto ainda aceita RECUSADA. */
+  readonly confirmandoRecusa = computed(() => this.recusaAberta() && !!this.acoes()?.recusar);
+
+  constructor() {
+    // Trocar de atendimento sempre fecha o formulário (o motivo digitado pertence ao anterior).
+    effect(() => {
+      this.idSelecionado();
+      untracked(() => this.recusaAberta.set(false));
+    });
+  }
 
   desabilitada(status: DeliveryStatus): boolean {
     const a = this.store.selecionado();
@@ -30,13 +41,21 @@ export class DeliveryDetalheComponent {
     this.store.atualizarStatus(status);
   }
 
+  abrirRecusa(): void {
+    this.recusaAberta.set(true);
+  }
+
+  fecharRecusa(): void {
+    this.recusaAberta.set(false);
+  }
+
+  /** Não fecha o formulário: ele some sozinho quando o atendimento sai da fila ou perde a ação. */
   confirmarRecusa(): void {
     this.store.atualizarStatus('RECUSADA');
-    if (!this.store.erro()) this.confirmandoRecusa.set(false);
   }
 
   fechar(): void {
-    this.confirmandoRecusa.set(false);
+    this.fecharRecusa();
     this.store.selecionado.set(null);
   }
 }
