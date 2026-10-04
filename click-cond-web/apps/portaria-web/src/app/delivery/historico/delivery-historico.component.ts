@@ -1,6 +1,8 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Subscription, forkJoin } from 'rxjs';
 import { DeliveryApi } from '../delivery.service';
 import { DeliveryAtendimento, DeliveryResumo } from '../delivery.model';
 import { DeliveryStore } from '../delivery.store';
@@ -17,6 +19,8 @@ import { PeriodoHistorico, intervaloPeriodo, textoDuracao } from '../shared/temp
 export class DeliveryHistoricoComponent implements OnInit {
   private readonly api = inject(DeliveryApi);
   readonly store = inject(DeliveryStore);
+  private readonly destroyRef = inject(DestroyRef);
+  private requisicao?: Subscription;
 
   readonly periodos: { valor: PeriodoHistorico; rotulo: string }[] = [
     { valor: 'hoje', rotulo: 'Hoje' },
@@ -30,6 +34,7 @@ export class DeliveryHistoricoComponent implements OnInit {
   readonly selecionado = signal<DeliveryAtendimento | null>(null);
   readonly carregando = signal(false);
   readonly duracao = textoDuracao;
+  readonly placeholder = computed(() => (this.carregando() ? '…' : '—'));
 
   readonly filtrados = computed(() => {
     const busca = this.store.buscaNormalizada(this.busca());
@@ -43,19 +48,30 @@ export class DeliveryHistoricoComponent implements OnInit {
   mudarPeriodo(p: PeriodoHistorico): void {
     this.periodo.set(p);
     this.selecionado.set(null);
+    this.lista.set([]);
+    this.resumo.set(null);
     this.carregar();
   }
 
   carregar(): void {
+    this.requisicao?.unsubscribe();
     const { de, ate } = intervaloPeriodo(this.periodo(), new Date());
     this.carregando.set(true);
-    this.api.listHistorico(de, ate).subscribe({
-      next: (lista) => { this.lista.set(lista); this.carregando.set(false); },
-      error: (error) => { this.carregando.set(false); this.store.definirErro(error, 'Não foi possível carregar o histórico.'); },
-    });
-    this.api.resumo(de, ate).subscribe({
-      next: (resumo) => this.resumo.set(resumo),
-      error: (error) => this.store.definirErro(error, 'Não foi possível carregar o resumo.'),
+    this.requisicao = forkJoin({
+      lista: this.api.listHistorico(de, ate),
+      resumo: this.api.resumo(de, ate),
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: ({ lista, resumo }) => {
+        this.lista.set(lista);
+        this.resumo.set(resumo);
+        this.carregando.set(false);
+      },
+      error: (error) => {
+        this.lista.set([]);
+        this.resumo.set(null);
+        this.carregando.set(false);
+        this.store.definirErro(error, 'Não foi possível carregar o histórico.');
+      },
     });
   }
 }

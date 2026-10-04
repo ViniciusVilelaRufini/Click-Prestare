@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { DeliveryApi, DeliveryAtendimento } from '../delivery.service';
 import { DeliveryStore } from '../delivery.store';
@@ -52,5 +52,59 @@ describe('DeliveryHistoricoComponent', () => {
     fixture.detectChanges();
     fixture.componentInstance.mudarPeriodo('hoje');
     expect(api.listHistorico).toHaveBeenLastCalledWith('2026-10-04', '2026-10-04');
+  });
+
+  const resumoCom = (concluida: number) => ({
+    ativos: {}, periodo: { de: 'x', ate: 'y', CONCLUIDA: concluida, CANCELADA: 0, RECUSADA: 0, total: concluida },
+    tempo_medio_atendimento_min: 7.5,
+  });
+  const cartoes = (fixture: { nativeElement: HTMLElement }) =>
+    Array.from(fixture.nativeElement.querySelectorAll('.tabular-nums')).map((e) => (e.textContent ?? '').trim());
+
+  it('resposta atrasada de período anterior não sobrescreve o período atual', () => {
+    const fixture = TestBed.createComponent(DeliveryHistoricoComponent);
+    fixture.detectChanges();
+    const s30 = new Subject<DeliveryAtendimento[]>();
+    const sHoje = new Subject<DeliveryAtendimento[]>();
+    api.listHistorico.mockReset();
+    api.listHistorico.mockReturnValueOnce(s30).mockReturnValueOnce(sHoje);
+    const comp = fixture.componentInstance;
+    comp.mudarPeriodo('30d');
+    comp.mudarPeriodo('hoje');
+    const hoje = { ...terminado, id: 99 } as DeliveryAtendimento;
+    sHoje.next([hoje]); sHoje.complete();
+    expect(comp.lista()).toEqual([hoje]);
+    expect(comp.carregando()).toBe(false);
+    s30.next([terminado]); s30.complete();
+    expect(comp.lista()).toEqual([hoje]);
+  });
+
+  it('erro após troca de período deixa lista vazia e resumo nulo', () => {
+    const fixture = TestBed.createComponent(DeliveryHistoricoComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.lista().length).toBe(1);
+    api.listHistorico.mockReturnValue(throwError(() => new Error('falhou')));
+    fixture.componentInstance.mudarPeriodo('30d');
+    expect(fixture.componentInstance.lista()).toEqual([]);
+    expect(fixture.componentInstance.resumo()).toBeNull();
+    expect(fixture.componentInstance.carregando()).toBe(false);
+  });
+
+  it('cards mostram placeholder, e não 0, enquanto não há resumo', () => {
+    api.listHistorico.mockReturnValue(new Subject<DeliveryAtendimento[]>());
+    const fixture = TestBed.createComponent(DeliveryHistoricoComponent);
+    fixture.detectChanges();
+    expect(cartoes(fixture)).toEqual(['…', '…', '…', '…']);
+    api.listHistorico.mockReturnValue(throwError(() => new Error('falhou')));
+    fixture.componentInstance.mudarPeriodo('30d');
+    fixture.detectChanges();
+    expect(cartoes(fixture)).toEqual(['—', '—', '—', '—']);
+  });
+
+  it('mostra a contagem de concluídos vinda do resumo', () => {
+    api.resumo.mockReturnValue(of(resumoCom(5)));
+    const fixture = TestBed.createComponent(DeliveryHistoricoComponent);
+    fixture.detectChanges();
+    expect(cartoes(fixture)[0]).toBe('5');
   });
 });

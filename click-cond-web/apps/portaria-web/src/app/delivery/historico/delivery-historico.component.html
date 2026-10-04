@@ -15,19 +15,19 @@
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
     <div class="rounded-xl border border-white/10 bg-graphite-200 px-4 py-3">
       <p class="text-[11px] uppercase tracking-wider text-slate-400">Concluídos</p>
-      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-emerald-700 dark:text-emerald-300">{{ resumo()?.periodo?.CONCLUIDA ?? 0 }}</p>
+      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-emerald-700 dark:text-emerald-300">{{ resumo()?.periodo?.CONCLUIDA ?? placeholder() }}</p>
     </div>
     <div class="rounded-xl border border-white/10 bg-graphite-200 px-4 py-3">
       <p class="text-[11px] uppercase tracking-wider text-slate-400">Recusados</p>
-      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-red-700 dark:text-red-300">{{ resumo()?.periodo?.RECUSADA ?? 0 }}</p>
+      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-red-700 dark:text-red-300">{{ resumo()?.periodo?.RECUSADA ?? placeholder() }}</p>
     </div>
     <div class="rounded-xl border border-white/10 bg-graphite-200 px-4 py-3">
       <p class="text-[11px] uppercase tracking-wider text-slate-400">Cancelados</p>
-      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-white">{{ resumo()?.periodo?.CANCELADA ?? 0 }}</p>
+      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-white">{{ resumo()?.periodo?.CANCELADA ?? placeholder() }}</p>
     </div>
     <div class="rounded-xl border border-white/10 bg-graphite-200 px-4 py-3">
       <p class="text-[11px] uppercase tracking-wider text-slate-400">Tempo médio</p>
-      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-white">{{ duracao(resumo()?.tempo_medio_atendimento_min ?? null) }}</p>
+      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-white">{{ resumo() ? duracao(resumo()?.tempo_medio_atendimento_min ?? null) : placeholder() }}</p>
       <p class="mt-1 text-[11px] text-slate-500">da chegada à conclusão</p>
     </div>
   </div>
