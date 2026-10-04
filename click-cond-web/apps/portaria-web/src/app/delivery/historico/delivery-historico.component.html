@@ -1,0 +1,76 @@
+<div class="space-y-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="text-base font-semibold text-white">Relatório do período</h2>
+      <p class="text-sm text-slate-400">Atendimentos concluídos, recusados ou cancelados.</p>
+    </div>
+    <div class="flex w-fit items-center gap-1 rounded-xl border border-white/10 bg-graphite-200 p-1" role="group" aria-label="Período">
+      @for (p of periodos; track p.valor) {
+        <button type="button" (click)="mudarPeriodo(p.valor)" [attr.aria-pressed]="periodo() === p.valor"
+          [class]="'rounded-lg px-3 py-1.5 text-xs font-medium transition ' + (periodo() === p.valor ? 'bg-accent text-white' : 'text-slate-400 hover:text-slate-200')">{{ p.rotulo }}</button>
+      }
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="rounded-xl border border-white/10 bg-graphite-200 px-4 py-3">
+      <p class="text-[11px] uppercase tracking-wider text-slate-400">Concluídos</p>
+      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-emerald-700 dark:text-emerald-300">{{ resumo()?.periodo?.CONCLUIDA ?? 0 }}</p>
+    </div>
+    <div class="rounded-xl border border-white/10 bg-graphite-200 px-4 py-3">
+      <p class="text-[11px] uppercase tracking-wider text-slate-400">Recusados</p>
+      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-red-700 dark:text-red-300">{{ resumo()?.periodo?.RECUSADA ?? 0 }}</p>
+    </div>
+    <div class="rounded-xl border border-white/10 bg-graphite-200 px-4 py-3">
+      <p class="text-[11px] uppercase tracking-wider text-slate-400">Cancelados</p>
+      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-white">{{ resumo()?.periodo?.CANCELADA ?? 0 }}</p>
+    </div>
+    <div class="rounded-xl border border-white/10 bg-graphite-200 px-4 py-3">
+      <p class="text-[11px] uppercase tracking-wider text-slate-400">Tempo médio</p>
+      <p class="mt-1 text-2xl font-bold tabular-nums leading-none text-white">{{ duracao(resumo()?.tempo_medio_atendimento_min ?? null) }}</p>
+      <p class="mt-1 text-[11px] text-slate-500">da chegada à conclusão</p>
+    </div>
+  </div>
+
+  <div class="grid gap-4 lg:grid-cols-5">
+    <section class="overflow-hidden rounded-2xl border border-white/10 bg-graphite-200 lg:col-span-3">
+      <header class="border-b border-white/10 p-4">
+        <input class="w-full rounded-lg border border-white/10 bg-graphite px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:border-accent/60 focus:outline-none"
+          [ngModel]="busca()" (ngModelChange)="busca.set($event)" placeholder="Buscar por unidade, estabelecimento, entregador, telefone ou placa">
+      </header>
+      @if (carregando()) {
+        <div class="p-10 text-center"><span class="inline-block h-6 w-6 animate-spin rounded-full border-2 border-accent/30 border-t-accent"></span></div>
+      } @else {
+        @for (a of filtrados(); track a.id) {
+          <button type="button" (click)="selecionado.set(a)"
+            [class]="'block w-full border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 hover:bg-white/[0.03] ' + (selecionado()?.id === a.id ? 'bg-white/[0.05]' : '')">
+            <span class="flex items-start justify-between gap-2">
+              <strong class="truncate text-sm font-semibold text-white">{{ a.estabelecimento || 'Entrega sem estabelecimento' }}</strong>
+              <app-delivery-status-badge [status]="a.status" />
+            </span>
+            <span class="mt-1 block text-sm text-slate-300">{{ a.apartamento.bloco ? 'Bloco ' : '' }}{{ store.unidade(a) }} · {{ store.nomeEntregador(a) }}</span>
+            <span class="mt-1 block text-xs text-slate-500">{{ a.created_at | date: 'dd/MM/yyyy HH:mm' }}</span>
+          </button>
+        } @empty {
+          <p class="p-10 text-center text-sm text-slate-400">Nenhum atendimento encerrado neste período.</p>
+        }
+      }
+    </section>
+
+    <aside class="rounded-2xl border border-white/10 bg-graphite-200 p-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
+      @if (selecionado(); as a) {
+        <div class="mb-4 flex items-start justify-between gap-2">
+          <div>
+            <p class="text-xs text-slate-500">Atendimento #{{ a.id }}</p>
+            <h3 class="text-sm font-semibold text-white">{{ a.apartamento.bloco ? 'Bloco ' : '' }}{{ store.unidade(a) }}</h3>
+            @if (a.motivo) { <p class="mt-1 text-xs text-slate-400">Motivo: {{ a.motivo }}</p> }
+          </div>
+          <button type="button" (click)="selecionado.set(null)" class="text-xs text-slate-400 hover:text-white">Fechar</button>
+        </div>
+        <app-delivery-timeline [eventos]="a.eventos" />
+      } @else {
+        <p class="py-10 text-center text-sm text-slate-400">Selecione um atendimento para ver o ciclo completo.</p>
+      }
+    </aside>
+  </div>
+</div>
