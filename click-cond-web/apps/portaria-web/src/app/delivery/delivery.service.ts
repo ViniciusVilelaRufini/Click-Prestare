@@ -30,12 +30,6 @@ export class DeliveryApi {
     return this.auth.porteiroInfo()?.id_condominio ?? 1;
   }
 
-  listAtendimentos(status?: DeliveryStatus): Observable<DeliveryAtendimento[]> {
-    let params = new HttpParams().set('id_condominio', this.idCondominio);
-    if (status) params = params.set('status', status);
-    return this.http.get<DeliveryAtendimento[]>(`${API_BASE}/delivery`, { params });
-  }
-
   listAtivos(): Observable<DeliveryAtendimento[]> {
     const params = new HttpParams().set('id_condominio', this.idCondominio).set('escopo', 'ativos');
     return this.http.get<DeliveryAtendimento[]>(`${API_BASE}/delivery`, { params });

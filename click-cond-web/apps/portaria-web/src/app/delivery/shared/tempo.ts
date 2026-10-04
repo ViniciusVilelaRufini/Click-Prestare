@@ -28,7 +28,7 @@ export function textoDuracao(min: number | null): string {
   return `${Math.floor(total / 60)} h ${pad(total % 60)} min`;
 }
 
-export const dataLocal = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dataLocal = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 export function intervaloPeriodo(p: PeriodoHistorico, agora: Date): { de: string; ate: string } {
   const dias = p === 'hoje' ? 0 : p === '7d' ? 6 : 29;

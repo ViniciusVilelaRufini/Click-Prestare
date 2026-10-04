@@ -1,3 +1,4 @@
+import { of } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from '../../auth/auth.service';
 import { DeliveryApi } from '../delivery.service';
@@ -45,5 +46,23 @@ describe('DeliveryEntregadoresComponent', () => {
     const { fixture } = montar('Noturno');
     const botoes = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
     expect(botoes.some((b) => b.textContent?.includes('Editar'))).toBe(false);
+  });
+
+  it('pesquisar mostra o resultado filtrado sem encolher a lista da store', () => {
+    const { fixture, store } = montar('Síndico');
+    const api = TestBed.inject(DeliveryApi) as unknown as DeliveryApiStub;
+    const outro = { id: 31, nome: 'Maria Moto', status: 'ATIVO' as const, veiculos: [] };
+    store.entregadores.set([ATENDIMENTOS[0].entregador!, outro]);
+    api.listEntregadores.mockReturnValueOnce(of([outro]));
+    fixture.detectChanges();
+    const campo: HTMLInputElement = fixture.nativeElement.querySelector('input');
+    campo.value = 'mar';
+    campo.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Maria Moto');
+    expect(fixture.nativeElement.textContent).not.toContain('João Motoboy');
+    expect(store.entregadores().length).toBe(2);
+    fixture.destroy();
+    expect(store.entregadoresBusca()).toBeNull();
   });
 });

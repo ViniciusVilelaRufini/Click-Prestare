@@ -43,7 +43,7 @@
 
       @for (a of store.fila(); track a.id) {
         <button type="button" (click)="store.selecionar(a)"
-          [class]="'flex w-full items-stretch gap-3 border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 hover:bg-white/[0.03] ' + (store.selecionado()?.id === a.id ? 'bg-white/[0.05]' : '')">
+          [class]="'flex w-full items-stretch gap-3 border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 hover:bg-accent/5 ' + (store.selecionado()?.id === a.id ? 'bg-accent/10 ring-1 ring-inset ring-accent/30' : '')">
           <span [class]="'w-1 shrink-0 rounded-full ' + cls(a.status).ponto"></span>
           <span class="min-w-0 flex-1">
             <span class="flex items-start justify-between gap-2">
@@ -59,10 +59,12 @@
           </span>
         </button>
       } @empty {
-        <div class="p-10 text-center">
-          <p class="text-sm font-medium text-slate-300">Nenhuma entrega na fila</p>
-          <p class="mt-1 text-xs text-slate-500">{{ store.busca() || store.filtroStatus() ? 'Ajuste a busca ou o filtro.' : 'Novos avisos dos moradores aparecem aqui automaticamente.' }}</p>
-        </div>
+        @if (!store.carregando()) {
+          <div class="p-10 text-center">
+            <p class="text-sm font-medium text-slate-300">Nenhuma entrega na fila</p>
+            <p class="mt-1 text-xs text-slate-500">{{ store.busca() || store.filtroStatus() ? 'Ajuste a busca ou o filtro.' : 'Novos avisos dos moradores aparecem aqui automaticamente.' }}</p>
+          </div>
+        }
       }
     </section>
 

@@ -12,7 +12,7 @@ import { classesStatus, rotuloStatus } from './delivery-status';
       <ol class="relative ml-1.5 space-y-4 border-l border-white/10 pl-5">
         @for (evento of eventos(); track evento.id ?? $index) {
           <li class="relative">
-            <span [class]="'absolute -left-[26px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-graphite-200 ' + cls(evento).ponto"></span>
+            <span [class]="'absolute -left-[26px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-[color:var(--bg-surface)] ' + cls(evento).ponto"></span>
             <p class="text-sm font-medium text-white">{{ rotulo(evento) }}</p>
             <p class="text-xs text-slate-400">{{ evento.autor_nome || 'Sistema' }} · {{ evento.created_at | date: 'dd/MM HH:mm' }}</p>
             @if (evento.mensagem) {

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { NEVER, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { DeliveryApi } from './delivery.service';
 import { DeliveryStore } from './delivery.store';
@@ -99,15 +99,37 @@ describe('DeliveryStore', () => {
     expect(store.erro()).toBe('outro erro');
   });
 
-  it('recarga silenciosa nunca mexe em carregando (sucesso ou erro)', () => {
-    api.listAtivos.mockReturnValueOnce(NEVER);
+  it('recarga silenciosa não liga carregando; se cancela uma carga normal, quem terminar desliga', () => {
+    const normal = new Subject<typeof ATENDIMENTOS>();
+    api.listAtivos.mockReturnValueOnce(normal as any);
     store.carregarFila(); // carga normal pendente
     expect(store.carregando()).toBe(true);
+    const silenciosa = new Subject<typeof ATENDIMENTOS>();
+    api.listAtivos.mockReturnValueOnce(silenciosa as any);
     store.carregarFila({ silencioso: true });
-    expect(store.carregando()).toBe(true);
+    expect(store.carregando()).toBe(true); // ainda esperando a resposta
+    silenciosa.next([ATENDIMENTOS[1]]);
+    expect(store.ativos()).toEqual([ATENDIMENTOS[1]]);
+    expect(store.carregando()).toBe(false); // não fica girando para sempre
+    normal.next(ATENDIMENTOS); // resposta atrasada da carga cancelada é ignorada
+    expect(store.ativos()).toEqual([ATENDIMENTOS[1]]);
+  });
+
+  it('resposta atrasada de uma carga antiga não sobrescreve a mais nova', () => {
+    const antiga = new Subject<typeof ATENDIMENTOS>();
+    const nova = new Subject<typeof ATENDIMENTOS>();
+    api.listAtivos.mockReturnValueOnce(antiga as any).mockReturnValueOnce(nova as any);
+    store.carregarFila({ silencioso: true });
+    store.carregarFila({ silencioso: true });
+    nova.next([ATENDIMENTOS[1]]);
+    antiga.next(ATENDIMENTOS);
+    expect(store.ativos()).toEqual([ATENDIMENTOS[1]]);
+  });
+
+  it('erro de recarga silenciosa não apaga a lista nem liga carregando', () => {
     api.listAtivos.mockReturnValueOnce(throwError(() => ({ error: { message: 'offline' } })));
     store.carregarFila({ silencioso: true });
-    expect(store.carregando()).toBe(true);
+    expect(store.carregando()).toBe(false);
     expect(store.erro()).toBe('offline');
     expect(store.ativos()).toEqual(ATENDIMENTOS);
   });
@@ -164,5 +186,64 @@ describe('DeliveryStore', () => {
     store.erro.set('falhou');
     store.trocarAba('entregadores');
     expect(store.erro()).toBeNull();
+  });
+
+  it('voltar para a aba Fila recarrega a lista em silêncio', () => {
+    store.trocarAba('entregadores');
+    api.listAtivos.mockClear();
+    store.trocarAba('fila');
+    expect(api.listAtivos).toHaveBeenCalledTimes(1);
+    expect(store.carregando()).toBe(false);
+    store.trocarAba('historico');
+    expect(api.listAtivos).toHaveBeenCalledTimes(1);
+  });
+
+  describe('busca de entregadores', () => {
+    const maria = { id: 31, nome: 'Maria Moto', status: 'ATIVO' as const, veiculos: [] };
+
+    beforeEach(() => {
+      store.entregadores.set([ATENDIMENTOS[0].entregador!, maria]);
+    });
+
+    it('a pesquisa não altera a lista completa', () => {
+      api.listEntregadores.mockReturnValueOnce(of([maria]));
+      store.buscarEntregadores('mar');
+      expect(api.listEntregadores).toHaveBeenCalledWith('mar');
+      expect(store.entregadoresBusca()).toEqual([maria]);
+      expect(store.entregadores().length).toBe(2);
+      expect(store.entregadoresVisiveis()).toEqual([maria]);
+    });
+
+    it('texto vazio volta à lista completa sem chamar a API', () => {
+      api.listEntregadores.mockReturnValueOnce(of([maria]));
+      store.buscarEntregadores('mar');
+      api.listEntregadores.mockClear();
+      store.buscarEntregadores('   ');
+      expect(api.listEntregadores).not.toHaveBeenCalled();
+      expect(store.entregadoresBusca()).toBeNull();
+      expect(store.entregadoresVisiveis().length).toBe(2);
+    });
+
+    it('trocar de aba descarta o filtro; resposta atrasada de busca antiga é ignorada', () => {
+      const antiga = new Subject<any[]>();
+      api.listEntregadores.mockReturnValueOnce(antiga as any);
+      store.buscarEntregadores('ma');
+      api.listEntregadores.mockReturnValueOnce(of([maria]));
+      store.buscarEntregadores('mar');
+      antiga.next([]);
+      expect(store.entregadoresBusca()).toEqual([maria]);
+      store.trocarAba('fila');
+      expect(store.entregadoresBusca()).toBeNull();
+    });
+
+    it('editar durante a busca atualiza a lista filtrada também', () => {
+      api.listEntregadores.mockReturnValueOnce(of([maria]));
+      store.buscarEntregadores('mar');
+      api.atualizarEntregador.mockReturnValue(of({ ...maria, nome: 'Maria Silva' }));
+      store.editarEntregador(maria);
+      store.salvarEntregador();
+      expect(store.entregadoresBusca()![0].nome).toBe('Maria Silva');
+      expect(store.entregadores().find((e) => e.id === 31)!.nome).toBe('Maria Silva');
+    });
   });
 });

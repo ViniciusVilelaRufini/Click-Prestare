@@ -105,4 +105,36 @@ describe('DeliveryFilaComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('input[name="motivoRecusa"]')).toBeNull();
   });
+
+  it('cabeçalho do painel usa o mesmo texto da lista para o modo de entrega', () => {
+    const fixture = montar();
+    store.selecionar(ATENDIMENTOS[1]);
+    fixture.detectChanges();
+    const cabecalho: string = fixture.nativeElement.querySelector('aside header').textContent;
+    expect(cabecalho).toContain('Na portaria');
+    expect(cabecalho).not.toContain('Deixar na portaria');
+    store.selecionar(ATENDIMENTOS[0]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('aside header').textContent).toContain('Na unidade');
+  });
+
+  it('confirmar recusa usa keep-white para manter o texto branco no tema claro', () => {
+    const fixture = montar();
+    store.selecionar(ATENDIMENTOS[0]);
+    fixture.detectChanges();
+    botaoCom(fixture.nativeElement, 'Recusar').click();
+    fixture.detectChanges();
+    expect(botaoCom(fixture.nativeElement, 'Confirmar recusa').classList.contains('keep-white')).toBe(true);
+  });
+
+  it('não mostra "Nenhuma entrega na fila" enquanto a primeira carga está em andamento', () => {
+    const fixture = montar();
+    store.ativos.set([]);
+    store.carregando.set(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('Nenhuma entrega na fila');
+    store.carregando.set(false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Nenhuma entrega na fila');
+  });
 });

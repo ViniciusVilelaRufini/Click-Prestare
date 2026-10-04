@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import {
   CriarEntregadorDelivery,
@@ -20,6 +21,8 @@ export class DeliveryStore {
   readonly aba = signal<AbaDelivery>('fila');
   readonly ativos = signal<DeliveryAtendimento[]>([]);
   readonly entregadores = signal<DeliveryEntregador[]>([]);
+  /** Resultado da pesquisa na aba Entregadores; separado para não encolher a lista usada na Fila. */
+  readonly entregadoresBusca = signal<DeliveryEntregador[] | null>(null);
   readonly busca = signal('');
   readonly filtroStatus = signal<DeliveryStatus | ''>('');
   readonly selecionado = signal<DeliveryAtendimento | null>(null);
@@ -30,6 +33,10 @@ export class DeliveryStore {
   readonly entregadorEmEdicao = signal<DeliveryEntregador | null>(null);
   readonly agora = signal(new Date());
 
+  private cargaFila?: Subscription;
+  private cargaNormalPendente = false;
+  private buscaEntregadoresSub?: Subscription;
+
   novoEntregador: CriarEntregadorDelivery = this.novoEntregadorVazio();
   motivoBloqueio = '';
 
@@ -38,6 +45,8 @@ export class DeliveryStore {
     const status = this.filtroStatus();
     return this.ativos().filter((a) => (!status || a.status === status) && this.correspondeBusca(a, busca));
   });
+
+  readonly entregadoresVisiveis = computed(() => this.entregadoresBusca() ?? this.entregadores());
 
   readonly contadores = computed(() => {
     const contagem: Partial<Record<DeliveryStatus, number>> = {};
@@ -52,6 +61,8 @@ export class DeliveryStore {
   trocarAba(aba: AbaDelivery): void {
     this.erro.set(null);
     this.aba.set(aba);
+    this.limparBuscaEntregadores();
+    if (aba === 'fila') this.carregarFila({ silencioso: true });
   }
 
   alternarFiltro(status: DeliveryStatus): void {
@@ -59,23 +70,52 @@ export class DeliveryStore {
   }
 
   carregarFila(opts: { silencioso?: boolean } = {}): void {
-    if (!opts.silencioso) this.carregando.set(true);
-    this.api.listAtivos().subscribe({
+    // Uma carga mais nova cancela a anterior: resposta atrasada não sobrescreve dados recentes.
+    this.cargaFila?.unsubscribe();
+    if (!opts.silencioso) {
+      this.carregando.set(true);
+      this.cargaNormalPendente = true;
+    }
+    this.cargaFila = this.api.listAtivos().subscribe({
       next: (lista) => {
         this.ativos.set(lista);
         this.agora.set(new Date());
         // Mantém o painel no mesmo atendimento com dados novos; some se saiu da fila.
         const aberto = this.selecionado();
         if (aberto) this.selecionado.set(lista.find((a) => a.id === aberto.id) ?? null);
-        if (opts.silencioso) {
-          // Recarga automática que voltou a funcionar: some o aviso de conexão; não mexe em `carregando`.
-          this.erro.set(null);
-        } else {
-          this.carregando.set(false);
-        }
+        // Recarga automática que voltou a funcionar: some o aviso de conexão.
+        if (opts.silencioso) this.erro.set(null);
+        this.encerrarCargaNormal();
       },
-      error: (error) => this.definirErro(error, 'Não foi possível carregar a fila de delivery.', opts.silencioso),
+      error: (error) => {
+        this.definirErro(error, 'Não foi possível carregar a fila de delivery.', opts.silencioso);
+        this.encerrarCargaNormal();
+      },
     });
+  }
+
+  /** Desliga `carregando` se havia uma carga normal pendente (inclusive uma cancelada por recarga mais nova). */
+  private encerrarCargaNormal(): void {
+    if (!this.cargaNormalPendente) return;
+    this.cargaNormalPendente = false;
+    this.carregando.set(false);
+  }
+
+  buscarEntregadores(texto: string): void {
+    this.buscaEntregadoresSub?.unsubscribe();
+    if (!texto.trim()) {
+      this.entregadoresBusca.set(null);
+      return;
+    }
+    this.buscaEntregadoresSub = this.api.listEntregadores(texto).subscribe({
+      next: (lista) => this.entregadoresBusca.set(lista),
+      error: (error) => this.definirErro(error, 'Não foi possível carregar os entregadores.'),
+    });
+  }
+
+  limparBuscaEntregadores(): void {
+    this.buscaEntregadoresSub?.unsubscribe();
+    this.entregadoresBusca.set(null);
   }
 
   carregarEntregadores(busca?: string): void {
@@ -211,9 +251,11 @@ export class DeliveryStore {
         : null,
     }).subscribe({
       next: (atualizado) => {
-        this.entregadores.update((lista) => lista.map((item) =>
+        const mesclar = (lista: DeliveryEntregador[]) => lista.map((item) =>
           item.id === atualizado.id ? { ...atualizado, veiculos: atualizado.veiculos ?? item.veiculos ?? [] } : item,
-        ));
+        );
+        this.entregadores.update(mesclar);
+        this.entregadoresBusca.update((lista) => (lista ? mesclar(lista) : lista));
         this.cancelarEdicao();
       },
       error: (error) => this.definirErro(error, 'Não foi possível atualizar o entregador.'),

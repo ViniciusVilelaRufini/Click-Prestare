@@ -1,11 +1,11 @@
 <div class="grid gap-4 lg:grid-cols-5">
   <section class="overflow-hidden rounded-2xl border border-white/10 bg-graphite-200 lg:col-span-3">
     <header class="space-y-3 border-b border-white/10 p-4">
-      <h2 class="text-sm font-semibold text-white">Entregadores cadastrados <span class="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-300">{{ store.entregadores().length }}</span></h2>
-      <input #pesquisa [class]="campo" placeholder="Pesquisar por nome, telefone ou placa" (input)="store.carregarEntregadores(pesquisa.value)">
+      <h2 class="text-sm font-semibold text-white">Entregadores cadastrados <span class="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-300">{{ store.entregadoresVisiveis().length }}</span></h2>
+      <input #pesquisa [class]="campo" placeholder="Pesquisar por nome, telefone ou placa" (input)="store.buscarEntregadores(pesquisa.value)">
     </header>
-    @for (e of store.entregadores(); track e.id) {
-      <div [class]="'flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3 last:border-b-0 ' + (store.entregadorEmEdicao()?.id === e.id ? 'bg-white/[0.05]' : '')">
+    @for (e of store.entregadoresVisiveis(); track e.id) {
+      <div [class]="'flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3 last:border-b-0 ' + (store.entregadorEmEdicao()?.id === e.id ? 'bg-accent/10 ring-1 ring-inset ring-accent/30' : '')">
         <div class="flex min-w-0 items-center gap-3">
           <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-sm font-semibold text-accent dark:text-accent-400">{{ e.nome.charAt(0).toUpperCase() }}</span>
           <div class="min-w-0">
@@ -19,7 +19,7 @@
           </div>
         </div>
         @if (store.podeGerenciarEntregadores()) {
-          <button type="button" (click)="store.editarEntregador(e)" class="shrink-0 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-white/10">Editar</button>
+          <button type="button" (click)="store.editarEntregador(e)" class="shrink-0 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-accent/10">Editar</button>
         }
       </div>
     } @empty {

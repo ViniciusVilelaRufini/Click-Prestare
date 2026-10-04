@@ -1,6 +1,5 @@
 import { DeliveryStatus } from '../delivery.model';
 
-export const TERMINAIS: readonly DeliveryStatus[] = ['CONCLUIDA', 'CANCELADA', 'RECUSADA'];
 export const STATUS_CARDS: readonly DeliveryStatus[] = ['AGENDADA', 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA'];
 export const STATUS_FILTRO: readonly DeliveryStatus[] = [...STATUS_CARDS, 'RETIRADA_NA_PORTARIA'];
 
