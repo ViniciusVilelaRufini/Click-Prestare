@@ -229,4 +229,38 @@ void main() {
       expect(find.text('Criar aviso'), findsOneWidget);
     });
   });
+  testWidgets('a barra "Criar aviso" sobe acima do teclado e o campo focado fica visível',
+      (tester) async {
+    ApiClient.client = MockClient((request) async => http.Response(
+        jsonEncode([
+          {'id': 77, 'bloco': 'A', 'apto': '101'},
+        ]),
+        200));
+    tester.view.physicalSize = const Size(400 * 3, 800 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
+    await tester.pumpAndSettle();
+
+    final observacao =
+        find.widgetWithText(TextFormField, 'Observação (opcional)');
+    await tester.ensureVisible(observacao);
+    await tester.tap(observacao);
+    await tester.pump();
+
+    const teclado = 320.0;
+    tester.view.viewInsets = const FakeViewPadding(bottom: teclado * 3);
+    await tester.pumpAndSettle();
+
+    const topoDoTeclado = 800.0 - teclado;
+    final botao = tester.getRect(find.text('Criar aviso'));
+    expect(botao.bottom, lessThanOrEqualTo(topoDoTeclado));
+    // O campo focado rolou para a área visível acima da barra (o Flutter
+    // garante o cursor, que fica na primeira linha do campo multilinha).
+    final campo = tester.getRect(observacao);
+    expect(campo.top, greaterThanOrEqualTo(0));
+    expect(campo.top + 48, lessThanOrEqualTo(botao.top));
+    expect(tester.takeException(), isNull);
+  });
 }

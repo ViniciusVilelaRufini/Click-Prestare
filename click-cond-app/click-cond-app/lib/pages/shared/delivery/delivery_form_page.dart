@@ -106,17 +106,28 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    // A barra fica no corpo (e não em bottomNavigationBar): o Scaffold
+    // encolhe o corpo quando o teclado abre, então "Criar aviso" sobe junto
+    // e o campo focado rola para a área visível acima dela.
     return AppScaffold(
       title: 'Avisar entrega',
-      bottomNavigationBar: _BottomBar(
-        child: AppButton(
-          label: 'Criar aviso',
-          icon: PhosphorIcons.paperPlaneTilt,
-          loading: _saving,
-          onPressed: _saving ? null : _save,
+      safeAreaBottom: false,
+      body: Column(children: [
+        Expanded(child: _buildForm(context)),
+        _BottomBar(
+          child: AppButton(
+            label: 'Criar aviso',
+            icon: PhosphorIcons.paperPlaneTilt,
+            loading: _saving,
+            onPressed: _saving ? null : _save,
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
+      ]),
+    );
+  }
+
+  Widget _buildForm(BuildContext context) {
+    return SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(
             AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xxl),
@@ -179,8 +190,7 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
               maxLines: 4,
               textCapitalization: TextCapitalization.sentences),
         ]),
-      ),
-    );
+      );
   }
 
   Widget _buildUnitField() {
