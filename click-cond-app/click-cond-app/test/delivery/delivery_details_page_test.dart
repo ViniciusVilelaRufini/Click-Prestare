@@ -112,4 +112,99 @@ void main() {
       expect(enviado, {'status': 'RECUSADA', 'motivo': 'Recusada pelo morador.'});
     });
   });
+  group('barra de ações fixa', () {
+    Finder naBarra(String texto) => find.descendant(
+        of: find.byKey(const Key('delivery-actions-bar')),
+        matching: find.text(texto));
+
+    testWidgets('aguardando autorização: autorizar e recusar na barra',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+          home: DeliveryDetailsPage(
+              delivery: DeliveryModel(id: 7, status: 'AGUARDANDO_AUTORIZACAO'))));
+
+      expect(naBarra('Autorizar entrega'), findsOneWidget);
+      expect(naBarra('Recusar'), findsOneWidget);
+      expect(naBarra('Cancelar aviso'), findsNothing);
+    });
+
+    testWidgets('agendada: só cancelar aviso na barra', (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+          home: DeliveryDetailsPage(
+              delivery: DeliveryModel(id: 7, status: 'AGENDADA'))));
+
+      expect(naBarra('Cancelar aviso'), findsOneWidget);
+      expect(find.text('Autorizar entrega'), findsNothing);
+    });
+
+    for (final status in [
+      'CHEGOU',
+      'AUTORIZADA',
+      'RETIRADA_NA_PORTARIA',
+      'CONCLUIDA',
+      'CANCELADA',
+      'RECUSADA',
+    ]) {
+      testWidgets('$status: sem barra de ações', (tester) async {
+        await tester.pumpWidget(MaterialApp(
+            home: DeliveryDetailsPage(
+                delivery: DeliveryModel(id: 7, status: status))));
+
+        expect(find.byKey(const Key('delivery-actions-bar')), findsNothing);
+      });
+    }
+  });
+
+  testWidgets('mostra as etapas do fluxo em andamento', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+        home: DeliveryDetailsPage(
+            delivery: DeliveryModel(id: 7, status: 'CHEGOU'))));
+
+    for (final etapa in ['Aviso', 'Chegou', 'Autorização', 'Concluída']) {
+      expect(find.text(etapa), findsWidgets, reason: etapa);
+    }
+  });
+
+  testWidgets('recusada: card vermelho com o motivo e sem etapas',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+        home: DeliveryDetailsPage(
+            delivery: DeliveryModel(
+                id: 7, status: 'RECUSADA', motivo: 'Entregador sem identificação'))));
+
+    expect(find.text('Entrega recusada'), findsWidgets);
+    expect(find.text('Entregador sem identificação'), findsOneWidget);
+    expect(find.text('Autorização'), findsNothing);
+  });
+
+  testWidgets('renderiza no tema escuro em tela estreita sem estouro',
+      (tester) async {
+    tester.view.physicalSize = const Size(320 * 3, 640 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final aviso = DeliveryModel.fromJson({
+      'id': 7,
+      'status': 'AGUARDANDO_AUTORIZACAO',
+      'estabelecimento': 'Supermercado com um nome bastante comprido',
+      'modo_entrega': 'PORTARIA',
+      'previsao_em': '2026-10-04T19:45:00.000',
+      'observacao_morador': 'Interfone com defeito, favor ligar no celular',
+      'eventos': [
+        {'status_novo': 'AGENDADA', 'created_at': '2026-10-04T18:00:00.000'},
+        {'status_novo': 'CHEGOU', 'created_at': '2026-10-04T18:10:00.000'},
+        {
+          'status_novo': 'AGUARDANDO_AUTORIZACAO',
+          'created_at': '2026-10-04T18:11:00.000',
+          'mensagem': 'Portaria pediu autorização'
+        },
+      ],
+    });
+
+    await tester.pumpWidget(MaterialApp(
+        theme: ThemeData.dark(), home: DeliveryDetailsPage(delivery: aviso)));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Portaria pediu autorização'), findsOneWidget);
+  });
 }
