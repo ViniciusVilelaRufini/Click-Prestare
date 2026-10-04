@@ -268,3 +268,24 @@ describe('caminho até o preço', () => {
     expect(barra).toContain('{{ barraTransform }}');
   });
 });
+
+describe('textos de resposta e oferta', () => {
+  it('não promete mais resposta em 1 dia útil', () => {
+    const html = htmlDaLanding();
+    expect(html).not.toContain('Resposta em até 1 dia útil');
+    expect(html.split('Resposta na hora pelo WhatsApp').length - 1).toBe(2);
+    expect(html).toContain('Atendimento humano em horário comercial');
+  });
+
+  it('o contato e o FAQ explicam a condição de lançamento', () => {
+    const html = htmlDaLanding();
+    expect(html).toContain('Condição de lançamento: implantação grátis para os 10 primeiros condomínios.');
+    expect(html).toContain('Como funciona a implantação grátis?');
+  });
+
+  it('não usa promessas que a Prestare não oferece', () => {
+    const html = htmlDaLanding().toLowerCase();
+    expect(html).not.toContain('sem fidelidade');
+    expect(html).not.toContain('período de teste');
+  });
+});
