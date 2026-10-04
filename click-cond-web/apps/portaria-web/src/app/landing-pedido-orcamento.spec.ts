@@ -35,6 +35,16 @@ function corpoEnviado(fetch: jest.Mock): Record<string, string> {
   return JSON.parse((fetch.mock.calls[0] as any[])[1].body);
 }
 
+/** Extrai `  nome = (e) => { ... };` da classe do componente como função comum. */
+function carregarHandler(nome: string): (this: any, event: any) => void {
+  const html = htmlDaLanding();
+  const inicio = html.indexOf(`  ${nome} = (e) => {`);
+  const fim = html.indexOf('\n  };', inicio);
+  if (inicio < 0 || fim < 0) throw new Error(`Handler ${nome} da landing não encontrado.`);
+  const corpo = html.slice(inicio, fim + 5).replace(`${nome} = (e) =>`, `return function ${nome}(e)`);
+  return new Function(corpo)();
+}
+
 describe('psRegistrarLead', () => {
   beforeEach(() => sessionStorage.clear());
 
@@ -117,5 +127,44 @@ describe('psMensagemSimulador', () => {
     expect(msg).toContain('*WhatsApp:* (17) 99660-8148');
     expect(msg).toContain('*Simulação:* 80 unidades · Plus · R$ 773,00/mês');
     expect(msg).toContain('implantação grátis (10 primeiros condomínios)');
+  });
+});
+
+describe('formulário #contato', () => {
+  beforeEach(() => sessionStorage.clear());
+
+  const contexto = () => ({
+    _enviando: false,
+    state: { enviado: false },
+    props: { whatsapp: '5517996608148' },
+    tituloCaso: (v: string) => v,
+    formatarTelefone: (v: string) => v,
+    setState: jest.fn(),
+  });
+
+  it('grava o lead marcado como #contato e abre o WhatsApp', () => {
+    const { fetch, open } = prepararJanela();
+    carregarRastreadorDaLanding();
+    const form = montarForm({ nome: 'Ana', contato: '(17) 99660-8148', condominio: 'Azul', unidades: '24', site: '' });
+    const ctx = contexto();
+
+    carregarHandler('enviar').call(ctx, { preventDefault: jest.fn(), target: form });
+
+    expect(corpoEnviado(fetch)).toMatchObject({ nome: 'Ana', unidades: '24', pagina: '/sobre/#contato' });
+    expect(open).toHaveBeenCalledWith(expect.stringContaining('https://wa.me/5517996608148?text='), '_blank', 'noopener');
+    expect(ctx.setState).toHaveBeenCalledWith({ enviado: true });
+  });
+
+  it('não envia com WhatsApp curto', () => {
+    const { fetch, open } = prepararJanela();
+    carregarRastreadorDaLanding();
+    const form = montarForm({ nome: 'Ana', contato: '9966', condominio: 'Azul', unidades: '24', site: '' });
+    const ctx = contexto();
+
+    carregarHandler('enviar').call(ctx, { preventDefault: jest.fn(), target: form });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    expect(ctx.setState).not.toHaveBeenCalled();
   });
 });

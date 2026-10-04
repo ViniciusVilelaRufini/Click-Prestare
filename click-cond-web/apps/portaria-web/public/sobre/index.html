@@ -1682,29 +1682,6 @@ class Component extends DCLogic {
     if (this.state.enviado || this._enviando) return;
     const form = e.target;
     const f = new FormData(form);
-    // O atributo "required" do HTML nao sobrevive ao render deste framework
-    // (os inputs chegam ao DOM com required=false) — a validacao nativa do
-    // navegador nunca dispara sozinha aqui. Sem esta checagem manual, um
-    // envio com campos obrigatorios vazios abria o WhatsApp do mesmo jeito.
-    const obrigatorios = ["nome", "contato", "condominio", "unidades"];
-    const faltando = obrigatorios.filter((campo) => !String(f.get(campo) ?? "").trim());
-    if (faltando.length) {
-      // A mensagem soo pode sumir quando o usuario corrige o campo. Limpar
-      // a customValidity no mesmo tick do reportValidity() fecha a bolha do
-      // Chromium na hora, antes do usuario conseguir ler o aviso — por isso
-      // ela fica ate o campo receber um "input" (e so entao e limpa, uma vez).
-      faltando.forEach((campo) => {
-        const el = form.elements.namedItem(campo);
-        if (!el) return;
-        el.setCustomValidity("Preencha este campo.");
-        el.addEventListener("input", () => el.setCustomValidity(""), { once: true });
-      });
-      if (typeof form.reportValidity === "function") form.reportValidity();
-      const primeiroEl = form.elements.namedItem(faltando[0]);
-      if (primeiroEl && typeof primeiroEl.focus === "function") primeiroEl.focus();
-      return;
-    }
-    this._enviando = true;
     const unidadesBruto = String(f.get("unidades") ?? "").trim();
 
     // Linha em branco entre os blocos e rótulo em negrito (*x* é a marcação do
@@ -1716,23 +1693,31 @@ class Component extends DCLogic {
       "",
       "*Nome:* " + this.tituloCaso(f.get("nome")),
       "*Condomínio:* " + this.tituloCaso(f.get("condominio")),
-      "*WhatsApp:* " + this.formatarTelefone(f.get("contato"))
+      "*WhatsApp:* " + this.formatarTelefone(f.get("contato")),
+      "*Unidades:* " + unidadesBruto,
+      "",
+      "_Enviado pelo site prestarecondominios.com.br/sobre_"
     ];
-    // O campo agora e obrigatorio — e ele que define o preco. A guarda fica de
-    // pe: sem ela um envio sem o campo viraria um "Unidades: -" na mensagem.
-    // Sem sufixo: com o rotulo "Unidades", um "30 unidades" viraria redundante.
-    if (unidadesBruto) linhas.push("*Unidades:* " + unidadesBruto);
-    linhas.push("", "_Enviado pelo site prestarecondominios.com.br/sobre_");
 
     const num = (this.props.whatsapp ?? "5517996608148").replace(/\D/g, "");
-    if (window.psRegistrarLead) window.psRegistrarLead({
-      nome: String(f.get("nome") || ""),
-      condominio: String(f.get("condominio") || ""),
-      unidades: unidadesBruto,
-      whatsapp: String(f.get("contato") || ""),
-      site: String(f.get("site") || ""),
+    // Validação, registro do lead e WhatsApp ficam em psEnviarPedido (no
+    // <head>), compartilhado com o formulário do simulador.
+    const ok = window.psEnviarPedido({
+      form: form,
+      obrigatorios: ["nome", "contato", "condominio", "unidades"],
+      lead: {
+        nome: String(f.get("nome") || ""),
+        condominio: String(f.get("condominio") || ""),
+        unidades: unidadesBruto,
+        whatsapp: String(f.get("contato") || ""),
+        site: String(f.get("site") || ""),
+        pagina: "/sobre/#contato"
+      },
+      mensagem: linhas.join("\n"),
+      numero: num
     });
-    window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(linhas.join("\n")), "_blank", "noopener");
+    if (!ok) return;
+    this._enviando = true;
     this.setState({ enviado: true });
   };
 
