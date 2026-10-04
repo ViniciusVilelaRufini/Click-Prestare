@@ -168,3 +168,76 @@ describe('formulário #contato', () => {
     expect(ctx.setState).not.toHaveBeenCalled();
   });
 });
+
+describe('formulário do simulador', () => {
+  beforeEach(() => sessionStorage.clear());
+
+  const contexto = () => ({
+    _enviandoSim: false,
+    state: { simEnviado: false, simUnidades: 80 },
+    props: { whatsapp: '5517996608148' },
+    tituloCaso: (v: string) => v,
+    formatarTelefone: (v: string) => v,
+    calcularPlano: () => ({ plano: 'Plus', incluso: '', mensal: 773 }),
+    brl: (v: number) => 'R$ ' + v.toFixed(2).replace('.', ','),
+    setState: jest.fn(),
+  });
+
+  it('grava o lead com a simulação e marca a origem #simulador', () => {
+    const { fetch, open } = prepararJanela();
+    carregarRastreadorDaLanding();
+    const form = montarForm({ nome: 'Ana', condominio: 'Azul', contato: '(17) 99660-8148', site: '' });
+    const ctx = contexto();
+
+    carregarHandler('enviarSimulador').call(ctx, { preventDefault: jest.fn(), target: form });
+
+    expect(corpoEnviado(fetch)).toMatchObject({
+      nome: 'Ana',
+      condominio: 'Azul',
+      whatsapp: '(17) 99660-8148',
+      unidades: '80 unidades · Plus · R$ 773,00/mês',
+      pagina: '/sobre/#simulador',
+    });
+    const url = decodeURIComponent((open.mock.calls[0] as any[])[0]);
+    expect(url).toContain('*Simulação:* 80 unidades · Plus · R$ 773,00/mês');
+    expect(url).toContain('implantação grátis');
+    expect(ctx.setState).toHaveBeenCalledWith({ simEnviado: true });
+  });
+
+  it('não envia sem o nome do condomínio', () => {
+    const { fetch, open } = prepararJanela();
+    carregarRastreadorDaLanding();
+    const form = montarForm({ nome: 'Ana', condominio: '', contato: '(17) 99660-8148', site: '' });
+    const ctx = contexto();
+
+    carregarHandler('enviarSimulador').call(ctx, { preventDefault: jest.fn(), target: form });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    expect(ctx.setState).not.toHaveBeenCalled();
+  });
+
+  it('não envia duas vezes', () => {
+    const { fetch } = prepararJanela();
+    carregarRastreadorDaLanding();
+    const form = montarForm({ nome: 'Ana', condominio: 'Azul', contato: '(17) 99660-8148', site: '' });
+    const ctx = { ...contexto(), state: { simEnviado: true, simUnidades: 80 } };
+
+    carregarHandler('enviarSimulador').call(ctx, { preventDefault: jest.fn(), target: form });
+
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('o card do simulador tem o formulário, o selo e o atalho do WhatsApp', () => {
+    const html = htmlDaLanding();
+    const inicio = html.indexOf('<section id="simulador"');
+    const card = html.slice(inicio, html.indexOf('</section>', inicio));
+    expect(card).toContain('onSubmit="{{ enviarSimulador }}"');
+    expect(card).toContain('Receber minha proposta');
+    expect(card).toContain('implantação grátis para os 10 primeiros condomínios');
+    expect(card).toContain('Prefere falar direto? Abrir o WhatsApp');
+    expect(card).toContain('Sem compromisso');
+    expect(card).toContain('Proposta com o valor exato do seu condomínio');
+    expect(card).toContain('Seus dados sob a LGPD, sem spam');
+  });
+});

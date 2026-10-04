@@ -323,6 +323,9 @@
     .ps-menu-btn { display: flex; }
   }
 
+  /* Selo da condição de lançamento no resultado do simulador. */
+  .ps-selo-oferta { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 6px 12px; border-radius: var(--radius-pill); background: #fff7e6; border: 1px solid #f5c26b; color: #8a4b00; font: var(--type-caption); font-weight: 600; }
+
   /* ─── Barra fixa de CTA (so no celular) ─────────────────────────────── */
   .ps-barra { display: none; }
   @media (max-width: 720px) {
@@ -904,8 +907,46 @@
           <div style="margin-top: 4px; font: var(--type-h2); color: var(--prestare-blue-700);">{{ simPlano }}</div>
           <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">{{ simIncluso }}</p>
           <div style="margin-top: 18px; font: var(--weight-extrabold) clamp(32px, 4vw, 44px)/1.05 var(--font-ui); color: var(--text-strong);">{{ simMensal }}<span style="font: var(--type-body); color: var(--text-muted);">/mês</span></div>
-          <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-body);">Equivale a <strong>{{ simPorUnidade }}</strong> por unidade · implantação única de {{ simImplantacao }}</p>
-          <a href="{{ simLink }}" data-sim="{{ simResumo }}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; justify-content: center; margin-top: 22px; padding: 14px 22px; border-radius: var(--radius-md); background: var(--prestare-blue-600); color: #fff; font: var(--type-body-strong); text-decoration: none; transition: background 150ms ease, transform 150ms ease;" style-hover="background: var(--prestare-blue-700); color: #fff; transform: translateY(-1px);">Quero essa proposta pelo WhatsApp</a>
+          <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-body);">Equivale a <strong>{{ simPorUnidade }}</strong> por unidade · implantação <s style="color: var(--text-faint);">{{ simImplantacao }}</s> <strong style="color: #15803d;">grátis</strong></p>
+          <span class="ps-selo-oferta">Condição de lançamento: implantação grátis para os 10 primeiros condomínios</span>
+
+          <!-- O pedido nasce aqui, no momento em que a pessoa acabou de ver o
+               preço: as unidades já vêm do simulador, só faltam três campos. -->
+          <sc-if value="{{ simForm }}" hint-placeholder-val="{{ true }}">
+            <form id="ps-form-simulador" onSubmit="{{ enviarSimulador }}" style="position: relative; display: grid; gap: 10px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--prestare-blue-200);">
+              <span style="font: var(--type-body-strong); color: var(--text-strong);">Receba esta proposta no seu WhatsApp</span>
+              <div class="ps-field-row">
+                <input name="nome" autocomplete="name" placeholder="Seu nome" aria-label="Seu nome">
+                <input name="condominio" placeholder="Nome do condomínio" aria-label="Nome do condomínio">
+              </div>
+              <input name="contato" inputmode="tel" autocomplete="tel" placeholder="WhatsApp (00) 00000-0000" aria-label="Seu WhatsApp com DDD">
+              <!-- Honeypot anti-spam: invisível para gente, bots preenchem tudo. -->
+              <input name="site" tabindex="-1" autocomplete="off" aria-hidden="true" style="position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;">
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" type="submit" size="lg" full-width="{{ true }}" icon-right="arrow-right" hint-size="100%,52px">Receber minha proposta</x-import>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px 14px;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-muted);">
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="14" color="var(--prestare-blue-500)" hint-size="14px,14px"></x-import>
+                  Sem compromisso
+                </span>
+                <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-muted);">
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="14" color="var(--prestare-blue-500)" hint-size="14px,14px"></x-import>
+                  Proposta com o valor exato do seu condomínio
+                </span>
+                <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-muted);">
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="shield-check" size="14" color="var(--prestare-blue-500)" hint-size="14px,14px"></x-import>
+                  Seus dados sob a LGPD, sem spam
+                </span>
+              </div>
+              <a href="{{ simLink }}" data-sim="{{ simResumo }}" target="_blank" rel="noopener" style="justify-self: start; font: var(--type-sub); color: var(--prestare-blue-700); text-decoration: underline; text-underline-offset: 3px;">Prefere falar direto? Abrir o WhatsApp</a>
+            </form>
+          </sc-if>
+          <sc-if value="{{ simConfirmado }}" hint-placeholder-val="{{ false }}">
+            <div role="status" style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--prestare-blue-200);">
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="circle-check" tone="success" size="md" hint-size="40px,40px"></x-import>
+              <strong style="font: var(--type-body-strong); color: var(--text-strong);">Proposta pedida</strong>
+              <p style="margin: 0; font: var(--type-sub); color: var(--text-muted);">Abrimos o WhatsApp com os seus dados. Se a janela não abrir, chame em <strong style="font-weight: 600;">{{ telefone }}</strong>.</p>
+            </div>
+          </sc-if>
         </sc-if>
         <sc-if value="{{ simSemValor }}" hint-placeholder-val="{{ false }}">
           <p style="margin: 0; font: var(--type-body); color: var(--text-muted);">Digite o número de unidades para ver o valor.</p>
@@ -1305,7 +1346,7 @@ class Component extends DCLogic {
     cookieBanner: false, cookiePainel: false,
     cookieAnalytics: false, cookieMarketing: false,
     emailPainel: false, emailCopiado: false,
-    simUnidades: 60
+    simUnidades: 60, simEnviado: false
   };
 
   // Ordem do carrossel do console. As legendas e os textos moram no TELAS,
@@ -1664,6 +1705,8 @@ class Component extends DCLogic {
       simAlterar: this.simAlterar,
       simTemValor: ok,
       simSemValor: !ok,
+      simForm: ok && !this.state.simEnviado,
+      simConfirmado: ok && this.state.simEnviado,
       simPlano: c ? c.plano : "",
       simIncluso: c ? c.incluso : "",
       simMensal: c ? this.brl(c.mensal) : "",
@@ -1673,6 +1716,42 @@ class Component extends DCLogic {
       simLink: "https://wa.me/" + num + "?text=" + encodeURIComponent(msg)
     };
   }
+
+  // Pedido feito no card do simulador: as unidades vêm da simulação e o lead
+  // chega ao CRM como "80 unidades · Plus · R$ 773,00/mês".
+  enviarSimulador = (e) => {
+    e.preventDefault();
+    if (this.state.simEnviado || this._enviandoSim) return;
+    const form = e.target;
+    const f = new FormData(form);
+    const n = Number(this.state.simUnidades);
+    if (!Number.isFinite(n) || n < 1) return;
+    const c = this.calcularPlano(n);
+    const resumo = n + " unidades · " + c.plano + " · " + this.brl(c.mensal) + "/mês";
+    const num = (this.props.whatsapp ?? "5517996608148").replace(/\D/g, "");
+    const ok = window.psEnviarPedido({
+      form: form,
+      obrigatorios: ["nome", "condominio", "contato"],
+      lead: {
+        nome: String(f.get("nome") || ""),
+        condominio: String(f.get("condominio") || ""),
+        unidades: resumo,
+        whatsapp: String(f.get("contato") || ""),
+        site: String(f.get("site") || ""),
+        pagina: "/sobre/#simulador"
+      },
+      mensagem: window.psMensagemSimulador({
+        nome: this.tituloCaso(f.get("nome")),
+        condominio: this.tituloCaso(f.get("condominio")),
+        whatsapp: this.formatarTelefone(f.get("contato")),
+        resumo: resumo
+      }),
+      numero: num
+    });
+    if (!ok) return;
+    this._enviandoSim = true;
+    this.setState({ simEnviado: true });
+  };
 
   enviar = (e) => {
     e.preventDefault();
@@ -1785,6 +1864,7 @@ class Component extends DCLogic {
       enviado: this.state.enviado,
       mostrarForm: !this.state.enviado,
       enviar: this.enviar,
+      enviarSimulador: this.enviarSimulador,
       irParaContato: this.irParaContato,
       ano: new Date().getFullYear(),
       cookieBanner: this.state.cookieBanner,
