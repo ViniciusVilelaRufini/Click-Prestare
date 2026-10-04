@@ -88,7 +88,14 @@
         var el = form.elements.namedItem(i.campo);
         if (!el) return;
         el.setCustomValidity(i.msg);
-        el.addEventListener('input', function () { el.setCustomValidity(''); }, { once: true });
+        // Autofill e sugestões do navegador podem disparar só `change`.
+        var limpar = function () {
+          el.setCustomValidity('');
+          el.removeEventListener('input', limpar);
+          el.removeEventListener('change', limpar);
+        };
+        el.addEventListener('input', limpar);
+        el.addEventListener('change', limpar);
       });
       if (typeof form.reportValidity === 'function') form.reportValidity();
       var primeiro = form.elements.namedItem(invalidos[0].campo);
@@ -1735,7 +1742,7 @@ class Component extends DCLogic {
     const c = ok ? this.calcularPlano(n) : null;
     const resumo = ok ? n + " unidades · " + c.plano + " · " + this.brl(c.mensal) + "/mês" : "";
     const msg = ok
-      ? "Olá! Simulei no site o plano " + c.plano + " para " + n + " unidades (" + this.brl(c.mensal) + "/mês + implantação de " + this.brl(this.IMPLANTACAO) + ") e quero uma proposta para o meu condomínio."
+      ? "Olá! Simulei no site o plano " + c.plano + " para " + n + " unidades (" + this.brl(c.mensal) + "/mês, implantação grátis na condição de lançamento) e quero uma proposta para o meu condomínio."
       : "Olá! Quero um orçamento do Prestare Gestão para o meu condomínio.";
     return {
       simUnidades: this.state.simUnidades,

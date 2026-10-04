@@ -289,3 +289,61 @@ describe('textos de resposta e oferta', () => {
     expect(html).not.toContain('período de teste');
   });
 });
+
+describe('correções finais da revisão', () => {
+  function simLink(unidades: string): string {
+    const html = htmlDaLanding();
+    const inicio = html.indexOf('  simVals(num) {');
+    const fim = html.indexOf('\n  }\n', inicio);
+    if (inicio < 0 || fim < 0) throw new Error('simVals da landing não encontrado.');
+    const corpo = html.slice(inicio, fim + 4).replace('simVals(num) {', 'return function simVals(num) {');
+    const simVals = new Function(corpo)();
+    const contexto = {
+      state: { simUnidades: unidades, simEnviado: false },
+      calcularPlano: () => ({ plano: 'Plus', incluso: '', mensal: 773 }),
+      brl: (v: number) => 'R$ ' + v.toFixed(2).replace('.', ','),
+      IMPLANTACAO: 490,
+      PLANOS: [],
+    };
+    return decodeURIComponent(simVals.call(contexto, '5517996608148').simLink);
+  }
+
+  it('o link direto do simulador não cita R$ 490 e fala da condição de lançamento', () => {
+    const texto = simLink('80');
+    expect(texto).toContain('R$ 773,00/mês, implantação grátis na condição de lançamento');
+    expect(texto).not.toContain('R$ 490');
+    expect(texto).not.toContain('implantação de');
+  });
+
+  it('o link direto sem valor mantém a mensagem genérica', () => {
+    expect(simLink('')).toContain('Quero um orçamento do Prestare Gestão');
+  });
+
+  const invalidar = () => {
+    prepararJanela();
+    carregarRastreadorDaLanding();
+    const form = montarForm({ nome: 'Ana', condominio: '', contato: '(17) 99660-8148' });
+    (window as any).psEnviarPedido({
+      form,
+      obrigatorios: ['nome', 'condominio', 'contato'],
+      lead: { nome: 'Ana', condominio: '', whatsapp: '', unidades: '', pagina: '/' },
+      mensagem: 'Olá!',
+      numero: '5517996608148',
+    });
+    const campo = form.elements.namedItem('condominio') as HTMLInputElement;
+    expect(campo.validationMessage).toBe('Preencha este campo.');
+    return campo;
+  };
+
+  it('libera o campo inválido quando só o evento change dispara (autofill)', () => {
+    const campo = invalidar();
+    campo.dispatchEvent(new Event('change'));
+    expect(campo.validationMessage).toBe('');
+  });
+
+  it('libera o campo inválido no evento input', () => {
+    const campo = invalidar();
+    campo.dispatchEvent(new Event('input'));
+    expect(campo.validationMessage).toBe('');
+  });
+});
