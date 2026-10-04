@@ -179,8 +179,9 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
           icon: PhosphorIcons.package,
           title: 'Nenhuma entrega em andamento',
           message: 'Avise a portaria quando uma entrega estiver a caminho e acompanhe tudo por aqui.',
-          actionLabel: 'Avisar entrega',
-          onAction: () => openAddDelivery(context),
+          // Com o FAB na tela o botão do vazio só repetiria a mesma ação.
+          actionLabel: widget.showFab ? null : 'Avisar entrega',
+          onAction: widget.showFab ? null : () => openAddDelivery(context),
         ),
       );
     }
