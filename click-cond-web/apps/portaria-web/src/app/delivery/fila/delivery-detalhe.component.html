@@ -1,0 +1,95 @@
+<aside class="rounded-2xl border border-white/10 bg-graphite-200 lg:sticky lg:top-6">
+  @if (store.selecionado(); as a) {
+    <header class="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+      <div class="min-w-0">
+        <p class="text-xs text-slate-500">Atendimento #{{ a.id }}</p>
+        <h2 class="truncate text-base font-semibold text-white">{{ a.estabelecimento || 'Entrega sem estabelecimento' }}</h2>
+        <p class="mt-0.5 text-sm text-slate-400">{{ a.apartamento.bloco ? 'Bloco ' : '' }}{{ store.unidade(a) }} · {{ a.modo_entrega === 'PORTARIA' ? 'Deixar na portaria' : 'Entregar na unidade' }}</p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <app-delivery-status-badge [status]="a.status" />
+        <button type="button" (click)="fechar()" class="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white" aria-label="Fechar painel">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="space-y-4 p-4">
+      @if (a.observacao_morador) {
+        <p class="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm text-slate-300"><span class="block text-xs text-slate-500">Observação do morador</span>{{ a.observacao_morador }}</p>
+      }
+
+      <div class="rounded-lg border border-white/10 bg-graphite p-3">
+        <p class="text-xs text-slate-500">Entregador</p>
+        <p class="text-sm font-medium text-white">{{ store.nomeEntregador(a) }}</p>
+        @if (store.telefoneEntregador(a); as telefone) { <p class="text-xs text-slate-400">{{ telefone }}</p> }
+        @if (a.entregador?.status === 'BLOQUEADO') {
+          <p class="mt-1 text-xs font-medium text-red-700 dark:text-red-300">Bloqueado{{ a.entregador?.motivo_bloqueio ? ': ' + a.entregador?.motivo_bloqueio : '' }}</p>
+        }
+      </div>
+
+      @if (acoes()?.primaria || acoes()?.secundarias?.length || acoes()?.recusar) {
+        <label class="block">
+          <span class="mb-1.5 block text-xs font-medium text-slate-400">Identificar entregador</span>
+          <select class="w-full rounded-lg border border-white/10 bg-graphite px-3 py-2.5 text-sm text-white focus:border-accent/60 focus:outline-none"
+            [ngModel]="store.entregadorSelecionadoId()" (ngModelChange)="store.entregadorSelecionadoId.set($event ? +$event : null)">
+            <option [ngValue]="null">Não identificado</option>
+            @for (e of store.entregadores(); track e.id) {
+              <option [ngValue]="e.id">{{ e.nome }}{{ e.status === 'BLOQUEADO' ? ' (bloqueado)' : '' }}</option>
+            }
+          </select>
+        </label>
+        <button type="button" class="text-xs font-medium text-accent hover:underline dark:text-accent-400" (click)="store.iniciarCadastroNoAtendimento()">+ Cadastrar novo entregador</button>
+
+        @if (!confirmandoRecusa()) {
+          <div class="space-y-2">
+            @if (acoes()?.primaria; as primaria) {
+              <button type="button" (click)="executar(primaria)" [disabled]="desabilitada(primaria)"
+                class="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-600 disabled:cursor-not-allowed disabled:opacity-40">{{ verbo(primaria) }}</button>
+              @if (primaria === 'AUTORIZADA' && !store.podeAutorizar(a)) {
+                <p class="text-xs text-slate-500">Identifique um entregador ativo para autorizar a subida.</p>
+              }
+            }
+            @if (acoes()?.secundarias?.length) {
+              <div class="grid gap-2 sm:grid-cols-2">
+                @for (s of acoes()!.secundarias; track s) {
+                  <button type="button" (click)="executar(s)" [disabled]="desabilitada(s)"
+                    class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-40">{{ verbo(s) }}</button>
+                }
+              </div>
+            }
+            @if (acoes()?.recusar) {
+              <button type="button" (click)="confirmandoRecusa.set(true)"
+                class="w-full rounded-lg border border-red-500/30 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-500/10 dark:text-red-300">Recusar entrega</button>
+            }
+          </div>
+        } @else {
+          <div class="space-y-2 rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+            <label class="block">
+              <span class="mb-1.5 block text-xs font-medium text-red-700 dark:text-red-300">Motivo da recusa *</span>
+              <input name="motivoRecusa" class="w-full rounded-lg border border-white/10 bg-graphite px-3 py-2 text-sm text-white focus:border-red-500/60 focus:outline-none"
+                [ngModel]="store.motivo()" (ngModelChange)="store.motivo.set($event)" placeholder="Ex.: pedido não reconhecido pelo morador">
+            </label>
+            <div class="flex gap-2">
+              <button type="button" (click)="confirmandoRecusa.set(false)" class="flex-1 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">Voltar</button>
+              <button type="button" (click)="confirmarRecusa()" [disabled]="store.carregando()" class="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40">Confirmar recusa</button>
+            </div>
+          </div>
+        }
+      }
+
+      <div class="border-t border-white/10 pt-4">
+        <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Linha do tempo</h3>
+        <app-delivery-timeline [eventos]="a.eventos" />
+      </div>
+    </div>
+  } @else {
+    <div class="flex flex-col items-center justify-center px-6 py-16 text-center">
+      <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10">
+        <svg class="h-6 w-6 text-accent dark:text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/></svg>
+      </div>
+      <p class="text-sm font-medium text-slate-300">Selecione um atendimento</p>
+      <p class="mt-1 text-xs text-slate-500">Os detalhes, as ações e a linha do tempo aparecem aqui.</p>
+    </div>
+  }
+</aside>

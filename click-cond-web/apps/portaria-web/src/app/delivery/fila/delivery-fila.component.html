@@ -1,0 +1,73 @@
+<div class="space-y-5">
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    @for (status of cards; track status) {
+      <button type="button" (click)="store.alternarFiltro(status)" [attr.aria-pressed]="filtroAtivo(status)"
+        [class]="'group rounded-xl border bg-graphite-200 px-4 py-3 text-left transition hover:border-white/20 ' + (filtroAtivo(status) ? cls(status).borda + ' ring-2 ' + cls(status).anel : 'border-white/10')">
+        <span class="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-400">
+          <span [class]="'h-1.5 w-1.5 rounded-full ' + cls(status).ponto"></span>{{ rotulo(status) }}
+        </span>
+        <span [class]="'mt-1 block text-2xl font-bold tabular-nums leading-none ' + (store.contador(status) ? cls(status).texto : 'text-white')">{{ store.contador(status) }}</span>
+      </button>
+    }
+  </div>
+
+  <div class="flex flex-wrap items-end gap-3 rounded-xl border border-white/10 bg-graphite-200 p-3">
+    <label class="min-w-[220px] flex-1">
+      <span class="mb-1.5 block text-xs font-medium text-slate-400">Buscar</span>
+      <span class="relative block">
+        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+        <input class="w-full rounded-lg border border-white/10 bg-graphite py-2.5 pl-9 pr-3 text-sm text-white placeholder-slate-500 focus:border-accent/60 focus:outline-none"
+          [ngModel]="store.busca()" (ngModelChange)="store.busca.set($event)" placeholder="Unidade, nome, telefone ou placa — ex.: A 101 ou ABC1D23">
+      </span>
+    </label>
+    <label class="w-full sm:w-56">
+      <span class="mb-1.5 block text-xs font-medium text-slate-400">Status</span>
+      <select class="w-full rounded-lg border border-white/10 bg-graphite px-3 py-2.5 text-sm text-white focus:border-accent/60 focus:outline-none"
+        [ngModel]="store.filtroStatus()" (ngModelChange)="store.filtroStatus.set($event)">
+        <option value="">Todos</option>
+        @for (status of opcoesFiltro; track status) {
+          <option [value]="status">{{ rotulo(status) }}</option>
+        }
+      </select>
+    </label>
+  </div>
+
+  <div class="grid gap-4 lg:grid-cols-5">
+    <section class="overflow-hidden rounded-2xl border border-white/10 bg-graphite-200 lg:col-span-3">
+      <header class="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <h2 class="text-sm font-semibold text-white">Fila ativa <span class="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-300">{{ store.fila().length }}</span></h2>
+        @if (store.carregando()) {
+          <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-accent/30 border-t-accent" aria-label="Carregando"></span>
+        }
+      </header>
+
+      @for (a of store.fila(); track a.id) {
+        <button type="button" (click)="store.selecionar(a)"
+          [class]="'flex w-full items-stretch gap-3 border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 hover:bg-white/[0.03] ' + (store.selecionado()?.id === a.id ? 'bg-white/[0.05]' : '')">
+          <span [class]="'w-1 shrink-0 rounded-full ' + cls(a.status).ponto"></span>
+          <span class="min-w-0 flex-1">
+            <span class="flex items-start justify-between gap-2">
+              <strong class="truncate text-sm font-semibold text-white">{{ a.estabelecimento || 'Entrega sem estabelecimento' }}</strong>
+              <app-delivery-status-badge [status]="a.status" />
+            </span>
+            <span class="mt-1 block truncate text-sm text-slate-300">{{ a.apartamento.bloco ? 'Bloco ' : '' }}{{ store.unidade(a) }} · {{ store.nomeEntregador(a) }}</span>
+            <span class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+              <span [class]="atencao(a) ? 'font-medium text-amber-700 dark:text-amber-300' : ''">{{ espera(a) }}</span>
+              <span>{{ modo(a) }}</span>
+              @if (store.telefoneEntregador(a); as telefone) { <span>Tel. {{ telefone }}</span> }
+            </span>
+          </span>
+        </button>
+      } @empty {
+        <div class="p-10 text-center">
+          <p class="text-sm font-medium text-slate-300">Nenhuma entrega na fila</p>
+          <p class="mt-1 text-xs text-slate-500">{{ store.busca() || store.filtroStatus() ? 'Ajuste a busca ou o filtro.' : 'Novos avisos dos moradores aparecem aqui automaticamente.' }}</p>
+        </div>
+      }
+    </section>
+
+    <div class="lg:col-span-2">
+      <app-delivery-detalhe />
+    </div>
+  </div>
+</div>
