@@ -60,9 +60,62 @@
         method: 'POST',
         keepalive: true,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.assign({}, dados, origem, { pagina: location.pathname })),
+        // O formulário diz de onde veio (#simulador ou #contato); clique solto usa o caminho.
+        body: JSON.stringify(Object.assign({}, dados, origem, { pagina: (dados && dados.pagina) || location.pathname })),
       }).catch(function () {});
     } catch (e) {}
+  };
+  // Validação + registro + WhatsApp compartilhados pelos dois formulários
+  // (simulador e #contato). O "required" do HTML não sobrevive ao render da
+  // página, então a checagem é manual. Devolve false sem gravar nada quando
+  // falta campo; a regra do WhatsApp é a mesma do backend (10 a 13 dígitos).
+  window.psEnviarPedido = function (p) {
+    var form = p.form;
+    var f = new FormData(form);
+    var invalidos = [];
+    p.obrigatorios.forEach(function (campo) {
+      if (!String(f.get(campo) || '').trim()) invalidos.push({ campo: campo, msg: 'Preencha este campo.' });
+    });
+    var contato = String(f.get('contato') || '').trim();
+    var digitos = contato.replace(/\D/g, '');
+    if (contato && (digitos.length < 10 || digitos.length > 13)) {
+      invalidos.push({ campo: 'contato', msg: 'Informe o WhatsApp com DDD.' });
+    }
+    if (invalidos.length) {
+      // A mensagem só some quando a pessoa corrige o campo: limpar no mesmo
+      // tick do reportValidity fecharia a bolha antes de dar para ler.
+      invalidos.forEach(function (i) {
+        var el = form.elements.namedItem(i.campo);
+        if (!el) return;
+        el.setCustomValidity(i.msg);
+        el.addEventListener('input', function () { el.setCustomValidity(''); }, { once: true });
+      });
+      if (typeof form.reportValidity === 'function') form.reportValidity();
+      var primeiro = form.elements.namedItem(invalidos[0].campo);
+      if (primeiro && typeof primeiro.focus === 'function') primeiro.focus();
+      return false;
+    }
+    if (window.psRegistrarLead) window.psRegistrarLead(p.lead);
+    window.open('https://wa.me/' + p.numero + '?text=' + encodeURIComponent(p.mensagem), '_blank', 'noopener');
+    return true;
+  };
+  // Mensagem do pedido feito pelo simulador. A linha da oferta registra que a
+  // condição de lançamento valia quando o lead pediu.
+  window.psMensagemSimulador = function (d) {
+    return [
+      '*Proposta pelo simulador — Prestare Gestão*',
+      '',
+      'Olá! Simulei no site e quero a proposta para o meu condomínio.',
+      '',
+      '*Nome:* ' + d.nome,
+      '*Condomínio:* ' + d.condominio,
+      '*WhatsApp:* ' + d.whatsapp,
+      '*Simulação:* ' + d.resumo,
+      '',
+      'Condição de lançamento: implantação grátis (10 primeiros condomínios).',
+      '',
+      '_Enviado pelo site prestarecondominios.com.br/sobre_'
+    ].join('\n');
   };
   document.addEventListener('click', function (e) {
     var a = e.target && e.target.closest ? e.target.closest('a[href*="wa.me/"], a[href*="ig.me/m/"]') : null;
