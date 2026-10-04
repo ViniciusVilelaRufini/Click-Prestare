@@ -283,6 +283,7 @@ class _RespondBanner extends StatelessWidget {
           Semantics(
             button: true,
             label: 'A portaria aguarda sua resposta: $title. Toque para ver os detalhes.',
+            onTap: onOpen,
             excludeSemantics: true,
             child: InkWell(
               onTap: onOpen,
@@ -370,6 +371,8 @@ class _DeliveryCard extends StatelessWidget {
         if (time != null) time,
         if (hasObservacao) 'observação: $observacao',
       ].join(', '),
+      // excludeSemantics descarta o toque do InkWell: repete aqui.
+      onTap: onTap,
       excludeSemantics: true,
       child: Material(
         color: AppColors.surface(context),

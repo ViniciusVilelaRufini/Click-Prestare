@@ -52,6 +52,10 @@ void main() {
     expect(find.text('Na portaria'), findsOneWidget);
     expect(find.text('Remédio'), findsOneWidget);
     expect(find.text('Pizzaria'), findsNothing);
+    expect(tester.getSemantics(find.text('Farmácia')),
+        isSemantics(isButton: true, hasTapAction: true));
+    expect(tester.getSemantics(find.text('A portaria aguarda sua resposta')),
+        isSemantics(isButton: true, hasTapAction: true));
 
     await tester.tap(find.text('Histórico (1)'));
     await tester.pumpAndSettle();
