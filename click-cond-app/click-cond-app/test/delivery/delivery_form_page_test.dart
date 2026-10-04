@@ -38,6 +38,11 @@ void main() {
     });
 
     await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
+    await tester.pumpAndSettle();
+    // Entregador e observação ficam em "Mais detalhes", recolhido no início.
+    await tester.ensureVisible(find.text('Mais detalhes (opcional)'));
+    await tester.tap(find.text('Mais detalhes (opcional)'));
+    await tester.pumpAndSettle();
 
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Nome do entregador (opcional)'),
@@ -136,7 +141,20 @@ void main() {
       });
     });
 
-    testWidgets('mostra os títulos das seções e a unidade única',
+    Future<Map<String, dynamic>> criar(WidgetTester tester) async {
+      await tester.tap(find.text('Criar aviso'));
+      await tester.pumpAndSettle();
+      return jsonDecode(postRequest!.body) as Map<String, dynamic>;
+    }
+
+    Future<void> tocar(WidgetTester tester, Finder alvo) async {
+      await tester.ensureVisible(alvo);
+      await tester.pumpAndSettle();
+      await tester.tap(alvo);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('mostra só o essencial; entregador e observação ficam recolhidos',
         (tester) async {
       await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
       await tester.pumpAndSettle();
@@ -144,13 +162,67 @@ void main() {
       for (final titulo in [
         'Unidade',
         'Sobre a entrega',
-        'Entregador (opcional)',
+        'Quando chega?',
         'Como receber',
-        'Observação',
+        'Mais detalhes (opcional)',
       ]) {
         expect(find.text(titulo), findsOneWidget, reason: titulo);
       }
       expect(find.byKey(const Key('delivery-unit-single')), findsOneWidget);
+      expect(find.text('Nome do entregador (opcional)'), findsNothing);
+      expect(find.text('Observação (opcional)'), findsNothing);
+
+      await tocar(tester, find.text('Mais detalhes (opcional)'));
+
+      expect(find.text('Entregador'), findsOneWidget);
+      expect(find.text('Observação'), findsOneWidget);
+      expect(find.text('Nome do entregador (opcional)'), findsOneWidget);
+      expect(find.text('Observação (opcional)'), findsOneWidget);
+    });
+
+    testWidgets('recolher "Mais detalhes" mantém o que foi digitado e mostra o resumo',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
+      await tester.pumpAndSettle();
+      await tocar(tester, find.text('Mais detalhes (opcional)'));
+      await tester.enterText(
+          find.widgetWithText(TextFormField, 'Nome do entregador (opcional)'),
+          'João');
+      await tester.enterText(
+          find.widgetWithText(TextFormField, 'Observação (opcional)'),
+          'Interfone quebrado');
+      await tocar(tester, find.text('Mais detalhes (opcional)'));
+
+      expect(find.text('Nome do entregador (opcional)'), findsNothing);
+      expect(find.text('João · com observação'), findsOneWidget);
+
+      final payload = await criar(tester);
+      expect(payload['nome_entregador'], 'João');
+      expect(payload['observacao_morador'], 'Interfone quebrado');
+    });
+
+    testWidgets('atalhos de estabelecimento preenchem o campo e ficam destacados',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
+      await tester.pumpAndSettle();
+
+      for (final atalho in ['iFood', 'Rappi', 'Mercado Livre', 'Farmácia', 'Mercado']) {
+        expect(find.widgetWithText(ChoiceChip, atalho), findsOneWidget, reason: atalho);
+      }
+
+      await tocar(tester, find.widgetWithText(ChoiceChip, 'iFood'));
+      final campo = find.widgetWithText(TextFormField, 'Estabelecimento (opcional)');
+      expect(tester.widget<TextFormField>(campo).controller!.text, 'iFood');
+      expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'iFood')).selected,
+          isTrue);
+
+      await tocar(tester, find.widgetWithText(ChoiceChip, 'Farmácia'));
+      expect(tester.widget<TextFormField>(campo).controller!.text, 'Farmácia');
+      expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'iFood')).selected,
+          isFalse);
+
+      final payload = await criar(tester);
+      expect(payload['estabelecimento'], 'Farmácia');
     });
 
     testWidgets('modo de entrega em cards: começa na unidade e troca para portaria',
@@ -167,52 +239,85 @@ void main() {
           tester.getSemantics(find.byKey(const Key('delivery-mode-portaria'))),
           isSemantics(isSelected: false, isButton: true, hasTapAction: true));
 
-      await tester.ensureVisible(find.byKey(const Key('delivery-mode-portaria')));
-      await tester.tap(find.byKey(const Key('delivery-mode-portaria')));
-      await tester.pumpAndSettle();
+      await tocar(tester, find.byKey(const Key('delivery-mode-portaria')));
 
       expect(
           tester.getSemantics(find.byKey(const Key('delivery-mode-portaria'))),
           isSemantics(isSelected: true));
 
-      await tester.tap(find.text('Criar aviso'));
-      await tester.pumpAndSettle();
-
-      final payload = jsonDecode(postRequest!.body) as Map<String, dynamic>;
+      final payload = await criar(tester);
       expect(payload['modo_entrega'], 'PORTARIA');
     });
 
-    testWidgets('sem trocar o modo envia UNIDADE', (tester) async {
+    testWidgets('padrão: unidade e sem previsão', (tester) async {
       await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Criar aviso'));
-      await tester.pumpAndSettle();
 
-      final payload = jsonDecode(postRequest!.body) as Map<String, dynamic>;
+      expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Sem previsão')).selected,
+          isTrue);
+      final payload = await criar(tester);
       expect(payload['modo_entrega'], 'UNIDADE');
       expect(payload.containsKey('previsao_em'), isFalse);
     });
 
-    testWidgets('previsão: escolhe data e hora, mostra e limpa', (tester) async {
+    testWidgets('"Em 30 min" envia a previsão de agora + 30 min', (tester) async {
       await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
       await tester.pumpAndSettle();
 
-      expect(find.text('Toque para escolher data e hora'), findsOneWidget);
-      expect(find.byTooltip('Limpar previsão'), findsNothing);
+      await tocar(tester, find.widgetWithText(ChoiceChip, 'Em 30 min'));
+      final antes = DateTime.now();
+      final payload = await criar(tester);
 
-      await tester.tap(find.byKey(const Key('delivery-forecast-field')));
+      final previsao = DateTime.parse(payload['previsao_em'] as String);
+      final esperado = antes.add(const Duration(minutes: 30));
+      expect(previsao.difference(esperado).inMinutes.abs(), lessThanOrEqualTo(1));
+    });
+
+    testWidgets('"Escolher horário" usa os seletores e "Sem previsão" limpa',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
       await tester.pumpAndSettle();
+
+      await tocar(tester, find.widgetWithText(ChoiceChip, 'Escolher horário'));
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Toque para escolher data e hora'), findsNothing);
-      expect(find.byTooltip('Limpar previsão'), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Limpar previsão'));
+      expect(find.textContaining('Previsão:'), findsOneWidget);
+      var payload = await criar(tester);
+      expect(payload.containsKey('previsao_em'), isTrue);
+      // Fecha o diálogo de erro da criação (a API simulada responde 500).
+      Navigator.of(tester.element(find.text('Erro'))).pop();
       await tester.pumpAndSettle();
-      expect(find.text('Toque para escolher data e hora'), findsOneWidget);
+
+      await tocar(tester, find.widgetWithText(ChoiceChip, 'Sem previsão'));
+      payload = await criar(tester);
+      expect(payload.containsKey('previsao_em'), isFalse);
+    });
+
+    testWidgets('cancelar o seletor mantém a escolha anterior', (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
+      await tester.pumpAndSettle();
+
+      await tocar(tester, find.widgetWithText(ChoiceChip, 'Escolher horário'));
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Sem previsão')).selected,
+          isTrue);
+    });
+
+    testWidgets('pré-preenche o estabelecimento quando aberto para nova entrega',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+          home: DeliveryFormPage(prefillEstablishment: 'Pizzaria Central')));
+      await tester.pumpAndSettle();
+
+      final campo = find.widgetWithText(TextFormField, 'Estabelecimento (opcional)');
+      expect(tester.widget<TextFormField>(campo).controller!.text, 'Pizzaria Central');
+      final payload = await criar(tester);
+      expect(payload['estabelecimento'], 'Pizzaria Central');
     });
 
     testWidgets('renderiza no tema escuro em tela estreita sem estouro',
@@ -224,11 +329,44 @@ void main() {
       await tester.pumpWidget(MaterialApp(
           theme: ThemeData.dark(), home: const DeliveryFormPage()));
       await tester.pumpAndSettle();
+      await tocar(tester, find.text('Mais detalhes (opcional)'));
 
       expect(tester.takeException(), isNull);
       expect(find.text('Criar aviso'), findsOneWidget);
     });
   });
+
+  group('forecastForPreset', () {
+    final tarde = DateTime(2026, 10, 4, 15, 12, 40);
+    final noite = DateTime(2026, 10, 4, 20, 5);
+
+    test('sem previsão é null', () {
+      expect(forecastForPreset(DeliveryForecastPreset.sem, tarde), isNull);
+    });
+
+    test('agora e em 30 min (sem segundos)', () {
+      expect(forecastForPreset(DeliveryForecastPreset.agora, tarde),
+          DateTime(2026, 10, 4, 15, 12));
+      expect(forecastForPreset(DeliveryForecastPreset.em30, tarde),
+          DateTime(2026, 10, 4, 15, 42));
+    });
+
+    test('hoje à noite: 19:00, ou +2 h se já passou', () {
+      expect(forecastForPreset(DeliveryForecastPreset.noite, tarde),
+          DateTime(2026, 10, 4, 19));
+      expect(forecastForPreset(DeliveryForecastPreset.noite, noite),
+          DateTime(2026, 10, 4, 22, 5));
+    });
+
+    test('escolher usa o horário escolhido', () {
+      final escolhido = DateTime(2026, 10, 6, 11, 30);
+      expect(
+          forecastForPreset(DeliveryForecastPreset.escolher, tarde,
+              custom: escolhido),
+          escolhido);
+    });
+  });
+
   testWidgets('a barra "Criar aviso" sobe acima do teclado e o campo focado fica visível',
       (tester) async {
     ApiClient.client = MockClient((request) async => http.Response(
@@ -242,10 +380,15 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Mais detalhes (opcional)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mais detalhes (opcional)'));
+    await tester.pumpAndSettle();
 
     final observacao =
         find.widgetWithText(TextFormField, 'Observação (opcional)');
     await tester.ensureVisible(observacao);
+    await tester.pumpAndSettle();
     await tester.tap(observacao);
     await tester.pump();
 
