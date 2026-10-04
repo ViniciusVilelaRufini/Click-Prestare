@@ -375,10 +375,15 @@ export class DeliveryService {
     }
   }
 
+  // Simplificação intencional: Brasília fixa em -03:00 (o país não usa horário de verão desde 2019).
   /** Intervalo em datas locais (America/Sao_Paulo, -03:00 fixo); padrão: últimos 30 dias. */
   private periodo(de?: string, ate?: string) {
-    if ((de && !DATA_ISO.test(de)) || (ate && !DATA_ISO.test(ate))) {
-      throw new BadRequestException('Datas devem estar no formato AAAA-MM-DD.');
+    for (const s of [de, ate]) {
+      if (!s) continue;
+      const d = new Date(`${s}T00:00:00Z`);
+      if (!DATA_ISO.test(s) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s) {
+        throw new BadRequestException('Datas devem estar no formato AAAA-MM-DD.');
+      }
     }
     const hojeLocal = new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10);
     const fim = ate || hojeLocal;

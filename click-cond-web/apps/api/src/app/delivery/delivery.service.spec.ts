@@ -622,6 +622,28 @@ describe('DeliveryService', () => {
         .rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it('rejeita datas de calendário inexistentes (sem 500)', async () => {
+      const { service } = montar();
+      for (const filtro of [{ ate: '2026-13-45' }, { ate: '2026-02-31' }, { de: '2026-02-31' }, { de: '2026-00-10' }]) {
+        await expect(service.listarAtendimentos(1, undefined, porteiro, { escopo: 'historico', ...filtro }))
+          .rejects.toBeInstanceOf(BadRequestException);
+      }
+    });
+
+    it('aceita só de ou só ate válidos', async () => {
+      const { service, prisma } = montar();
+      await service.listarAtendimentos(1, undefined, porteiro, { escopo: 'historico', de: '2026-10-01' });
+      expect(prisma.deliveryAtendimentos.findMany.mock.calls[0][0].where.created_at).toEqual({
+        gte: new Date('2026-10-01T00:00:00-03:00'),
+        lte: new Date('2026-10-04T23:59:59.999-03:00'),
+      });
+      await service.listarAtendimentos(1, undefined, porteiro, { escopo: 'historico', ate: '2026-10-02' });
+      expect(prisma.deliveryAtendimentos.findMany.mock.calls[1][0].where.created_at).toEqual({
+        gte: new Date('2026-09-03T00:00:00-03:00'),
+        lte: new Date('2026-10-02T23:59:59.999-03:00'),
+      });
+    });
+
     it('morador ignora escopo e mantém o formato atual', async () => {
       const { service, prisma } = montar();
       await service.listarAtendimentos(1, undefined, morador, { escopo: 'tudo' });
