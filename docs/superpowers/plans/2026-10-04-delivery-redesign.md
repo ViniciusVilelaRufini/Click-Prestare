@@ -593,6 +593,8 @@ git commit -m "feat(delivery-web): rotulos, tons e tempo de espera compartilhado
 **Files:**
 - Create: `click-cond-web/apps/portaria-web/src/app/delivery/delivery.store.ts`
 - Create: `click-cond-web/apps/portaria-web/src/app/delivery/delivery.testing.ts` (fixtures `ATENDIMENTOS` e `DeliveryApiStub` para todos os specs)
+- Modify: `click-cond-web/apps/portaria-web/tsconfig.app.json` — acrescentar `"src/**/*.testing.ts"` ao `exclude` (usa `jest.fn`, não pode entrar no build)
+- Modify: `click-cond-web/apps/portaria-web/tsconfig.spec.json` — acrescentar `"src/**/*.testing.ts"` ao `include`
 - Test: `click-cond-web/apps/portaria-web/src/app/delivery/delivery.store.spec.ts`
 
 **Interfaces:**
@@ -1038,7 +1040,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/portaria-web/src/app/delivery/delivery.store.ts apps/portaria-web/src/app/delivery/delivery.store.spec.ts apps/portaria-web/src/app/delivery/delivery.testing.ts
+git add apps/portaria-web/src/app/delivery/delivery.store.ts apps/portaria-web/src/app/delivery/delivery.store.spec.ts apps/portaria-web/src/app/delivery/delivery.testing.ts apps/portaria-web/tsconfig.app.json apps/portaria-web/tsconfig.spec.json
 git commit -m "refactor(delivery-web): estado da pagina em DeliveryStore"
 ```
 
