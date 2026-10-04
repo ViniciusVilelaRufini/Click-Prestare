@@ -38,6 +38,16 @@ export class DeliveryController {
     return this.service.listarUnidadesMorador(idCondominio, user);
   }
 
+  @Get('resumo')
+  resumo(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+    @Query('de') de?: string,
+    @Query('ate') ate?: string,
+  ) {
+    return this.service.resumo(idCondominio, de, ate, user);
+  }
+
   @Patch(':id')
   atualizarStatus(
     @Param('id', ParseIntPipe) id: number,

@@ -106,6 +106,43 @@ export class DeliveryService {
     });
   }
 
+  async resumo(idCondominio: number, de: string | undefined, ate: string | undefined, user: JwtPayload) {
+    this.assertOperador(user, 'resumo de delivery');
+    await this.tenant.assertCondominio(Number(idCondominio), user);
+    const periodo = this.periodo(de, ate);
+    const base = { id_condominio: Number(idCondominio) };
+    const noPeriodo = { gte: periodo.gte, lte: periodo.lte };
+    const db = (this.prisma as any).deliveryAtendimentos;
+    const [ativosBrutos, terminaisBrutos, concluidos] = await Promise.all([
+      db.groupBy({ by: ['status'], where: { ...base, status: { notIn: [...TERMINAIS] } }, _count: { _all: true } }),
+      db.groupBy({ by: ['status'], where: { ...base, status: { in: [...TERMINAIS] }, created_at: noPeriodo }, _count: { _all: true } }),
+      db.findMany({
+        where: { ...base, status: 'CONCLUIDA', created_at: noPeriodo, chegou_em: { not: null }, concluido_em: { not: null } },
+        select: { chegou_em: true, concluido_em: true },
+      }),
+    ]);
+    const contar = (linhas: { status: string; _count: { _all: number } }[], status: readonly string[]) =>
+      Object.fromEntries(status.map((s) => [s, linhas.find((l) => l.status === s)?._count._all ?? 0]));
+    const ativos = contar(ativosBrutos, ['AGENDADA', 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'RETIRADA_NA_PORTARIA']);
+    const terminais = contar(terminaisBrutos, TERMINAIS);
+    const duracoes = (concluidos as { chegou_em: Date; concluido_em: Date }[])
+      .map((a) => (new Date(a.concluido_em).getTime() - new Date(a.chegou_em).getTime()) / 60_000)
+      .filter((min) => min >= 0);
+    const media = duracoes.length ? duracoes.reduce((s, m) => s + m, 0) / duracoes.length : null;
+    return {
+      ativos,
+      periodo: {
+        de: periodo.de,
+        ate: periodo.ate,
+        CONCLUIDA: terminais.CONCLUIDA,
+        CANCELADA: terminais.CANCELADA,
+        RECUSADA: terminais.RECUSADA,
+        total: terminais.CONCLUIDA + terminais.CANCELADA + terminais.RECUSADA,
+      },
+      tempo_medio_atendimento_min: media === null ? null : Math.round(media * 10) / 10,
+    };
+  }
+
   async listarAtendimentos(
     idCondominio: number,
     status: string | undefined,

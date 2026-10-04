@@ -638,4 +638,43 @@ describe('DeliveryService', () => {
       expect(args.take).toBeUndefined();
     });
   });
+
+  describe('resumo', () => {
+    it('conta ativos, terminais do período e tempo médio', async () => {
+      const { service, prisma } = montar();
+      prisma.deliveryAtendimentos.groupBy = jest.fn()
+        .mockResolvedValueOnce([{ status: 'CHEGOU', _count: { _all: 2 } }, { status: 'AGENDADA', _count: { _all: 1 } }])
+        .mockResolvedValueOnce([{ status: 'CONCLUIDA', _count: { _all: 3 } }, { status: 'RECUSADA', _count: { _all: 1 } }]);
+      prisma.deliveryAtendimentos.findMany = jest.fn().mockResolvedValueOnce([
+        { chegou_em: new Date('2026-10-01T10:00:00Z'), concluido_em: new Date('2026-10-01T10:05:00Z') },
+        { chegou_em: new Date('2026-10-01T11:00:00Z'), concluido_em: new Date('2026-10-01T11:10:00Z') },
+      ]);
+
+      const resumo = await service.resumo(1, '2026-10-01', '2026-10-04', sindico);
+
+      expect(resumo).toEqual({
+        ativos: { AGENDADA: 1, CHEGOU: 2, AGUARDANDO_AUTORIZACAO: 0, AUTORIZADA: 0, RETIRADA_NA_PORTARIA: 0 },
+        periodo: { de: '2026-10-01', ate: '2026-10-04', CONCLUIDA: 3, CANCELADA: 0, RECUSADA: 1, total: 4 },
+        tempo_medio_atendimento_min: 7.5,
+      });
+      expect(prisma.deliveryAtendimentos.groupBy.mock.calls[1][0].where.created_at).toEqual({
+        gte: new Date('2026-10-01T00:00:00-03:00'),
+        lte: new Date('2026-10-04T23:59:59.999-03:00'),
+      });
+    });
+
+    it('devolve tempo médio nulo sem concluídos com horários', async () => {
+      const { service, prisma } = montar();
+      prisma.deliveryAtendimentos.groupBy = jest.fn().mockResolvedValue([]);
+      prisma.deliveryAtendimentos.findMany = jest.fn().mockResolvedValueOnce([]);
+      const resumo = await service.resumo(1, undefined, undefined, porteiro);
+      expect(resumo.tempo_medio_atendimento_min).toBeNull();
+      expect(resumo.periodo.total).toBe(0);
+    });
+
+    it('nega resumo ao morador', async () => {
+      const { service } = montar();
+      await expect(service.resumo(1, undefined, undefined, morador)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
 });
