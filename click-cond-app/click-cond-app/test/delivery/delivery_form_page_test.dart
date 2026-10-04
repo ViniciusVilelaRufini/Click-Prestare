@@ -118,4 +118,115 @@ void main() {
     final payload = jsonDecode(postRequest!.body) as Map<String, dynamic>;
     expect(payload['id_apartamento'], 202);
   });
+  group('layout em seções', () {
+    http.Request? postRequest;
+
+    setUp(() {
+      postRequest = null;
+      ApiClient.client = MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(
+              jsonEncode([
+                {'id': 77, 'bloco': 'A', 'apto': '101'},
+              ]),
+              200);
+        }
+        postRequest = request;
+        return http.Response(jsonEncode({'message': 'Aviso não criado'}), 500);
+      });
+    });
+
+    testWidgets('mostra os títulos das seções e a unidade única',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
+      await tester.pumpAndSettle();
+
+      for (final titulo in [
+        'Unidade',
+        'Sobre a entrega',
+        'Entregador (opcional)',
+        'Como receber',
+        'Observação',
+      ]) {
+        expect(find.text(titulo), findsOneWidget, reason: titulo);
+      }
+      expect(find.byKey(const Key('delivery-unit-single')), findsOneWidget);
+    });
+
+    testWidgets('modo de entrega em cards: começa na unidade e troca para portaria',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('O entregador sobe até o seu apartamento'), findsOneWidget);
+      expect(find.text('Você retira na portaria'), findsOneWidget);
+      expect(
+          tester.getSemantics(find.byKey(const Key('delivery-mode-unidade'))),
+          isSemantics(isSelected: true, isButton: true, hasTapAction: true));
+      expect(
+          tester.getSemantics(find.byKey(const Key('delivery-mode-portaria'))),
+          isSemantics(isSelected: false, isButton: true, hasTapAction: true));
+
+      await tester.ensureVisible(find.byKey(const Key('delivery-mode-portaria')));
+      await tester.tap(find.byKey(const Key('delivery-mode-portaria')));
+      await tester.pumpAndSettle();
+
+      expect(
+          tester.getSemantics(find.byKey(const Key('delivery-mode-portaria'))),
+          isSemantics(isSelected: true));
+
+      await tester.tap(find.text('Criar aviso'));
+      await tester.pumpAndSettle();
+
+      final payload = jsonDecode(postRequest!.body) as Map<String, dynamic>;
+      expect(payload['modo_entrega'], 'PORTARIA');
+    });
+
+    testWidgets('sem trocar o modo envia UNIDADE', (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Criar aviso'));
+      await tester.pumpAndSettle();
+
+      final payload = jsonDecode(postRequest!.body) as Map<String, dynamic>;
+      expect(payload['modo_entrega'], 'UNIDADE');
+      expect(payload.containsKey('previsao_em'), isFalse);
+    });
+
+    testWidgets('previsão: escolhe data e hora, mostra e limpa', (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Toque para escolher data e hora'), findsOneWidget);
+      expect(find.byTooltip('Limpar previsão'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('delivery-forecast-field')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Toque para escolher data e hora'), findsNothing);
+      expect(find.byTooltip('Limpar previsão'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Limpar previsão'));
+      await tester.pumpAndSettle();
+      expect(find.text('Toque para escolher data e hora'), findsOneWidget);
+    });
+
+    testWidgets('renderiza no tema escuro em tela estreita sem estouro',
+        (tester) async {
+      tester.view.physicalSize = const Size(320 * 3, 640 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(MaterialApp(
+          theme: ThemeData.dark(), home: const DeliveryFormPage()));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Criar aviso'), findsOneWidget);
+    });
+  });
 }
