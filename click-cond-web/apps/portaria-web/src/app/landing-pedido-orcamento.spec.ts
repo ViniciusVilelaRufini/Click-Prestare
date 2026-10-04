@@ -241,3 +241,30 @@ describe('formulário do simulador', () => {
     expect(card).toContain('Seus dados sob a LGPD, sem spam');
   });
 });
+
+describe('caminho até o preço', () => {
+  const trecho = (html: string, inicioMarca: string, fimMarca: string) => {
+    const inicio = html.indexOf(inicioMarca);
+    return html.slice(inicio, html.indexOf(fimMarca, inicio));
+  };
+
+  it('o botão principal do topo leva ao simulador, não ao WhatsApp', () => {
+    const hero = trecho(htmlDaLanding(), '<section class="ps-hero"', '</section>');
+    expect(hero).not.toContain('linkWhatsapp');
+    expect(hero).toContain('href="#simulador"');
+    expect(hero).toContain('Ver o preço para o meu condomínio');
+    expect(hero).toContain('A partir de R$ 298/mês');
+  });
+
+  it('o simulador explica o produto para quem chega do anúncio', () => {
+    const sim = trecho(htmlDaLanding(), '<section id="simulador"', '</section>');
+    expect(sim).toContain('Controle de acesso com reconhecimento facial');
+  });
+
+  it('a barra do celular leva ao simulador', () => {
+    const barra = trecho(htmlDaLanding(), '<div class="ps-barra"', '</div>');
+    expect(barra).toContain('href="#simulador"');
+    expect(barra).toContain('Ver meu preço');
+    expect(barra).toContain('{{ barraTransform }}');
+  });
+});

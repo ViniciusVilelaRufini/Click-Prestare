@@ -335,6 +335,7 @@
       padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
       background: rgba(255,255,255,.94); backdrop-filter: blur(14px);
       border-top: 1px solid var(--border-row);
+      transition: transform 220ms cubic-bezier(.2,.8,.28,1);
     }
     /* O botao de cookies sobe para nao ficar atras da barra. */
     .ps-cookie-btn { bottom: 86px !important; }
@@ -446,6 +447,7 @@
         </span>
         <h1 style="margin: 22px 0 0; font: var(--weight-extrabold) clamp(34px, 4.4vw, 50px)/1.06 var(--font-ui); letter-spacing: -.026em; color: var(--text-strong); max-width: 17ch; text-wrap: balance;">Todo o condomínio<br><span style="color: var(--prestare-blue-500);">na palma da mão</span></h1>
         <p style="margin: 18px 0 0; font: var(--weight-regular) clamp(16px, 1.3vw, 18px)/1.55 var(--font-ui); color: var(--text-muted); max-width: 46ch; text-wrap: pretty;">Visitantes, encomendas e a conta do condomínio no celular do morador — e o síndico vendo tudo acontecer no sistema web, sem planilha e sem livro de papel.</p>
+        <p style="margin: 14px 0 0; font: var(--type-body-strong); color: var(--prestare-blue-700);">A partir de R$ 298/mês · implantação grátis para os 10 primeiros condomínios</p>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 8px 20px; margin-top: 26px; max-width: 420px;">
           <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Controle de acesso</span>
@@ -455,8 +457,8 @@
         </div>
 
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px;">
-          <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" class="ps-cta">
-            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" hint-size="240px,52px">Quero um orçamento</x-import>
+          <a href="#simulador" onClick="{{ irParaSimulador }}" class="ps-cta">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" hint-size="300px,52px">Ver o preço para o meu condomínio</x-import>
           </a>
           <a href="#modulos" class="ps-cta">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="ghost" size="lg" hint-size="170px,52px">Ver os módulos</x-import>
@@ -893,7 +895,7 @@
       <div style="min-width: 0;">
         <span class="ps-eyebrow">Simulador de valor</span>
         <h2 class="ps-title">Quanto custa para o seu condomínio?</h2>
-        <p class="ps-lead">Informe o número de unidades e veja na hora o plano indicado e a mensalidade. Sem cadastro.</p>
+        <p class="ps-lead">Controle de acesso com reconhecimento facial, visitantes e encomendas no app do morador e console para a portaria. Informe o número de unidades e veja na hora o plano indicado e a mensalidade.</p>
         <label style="display: grid; gap: 8px; margin-top: 22px;">
           <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Número de unidades</span>
           <input type="number" inputmode="numeric" min="1" max="5000" value="{{ simUnidades }}" onChange="{{ simAlterar }}" aria-label="Número de unidades do condomínio" style="font: var(--weight-extrabold) 28px/1.2 var(--font-ui); max-width: 200px;">
@@ -1185,11 +1187,12 @@
     </div>
   </sc-if>
 
-  <!-- Barra fixa: no celular o CTA fica sempre ao alcance do polegar, em vez
-       de so existir no topo e no fim da pagina. -->
-  <div class="ps-barra">
-    <a href="#contato" style="flex: 1 1 auto; min-width: 0;">
-      <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" full-width="{{ true }}" hint-size="100%,46px">Quero um orçamento</x-import>
+  <!-- Barra fixa: no celular o CTA fica sempre ao alcance do polegar e leva
+       ao preço. Ela sai da frente enquanto o simulador ou o formulário estão
+       na tela, para não cobrir os campos (observarBarra). -->
+  <div class="ps-barra" style="transform: {{ barraTransform }}; pointer-events: {{ barraEventos }};">
+    <a href="#simulador" onClick="{{ irParaSimulador }}" style="flex: 1 1 auto; min-width: 0;">
+      <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" full-width="{{ true }}" hint-size="100%,46px">Ver meu preço</x-import>
     </a>
     <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" title="Falar no WhatsApp" aria-label="Falar no WhatsApp" style="flex: none;">
       <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="phone" tone="brand" hint-size="44px,44px"></x-import>
@@ -1346,7 +1349,7 @@ class Component extends DCLogic {
     cookieBanner: false, cookiePainel: false,
     cookieAnalytics: false, cookieMarketing: false,
     emailPainel: false, emailCopiado: false,
-    simUnidades: 60, simEnviado: false
+    simUnidades: 60, simEnviado: false, barraOculta: false
   };
 
   // Ordem do carrossel do console. As legendas e os textos moram no TELAS,
@@ -1504,6 +1507,7 @@ class Component extends DCLogic {
     window.addEventListener("keydown", this._esc);
 
     this.iniciarRotacao();
+    this.observarBarra();
 
     const c = this.lerConsentimento();
     if (c) this.setState({ cookieAnalytics: !!c.analytics, cookieMarketing: !!c.marketing });
@@ -1627,6 +1631,7 @@ class Component extends DCLogic {
   componentWillUnmount() {
     window.removeEventListener("keydown", this._esc);
     this.pararRotacao();
+    if (this._obsBarra) this._obsBarra.disconnect();
   }
 
   // Partículas que não levam maiúscula no meio de um nome próprio.
@@ -1666,6 +1671,31 @@ class Component extends DCLogic {
       }
     }
   };
+
+  irParaSimulador = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const el = document.getElementById("simulador");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // A barra fixa do celular sai da frente enquanto o simulador ou o
+  // formulário estão na tela: ali ela só cobriria os campos.
+  observarBarra() {
+    if (typeof IntersectionObserver === "undefined") return;
+    const visiveis = new Set();
+    this._obsBarra = new IntersectionObserver((entradas) => {
+      entradas.forEach((en) => {
+        if (en.isIntersecting) visiveis.add(en.target.id);
+        else visiveis.delete(en.target.id);
+      });
+      const oculta = visiveis.size > 0;
+      if (oculta !== this.state.barraOculta) this.setState({ barraOculta: oculta });
+    }, { threshold: 0.15 });
+    ["simulador", "contato"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) this._obsBarra.observe(el);
+    });
+  }
 
   // Tabela de preço em curva de U: as 30 primeiras unidades pagam o Compacto
   // (valor fixo) e cada unidade seguinte paga o preço da sua faixa.
@@ -1866,6 +1896,9 @@ class Component extends DCLogic {
       enviar: this.enviar,
       enviarSimulador: this.enviarSimulador,
       irParaContato: this.irParaContato,
+      irParaSimulador: this.irParaSimulador,
+      barraTransform: this.state.barraOculta ? "translateY(110%)" : "none",
+      barraEventos: this.state.barraOculta ? "none" : "auto",
       ano: new Date().getFullYear(),
       cookieBanner: this.state.cookieBanner,
       cookiePainel: this.state.cookiePainel,
