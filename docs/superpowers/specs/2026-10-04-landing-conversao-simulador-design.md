@@ -57,7 +57,7 @@ Formulário `#contato`: continua (atende o visitante orgânico). Passa a enviar 
 - No topo da seção do simulador, linha de contexto para quem chega frio: "Controle de acesso com reconhecimento facial, visitantes e encomendas no app do morador e console para a portaria — funciona junto com o seu porteiro."
 - Hero: botão principal deixa de ser `wa.me` e passa a rolar até `#simulador`, com o texto "Ver o preço para o meu condomínio". "Ver os módulos" fica como secundário.
 - Hero: abaixo do subtítulo, âncora de preço "A partir de R$ 298/mês · implantação grátis para os 10 primeiros condomínios".
-- Celular: barra fixa no rodapé com "Ver meu preço →" (rola até `#simulador`). Aparece depois que o hero sai da tela; some enquanto `#simulador` ou `#contato` estiverem visíveis (IntersectionObserver). Não aparece no computador. Não pode cobrir o banner de cookies: some enquanto o banner estiver aberto.
+- Celular: a barra fixa que já existe (`.ps-barra`, só até 720 px, que já afasta o botão e a caixa de cookies) troca o botão principal "Quero um orçamento" → `#contato` por "Ver meu preço" → `#simulador`; o ícone de WhatsApp fica. A barra desliza para fora enquanto `#simulador` ou `#contato` estiverem visíveis (IntersectionObserver), para não cobrir os campos.
 
 ### 3. Textos
 
