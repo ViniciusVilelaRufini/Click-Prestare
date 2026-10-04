@@ -67,9 +67,14 @@ export class DeliveryStore {
         // Mantém o painel no mesmo atendimento com dados novos; some se saiu da fila.
         const aberto = this.selecionado();
         if (aberto) this.selecionado.set(lista.find((a) => a.id === aberto.id) ?? null);
-        this.carregando.set(false);
+        if (opts.silencioso) {
+          // Recarga automática que voltou a funcionar: some o aviso de conexão; não mexe em `carregando`.
+          this.erro.set(null);
+        } else {
+          this.carregando.set(false);
+        }
       },
-      error: (error) => this.definirErro(error, 'Não foi possível carregar a fila de delivery.'),
+      error: (error) => this.definirErro(error, 'Não foi possível carregar a fila de delivery.', opts.silencioso),
     });
   }
 
@@ -215,12 +220,12 @@ export class DeliveryStore {
     });
   }
 
-  definirErro(error: unknown, fallback: string): void {
+  definirErro(error: unknown, fallback: string, silencioso = false): void {
     const mensagem = (error as { error?: { message?: string } })?.error?.message
       ?? (error as { message?: string })?.message
       ?? fallback;
     this.erro.set(Array.isArray(mensagem) ? mensagem.join(', ') : mensagem);
-    this.carregando.set(false);
+    if (!silencioso) this.carregando.set(false);
   }
 
   private novoEntregadorVazio(): CriarEntregadorDelivery {

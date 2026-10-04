@@ -1,145 +1,43 @@
-<section class="min-h-screen p-6 lg:p-8 space-y-6">
-  <header class="flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Delivery</h1>
-      <p class="text-sm text-slate-400">Fila e cadastro de entregadores do condomínio.</p>
+<div class="min-h-screen space-y-6 p-6 lg:p-8">
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="flex items-start gap-4">
+      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10">
+        <svg class="h-5 w-5 text-accent dark:text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight text-white">Delivery</h1>
+        <p class="mt-0.5 text-sm text-slate-400">Fila de entregas, entregadores e relatório do condomínio.</p>
+      </div>
     </div>
-    <div class="flex gap-2">
-      <button type="button" class="rounded bg-indigo-600 px-3 py-2 text-sm font-medium text-white" (click)="aba.set('fila')">Fila</button>
-      <button type="button" class="rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-slate-200" (click)="aba.set('entregadores')">Entregadores</button>
-      <button *ngIf="podeGerenciarEntregadores()" type="button" class="rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-slate-200" (click)="aba.set('historico')">Histórico e relatório</button>
+    <div class="flex w-fit items-center gap-1 rounded-xl border border-white/10 bg-graphite-200 p-1" role="tablist" aria-label="Seções do delivery">
+      @for (item of abas(); track item.id) {
+        <button type="button" role="tab" [attr.aria-selected]="store.aba() === item.id" (click)="store.trocarAba(item.id)"
+          [class]="'rounded-lg px-3.5 py-1.5 text-sm font-medium transition ' + (store.aba() === item.id ? 'bg-accent text-white shadow-sm' : 'text-slate-400 hover:text-slate-200')">
+          {{ item.rotulo }}
+          @if (item.id === 'fila' && store.ativos().length) {
+            <span [class]="'ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] ' + (store.aba() === 'fila' ? 'bg-white/20' : 'bg-white/10')">{{ store.ativos().length }}</span>
+          }
+        </button>
+      }
     </div>
-  </header>
+  </div>
 
-  <p *ngIf="erro()" role="alert" class="rounded-lg border border-red-800/60 bg-red-950/40 p-3 text-sm text-red-300">{{ erro() }}</p>
-
-  <ng-container *ngIf="aba() === 'fila'">
-    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <button type="button" *ngFor="let status of ['AGENDADA', 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA']" class="rounded-xl border border-white/10 bg-graphite-200 p-3 text-left text-white" (click)="filtroStatus.set($any(status))">
-        <span class="block text-xs text-slate-500">{{ textoStatus($any(status)) }}</span>
-        <strong class="text-xl">{{ contador($any(status)) }}</strong>
+  @if (store.erro()) {
+    <div role="alert" class="flex items-start justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+      <span>{{ store.erro() }}</span>
+      <button type="button" aria-label="Fechar aviso" (click)="store.erro.set(null)" class="shrink-0 opacity-70 hover:opacity-100">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
+  }
 
-    <div class="flex flex-wrap gap-3 rounded-xl border border-white/10 bg-graphite-200 p-4">
-      <label class="flex-1 text-sm">Busca por unidade, nome, telefone ou placa
-        <input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-3 py-2 text-white" [ngModel]="busca()" (ngModelChange)="busca.set($event)" placeholder="Ex.: A 101 ou ABC1D23">
-      </label>
-      <label class="text-sm">Status
-        <select class="mt-1 block rounded-lg border border-white/10 bg-graphite px-3 py-2 text-white" [ngModel]="filtroStatus()" (ngModelChange)="filtroStatus.set($event)">
-          <option value="">Todos</option>
-          <option *ngFor="let status of ['AGENDADA', 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'RETIRADA_NA_PORTARIA']" [value]="status">{{ textoStatus($any(status)) }}</option>
-        </select>
-      </label>
-    </div>
-
-    <div class="grid gap-4 lg:grid-cols-3">
-      <div class="overflow-hidden rounded-xl border border-white/10 bg-graphite-200 lg:col-span-2">
-        <div class="border-b border-white/10 px-4 py-3 text-sm font-semibold text-white">Fila ativa ({{ filaAtiva().length }})</div>
-        <button type="button" *ngFor="let atendimento of filaAtiva()" class="block w-full border-b border-white/10 px-4 py-3 text-left text-white hover:bg-white/5" (click)="selecionar(atendimento)">
-          <div class="flex justify-between gap-2"><strong>{{ atendimento.estabelecimento || 'Entrega sem estabelecimento' }}</strong><span class="rounded bg-white/10 px-2 py-0.5 text-xs text-slate-200">{{ textoStatus(atendimento.status) }}</span></div>
-          <div class="mt-1 text-sm text-slate-300">Unidade {{ unidade(atendimento) }} · {{ nomeEntregador(atendimento) }}</div>
-          <div *ngIf="telefoneEntregador(atendimento) as telefone" class="mt-1 text-xs text-slate-500">Telefone {{ telefone }}</div>
-        </button>
-        <p *ngIf="!filaAtiva().length" class="p-5 text-sm text-slate-400">Nenhum atendimento ativo para este filtro.</p>
-      </div>
-
-      <aside *ngIf="selecionado() as atendimento" class="rounded-xl border border-white/10 bg-graphite-200 p-4">
-        <div class="flex items-start justify-between gap-2"><div><h2 class="font-semibold">Atendimento #{{ atendimento.id }}</h2><p class="text-sm text-slate-400">Unidade {{ unidade(atendimento) }} · {{ atendimento.modo_entrega }}</p></div><button type="button" class="text-sm" (click)="selecionado.set(null)">Fechar</button></div>
-        <p class="mt-3 text-sm" *ngIf="atendimento.observacao_morador">{{ atendimento.observacao_morador }}</p>
-        <div class="mt-3 rounded bg-slate-50 p-3 text-sm">
-          <strong>{{ nomeEntregador(atendimento) }}</strong>
-          <div *ngIf="telefoneEntregador(atendimento) as telefone" class="text-slate-300">{{ telefone }}</div>
-        </div>
-
-        <label class="mt-4 block text-sm">Entregador
-          <select class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [ngModel]="entregadorSelecionadoId()" (ngModelChange)="entregadorSelecionadoId.set($event ? +$event : null)">
-            <option [ngValue]="null">Não identificado</option>
-            <option *ngFor="let entregador of entregadores()" [ngValue]="entregador.id">{{ entregador.nome }}{{ entregador.status === 'BLOQUEADO' ? ' (bloqueado)' : '' }}</option>
-          </select>
-        </label>
-        <button type="button" class="mt-2 text-sm text-indigo-700" (click)="iniciarCadastroNoAtendimento()">Cadastrar entregador para este atendimento</button>
-
-        <label class="mt-3 block text-sm" *ngIf="proximosStatus(atendimento).includes('RECUSADA')">Motivo da recusa
-          <input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [ngModel]="motivo()" (ngModelChange)="motivo.set($event)">
-        </label>
-
-        <div class="mt-4 flex flex-wrap gap-2">
-          <button type="button" *ngFor="let status of proximosStatus(atendimento)" class="rounded bg-slate-800 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40" [disabled]="status === 'AUTORIZADA' && !podeAutorizar(atendimento)" (click)="atualizarStatus(status)">{{ status === 'AUTORIZADA' ? 'Autorizar' : textoStatus(status) }}</button>
-        </div>
-
-        <div class="mt-5 border-t border-white/10 pt-4"><h3 class="text-sm font-semibold">Linha do tempo</h3><ol class="mt-2 space-y-2 text-sm"><li *ngFor="let evento of atendimento.eventos"><strong>{{ textoStatus(evento.status_novo) }}</strong><span class="text-slate-400"> · {{ evento.autor_nome || 'Sistema' }} · {{ evento.created_at | date:'short' }}</span><p *ngIf="evento.mensagem" class="text-slate-300">{{ evento.mensagem }}</p></li></ol></div>
-      </aside>
-    </div>
-  </ng-container>
-
-  <ng-container *ngIf="aba() === 'entregadores'">
-    <div class="grid gap-4 lg:grid-cols-2">
-      <form class="rounded-xl border border-white/10 bg-graphite-200 p-4" (ngSubmit)="criarEntregador()">
-        <h2 class="font-semibold">Cadastrar entregador</h2>
-        <label class="mt-3 block text-sm">Nome<input required class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="novoEntregador.nome" name="novoNome"></label>
-        <label class="mt-3 block text-sm">Telefone<input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="novoEntregador.telefone" name="novoTelefone"></label>
-        <label class="mt-3 block text-sm">Placa<input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="novoEntregador.veiculo!.placa" name="novaPlaca"></label>
-        <button class="mt-4 rounded bg-indigo-600 px-3 py-2 text-sm font-medium text-white" type="submit">Salvar entregador</button>
-      </form>
-
-      <div class="rounded-xl border border-white/10 bg-graphite-200 p-4">
-        <h2 class="font-semibold">Entregadores cadastrados</h2>
-        <label class="mt-3 block text-sm">Pesquisar<input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" #pesquisa (input)="carregarEntregadores(pesquisa.value)"></label>
-        <div *ngFor="let entregador of entregadores()" class="mt-3 flex items-center justify-between gap-3 rounded-lg border border-white/10 p-3">
-          <div><strong>{{ entregador.nome }}</strong><span *ngIf="entregador.status === 'BLOQUEADO'" class="ml-2 text-sm text-red-700">Bloqueado</span><div class="text-sm text-slate-400">{{ entregador.veiculos[0]?.placa || 'Sem placa cadastrada' }}</div></div>
-          <button *ngIf="podeGerenciarEntregadores()" type="button" class="text-sm font-medium text-indigo-300" (click)="editarEntregador(entregador)">Editar cadastro</button>
-        </div>
-      </div>
-    </div>
-
-    <ng-container *ngIf="podeGerenciarEntregadores()">
-      <form *ngIf="entregadorEmEdicao() as entregador" class="mt-4 rounded-xl border border-white/10 bg-graphite-200 p-4" (ngSubmit)="salvarEntregador()">
-        <h2 class="font-semibold">Editar entregador</h2>
-        <label class="mt-3 block text-sm">Nome<input required class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="entregador.nome" name="editarNome"></label>
-        <label class="mt-3 block text-sm">Telefone<input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="entregador.telefone" name="editarTelefone"></label>
-        <label class="mt-3 block text-sm">Situação<select class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="entregador.status" name="editarStatus"><option value="ATIVO">Ativo</option><option value="BLOQUEADO">Bloqueado</option></select></label>
-        <label *ngIf="entregador.status === 'BLOQUEADO'" class="mt-3 block text-sm">Motivo do bloqueio<input required class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="motivoBloqueio" name="motivoBloqueio"></label>
-        <fieldset class="mt-4 rounded-lg border border-white/10 p-3">
-          <legend class="px-1 text-sm font-semibold">Veículo</legend>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <label class="text-sm">Tipo<input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="entregador.veiculos[0].tipo" name="editarVeiculoTipo"></label>
-            <label class="text-sm">Placa<input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="entregador.veiculos[0].placa" name="editarVeiculoPlaca"></label>
-            <label class="text-sm">Modelo<input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="entregador.veiculos[0].modelo" name="editarVeiculoModelo"></label>
-            <label class="text-sm">Cor<input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-2 py-2 text-white" [(ngModel)]="entregador.veiculos[0].cor" name="editarVeiculoCor"></label>
-          </div>
-          <button type="button" class="mt-3 text-sm text-red-300" (click)="removerVeiculoEmEdicao()">Remover veículo</button>
-        </fieldset>
-        <button class="mt-4 rounded bg-slate-800 px-3 py-2 text-sm font-medium text-white" type="submit">Salvar alterações</button>
-      </form>
-    </ng-container>
-  </ng-container>
-
-  <ng-container *ngIf="aba() === 'historico' && podeGerenciarEntregadores()">
-    <section class="space-y-4 rounded-xl border border-white/10 bg-graphite-200 p-4">
-      <div>
-        <h2 class="font-semibold">Relatório básico</h2>
-        <p class="text-sm text-slate-400">Resumo dos atendimentos que chegaram a um estado terminal.</p>
-      </div>
-      <div class="grid gap-3 sm:grid-cols-3">
-        <div class="rounded-lg border border-white/10 p-3"><strong class="text-xl">{{ contador('CONCLUIDA') }}</strong><p class="text-sm text-slate-400">{{ contador('CONCLUIDA') === 1 ? 'concluído' : 'concluídos' }}</p></div>
-        <div class="rounded-lg border border-white/10 p-3"><strong class="text-xl">{{ contador('CANCELADA') }}</strong><p class="text-sm text-slate-400">cancelados</p></div>
-        <div class="rounded-lg border border-white/10 p-3"><strong class="text-xl">{{ contador('RECUSADA') }}</strong><p class="text-sm text-slate-400">recusados</p></div>
-      </div>
-      <label class="block text-sm">Buscar no histórico
-        <input class="mt-1 w-full rounded-lg border border-white/10 bg-graphite px-3 py-2 text-white" [ngModel]="busca()" (ngModelChange)="busca.set($event)" placeholder="Unidade, estabelecimento, entregador, telefone ou placa">
-      </label>
-      <div class="overflow-hidden rounded-xl border border-white/10">
-        <button type="button" *ngFor="let atendimento of historicoTerminal()" class="block w-full border-b border-white/10 px-4 py-3 text-left text-white hover:bg-white/5" (click)="selecionar(atendimento)">
-          <div class="flex justify-between gap-2"><strong>{{ atendimento.estabelecimento || 'Entrega sem estabelecimento' }}</strong><span class="rounded bg-white/10 px-2 py-0.5 text-xs text-slate-200">{{ textoStatus(atendimento.status) }}</span></div>
-          <div class="mt-1 text-sm text-slate-300">Unidade {{ unidade(atendimento) }} · {{ nomeEntregador(atendimento) }}</div>
-        </button>
-        <p *ngIf="!historicoTerminal().length" class="p-5 text-sm text-slate-400">Nenhum atendimento terminal para esta busca.</p>
-      </div>
-      <aside *ngIf="selecionado() as atendimento" class="rounded-lg border border-white/10 p-4">
-        <div class="flex items-start justify-between gap-2"><div><h3 class="font-semibold">Ciclo do atendimento #{{ atendimento.id }}</h3><p class="text-sm text-slate-400">Unidade {{ unidade(atendimento) }}</p></div><button type="button" class="text-sm" (click)="selecionado.set(null)">Fechar</button></div>
-        <ol class="mt-3 space-y-2 text-sm"><li *ngFor="let evento of atendimento.eventos"><strong>{{ textoStatus(evento.status_novo) }}</strong><span class="text-slate-400"> · {{ evento.autor_nome || 'Sistema' }} · {{ evento.created_at | date:'short' }}</span><p *ngIf="evento.mensagem" class="text-slate-300">{{ evento.mensagem }}</p></li></ol>
-      </aside>
-    </section>
-  </ng-container>
-</section>
+  @switch (store.aba()) {
+    @case ('fila') { <app-delivery-fila /> }
+    @case ('entregadores') { <app-delivery-entregadores /> }
+    @case ('historico') {
+      @if (store.podeGerenciarEntregadores()) { <app-delivery-historico /> }
+    }
+  }
+</div>

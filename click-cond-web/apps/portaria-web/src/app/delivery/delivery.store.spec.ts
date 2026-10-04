@@ -90,6 +90,37 @@ describe('DeliveryStore', () => {
     expect(store.motivo()).toBe('rascunho');
   });
 
+  it('recarga silenciosa bem-sucedida limpa o aviso de erro; carga normal mantém o comportamento', () => {
+    store.erro.set('offline');
+    store.carregarFila({ silencioso: true });
+    expect(store.erro()).toBeNull();
+    store.erro.set('outro erro');
+    store.carregarFila();
+    expect(store.erro()).toBe('outro erro');
+  });
+
+  it('recarga silenciosa nunca mexe em carregando (sucesso ou erro)', () => {
+    api.listAtivos.mockReturnValueOnce(NEVER);
+    store.carregarFila(); // carga normal pendente
+    expect(store.carregando()).toBe(true);
+    store.carregarFila({ silencioso: true });
+    expect(store.carregando()).toBe(true);
+    api.listAtivos.mockReturnValueOnce(throwError(() => ({ error: { message: 'offline' } })));
+    store.carregarFila({ silencioso: true });
+    expect(store.carregando()).toBe(true);
+    expect(store.erro()).toBe('offline');
+    expect(store.ativos()).toEqual(ATENDIMENTOS);
+  });
+
+  it('recarga silenciosa não liga carregando quando ocioso', () => {
+    expect(store.carregando()).toBe(false);
+    store.carregarFila({ silencioso: true });
+    expect(store.carregando()).toBe(false);
+    api.listAtivos.mockReturnValueOnce(throwError(() => ({ error: { message: 'offline' } })));
+    store.carregarFila({ silencioso: true });
+    expect(store.carregando()).toBe(false);
+  });
+
   it('mostra o veículo devolvido no cadastro e volta para a fila', () => {
     api.criarEntregador.mockReturnValue(of({ id: 31, nome: 'Maria Moto', status: 'ATIVO', veiculos: [{ id: 81, placa: 'XYZ9A87' }] }));
     store.aba.set('entregadores');
