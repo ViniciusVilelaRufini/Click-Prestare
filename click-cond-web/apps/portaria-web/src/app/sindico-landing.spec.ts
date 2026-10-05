@@ -35,6 +35,14 @@ it('mostra processos e telas reais do console', () => {
   expect(html).toContain('aspect-ratio: 16 / 10');
 });
 
+it('leva as três entradas Para o síndico para a rota dedicada', () => {
+  const landing = readFileSync(join(process.cwd(), 'apps/portaria-web/public/sobre/index.html'), 'utf8');
+  const links = Array.from(landing.matchAll(/<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g))
+    .filter(([, , content]) => content.includes('Para o síndico'));
+  expect(links).toHaveLength(3);
+  expect(links.map(([, href]) => href)).toEqual(['/sindico/', '/sindico/', '/sindico/']);
+});
+
 it('abre o WhatsApp somente após registrar um lead válido', async () => {
   let resolverRegistro: (value: { ok: boolean }) => void;
   const fetch = jest.fn(() => new Promise<{ ok: boolean }>((resolve) => { resolverRegistro = resolve; }));
