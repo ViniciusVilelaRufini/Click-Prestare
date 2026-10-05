@@ -104,30 +104,6 @@ int deliveryStepIndex(String status) {
   }
 }
 
-/// Frase de contexto para o card de status dos detalhes.
-String deliveryStatusDescription(DeliveryModel delivery) {
-  switch (delivery.status) {
-    case 'CHEGOU':
-      return 'O entregador chegou à portaria.';
-    case 'AGUARDANDO_AUTORIZACAO':
-      return 'A portaria aguarda sua resposta para liberar a entrega.';
-    case 'AUTORIZADA':
-      return delivery.modoEntrega == 'PORTARIA'
-          ? 'Você autorizou. A entrega fica na portaria para você retirar.'
-          : 'Você autorizou. O entregador está liberado para subir.';
-    case 'RETIRADA_NA_PORTARIA':
-      return 'Sua entrega está na portaria aguardando a retirada.';
-    case 'CONCLUIDA':
-      return 'Entrega finalizada. Tudo certo por aqui!';
-    case 'CANCELADA':
-      return 'Este aviso foi cancelado.';
-    case 'RECUSADA':
-      return 'Esta entrega foi recusada.';
-    default:
-      return 'A portaria já sabe que sua entrega está a caminho.';
-  }
-}
-
 DateTime? _parse(String? iso) {
   if (iso == null) return null;
   return DateTime.tryParse(iso)?.toLocal();
@@ -450,10 +426,15 @@ class DeliveryStatusBadge extends StatelessWidget {
                   BoxDecoration(color: style.color, shape: BoxShape.circle),
             ),
           const SizedBox(width: 5),
-          Text(
-            style.label,
-            style: AppTypography.tiny(context).copyWith(
-                color: fg, fontWeight: FontWeight.w700, letterSpacing: 0.1),
+          // Flexible: em espaço apertado o rótulo encurta em vez de estourar.
+          Flexible(
+            child: Text(
+              style.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.tiny(context).copyWith(
+                  color: fg, fontWeight: FontWeight.w700, letterSpacing: 0.1),
+            ),
           ),
         ]),
       ),
