@@ -33,7 +33,7 @@ describe('TerminaisFaciaisPageComponent — agente e sincronização', () => {
             syncStatus: jest.fn(() => of({ synced: 0, pending: 0, error: 0, semFoto: 0, running: false })),
             agentInfo: jest.fn(() => of({ agent_token: 'teste', download_url: null })),
             agentSaude: jest.fn(() => of(null)),
-            health: jest.fn(() => of({ terminais: { total: 0, offline: [], semReporteRecente: [] }, agente: { online: true, lastSeenAt: null }, fantasmas: { ultimaVarreduraEm: null, removidosHoje: 0, eventosHoje: [] } })),
+            health: jest.fn(() => of({ terminais: { total: 0, offline: [], semReporteRecente: [] }, agente: { online: true, lastSeenAt: null }, fantasmas: { ultimaVarreduraEm: null, terminaisVarridos: 0, terminaisComFalha: [], removidosHoje: 0, eventosHoje: [] } })),
             descobertos: jest.fn(() => of({ recebido_em: null, achados: [], avisos: [] })),
             procurarDescobertos: jest.fn(() => of({ ok: true })),
             ...apiOverrides,
@@ -49,7 +49,7 @@ describe('TerminaisFaciaisPageComponent — agente e sincronização', () => {
   const saude = (online: boolean): FacialHealth => ({
     terminais: { total: 1, offline: [], semReporteRecente: [] },
     agente: { online, lastSeenAt: online ? new Date().toISOString() : null },
-    fantasmas: { ultimaVarreduraEm: null, removidosHoje: 0, eventosHoje: [] },
+    fantasmas: { ultimaVarreduraEm: null, terminaisVarridos: 0, terminaisComFalha: [], removidosHoje: 0, eventosHoje: [] },
   });
 
   it('agente sem conexão: instalação aberta', () => {
@@ -142,5 +142,43 @@ describe('TerminaisFaciaisPageComponent — agente e sincronização', () => {
 
     expect(tela.pessoaDetalhada()).toBe('visitante_1');
     expect(ultimaFixture.nativeElement.textContent).toContain('Detalhe do erro no envio');
+  });
+  describe('card "Limpeza de biometria órfã"', () => {
+    const comFantasmas = (f: Partial<FacialHealth['fantasmas']>): FacialHealth => ({
+      ...saude(true),
+      fantasmas: { ultimaVarreduraEm: null, terminaisVarridos: 0, terminaisComFalha: [], removidosHoje: 0, eventosHoje: [], ...f },
+    });
+    const texto = (tela: any) => {
+      tela.health.set(tela.__h);
+      ultimaFixture.detectChanges();
+      return ultimaFixture.nativeElement.textContent as string;
+    };
+    const render = (f: Partial<FacialHealth['fantasmas']>) => {
+      const tela: any = build();
+      ultimaFixture.detectChanges();
+      tela.__h = comFantasmas(f);
+      return texto(tela);
+    };
+
+    it('terminal que falhou na varredura vira alerta com o nome, sem "Nada a remover"', () => {
+      const t = render({
+        ultimaVarreduraEm: new Date().toISOString(),
+        terminaisComFalha: [{ id: 1, nome: 'Portaria Social', erro: 'timeout' }],
+      });
+      expect(t).toContain('Varredura falhou em 1 terminal');
+      expect(t).toContain('Portaria Social');
+      expect(t).not.toContain('Nada a remover hoje');
+    });
+
+    it('varredura sem falhas mostra "Nada a remover hoje"', () => {
+      const t = render({ ultimaVarreduraEm: new Date().toISOString(), terminaisVarridos: 2 });
+      expect(t).toContain('Nada a remover hoje');
+    });
+
+    it('sem varredura ainda: aguardando primeira varredura', () => {
+      const t = render({});
+      expect(t).toContain('Aguardando primeira varredura');
+      expect(t).not.toContain('Nada a remover hoje');
+    });
   });
 });

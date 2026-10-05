@@ -217,4 +217,99 @@ describe('FacialService — varredura de fantasmas', () => {
       }),
     );
   });
+
+  // O status do portal precisa ser verdadeiro: terminal que não pôde ser
+  // varrido não pode virar "Nada a remover hoje" só porque o tick rodou.
+  describe('status da varredura por condomínio (getHealthSummary)', () => {
+    async function resumo(svc: any, prisma: any, idCondominio: number) {
+      prisma.auditLog = { findMany: jest.fn(async () => []) };
+      jest.spyOn(svc, 'listDevices').mockResolvedValue([] as any);
+      return (await svc.getHealthSummary(idCondominio)).fantasmas;
+    }
+
+    it('antes de qualquer varredura: sem data, zero varridos, sem falhas', async () => {
+      const { svc, prisma } = build({ devices: [], idsNoAparelho: [] });
+      const f = await resumo(svc, prisma, 1);
+      expect(f.ultimaVarreduraEm).toBeNull();
+      expect(f.terminaisVarridos).toBe(0);
+      expect(f.terminaisComFalha).toEqual([]);
+    });
+
+    it('aparelho que lança em listUserIds vai para terminaisComFalha e não conta como varrido', async () => {
+      const { svc, client, prisma } = build({
+        devices: [{ ...DEVICE('intelbras'), id: 5, nome: 'Portaria' }],
+        idsNoAparelho: [],
+      });
+      client.listUserIds.mockRejectedValueOnce(new Error('x'.repeat(500)));
+
+      await varrer(svc);
+      const f = await resumo(svc, prisma, 1);
+
+      expect(f.terminaisVarridos).toBe(0);
+      expect(f.terminaisComFalha).toHaveLength(1);
+      expect(f.terminaisComFalha[0]).toEqual(expect.objectContaining({ id: 5, nome: 'Portaria' }));
+      expect(f.terminaisComFalha[0].erro.length).toBe(200);
+      expect(f.ultimaVarreduraEm).toBeInstanceOf(Date);
+    });
+
+    it('falha em removeUsers também é falha do terminal', async () => {
+      const { svc, client, prisma } = build({
+        devices: [DEVICE('intelbras')],
+        idsNoAparelho: ['morador_99'],
+      });
+      client.removeUsers.mockRejectedValueOnce(new Error('recusou'));
+
+      await varrer(svc);
+      const f = await resumo(svc, prisma, 1);
+
+      expect(f.terminaisVarridos).toBe(0);
+      expect(f.terminaisComFalha[0].erro).toBe('recusou');
+    });
+
+    it('aparelho ok conta como varrido, inclusive com lista vazia ou sem fantasmas', async () => {
+      const { svc, client, prisma } = build({
+        devices: [
+          { ...DEVICE('intelbras'), id: 1 },
+          { ...DEVICE('hikvision'), id: 2 },
+          { ...DEVICE('dahua'), id: 3 },
+        ],
+        idsNoAparelho: [],
+        moradores: ['morador_1'],
+      });
+      client.listUserIds
+        .mockResolvedValueOnce([]) // vazio
+        .mockResolvedValueOnce(['morador_1']) // sem fantasma
+        .mockResolvedValueOnce(['morador_1', 'morador_99']); // remove
+
+      await varrer(svc);
+      const f = await resumo(svc, prisma, 1);
+
+      expect(f.terminaisVarridos).toBe(3);
+      expect(f.terminaisComFalha).toEqual([]);
+    });
+
+    it('condomínios diferentes não se misturam', async () => {
+      const { svc, client, prisma } = build({
+        devices: [
+          { ...DEVICE('intelbras'), id: 1, id_condominio: 1 },
+          { ...DEVICE('intelbras'), id: 2, id_condominio: 2, nome: 'Garagem' },
+        ],
+        idsNoAparelho: [],
+      });
+      client.listUserIds
+        .mockResolvedValueOnce([])
+        .mockRejectedValueOnce(new Error('offline'));
+
+      await varrer(svc);
+      const c1 = await resumo(svc, prisma, 1);
+      const c2 = await resumo(svc, prisma, 2);
+      const c3 = await resumo(svc, prisma, 3);
+
+      expect(c1.terminaisVarridos).toBe(1);
+      expect(c1.terminaisComFalha).toEqual([]);
+      expect(c2.terminaisVarridos).toBe(0);
+      expect(c2.terminaisComFalha.map((t: any) => t.nome)).toEqual(['Garagem']);
+      expect(c3.ultimaVarreduraEm).toBeNull();
+    });
+  });
 });

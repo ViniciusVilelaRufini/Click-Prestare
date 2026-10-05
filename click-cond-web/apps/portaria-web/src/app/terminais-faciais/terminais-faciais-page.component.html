@@ -127,13 +127,25 @@
       </div>
 
       <div class="flex items-start gap-3 p-4 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/70 dark:border-white/10">
-        <span class="mt-1.5 inline-flex rounded-full h-2.5 w-2.5 bg-slate-300 dark:bg-slate-600 shrink-0"></span>
+        @if (h.fantasmas.terminaisComFalha.length > 0) {
+          <span class="mt-1.5 inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shrink-0"></span>
+        } @else {
+          <span class="mt-1.5 inline-flex rounded-full h-2.5 w-2.5 bg-slate-300 dark:bg-slate-600 shrink-0"></span>
+        }
         <div class="min-w-0">
           <p class="text-xs text-slate-500 dark:text-slate-400">Limpeza de biometria órfã</p>
-          <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">
-            {{ h.fantasmas.removidosHoje > 0 ? h.fantasmas.removidosHoje + ' removida(s) hoje' : 'Nada a remover hoje' }}
-          </p>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Última varredura: {{ tempoRelativo(h.fantasmas.ultimaVarreduraEm) }} · a cada hora</p>
+          @if (h.fantasmas.terminaisComFalha.length > 0) {
+            <p class="text-sm font-semibold text-rose-600 dark:text-rose-400">Varredura falhou em {{ h.fantasmas.terminaisComFalha.length }} {{ h.fantasmas.terminaisComFalha.length === 1 ? 'terminal' : 'terminais' }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{{ nomesTerminais(h.fantasmas.terminaisComFalha) }}</p>
+          } @else if (!h.fantasmas.ultimaVarreduraEm) {
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Aguardando primeira varredura</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">A varredura roda a cada hora.</p>
+          } @else {
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              {{ h.fantasmas.removidosHoje > 0 ? h.fantasmas.removidosHoje + ' removida(s) hoje' : 'Nada a remover hoje' }}
+            </p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Última varredura: {{ tempoRelativo(h.fantasmas.ultimaVarreduraEm) }} · a cada hora</p>
+          }
         </div>
       </div>
     </div>

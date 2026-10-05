@@ -592,6 +592,8 @@ export class FacialService {
       }
     }, 0);
 
+    const varredura = this.fantasmasPorCondominio.get(idCondominio);
+
     return {
       terminais: {
         total: ativos.length,
@@ -603,9 +605,11 @@ export class FacialService {
         lastSeenAt: agentLastSeenAt,
       },
       fantasmas: {
-        // Varredura roda de hora em hora para TODOS os condomínios — este
-        // timestamp é global do processo, não por condomínio.
-        ultimaVarreduraEm: this.lastFantasmasRunAt,
+        // Resultado da última varredura DESTE condomínio (null até a primeira
+        // rodar após o boot). Terminal que não respondeu vem em terminaisComFalha.
+        ultimaVarreduraEm: varredura?.terminouEm ?? null,
+        terminaisVarridos: varredura?.terminaisVarridos ?? 0,
+        terminaisComFalha: varredura?.terminaisComFalha ?? [],
         removidosHoje,
         eventosHoje: eventosFantasmas.map((ev) => ({
           em: ev.created_at,
@@ -3487,12 +3491,30 @@ export class FacialService {
    * o re-sync normal nunca mais o alcança). Roda de hora em hora (não só às 3h)
    * para fechar a janela de ~24h em que o fantasma continuava abrindo.
    */
-  /** Timestamp da última execução do tick (efêmero — mesmo padrão do AgentBridgeService, zera ao reiniciar). */
-  private lastFantasmasRunAt: Date | null = null;
+  /**
+   * Resultado da última varredura POR CONDOMÍNIO (efêmero — mesmo padrão do
+   * AgentBridgeService, zera ao reiniciar). Um timestamp global dizia "varrido
+   * há 16 min" mesmo quando o único terminal do condomínio estava offline e
+   * nada foi de fato verificado — falsa tranquilidade para o síndico.
+   */
+  private fantasmasPorCondominio = new Map<
+    number,
+    {
+      terminouEm: Date;
+      terminaisVarridos: number;
+      terminaisComFalha: { id: number; nome: string; erro: string }[];
+    }
+  >();
 
   private async tickFantasmas() {
     if (!this.prisma.isConnected) return;
-    this.lastFantasmasRunAt = new Date();
+    const resultado = new Map<
+      number,
+      {
+        terminaisVarridos: number;
+        terminaisComFalha: { id: number; nome: string; erro: string }[];
+      }
+    >();
 
     try {
       // Toda marca capaz de LISTAR pessoas no aparelho entra na varredura —
@@ -3508,10 +3530,20 @@ export class FacialService {
       });
 
       for (const device of devices) {
+        let res = resultado.get(device.id_condominio);
+        if (!res) {
+          res = { terminaisVarridos: 0, terminaisComFalha: [] };
+          resultado.set(device.id_condominio, res);
+        }
+        let varrido = false;
         try {
           const config = this.toConfig(device);
           const idsNoAparelho = await this.client.listUserIds(config);
-          if (idsNoAparelho.length === 0) continue;
+          if (idsNoAparelho.length === 0) {
+            // Lista vazia: nada a remover, o aparelho respondeu — conta como varrido.
+            res.terminaisVarridos++;
+            continue;
+          }
 
           const [
             visitantesNoBanco,
@@ -3562,9 +3594,14 @@ export class FacialService {
           ]);
 
           const fantasmas = idsNoAparelho.filter((id) => !idsNoBanco.has(id));
-          if (fantasmas.length === 0) continue;
+          if (fantasmas.length === 0) {
+            res.terminaisVarridos++;
+            continue;
+          }
 
           await this.client.removeUsers(config, fantasmas);
+          varrido = true;
+          res.terminaisVarridos++;
           this.logger.log(
             `tickFantasmas device ${device.id}: ${fantasmas.length} fantasma(s) removido(s) — ${fantasmas.join(', ')}`,
           );
@@ -3584,7 +3621,19 @@ export class FacialService {
           this.logger.warn(
             `tickFantasmas device ${device.id}: ${e?.message ?? e}`,
           );
+          // Falha na auditoria depois da remoção não invalida a varredura.
+          if (!varrido) {
+            res.terminaisComFalha.push({
+              id: device.id,
+              nome: device.nome,
+              erro: String(e?.message ?? e).slice(0, 200),
+            });
+          }
         }
+      }
+      const terminouEm = new Date();
+      for (const [idCondominio, r] of resultado) {
+        this.fantasmasPorCondominio.set(idCondominio, { terminouEm, ...r });
       }
     } catch (e: any) {
       this.logger.warn(`tickFantasmas erro: ${e?.message ?? e}`);
