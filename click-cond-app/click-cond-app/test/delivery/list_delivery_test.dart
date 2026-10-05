@@ -61,7 +61,13 @@ void main() {
     await tester.tap(find.text('HISTÓRICO (1)'));
     await tester.pumpAndSettle();
     expect(find.text('Pizzaria'), findsOneWidget);
-    expect(find.text('Concluída'), findsOneWidget);
+    // Card do histórico: desfecho + quando numa linha, modo na linha de
+    // baixo, sem chips nem selo.
+    expect(find.textContaining('Concluída '), findsOneWidget);
+    expect(find.text('Na unidade'), findsOneWidget);
+    expect(find.byType(DeliveryStatusBadge), findsNothing);
+    expect(tester.getSemantics(find.text('Pizzaria')),
+        isSemantics(isButton: true, hasTapAction: true));
   });
 
   testWidgets('não mostra o pedido de resposta quando nada aguarda o morador',
@@ -267,5 +273,29 @@ void main() {
     expect(scale.scale, 0.98);
     await gesture.cancel();
     await tester.pumpAndSettle();
+  });
+  testWidgets('card do histórico cabe em tela estreita no tema escuro',
+      (tester) async {
+    tester.view.physicalSize = const Size(320 * 3, 640 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    ApiClient.client = MockClient((_) async => http.Response(
+        jsonEncode([
+          {
+            ...aviso(1, 'RECUSADA', 'Hamburgueria com nome bem comprido'),
+            'motivo': 'Entregador sem identificação na portaria do prédio',
+          },
+        ]),
+        200));
+
+    await tester.pumpWidget(
+        MaterialApp(theme: ThemeData.dark(), home: const ListDelivery()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('HISTÓRICO'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('Recusada '), findsOneWidget);
+    expect(find.textContaining('Entregador sem identificação'), findsOneWidget);
   });
 }

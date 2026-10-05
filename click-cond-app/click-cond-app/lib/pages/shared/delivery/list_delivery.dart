@@ -127,8 +127,8 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
             Padding(
               padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
               child: AppSegmentedControl.tabs(segments: [
-                AppSegment(label: 'Ativas', icon: PhosphorIcons.lightning, count: loaded ? split.ativas.length : null),
-                AppSegment(label: 'Histórico', icon: PhosphorIcons.clockCounterClockwise, count: loaded ? split.historico.length : null),
+                AppSegment(label: 'Ativas', count: loaded ? split.ativas.length : null),
+                AppSegment(label: 'Histórico', count: loaded ? split.historico.length : null),
               ]),
             ),
             Expanded(child: _buildBody(split)),
@@ -223,17 +223,19 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: _listPadding,
-        children: _groupedCards(historico),
+        children: _groupedCards(historico, history: true),
       ),
     );
   }
 
   /// Cards sob cabeçalhos de dia ('Hoje', 'Ontem', '27 de set').
-  List<Widget> _groupedCards(List<DeliveryModel> deliveries) => [
+  List<Widget> _groupedCards(List<DeliveryModel> deliveries, {bool history = false}) => [
         for (final group in groupDeliveriesByDay(deliveries)) ...[
           _DayHeader(group.label),
           for (final d in group.items) ...[
-            _DeliveryCard(delivery: d, onTap: () => _openDetails(d)),
+            history
+                ? _HistoryCard(delivery: d, onTap: () => _openDetails(d))
+                : _DeliveryCard(delivery: d, onTap: () => _openDetails(d)),
             const SizedBox(height: AppSpacing.md),
           ],
         ],
@@ -522,6 +524,99 @@ class _DeliveryCard extends StatelessWidget {
             ]),
           ),
         ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Card compacto do histórico: ícone tingido, estabelecimento, desfecho +
+/// quando (na cor do status) e uma linha discreta com modo e duração (ou o
+/// motivo). Sem chips nem selo: o desfecho já está no texto e na cor.
+class _HistoryCard extends StatelessWidget {
+  final DeliveryModel delivery;
+  final VoidCallback onTap;
+  const _HistoryCard({required this.delivery, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = DeliveryStatusStyle.of(delivery.status);
+    final title = deliveryTitle(delivery);
+    final outcome = deliveryOutcomeLine(delivery);
+    final meta = deliveryHistoryMeta(delivery);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+
+    return Semantics(
+      button: true,
+      label: 'Entrega $title, $outcome, $meta',
+      onTap: onTap,
+      excludeSemantics: true,
+      child: _PressScale(
+        child: Container(
+          decoration: BoxDecoration(
+            color: dark ? AppColors.surface(context) : AppColors.surfaceElevated(context),
+            borderRadius: AppRadius.rlg,
+            border: Border.all(color: AppColors.border(context)),
+            boxShadow: dark
+                ? null
+                : [BoxShadow(color: const Color(0xFF64748B).withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 3))],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: AppRadius.rlg,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: AppRadius.rlg,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 72),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                  child: Row(children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: style.color.withValues(alpha: 0.12),
+                        borderRadius: AppRadius.rmd,
+                      ),
+                      child: Icon(style.icon, color: style.foreground(context), size: 22),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w600, height: 1.3),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          outcome,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.caption(context).copyWith(
+                            fontSize: 13,
+                            color: style.foreground(context),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          meta,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.tiny(context),
+                        ),
+                      ]),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+                  ]),
+                ),
+              ),
+            ),
           ),
         ),
       ),
