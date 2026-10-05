@@ -3438,19 +3438,32 @@ export class FacialService {
       // Modelagem nova: a restrição mora em `Visitas.dias_semana`. Reavaliar na
       // virada reestende o teto de fim-de-dia (`fimDoDiaBRT`) — sem isso a
       // pessoa fica trancada fora depois da meia-noite mesmo num dia autorizado.
+      // Só visitas ainda vigentes: revogados entram (reenrolam no dia
+      // permitido), mas quem só tem visitas encerradas não é reavaliado toda
+      // noite para sempre. Try próprio: falha aqui não pode pular prestadores.
       if (pessoasMigrationEnabled(this.prisma)) {
-        const pessoasComDias = await this.prisma.pessoas.findMany({
-          where: {
-            OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
-            visitas: { some: { dias_semana: { not: null } } },
-          },
-          select: { id: true },
-        });
-        this.sincronizarPessoasDoTick(
-          'tickDiasSemanaSync',
-          pessoasComDias.map((p: any) => p.id),
-          'sincronizado(s)',
-        );
+        try {
+          const agora = new Date();
+          const pessoasComDias = await this.prisma.pessoas.findMany({
+            where: {
+              OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
+              visitas: {
+                some: {
+                  dias_semana: { not: null },
+                  OR: [{ data_hora_termino: null }, { data_hora_termino: { gte: agora } }],
+                },
+              },
+            },
+            select: { id: true },
+          });
+          this.sincronizarPessoasDoTick(
+            'tickDiasSemanaSync',
+            pessoasComDias.map((p: any) => p.id),
+            'sincronizado(s)',
+          );
+        } catch (e: any) {
+          this.logger.warn(`tickDiasSemanaSync pessoas erro: ${e?.message ?? e}`);
+        }
       }
 
       // Prestadores de serviço (Gestão de Acesso) também têm restrição por dia.
@@ -3531,11 +3544,29 @@ export class FacialService {
       // dentro. Diferente do caminho legado, aqui NÃO se zera
       // `Visitas.liberado`: quem ainda está dentro com a visita vencida
       // perderia o rosto também no leitor de saída.
+      // Revogados mantêm face_id (só o status vira 'revoked'): sem excluí-los
+      // e sem limitar a visitas que venceram há pouco, todo visitante antigo
+      // receberia remoção (ou re-push) em todo aparelho a cada tick.
       if (pessoasMigrationEnabled(this.prisma)) {
+        // Tick roda a cada 15 min; 2h tolera reinícios. Sobras mais antigas
+        // ficam com o validTo do aparelho e o retry de pendentes do tickSyncRetry.
+        const JANELA_EXPIRACAO_PESSOAS_MS = 2 * 60 * 60 * 1000;
         const pessoasExpiradas = await this.prisma.pessoas.findMany({
           where: {
-            face_id: { not: null },
-            visitas: { some: { data_hora_termino: { lt: agora } } },
+            AND: [
+              { face_id: { not: null } },
+              { OR: [{ face_sync_status: null }, { face_sync_status: { not: 'revoked' } }] },
+              {
+                visitas: {
+                  some: {
+                    data_hora_termino: {
+                      gte: new Date(agora.getTime() - JANELA_EXPIRACAO_PESSOAS_MS),
+                      lt: agora,
+                    },
+                  },
+                },
+              },
+            ],
           },
           select: { id: true },
         });
@@ -3606,7 +3637,9 @@ export class FacialService {
         const pessoasPrestes = await this.prisma.pessoas.findMany({
           where: {
             foto_pessoa: { not: null },
-            face_id: null,
+            // Revogado mantém face_id: sem o 'revoked', o visitante que volta
+            // nunca seria pré-enrolado.
+            OR: [{ face_id: null }, { face_sync_status: 'revoked' }],
             visitas: {
               some: { liberado: 1, data_hora_inicio: { gte: agora, lte: em30min } },
             },

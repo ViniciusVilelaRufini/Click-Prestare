@@ -21,6 +21,7 @@ type Pessoa = {
   id: number;
   face_id: string | null;
   foto_pessoa: string | null;
+  face_sync_status?: string | null;
   visitas: Visita[];
 };
 
@@ -30,6 +31,8 @@ function casaCampo(valor: any, cond: any): boolean {
   if (typeof cond !== 'object' || cond instanceof Date) return valor === cond;
   if ('not' in cond) {
     if (cond.not === null) return valor !== null && valor !== undefined;
+    // Como no SQL: `<> 'x'` não casa NULL.
+    if (valor === null || valor === undefined) return false;
     return valor !== cond.not;
   }
   if (valor === null || valor === undefined) return false;
@@ -111,6 +114,10 @@ describe('FacialService — ticks cobrem Pessoas', () => {
       { id: 2000002, face_id: 'pessoa_2000002', foto_pessoa: 'f', visitas: [{ liberado: 1, data_hora_termino: min(60) }] },
       // não elegível: visita vencida, mas já fora do aparelho
       { id: 2000003, face_id: null, foto_pessoa: 'f', visitas: [{ liberado: 1, data_hora_termino: min(-10) }] },
+      // não elegível: já revogada (mantém face_id) — reenviar a remoção a cada tick é desperdício
+      { id: 2000004, face_id: 'pessoa_2000004', foto_pessoa: 'f', face_sync_status: 'revoked', visitas: [{ liberado: 1, data_hora_termino: min(-10) }] },
+      // não elegível: visita venceu há mais de 2h (sobra coberta por validTo/tickSyncRetry)
+      { id: 2000005, face_id: 'pessoa_2000005', foto_pessoa: 'f', face_sync_status: 'synced', visitas: [{ liberado: 1, data_hora_termino: min(-180) }] },
     ];
 
     it('com a flag ligada, re-sincroniza só quem tem visita vencida e face_id', async () => {
@@ -119,6 +126,8 @@ describe('FacialService — ticks cobrem Pessoas', () => {
       await assentar();
       expect(syncPessoa).toHaveBeenCalledTimes(1);
       expect(syncPessoa).toHaveBeenCalledWith(2000001);
+      expect(syncPessoa).not.toHaveBeenCalledWith(2000004);
+      expect(syncPessoa).not.toHaveBeenCalledWith(2000005);
       expect((svc as any).logger.log).toHaveBeenCalledWith(
         expect.stringContaining('tickExpiracaoAutomatica pessoas: 1 sincronizado(s), 0 ignorado(s) (skip), 0 falha(s) de 1'),
       );
@@ -154,16 +163,19 @@ describe('FacialService — ticks cobrem Pessoas', () => {
       { id: 2000004, face_id: 'pessoa_2000004', foto_pessoa: 'f', visitas: [{ liberado: 1, data_hora_inicio: min(10) }] },
       // não elegível: sem foto
       { id: 2000005, face_id: null, foto_pessoa: null, visitas: [{ liberado: 1, data_hora_inicio: min(10) }] },
+      // elegível: visitante que volta — revogado na visita anterior, mantém face_id
+      { id: 2000006, face_id: 'pessoa_2000006', foto_pessoa: 'f', face_sync_status: 'revoked', visitas: [{ liberado: 1, data_hora_inicio: min(10) }] },
     ];
 
-    it('com a flag ligada, pré-enrola só quem começa nos próximos 30 min', async () => {
+    it('com a flag ligada, pré-enrola só quem começa nos próximos 30 min (inclusive quem volta revogado)', async () => {
       const { svc, syncPessoa } = build(pessoas);
       await svc.tickPreEnrolamento();
       await assentar();
-      expect(syncPessoa).toHaveBeenCalledTimes(1);
+      expect(syncPessoa).toHaveBeenCalledTimes(2);
       expect(syncPessoa).toHaveBeenCalledWith(2000001);
+      expect(syncPessoa).toHaveBeenCalledWith(2000006);
       expect((svc as any).logger.log).toHaveBeenCalledWith(
-        expect.stringContaining('tickPreEnrolamento pessoas: 1 pré-enrolado(s), 0 ignorado(s) (skip), 0 falha(s) de 1'),
+        expect.stringContaining('tickPreEnrolamento pessoas: 2 pré-enrolado(s), 0 ignorado(s) (skip), 0 falha(s) de 2'),
       );
     });
 
@@ -187,15 +199,28 @@ describe('FacialService — ticks cobrem Pessoas', () => {
       { id: 2000003, face_id: 'pessoa_2000003', foto_pessoa: 'f', visitas: [{ liberado: 1, dias_semana: null }] },
       // não elegível: sem foto e sem face_id
       { id: 2000004, face_id: null, foto_pessoa: null, visitas: [{ liberado: 1, dias_semana: 'seg' }] },
+      // não elegível: todas as visitas com dias_semana já terminaram
+      { id: 2000005, face_id: 'pessoa_2000005', foto_pessoa: 'f', visitas: [{ liberado: 1, dias_semana: 'seg', data_hora_termino: min(-60) }] },
+      // elegível: revogada, mas com visita de dias_semana ainda vigente — reenrola no dia permitido
+      { id: 2000006, face_id: 'pessoa_2000006', foto_pessoa: 'f', face_sync_status: 'revoked', visitas: [{ liberado: 1, dias_semana: 'qua', data_hora_termino: min(60 * 24 * 7) }] },
     ];
 
     it('com a flag ligada, re-sincroniza quem tem visita com dias_semana', async () => {
       const { svc, syncPessoa } = build(pessoas);
       await svc.tickDiasSemanaSync();
       await assentar();
-      expect(syncPessoa).toHaveBeenCalledTimes(2);
+      expect(syncPessoa).toHaveBeenCalledTimes(3);
       expect(syncPessoa).toHaveBeenCalledWith(2000001);
       expect(syncPessoa).toHaveBeenCalledWith(2000002);
+      expect(syncPessoa).toHaveBeenCalledWith(2000006);
+    });
+
+    it('falha ao consultar pessoas não impede o bloco de prestadores', async () => {
+      const { svc, prisma } = build(pessoas);
+      prisma.pessoas.findMany.mockRejectedValueOnce(new Error('tabela indisponível'));
+      await svc.tickDiasSemanaSync();
+      await assentar();
+      expect(prisma.prestadores_servico.findMany).toHaveBeenCalled();
     });
 
     it('conta skip e falha à parte no log', async () => {
@@ -205,7 +230,7 @@ describe('FacialService — ticks cobrem Pessoas', () => {
       await svc.tickDiasSemanaSync();
       await assentar();
       expect((svc as any).logger.log).toHaveBeenCalledWith(
-        expect.stringContaining('tickDiasSemanaSync pessoas: 0 sincronizado(s), 1 ignorado(s) (skip), 1 falha(s) de 2'),
+        expect.stringContaining('tickDiasSemanaSync pessoas: 1 sincronizado(s), 1 ignorado(s) (skip), 1 falha(s) de 3'),
       );
     });
 
