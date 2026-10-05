@@ -2,10 +2,14 @@
  * Formata o rótulo de apartamento e bloco para exibição no dashboard.
  * Casos:
  * - Sem bloco: "Apto 108"
- * - Bloco começando com "bloco" (case-insensitive): "Apto 108 · Bloco A"
- * - Bloco curto (letra simples): "Apto 108 · A"
+ * - Bloco começando com "bloco" (case-insensitive): mantém como-está; bloco curto ou sem "Bloco" recebe prefixo
+ * - Bloco curto (letra simples, ex. "A"): "Bloco A"
  * - Ambos vazios/nulos: string vazia
- * - Apto vazio, bloco preenchido: só o bloco (sem "Apto ")
+ * - Apto vazio, bloco preenchido: prefixado com "Bloco " se necessário (ex. "A" → "Bloco A")
+ *
+ * Regra de prefixação do bloco:
+ * - Se não começa com "bloco" (case-insensitive), adiciona prefixo "Bloco "
+ * - Se já começa com "bloco" em qualquer caso, não duplica prefixo
  *
  * Sempre usa " · " (middle dot com espaços) como separador.
  */
@@ -23,11 +27,16 @@ export function formatarApto(apto: string | null | undefined, bloco: string | nu
     return `Apto ${aptoTrimmed}`;
   }
 
-  // Se só bloco, retorna só o bloco
-  if (!aptoTrimmed && blocoTrimmed) {
-    return blocoTrimmed;
+  // Normaliza o bloco com prefixo "Bloco " se necessário
+  const blocoPrefixado = blocoTrimmed.toLowerCase().startsWith('bloco')
+    ? blocoTrimmed
+    : `Bloco ${blocoTrimmed}`;
+
+  // Se só bloco (apto vazio), retorna bloco prefixado
+  if (!aptoTrimmed) {
+    return blocoPrefixado;
   }
 
   // Ambos preenchidos: usa o separador " · "
-  return `Apto ${aptoTrimmed} · ${blocoTrimmed}`;
+  return `Apto ${aptoTrimmed} · ${blocoPrefixado}`;
 }
