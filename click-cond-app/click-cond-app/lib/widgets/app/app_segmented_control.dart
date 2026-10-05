@@ -55,6 +55,7 @@ class AppSegmentedControl extends StatelessWidget {
             _SegmentItem(
               segment: segments[i],
               selected: i == selectedIndex,
+              compact: segments.length >= 3,
               onTap: () => onChanged(i),
             ),
           ],
@@ -68,7 +69,15 @@ class _SegmentItem extends StatelessWidget {
   final AppSegment segment;
   final bool selected;
   final VoidCallback onTap;
-  const _SegmentItem({required this.segment, required this.selected, required this.onTap});
+
+  /// Com 3+ segmentos o respiro lateral diminui para o rótulo caber.
+  final bool compact;
+  const _SegmentItem({
+    required this.segment,
+    required this.selected,
+    required this.onTap,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +97,7 @@ class _SegmentItem extends StatelessWidget {
             curve: Curves.easeInOut,
             constraints: const BoxConstraints(minHeight: 44),
             alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            padding: EdgeInsets.symmetric(vertical: 10, horizontal: compact ? 4 : 8),
             decoration: BoxDecoration(
               color: selected ? AppColors.primary : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
@@ -101,16 +110,20 @@ class _SegmentItem extends StatelessWidget {
                   Icon(segment.icon, size: 15, color: color),
                   const SizedBox(width: 6),
                 ],
+                // FittedBox: em telas estreitas o rótulo encolhe um pouco
+                // em vez de virar "AGUARDANDO …".
                 Flexible(
-                  child: Text(
-                    label.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                      letterSpacing: 0.6,
-                      fontSize: 12,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label.toUpperCase(),
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                        letterSpacing: 0.6,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ),
