@@ -104,30 +104,6 @@ int deliveryStepIndex(String status) {
   }
 }
 
-/// Frase de contexto para o card de status dos detalhes.
-String deliveryStatusDescription(DeliveryModel delivery) {
-  switch (delivery.status) {
-    case 'CHEGOU':
-      return 'O entregador chegou à portaria.';
-    case 'AGUARDANDO_AUTORIZACAO':
-      return 'A portaria aguarda sua resposta para liberar a entrega.';
-    case 'AUTORIZADA':
-      return delivery.modoEntrega == 'PORTARIA'
-          ? 'Você autorizou. A entrega fica na portaria para você retirar.'
-          : 'Você autorizou. O entregador está liberado para subir.';
-    case 'RETIRADA_NA_PORTARIA':
-      return 'Sua entrega está na portaria aguardando a retirada.';
-    case 'CONCLUIDA':
-      return 'Entrega finalizada. Tudo certo por aqui!';
-    case 'CANCELADA':
-      return 'Este aviso foi cancelado.';
-    case 'RECUSADA':
-      return 'Esta entrega foi recusada.';
-    default:
-      return 'A portaria já sabe que sua entrega está a caminho.';
-  }
-}
-
 DateTime? _parse(String? iso) {
   if (iso == null) return null;
   return DateTime.tryParse(iso)?.toLocal();
@@ -417,6 +393,56 @@ List<String> deliverySummary(List<DeliveryModel> deliveries) {
   ];
 }
 
+/// Quando o aviso chegou ao status atual (último evento desse status), ou a
+/// criação quando não há evento.
+String? deliveryOutcomeTime(DeliveryModel delivery) =>
+    _currentStatusTime(delivery) ?? delivery.createdAt;
+
+/// Linha do card do histórico: desfecho + quando, p.ex.
+/// 'Concluída hoje às 00:29', 'Recusada ontem às 21:10',
+/// 'Cancelada 03/10 às 14:00'.
+String deliveryOutcomeLine(DeliveryModel delivery, {DateTime? now}) {
+  final outcome = DeliveryStatusStyle.of(delivery.status).label;
+  final date = _parse(deliveryOutcomeTime(delivery));
+  if (date == null) return outcome;
+  final ref = now ?? DateTime.now();
+  final today = DateTime(ref.year, ref.month, ref.day);
+  final days = DateTime(date.year, date.month, date.day).difference(today).inDays;
+  final hora = 'às ${_hm(date)}';
+  if (days == 0) return '$outcome hoje $hora';
+  if (days == -1) return '$outcome ontem $hora';
+  final dia = DateFormat(date.year == ref.year ? 'dd/MM' : 'dd/MM/yyyy').format(date);
+  return '$outcome $dia $hora';
+}
+
+/// Quanto tempo levou do primeiro evento ao desfecho ('Levou 12 min',
+/// 'Levou 1 h 5 min'); null sem eventos suficientes ou com menos de 1 min.
+String? deliveryDuration(DeliveryModel delivery) {
+  final inicio = delivery.eventos
+      .map((e) => _parse(e.createdAt))
+      .whereType<DateTime>()
+      .fold<DateTime?>(null, (min, d) => min == null || d.isBefore(min) ? d : min);
+  final fim = _parse(_currentStatusTime(delivery));
+  if (inicio == null || fim == null) return null;
+  final total = fim.difference(inicio);
+  if (total.inMinutes < 1) return null;
+  final horas = total.inHours;
+  final minutos = total.inMinutes % 60;
+  if (horas == 0) return 'Levou $minutos min';
+  if (horas >= 24) return 'Levou ${total.inDays} d';
+  return minutos == 0 ? 'Levou $horas h' : 'Levou $horas h $minutos min';
+}
+
+/// Linha discreta do card do histórico: modo + duração, ou o motivo em
+/// cancelada/recusada.
+String deliveryHistoryMeta(DeliveryModel delivery) {
+  final modo = delivery.modoEntrega == 'PORTARIA' ? 'Na portaria' : 'Na unidade';
+  final negativo = deliveryStepIndex(delivery.status) < 0;
+  final motivo = delivery.motivo?.trim();
+  final extra = negativo ? (motivo?.isNotEmpty == true ? motivo : null) : deliveryDuration(delivery);
+  return extra == null ? modo : '$modo · $extra';
+}
+
 /// Selo (pílula) com o status: ponto colorido ou ícone + rótulo curto.
 class DeliveryStatusBadge extends StatelessWidget {
   final String status;
@@ -450,10 +476,15 @@ class DeliveryStatusBadge extends StatelessWidget {
                   BoxDecoration(color: style.color, shape: BoxShape.circle),
             ),
           const SizedBox(width: 5),
-          Text(
-            style.label,
-            style: AppTypography.tiny(context).copyWith(
-                color: fg, fontWeight: FontWeight.w700, letterSpacing: 0.1),
+          // Flexible: em espaço apertado o rótulo encurta em vez de estourar.
+          Flexible(
+            child: Text(
+              style.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.tiny(context).copyWith(
+                  color: fg, fontWeight: FontWeight.w700, letterSpacing: 0.1),
+            ),
           ),
         ]),
       ),

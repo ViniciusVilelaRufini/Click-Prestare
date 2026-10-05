@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:click/pages/shared/delivery/delivery_status_style.dart';
 import 'package:click/pages/shared/delivery/list_delivery.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_client.dart';
@@ -44,8 +45,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ativas (2)'), findsOneWidget);
-    expect(find.text('Histórico (1)'), findsOneWidget);
+    expect(find.text('ATIVAS (2)'), findsOneWidget);
+    expect(find.text('HISTÓRICO (1)'), findsOneWidget);
     expect(find.text('A portaria aguarda sua resposta'), findsOneWidget);
     expect(find.textContaining('Mercado Bom Preço'), findsOneWidget);
     expect(find.text('Farmácia'), findsOneWidget);
@@ -57,10 +58,16 @@ void main() {
     expect(tester.getSemantics(find.text('A portaria aguarda sua resposta')),
         isSemantics(isButton: true, hasTapAction: true));
 
-    await tester.tap(find.text('Histórico (1)'));
+    await tester.tap(find.text('HISTÓRICO (1)'));
     await tester.pumpAndSettle();
     expect(find.text('Pizzaria'), findsOneWidget);
-    expect(find.text('Concluída'), findsOneWidget);
+    // Card do histórico: desfecho + quando numa linha, modo na linha de
+    // baixo, sem chips nem selo.
+    expect(find.textContaining('Concluída '), findsOneWidget);
+    expect(find.text('Na unidade'), findsOneWidget);
+    expect(find.byType(DeliveryStatusBadge), findsNothing);
+    expect(tester.getSemantics(find.text('Pizzaria')),
+        isSemantics(isButton: true, hasTapAction: true));
   });
 
   testWidgets('não mostra o pedido de resposta quando nada aguarda o morador',
@@ -71,8 +78,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ativas (1)'), findsOneWidget);
-    expect(find.text('Histórico (0)'), findsOneWidget);
+    expect(find.text('ATIVAS (1)'), findsOneWidget);
+    expect(find.text('HISTÓRICO (0)'), findsOneWidget);
     expect(find.text('A portaria aguarda sua resposta'), findsNothing);
     expect(find.text('Padaria'), findsOneWidget);
   });
@@ -140,7 +147,7 @@ void main() {
     // Com o FAB na tela, o vazio não repete o botão "Avisar entrega".
     expect(find.text('Avisar entrega'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
-    await tester.tap(find.text('Histórico (0)'));
+    await tester.tap(find.text('HISTÓRICO (0)'));
     await tester.pumpAndSettle();
     expect(find.text('Nenhuma entrega no histórico'), findsOneWidget);
   });
@@ -154,7 +161,7 @@ void main() {
         home: Scaffold(body: ListDelivery(hideAppBar: true, showFab: false))));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ativas (1)'), findsOneWidget);
+    expect(find.text('ATIVAS (1)'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsNothing);
   });
   testWidgets('cabe em tela estreita no tema escuro sem estourar o layout',
@@ -210,5 +217,85 @@ void main() {
         greaterThanOrEqualTo(tester.getRect(titulo).bottom));
     final text = tester.widget<Text>(titulo);
     expect(text.maxLines, 2);
+  });
+  testWidgets('resumo no topo das ativas e cabeçalhos de dia nas duas abas',
+      (tester) async {
+    final agora = DateTime.now().toIso8601String();
+    ApiClient.client = MockClient((_) async => http.Response(
+        jsonEncode([
+          {...aviso(1, 'AGUARDANDO_AUTORIZACAO', 'Mercado'), 'created_at': agora},
+          {...aviso(2, 'CHEGOU', 'Farmácia'), 'created_at': agora},
+          aviso(3, 'CONCLUIDA', 'Pizzaria'),
+          aviso(4, 'CANCELADA', 'Padaria'),
+        ]),
+        200));
+
+    await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 aguardando você'), findsOneWidget);
+    expect(find.text('1 em andamento'), findsOneWidget);
+    expect(find.text('1 concluída'), findsOneWidget);
+    expect(find.text('Hoje'), findsOneWidget);
+
+    await tester.tap(find.text('HISTÓRICO (2)'));
+    await tester.pumpAndSettle();
+    for (final id in [3, 4]) {
+      final label = deliveryDayLabel(DateTime.parse('2026-10-0${id}T12:00:00'));
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+  });
+
+  testWidgets('o resumo esconde as contagens zeradas', (tester) async {
+    ApiClient.client = MockClient((_) async => http.Response(
+        jsonEncode([aviso(1, 'AGENDADA', 'Padaria')]), 200));
+
+    await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('delivery-summary')), findsOneWidget);
+    expect(find.text('1 em andamento'), findsOneWidget);
+    expect(find.textContaining('concluída'), findsNothing);
+  });
+
+  testWidgets('card encolhe levemente ao ser pressionado', (tester) async {
+    ApiClient.client = MockClient((_) async => http.Response(
+        jsonEncode([aviso(1, 'AGENDADA', 'Padaria')]), 200));
+
+    await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
+    await tester.pumpAndSettle();
+
+    final gesture =
+        await tester.startGesture(tester.getCenter(find.text('Padaria')));
+    await tester.pumpAndSettle();
+    final scale = tester.widget<AnimatedScale>(find.ancestor(
+        of: find.text('Padaria'), matching: find.byType(AnimatedScale)));
+    expect(scale.scale, 0.98);
+    await gesture.cancel();
+    await tester.pumpAndSettle();
+  });
+  testWidgets('card do histórico cabe em tela estreita no tema escuro',
+      (tester) async {
+    tester.view.physicalSize = const Size(320 * 3, 640 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    ApiClient.client = MockClient((_) async => http.Response(
+        jsonEncode([
+          {
+            ...aviso(1, 'RECUSADA', 'Hamburgueria com nome bem comprido'),
+            'motivo': 'Entregador sem identificação na portaria do prédio',
+          },
+        ]),
+        200));
+
+    await tester.pumpWidget(
+        MaterialApp(theme: ThemeData.dark(), home: const ListDelivery()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('HISTÓRICO'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('Recusada '), findsOneWidget);
+    expect(find.textContaining('Entregador sem identificação'), findsOneWidget);
   });
 }

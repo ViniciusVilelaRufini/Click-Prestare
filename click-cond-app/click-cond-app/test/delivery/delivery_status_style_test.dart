@@ -382,4 +382,79 @@ void main() {
     expect(DeliveryStatusStyle.of('CHEGOU').onColor, isNot(Colors.white));
     expect(DeliveryStatusStyle.of('AGENDADA').onColor, Colors.white);
   });
+  group('card do histórico', () {
+    final now = DateTime(2026, 10, 4, 15);
+    DeliveryModel encerrado(String status,
+            {String? inicio,
+            String? fim,
+            String? criado,
+            String? motivo,
+            String? modo}) =>
+        DeliveryModel(
+          status: status,
+          createdAt: criado,
+          motivo: motivo,
+          modoEntrega: modo,
+          eventos: [
+            if (inicio != null)
+              DeliveryEvent(statusNovo: 'AGENDADA', createdAt: inicio),
+            if (fim != null) DeliveryEvent(statusNovo: status, createdAt: fim),
+          ],
+        );
+
+    test('deliveryOutcomeLine: desfecho + quando', () {
+      final casos = <DeliveryModel, String>{
+        encerrado('CONCLUIDA', fim: '2026-10-04T00:29:00'):
+            'Concluída hoje às 00:29',
+        encerrado('RECUSADA', fim: '2026-10-03T21:10:00'):
+            'Recusada ontem às 21:10',
+        encerrado('CANCELADA', fim: '2026-10-01T14:00:00'):
+            'Cancelada 01/10 às 14:00',
+        encerrado('CONCLUIDA', criado: '2025-12-31T23:10:00'):
+            'Concluída 31/12/2025 às 23:10',
+        encerrado('RECUSADA'): 'Recusada',
+      };
+      casos.forEach((aviso, esperado) {
+        expect(deliveryOutcomeLine(aviso, now: now), esperado);
+      });
+    });
+
+    test('deliveryDuration: do primeiro evento ao desfecho', () {
+      final casos = <DeliveryModel, String?>{
+        encerrado('CONCLUIDA',
+            inicio: '2026-10-04T10:00:00', fim: '2026-10-04T10:12:00'): 'Levou 12 min',
+        encerrado('CONCLUIDA',
+            inicio: '2026-10-04T10:00:00', fim: '2026-10-04T11:05:00'): 'Levou 1 h 5 min',
+        encerrado('CONCLUIDA',
+            inicio: '2026-10-04T10:00:00', fim: '2026-10-04T12:00:00'): 'Levou 2 h',
+        encerrado('CONCLUIDA',
+            inicio: '2026-10-04T10:00:00', fim: '2026-10-04T10:00:30'): null,
+        encerrado('CONCLUIDA', fim: '2026-10-04T10:12:00'): null,
+        encerrado('CONCLUIDA'): null,
+      };
+      casos.forEach((aviso, esperado) {
+        expect(deliveryDuration(aviso), esperado);
+      });
+    });
+
+    test('deliveryHistoryMeta: modo + duração, ou motivo nos encerrados negativos',
+        () {
+      final casos = <DeliveryModel, String>{
+        encerrado('CONCLUIDA',
+            inicio: '2026-10-04T10:00:00', fim: '2026-10-04T10:12:00'):
+            'Na unidade · Levou 12 min',
+        encerrado('CONCLUIDA', modo: 'PORTARIA'): 'Na portaria',
+        encerrado('RECUSADA',
+            inicio: '2026-10-04T10:00:00',
+            fim: '2026-10-04T10:12:00',
+            motivo: '  Sem identificação  '): 'Na unidade · Sem identificação',
+        encerrado('CANCELADA',
+            inicio: '2026-10-04T10:00:00', fim: '2026-10-04T10:12:00'):
+            'Na unidade',
+      };
+      casos.forEach((aviso, esperado) {
+        expect(deliveryHistoryMeta(aviso), esperado);
+      });
+    });
+  });
 }
