@@ -3190,8 +3190,17 @@ export class FacialService {
         : cats.has('prestador')
           ? { is_prestador: 1 }
           : { is_prestador: { not: 1 } };
+    // Mesma regra de syncAllForCondominio: com a flag ligada, visitantes e
+    // prestadores vivem em `Pessoas` (face_id `pessoa_<id>`); sem varrer essa
+    // fonte, o rosto continua no aparelho abrindo a porta depois da limpeza.
+    const pessoaTipoWhere =
+      !cats || (cats.has('visitante') && cats.has('prestador'))
+        ? {}
+        : cats.has('prestador')
+          ? { tipo_pessoa: 'prestador' }
+          : { tipo_pessoa: { not: 'prestador' } };
 
-    const [moradores, visitantes, prestadores] = await Promise.all([
+    const [moradores, visitantes, prestadores, pessoas] = await Promise.all([
       queryMorador
         ? this.prisma.moradores.findMany({
             where: {
@@ -3218,9 +3227,20 @@ export class FacialService {
             select: { id: true, face_id: true },
           })
         : Promise.resolve([] as { id: number; face_id: string | null }[]),
+      queryVisitante && pessoasMigrationEnabled(this.prisma)
+        ? this.prisma.pessoas.findMany({
+            where: {
+              id_condominio: idCondominio,
+              face_id: { not: null },
+              AND: [pessoaTipoWhere],
+            },
+            select: { id: true, face_id: true },
+          })
+        : Promise.resolve([] as { id: number; face_id: string | null }[]),
     ]);
 
-    const total = moradores.length + visitantes.length + prestadores.length;
+    const total =
+      moradores.length + visitantes.length + prestadores.length + pessoas.length;
     if (total === 0) return { total: 0, started: false };
 
     this.bulkSyncEmAndamento.add(idCondominio);
@@ -3287,6 +3307,45 @@ export class FacialService {
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk unsync prestador ${p.id}: ${e?.message ?? e}`);
+          }
+        }
+        for (const pes of pessoas) {
+          try {
+            const removedOk = await this.unsyncPessoa(pes.id, pes.face_id, idCondominio, {
+              deviceIds,
+            });
+            if (!removedOk) {
+              // Mesma regra de syncPessoa: a remoção não chegou a todos os
+              // terminais — zerar o face_id aqui faria a nuvem achar que já
+              // revogou enquanto o rosto segue ativo no aparelho. Mantém o
+              // face_id + 'pending' pro reconnect/varredura tentar de novo.
+              await this.prisma.pessoas.update({
+                where: { id: pes.id },
+                data: { face_sync_status: 'pending' },
+              });
+              falhou++;
+              continue;
+            }
+            if (opts.keepFaceId) {
+              await this.prisma.pessoas.update({
+                where: { id: pes.id },
+                data: { face_sync_status: 'pending' },
+              });
+            } else {
+              await this.prisma.pessoas.update({
+                where: { id: pes.id },
+                data: {
+                  face_id: null,
+                  face_sync_status: null,
+                  face_sync_error: null,
+                  face_enrolled_at: null,
+                },
+              });
+            }
+            ok++;
+          } catch (e: any) {
+            falhou++;
+            this.logger.warn(`Bulk unsync pessoa ${pes.id}: ${e?.message ?? e}`);
           }
         }
         this.logger.log(
