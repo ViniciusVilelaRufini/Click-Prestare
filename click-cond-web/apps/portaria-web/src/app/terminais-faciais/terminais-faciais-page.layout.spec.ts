@@ -175,6 +175,22 @@ describe('TerminaisFaciaisPageComponent — agente e sincronização', () => {
       expect(t).toContain('Nada a remover hoje');
     });
 
+    it('API antiga (sem terminaisComFalha/terminaisVarridos) renderiza sem quebrar', () => {
+      const antiga = {
+        terminais: { total: 0, offline: [], semReporteRecente: [] },
+        agente: { online: true, lastSeenAt: null },
+        fantasmas: { ultimaVarreduraEm: new Date().toISOString(), removidosHoje: 0, eventosHoje: [] },
+      };
+      const tela: any = build({ health: jest.fn(() => of(antiga)) });
+      expect(() => {
+        ultimaFixture.detectChanges();
+        tela.loadHealth();
+        ultimaFixture.detectChanges();
+      }).not.toThrow();
+      expect(tela.health().fantasmas.terminaisComFalha).toEqual([]);
+      expect(tela.health().fantasmas.terminaisVarridos).toBe(0);
+    });
+
     it('sem varredura ainda: aguardando primeira varredura', () => {
       const t = render({});
       expect(t).toContain('Aguardando primeira varredura');
