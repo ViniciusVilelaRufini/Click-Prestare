@@ -592,6 +592,8 @@ export class FacialService {
       }
     }, 0);
 
+    const varredura = this.fantasmasPorCondominio.get(idCondominio);
+
     return {
       terminais: {
         total: ativos.length,
@@ -603,9 +605,11 @@ export class FacialService {
         lastSeenAt: agentLastSeenAt,
       },
       fantasmas: {
-        // Varredura roda de hora em hora para TODOS os condomínios — este
-        // timestamp é global do processo, não por condomínio.
-        ultimaVarreduraEm: this.lastFantasmasRunAt,
+        // Resultado da última varredura DESTE condomínio (null até a primeira
+        // rodar após o boot). Terminal que não respondeu vem em terminaisComFalha.
+        ultimaVarreduraEm: varredura?.terminouEm ?? null,
+        terminaisVarridos: varredura?.terminaisVarridos ?? 0,
+        terminaisComFalha: varredura?.terminaisComFalha ?? [],
         removidosHoje,
         eventosHoje: eventosFantasmas.map((ev) => ({
           em: ev.created_at,
@@ -2490,22 +2494,18 @@ export class FacialService {
   }
 
   /**
+   * Com a flag ligada, `tickDiasSemanaSync`, `tickExpiracaoAutomatica` e
+   * `tickPreEnrolamento` também chamam `syncPessoa` — é o `tickDiasSemanaSync`,
+   * na hora 0 BRT, que reestende o teto de validade de fim-de-dia que
+   * `dias_semana` impõe (ver `fimDoDiaBRT` abaixo).
+   *
    * TODO (não corrigido nesta rodada — documentado para quem terminar a
-   * migração):
-   *
-   * 1. Nenhum tick re-sincroniza Pessoas: `tickDiasSemanaSync`,
-   *    `tickExpiracaoAutomatica`, `tickPreEnrolamento` e `tickFantasmas` só
-   *    varrem `Visitantes`/`Moradores`/`Prestadores_servico`. O teto de
-   *    validade de fim-de-dia que `dias_semana` impõe (ver `fimDoDiaBRT`
-   *    abaixo) nunca é reestendido no dia seguinte — a pessoa fica trancada
-   *    fora depois da meia-noite mesmo num dia autorizado.
-   *
-   * 2. Quando uma Pessoa tem várias Visitas ativas sobrepostas,
-   *    `resolverVisitaAtivaPessoa` usa `.find(...)` sobre `pessoa.visitas`
-   *    (populado por `include: { visitas: true }` sem `orderBy`) — a ordem
-   *    de retorno do banco decide qual visita "vence", então a janela mais
-   *    estreita pode ganhar e travar a pessoa fora mais cedo do que
-   *    qualquer uma das visitas isoladamente permitiria.
+   * migração): quando uma Pessoa tem várias Visitas ativas sobrepostas,
+   * `resolverVisitaAtivaPessoa` usa `.find(...)` sobre `pessoa.visitas`
+   * (populado por `include: { visitas: true }` sem `orderBy`) — a ordem de
+   * retorno do banco decide qual visita "vence", então a janela mais estreita
+   * pode ganhar e travar a pessoa fora mais cedo do que qualquer uma das
+   * visitas isoladamente permitiria.
    */
   async pushPessoaToDevices(pessoa: any, opts: { deviceIds?: number[] } = {}) {
     const devices = await this.prisma.facial_Devices.findMany({
@@ -3186,8 +3186,17 @@ export class FacialService {
         : cats.has('prestador')
           ? { is_prestador: 1 }
           : { is_prestador: { not: 1 } };
+    // Mesma regra de syncAllForCondominio: com a flag ligada, visitantes e
+    // prestadores vivem em `Pessoas` (face_id `pessoa_<id>`); sem varrer essa
+    // fonte, o rosto continua no aparelho abrindo a porta depois da limpeza.
+    const pessoaTipoWhere =
+      !cats || (cats.has('visitante') && cats.has('prestador'))
+        ? {}
+        : cats.has('prestador')
+          ? { tipo_pessoa: 'prestador' }
+          : { tipo_pessoa: { not: 'prestador' } };
 
-    const [moradores, visitantes, prestadores] = await Promise.all([
+    const [moradores, visitantes, prestadores, pessoas] = await Promise.all([
       queryMorador
         ? this.prisma.moradores.findMany({
             where: {
@@ -3214,9 +3223,20 @@ export class FacialService {
             select: { id: true, face_id: true },
           })
         : Promise.resolve([] as { id: number; face_id: string | null }[]),
+      queryVisitante && pessoasMigrationEnabled(this.prisma)
+        ? this.prisma.pessoas.findMany({
+            where: {
+              id_condominio: idCondominio,
+              face_id: { not: null },
+              AND: [pessoaTipoWhere],
+            },
+            select: { id: true, face_id: true },
+          })
+        : Promise.resolve([] as { id: number; face_id: string | null }[]),
     ]);
 
-    const total = moradores.length + visitantes.length + prestadores.length;
+    const total =
+      moradores.length + visitantes.length + prestadores.length + pessoas.length;
     if (total === 0) return { total: 0, started: false };
 
     this.bulkSyncEmAndamento.add(idCondominio);
@@ -3285,6 +3305,45 @@ export class FacialService {
             this.logger.warn(`Bulk unsync prestador ${p.id}: ${e?.message ?? e}`);
           }
         }
+        for (const pes of pessoas) {
+          try {
+            const removedOk = await this.unsyncPessoa(pes.id, pes.face_id, idCondominio, {
+              deviceIds,
+            });
+            if (!removedOk) {
+              // Mesma regra de syncPessoa: a remoção não chegou a todos os
+              // terminais — zerar o face_id aqui faria a nuvem achar que já
+              // revogou enquanto o rosto segue ativo no aparelho. Mantém o
+              // face_id + 'pending' pro reconnect/varredura tentar de novo.
+              await this.prisma.pessoas.update({
+                where: { id: pes.id },
+                data: { face_sync_status: 'pending' },
+              });
+              falhou++;
+              continue;
+            }
+            if (opts.keepFaceId) {
+              await this.prisma.pessoas.update({
+                where: { id: pes.id },
+                data: { face_sync_status: 'pending' },
+              });
+            } else {
+              await this.prisma.pessoas.update({
+                where: { id: pes.id },
+                data: {
+                  face_id: null,
+                  face_sync_status: null,
+                  face_sync_error: null,
+                  face_enrolled_at: null,
+                },
+              });
+            }
+            ok++;
+          } catch (e: any) {
+            falhou++;
+            this.logger.warn(`Bulk unsync pessoa ${pes.id}: ${e?.message ?? e}`);
+          }
+        }
         this.logger.log(
           `Bulk unsync condomínio ${idCondominio}: ${ok} ok, ${falhou} falha(s) de ${total}`,
         );
@@ -3294,6 +3353,39 @@ export class FacialService {
     })();
 
     return { total, started: true };
+  }
+
+  /**
+   * Parte "Pessoas" dos ticks de autorização (só com a flag ligada): dispara
+   * `syncPessoa` — que recalcula pela janela/dia das visitas e envia ou
+   * remove o rosto — e loga ok/skip/falha no mesmo formato dos blocos de
+   * visitantes. `{ ok: false }` (ex.: remoção pendente no aparelho) conta
+   * como falha: o rosto que devia sair continua lá.
+   */
+  private sincronizarPessoasDoTick(tick: string, ids: number[], rotuloOk: string) {
+    const unicos = [...new Set(ids)];
+    if (unicos.length === 0) return;
+    let ok = 0;
+    let skipped = 0;
+    let falhou = 0;
+    const syncs = unicos.map((id) =>
+      this.syncPessoa(id)
+        .then((r: any) => {
+          // 'inactive' = nada foi enviado ao aparelho: não é sincronizado.
+          if (r?.skipped || r?.syncState === 'inactive') skipped++;
+          else if (r?.ok === false) falhou++;
+          else ok++;
+        })
+        .catch((e: any) => {
+          falhou++;
+          this.logger.warn(`${tick} pessoa ${id}: ${e?.message ?? e}`);
+        }),
+    );
+    void Promise.allSettled(syncs).then(() => {
+      this.logger.log(
+        `${tick} pessoas: ${ok} ${rotuloOk}, ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${unicos.length}`,
+      );
+    });
   }
 
   /**
@@ -3316,8 +3408,8 @@ export class FacialService {
       });
       // Important 4 (Lote B): `syncVisitante`, com a flag ligada, resolve
       // contra `Visitas` (não `Visitantes`) e devolve `{ skipped: true }` em
-      // vez de sincronizar — este tick não foi migrado (fora de escopo
-      // aqui). Sem contar `skipped` à parte, um log de sucesso mentiria
+      // vez de sincronizar — a modelagem nova é coberta pelo bloco de Pessoas
+      // logo abaixo. Sem contar `skipped` à parte, um log de sucesso mentiria
       // sobre quantos rostos de fato foram re-sincronizados na virada do dia.
       let visOk = 0;
       let visSkipped = 0;
@@ -3342,6 +3434,37 @@ export class FacialService {
             `tickDiasSemanaSync visitantes: ${visOk} sincronizado(s), ${visSkipped} ignorado(s) (skip), ${visFalhou} falha(s) de ${comDias.length}`,
           );
         });
+      }
+
+      // Modelagem nova: a restrição mora em `Visitas.dias_semana`. Reavaliar na
+      // virada reestende o teto de fim-de-dia (`fimDoDiaBRT`) — sem isso a
+      // pessoa fica trancada fora depois da meia-noite mesmo num dia autorizado.
+      // Só visitas ainda vigentes: revogados entram (reenrolam no dia
+      // permitido), mas quem só tem visitas encerradas não é reavaliado toda
+      // noite para sempre. Try próprio: falha aqui não pode pular prestadores.
+      if (pessoasMigrationEnabled(this.prisma)) {
+        try {
+          const agora = new Date();
+          const pessoasComDias = await this.prisma.pessoas.findMany({
+            where: {
+              OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
+              visitas: {
+                some: {
+                  dias_semana: { not: null },
+                  OR: [{ data_hora_termino: null }, { data_hora_termino: { gte: agora } }],
+                },
+              },
+            },
+            select: { id: true },
+          });
+          this.sincronizarPessoasDoTick(
+            'tickDiasSemanaSync',
+            pessoasComDias.map((p: any) => p.id),
+            'sincronizado(s)',
+          );
+        } catch (e: any) {
+          this.logger.warn(`tickDiasSemanaSync pessoas erro: ${e?.message ?? e}`);
+        }
       }
 
       // Prestadores de serviço (Gestão de Acesso) também têm restrição por dia.
@@ -3383,9 +3506,9 @@ export class FacialService {
       });
       // Important 4 (Lote B): mesma ressalva de `tickDiasSemanaSync` — com a
       // flag ligada `syncVisitante` devolve `{ skipped: true }` em vez de
-      // sincronizar (este tick não foi migrado, fora de escopo aqui). Conta
-      // skip à parte pra não afirmar "processados" como se tivessem sido
-      // de fato re-sincronizados no aparelho.
+      // sincronizar (Pessoas é coberta no bloco abaixo). Conta skip à parte
+      // pra não afirmar "processados" como se tivessem sido de fato
+      // re-sincronizados no aparelho.
       let ok = 0;
       let skipped = 0;
       let falhou = 0;
@@ -3416,6 +3539,44 @@ export class FacialService {
           );
         });
       }
+
+      // Modelagem nova: `syncPessoa` olha TODAS as visitas da pessoa e só
+      // remove o rosto quando nenhuma autoriza (janela/dia) e ela não está
+      // dentro. Diferente do caminho legado, aqui NÃO se zera
+      // `Visitas.liberado`: quem ainda está dentro com a visita vencida
+      // perderia o rosto também no leitor de saída.
+      // Revogados mantêm face_id (só o status vira 'revoked'): sem excluí-los
+      // e sem limitar a visitas que venceram há pouco, todo visitante antigo
+      // receberia remoção (ou re-push) em todo aparelho a cada tick.
+      if (pessoasMigrationEnabled(this.prisma)) {
+        // Tick roda a cada 15 min; 2h tolera reinícios. Sobras mais antigas
+        // ficam com o validTo do aparelho e o retry de pendentes do tickSyncRetry.
+        const JANELA_EXPIRACAO_PESSOAS_MS = 2 * 60 * 60 * 1000;
+        const pessoasExpiradas = await this.prisma.pessoas.findMany({
+          where: {
+            AND: [
+              { face_id: { not: null } },
+              { OR: [{ face_sync_status: null }, { face_sync_status: { not: 'revoked' } }] },
+              {
+                visitas: {
+                  some: {
+                    data_hora_termino: {
+                      gte: new Date(agora.getTime() - JANELA_EXPIRACAO_PESSOAS_MS),
+                      lt: agora,
+                    },
+                  },
+                },
+              },
+            ],
+          },
+          select: { id: true },
+        });
+        this.sincronizarPessoasDoTick(
+          'tickExpiracaoAutomatica',
+          pessoasExpiradas.map((p: any) => p.id),
+          'sincronizado(s)',
+        );
+      }
     } catch (e: any) {
       this.logger.warn(`tickExpiracaoAutomatica erro: ${e?.message ?? e}`);
     }
@@ -3445,9 +3606,9 @@ export class FacialService {
       });
       // Important 4 (Lote B): mesma ressalva das duas ticks acima —
       // `syncVisitante` com a flag ligada devolve `{ skipped: true }` em vez
-      // de pré-enrolar de fato (tick não migrado, fora de escopo aqui). O
-      // log antigo ("N pré-enrolados") afirmava sucesso mesmo quando nada
-      // foi enviado ao aparelho.
+      // de pré-enrolar de fato (Pessoas é coberta no bloco abaixo). O log
+      // antigo ("N pré-enrolados") afirmava sucesso mesmo quando nada foi
+      // enviado ao aparelho.
       let ok = 0;
       let skipped = 0;
       let falhou = 0;
@@ -3472,10 +3633,45 @@ export class FacialService {
           );
         });
       }
+
+      if (pessoasMigrationEnabled(this.prisma)) {
+        const pessoasPrestes = await this.prisma.pessoas.findMany({
+          where: {
+            foto_pessoa: { not: null },
+            // Revogado mantém face_id: sem o 'revoked', o visitante que volta
+            // nunca seria pré-enrolado.
+            OR: [{ face_id: null }, { face_sync_status: 'revoked' }],
+            visitas: {
+              some: { liberado: 1, data_hora_inicio: { gte: agora, lte: em30min } },
+            },
+          },
+          select: { id: true },
+        });
+        this.sincronizarPessoasDoTick(
+          'tickPreEnrolamento',
+          pessoasPrestes.map((p: any) => p.id),
+          'pré-enrolado(s)',
+        );
+      }
     } catch (e: any) {
       this.logger.warn(`tickPreEnrolamento erro: ${e?.message ?? e}`);
     }
   }
+
+  /**
+   * Resultado da última varredura POR CONDOMÍNIO (efêmero — mesmo padrão do
+   * AgentBridgeService, zera ao reiniciar). Um timestamp global dizia "varrido
+   * há 16 min" mesmo quando o único terminal do condomínio estava offline e
+   * nada foi de fato verificado — falsa tranquilidade para o síndico.
+   */
+  private fantasmasPorCondominio = new Map<
+    number,
+    {
+      terminouEm: Date;
+      terminaisVarridos: number;
+      terminaisComFalha: { id: number; nome: string; erro: string }[];
+    }
+  >();
 
   /**
    * Varredura de fantasmas biométricos (de hora em hora): lista UserIDs no
@@ -3487,12 +3683,15 @@ export class FacialService {
    * o re-sync normal nunca mais o alcança). Roda de hora em hora (não só às 3h)
    * para fechar a janela de ~24h em que o fantasma continuava abrindo.
    */
-  /** Timestamp da última execução do tick (efêmero — mesmo padrão do AgentBridgeService, zera ao reiniciar). */
-  private lastFantasmasRunAt: Date | null = null;
-
   private async tickFantasmas() {
     if (!this.prisma.isConnected) return;
-    this.lastFantasmasRunAt = new Date();
+    const resultado = new Map<
+      number,
+      {
+        terminaisVarridos: number;
+        terminaisComFalha: { id: number; nome: string; erro: string }[];
+      }
+    >();
 
     try {
       // Toda marca capaz de LISTAR pessoas no aparelho entra na varredura —
@@ -3508,10 +3707,20 @@ export class FacialService {
       });
 
       for (const device of devices) {
+        let res = resultado.get(device.id_condominio);
+        if (!res) {
+          res = { terminaisVarridos: 0, terminaisComFalha: [] };
+          resultado.set(device.id_condominio, res);
+        }
+        let varrido = false;
         try {
           const config = this.toConfig(device);
           const idsNoAparelho = await this.client.listUserIds(config);
-          if (idsNoAparelho.length === 0) continue;
+          if (idsNoAparelho.length === 0) {
+            // Lista vazia: nada a remover, o aparelho respondeu — conta como varrido.
+            res.terminaisVarridos++;
+            continue;
+          }
 
           const [
             visitantesNoBanco,
@@ -3562,9 +3771,14 @@ export class FacialService {
           ]);
 
           const fantasmas = idsNoAparelho.filter((id) => !idsNoBanco.has(id));
-          if (fantasmas.length === 0) continue;
+          if (fantasmas.length === 0) {
+            res.terminaisVarridos++;
+            continue;
+          }
 
           await this.client.removeUsers(config, fantasmas);
+          varrido = true;
+          res.terminaisVarridos++;
           this.logger.log(
             `tickFantasmas device ${device.id}: ${fantasmas.length} fantasma(s) removido(s) — ${fantasmas.join(', ')}`,
           );
@@ -3584,6 +3798,25 @@ export class FacialService {
           this.logger.warn(
             `tickFantasmas device ${device.id}: ${e?.message ?? e}`,
           );
+          // Falha na auditoria depois da remoção não invalida a varredura.
+          if (!varrido) {
+            res.terminaisComFalha.push({
+              id: device.id,
+              nome: device.nome,
+              erro: String(e?.message ?? e).slice(0, 200),
+            });
+          }
+        }
+      }
+      const terminouEm = new Date();
+      for (const [idCondominio, r] of resultado) {
+        this.fantasmasPorCondominio.set(idCondominio, { terminouEm, ...r });
+      }
+      // O findMany respondeu: condomínio sem terminal listável nesta rodada
+      // (terminal removido/desativado) não pode manter alerta antigo para sempre.
+      for (const idCondominio of [...this.fantasmasPorCondominio.keys()]) {
+        if (!resultado.has(idCondominio)) {
+          this.fantasmasPorCondominio.delete(idCondominio);
         }
       }
     } catch (e: any) {

@@ -28,7 +28,7 @@ describe('FacialController.agentConfig — API_URL gravado no instalador', () =>
       },
     };
     const res = { setHeader: jest.fn(), send: jest.fn() };
-    const operador = { sub: 1, nome: 'QA_SECURITY_20260923', id_condominio: 7 };
+    const operador = { sub: 1, nome: 'QA_SECURITY_20260923', id_condominio: 7, typeAccess: 'Sindico' };
     await controller.agentConfig(7, operador as any, req as any, res as any, format);
     return service.getAgentConfigFile.mock.calls[0][1];
   }

@@ -67,6 +67,11 @@ export class WhatsappCrmController {
     return this.inbox.iniciarConversa(leadId);
   }
 
+  @Post('contatos')
+  novoContato(@Body() body: { nome?: string; telefone?: string; condominio?: string }) {
+    return this.inbox.novoContato(body ?? {});
+  }
+
   @Get('automacoes')
   automacoes() { return this.config.automacoes(); }
 

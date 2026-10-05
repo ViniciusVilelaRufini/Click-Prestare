@@ -42,6 +42,10 @@ export class CrmWhatsappComponent implements OnInit {
   respostas = signal<Resposta[]>([]);
   menuRespostas = signal(false);
   configAberta = signal(false);
+  novoAberto = signal(false);
+  novo = { nome: '', telefone: '', condominio: '' };
+  criandoContato = signal(false);
+  erroNovo = signal<string | null>(null);
   /** Texto atual do campo como sinal, para filtrar as respostas ao digitar "/". */
   digitado = signal('');
   sugestoes = computed(() => {
@@ -312,6 +316,39 @@ export class CrmWhatsappComponent implements OnInit {
       error: (e) => {
         this.erro.set(e?.error?.message ?? 'Falha ao enviar.');
         this.enviando.set(false);
+      },
+    });
+  }
+
+  abrirNovoContato() {
+    this.novo = { nome: '', telefone: '', condominio: '' };
+    this.erroNovo.set(null);
+    this.novoAberto.set(true);
+  }
+
+  /** Cria o contato e abre a conversa; fora da janela de 24h o backend manda o modelo de primeiro contato. */
+  criarContato() {
+    const nome = this.novo.nome.trim();
+    const telefone = this.novo.telefone.trim();
+    if (!nome || !telefone || this.criandoContato()) return;
+    this.criandoContato.set(true);
+    this.erroNovo.set(null);
+    this.api.novoContato({ nome, telefone, condominio: this.novo.condominio.trim() || undefined }).subscribe({
+      next: (r) => {
+        this.criandoContato.set(false);
+        this.novoAberto.set(false);
+        this.api.conversas().subscribe({
+          next: (cs) => {
+            this.conversas.set(cs);
+            const conv = cs.find((c) => c.id === r.conversaId);
+            if (conv) this.abrir(conv);
+            if (r.mensagem?.status === 'falhou') this.erro.set(`Modelo de primeiro contato não enviado: ${r.mensagem.erro}`);
+          },
+        });
+      },
+      error: (e) => {
+        this.criandoContato.set(false);
+        this.erroNovo.set(e?.error?.message ?? 'Falha ao criar o contato.');
       },
     });
   }

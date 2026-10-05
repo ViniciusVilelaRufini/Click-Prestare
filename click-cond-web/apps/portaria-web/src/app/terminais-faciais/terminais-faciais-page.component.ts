@@ -309,7 +309,17 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   loadHealth() {
     this.api.health().subscribe({
-      next: (h) => this.health.set(h),
+      // A API antiga (Elastic Beanstalk) pode responder antes de o novo front
+      // (Amplify) ser publicado, ou o inverso: tolera a falta dos campos novos.
+      next: (h) =>
+        this.health.set({
+          ...h,
+          fantasmas: {
+            ...h.fantasmas,
+            terminaisComFalha: h.fantasmas?.terminaisComFalha ?? [],
+            terminaisVarridos: h.fantasmas?.terminaisVarridos ?? 0,
+          },
+        }),
       error: () => {},
     });
   }

@@ -2,6 +2,7 @@ import { Component, inject, computed, Output, EventEmitter } from '@angular/core
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
+import { ehPorteiro } from '../auth/papel';
 import { ThemeService } from '../shared/theme.service';
 
 interface NavItem {
@@ -28,11 +29,7 @@ export class SidebarComponent {
   readonly isLight = this.theme.isLight;
   @Output() linkClicked = new EventEmitter<void>();
 
-  readonly isPorteiro = computed(() => {
-    const info = this.auth.porteiroInfo();
-    if (!info) return false;
-    return !!info.turno && info.turno !== 'Síndico';
-  });
+  readonly isPorteiro = computed(() => ehPorteiro(this.auth.porteiroInfo()));
 
   toggleTheme() {
     this.theme.toggleTheme();

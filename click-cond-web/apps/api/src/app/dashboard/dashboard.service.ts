@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial-visitante-lookup.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
+import { formatarApto } from '../common/formatar-apto.util';
 
 export interface DashboardSummary {
   visitantesAtivos: number;
@@ -435,7 +436,7 @@ export class DashboardService {
     for (const v of entradasVisitantesFlat) {
       if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada, (v as any).pessoa?.id)) continue;
       const aptoStr = v.apartamento
-        ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
+        ? formatarApto(v.apartamento.apto, v.apartamento.bloco)
         : '';
       const dataEvento = v.data_entrada || v.created_at;
       ultimosEventos.push({
@@ -467,7 +468,7 @@ export class DashboardService {
       if (!v.data_saida) continue;
       if (isDuplicadoFacial(v.id, 'saida', v.data_saida, (v as any).pessoa?.id)) continue;
       const aptoStr = v.apartamento
-        ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
+        ? formatarApto(v.apartamento.apto, v.apartamento.bloco)
         : '';
       ultimosEventos.push({
         tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
@@ -494,7 +495,7 @@ export class DashboardService {
     }
 
     for (const e of ultEncomendas) {
-      const aptoStr = `Apto ${e.destinatario_apto}${e.destinatario_bloco ?? ''}`;
+      const aptoStr = formatarApto(e.destinatario_apto, e.destinatario_bloco);
       ultimosEventos.push({
         tipo: 'Encomenda',
         descricao: `${e.descricao} — ${aptoStr}`,
@@ -646,7 +647,7 @@ export class DashboardService {
           const m = moradorById.get(a.id_pessoa);
           foto = m?.foto_pessoa ?? m?.user?.photo ?? undefined;
           if (m?.bloco || m?.apartamento) {
-            aptoStr = `Apto ${m?.apartamento ?? ''}${m?.bloco ?? ''}`.trim();
+            aptoStr = formatarApto(m?.apartamento, m?.bloco);
           }
         } else if ((a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') && a.id_pessoa !== null) {
           const v = visitanteById.get(a.id_pessoa);
@@ -656,13 +657,13 @@ export class DashboardService {
             tipoPessoaAtual = v.tipo_pessoa;
           }
           if (v?.apartamento) {
-            aptoStr = `Apto ${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim();
+            aptoStr = formatarApto(v.apartamento.apto, v.apartamento.bloco);
           }
         } else if (a.tipo_pessoa === 'funcionario' && a.id_pessoa !== null) {
           const f = funcionarioById.get(a.id_pessoa);
           foto = f?.foto_pessoa ?? undefined;
           if (f?.apartamento) {
-            aptoStr = `Apto ${f.apartamento.apto ?? ''}${f.apartamento.bloco ?? ''}`.trim();
+            aptoStr = formatarApto(f.apartamento.apto, f.apartamento.bloco);
           }
         }
 

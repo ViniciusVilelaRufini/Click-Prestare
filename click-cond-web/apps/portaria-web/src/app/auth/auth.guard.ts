@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from './auth.service';
+import { ehPorteiro, ROTAS_SO_SINDICO } from './papel';
 
 export const authGuard: CanActivateFn = (route, state) => {
   const auth = inject(AuthService);
@@ -9,14 +10,10 @@ export const authGuard: CanActivateFn = (route, state) => {
     return false;
   }
 
-  const info = auth.porteiroInfo();
-  const isPorter = !!info?.turno && info.turno !== 'Síndico';
-
-  if (isPorter) {
+  if (ehPorteiro(auth.porteiroInfo())) {
     const path = route.routeConfig?.path || '';
     const url = (state.url || '').toLowerCase();
-    const rotasRestritas = ['financeiro', 'relatorios', 'configuracoes'];
-    const ehRotaRestrita = rotasRestritas.includes(path) || rotasRestritas.some((r) => url.includes(`/${r}`));
+    const ehRotaRestrita = ROTAS_SO_SINDICO.includes(path) || ROTAS_SO_SINDICO.some((r) => url.includes(`/${r}`));
 
     if (ehRotaRestrita) {
       inject(Router).navigate(['/dashboard']);

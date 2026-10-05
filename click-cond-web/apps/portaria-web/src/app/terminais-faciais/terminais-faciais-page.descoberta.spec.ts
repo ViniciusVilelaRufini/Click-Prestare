@@ -14,7 +14,7 @@ function build(extra: Record<string, unknown> = {}) {
     syncStatus: jest.fn(() => of({ synced: 0, pending: 0, error: 0, semFoto: 0, running: false })),
     agentInfo: jest.fn(() => of({ agent_token: 't', download_url: null })),
     agentSaude: jest.fn(() => of(null)),
-    health: jest.fn(() => of({ terminais: { total: 0, offline: [], semReporteRecente: [] }, agente: { online: true, lastSeenAt: null }, fantasmas: { ultimaVarreduraEm: null, removidosHoje: 0, eventosHoje: [] } })),
+    health: jest.fn(() => of({ terminais: { total: 0, offline: [], semReporteRecente: [] }, agente: { online: true, lastSeenAt: null }, fantasmas: { ultimaVarreduraEm: null, terminaisVarridos: 0, terminaisComFalha: [], removidosHoje: 0, eventosHoje: [] } })),
     descobertos: jest.fn(() => of({ recebido_em: new Date().toISOString(), achados: [achadoIntelbras, achadoCid], avisos: [{ id_dispositivo: 4, nome: 'facial principal', de: '192.168.3.50', para: '192.168.3.99', em: new Date().toISOString() }] })),
     procurarDescobertos: jest.fn(() => of({ ok: true })),
     ...extra,

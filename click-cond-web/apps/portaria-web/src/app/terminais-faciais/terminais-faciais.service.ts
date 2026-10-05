@@ -118,6 +118,8 @@ export interface FacialHealth {
   };
   fantasmas: {
     ultimaVarreduraEm: string | null;
+    terminaisVarridos: number;
+    terminaisComFalha: { id: number; nome: string; erro: string }[];
     removidosHoje: number;
     eventosHoje: { em: string; descricao: string }[];
   };

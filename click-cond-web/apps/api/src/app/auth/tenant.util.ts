@@ -135,11 +135,36 @@ export function isOperador(user: JwtPayload | undefined): boolean {
  * e editar perfil/assinatura do condomínio (nome, endereço, moeda,
  * vencimento). Sem essa distinção, um porteiro comprometido poderia criar
  * outro porteiro ou mexer na assinatura do condomínio.
+ *
+ * Confia no `turno` (texto livre): para qualquer coisa que toque acesso físico
+ * ou segredos, use `assertSindicoEstrito`.
  */
 export function assertSindico(user: JwtPayload | undefined, contexto = 'ação'): void {
   const tipo = user?.typeAccess ?? user?.user?.typeAccess;
   const turno = user?.turno;
   if (tipo !== 'Sindico' && turno !== 'Síndico') {
+    throw new ForbiddenException(`Acesso negado: ${contexto} exige síndico.`);
+  }
+}
+
+/**
+ * Exige síndico olhando SÓ o `typeAccess` do token (sem diferenciar caixa).
+ *
+ * Diferente de assertSindico, não aceita `turno === 'Síndico'` como prova: o
+ * turno do porteiro é texto livre em Funcionarios_Portaria, e quem decide
+ * apagar terminal facial, girar token de webhook ou baixar o segredo do agente
+ * não pode depender dele. O typeAccess do console é carimbado a partir do banco
+ * no login (montarSessaoPortaria / QR), então é a fonte confiável do papel.
+ *
+ * Use junto de assertTenantStrict, nunca no lugar dele.
+ */
+export function isSindicoEstrito(user: JwtPayload | undefined): boolean {
+  const tipo = (user?.typeAccess ?? user?.user?.typeAccess ?? '').toString().toLowerCase();
+  return tipo === 'sindico';
+}
+
+export function assertSindicoEstrito(user: JwtPayload | undefined, contexto = 'ação'): void {
+  if (!isSindicoEstrito(user)) {
     throw new ForbiddenException(`Acesso negado: ${contexto} exige síndico.`);
   }
 }
