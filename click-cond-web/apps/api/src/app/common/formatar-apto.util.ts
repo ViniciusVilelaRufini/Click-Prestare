@@ -2,14 +2,15 @@
  * Formata o rótulo de apartamento e bloco para exibição no dashboard.
  * Casos:
  * - Sem bloco: "Apto 108"
- * - Bloco começando com "bloco" (case-insensitive): mantém como-está; bloco curto ou sem "Bloco" recebe prefixo
+ * - Bloco começando com "bloco" (case-insensitive, word boundary): mantém como-está
  * - Bloco curto (letra simples, ex. "A"): "Bloco A"
  * - Ambos vazios/nulos: string vazia
  * - Apto vazio, bloco preenchido: prefixado com "Bloco " se necessário (ex. "A" → "Bloco A")
  *
  * Regra de prefixação do bloco:
- * - Se não começa com "bloco" (case-insensitive), adiciona prefixo "Bloco "
- * - Se já começa com "bloco" em qualquer caso, não duplica prefixo
+ * - Usa /^bloco\b/i para verificar se começa com "bloco" (word boundary, case-insensitive)
+ * - Se match, não duplica prefixo (ex. "Bloco A", "BLOCO A", "bloco A" permanecem)
+ * - Se não match, adiciona prefixo "Bloco " (ex. "A" → "Bloco A", "Blocos" → "Bloco Blocos")
  *
  * Sempre usa " · " (middle dot com espaços) como separador.
  */
@@ -28,7 +29,7 @@ export function formatarApto(apto: string | null | undefined, bloco: string | nu
   }
 
   // Normaliza o bloco com prefixo "Bloco " se necessário
-  const blocoPrefixado = blocoTrimmed.toLowerCase().startsWith('bloco')
+  const blocoPrefixado = /^bloco\b/i.test(blocoTrimmed)
     ? blocoTrimmed
     : `Bloco ${blocoTrimmed}`;
 

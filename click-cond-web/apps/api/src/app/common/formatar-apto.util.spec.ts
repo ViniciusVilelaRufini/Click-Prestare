@@ -39,4 +39,9 @@ describe('formatarApto', () => {
     expect(formatarApto('  108  ', '  Bloco A  ')).toBe('Apto 108 · Bloco A');
     expect(formatarApto('  108  ', '  A  ')).toBe('Apto 108 · Bloco A');
   });
+
+  it('should use word-boundary check: "Bloco" matches, "Blocos" does not', () => {
+    expect(formatarApto('108', 'Blocos')).toBe('Apto 108 · Bloco Blocos');
+    expect(formatarApto('108', 'Bloco')).toBe('Apto 108 · Bloco');
+  });
 });
