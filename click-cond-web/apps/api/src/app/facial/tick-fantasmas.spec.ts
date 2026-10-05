@@ -311,5 +311,22 @@ describe('FacialService — varredura de fantasmas', () => {
       expect(c2.terminaisComFalha.map((t: any) => t.nome)).toEqual(['Garagem']);
       expect(c3.ultimaVarreduraEm).toBeNull();
     });
+
+    it('condomínio que deixou de ter terminal listável perde o alerta antigo', async () => {
+      const { svc, prisma, client } = build({
+        devices: [{ ...DEVICE('intelbras'), id: 2, id_condominio: 2, nome: 'Garagem' }],
+        idsNoAparelho: [],
+      });
+      client.listUserIds.mockRejectedValue(new Error('offline'));
+      await varrer(svc);
+      expect((await resumo(svc, prisma, 2)).terminaisComFalha).toHaveLength(1);
+
+      // terminal removido/desativado: o findMany volta sem ele
+      prisma.facial_Devices.findMany.mockResolvedValue([]);
+      await varrer(svc);
+      const f = await resumo(svc, prisma, 2);
+      expect(f.terminaisComFalha).toEqual([]);
+      expect(f.ultimaVarreduraEm).toBeNull();
+    });
   });
 });

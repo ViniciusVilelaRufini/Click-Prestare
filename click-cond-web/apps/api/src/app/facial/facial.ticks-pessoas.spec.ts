@@ -234,6 +234,16 @@ describe('FacialService — ticks cobrem Pessoas', () => {
       );
     });
 
+    it('syncState inactive (nada enviado) conta como skip, não como sincronizado', async () => {
+      const { svc, syncPessoa } = build(pessoas);
+      syncPessoa.mockResolvedValueOnce({ ok: true, syncState: 'inactive' } as any);
+      await svc.tickDiasSemanaSync();
+      await assentar();
+      expect((svc as any).logger.log).toHaveBeenCalledWith(
+        expect.stringContaining('tickDiasSemanaSync pessoas: 2 sincronizado(s), 1 ignorado(s) (skip), 0 falha(s) de 3'),
+      );
+    });
+
     it('fora da hora 0 BRT não faz nada', async () => {
       jest.setSystemTime(new Date('2026-10-05T15:00:00Z'));
       const { svc, prisma, syncPessoa } = build(pessoas);

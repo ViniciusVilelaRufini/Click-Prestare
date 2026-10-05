@@ -3371,7 +3371,8 @@ export class FacialService {
     const syncs = unicos.map((id) =>
       this.syncPessoa(id)
         .then((r: any) => {
-          if (r?.skipped) skipped++;
+          // 'inactive' = nada foi enviado ao aparelho: não é sincronizado.
+          if (r?.skipped || r?.syncState === 'inactive') skipped++;
           else if (r?.ok === false) falhou++;
           else ok++;
         })
@@ -3658,16 +3659,6 @@ export class FacialService {
   }
 
   /**
-   * Varredura de fantasmas biométricos (de hora em hora): lista UserIDs no
-   * terminal e compara com os face_ids das TRÊS fontes de pessoa no banco
-   * (moradores, visitantes e prestadores_servico). Remove qualquer biometria
-   * órfã — é a rede de segurança que garante que um rosto EXCLUÍDO pare de
-   * abrir a porta mesmo quando o unsync do delete não chegou ao aparelho
-   * (agente/terminal offline no instante do delete → registro some do banco e
-   * o re-sync normal nunca mais o alcança). Roda de hora em hora (não só às 3h)
-   * para fechar a janela de ~24h em que o fantasma continuava abrindo.
-   */
-  /**
    * Resultado da última varredura POR CONDOMÍNIO (efêmero — mesmo padrão do
    * AgentBridgeService, zera ao reiniciar). Um timestamp global dizia "varrido
    * há 16 min" mesmo quando o único terminal do condomínio estava offline e
@@ -3682,6 +3673,16 @@ export class FacialService {
     }
   >();
 
+  /**
+   * Varredura de fantasmas biométricos (de hora em hora): lista UserIDs no
+   * terminal e compara com os face_ids das TRÊS fontes de pessoa no banco
+   * (moradores, visitantes e prestadores_servico). Remove qualquer biometria
+   * órfã — é a rede de segurança que garante que um rosto EXCLUÍDO pare de
+   * abrir a porta mesmo quando o unsync do delete não chegou ao aparelho
+   * (agente/terminal offline no instante do delete → registro some do banco e
+   * o re-sync normal nunca mais o alcança). Roda de hora em hora (não só às 3h)
+   * para fechar a janela de ~24h em que o fantasma continuava abrindo.
+   */
   private async tickFantasmas() {
     if (!this.prisma.isConnected) return;
     const resultado = new Map<
@@ -3810,6 +3811,13 @@ export class FacialService {
       const terminouEm = new Date();
       for (const [idCondominio, r] of resultado) {
         this.fantasmasPorCondominio.set(idCondominio, { terminouEm, ...r });
+      }
+      // O findMany respondeu: condomínio sem terminal listável nesta rodada
+      // (terminal removido/desativado) não pode manter alerta antigo para sempre.
+      for (const idCondominio of [...this.fantasmasPorCondominio.keys()]) {
+        if (!resultado.has(idCondominio)) {
+          this.fantasmasPorCondominio.delete(idCondominio);
+        }
       }
     } catch (e: any) {
       this.logger.warn(`tickFantasmas erro: ${e?.message ?? e}`);
