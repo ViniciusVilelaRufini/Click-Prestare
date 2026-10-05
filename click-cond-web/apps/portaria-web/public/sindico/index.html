@@ -18,6 +18,10 @@
   <meta name="twitter:title" content="Prestare Gestão para síndicos | Mais controle, menos rotina">
   <meta name="twitter:description" content="Gestão do condomínio sem consumir o seu dia.">
   <meta name="twitter:image" content="https://www.prestarecondominios.com.br/sobre/assets/og-prestare-gestao.png">
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18476913499"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','AW-18476913499');</script>
+  <script>!function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");oaiq("init",{pixelId:"17H2XPR4dY5HHBNUs9L5ha"});</script>
+  <script>(function(){try{var q=new URLSearchParams(location.search);var chaves=['gclid','oppref','utm_source','utm_medium','utm_campaign','campaign_id','ad_group_id','ad_id'];var salvo=JSON.parse(sessionStorage.getItem('psOrigem')||'{}');chaves.forEach(function(k){if(q.get(k))salvo[k]=q.get(k)});sessionStorage.setItem('psOrigem',JSON.stringify(salvo))}catch(e){}})();</script>
   <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/fonts.css">
   <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/colors.css">
   <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/typography.css">
@@ -30,6 +34,18 @@
   <style>
     html { scroll-behavior: smooth; }
     body { margin: 0; background: var(--surface-app); color: var(--text-body); font: var(--type-body); -webkit-font-smoothing: antialiased; }
+    .ps-site-header { position: sticky; top: 0; z-index: 20; background: rgba(247,248,250,.94); backdrop-filter: blur(18px); border-bottom: 1px solid var(--border-row); }
+    .ps-header-inner { max-width: 1440px; margin: auto; padding: 14px 24px; display: flex; align-items: center; gap: 24px; }
+    .ps-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--prestare-blue-900); font-weight: 800; text-decoration: none; }
+    .ps-brand img { width: 36px; height: 36px; border-radius: 9px; }
+    .ps-nav { display: flex; align-items: center; gap: 20px; margin-left: auto; }
+    .ps-nav a, .ps-mobile-nav a { color: var(--text-muted); text-decoration: none; }
+    .ps-mobile-menu { display: none; margin-left: auto; }
+    .ps-mobile-menu summary { cursor: pointer; font-weight: 700; }
+    .ps-mobile-nav { position: absolute; left: 16px; right: 16px; top: 64px; display: grid; gap: 14px; padding: 20px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: var(--shadow-row); }
+    .ps-footer { background: var(--prestare-blue-900); color: var(--text-on-brand-muted); }
+    .ps-footer-inner { max-width: 1440px; margin: auto; padding: 44px 24px; display: flex; justify-content: space-between; gap: 30px; flex-wrap: wrap; }
+    .ps-footer a { color: var(--text-on-brand-muted); }
     .sindico-page *, .sindico-page *::before, .sindico-page *::after { box-sizing: border-box; }
     .sindico-page { overflow: hidden; }
     .sindico-page section { scroll-margin-top: 24px; }
@@ -46,7 +62,8 @@
     .sindico-page .sindico-button:hover { background: var(--prestare-blue-700); color: var(--text-on-brand); }
     .sindico-page .sindico-button:focus-visible, .sindico-page input:focus-visible { outline: 3px solid var(--prestare-blue-400); outline-offset: 3px; }
     .sindico-page .sindico-hero-card, .sindico-page .sindico-card { border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); box-shadow: var(--shadow-row); }
-    .sindico-page .sindico-hero-card { padding: 30px; border-color: var(--prestare-blue-200); }
+    .sindico-page .sindico-hero-card { padding: 12px; border-color: var(--prestare-blue-200); overflow: hidden; }
+    .sindico-page .sindico-hero-card img { display: block; width: 100%; height: auto; border-radius: var(--radius-md); }
     .sindico-page .sindico-hero-card strong { display: block; color: var(--prestare-blue-700); font-size: 38px; margin-bottom: 10px; }
     .sindico-page .sindico-alt { background: var(--prestare-blue-50); }
     .sindico-page .sindico-gains, .sindico-page .sindico-process-grid, .sindico-page .sindico-console-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -72,6 +89,8 @@
     .sindico-page .sindico-success { display: none; color: var(--prestare-blue-700); font-weight: 700; }
     .sindico-page .sindico-success.is-visible { display: block; }
     @media (max-width: 680px) {
+      .ps-nav { display: none; }
+      .ps-mobile-menu { display: block; }
       .sindico-page .sindico-hero,
       .sindico-page .sindico-comparison,
       .sindico-page .sindico-console-grid { grid-template-columns: 1fr; }
@@ -82,20 +101,35 @@
   </style>
 </head>
 <body>
+  <header class="ps-site-header">
+    <div class="ps-header-inner">
+      <a class="ps-brand" href="/sobre/"><img src="/sobre/assets/prestare-icon.png" alt="Prestare Gestão"><span>PRESTARE GESTÃO</span></a>
+      <nav class="ps-nav" aria-label="Navegação principal">
+        <a href="/sobre/#app">Para o morador</a>
+        <a href="/sindico/" aria-current="page">Para o síndico</a>
+        <a href="/sobre/#portaria-app">App do porteiro</a>
+        <a href="/sobre/#modulos">Módulos</a>
+        <a href="#orcamento">Pedir orçamento</a>
+      </nav>
+      <details class="ps-mobile-menu">
+        <summary aria-label="Abrir o menu">Menu</summary>
+        <nav class="ps-mobile-nav" aria-label="Navegação mobile">
+          <a href="/sobre/#app">Para o morador</a><a href="/sindico/">Para o síndico</a><a href="/sobre/#portaria-app">App do porteiro</a><a href="/sobre/#modulos">Módulos</a><a href="#orcamento">Pedir orçamento</a>
+        </nav>
+      </details>
+    </div>
+  </header>
   <main class="sindico-page">
-    <section aria-labelledby="sindico-title">
+    <section class="sindico-hero-wrap" aria-labelledby="sindico-title">
       <div class="sindico-shell sindico-hero">
         <div>
           <p class="sindico-kicker">Prestare Gestão para síndicos</p>
           <span id="sindico-title" hidden>Prestare Gestão para síndicos</span>
           <h1>Gestão do condomínio sem consumir o seu dia.</h1>
           <p class="sindico-lead">Acompanhe tudo pelo app e pelo sistema web, reduza tarefas repetitivas e tome decisões com informação em tempo real.</p>
-          <a class="sindico-button" href="#orcamento">Pedir orçamento para meu condomínio</a>
+          <a class="sindico-button" href="#orcamento">Pedir orçamento para meu condomínio <span aria-hidden="true">→</span></a>
         </div>
-        <aside class="sindico-hero-card" aria-label="Resumo da plataforma">
-          <strong>Uma operação conectada.</strong>
-          <p>Informações, aprovações e rotinas do condomínio reunidas em um só lugar para você decidir com segurança.</p>
-        </aside>
+        <figure class="sindico-hero-card"><img src="/sobre/assets/web-dashboard.png" alt="Console web da Prestare com a visão geral da operação do condomínio"></figure>
       </div>
     </section>
     <section class="sindico-alt" aria-label="Impactos na rotina">
@@ -149,35 +183,56 @@
       <div class="sindico-shell">
         <h2 id="orcamento-title">Seu tempo deve ir para decisões — não para tarefas repetitivas.</h2>
         <p>Conte um pouco sobre o seu condomínio. Vamos preparar a melhor conversa para sua rotina.</p>
-        <a class="sindico-button" href="#orcamento">Pedir orçamento para meu condomínio</a>
+        <a class="sindico-button" href="#orcamento">Pedir orçamento para meu condomínio <span aria-hidden="true">→</span></a>
         <form class="sindico-form" data-orcamento-form>
           <label>Seu nome<input name="nome" required autocomplete="name"></label>
           <label>Condomínio<input name="condominio" required></label>
           <label>WhatsApp com DDD<input name="contato" required inputmode="tel" autocomplete="tel"></label>
+          <label>Quantas unidades<input name="unidades" required inputmode="numeric" placeholder="Ex: 84 apartamentos"></label>
           <button class="sindico-button" type="submit">Enviar pedido</button>
           <p class="sindico-success" aria-live="polite">Pedido enviado. Vamos continuar pelo WhatsApp.</p>
         </form>
       </div>
     </section>
   </main>
+  <footer class="ps-footer"><div class="ps-footer-inner"><div><strong>Prestare Gestão</strong><p>O condomínio inteiro conectado.</p></div><nav aria-label="Links do rodapé"><a href="/sobre/#app">Para o morador</a> · <a href="/sindico/">Para o síndico</a> · <a href="/sobre/#baixar-app">Baixar app</a> · <a href="#orcamento">Pedir orçamento</a></nav></div></footer>
   <script>
     window.psEnviarPedido = function (pedido) {
       var form = pedido.form;
+      if (form.getAttribute('data-enviando') === 'true' || form.getAttribute('data-enviado') === 'true') return Promise.resolve(false);
       var dados = new FormData(form);
       var nome = String(dados.get('nome') || '').trim();
       var condominio = String(dados.get('condominio') || '').trim();
       var contato = String(dados.get('contato') || '').trim();
+      var unidades = String(dados.get('unidades') || '').trim();
       var digitos = contato.replace(/\D/g, '');
-      if (!nome || !condominio || !contato || digitos.length < 10 || digitos.length > 13) return Promise.resolve(false);
+      var invalidos = [];
+      ['nome', 'condominio', 'contato', 'unidades'].forEach(function (campo) {
+        var el = form.elements.namedItem(campo);
+        if (el && typeof el.setCustomValidity === 'function') el.setCustomValidity('');
+        if (!String(dados.get(campo) || '').trim()) invalidos.push({ campo: campo, mensagem: 'Preencha este campo.' });
+      });
+      if (contato && (digitos.length < 10 || digitos.length > 13)) invalidos.push({ campo: 'contato', mensagem: 'Informe o WhatsApp com DDD.' });
+      if (invalidos.length) {
+        invalidos.forEach(function (invalido) { var el = form.elements.namedItem(invalido.campo); if (el) el.setCustomValidity(invalido.mensagem); });
+        if (typeof form.reportValidity === 'function') form.reportValidity();
+        var primeiro = form.elements.namedItem(invalidos[0].campo);
+        if (primeiro && typeof primeiro.focus === 'function') primeiro.focus();
+        return Promise.resolve(false);
+      }
+      form.setAttribute('data-enviando', 'true');
+      var origem = {};
+      try { origem = JSON.parse(sessionStorage.getItem('psOrigem') || '{}'); } catch (e) {}
       var api = location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.prestarecondominios.com.br';
       return fetch(api + '/api/public/leads', {
         method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: nome, condominio: condominio, whatsapp: contato, pagina: pedido.pagina })
+        body: JSON.stringify(Object.assign({}, { nome: nome, condominio: condominio, whatsapp: contato, unidades: unidades }, origem, { pagina: pedido.pagina }))
       }).then(function (resposta) {
         if (resposta && resposta.ok === false) return false;
-        window.open('https://wa.me/5517996608148?text=' + encodeURIComponent('Olá! Quero um orçamento para o condomínio ' + condominio + '.'), '_blank', 'noopener');
+        form.setAttribute('data-enviado', 'true');
+        window.open('https://wa.me/5517996608148?text=' + encodeURIComponent('Olá! Quero um orçamento para o condomínio ' + condominio + ', com ' + unidades + ' unidades.'), '_blank', 'noopener');
         return true;
-      }).catch(function () { return false; });
+      }).catch(function () { return false; }).then(function (ok) { form.removeAttribute('data-enviando'); return ok; });
     };
     var formulario = document.querySelector('[data-orcamento-form]');
     if (formulario) formulario.addEventListener('submit', function (event) {
