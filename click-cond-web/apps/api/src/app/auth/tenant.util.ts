@@ -145,6 +145,24 @@ export function assertSindico(user: JwtPayload | undefined, contexto = 'ação')
 }
 
 /**
+ * Exige síndico olhando SÓ o `typeAccess` do token (sem diferenciar caixa).
+ *
+ * Diferente de assertSindico, não aceita `turno === 'Síndico'` como prova: o
+ * turno do porteiro é texto livre em Funcionarios_Portaria, e quem decide
+ * apagar terminal facial, girar token de webhook ou baixar o segredo do agente
+ * não pode depender dele. O typeAccess do console é carimbado a partir do banco
+ * no login (montarSessaoPortaria / QR), então é a fonte confiável do papel.
+ *
+ * Use junto de assertTenantStrict, nunca no lugar dele.
+ */
+export function assertSindicoEstrito(user: JwtPayload | undefined, contexto = 'ação'): void {
+  const tipo = (user?.typeAccess ?? user?.user?.typeAccess ?? '').toString().toLowerCase();
+  if (tipo !== 'sindico') {
+    throw new ForbiddenException(`Acesso negado: ${contexto} exige síndico.`);
+  }
+}
+
+/**
  * Recusa QUALQUER escrita no financeiro do condomínio, para todo mundo.
  *
  * O financeiro do condomínio deixou de ser operado dentro do Clique: a taxa

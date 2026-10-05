@@ -25,7 +25,7 @@ import { MockRelayService } from './mock-relay.service';
 import { CategoriaPessoa } from './access-rules.util';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertOperador, assertTenantStrict, requireTenant } from '../auth/tenant.util';
+import { assertOperador, assertSindicoEstrito, assertTenantStrict, requireTenant } from '../auth/tenant.util';
 import { timingSafeEqual } from 'crypto';
 import { AgentBridgeService } from './agent-bridge.service';
 import { AgentVersionService, compararVersoesAgente } from './agent-version.service';
@@ -105,6 +105,7 @@ export class FacialController {
   @Post('devices')
   create(@Body() body: CreateDeviceDto, @ReqUser() user: JwtPayload) {
     assertTenantStrict(body.id_condominio, user, `criação de dispositivo`);
+    assertSindicoEstrito(user, 'criar terminal');
     return this.service.createDevice(body, user);
   }
 
@@ -116,6 +117,7 @@ export class FacialController {
   ) {
     const device = await this.service.getDevice(id);
     assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
+    assertSindicoEstrito(user, 'editar terminal');
     return this.service.updateDevice(id, body, user);
   }
 
@@ -126,6 +128,7 @@ export class FacialController {
   ) {
     const device = await this.service.getDevice(id);
     assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
+    assertSindicoEstrito(user, 'remover terminal');
     return this.service.removeDevice(id, user);
   }
 
@@ -142,6 +145,7 @@ export class FacialController {
   ) {
     const device = await this.service.getDevice(id);
     assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
+    assertSindicoEstrito(user, 'girar o token do terminal');
     return this.service.rotateWebhookToken(id, user);
   }
 
@@ -233,6 +237,7 @@ export class FacialController {
       user,
       `limpeza facial do condomínio ${idCondominio}`,
     );
+    assertSindicoEstrito(user, 'limpar rostos dos terminais');
     const cats = (categorias ?? '')
       .split(',')
       .map((c) => c.trim())
@@ -289,6 +294,7 @@ export class FacialController {
       user,
       `agente do condomínio ${idCondominio}`,
     );
+    assertSindicoEstrito(user, 'ver a chave do agente');
     return this.service.getAgentInfo(idCondominio);
   }
 
@@ -372,6 +378,7 @@ export class FacialController {
       user,
       `config do agente do condomínio ${idCondominio}`,
     );
+    assertSindicoEstrito(user, 'baixar a configuração do agente');
     // Endereço fixo, nunca derivado dos cabeçalhos: pela portaria-web
     // (Amplify) eles chegam como http + www, e o agente instalado com
     // http://www... recebe 301 e não fala com a nuvem.
