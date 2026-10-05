@@ -60,7 +60,7 @@
     .sindico-page .sindico-after h3, .sindico-page .sindico-after p { color: var(--text-on-brand); }
     .sindico-page .sindico-after p { color: var(--text-on-brand-muted); }
     .sindico-page .sindico-console-grid { grid-template-columns: repeat(2, 1fr); }
-    .sindico-page figure { margin: 0; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); }
+    .sindico-page figure { margin: 0; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); aspect-ratio: 16 / 10; }
     .sindico-page figure img { display: block; width: 100%; border-radius: var(--radius-md); }
     .sindico-page figcaption { padding: 12px 4px 0; color: var(--text-strong); font-weight: 700; }
     .sindico-page .sindico-closing { background: var(--prestare-blue-900); }
@@ -89,7 +89,7 @@
           <p class="sindico-kicker">Prestare Gestão para síndicos</p>
           <span id="sindico-title" hidden>Prestare Gestão para síndicos</span>
           <h1>Gestão do condomínio sem consumir o seu dia.</h1>
-          <p class="sindico-lead">Centralize a operação, dê mais autonomia à equipe e acompanhe o que importa sem depender de planilhas, mensagens soltas ou tarefas manuais.</p>
+          <p class="sindico-lead">Acompanhe tudo pelo app e pelo sistema web, reduza tarefas repetitivas e tome decisões com informação em tempo real.</p>
           <a class="sindico-button" href="#orcamento">Pedir orçamento para meu condomínio</a>
         </div>
         <aside class="sindico-hero-card" aria-label="Resumo da plataforma">
@@ -168,21 +168,24 @@
       var condominio = String(dados.get('condominio') || '').trim();
       var contato = String(dados.get('contato') || '').trim();
       var digitos = contato.replace(/\D/g, '');
-      if (!nome || !condominio || !contato || digitos.length < 10 || digitos.length > 13) return false;
+      if (!nome || !condominio || !contato || digitos.length < 10 || digitos.length > 13) return Promise.resolve(false);
       var api = location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.prestarecondominios.com.br';
-      fetch(api + '/api/public/leads', {
+      return fetch(api + '/api/public/leads', {
         method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nome: nome, condominio: condominio, whatsapp: contato, pagina: pedido.pagina })
-      }).catch(function () {});
-      window.open('https://wa.me/5517996608148?text=' + encodeURIComponent('Olá! Quero um orçamento para o condomínio ' + condominio + '.'), '_blank', 'noopener');
-      return true;
+      }).then(function (resposta) {
+        if (resposta && resposta.ok === false) return false;
+        window.open('https://wa.me/5517996608148?text=' + encodeURIComponent('Olá! Quero um orçamento para o condomínio ' + condominio + '.'), '_blank', 'noopener');
+        return true;
+      }).catch(function () { return false; });
     };
     var formulario = document.querySelector('[data-orcamento-form]');
     if (formulario) formulario.addEventListener('submit', function (event) {
       event.preventDefault();
       var form = event.currentTarget;
-      var ok = window.psEnviarPedido({ form: form, pagina: '/sindico/#orcamento' });
-      if (ok) form.querySelector('.sindico-success').classList.add('is-visible');
+        window.psEnviarPedido({ form: form, pagina: '/sindico/#orcamento' }).then(function (ok) {
+          if (ok) form.querySelector('.sindico-success').classList.add('is-visible');
+        });
     });
   </script>
 </body>
