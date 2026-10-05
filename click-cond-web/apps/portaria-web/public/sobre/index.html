@@ -537,6 +537,73 @@
     </div>
   </section>
 
+  <div class="ps-band ps-bg-grid"><section id="simulador" style="max-width: 1440px; margin: 0 auto; padding: 56px 24px; scroll-margin-top: 90px;">
+    <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: clamp(24px, 4vw, 44px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 36px; align-items: center;">
+      <div style="min-width: 0;">
+        <span class="ps-eyebrow">Simulador de valor</span>
+        <h2 class="ps-title">Quanto custa para o seu condomínio?</h2>
+        <p class="ps-lead">Controle de acesso com reconhecimento facial, visitantes e encomendas no app do morador e console para a portaria. Informe o número de unidades e veja na hora o plano indicado e a mensalidade.</p>
+        <label style="display: grid; gap: 8px; margin-top: 22px;">
+          <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Número de unidades</span>
+          <input type="number" inputmode="numeric" min="1" max="5000" value="{{ simUnidades }}" onChange="{{ simAlterar }}" aria-label="Número de unidades do condomínio" style="font: var(--weight-extrabold) 28px/1.2 var(--font-ui); max-width: 200px;">
+          <input type="range" min="1" max="300" value="{{ simSlider }}" onChange="{{ simAlterar }}" aria-label="Ajustar número de unidades" style="width: 100%; accent-color: var(--prestare-blue-500);">
+        </label>
+        <p style="margin: 18px 0 0; font: var(--type-sub); color: var(--text-muted);">Funciona junto com o seu porteiro: ele ganha agilidade com visitantes, encomendas e acesso facial. Sem porteiro? Também atendemos.</p>
+      </div>
+      <div style="min-width: 0; background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-lg); padding: clamp(20px, 3vw, 32px);">
+        <sc-if value="{{ simTemValor }}" hint-placeholder-val="{{ true }}">
+          <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Plano indicado</span>
+          <div style="margin-top: 4px; font: var(--type-h2); color: var(--prestare-blue-700);">{{ simPlano }}</div>
+          <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">{{ simIncluso }}</p>
+          <div style="margin-top: 18px; font: var(--weight-extrabold) clamp(32px, 4vw, 44px)/1.05 var(--font-ui); color: var(--text-strong);">{{ simMensal }}<span style="font: var(--type-body); color: var(--text-muted);">/mês</span></div>
+          <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-body);">Equivale a <strong>{{ simPorUnidade }}</strong> por unidade · implantação <s style="color: var(--text-faint);">{{ simImplantacao }}</s> <strong style="color: #15803d;">grátis</strong></p>
+          <span class="ps-selo-oferta">Condição de lançamento: implantação grátis para os 10 primeiros condomínios</span>
+
+          <!-- O pedido nasce aqui, no momento em que a pessoa acabou de ver o
+               preço: as unidades já vêm do simulador, só faltam três campos. -->
+          <sc-if value="{{ simForm }}" hint-placeholder-val="{{ true }}">
+            <form id="ps-form-simulador" onSubmit="{{ enviarSimulador }}" style="position: relative; display: grid; gap: 10px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--prestare-blue-200);">
+              <span style="font: var(--type-body-strong); color: var(--text-strong);">Receba esta proposta no seu WhatsApp</span>
+              <div class="ps-field-row">
+                <input name="nome" autocomplete="name" placeholder="Seu nome" aria-label="Seu nome">
+                <input name="condominio" placeholder="Nome do condomínio" aria-label="Nome do condomínio">
+              </div>
+              <input name="contato" inputmode="tel" autocomplete="tel" placeholder="WhatsApp (00) 00000-0000" aria-label="Seu WhatsApp com DDD">
+              <!-- Honeypot anti-spam: invisível para gente, bots preenchem tudo. -->
+              <input name="site" tabindex="-1" autocomplete="off" aria-hidden="true" style="position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;">
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" type="submit" size="lg" full-width="{{ true }}" icon-right="arrow-right" hint-size="100%,52px">Receber minha proposta</x-import>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px 14px;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-muted);">
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="14" color="var(--prestare-blue-500)" hint-size="14px,14px"></x-import>
+                  Sem compromisso
+                </span>
+                <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-muted);">
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="14" color="var(--prestare-blue-500)" hint-size="14px,14px"></x-import>
+                  Proposta com o valor exato do seu condomínio
+                </span>
+                <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-muted);">
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="shield-check" size="14" color="var(--prestare-blue-500)" hint-size="14px,14px"></x-import>
+                  Seus dados sob a LGPD, sem spam
+                </span>
+              </div>
+              <a href="{{ simLink }}" data-sim="{{ simResumo }}" target="_blank" rel="noopener" style="justify-self: start; font: var(--type-sub); color: var(--prestare-blue-700); text-decoration: underline; text-underline-offset: 3px;">Prefere falar direto? Abrir o WhatsApp</a>
+            </form>
+          </sc-if>
+          <sc-if value="{{ simConfirmado }}" hint-placeholder-val="{{ false }}">
+            <div role="status" style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--prestare-blue-200);">
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="circle-check" tone="success" size="md" hint-size="40px,40px"></x-import>
+              <strong style="font: var(--type-body-strong); color: var(--text-strong);">Proposta pedida</strong>
+              <p style="margin: 0; font: var(--type-sub); color: var(--text-muted);">Abrimos o WhatsApp com os seus dados. Se a janela não abrir, chame em <strong style="font-weight: 600;">{{ telefone }}</strong>.</p>
+            </div>
+          </sc-if>
+        </sc-if>
+        <sc-if value="{{ simSemValor }}" hint-placeholder-val="{{ false }}">
+          <p style="margin: 0; font: var(--type-body); color: var(--text-muted);">Digite o número de unidades para ver o valor.</p>
+        </sc-if>
+      </div>
+    </div>
+  </section></div>
+
   <div class="ps-band ps-bg-grid"><section id="console" class="ps-sec" style="max-width: 1440px; margin: 0 auto; padding: 64px 24px;">
     <span class="ps-eyebrow">Para o síndico e a portaria</span>
     <h2 class="ps-title">O sistema web mostra quem está no condomínio agora.</h2>
@@ -708,6 +775,57 @@
       <span style="display: inline-flex; align-items: center; gap: 8px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 9px 14px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="chart-column" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Relatórios gerenciais</span>
     </div>
   </section></div>
+
+  <div class="ps-band ps-bg-plain"><section id="diferenciais" aria-labelledby="diferenciais-titulo" style="max-width: 1440px; margin: 0 auto; padding: 64px 24px;">
+    <style>
+      .ps-dif-tabela { width: 100%; margin-top: 30px; border-collapse: separate; border-spacing: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); overflow: hidden; }
+      .ps-dif-tabela th, .ps-dif-tabela td { padding: 18px 22px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border-row); font: var(--type-sub); line-height: 1.5; }
+      .ps-dif-tabela thead th { background: var(--surface-app); color: var(--text-muted); font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; }
+      .ps-dif-tabela thead th.ps-dif-nos { background: var(--prestare-blue-900); color: var(--text-on-brand); }
+      .ps-dif-tabela tbody th { width: 28%; color: var(--text-strong); font: var(--type-body-strong); }
+      .ps-dif-tabela td { width: 22%; color: var(--text-muted); }
+      .ps-dif-tabela td.ps-dif-nos { width: 28%; background: var(--prestare-blue-50); color: var(--text-strong); font-weight: 600; }
+      .ps-dif-tabela tbody tr:last-child > * { border-bottom: 0; }
+      .ps-dif-tabela td.ps-dif-nos::before { content: '\2713'; margin-right: 9px; color: var(--prestare-blue-600); font-weight: 800; }
+      @media (max-width: 760px) {
+        .ps-dif-tabela, .ps-dif-tabela tbody, .ps-dif-tabela tr, .ps-dif-tabela th, .ps-dif-tabela td { display: block; width: auto !important; }
+        .ps-dif-tabela thead { display: none; }
+        .ps-dif-tabela tbody tr { border-bottom: 1px solid var(--border-row); }
+        .ps-dif-tabela tbody tr:last-child { border-bottom: 0; }
+        .ps-dif-tabela th, .ps-dif-tabela td { padding: 10px 18px; border-bottom: 0 !important; }
+        .ps-dif-tabela tbody th { padding-top: 18px; }
+        .ps-dif-tabela td:last-child { padding-bottom: 18px; }
+        .ps-dif-tabela td::before { content: attr(data-rotulo); display: block; margin-bottom: 2px; font: var(--type-overline); letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
+        .ps-dif-tabela td.ps-dif-nos::before { content: attr(data-rotulo); margin-right: 0; color: var(--prestare-blue-600); font-weight: inherit; }
+      }
+    .ps-dif-tabela tr.ps-dif-destaque th { box-shadow: inset 3px 0 0 var(--prestare-blue-500); }
+      .ps-dif-fontes { margin: 14px 0 0; font: var(--type-caption); color: var(--text-faint); line-height: 1.55; }
+      .ps-dif-fontes a { color: var(--prestare-blue-600); }
+    </style>
+    <span class="ps-eyebrow">Por que a Prestare</span>
+    <h2 id="diferenciais-titulo" class="ps-title">Prestare, uCondo e Superlógica lado a lado</h2>
+    <p class="ps-lead">Os três têm app para o morador, portaria digital, encomendas e reservas. A comparação abaixo mostra onde a Prestare faz diferente no dia a dia.</p>
+
+    <table class="ps-dif-tabela">
+      <thead>
+        <tr><th scope="col">Na rotina</th><th scope="col">uCondo</th><th scope="col">Superlógica</th><th scope="col" class="ps-dif-nos">Prestare</th></tr>
+      </thead>
+      <tbody>
+          <tr class="ps-dif-destaque"><th scope="row">Assistente de IA no app</th><td data-rotulo="uCondo">Móra, assistente virtual: tira dúvidas sobre convenção e normas, avalia prestação de contas e gera comunicados</td><td data-rotulo="Superlógica">Gruvi AI: responde dúvidas a partir do Regulamento Interno enviado pela administradora</td><td class="ps-dif-nos" data-rotulo="Prestare">PRESTARE IA no app: responde com os dados do próprio morador (boletos, visitas, encomendas, reservas e ocorrências) e abre a tela certa</td></tr>
+          <tr><th scope="row">Visitantes, prestadores e entregadores</th><td data-rotulo="uCondo">Pré-autorização pelo morador e liberação pelo app, com registro completo</td><td data-rotulo="Superlógica">Convite digital com autocadastro do visitante por link</td><td class="ps-dif-nos" data-rotulo="Prestare">Cadastro pelo morador, PIN de validação na portaria, status “no local” em tempo real e baixa em um clique</td></tr>
+          <tr><th scope="row">Boleto e Pix no app do morador</th><td data-rotulo="uCondo">2ª via do boleto pelo app, com novo código ou chave Pix</td><td data-rotulo="Superlógica">2ª via de boleto na área do condômino (Pix não consta no site)</td><td class="ps-dif-nos" data-rotulo="Prestare">2ª via do boleto e Pix copia e cola direto no app do morador</td></tr>
+          <tr class="ps-dif-destaque"><th scope="row">Reconhecimento facial</th><td data-rotulo="uCondo">Não consta no site</td><td data-rotulo="Superlógica">Sim, pelo produto Controle de Acesso</td><td class="ps-dif-nos" data-rotulo="Prestare">Sim, no mesmo sistema do app e do console</td></tr>
+          <tr class="ps-dif-destaque"><th scope="row">Acesso facial às áreas só para quem reservou</th><td data-rotulo="uCondo">Não consta no site</td><td data-rotulo="Superlógica">Não consta no site</td><td class="ps-dif-nos" data-rotulo="Prestare">Sim</td></tr>
+          <tr class="ps-dif-destaque"><th scope="row">Valor</th><td data-rotulo="uCondo">Planos personalizados</td><td data-rotulo="Superlógica">Sob consulta</td><td class="ps-dif-nos" data-rotulo="Prestare">Simulador na página, com preço por faixa de unidades</td></tr>
+      </tbody>
+    </table>
+    <p class="ps-dif-fontes">Informações dos sites e materiais públicos de cada fornecedor, consultados em 04/10/2026: <a href="https://www.ucondo.com.br/solucoes/portaria-e-acessos" target="_blank" rel="noopener">uCondo (portaria)</a>, <a href="https://www.ucondo.com.br/blog/ucondo-e-confiavel-conheca-o-aplicativo-para-condominio-ucondo" target="_blank" rel="noopener">uCondo (IA e boletos)</a>, <a href="https://superlogica.com/controle-acesso/" target="_blank" rel="noopener">Superlógica (controle de acesso)</a> e <a href="https://condominios.superlogica.com/hc/pt-br/articles/29944933077143-Como-a-intelig%C3%AAncia-artificial-pode-facilitar-a-vida-em-condom%C3%ADnios" target="_blank" rel="noopener">Superlógica (IA)</a>. “Não consta no site” significa que o recurso não aparece nas páginas consultadas, e não que ele não exista. Os recursos podem mudar; confirme com cada fornecedor.</p>
+
+    <div style="margin-top: 26px;">
+      <a href="#simulador" class="ps-btn-primary" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: var(--radius-md); background: var(--prestare-blue-600); color: var(--text-on-brand); font-weight: 700; text-decoration: none;">Simular o valor para o meu condomínio <span aria-hidden="true">→</span></a>
+    </div>
+  </section></div>
+
 
   <div class="ps-band ps-bg-navy"><section class="ps-sec" style="max-width: 1440px; margin: 0 auto; padding: 56px 24px;">
     <span class="ps-eyebrow">Segurança e controle</span>
@@ -903,73 +1021,6 @@
       </div>
     </section></div>
   </sc-if>
-
-  <div class="ps-band ps-bg-grid"><section id="simulador" style="max-width: 1440px; margin: 0 auto; padding: 56px 24px; scroll-margin-top: 90px;">
-    <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: clamp(24px, 4vw, 44px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 36px; align-items: center;">
-      <div style="min-width: 0;">
-        <span class="ps-eyebrow">Simulador de valor</span>
-        <h2 class="ps-title">Quanto custa para o seu condomínio?</h2>
-        <p class="ps-lead">Controle de acesso com reconhecimento facial, visitantes e encomendas no app do morador e console para a portaria. Informe o número de unidades e veja na hora o plano indicado e a mensalidade.</p>
-        <label style="display: grid; gap: 8px; margin-top: 22px;">
-          <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Número de unidades</span>
-          <input type="number" inputmode="numeric" min="1" max="5000" value="{{ simUnidades }}" onChange="{{ simAlterar }}" aria-label="Número de unidades do condomínio" style="font: var(--weight-extrabold) 28px/1.2 var(--font-ui); max-width: 200px;">
-          <input type="range" min="1" max="300" value="{{ simSlider }}" onChange="{{ simAlterar }}" aria-label="Ajustar número de unidades" style="width: 100%; accent-color: var(--prestare-blue-500);">
-        </label>
-        <p style="margin: 18px 0 0; font: var(--type-sub); color: var(--text-muted);">Funciona junto com o seu porteiro: ele ganha agilidade com visitantes, encomendas e acesso facial. Sem porteiro? Também atendemos.</p>
-      </div>
-      <div style="min-width: 0; background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-lg); padding: clamp(20px, 3vw, 32px);">
-        <sc-if value="{{ simTemValor }}" hint-placeholder-val="{{ true }}">
-          <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Plano indicado</span>
-          <div style="margin-top: 4px; font: var(--type-h2); color: var(--prestare-blue-700);">{{ simPlano }}</div>
-          <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">{{ simIncluso }}</p>
-          <div style="margin-top: 18px; font: var(--weight-extrabold) clamp(32px, 4vw, 44px)/1.05 var(--font-ui); color: var(--text-strong);">{{ simMensal }}<span style="font: var(--type-body); color: var(--text-muted);">/mês</span></div>
-          <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-body);">Equivale a <strong>{{ simPorUnidade }}</strong> por unidade · implantação <s style="color: var(--text-faint);">{{ simImplantacao }}</s> <strong style="color: #15803d;">grátis</strong></p>
-          <span class="ps-selo-oferta">Condição de lançamento: implantação grátis para os 10 primeiros condomínios</span>
-
-          <!-- O pedido nasce aqui, no momento em que a pessoa acabou de ver o
-               preço: as unidades já vêm do simulador, só faltam três campos. -->
-          <sc-if value="{{ simForm }}" hint-placeholder-val="{{ true }}">
-            <form id="ps-form-simulador" onSubmit="{{ enviarSimulador }}" style="position: relative; display: grid; gap: 10px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--prestare-blue-200);">
-              <span style="font: var(--type-body-strong); color: var(--text-strong);">Receba esta proposta no seu WhatsApp</span>
-              <div class="ps-field-row">
-                <input name="nome" autocomplete="name" placeholder="Seu nome" aria-label="Seu nome">
-                <input name="condominio" placeholder="Nome do condomínio" aria-label="Nome do condomínio">
-              </div>
-              <input name="contato" inputmode="tel" autocomplete="tel" placeholder="WhatsApp (00) 00000-0000" aria-label="Seu WhatsApp com DDD">
-              <!-- Honeypot anti-spam: invisível para gente, bots preenchem tudo. -->
-              <input name="site" tabindex="-1" autocomplete="off" aria-hidden="true" style="position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;">
-              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" type="submit" size="lg" full-width="{{ true }}" icon-right="arrow-right" hint-size="100%,52px">Receber minha proposta</x-import>
-              <div style="display: flex; flex-wrap: wrap; gap: 6px 14px;">
-                <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-muted);">
-                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="14" color="var(--prestare-blue-500)" hint-size="14px,14px"></x-import>
-                  Sem compromisso
-                </span>
-                <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-muted);">
-                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="14" color="var(--prestare-blue-500)" hint-size="14px,14px"></x-import>
-                  Proposta com o valor exato do seu condomínio
-                </span>
-                <span style="display: inline-flex; align-items: center; gap: 6px; font: var(--type-caption); color: var(--text-muted);">
-                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="shield-check" size="14" color="var(--prestare-blue-500)" hint-size="14px,14px"></x-import>
-                  Seus dados sob a LGPD, sem spam
-                </span>
-              </div>
-              <a href="{{ simLink }}" data-sim="{{ simResumo }}" target="_blank" rel="noopener" style="justify-self: start; font: var(--type-sub); color: var(--prestare-blue-700); text-decoration: underline; text-underline-offset: 3px;">Prefere falar direto? Abrir o WhatsApp</a>
-            </form>
-          </sc-if>
-          <sc-if value="{{ simConfirmado }}" hint-placeholder-val="{{ false }}">
-            <div role="status" style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--prestare-blue-200);">
-              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="circle-check" tone="success" size="md" hint-size="40px,40px"></x-import>
-              <strong style="font: var(--type-body-strong); color: var(--text-strong);">Proposta pedida</strong>
-              <p style="margin: 0; font: var(--type-sub); color: var(--text-muted);">Abrimos o WhatsApp com os seus dados. Se a janela não abrir, chame em <strong style="font-weight: 600;">{{ telefone }}</strong>.</p>
-            </div>
-          </sc-if>
-        </sc-if>
-        <sc-if value="{{ simSemValor }}" hint-placeholder-val="{{ false }}">
-          <p style="margin: 0; font: var(--type-body); color: var(--text-muted);">Digite o número de unidades para ver o valor.</p>
-        </sc-if>
-      </div>
-    </div>
-  </section></div>
 
   <div class="ps-band ps-bg-plain" style="border-bottom: 0;"><section id="contato" class="ps-contact" style="max-width: 1440px; margin: 0 auto; padding: 64px 24px 72px; scroll-margin-top: max(90px, calc(50vh - 280px));">
     <div class="ps-contact-panel" style="background: var(--gradient-hero); border-radius: var(--radius-xl); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: stretch;">

@@ -42,22 +42,38 @@ it('reutiliza a navegação desktop, menu mobile e rodapé da landing', () => {
 it('usa uma tela real do produto no hero e inicializa a medição da landing', () => {
   const html = htmlDaPaginaSindico();
   const hero = html.match(/<section class="sindico-hero-wrap"[\s\S]*?<\/section>/)?.[0] || '';
-  expect(hero).toContain('/sobre/assets/web-dashboard.png');
+  expect(hero).toContain('sindico-hero-visual');
   expect(html).toContain('googletagmanager.com/gtag/js?id=AW-18476913499');
   expect(html).toContain('oaiq("init",{pixelId:"17H2XPR4dY5HHBNUs9L5ha"})');
   expect(html).toContain("sessionStorage.setItem('psOrigem'");
 });
 
-it('repete a hierarquia visual e os componentes principais da landing sobre', () => {
+it('usa composições gráficas próprias no hero e na narrativa operacional', () => {
+  document.documentElement.innerHTML = htmlDaPaginaSindico();
+
+  const hero = document.querySelector('.sindico-hero');
+  expect(hero?.querySelector('img')).toBeNull();
+  expect(hero?.querySelectorAll('.sindico-device')).toHaveLength(2);
+  expect(hero?.querySelector('.sindico-sync-badge')).not.toBeNull();
+  expect(document.querySelector('.sindico-operations-map')).not.toBeNull();
+  expect(document.querySelector('.sindico-ops-core')).not.toBeNull();
+  expect(document.querySelector('.sindico-ops-insight')).not.toBeNull();
+});
+
+it('apresenta a transformação da rotina em um fluxo visual sem grade de cards repetitivos', () => {
   document.documentElement.innerHTML = htmlDaPaginaSindico();
 
   expect(document.querySelector('.ps-nav .sindico-nav-cta')).not.toBeNull();
   expect(document.querySelector('.sindico-hero .sindico-eyebrow-pill')).not.toBeNull();
   expect(document.querySelectorAll('.sindico-hero .sindico-feature-list li')).toHaveLength(4);
-  expect(document.querySelectorAll('.sindico-stats article')).toHaveLength(4);
-  expect(document.querySelectorAll('.sindico-gains .sindico-icon-chip')).toHaveLength(3);
-  expect(document.querySelectorAll('.sindico-process-grid .sindico-icon-chip')).toHaveLength(6);
-  expect(document.querySelector('.sindico-console-featured')).not.toBeNull();
+  expect(document.querySelectorAll('.sindico-stats article')).toHaveLength(3);
+  expect(document.querySelector('.sindico-story-visual')).not.toBeNull();
+  expect(document.querySelectorAll('.sindico-ops-column')).toHaveLength(3);
+  expect(document.querySelectorAll('.sindico-flow-sources li')).toHaveLength(6);
+  expect(document.querySelectorAll('.sindico-outcomes li')).toHaveLength(3);
+  expect(document.querySelectorAll('.sindico-story .sindico-card')).toHaveLength(0);
+  expect(document.querySelectorAll('.sindico-console-grid .sindico-shot')).toHaveLength(4);
+  expect(document.querySelector('.sindico-lightbox')).not.toBeNull();
 });
 
 it('mostra processos e telas reais do console', () => {
@@ -146,4 +162,15 @@ it('não abre o WhatsApp quando o registro do lead falha', async () => {
 
   await expect((window as any).psEnviarPedido({ form, pagina: '/sindico/#orcamento' })).resolves.toBe(false);
   expect(open).not.toHaveBeenCalled();
+});
+
+it('apresenta eyebrow do spec, cards de processos, comparativo e benefícios do console', () => {
+  document.documentElement.innerHTML = htmlDaPaginaSindico();
+
+  expect(document.querySelector('.sindico-eyebrow-pill')?.textContent).toBe('Para síndicos');
+  expect(document.querySelectorAll('.sindico-processes .sindico-card')).toHaveLength(6);
+  expect(document.querySelectorAll('.sindico-compare-col')).toHaveLength(2);
+  expect(document.querySelectorAll('.sindico-benefits li')).toHaveLength(3);
+  expect(document.body.textContent).not.toContain('24/7');
+  expect(document.body.textContent).not.toContain('0 papel');
 });

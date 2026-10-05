@@ -45,88 +45,200 @@
     .ps-mobile-menu { display: none; margin-left: auto; }
     .ps-mobile-menu summary { cursor: pointer; font-weight: 700; }
     .ps-mobile-nav { position: absolute; left: 16px; right: 16px; top: 64px; display: grid; gap: 14px; padding: 20px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: var(--shadow-row); }
-    .ps-footer { background: var(--prestare-blue-900); color: var(--text-on-brand-muted); }
-    .ps-footer-inner { max-width: 1440px; margin: auto; padding: 48px 24px; display: grid; grid-template-columns: minmax(260px,1.4fr) repeat(2,minmax(150px,.6fr)); gap: 42px; }
-    .ps-footer a { color: var(--text-on-brand-muted); text-decoration: none; }
-    .ps-footer nav { display: grid; gap: 10px; align-content: start; }
-    .ps-footer strong, .ps-footer-title { color: #fff; }
+    .ps-footer { border-top: 1px solid rgba(255,255,255,.16); background: var(--prestare-blue-900); }
+    .ps-foot { max-width: 1440px; margin: 0 auto; padding: 56px 24px 36px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 44px; }
+    .ps-foot-brand { flex: 1 1 320px; min-width: 0; max-width: 44ch; }
+    .ps-foot-brand .ps-brand-name { font: var(--weight-extrabold) 17px/1 var(--font-display); letter-spacing: .04em; color: var(--text-on-brand); }
+    .ps-foot-brand p { margin: 16px 0 0; font: var(--type-sub); color: var(--text-on-brand-muted); }
+    .ps-foot-link { display: flex; width: fit-content; align-items: center; gap: 8px; margin-top: 14px; font: var(--type-sub); color: var(--prestare-blue-600); text-decoration: none; }
+    .ps-foot-link:hover { color: #fff; }
+    .ps-foot nav { flex: 0 1 175px; min-width: 0; display: grid; gap: 11px; align-content: start; }
+    .ps-foot nav a { font: var(--type-sub); color: var(--text-on-brand-muted); text-decoration: none; }
+    .ps-foot nav a:hover { color: #fff; }
+    .ps-foot-title { font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--text-on-brand); }
+    .ps-foot-bottom { max-width: 1440px; margin: 0 auto; padding: 0 24px 28px; }
+    .ps-foot-bottom div { padding-top: 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; border-top: 1px solid rgba(255,255,255,.16); font: var(--type-caption); color: var(--text-on-brand-muted); }
+    .ps-footer a:focus-visible { outline: 3px solid var(--prestare-blue-400); outline-offset: 3px; }
     .sindico-page *, .sindico-page *::before, .sindico-page *::after { box-sizing: border-box; }
     .sindico-page { overflow: hidden; }
     .sindico-page section { scroll-margin-top: 24px; }
-    .sindico-page .sindico-shell { width: min(1440px, 100%); margin-inline: auto; padding: 64px 24px; }
+    .sindico-page .sindico-shell { width: min(1440px, 100%); margin-inline: auto; padding: clamp(88px,7.5vw,116px) 32px; }
     .sindico-page h1, .sindico-page h2, .sindico-page h3, .sindico-page p { margin-top: 0; }
-    .sindico-page h1 { max-width: 650px; color: var(--text-strong); font: var(--weight-extrabold) clamp(36px,4.5vw,56px)/1.06 var(--font-ui); letter-spacing: -.032em; }
-    .sindico-page h2 { max-width: 780px; color: var(--text-strong); font: var(--weight-extrabold) clamp(28px,3.2vw,42px)/1.12 var(--font-ui); letter-spacing: -.024em; }
+    .sindico-page h1 { max-width: 650px; margin-bottom: 22px; color: var(--text-strong); font: var(--weight-extrabold) clamp(36px,4.5vw,56px)/1.06 var(--font-ui); letter-spacing: -.032em; }
+    .sindico-page h2 { max-width: 780px; margin-bottom: 22px; color: var(--text-strong); font: var(--weight-extrabold) clamp(28px,3.2vw,42px)/1.12 var(--font-ui); letter-spacing: -.024em; }
     .sindico-page h3 { color: var(--text-strong); font: var(--type-h3); margin-bottom: 8px; }
     .sindico-page p { color: var(--text-muted); line-height: 1.65; }
-    .sindico-page .sindico-kicker { color: var(--prestare-blue-700); font: var(--type-overline); letter-spacing: .08em; text-transform: uppercase; }
+    .sindico-page .sindico-kicker { margin-bottom: 14px; color: var(--prestare-blue-700); font: var(--type-overline); letter-spacing: .08em; text-transform: uppercase; }
     .sindico-page .sindico-eyebrow-pill { display: inline-flex; align-items: center; gap: 8px; width: fit-content; padding: 6px 13px; border: 1px solid var(--prestare-blue-200); border-radius: 999px; background: var(--prestare-blue-50); color: var(--prestare-blue-700); }
     .sindico-page .sindico-eyebrow-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green-500); }
     .sindico-page .sindico-hero-wrap { background: linear-gradient(180deg,#f4f7fd 0%,var(--surface-app) 82%); }
-    .sindico-page .sindico-hero { display: grid; grid-template-columns: minmax(0,1fr) minmax(420px,.92fr); gap: 56px; align-items: center; min-height: 650px; background-image: linear-gradient(rgba(37,96,232,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(37,96,232,.07) 1px,transparent 1px); background-size: 64px 64px; }
+    .sindico-page .sindico-hero { display: grid; grid-template-columns: minmax(0,.9fr) minmax(520px,1.1fr); gap: clamp(56px,6vw,96px); align-items: center; min-height: 720px; background-image: linear-gradient(rgba(37,96,232,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(37,96,232,.07) 1px,transparent 1px); background-size: 64px 64px; }
     .sindico-page .sindico-lead { max-width: 590px; font: var(--weight-regular) clamp(16px,1.3vw,18px)/1.55 var(--font-ui); }
-    .sindico-page .sindico-feature-list { margin: 24px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px 18px; max-width: 560px; list-style: none; }
+    .sindico-page .sindico-feature-list { margin: 30px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 22px; max-width: 560px; list-style: none; }
     .sindico-page .sindico-feature-list li { display: flex; align-items: center; gap: 9px; color: var(--text-body); font: var(--type-sub); }
     .sindico-page .sindico-feature-list li::before { content: '✓'; color: var(--prestare-blue-500); font-weight: 800; }
-    .sindico-page .sindico-button { display: inline-flex; justify-content: center; align-items: center; min-height: 50px; padding: 12px 20px; border-radius: var(--radius-md); background: var(--prestare-blue-600); color: var(--text-on-brand); font-weight: 700; text-decoration: none; box-shadow: var(--shadow-row); }
+    .sindico-page .sindico-button { margin-top: 30px; display: inline-flex; justify-content: center; align-items: center; min-height: 50px; padding: 12px 20px; border-radius: var(--radius-md); background: var(--prestare-blue-600); color: var(--text-on-brand); font-weight: 700; text-decoration: none; box-shadow: var(--shadow-row); }
     .sindico-page .sindico-button:hover { background: var(--prestare-blue-700); color: var(--text-on-brand); }
     .sindico-page .sindico-button:focus-visible, .sindico-page input:focus-visible { outline: 3px solid var(--prestare-blue-400); outline-offset: 3px; }
-    .sindico-page .sindico-hero-card, .sindico-page .sindico-card { border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); box-shadow: var(--shadow-row); }
-    .sindico-page .sindico-hero-card { position: relative; padding: 12px; border-color: var(--prestare-blue-200); overflow: visible; box-shadow: 0 24px 54px rgba(21,47,89,.18); transform: perspective(1400px) rotateY(-2deg); }
-    .sindico-page .sindico-hero-card img { display: block; width: 100%; height: auto; border-radius: var(--radius-md); }
-    .sindico-page .sindico-hero-card strong { display: block; color: var(--prestare-blue-700); font-size: 38px; margin-bottom: 10px; }
+    .sindico-page .sindico-hero-visual { position: relative; min-height: 500px; isolation: isolate; }
+    .sindico-page .sindico-hero-visual::before { content: ''; position: absolute; width: 420px; height: 420px; left: 50%; top: 50%; border-radius: 50%; background: radial-gradient(circle,rgba(37,96,232,.18),rgba(37,96,232,0) 68%); transform: translate(-50%,-50%); z-index: -1; }
+    .sindico-page .sindico-device { position: absolute; overflow: hidden; border: 1px solid rgba(147,174,230,.5); background: rgba(255,255,255,.96); box-shadow: 0 28px 65px rgba(21,47,89,.18); }
+    .sindico-page .sindico-device-web { left: 0; top: 48px; width: 89%; height: 370px; border-radius: 22px; transform: perspective(1200px) rotateY(-3deg); }
+    .sindico-page .sindico-device-mobile { right: 0; bottom: 6px; width: 190px; height: 350px; padding: 13px; border: 5px solid #fff; border-radius: 32px; background: #f7f9fd; box-shadow: 0 25px 55px rgba(7,42,93,.24); }
+    .sindico-page .sindico-device-bar { height: 38px; padding: 0 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-row); background: #fff; color: var(--text-muted); font-size: 11px; }
+    .sindico-page .sindico-device-dots { display: flex; gap: 5px; }
+    .sindico-page .sindico-device-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--prestare-blue-200); }
+    .sindico-page .sindico-web-ui { height: calc(100% - 38px); display: grid; grid-template-columns: 108px 1fr; }
+    .sindico-page .sindico-web-nav { padding: 18px 14px; display: grid; align-content: start; gap: 13px; background: #f7f9fd; border-right: 1px solid var(--border-row); }
+    .sindico-page .sindico-web-nav strong { margin-bottom: 8px; color: var(--prestare-blue-900); font-size: 12px; }
+    .sindico-page .sindico-web-nav span { width: 76%; height: 6px; border-radius: 99px; background: #dce6fa; }
+    .sindico-page .sindico-web-nav span:first-of-type { width: 100%; height: 24px; background: var(--prestare-blue-100); }
+    .sindico-page .sindico-web-main { padding: 22px; }
+    .sindico-page .sindico-web-heading { margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; color: var(--prestare-blue-900); font-weight: 800; }
+    .sindico-page .sindico-live-pill { padding: 5px 9px; border-radius: 99px; background: var(--green-100); color: var(--green-700); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
+    .sindico-page .sindico-web-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+    .sindico-page .sindico-web-metric { padding: 13px; border: 1px solid var(--border-row); border-radius: 12px; }
+    .sindico-page .sindico-web-metric b { display: block; color: var(--prestare-blue-800); font-size: 22px; }
+    .sindico-page .sindico-web-metric small { color: var(--text-muted); }
+    .sindico-page .sindico-web-chart { height: 92px; margin-top: 16px; padding: 14px; display: flex; align-items: end; gap: 9px; border-radius: 12px; background: #f7f9fd; }
+    .sindico-page .sindico-web-chart i { flex: 1; height: var(--bar); border-radius: 5px 5px 2px 2px; background: linear-gradient(180deg,var(--prestare-blue-400),var(--prestare-blue-100)); }
+    .sindico-page .sindico-mobile-top { display: flex; justify-content: space-between; color: var(--text-strong); font-size: 9px; font-weight: 800; }
+    .sindico-page .sindico-mobile-profile { margin-top: 16px; padding: 14px; border-radius: 15px; background: linear-gradient(135deg,var(--prestare-blue-700),var(--prestare-blue-500)); color: #fff; }
+    .sindico-page .sindico-mobile-profile small { display: block; margin-top: 5px; color: rgba(255,255,255,.72); }
+    .sindico-page .sindico-mobile-summary { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .sindico-page .sindico-mobile-summary span { padding: 12px 8px; border: 1px solid var(--border-row); border-radius: 12px; background: #fff; color: var(--prestare-blue-800); font-size: 9px; font-weight: 700; }
+    .sindico-page .sindico-mobile-feed { margin-top: 14px; display: grid; gap: 9px; }
+    .sindico-page .sindico-mobile-feed span { height: 34px; border-radius: 10px; background: #fff; box-shadow: inset 0 0 0 1px var(--border-row); }
+    .sindico-page .sindico-sync-badge { position: absolute; left: 39%; bottom: 24px; z-index: 3; padding: 11px 15px; display: inline-flex; align-items: center; gap: 9px; border: 1px solid var(--prestare-blue-100); border-radius: 99px; background: #fff; color: var(--prestare-blue-800); font-size: 12px; font-weight: 800; box-shadow: 0 10px 28px rgba(21,47,89,.14); }
+    .sindico-page .sindico-sync-badge::before { content: '✓'; width: 21px; height: 21px; display: grid; place-items: center; border-radius: 50%; background: var(--green-100); color: var(--green-700); }
     .sindico-page .sindico-alt { background: #f4f7fd; }
     .sindico-page .sindico-stats { background: var(--prestare-blue-900); color: #fff; }
     .sindico-page .sindico-stats-inner { width: min(1440px,100%); margin: auto; padding: 28px 24px; display: grid; grid-template-columns: repeat(4,1fr); }
     .sindico-page .sindico-stats article { min-width: 0; padding: 6px 24px; border-left: 2px solid var(--prestare-blue-500); }
     .sindico-page .sindico-stats strong { display: block; font: var(--weight-extrabold) 30px/1.05 var(--font-ui); }
     .sindico-page .sindico-stats span { display: block; margin-top: 7px; color: var(--text-on-brand-muted); font: var(--type-sub); }
-    .sindico-page .sindico-gains, .sindico-page .sindico-process-grid, .sindico-page .sindico-console-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-    .sindico-page .sindico-card { padding: 24px; box-shadow: none; transition: transform 180ms ease,box-shadow 180ms ease; }
-    .sindico-page .sindico-card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(21,47,89,.10); }
-    .sindico-page .sindico-icon-chip { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; margin-bottom: 16px; border-radius: var(--radius-md); background: var(--prestare-blue-50); color: var(--prestare-blue-600); font-weight: 800; }
-    .sindico-page .sindico-process-grid { grid-template-columns: repeat(3, 1fr); }
-    .sindico-page .sindico-card span { color: var(--prestare-blue-600); font-weight: 800; }
-    .sindico-page .sindico-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .sindico-page .sindico-comparison article { padding: 30px; border-radius: var(--radius-lg); }
-    .sindico-page .sindico-before { border: 1px solid var(--border-subtle); background: var(--surface-card); }
-    .sindico-page .sindico-after { background: var(--prestare-blue-800); }
-    .sindico-page .sindico-after h3, .sindico-page .sindico-after p { color: var(--text-on-brand); }
-    .sindico-page .sindico-after p { color: var(--text-on-brand-muted); }
-    .sindico-page .sindico-console-grid { grid-template-columns: repeat(12, 1fr); }
-    .sindico-page .sindico-console-grid figure { grid-column: span 4; }
-    .sindico-page .sindico-console-grid .sindico-console-featured { grid-column: 1 / -1; aspect-ratio: 16 / 8; }
-    .sindico-page figure { margin: 0; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); aspect-ratio: 16 / 10; }
-    .sindico-page figure img { display: block; width: 100%; border-radius: var(--radius-md); }
+    .sindico-page .sindico-story-layout { display: grid; grid-template-columns: minmax(300px,.68fr) minmax(650px,1.32fr); gap: clamp(64px,7vw,108px); align-items: center; }
+    .sindico-page .sindico-story-copy > p:not(.sindico-kicker) { max-width: 510px; font-size: 17px; }
+    .sindico-page .sindico-outcomes { margin: 34px 0 0; padding: 0; display: grid; gap: 23px; list-style: none; }
+    .sindico-page .sindico-outcomes li { position: relative; padding-left: 28px; }
+    .sindico-page .sindico-outcomes li::before { content: '✓'; position: absolute; left: 0; top: 1px; color: var(--prestare-blue-600); font-weight: 800; }
+    .sindico-page .sindico-outcomes strong { display: block; margin-bottom: 3px; color: var(--text-strong); font: var(--type-body-strong); }
+    .sindico-page .sindico-outcomes span { color: var(--text-muted); font: var(--type-sub); }
+    .sindico-page .sindico-story-visual { position: relative; padding: 30px; border: 1px solid rgba(147,174,230,.5); border-radius: 28px; background: #fff; box-shadow: 0 24px 64px rgba(21,47,89,.12); overflow: hidden; }
+    .sindico-page .sindico-story-visual::before { content: ''; position: absolute; width: 360px; height: 360px; left: 44%; top: 52%; border-radius: 50%; background: radial-gradient(circle,rgba(37,96,232,.13),rgba(37,96,232,0) 70%); transform: translate(-50%,-50%); }
+    .sindico-page .sindico-ops-heading { position: relative; z-index: 1; padding-bottom: 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-row); }
+    .sindico-page .sindico-ops-heading strong { color: var(--prestare-blue-900); font-size: 15px; }
+    .sindico-page .sindico-ops-status { padding: 6px 10px; border-radius: 99px; background: var(--green-100); color: var(--green-700); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    .sindico-page .sindico-operations-map { position: relative; z-index: 1; padding: 40px 0 30px; display: grid; grid-template-columns: minmax(170px,1fr) minmax(190px,.9fr) minmax(180px,1fr); gap: 46px; align-items: center; }
+    .sindico-page .sindico-ops-column { min-width: 0; }
+    .sindico-page .sindico-ops-label { display: block; margin-bottom: 17px; color: var(--prestare-blue-600); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .sindico-page .sindico-flow-sources { margin: 0; padding: 0; display: grid; list-style: none; }
+    .sindico-page .sindico-flow-sources li { padding: 12px 0; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border-row); color: var(--text-strong); font-size: 13px; font-weight: 700; }
+    .sindico-page .sindico-flow-sources li::before { content: ''; width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--prestare-blue-300); box-shadow: 0 0 0 5px var(--prestare-blue-50); }
+    .sindico-page .sindico-ops-core { position: relative; min-height: 230px; display: grid; place-items: center; }
+    .sindico-page .sindico-ops-core::before, .sindico-page .sindico-ops-core::after { content: ''; position: absolute; top: 50%; width: 46px; height: 1px; background: linear-gradient(90deg,var(--prestare-blue-100),var(--prestare-blue-500)); }
+    .sindico-page .sindico-ops-core::before { right: 100%; }
+    .sindico-page .sindico-ops-core::after { left: 100%; transform: rotate(180deg); }
+    .sindico-page .sindico-core-rings { width: 174px; aspect-ratio: 1; display: grid; place-items: center; border: 1px solid var(--prestare-blue-100); border-radius: 50%; background: rgba(239,244,255,.65); box-shadow: 0 0 0 18px rgba(239,244,255,.55),0 0 0 36px rgba(239,244,255,.3); }
+    .sindico-page .sindico-core-mark { width: 116px; aspect-ratio: 1; padding: 18px; display: grid; place-items: center; text-align: center; border-radius: 30px; background: linear-gradient(145deg,var(--prestare-blue-700),var(--prestare-blue-900)); color: #fff; font-size: 14px; font-weight: 800; line-height: 1.25; box-shadow: 0 18px 35px rgba(7,42,93,.28); }
+    .sindico-page .sindico-core-mark small { color: var(--prestare-blue-100); font-size: 9px; font-weight: 600; }
+    .sindico-page .sindico-ops-insight { padding: 22px; border-radius: 18px; background: var(--prestare-blue-900); box-shadow: 0 16px 34px rgba(7,42,93,.18); }
+    .sindico-page .sindico-ops-insight small { color: var(--text-on-brand-muted); }
+    .sindico-page .sindico-ops-insight strong { display: block; margin: 7px 0 20px; color: #fff; font-size: 20px; line-height: 1.2; }
+    .sindico-page .sindico-insight-row { padding: 9px 0; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,255,255,.12); color: var(--text-on-brand-muted); font-size: 11px; }
+    .sindico-page .sindico-insight-row b { color: var(--green-300); font-size: 11px; }
+    .sindico-page .sindico-flow-caption { position: relative; z-index: 1; margin: 0; padding-top: 20px; border-top: 1px solid var(--border-row); text-align: center; font-size: 14px; }
+    .sindico-page .sindico-console-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 18px; }
+    .sindico-page figure { margin: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); transition: box-shadow .2s, transform .2s; }
+    .sindico-page figure:hover { box-shadow: 0 14px 34px rgba(21,47,89,.14); transform: translateY(-2px); }
+    .sindico-page .sindico-shot { width: 100%; padding: 14px; display: block; border: 0; border-radius: inherit; background: none; font: inherit; text-align: left; cursor: zoom-in; }
+    .sindico-page .sindico-shot:focus-visible { outline: 3px solid var(--prestare-blue-400); outline-offset: 3px; }
+    .sindico-page figure img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; border-radius: var(--radius-md); }
     .sindico-page figcaption { padding: 12px 4px 0; color: var(--text-strong); font-weight: 700; }
+    .sindico-page .sindico-shot-hint { padding: 2px 4px 0; display: block; color: var(--prestare-blue-600); font-size: 13px; font-weight: 600; }
+    .sindico-lightbox { width: min(1100px,calc(100% - 32px)); max-height: calc(100% - 32px); padding: 20px; border: 0; border-radius: 22px; background: #fff; box-shadow: 0 30px 80px rgba(7,42,93,.4); overflow: auto; box-sizing: border-box; }
+    .sindico-lightbox::backdrop { background: rgba(7,28,60,.72); }
+    .sindico-lightbox img { display: block; width: 100%; height: auto; border: 1px solid var(--border-subtle); border-radius: 12px; }
+    .sindico-lightbox-text { padding: 20px 6px 6px; }
+    .sindico-lightbox-text h3 { margin: 0 0 8px; color: var(--text-strong); font: var(--type-h3); }
+    .sindico-lightbox-text p { max-width: 760px; margin: 0; color: var(--text-muted); line-height: 1.65; }
+    .sindico-lightbox-close { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--prestare-blue-900); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; }
+    .sindico-lightbox-close:focus-visible { outline: 3px solid var(--prestare-blue-400); outline-offset: 2px; }
     .sindico-page .sindico-closing { background: #fff; }
     .sindico-page .sindico-closing-panel { padding: clamp(28px,5vw,56px); display: grid; grid-template-columns: minmax(0,.9fr) minmax(340px,1.1fr); gap: 48px; align-items: center; border-radius: var(--radius-lg); background: var(--prestare-blue-900); box-shadow: 0 20px 48px rgba(21,47,89,.16); }
     .sindico-page .sindico-closing h2 { max-width: 720px; color: var(--text-on-brand); }
     .sindico-page .sindico-closing p { max-width: 600px; color: var(--text-on-brand-muted); }
     .sindico-page .sindico-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; max-width: none; padding: 26px; border-radius: var(--radius-lg); background: var(--surface-card); }
+    .sindico-page .sindico-form .sindico-button { margin-top: 0; }
     .sindico-page .sindico-form label:nth-child(3), .sindico-page .sindico-form label:nth-child(4), .sindico-page .sindico-form button, .sindico-page .sindico-success { grid-column: 1 / -1; }
     .sindico-page label { display: grid; gap: 6px; color: var(--text-strong); font-weight: 700; }
     .sindico-page input { width: 100%; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-card); color: var(--text-strong); font: inherit; }
     .sindico-page .sindico-success { display: none; color: var(--prestare-blue-700); font-weight: 700; }
     .sindico-page .sindico-success.is-visible { display: block; }
+    .sindico-page .sindico-stats-inner { grid-template-columns: repeat(3,1fr); }
+    .sindico-page .sindico-stats strong { font-size: 24px; }
+    .sindico-page .sindico-section-lead { max-width: 640px; margin-bottom: 40px; font-size: 17px; }
+    .sindico-page .sindico-card-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; }
+    .sindico-page .sindico-card { padding: 28px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); box-shadow: var(--shadow-row); }
+    .sindico-page .sindico-card p { margin-bottom: 0; }
+    .sindico-page .sindico-card-icon { width: 40px; height: 40px; margin-bottom: 18px; display: grid; place-items: center; border-radius: 12px; background: var(--prestare-blue-50); color: var(--prestare-blue-700); font-size: 13px; font-weight: 800; }
+    .sindico-page .sindico-compare-grid { margin-top: 40px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+    .sindico-page .sindico-compare-col { padding: 32px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); }
+    .sindico-page .sindico-compare-col ul { margin: 0; padding: 0; display: grid; gap: 14px; list-style: none; }
+    .sindico-page .sindico-compare-col li { position: relative; padding-left: 26px; color: var(--text-body); }
+    .sindico-page .sindico-compare-col li::before { content: ''; position: absolute; left: 4px; top: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); opacity: .5; }
+    .sindico-page .sindico-compare-after { border-color: var(--prestare-blue-200); background: var(--prestare-blue-50); }
+    .sindico-page .sindico-compare-after li::before { content: '✓'; top: 0; left: 0; width: auto; height: auto; background: none; color: var(--prestare-blue-600); font-weight: 800; opacity: 1; }
+    .sindico-page .sindico-benefits { margin: 0 0 40px; padding: 0; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; list-style: none; }
+    .sindico-page .sindico-benefits strong { display: block; margin-bottom: 4px; color: var(--text-strong); font: var(--type-body-strong); }
+    .sindico-page .sindico-benefits span { color: var(--text-muted); font: var(--type-sub); }
+    .ps-nav a[aria-current="page"] { color: var(--prestare-blue-700); }
     @media (max-width: 680px) {
       .ps-nav { display: none; }
       .ps-mobile-menu { display: block; }
-      .ps-footer-inner { grid-template-columns: 1fr; gap: 28px; }
+      .ps-foot { gap: 32px; padding-inline: 18px; }
+      .ps-foot nav { flex: 1 1 100%; }
+      .ps-foot-bottom { padding-inline: 20px; }
       .sindico-page .sindico-hero,
-      .sindico-page .sindico-comparison,
+      .sindico-page .sindico-story-layout,
       .sindico-page .sindico-console-grid,
       .sindico-page .sindico-closing-panel { grid-template-columns: 1fr; }
       .sindico-page .sindico-shell { padding-inline: 20px; }
-      .sindico-page .sindico-shell { padding-block: 56px; }
-      .sindico-page .sindico-gains, .sindico-page .sindico-process-grid, .sindico-page .sindico-stats-inner, .sindico-page .sindico-form { grid-template-columns: 1fr; }
+      .sindico-page .sindico-shell { padding-block: 72px; }
+      .sindico-page .sindico-hero { gap: 52px; min-height: auto; padding-top: 64px; }
+      .sindico-page .sindico-stats-inner, .sindico-page .sindico-form, .sindico-page .sindico-card-grid, .sindico-page .sindico-compare-grid, .sindico-page .sindico-benefits { grid-template-columns: 1fr; }
       .sindico-page .sindico-stats article { padding: 14px 0; border-left: 0; border-top: 1px solid rgba(255,255,255,.18); }
-      .sindico-page .sindico-console-grid figure, .sindico-page .sindico-console-grid .sindico-console-featured { grid-column: 1; aspect-ratio: auto; }
-      .sindico-page .sindico-form label, .sindico-page .sindico-form button, .sindico-page .sindico-success { grid-column: 1 / -1; }
+      .sindico-page .sindico-hero-visual { min-height: 420px; }
+      .sindico-page .sindico-device-web { top: 0; width: 100%; height: 275px; border-radius: 17px; transform: none; }
+      .sindico-page .sindico-device-mobile { width: 138px; height: 248px; right: 5px; bottom: 0; padding: 9px; border-width: 4px; border-radius: 24px; }
+      .sindico-page .sindico-web-ui { grid-template-columns: 76px 1fr; }
+      .sindico-page .sindico-web-nav { padding: 13px 10px; gap: 10px; }
+      .sindico-page .sindico-web-main { padding: 14px; }
+      .sindico-page .sindico-web-heading { margin-bottom: 12px; font-size: 11px; }
+      .sindico-page .sindico-web-metric { padding: 8px; }
+      .sindico-page .sindico-web-metric b { font-size: 16px; }
+      .sindico-page .sindico-web-metric small { display: none; }
+      .sindico-page .sindico-web-chart { height: 68px; margin-top: 12px; padding: 10px; }
+      .sindico-page .sindico-mobile-profile { margin-top: 11px; padding: 10px; font-size: 10px; }
+      .sindico-page .sindico-mobile-summary { margin-top: 10px; gap: 5px; }
+      .sindico-page .sindico-mobile-summary span { padding: 8px 5px; font-size: 7px; }
+      .sindico-page .sindico-mobile-feed { margin-top: 10px; gap: 6px; }
+      .sindico-page .sindico-mobile-feed span { height: 24px; }
+      .sindico-page .sindico-sync-badge { left: 12px; bottom: 54px; padding: 9px 11px; font-size: 10px; }
+      .sindico-page .sindico-story-visual { padding: 22px 16px; border-radius: 22px; }
+      .sindico-page .sindico-operations-map { padding-block: 28px; grid-template-columns: 1fr; gap: 34px; }
+      .sindico-page .sindico-flow-sources { grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 18px; }
+      .sindico-page .sindico-ops-core { min-height: 190px; }
+      .sindico-page .sindico-ops-core::before, .sindico-page .sindico-ops-core::after { left: 50%; right: auto; top: auto; width: 1px; height: 34px; background: linear-gradient(var(--prestare-blue-100),var(--prestare-blue-500)); }
+      .sindico-page .sindico-ops-core::before { bottom: 100%; }
+      .sindico-page .sindico-ops-core::after { top: 100%; transform: rotate(180deg); }
+            .sindico-page .sindico-form label, .sindico-page .sindico-form button, .sindico-page .sindico-success { grid-column: 1 / -1; }
     }
     @media (max-width: 980px) and (min-width: 681px) {
-      .sindico-page .sindico-hero { grid-template-columns: 1fr 1fr; gap: 30px; }
-      .sindico-page .sindico-gains, .sindico-page .sindico-process-grid { grid-template-columns: repeat(2,1fr); }
+      .sindico-page .sindico-card-grid, .sindico-page .sindico-console-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .sindico-page .sindico-hero { grid-template-columns: 1fr; gap: 56px; }
+      .sindico-page .sindico-hero-visual { width: min(760px,100%); margin-inline: auto; }
+      .sindico-page .sindico-story-layout { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -155,7 +267,7 @@
     <section class="sindico-hero-wrap" aria-labelledby="sindico-title">
       <div class="sindico-shell sindico-hero">
         <div>
-          <p class="sindico-kicker sindico-eyebrow-pill">App do síndico + sistema web</p>
+          <p class="sindico-kicker sindico-eyebrow-pill">Para síndicos</p>
           <span id="sindico-title" hidden>Prestare Gestão para síndicos</span>
           <h1>Gestão do condomínio sem consumir o seu dia.</h1>
           <p class="sindico-lead">Acompanhe tudo pelo app e pelo sistema web, reduza tarefas repetitivas e tome decisões com informação em tempo real.</p>
@@ -167,62 +279,142 @@
           </ul>
           <a class="sindico-button" href="#orcamento">Pedir orçamento para meu condomínio <span aria-hidden="true">→</span></a>
         </div>
-        <figure class="sindico-hero-card"><img src="/sobre/assets/web-dashboard.png" alt="Console web da Prestare com a visão geral da operação do condomínio"></figure>
+        <div class="sindico-hero-visual" role="img" aria-label="Aplicativo do síndico e sistema web da Prestare compartilhando informações em tempo real">
+          <div class="sindico-device sindico-device-web" aria-hidden="true">
+            <div class="sindico-device-bar"><span class="sindico-device-dots"><i></i><i></i><i></i></span><span>gestao.prestare.app</span></div>
+            <div class="sindico-web-ui">
+              <div class="sindico-web-nav"><strong>Prestare</strong><span></span><span></span><span></span><span></span><span></span></div>
+              <div class="sindico-web-main">
+                <div class="sindico-web-heading"><span>Visão do condomínio</span><span class="sindico-live-pill">tempo real</span></div>
+                <div class="sindico-web-metrics">
+                  <div class="sindico-web-metric"><b>12</b><small>processos ativos</small></div>
+                  <div class="sindico-web-metric"><b>08</b><small>resolvidos hoje</small></div>
+                  <div class="sindico-web-metric"><b>96%</b><small>rotina em dia</small></div>
+                </div>
+                <div class="sindico-web-chart"><i style="--bar:38%"></i><i style="--bar:62%"></i><i style="--bar:48%"></i><i style="--bar:78%"></i><i style="--bar:58%"></i><i style="--bar:88%"></i><i style="--bar:70%"></i></div>
+              </div>
+            </div>
+          </div>
+          <div class="sindico-device sindico-device-mobile" aria-hidden="true">
+            <div class="sindico-mobile-top"><span>09:41</span><span>●●●</span></div>
+            <div class="sindico-mobile-profile"><strong>Olá, síndico</strong><small>Residencial Alameda</small></div>
+            <div class="sindico-mobile-summary"><span>3 visitantes</span><span>1 encomenda</span></div>
+            <div class="sindico-mobile-feed"><span></span><span></span><span></span></div>
+          </div>
+          <span class="sindico-sync-badge" aria-hidden="true">Dados sincronizados</span>
+        </div>
       </div>
     </section>
-    <section class="sindico-stats" aria-label="Benefícios para o síndico">
+    <section class="sindico-stats" aria-label="Efeitos na rotina do síndico">
       <div class="sindico-stats-inner">
-        <article><strong>1 painel</strong><span>para acompanhar toda a operação</span></article>
-        <article><strong>24/7</strong><span>informação disponível para decidir</span></article>
-        <article><strong>0 papel</strong><span>nos controles do dia a dia</span></article>
-        <article><strong>App + Web</strong><span>gestão no celular e no navegador</span></article>
+        <article><strong>Menos ligações</strong><span>e mensagens para resolver o básico</span></article>
+        <article><strong>Tudo centralizado</strong><span>informações e pendências em um só lugar</span></article>
+        <article><strong>De onde estiver</strong><span>operação acompanhada pelo app e pelo console web</span></article>
       </div>
     </section>
-    <section class="sindico-alt" aria-label="Impactos na rotina">
+    <section class="sindico-processes" aria-labelledby="processos-title">
       <div class="sindico-shell">
-        <p class="sindico-kicker">Impacto na rotina</p>
-        <h2>Mais clareza para cuidar do condomínio.</h2>
-        <div class="sindico-gains">
-          <article class="sindico-card"><span class="sindico-icon-chip" aria-hidden="true">↘</span><h3>Menos interrupções</h3><p>As rotinas ficam organizadas e acessíveis para todos que precisam agir.</p></article>
-          <article class="sindico-card"><span class="sindico-icon-chip" aria-hidden="true">◎</span><h3>Mais visibilidade</h3><p>Acompanhe o andamento de cada processo, sem procurar informações em vários canais.</p></article>
-          <article class="sindico-card"><span class="sindico-icon-chip" aria-hidden="true">✓</span><h3>Decisões mais rápidas</h3><p>Dados e registros à mão para priorizar o que realmente exige sua atenção.</p></article>
+        <p class="sindico-kicker">Rotina do condomínio</p>
+        <h2 id="processos-title">Processos que deixam de depender de você.</h2>
+        <p class="sindico-section-lead">Cada assunto tem seu registro e seu responsável, sem planilhas e sem consultas espalhadas.</p>
+        <div class="sindico-card-grid">
+          <article class="sindico-card"><span class="sindico-card-icon" aria-hidden="true">01</span><h3>Visitantes</h3><p>Autorizações e entradas ficam registradas. Você consulta o histórico sem ligar para a portaria.</p></article>
+          <article class="sindico-card"><span class="sindico-card-icon" aria-hidden="true">02</span><h3>Encomendas</h3><p>Chegada e retirada são anotadas na hora, e o morador é avisado sem passar por você.</p></article>
+          <article class="sindico-card"><span class="sindico-card-icon" aria-hidden="true">03</span><h3>Comunicados</h3><p>Um aviso chega a todos os moradores de uma vez, em vez de grupos e cartazes.</p></article>
+          <article class="sindico-card"><span class="sindico-card-icon" aria-hidden="true">04</span><h3>Áreas sociais</h3><p>Reservas e horários ficam organizados, com menos conflitos e menos conferência manual.</p></article>
+          <article class="sindico-card"><span class="sindico-card-icon" aria-hidden="true">05</span><h3>Financeiro</h3><p>Acompanhe a situação financeira do condomínio sem montar relatórios a cada pedido.</p></article>
+          <article class="sindico-card"><span class="sindico-card-icon" aria-hidden="true">06</span><h3>Ocorrências</h3><p>Cada ocorrência é aberta, acompanhada e encerrada com histórico, sem se perder em conversas.</p></article>
         </div>
       </div>
     </section>
-    <section aria-labelledby="processos-title">
-      <div class="sindico-shell">
-        <p class="sindico-kicker">Processos em ordem</p>
-        <h2 id="processos-title">A rotina inteira, em uma plataforma.</h2>
-        <div class="sindico-process-grid">
-          <article class="sindico-card"><span class="sindico-icon-chip" aria-hidden="true">01</span><h3>Visitantes</h3><p>Autorizações e entradas com registro claro.</p></article>
-          <article class="sindico-card"><span class="sindico-icon-chip" aria-hidden="true">02</span><h3>Encomendas</h3><p>Controle de recebimento e retirada.</p></article>
-          <article class="sindico-card"><span class="sindico-icon-chip" aria-hidden="true">03</span><h3>Comunicados</h3><p>Mensagens importantes para os moradores.</p></article>
-          <article class="sindico-card"><span class="sindico-icon-chip" aria-hidden="true">04</span><h3>Áreas sociais</h3><p>Reservas com transparência para todos.</p></article>
-          <article class="sindico-card"><span class="sindico-icon-chip" aria-hidden="true">05</span><h3>Financeiro</h3><p>Informações para acompanhar a saúde do condomínio.</p></article>
-          <article class="sindico-card"><span class="sindico-icon-chip" aria-hidden="true">06</span><h3>Ocorrências</h3><p>Registros que facilitam acompanhamento e resposta.</p></article>
+    <section class="sindico-story sindico-alt" aria-labelledby="rotina-title">
+      <div class="sindico-shell sindico-story-layout">
+        <div class="sindico-story-copy">
+          <p class="sindico-kicker">Da demanda à decisão</p>
+          <h2 id="rotina-title">Tudo chega organizado. Você enxerga o que importa.</h2>
+          <p>Em vez de procurar informações em conversas, papéis e planilhas, o síndico acompanha cada assunto em um fluxo único e rastreável.</p>
+          <ul class="sindico-outcomes">
+            <li><strong>Menos interrupções</strong><span>A equipe encontra o histórico sem depender de você.</span></li>
+            <li><strong>Visão completa</strong><span>Operação, comunicação e financeiro no mesmo lugar.</span></li>
+            <li><strong>Decisões mais rápidas</strong><span>Prioridades claras com dados atualizados.</span></li>
+          </ul>
+        </div>
+        <div class="sindico-story-visual" role="img" aria-label="Mapa operacional mostrando as demandas do condomínio centralizadas pela Prestare e transformadas em decisões claras para o síndico">
+          <div class="sindico-ops-heading"><strong>Fluxo da operação</strong><span class="sindico-ops-status">Tudo conectado</span></div>
+          <div class="sindico-operations-map" aria-hidden="true">
+            <div class="sindico-ops-column">
+              <span class="sindico-ops-label">Rotina do condomínio</span>
+              <ul class="sindico-flow-sources">
+                <li>Visitantes</li>
+                <li>Encomendas</li>
+                <li>Comunicados</li>
+                <li>Áreas sociais</li>
+                <li>Financeiro</li>
+                <li>Ocorrências</li>
+              </ul>
+            </div>
+            <div class="sindico-ops-column sindico-ops-core">
+              <div class="sindico-core-rings"><div class="sindico-core-mark">Prestare Gestão<small>um único histórico</small></div></div>
+            </div>
+            <div class="sindico-ops-column sindico-ops-insight">
+              <small>Visão do síndico</small>
+              <strong>Tudo sob controle.</strong>
+              <div class="sindico-insight-row"><span>Operação</span><b>Em dia</b></div>
+              <div class="sindico-insight-row"><span>Pendências</span><b>Priorizadas</b></div>
+              <div class="sindico-insight-row"><span>Histórico</span><b>Disponível</b></div>
+            </div>
+          </div>
+          <p class="sindico-flow-caption">Da entrada à decisão: uma visão única, organizada e pronta para agir.</p>
         </div>
       </div>
     </section>
-    <section class="sindico-alt" aria-labelledby="comparativo-title">
+    <section class="sindico-compare" aria-labelledby="antes-depois-title">
       <div class="sindico-shell">
-        <p class="sindico-kicker">Antes e depois</p>
-        <h2 id="comparativo-title">Antes e depois da Prestare.</h2>
-        <div class="sindico-comparison">
-          <article class="sindico-before"><h3>Antes</h3><p>Pedidos espalhados, informações desencontradas e muita energia consumida para manter a rotina em dia.</p></article>
-          <article class="sindico-after"><h3>Com a Prestare</h3><p>Uma operação organizada, comunicada e rastreável — para você acompanhar sem carregar tudo sozinho.</p></article>
+        <p class="sindico-kicker">Antes e depois da Prestare</p>
+        <h2 id="antes-depois-title">Da rotina espalhada para a operação visível.</h2>
+        <div class="sindico-compare-grid">
+          <div class="sindico-compare-col">
+            <h3>Rotina com controles manuais</h3>
+            <ul>
+              <li>Anotações em papel e planilhas</li>
+              <li>Mensagens e ligações para saber o que aconteceu</li>
+              <li>Consultas em lugares diferentes</li>
+              <li>Histórico difícil de reconstruir</li>
+            </ul>
+          </div>
+          <div class="sindico-compare-col sindico-compare-after">
+            <h3>Rotina com a Prestare</h3>
+            <ul>
+              <li>Registros feitos direto no sistema</li>
+              <li>Informação disponível sem depender de ninguém</li>
+              <li>Pendências e processos em um só lugar</li>
+              <li>Histórico acessível pelo app e pelo console web</li>
+            </ul>
+          </div>
         </div>
       </div>
     </section>
-    <section aria-labelledby="console-title">
+    <section class="sindico-alt" aria-labelledby="console-title">
       <div class="sindico-shell">
         <p class="sindico-kicker">Console web</p>
         <h2 id="console-title">Veja a gestão acontecendo na prática.</h2>
+        <p class="sindico-section-lead">O console web reúne a operação do condomínio em telas reais do sistema, para você acompanhar e decidir pelo navegador.</p>
+        <ul class="sindico-benefits">
+          <li><strong>Visão geral</strong><span>Eventos, pendências e números do condomínio logo na entrada.</span></li>
+          <li><strong>Histórico</strong><span>Todo registro fica guardado e pode ser consultado quando você precisar.</span></li>
+          <li><strong>Relatórios</strong><span>Informações organizadas para prestar contas e embasar decisões.</span></li>
+        </ul>
         <div class="sindico-console-grid">
-          <figure class="sindico-console-featured"><img src="/sobre/assets/web-dashboard.png" alt="Dashboard da Prestare Gestão"><figcaption>Visão geral da operação</figcaption></figure>
-          <figure><img src="/sobre/assets/web-visitantes.png" alt="Tela de visitantes"><figcaption>Visitantes e autorizações</figcaption></figure>
-          <figure><img src="/sobre/assets/web-financeiro.png" alt="Tela financeira"><figcaption>Financeiro do condomínio</figcaption></figure>
-          <figure><img src="/sobre/assets/web-autorizacao.png" alt="Tela de autorização"><figcaption>Autorizações em poucos cliques</figcaption></figure>
+          <figure><button type="button" class="sindico-shot" data-titulo="Visão geral da operação" data-texto="A tela inicial mostra, de uma vez, quantos visitantes estão no condomínio, as encomendas aguardando retirada, as ocorrências pendentes e os prestadores cadastrados. Logo abaixo, a lista de últimos eventos registra entradas, saídas e encomendas, e o acesso rápido leva às tarefas mais comuns." data-src="/sobre/assets/web-dashboard.png" data-alt="Dashboard da Prestare Gestão"><img src="/sobre/assets/web-dashboard.png" alt="Dashboard da Prestare Gestão"><figcaption>Visão geral da operação</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
+          <figure><button type="button" class="sindico-shot" data-titulo="Visitantes e autorizações" data-texto="Consulte quem entrou, quem saiu e quem está autorizado, tudo em uma lista com histórico. Quando precisar saber o que aconteceu na portaria, você encontra o registro sem ligar para ninguém." data-src="/sobre/assets/web-visitantes.png" data-alt="Tela de visitantes"><img src="/sobre/assets/web-visitantes.png" alt="Tela de visitantes"><figcaption>Visitantes e autorizações</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
+          <figure><button type="button" class="sindico-shot" data-titulo="Financeiro do condomínio" data-texto="Acompanhe a situação financeira do condomínio em um só lugar, com as informações organizadas para consulta e para prestação de contas aos moradores." data-src="/sobre/assets/web-financeiro.png" data-alt="Tela financeira"><img src="/sobre/assets/web-financeiro.png" alt="Tela financeira"><figcaption>Financeiro do condomínio</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
+          <figure><button type="button" class="sindico-shot" data-titulo="Autorizações em poucos cliques" data-texto="Libere ou negue acessos em poucos cliques. Cada decisão fica registrada no histórico, para consulta futura." data-src="/sobre/assets/web-autorizacao.png" data-alt="Tela de autorização"><img src="/sobre/assets/web-autorizacao.png" alt="Tela de autorização"><figcaption>Autorizações em poucos cliques</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
         </div>
+        <dialog class="sindico-lightbox" aria-labelledby="lightbox-title">
+          <form method="dialog"><button class="sindico-lightbox-close" aria-label="Fechar">×</button></form>
+          <img src="" alt="">
+          <div class="sindico-lightbox-text"><h3 id="lightbox-title"></h3><p></p></div>
+        </dialog>
       </div>
     </section>
     <section id="orcamento" class="sindico-closing" aria-labelledby="orcamento-title">
@@ -246,7 +438,38 @@
       </div>
     </section>
   </main>
-  <footer class="ps-footer"><div class="ps-footer-inner"><div><strong>Prestare Gestão</strong><p>Gestão condominial, controle de acesso e comunicação em uma plataforma.</p></div><nav aria-label="Produto"><span class="ps-footer-title">Produto</span><a href="/sobre/#app">Para o morador</a><a href="/sindico/">Para o síndico</a><a href="/sobre/#portaria-app">App do porteiro</a></nav><nav aria-label="Contato"><span class="ps-footer-title">Contato</span><a href="/sobre/#baixar-app">Baixar app</a><a href="#orcamento">Pedir orçamento</a><a href="/sobre/#duvidas">Dúvidas frequentes</a></nav></div></footer>
+  <footer class="ps-footer">
+    <div class="ps-foot">
+      <div class="ps-foot-brand">
+        <span style="display:inline-flex;align-items:center;gap:10px"><img src="/sobre/assets/prestare-icon.png" alt="" width="32" height="32" style="display:block;border-radius:8px"><span class="ps-brand-name">PRESTARE <span>GESTÃO</span></span></span>
+        <p>Controle de acesso, encomendas, áreas sociais e a conta do condomínio — no celular do morador e no console da portaria.</p>
+        <a class="ps-foot-link" href="https://wa.me/5517996608148" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--prestare-blue-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>Falar no WhatsApp</a>
+        <a class="ps-foot-link" href="https://www.instagram.com/prestare.gestao/" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--prestare-blue-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1" fill="var(--prestare-blue-500)" stroke="none"></circle></svg>@prestare.gestao no Instagram</a>
+      </div>
+      <nav aria-label="Produto">
+        <span class="ps-foot-title">Produto</span>
+        <a href="/sobre/#app">Para o morador</a>
+        <a href="/sindico/" aria-current="page">Para o síndico</a>
+        <a href="/sobre/#portaria-app">App do porteiro</a>
+        <a href="/sobre/#modulos">Módulos</a>
+        <a href="/sobre/#baixar-app">Baixar app</a>
+        <a href="/sobre/#duvidas">Dúvidas frequentes</a>
+      </nav>
+      <nav aria-label="Acesso">
+        <span class="ps-foot-title">Acesso</span>
+        <a href="/login">Console da portaria</a>
+        <a href="#orcamento">Pedir orçamento</a>
+        <a href="mailto:suporte@clickprestarecondominios.com.br">Suporte</a>
+        <a href="https://ig.me/m/prestare.gestao" target="_blank" rel="noopener">Instagram (mensagem)</a>
+      </nav>
+      <nav aria-label="Legal">
+        <span class="ps-foot-title">Legal</span>
+        <a href="/politica-de-privacidade.html">Política de privacidade</a>
+        <a href="/termos-de-uso.html">Termos de uso</a>
+      </nav>
+    </div>
+    <div class="ps-foot-bottom"><div><span>© <span id="ano-rodape">2026</span> Prestare Gestão · Todos os direitos reservados</span><span>prestarecondominios.com.br</span></div></div>
+  </footer>
   <script>
     window.psEnviarPedido = function (pedido) {
       var form = pedido.form;
@@ -285,6 +508,23 @@
         return true;
       }).catch(function () { return false; }).then(function (ok) { form.removeAttribute('data-enviando'); return ok; });
     };
+    (function () {
+      var dlg = document.querySelector('.sindico-lightbox');
+      if (!dlg || typeof dlg.showModal !== 'function') return;
+      document.querySelectorAll('.sindico-shot').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var img = dlg.querySelector('img');
+          img.src = btn.getAttribute('data-src');
+          img.alt = btn.getAttribute('data-alt');
+          dlg.querySelector('h3').textContent = btn.getAttribute('data-titulo');
+          dlg.querySelector('p').textContent = btn.getAttribute('data-texto');
+          dlg.showModal();
+        });
+      });
+      dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+    })();
+    var anoRodape = document.getElementById('ano-rodape');
+    if (anoRodape) anoRodape.textContent = String(new Date().getFullYear());
     var formulario = document.querySelector('[data-orcamento-form]');
     if (formulario) formulario.addEventListener('submit', function (event) {
       event.preventDefault();
