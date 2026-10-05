@@ -274,7 +274,7 @@ class ListEncomendasState extends State<ListEncomendas> {
       ),
       children: [
         for (final section in sections) ...[
-          if (section.title != null) _SectionHeader(section.title!),
+          if (section.title != null) _SectionHeader(section.title!, major: section.major),
           for (final enc in section.items)
             _EncomendaCard(
               key: ValueKey(enc.id),
@@ -955,7 +955,8 @@ class _EncomendaCard extends StatelessWidget {
     final isRetirado = kind == EncomendaKind.entregue;
     final linha = encomendaStatusLine(encomenda);
     final linhaColor = encomendaTierColor(context, linha.tier);
-    final meta = encerrada ? null : encomendaMetaLine(encomenda);
+    // Encerradas: a data fica na linha discreta, separada do nome.
+    final meta = encerrada ? encomendaDoneDate(encomenda) : encomendaMetaLine(encomenda);
     final unidade = showUnit ? encomendaUnitLabel(encomenda) : null;
     final titulo = (encomenda.descricao ?? '').trim().isEmpty ? 'Encomenda sem descrição' : encomenda.descricao!.trim();
     final hasPhoto = encomenda.fotoVolume != null && encomenda.fotoVolume!.isNotEmpty;
@@ -985,7 +986,7 @@ class _EncomendaCard extends StatelessWidget {
 
     final principal = Semantics(
       button: true,
-      label: '$titulo, ${linha.text}',
+      label: encerrada && meta != null ? '$titulo, ${linha.text}, $meta' : '$titulo, ${linha.text}',
       onTap: abrirDetalhes,
       excludeSemantics: true,
       child: ConstrainedBox(
@@ -1426,19 +1427,27 @@ class _EncomendaCard extends StatelessWidget {
   }
 }
 
+/// Cabeçalho de seção: principal ('Aguardando retirada (n)', 'Entregues (n)')
+/// ou de dia ('Hoje', 'Ontem'), menor e mais discreto.
 class _SectionHeader extends StatelessWidget {
   final String text;
-  const _SectionHeader(this.text);
+  final bool major;
+  const _SectionHeader(this.text, {this.major = true});
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.md),
+        padding: major
+            ? const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.md)
+            : const EdgeInsets.only(top: AppSpacing.xs, bottom: AppSpacing.sm, left: AppSpacing.xs),
         child: Semantics(
           header: true,
           child: Text(
             text,
-            style: AppTypography.captionMedium(context)
-                .copyWith(color: AppColors.textSecondary(context), fontWeight: FontWeight.w700),
+            style: major
+                ? AppTypography.captionMedium(context)
+                    .copyWith(color: AppColors.textPrimary(context), fontWeight: FontWeight.w700)
+                : AppTypography.tiny(context)
+                    .copyWith(color: AppColors.textTertiary(context), fontWeight: FontWeight.w600),
           ),
         ),
       );

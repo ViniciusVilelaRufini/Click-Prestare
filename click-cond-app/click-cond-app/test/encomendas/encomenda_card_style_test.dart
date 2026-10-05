@@ -65,13 +65,13 @@ void main() {
               status: 'retirado',
               retiradoPor: 'Maria',
               retiradoEm: '2026-09-29T10:12:00'):
-          ('Retirada por Maria · 29/09 às 10:12', EncomendaTier.entregue),
+          ('Retirada por Maria', EncomendaTier.entregue),
       enc(status: 'retirado', retiradoEm: '2026-09-29T10:12:00'):
-          ('Retirada · 29/09 às 10:12', EncomendaTier.entregue),
+          ('Retirada', EncomendaTier.entregue),
       enc(status: 'entregue', retiradoPor: 'Maria'):
           ('Retirada por Maria', EncomendaTier.entregue),
       enc(status: 'cancelado', retiradoEm: '2025-12-30T08:00:00'):
-          ('Cancelada · 30/12/2025 às 08:00', EncomendaTier.cancelada),
+          ('Cancelada', EncomendaTier.cancelada),
       enc(status: 'cancelado'): ('Cancelada', EncomendaTier.cancelada),
     };
     var i = 0;
@@ -80,6 +80,24 @@ void main() {
         final linha = encomendaStatusLine(e, now: now);
         expect(linha.text, esperado.$1);
         expect(linha.tier, esperado.$2);
+      });
+    });
+  });
+
+  group('encomendaDoneDate (linha de data das encerradas)', () {
+    final casos = <EncomendaModel, String?>{
+      enc(status: 'retirado', retiradoEm: '2026-10-04T10:12:00'): 'hoje às 10:12',
+      enc(status: 'retirado', retiradoEm: '2026-10-03T21:10:00'): 'ontem às 21:10',
+      enc(status: 'retirado', retiradoEm: '2026-09-30T10:12:00'): '30/09 às 10:12',
+      enc(status: 'cancelado', retiradoEm: '2025-12-30T08:00:00'):
+          '30/12/2025 às 08:00',
+      enc(status: 'cancelado', recebidoEm: '2026-10-01T09:00:00'): '01/10 às 09:00',
+      enc(status: 'retirado'): null,
+      enc(status: 'aguardando', recebidoEm: '2026-10-01T09:00:00'): null,
+    };
+    casos.forEach((e, esperado) {
+      test('${e.status} ${e.retiradoEm ?? e.recebidoEm}', () {
+        expect(encomendaDoneDate(e, now: now), esperado);
       });
     });
   });
@@ -158,14 +176,18 @@ void main() {
     ];
 
     /// 'Título: ids' por seção (records com listas não comparam por valor).
-    List<String> resumo(List<EncomendaSection> s) =>
-        [for (final x in s) '${x.title}: ${x.items.map((e) => e.id).join(',')}'];
+    /// Seções principais marcadas com '#', cabeçalhos de dia com '-'.
+    List<String> resumo(List<EncomendaSection> s) => [
+          for (final x in s)
+            '${x.major ? '#' : '-'} ${x.title}: ${x.items.map((e) => e.id).join(',')}'
+        ];
 
     test('todas: aguardando primeiro (mais antiga primeiro), depois por dia', () {
       expect(resumo(encomendaSections(todas, EncomendaFiltro.todas, now: now)), [
-        'Aguardando retirada (3): 2,3,1',
-        'Hoje: 6,4',
-        'Ontem: 5',
+        '# Aguardando retirada (3): 2,3,1',
+        '# Entregues (3): ',
+        '- Hoje: 6,4',
+        '- Ontem: 5',
       ]);
     });
 
@@ -174,7 +196,7 @@ void main() {
       expect(
           resumo(encomendaSections(todas, EncomendaFiltro.aguardando, now: now)),
           [
-            'null: 2,3,1',
+            '# null: 2,3,1',
           ]);
     });
 
@@ -182,8 +204,8 @@ void main() {
       expect(
           resumo(encomendaSections(todas, EncomendaFiltro.entregues, now: now)),
           [
-            'Hoje: 6,4',
-            'Ontem: 5',
+            '- Hoje: 6,4',
+            '- Ontem: 5',
           ]);
     });
 

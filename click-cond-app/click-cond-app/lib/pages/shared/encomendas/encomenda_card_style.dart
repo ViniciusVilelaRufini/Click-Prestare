@@ -15,8 +15,10 @@ enum EncomendaTier { normal, atrasada, aCaminho, entregue, cancelada }
 /// Filtros do seletor da lista.
 enum EncomendaFiltro { todas, aguardando, entregues }
 
-/// Seção da lista: cabeçalho opcional + encomendas.
-typedef EncomendaSection = ({String? title, List<EncomendaModel> items});
+/// Seção da lista: cabeçalho opcional + encomendas. [major] distingue as
+/// seções principais ('Aguardando retirada (n)', 'Entregues (n)') dos
+/// cabeçalhos de dia, que ficam subordinados.
+typedef EncomendaSection = ({String? title, bool major, List<EncomendaModel> items});
 
 EncomendaKind encomendaKind(String? status) {
   switch ((status ?? '').trim().toLowerCase()) {
@@ -59,8 +61,8 @@ DateTime? _dataEncerramento(EncomendaModel e) =>
     _parse(e.retiradoEm) ?? _parse(e.recebidoEm);
 
 /// Linha de status do card: 'Na portaria há 6 dias' (vermelha depois de 7
-/// dias), 'Chegou agora', 'A caminho — ainda não chegou',
-/// 'Retirada por Maria · 29/09 às 10:12', 'Cancelada · 30/09 às 08:00'.
+/// dias), 'Chegou agora', 'A caminho — ainda não chegou', 'Retirada por
+/// Maria', 'Cancelada'.
 ({String text, EncomendaTier tier}) encomendaStatusLine(EncomendaModel e,
     {DateTime? now}) {
   final ref = now ?? DateTime.now();
@@ -68,19 +70,15 @@ DateTime? _dataEncerramento(EncomendaModel e) =>
     case EncomendaKind.esperando:
       return (text: 'A caminho — ainda não chegou', tier: EncomendaTier.aCaminho);
     case EncomendaKind.entregue:
-      final data = _parse(e.retiradoEm);
+      // A data vai numa linha própria (encomendaDoneDate): junto, cortava
+      // nomes compridos.
       final quem = _texto(e.retiradoPor);
-      final base = quem == null ? 'Retirada' : 'Retirada por $quem';
       return (
-        text: data == null ? base : '$base · ${_dataHora(data, ref)}',
+        text: quem == null ? 'Retirada' : 'Retirada por $quem',
         tier: EncomendaTier.entregue,
       );
     case EncomendaKind.cancelada:
-      final data = _dataEncerramento(e);
-      return (
-        text: data == null ? 'Cancelada' : 'Cancelada · ${_dataHora(data, ref)}',
-        tier: EncomendaTier.cancelada,
-      );
+      return (text: 'Cancelada', tier: EncomendaTier.cancelada);
     case EncomendaKind.aguardando:
       final chegada = _parse(e.recebidoEm);
       if (chegada == null) return (text: 'Na portaria', tier: EncomendaTier.normal);
@@ -102,6 +100,30 @@ DateTime? _dataEncerramento(EncomendaModel e) =>
         tier: tier,
       );
   }
+}
+
+/// Data das encerradas, em linha própria: 'hoje às 10:12', 'ontem às 21:10',
+/// '30/09 às 10:12'. A entregue usa a retirada; a cancelada, a retirada ou a
+/// chegada. Null para as que aguardam ou sem data.
+String? encomendaDoneDate(EncomendaModel e, {DateTime? now}) {
+  final kind = encomendaKind(e.status);
+  final DateTime? data;
+  if (kind == EncomendaKind.entregue) {
+    data = _parse(e.retiradoEm);
+  } else if (kind == EncomendaKind.cancelada) {
+    data = _dataEncerramento(e);
+  } else {
+    return null;
+  }
+  if (data == null) return null;
+  final ref = now ?? DateTime.now();
+  final dias = DateTime(data.year, data.month, data.day)
+      .difference(DateTime(ref.year, ref.month, ref.day))
+      .inDays;
+  final hora = DateFormat('HH:mm').format(data);
+  if (dias == 0) return 'hoje às $hora';
+  if (dias == -1) return 'ontem às $hora';
+  return _dataHora(data, ref);
 }
 
 /// Cor da linha de status; mais escura no tema claro para ter contraste.
@@ -189,19 +211,24 @@ List<EncomendaSection> encomendaSections(
         .putIfAbsent(deliveryDayLabel(_dataEncerramento(e), now: now), () => [])
         .add(e);
   }
-  final dias = [
-    for (final entry in porDia.entries) (title: entry.key, items: entry.value)
+  final dias = <EncomendaSection>[
+    for (final entry in porDia.entries)
+      (title: entry.key, major: false, items: entry.value)
   ];
 
   switch (filtro) {
     case EncomendaFiltro.aguardando:
-      return aguardando.isEmpty ? [] : [(title: null, items: aguardando)];
+      return aguardando.isEmpty ? [] : [(title: null, major: true, items: aguardando)];
     case EncomendaFiltro.entregues:
       return dias;
     case EncomendaFiltro.todas:
       return [
         if (aguardando.isNotEmpty)
-          (title: 'Aguardando retirada (${aguardando.length})', items: aguardando),
+          (title: 'Aguardando retirada (${aguardando.length})', major: true, items: aguardando),
+        // Cabeçalho principal antes dos dias, para eles não parecerem parte
+        // da seção de cima.
+        if (encerradas.isNotEmpty)
+          (title: 'Entregues (${encerradas.length})', major: true, items: const <EncomendaModel>[]),
         ...dias,
       ];
   }

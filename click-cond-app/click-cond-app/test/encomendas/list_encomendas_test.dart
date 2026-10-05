@@ -108,8 +108,13 @@ void main() {
     comoMorador();
     await abrir(tester);
 
-    expect(find.textContaining('Retirada por Maria · '), findsOneWidget);
+    // Nome e data em linhas separadas (o nome não é cortado pela data).
+    expect(find.text('Retirada por Maria'), findsOneWidget);
+    expect(find.textContaining('ontem às '), findsOneWidget);
+    expect(find.text('Entregues (1)'), findsOneWidget);
     expect(find.text('Ontem'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Entregues (1)')).dy,
+        lessThan(tester.getTopLeft(find.text('Ontem')).dy));
   });
 
   testWidgets('morador com uma unidade não vê o selo da unidade',
