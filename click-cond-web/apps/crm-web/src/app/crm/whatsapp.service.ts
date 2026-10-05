@@ -55,6 +55,9 @@ export class WhatsappApi {
   iniciarConversa(leadId: number): Observable<{ conversaId: number; mensagem: Mensagem }> {
     return this.http.post<{ conversaId: number; mensagem: Mensagem }>(`${this.base}/leads/${leadId}/iniciar`, {});
   }
+  novoContato(c: { nome: string; telefone: string; condominio?: string }): Observable<{ conversaId: number; mensagem: Mensagem | null }> {
+    return this.http.post<{ conversaId: number; mensagem: Mensagem | null }>(`${this.base}/contatos`, c);
+  }
   naoLidas(): Observable<{ total: number }> { return this.http.get<{ total: number }>(`${this.base}/nao-lidas`); }
 
   respostas(): Observable<Resposta[]> { return this.http.get<Resposta[]>(`${this.base}/respostas`); }

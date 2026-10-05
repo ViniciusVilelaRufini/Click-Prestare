@@ -413,6 +413,42 @@ describe('WhatsappInboxService', () => {
     });
   });
 
+  describe('novoContato', () => {
+    it('cria lead e conversa com o nome digitado e envia o modelo', async () => {
+      const t = montar();
+      const r = await t.svc.novoContato({ nome: ' Síndico João ', telefone: '(17) 99660-8148', condominio: 'Res. Flores' });
+      expect(t.leads[0]).toMatchObject({ nome: 'Síndico João', condominio: 'Res. Flores', whatsapp: '5517996608148', origem: 'organico' });
+      expect(t.graph.enviarModelo).toHaveBeenCalledWith('5517996608148', 'primeiro_contato_orcamento');
+      expect(t.conversas[0]).toMatchObject({ wa_id: '5517996608148', nome_perfil: 'Síndico João', lead_id: 1 });
+      expect(r.mensagem).toMatchObject({ tipo: 'template', status: 'enviada' });
+    });
+
+    it('número com conversa em janela aberta só devolve a conversa, sem modelo nem lead novo', async () => {
+      const t = montar();
+      t.conversas.push({ id: 3, wa_id: '5517996608148', lead_id: 9, nao_lidas: 0, ultima_do_cliente_em: new Date() });
+      const r = await t.svc.novoContato({ nome: 'João', telefone: '17996608148' });
+      expect(r).toEqual({ conversaId: 3, mensagem: null });
+      expect(t.graph.enviarModelo).not.toHaveBeenCalled();
+      expect(t.leads).toHaveLength(0);
+    });
+
+    it('conversa antiga com lead reaproveita o lead e reenvia o modelo', async () => {
+      const t = montar();
+      t.leads.push({ id: 9, nome: 'João', whatsapp: '5517996608148' });
+      t.conversas.push({ id: 3, wa_id: '5517996608148', lead_id: 9, nao_lidas: 0, ultima_do_cliente_em: null });
+      const r = await t.svc.novoContato({ nome: 'João', telefone: '+55 17 99660-8148' });
+      expect(t.leads).toHaveLength(1);
+      expect(r.conversaId).toBe(3);
+      expect(t.graph.enviarModelo).toHaveBeenCalledTimes(1);
+    });
+
+    it('nome vazio ou telefone curto dá 400', async () => {
+      const t = montar();
+      await expect(t.svc.novoContato({ nome: '', telefone: '17996608148' })).rejects.toBeInstanceOf(BadRequestException);
+      await expect(t.svc.novoContato({ nome: 'João', telefone: '99660-8148' })).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
   describe('respostas automáticas', () => {
     const seg10h = new Date('2026-09-28T13:00:00Z'); // segunda 10:00 em Brasília
     const cfg = (boasVindas: boolean, fora = false) => ({

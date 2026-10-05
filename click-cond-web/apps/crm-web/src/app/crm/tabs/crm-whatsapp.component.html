@@ -13,6 +13,17 @@
           </span>
         }
       </div>
+      <div class="flex items-center gap-1">
+      <button type="button"
+              class="flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-emerald-700"
+              (click)="abrirNovoContato()"
+              title="Iniciar conversa com um número novo"
+              aria-label="Novo contato">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 5v14M5 12h14" />
+        </svg>
+        Novo contato
+      </button>
       <button type="button"
               class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-800"
               (click)="configAberta.set(true)"
@@ -24,6 +35,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       </button>
+      </div>
     </div>
 
     <!-- Barra de Pesquisa de Conversas -->
@@ -424,6 +436,40 @@
     }
   </section>
 </div>
+
+<!-- Modal de Novo Contato -->
+@if (novoAberto()) {
+  <div class="fixed inset-0 z-40 bg-black/30" (click)="novoAberto.set(false)"></div>
+  <form class="fixed inset-x-4 top-20 z-50 mx-auto flex max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+        (ngSubmit)="criarContato()">
+    <header class="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+      <h3 class="text-base font-semibold">Novo contato</h3>
+      <button type="button" class="text-slate-500 hover:text-slate-800" (click)="novoAberto.set(false)" aria-label="Fechar">✕</button>
+    </header>
+    <div class="space-y-3 px-5 py-4">
+      @if (erroNovo()) { <p class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{{ erroNovo() }}</p> }
+      <label class="block text-sm">Nome
+        <input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" name="nome" [(ngModel)]="novo.nome"
+               placeholder="Ex.: João (síndico)" maxlength="120" required autofocus /></label>
+      <label class="block text-sm">WhatsApp
+        <input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" name="telefone" [(ngModel)]="novo.telefone"
+               placeholder="(17) 99999-9999" inputmode="tel" maxlength="20" required /></label>
+      <label class="block text-sm">Condomínio <span class="text-slate-400">(opcional)</span>
+        <input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" name="condominio" [(ngModel)]="novo.condominio"
+               placeholder="Ex.: Residencial das Flores" maxlength="160" /></label>
+      <p class="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+        Pelas regras da Meta, o primeiro contato é feito com a mensagem aprovada de apresentação. Quando o cliente responder, a conversa fica livre por 24h.
+      </p>
+    </div>
+    <footer class="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">
+      <button type="button" class="rounded-lg border border-slate-300 px-4 py-2 text-sm" (click)="novoAberto.set(false)">Cancelar</button>
+      <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              [disabled]="criandoContato() || !novo.nome.trim() || !novo.telefone.trim()">
+        {{ criandoContato() ? 'Enviando…' : 'Iniciar conversa' }}
+      </button>
+    </footer>
+  </form>
+}
 
 <!-- Modal de Configurações do WhatsApp -->
 @if (configAberta()) {

@@ -396,6 +396,31 @@ export class WhatsappInboxService {
     return { conversaId: conversa.id, mensagem: msgDto(m) };
   }
 
+  /**
+   * Contato digitado à mão no CRM (síndico, indicação): reaproveita a conversa/lead do número,
+   * ou cria um lead novo, e só manda o modelo quando a janela de 24h está fechada.
+   */
+  async novoContato(entrada: { nome?: unknown; telefone?: unknown; condominio?: unknown }): Promise<{ conversaId: number; mensagem: MensagemDto | null }> {
+    const nome = typeof entrada?.nome === 'string' ? entrada.nome.trim().slice(0, 120) : '';
+    const condominio = typeof entrada?.condominio === 'string' ? entrada.condominio.trim().slice(0, 160) : '';
+    const waId = normalizarWhatsapp(typeof entrada?.telefone === 'string' ? entrada.telefone : '');
+    if (!nome) throw new BadRequestException('Informe o nome do contato.');
+    if (!/^\d{12,15}$/.test(waId)) throw new BadRequestException('Telefone inválido: use DDD + número (ex.: 17 99999-9999).');
+
+    const conversa = await this.prisma.crm_WhatsApp_Conversas.findUnique({ where: { wa_id: waId } });
+    if (conversa && janelaAberta(conversa.ultima_do_cliente_em ? new Date(conversa.ultima_do_cliente_em) : null)) {
+      return { conversaId: conversa.id, mensagem: null };
+    }
+    let leadId = conversa?.lead_id ?? null;
+    if (!leadId) {
+      const lead = await this.prisma.crm_Leads.create({
+        data: { nome, condominio: condominio || '—', unidades: '—', whatsapp: waId, origem: 'organico' },
+      });
+      leadId = lead.id;
+    }
+    return this.iniciarConversa(leadId);
+  }
+
   async naoLidas(): Promise<{ total: number }> {
     const r = await this.prisma.crm_WhatsApp_Conversas.aggregate({ _sum: { nao_lidas: true } });
     return { total: r._sum.nao_lidas ?? 0 };
