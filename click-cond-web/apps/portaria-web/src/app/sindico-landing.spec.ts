@@ -48,6 +48,18 @@ it('usa uma tela real do produto no hero e inicializa a medição da landing', (
   expect(html).toContain("sessionStorage.setItem('psOrigem'");
 });
 
+it('repete a hierarquia visual e os componentes principais da landing sobre', () => {
+  document.documentElement.innerHTML = htmlDaPaginaSindico();
+
+  expect(document.querySelector('.ps-nav .sindico-nav-cta')).not.toBeNull();
+  expect(document.querySelector('.sindico-hero .sindico-eyebrow-pill')).not.toBeNull();
+  expect(document.querySelectorAll('.sindico-hero .sindico-feature-list li')).toHaveLength(4);
+  expect(document.querySelectorAll('.sindico-stats article')).toHaveLength(4);
+  expect(document.querySelectorAll('.sindico-gains .sindico-icon-chip')).toHaveLength(3);
+  expect(document.querySelectorAll('.sindico-process-grid .sindico-icon-chip')).toHaveLength(6);
+  expect(document.querySelector('.sindico-console-featured')).not.toBeNull();
+});
+
 it('mostra processos e telas reais do console', () => {
   const html = htmlDaPaginaSindico();
   ['Visitantes', 'Encomendas', 'Comunicados', 'Áreas sociais', 'Financeiro', 'Ocorrências'].forEach((t) => expect(html).toContain(t));
