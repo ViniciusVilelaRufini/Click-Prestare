@@ -2494,22 +2494,18 @@ export class FacialService {
   }
 
   /**
+   * Com a flag ligada, `tickDiasSemanaSync`, `tickExpiracaoAutomatica` e
+   * `tickPreEnrolamento` também chamam `syncPessoa` — é o `tickDiasSemanaSync`,
+   * na hora 0 BRT, que reestende o teto de validade de fim-de-dia que
+   * `dias_semana` impõe (ver `fimDoDiaBRT` abaixo).
+   *
    * TODO (não corrigido nesta rodada — documentado para quem terminar a
-   * migração):
-   *
-   * 1. Nenhum tick re-sincroniza Pessoas: `tickDiasSemanaSync`,
-   *    `tickExpiracaoAutomatica`, `tickPreEnrolamento` e `tickFantasmas` só
-   *    varrem `Visitantes`/`Moradores`/`Prestadores_servico`. O teto de
-   *    validade de fim-de-dia que `dias_semana` impõe (ver `fimDoDiaBRT`
-   *    abaixo) nunca é reestendido no dia seguinte — a pessoa fica trancada
-   *    fora depois da meia-noite mesmo num dia autorizado.
-   *
-   * 2. Quando uma Pessoa tem várias Visitas ativas sobrepostas,
-   *    `resolverVisitaAtivaPessoa` usa `.find(...)` sobre `pessoa.visitas`
-   *    (populado por `include: { visitas: true }` sem `orderBy`) — a ordem
-   *    de retorno do banco decide qual visita "vence", então a janela mais
-   *    estreita pode ganhar e travar a pessoa fora mais cedo do que
-   *    qualquer uma das visitas isoladamente permitiria.
+   * migração): quando uma Pessoa tem várias Visitas ativas sobrepostas,
+   * `resolverVisitaAtivaPessoa` usa `.find(...)` sobre `pessoa.visitas`
+   * (populado por `include: { visitas: true }` sem `orderBy`) — a ordem de
+   * retorno do banco decide qual visita "vence", então a janela mais estreita
+   * pode ganhar e travar a pessoa fora mais cedo do que qualquer uma das
+   * visitas isoladamente permitiria.
    */
   async pushPessoaToDevices(pessoa: any, opts: { deviceIds?: number[] } = {}) {
     const devices = await this.prisma.facial_Devices.findMany({
@@ -3360,6 +3356,38 @@ export class FacialService {
   }
 
   /**
+   * Parte "Pessoas" dos ticks de autorização (só com a flag ligada): dispara
+   * `syncPessoa` — que recalcula pela janela/dia das visitas e envia ou
+   * remove o rosto — e loga ok/skip/falha no mesmo formato dos blocos de
+   * visitantes. `{ ok: false }` (ex.: remoção pendente no aparelho) conta
+   * como falha: o rosto que devia sair continua lá.
+   */
+  private sincronizarPessoasDoTick(tick: string, ids: number[], rotuloOk: string) {
+    const unicos = [...new Set(ids)];
+    if (unicos.length === 0) return;
+    let ok = 0;
+    let skipped = 0;
+    let falhou = 0;
+    const syncs = unicos.map((id) =>
+      this.syncPessoa(id)
+        .then((r: any) => {
+          if (r?.skipped) skipped++;
+          else if (r?.ok === false) falhou++;
+          else ok++;
+        })
+        .catch((e: any) => {
+          falhou++;
+          this.logger.warn(`${tick} pessoa ${id}: ${e?.message ?? e}`);
+        }),
+    );
+    void Promise.allSettled(syncs).then(() => {
+      this.logger.log(
+        `${tick} pessoas: ${ok} ${rotuloOk}, ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${unicos.length}`,
+      );
+    });
+  }
+
+  /**
    * Disparo horário: ao virar o dia (0h BRT), re-sincroniza todos que têm
    * restrição de dias da semana — adiciona/remove rostos conforme o dia atual.
    */
@@ -3379,8 +3407,8 @@ export class FacialService {
       });
       // Important 4 (Lote B): `syncVisitante`, com a flag ligada, resolve
       // contra `Visitas` (não `Visitantes`) e devolve `{ skipped: true }` em
-      // vez de sincronizar — este tick não foi migrado (fora de escopo
-      // aqui). Sem contar `skipped` à parte, um log de sucesso mentiria
+      // vez de sincronizar — a modelagem nova é coberta pelo bloco de Pessoas
+      // logo abaixo. Sem contar `skipped` à parte, um log de sucesso mentiria
       // sobre quantos rostos de fato foram re-sincronizados na virada do dia.
       let visOk = 0;
       let visSkipped = 0;
@@ -3405,6 +3433,24 @@ export class FacialService {
             `tickDiasSemanaSync visitantes: ${visOk} sincronizado(s), ${visSkipped} ignorado(s) (skip), ${visFalhou} falha(s) de ${comDias.length}`,
           );
         });
+      }
+
+      // Modelagem nova: a restrição mora em `Visitas.dias_semana`. Reavaliar na
+      // virada reestende o teto de fim-de-dia (`fimDoDiaBRT`) — sem isso a
+      // pessoa fica trancada fora depois da meia-noite mesmo num dia autorizado.
+      if (pessoasMigrationEnabled(this.prisma)) {
+        const pessoasComDias = await this.prisma.pessoas.findMany({
+          where: {
+            OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
+            visitas: { some: { dias_semana: { not: null } } },
+          },
+          select: { id: true },
+        });
+        this.sincronizarPessoasDoTick(
+          'tickDiasSemanaSync',
+          pessoasComDias.map((p: any) => p.id),
+          'sincronizado(s)',
+        );
       }
 
       // Prestadores de serviço (Gestão de Acesso) também têm restrição por dia.
@@ -3446,9 +3492,9 @@ export class FacialService {
       });
       // Important 4 (Lote B): mesma ressalva de `tickDiasSemanaSync` — com a
       // flag ligada `syncVisitante` devolve `{ skipped: true }` em vez de
-      // sincronizar (este tick não foi migrado, fora de escopo aqui). Conta
-      // skip à parte pra não afirmar "processados" como se tivessem sido
-      // de fato re-sincronizados no aparelho.
+      // sincronizar (Pessoas é coberta no bloco abaixo). Conta skip à parte
+      // pra não afirmar "processados" como se tivessem sido de fato
+      // re-sincronizados no aparelho.
       let ok = 0;
       let skipped = 0;
       let falhou = 0;
@@ -3479,6 +3525,26 @@ export class FacialService {
           );
         });
       }
+
+      // Modelagem nova: `syncPessoa` olha TODAS as visitas da pessoa e só
+      // remove o rosto quando nenhuma autoriza (janela/dia) e ela não está
+      // dentro. Diferente do caminho legado, aqui NÃO se zera
+      // `Visitas.liberado`: quem ainda está dentro com a visita vencida
+      // perderia o rosto também no leitor de saída.
+      if (pessoasMigrationEnabled(this.prisma)) {
+        const pessoasExpiradas = await this.prisma.pessoas.findMany({
+          where: {
+            face_id: { not: null },
+            visitas: { some: { data_hora_termino: { lt: agora } } },
+          },
+          select: { id: true },
+        });
+        this.sincronizarPessoasDoTick(
+          'tickExpiracaoAutomatica',
+          pessoasExpiradas.map((p: any) => p.id),
+          'sincronizado(s)',
+        );
+      }
     } catch (e: any) {
       this.logger.warn(`tickExpiracaoAutomatica erro: ${e?.message ?? e}`);
     }
@@ -3508,9 +3574,9 @@ export class FacialService {
       });
       // Important 4 (Lote B): mesma ressalva das duas ticks acima —
       // `syncVisitante` com a flag ligada devolve `{ skipped: true }` em vez
-      // de pré-enrolar de fato (tick não migrado, fora de escopo aqui). O
-      // log antigo ("N pré-enrolados") afirmava sucesso mesmo quando nada
-      // foi enviado ao aparelho.
+      // de pré-enrolar de fato (Pessoas é coberta no bloco abaixo). O log
+      // antigo ("N pré-enrolados") afirmava sucesso mesmo quando nada foi
+      // enviado ao aparelho.
       let ok = 0;
       let skipped = 0;
       let falhou = 0;
@@ -3534,6 +3600,24 @@ export class FacialService {
             `tickPreEnrolamento: ${ok} pré-enrolado(s), ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${prestes.length}`,
           );
         });
+      }
+
+      if (pessoasMigrationEnabled(this.prisma)) {
+        const pessoasPrestes = await this.prisma.pessoas.findMany({
+          where: {
+            foto_pessoa: { not: null },
+            face_id: null,
+            visitas: {
+              some: { liberado: 1, data_hora_inicio: { gte: agora, lte: em30min } },
+            },
+          },
+          select: { id: true },
+        });
+        this.sincronizarPessoasDoTick(
+          'tickPreEnrolamento',
+          pessoasPrestes.map((p: any) => p.id),
+          'pré-enrolado(s)',
+        );
       }
     } catch (e: any) {
       this.logger.warn(`tickPreEnrolamento erro: ${e?.message ?? e}`);
