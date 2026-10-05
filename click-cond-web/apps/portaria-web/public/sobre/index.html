@@ -106,8 +106,7 @@
     window.open('https://wa.me/' + p.numero + '?text=' + encodeURIComponent(p.mensagem), '_blank', 'noopener');
     return true;
   };
-  // Mensagem do pedido feito pelo simulador. A linha da oferta registra que a
-  // condição de lançamento valia quando o lead pediu.
+  // Mensagem do pedido feito pelo simulador.
   window.psMensagemSimulador = function (d) {
     return [
       '*Proposta pelo simulador — Prestare Gestão*',
@@ -118,8 +117,6 @@
       '*Condomínio:* ' + d.condominio,
       '*WhatsApp:* ' + d.whatsapp,
       '*Simulação:* ' + d.resumo,
-      '',
-      'Condição de lançamento: implantação grátis (10 primeiros condomínios).',
       '',
       '_Enviado pelo site prestarecondominios.com.br/sobre_'
     ].join('\n');
@@ -454,7 +451,7 @@
         </span>
         <h1 style="margin: 22px 0 0; font: var(--weight-extrabold) clamp(34px, 4.4vw, 50px)/1.06 var(--font-ui); letter-spacing: -.026em; color: var(--text-strong); max-width: 17ch; text-wrap: balance;">Todo o condomínio<br><span style="color: var(--prestare-blue-500);">na palma da mão</span></h1>
         <p style="margin: 18px 0 0; font: var(--weight-regular) clamp(16px, 1.3vw, 18px)/1.55 var(--font-ui); color: var(--text-muted); max-width: 46ch; text-wrap: pretty;">Visitantes, encomendas e a conta do condomínio no celular do morador — e o síndico vendo tudo acontecer no sistema web, sem planilha e sem livro de papel.</p>
-        <p style="margin: 14px 0 0; font: var(--type-body-strong); color: var(--prestare-blue-700);">A partir de R$ 298/mês · implantação grátis para os 10 primeiros condomínios</p>
+        <p style="margin: 14px 0 0; font: var(--type-body-strong); color: var(--prestare-blue-700);">A partir de R$ 298/mês</p>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 8px 20px; margin-top: 26px; max-width: 420px;">
           <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Controle de acesso</span>
@@ -556,8 +553,7 @@
           <div style="margin-top: 4px; font: var(--type-h2); color: var(--prestare-blue-700);">{{ simPlano }}</div>
           <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">{{ simIncluso }}</p>
           <div style="margin-top: 18px; font: var(--weight-extrabold) clamp(32px, 4vw, 44px)/1.05 var(--font-ui); color: var(--text-strong);">{{ simMensal }}<span style="font: var(--type-body); color: var(--text-muted);">/mês</span></div>
-          <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-body);">Equivale a <strong>{{ simPorUnidade }}</strong> por unidade · implantação <s style="color: var(--text-faint);">{{ simImplantacao }}</s> <strong style="color: #15803d;">grátis</strong></p>
-          <span class="ps-selo-oferta">Condição de lançamento: implantação grátis para os 10 primeiros condomínios</span>
+          <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-body);">Equivale a <strong>{{ simPorUnidade }}</strong> por unidade · implantação <strong>{{ simImplantacao }}</strong></p>
 
           <!-- O pedido nasce aqui, no momento em que a pessoa acabou de ver o
                preço: as unidades já vêm do simulador, só faltam três campos. -->
@@ -1010,13 +1006,6 @@
             </summary>
             <p class="ps-faq-answer" style="font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Não. A portaria continua registrando e o sistema sincroniza quando a conexão volta — o status <strong style="font-weight: 600;">Sinc.</strong> mostra o que ainda está subindo.</p>
           </details>
-          <details class="ps-faq-item" style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
-            <summary>
-              <span style="font: var(--type-body-strong); color: inherit;">Como funciona a implantação grátis?</span>
-              <svg class="ps-faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </summary>
-            <p class="ps-faq-answer" style="font: var(--type-body); color: var(--text-muted); max-width: 82ch;">É a condição de lançamento: vale para os 10 primeiros condomínios que fecharem contrato. A implantação, que custa R$ 490, fica isenta; a mensalidade segue a tabela do simulador.</p>
-          </details>
         </div>
       </div>
     </section></div>
@@ -1028,7 +1017,6 @@
         <span class="ps-eyebrow">Orçamento</span>
         <h2 class="ps-title" style="color: var(--text-on-brand);">Receba um orçamento para o seu condomínio.</h2>
         <p style="margin: 14px 0 0; font: var(--type-body); color: rgba(255,255,255,.85); max-width: 44ch;">O valor acompanha o tamanho do condomínio. Diga quantas unidades e eu respondo com o orçamento e os módulos que fazem sentido para vocês.</p>
-        <p style="margin: 10px 0 0; font: var(--type-body-strong); color: #fff; max-width: 44ch;">Condição de lançamento: implantação grátis para os 10 primeiros condomínios.</p>
 
         <!-- Etapas com os mesmos ícones do formulário (check/clock/shield-check),
              para a coluna azul conversar com o card ao lado em vez de só decorar. -->
@@ -1793,7 +1781,7 @@ class Component extends DCLogic {
     const c = ok ? this.calcularPlano(n) : null;
     const resumo = ok ? n + " unidades · " + c.plano + " · " + this.brl(c.mensal) + "/mês" : "";
     const msg = ok
-      ? "Olá! Simulei no site o plano " + c.plano + " para " + n + " unidades (" + this.brl(c.mensal) + "/mês, implantação grátis na condição de lançamento) e quero uma proposta para o meu condomínio."
+      ? "Olá! Simulei no site o plano " + c.plano + " para " + n + " unidades (" + this.brl(c.mensal) + "/mês) e quero uma proposta para o meu condomínio."
       : "Olá! Quero um orçamento do Prestare Gestão para o meu condomínio.";
     return {
       simUnidades: this.state.simUnidades,

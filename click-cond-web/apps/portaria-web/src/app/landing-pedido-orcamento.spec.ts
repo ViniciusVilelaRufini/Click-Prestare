@@ -126,7 +126,7 @@ describe('psMensagemSimulador', () => {
     expect(msg).toContain('*Condomínio:* Residencial Azul');
     expect(msg).toContain('*WhatsApp:* (17) 99660-8148');
     expect(msg).toContain('*Simulação:* 80 unidades · Plus · R$ 773,00/mês');
-    expect(msg).toContain('implantação grátis (10 primeiros condomínios)');
+    expect(msg).not.toContain('implantação grátis');
   });
 });
 
@@ -200,7 +200,7 @@ describe('formulário do simulador', () => {
     });
     const url = decodeURIComponent((open.mock.calls[0] as any[])[0]);
     expect(url).toContain('*Simulação:* 80 unidades · Plus · R$ 773,00/mês');
-    expect(url).toContain('implantação grátis');
+    expect(url).not.toContain('implantação grátis');
     expect(ctx.setState).toHaveBeenCalledWith({ simEnviado: true });
   });
 
@@ -234,7 +234,8 @@ describe('formulário do simulador', () => {
     const card = html.slice(inicio, html.indexOf('</section>', inicio));
     expect(card).toContain('onSubmit="{{ enviarSimulador }}"');
     expect(card).toContain('Receber minha proposta');
-    expect(card).toContain('implantação grátis para os 10 primeiros condomínios');
+    expect(card).not.toContain('implantação grátis');
+    expect(card).not.toContain('Condição de lançamento');
     expect(card).toContain('Prefere falar direto? Abrir o WhatsApp');
     expect(card).toContain('Sem compromisso');
     expect(card).toContain('Proposta com o valor exato do seu condomínio');
@@ -277,10 +278,11 @@ describe('textos de resposta e oferta', () => {
     expect(html).toContain('Atendimento humano em horário comercial');
   });
 
-  it('o contato e o FAQ explicam a condição de lançamento', () => {
+  it('o contato e o FAQ não anunciam mais a implantação grátis', () => {
     const html = htmlDaLanding();
-    expect(html).toContain('Condição de lançamento: implantação grátis para os 10 primeiros condomínios.');
-    expect(html).toContain('Como funciona a implantação grátis?');
+    expect(html).not.toContain('Condição de lançamento');
+    expect(html).not.toContain('implantação grátis');
+    expect(html).not.toContain('Como funciona a implantação grátis?');
   });
 
   it('não usa promessas que a Prestare não oferece', () => {
@@ -308,11 +310,11 @@ describe('correções finais da revisão', () => {
     return decodeURIComponent(simVals.call(contexto, '5517996608148').simLink);
   }
 
-  it('o link direto do simulador não cita R$ 490 e fala da condição de lançamento', () => {
+  it('o link direto do simulador cita só a mensalidade, sem implantação grátis', () => {
     const texto = simLink('80');
-    expect(texto).toContain('R$ 773,00/mês, implantação grátis na condição de lançamento');
+    expect(texto).toContain('(R$ 773,00/mês) e quero uma proposta');
+    expect(texto).not.toContain('implantação');
     expect(texto).not.toContain('R$ 490');
-    expect(texto).not.toContain('implantação de');
   });
 
   it('o link direto sem valor mantém a mensagem genérica', () => {

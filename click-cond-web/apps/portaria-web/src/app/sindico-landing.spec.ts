@@ -180,3 +180,9 @@ it('redireciona /sindico/ para a página estática quando o SPA responde no luga
   expect(index).toContain('/^\\/sindico\\/?$/.test(location.pathname)');
   expect(index).toContain('location.replace("/sindico/index.html"');
 });
+
+it('não anuncia mais a implantação grátis', () => {
+  const html = htmlDaPaginaSindico();
+  expect(html).not.toContain('Condição de lançamento');
+  expect(html).not.toContain('implantação grátis');
+});
