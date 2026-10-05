@@ -118,7 +118,7 @@ Color encomendaTierColor(BuildContext context, EncomendaTier tier) {
       : Color.lerp(base, Colors.black, 0.28)!;
 }
 
-/// Linha discreta do card que aguarda: '<remetente> · chegou 28/09 às 18:38'
+/// Linha discreta do card que aguarda: 'Correios · chegou 28/09 às 18:38'
 /// (sem remetente vazio ou 'N/A'); null quando não há nada a mostrar.
 String? encomendaMetaLine(EncomendaModel e, {DateTime? now}) {
   final ref = now ?? DateTime.now();

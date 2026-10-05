@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:click/controllers/controller_encomendas.dart';
 import 'package:click/models/encomenda_model.dart';
+import 'package:click/pages/shared/encomendas/encomenda_card_style.dart';
 import 'package:click/pages/shared/encomendas/new_encomenda.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -12,6 +13,7 @@ import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/app_segmented_control.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -38,7 +40,7 @@ class ListEncomendasState extends State<ListEncomendas> {
   bool _isLoading = false;
   List<EncomendaModel> _encomendas = [];
   bool _jaAbriuDestaque = false;
-  String _filtroStatus = 'todos'; // 'todos', 'aguardando', 'retirada'
+  EncomendaFiltro _filtro = EncomendaFiltro.todas;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
@@ -121,11 +123,7 @@ class ListEncomendasState extends State<ListEncomendas> {
 
   List<EncomendaModel> get _encomendasFiltradas {
     return _encomendas.where((e) {
-      final statusLower = (e.status ?? '').toLowerCase();
-      final isRetirada = statusLower == 'retirado' || statusLower == 'retirada' || statusLower == 'entregue';
-      
-      if (_filtroStatus == 'aguardando' && isRetirada) return false;
-      if (_filtroStatus == 'retirada' && !isRetirada) return false;
+      if (!encomendaNoFiltro(e, _filtro)) return false;
 
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase().trim();
@@ -219,34 +217,16 @@ class ListEncomendasState extends State<ListEncomendas> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                // Chips de filtro por status
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildFilterChip('Todas', 'todos', _encomendas.length),
-                      const SizedBox(width: AppSpacing.xs),
-                      _buildFilterChip(
-                        'Aguardando',
-                        'aguardando',
-                        _encomendas.where((e) {
-                          final s = (e.status ?? '').toLowerCase();
-                          return s != 'retirado' && s != 'retirada' && s != 'entregue';
-                        }).length,
-                        color: Colors.orange,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      _buildFilterChip(
-                        'Entregues',
-                        'retirada',
-                        _encomendas.where((e) {
-                          final s = (e.status ?? '').toLowerCase();
-                          return s == 'retirado' || s == 'retirada' || s == 'entregue';
-                        }).length,
-                        color: Colors.green,
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: AppSpacing.xs),
+                // Filtro por situação (contagens sobre todas as encomendas).
+                AppSegmentedControl(
+                  selectedIndex: _filtro.index,
+                  onChanged: (i) => setState(() => _filtro = EncomendaFiltro.values[i]),
+                  segments: [
+                    AppSegment(label: 'Todas', count: encomendaCount(_encomendas, EncomendaFiltro.todas)),
+                    AppSegment(label: 'Aguardando', count: encomendaCount(_encomendas, EncomendaFiltro.aguardando)),
+                    AppSegment(label: 'Entregues', count: encomendaCount(_encomendas, EncomendaFiltro.entregues)),
+                  ],
                 ),
               ],
             ),
@@ -271,25 +251,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                     onRefresh: _loadList,
                     child: lista.isEmpty
                         ? _buildEmptyState()
-                        : ListView.builder(
-                            padding: const EdgeInsets.only(
-                              left: AppSpacing.lg,
-                              right: AppSpacing.lg,
-                              top: AppSpacing.sm,
-                              bottom: 120,
-                            ),
-                            itemCount: lista.length,
-                            itemBuilder: (context, index) {
-                              return _EncomendaCard(
-                                key: ValueKey(lista[index].id),
-                                encomenda: lista[index],
-                                isStaff: _isStaff,
-                                onRetirada: _loadList,
-                                onEdit: (enc) => _editarEncomenda(enc),
-                                onDelete: (enc) => _confirmDeleteEncomenda(enc),
-                              );
-                            },
-                          ),
+                        : _buildSections(lista),
                   ),
           ),
         ],
@@ -297,33 +259,34 @@ class ListEncomendasState extends State<ListEncomendas> {
     );
   }
 
-  Widget _buildFilterChip(String label, String value, int count, {Color? color}) {
-    final isSelected = _filtroStatus == value;
-    final activeColor = color ?? AppColors.primary;
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return FilterChip(
-      selected: isSelected,
-      label: Text('$label ($count)'),
-      labelStyle: TextStyle(
-        fontSize: 12,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-        color: isSelected ? Colors.white : AppColors.textSecondary(context),
+  /// Aguardando primeiro (a mais antiga no topo), depois as encerradas por
+  /// dia ('Hoje', 'Ontem', '27 de set').
+  Widget _buildSections(List<EncomendaModel> lista) {
+    final showUnit = showUnitBadge(lista, isStaff: _isStaff);
+    final sections = encomendaSections(lista, _filtro);
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(
+        left: AppSpacing.lg,
+        right: AppSpacing.lg,
+        top: AppSpacing.sm,
+        bottom: 120,
       ),
-      backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-      selectedColor: activeColor,
-      checkmarkColor: Colors.white,
-      showCheckmark: false,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isSelected ? activeColor : (isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
-          width: 1.1,
-        ),
-      ),
-      onSelected: (_) => setState(() => _filtroStatus = value),
+      children: [
+        for (final section in sections) ...[
+          if (section.title != null) _SectionHeader(section.title!),
+          for (final enc in section.items)
+            _EncomendaCard(
+              key: ValueKey(enc.id),
+              encomenda: enc,
+              isStaff: _isStaff,
+              showUnit: showUnit,
+              onRetirada: _loadList,
+              onEdit: (e) => _editarEncomenda(e),
+              onDelete: (e) => _confirmDeleteEncomenda(e),
+            ),
+        ],
+      ],
     );
   }
 
@@ -348,17 +311,25 @@ class ListEncomendasState extends State<ListEncomendas> {
               Text(
                 _searchQuery.isNotEmpty
                     ? 'Nenhuma encomenda corresponde à busca'
-                    : (_isStaff
-                        ? 'Nenhuma encomenda registrada no condomínio'
-                        : 'Nenhuma encomenda encontrada'),
+                    : _filtro == EncomendaFiltro.aguardando
+                        ? 'Nada aguardando retirada'
+                        : _filtro == EncomendaFiltro.entregues
+                            ? 'Nenhuma encomenda entregue ainda'
+                            : (_isStaff
+                                ? 'Nenhuma encomenda registrada no condomínio'
+                                : 'Nenhuma encomenda encontrada'),
                 style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                _isStaff
-                    ? 'Toque no botão "+ Nova Encomenda" abaixo para registrar a chegada de um pacote.'
-                    : 'Suas encomendas recebidas pela portaria aparecerão aqui.',
+                _filtro == EncomendaFiltro.aguardando && _searchQuery.isEmpty
+                    ? 'Tudo retirado por aqui. Quando um volume chegar à portaria, ele aparece nesta aba.'
+                    : _filtro == EncomendaFiltro.entregues && _searchQuery.isEmpty
+                        ? 'As encomendas retiradas aparecem aqui, organizadas por dia.'
+                        : _isStaff
+                            ? 'Toque no botão "+ Nova Encomenda" abaixo para registrar a chegada de um pacote.'
+                            : 'Suas encomendas recebidas pela portaria aparecerão aqui.',
                 style: AppTypography.bodySecondary(context),
                 textAlign: TextAlign.center,
               ),
@@ -608,6 +579,9 @@ class ListEncomendasState extends State<ListEncomendas> {
 class _EncomendaCard extends StatelessWidget {
   final EncomendaModel encomenda;
   final bool isStaff;
+
+  /// Selo 'Bloco A • Apto 106' (só quando há unidades a distinguir).
+  final bool showUnit;
   final VoidCallback? onRetirada;
   final void Function(EncomendaModel)? onEdit;
   final void Function(EncomendaModel)? onDelete;
@@ -616,6 +590,7 @@ class _EncomendaCard extends StatelessWidget {
     super.key,
     required this.encomenda,
     this.isStaff = false,
+    this.showUnit = false,
     this.onRetirada,
     this.onEdit,
     this.onDelete,
@@ -928,26 +903,21 @@ class _EncomendaCard extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  /// Mesmos valores que os detalhes sempre receberam.
+  (String, Color) _detailsArgs() {
     final statusLower = (encomenda.status ?? '').toLowerCase();
     final isRetirado = statusLower == 'retirado' || statusLower == 'retirada' || statusLower == 'entregue';
     Color statusColor;
-    String statusText;
     if (isRetirado) {
       statusColor = Colors.green;
-      statusText = 'ENTREGUE';
     } else if (statusLower == 'cancelado' || statusLower == 'recusado') {
       statusColor = Colors.red;
-      statusText = 'CANCELADO';
     } else if (statusLower == 'esperando') {
       statusColor = Colors.blue;
-      statusText = 'A CHEGAR';
     } else {
       statusColor = Colors.orange;
-      statusText = 'AGUARDANDO RETIRADA';
     }
-    
+
     String dataFormatada = '';
     if (encomenda.recebidoEm != null) {
       try {
@@ -959,261 +929,218 @@ class _EncomendaCard extends StatelessWidget {
     } else if (statusLower == 'esperando') {
       dataFormatada = 'Aguardando chegada';
     }
+    return (dataFormatada, statusColor);
+  }
 
-    final hasPhoto = encomenda.fotoVolume != null && encomenda.fotoVolume!.isNotEmpty;
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? AppColors.darkSurface : Colors.white;
-    final cardBorder = isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: cardBorder,
-          width: 1.1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.20)
-                : const Color(0xFF64748B).withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+  Widget _thumb(BuildContext context, double size) => ClipRRect(
+        borderRadius: BorderRadius.circular(size >= 52 ? 14 : 12),
+        child: Container(
+          width: size,
+          height: size,
+          color: AppColors.surfaceElevated(context),
+          child: Image.network(
+            encomenda.fotoVolume!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Center(
+              child: Icon(PhosphorIcons.imageSquare, size: 22, color: Colors.grey),
+            ),
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () => _showEncomendaDetails(context, dataFormatada, statusColor),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Header Row: Unidade Badge + Status Pill
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (encomenda.destinatarioApto != null && encomenda.destinatarioApto!.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(PhosphorIcons.buildings, size: 13, color: AppColors.primary),
-                            const SizedBox(width: 5),
-                            Text(
-                              '${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? "${rotuloBloco(encomenda.destinatarioBloco)} • " : ""}Apto ${encomenda.destinatarioApto}',
-                              style: AppTypography.tiny(context).copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      const SizedBox.shrink(),
+        ),
+      );
 
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: statusColor.withValues(alpha: 0.25)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: statusColor,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            statusText,
-                            style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
+  @override
+  Widget build(BuildContext context) {
+    final kind = encomendaKind(encomenda.status);
+    final encerrada = kind == EncomendaKind.entregue || kind == EncomendaKind.cancelada;
+    final isRetirado = kind == EncomendaKind.entregue;
+    final linha = encomendaStatusLine(encomenda);
+    final linhaColor = encomendaTierColor(context, linha.tier);
+    final meta = encerrada ? null : encomendaMetaLine(encomenda);
+    final unidade = showUnit ? encomendaUnitLabel(encomenda) : null;
+    final titulo = (encomenda.descricao ?? '').trim().isEmpty ? 'Encomenda sem descrição' : encomenda.descricao!.trim();
+    final hasPhoto = encomenda.fotoVolume != null && encomenda.fotoVolume!.isNotEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    void abrirDetalhes() {
+      final (data, cor) = _detailsArgs();
+      _showEncomendaDetails(context, data, cor);
+    }
+
+    // Ícone/miniatura: foto do volume quando houver; senão, nas encerradas,
+    // check verde ou X vermelho; nas que aguardam, o ícone da transportadora.
+    final Widget leading;
+    if (hasPhoto) {
+      leading = _thumb(context, encerrada ? 44 : 52);
+    } else if (encerrada) {
+      final cor = isRetirado ? AppColors.success : AppColors.error;
+      leading = Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(color: cor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+        child: Icon(isRetirado ? PhosphorIcons.checkCircle : PhosphorIcons.xCircle, color: linhaColor, size: 22),
+      );
+    } else {
+      leading = _buildBrandIcon(context);
+    }
+
+    final principal = Semantics(
+      button: true,
+      label: '$titulo, ${linha.text}',
+      onTap: abrirDetalhes,
+      excludeSemantics: true,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            leading,
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (unidade != null) ...[
+                    _UnitBadge(unidade),
+                    const SizedBox(height: 6),
                   ],
-                ),
-                const SizedBox(height: AppSpacing.md),
+                  Text(
+                    titulo,
+                    style: AppTypography.bodyMedium(context).copyWith(
+                      fontWeight: encerrada ? FontWeight.w600 : FontWeight.w700,
+                      height: 1.3,
+                      color: encerrada ? AppColors.textSecondary(context) : AppColors.textPrimary(context),
+                    ),
+                    maxLines: encerrada ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    linha.text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.caption(context).copyWith(
+                      fontSize: 13,
+                      color: linhaColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (meta != null) ...[
+                    const SizedBox(height: 2),
+                    Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTypography.tiny(context)),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+          ],
+        ),
+      ),
+    );
 
-                // Main Info Row: Icon + Description + Date + Photo Thumbnail
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: _PressScale(
+        child: Container(
+          decoration: BoxDecoration(
+            // Encerradas: peso visual menor (fundo de superfície, sem sombra).
+            color: encerrada
+                ? AppColors.surface(context)
+                : (isDark ? AppColors.surface(context) : AppColors.surfaceElevated(context)),
+            borderRadius: AppRadius.rlg,
+            border: Border.all(color: AppColors.border(context)),
+            boxShadow: encerrada || isDark
+                ? null
+                : [BoxShadow(color: const Color(0xFF64748B).withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: AppRadius.rlg,
+            child: InkWell(
+              borderRadius: AppRadius.rlg,
+              onTap: abrirDetalhes,
+              child: Padding(
+                padding: EdgeInsets.all(encerrada ? AppSpacing.md : AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildBrandIcon(context),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
+                    principal,
+                    // Ações da equipe (inalteradas).
+                    if (isStaff) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      const Divider(height: 1),
+                      const SizedBox(height: AppSpacing.sm),
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            encomenda.descricao ?? 'Encomenda sem descrição',
-                            style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(PhosphorIcons.truck, size: 14, color: AppColors.textTertiary(context)),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  'Transportadora: ${encomenda.recebidoDe ?? "N/A"}',
-                                  style: AppTypography.caption(context).copyWith(
-                                    color: AppColors.textSecondary(context),
+                          InkWell(
+                            onTap: () => onDelete?.call(encomenda),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              constraints: const BoxConstraints(minHeight: 44),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.error.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(PhosphorIcons.trash, size: 15, color: AppColors.error),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Excluir',
+                                    style: TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.w600),
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Icon(PhosphorIcons.clock, size: 14, color: AppColors.textTertiary(context)),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  statusLower == 'esperando' ? dataFormatada : 'Chegada: $dataFormatada',
-                                  style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (isRetirado && encomenda.retiradoPor != null) ...[
-                            const SizedBox(height: 3),
-                            Row(
+                          const SizedBox(width: 8),
+                          // Wrap: em telas estreitas Editar/Dar Baixa quebram
+                          // linha em vez de estourar.
+                          Expanded(
+                            child: Wrap(
+                              alignment: WrapAlignment.end,
+                              spacing: 8,
+                              runSpacing: 8,
                               children: [
-                                const Icon(PhosphorIcons.checkCircle, size: 14, color: Colors.green),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    'Entregue para: ${encomenda.retiradoPor}',
-                                    style: AppTypography.caption(context).copyWith(
-                                      color: Colors.green,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
+                          OutlinedButton.icon(
+                            onPressed: () => onEdit?.call(encomenda),
+                            icon: const Icon(PhosphorIcons.pencilSimple, size: 14),
+                            label: const Text('Editar'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 44),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              side: BorderSide(color: AppColors.border(context)),
+                            ),
+                          ),
+                          if (!isRetirado) ...[
+                            ElevatedButton.icon(
+                              onPressed: () => _abrirRetirada(context),
+                              icon: const Icon(PhosphorIcons.checkCircle, size: 16),
+                              label: const Text('Dar Baixa'),
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: const Size(0, 44),
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                elevation: 0,
+                              ),
                             ),
                           ],
-                        ],
-                      ),
-                    ),
-                    if (hasPhoto) ...[
-                      const SizedBox(width: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          width: 52,
-                          height: 52,
-                          color: AppColors.surfaceElevated(context),
-                          child: Image.network(
-                            encomenda.fotoVolume!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Center(
-                              child: Icon(PhosphorIcons.imageSquare, size: 22, color: Colors.grey),
+                              ],
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ],
                 ),
-
-                // Bottom Action Buttons for Staff
-                if (isStaff) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  const Divider(height: 1),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      // Botão de Excluir
-                      InkWell(
-                        onTap: () => onDelete?.call(encomenda),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.error.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(PhosphorIcons.trash, size: 15, color: AppColors.error),
-                              SizedBox(width: 4),
-                              Text(
-                                'Excluir',
-                                style: TextStyle(
-                                  color: AppColors.error,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      // Botão de Editar
-                      OutlinedButton.icon(
-                        onPressed: () => onEdit?.call(encomenda),
-                        icon: const Icon(PhosphorIcons.pencilSimple, size: 14),
-                        label: const Text('Editar'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          side: BorderSide(color: AppColors.border(context)),
-                        ),
-                      ),
-                      if (!isRetirado) ...[
-                        const SizedBox(width: 8),
-                        // Botão de Dar Baixa
-                        ElevatedButton.icon(
-                          onPressed: () => _abrirRetirada(context),
-                          icon: const Icon(PhosphorIcons.checkCircle, size: 16),
-                          label: const Text('Dar Baixa'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            elevation: 0,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
@@ -1495,6 +1422,86 @@ class _EncomendaCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String text;
+  const _SectionHeader(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.md),
+        child: Semantics(
+          header: true,
+          child: Text(
+            text,
+            style: AppTypography.captionMedium(context)
+                .copyWith(color: AppColors.textSecondary(context), fontWeight: FontWeight.w700),
+          ),
+        ),
+      );
+}
+
+class _UnitBadge extends StatelessWidget {
+  final String label;
+  const _UnitBadge(this.label);
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(PhosphorIcons.buildings, size: 12, color: AppColors.primary),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+/// Encolhe levemente (0.98) enquanto o dedo está sobre o card.
+class _PressScale extends StatefulWidget {
+  final Widget child;
+  const _PressScale({required this.child});
+
+  @override
+  State<_PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<_PressScale> {
+  bool _pressed = false;
+
+  void _set(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    return Listener(
+      onPointerDown: (_) => _set(true),
+      onPointerUp: (_) => _set(false),
+      onPointerCancel: (_) => _set(false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.98 : 1,
+        duration: reduce ? Duration.zero : const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
     );
   }
 }
