@@ -45,8 +45,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ativas (2)'), findsOneWidget);
-    expect(find.text('Histórico (1)'), findsOneWidget);
+    expect(find.text('ATIVAS (2)'), findsOneWidget);
+    expect(find.text('HISTÓRICO (1)'), findsOneWidget);
     expect(find.text('A portaria aguarda sua resposta'), findsOneWidget);
     expect(find.textContaining('Mercado Bom Preço'), findsOneWidget);
     expect(find.text('Farmácia'), findsOneWidget);
@@ -58,7 +58,7 @@ void main() {
     expect(tester.getSemantics(find.text('A portaria aguarda sua resposta')),
         isSemantics(isButton: true, hasTapAction: true));
 
-    await tester.tap(find.text('Histórico (1)'));
+    await tester.tap(find.text('HISTÓRICO (1)'));
     await tester.pumpAndSettle();
     expect(find.text('Pizzaria'), findsOneWidget);
     expect(find.text('Concluída'), findsOneWidget);
@@ -72,8 +72,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ativas (1)'), findsOneWidget);
-    expect(find.text('Histórico (0)'), findsOneWidget);
+    expect(find.text('ATIVAS (1)'), findsOneWidget);
+    expect(find.text('HISTÓRICO (0)'), findsOneWidget);
     expect(find.text('A portaria aguarda sua resposta'), findsNothing);
     expect(find.text('Padaria'), findsOneWidget);
   });
@@ -141,7 +141,7 @@ void main() {
     // Com o FAB na tela, o vazio não repete o botão "Avisar entrega".
     expect(find.text('Avisar entrega'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
-    await tester.tap(find.text('Histórico (0)'));
+    await tester.tap(find.text('HISTÓRICO (0)'));
     await tester.pumpAndSettle();
     expect(find.text('Nenhuma entrega no histórico'), findsOneWidget);
   });
@@ -155,7 +155,7 @@ void main() {
         home: Scaffold(body: ListDelivery(hideAppBar: true, showFab: false))));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ativas (1)'), findsOneWidget);
+    expect(find.text('ATIVAS (1)'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsNothing);
   });
   testWidgets('cabe em tela estreita no tema escuro sem estourar o layout',
@@ -232,7 +232,7 @@ void main() {
     expect(find.text('1 concluída'), findsOneWidget);
     expect(find.text('Hoje'), findsOneWidget);
 
-    await tester.tap(find.text('Histórico (2)'));
+    await tester.tap(find.text('HISTÓRICO (2)'));
     await tester.pumpAndSettle();
     for (final id in [3, 4]) {
       final label = deliveryDayLabel(DateTime.parse('2026-10-0${id}T12:00:00'));

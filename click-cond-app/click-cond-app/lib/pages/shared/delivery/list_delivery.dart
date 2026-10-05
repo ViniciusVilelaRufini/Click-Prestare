@@ -9,6 +9,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/app_segmented_control.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -123,25 +124,12 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
             : null,
         body: Column(
           children: [
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.surface(context),
-                border: Border(bottom: BorderSide(color: AppColors.border(context))),
-              ),
-              child: TabBar(
-                indicatorColor: AppColors.primary,
-                indicatorWeight: 3,
-                labelColor: AppColors.primary,
-                dividerColor: Colors.transparent,
-                unselectedLabelColor: AppColors.textSecondary(context),
-                labelStyle: AppTypography.captionMedium(context).copyWith(fontWeight: FontWeight.bold),
-                unselectedLabelStyle: AppTypography.captionMedium(context),
-                tabs: [
-                  Tab(text: loaded ? 'Ativas (${split.ativas.length})' : 'Ativas'),
-                  Tab(text: loaded ? 'Histórico (${split.historico.length})' : 'Histórico'),
-                ],
-              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
+              child: AppSegmentedControl.tabs(segments: [
+                AppSegment(label: 'Ativas', icon: PhosphorIcons.lightning, count: loaded ? split.ativas.length : null),
+                AppSegment(label: 'Histórico', icon: PhosphorIcons.clockCounterClockwise, count: loaded ? split.historico.length : null),
+              ]),
             ),
             Expanded(child: _buildBody(split)),
           ],
