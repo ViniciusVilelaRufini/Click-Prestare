@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prestare Gestão para síndicos | Mais controle, menos rotina</title>
+  <meta name="description" content="Centralize a rotina do condomínio, reduza tarefas repetitivas e acompanhe tudo pela Prestare Gestão.">
+  <link rel="canonical" href="https://www.prestarecondominios.com.br/sindico/">
+  <link rel="icon" href="/favicon.ico">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Prestare Gestão">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:url" content="https://www.prestarecondominios.com.br/sindico/">
+  <meta property="og:title" content="Prestare Gestão para síndicos | Mais controle, menos rotina">
+  <meta property="og:description" content="Gestão do condomínio sem consumir o seu dia.">
+  <meta property="og:image" content="https://www.prestarecondominios.com.br/sobre/assets/og-prestare-gestao.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Prestare Gestão para síndicos | Mais controle, menos rotina">
+  <meta name="twitter:description" content="Gestão do condomínio sem consumir o seu dia.">
+  <meta name="twitter:image" content="https://www.prestarecondominios.com.br/sobre/assets/og-prestare-gestao.png">
+  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/fonts.css">
+  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/colors.css">
+  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/typography.css">
+  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/spacing.css">
+  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/radius.css">
+  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/elevation.css">
+  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/base.css">
+  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/interactions.css">
+  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/styles.css">
+  <style>
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--surface-app); color: var(--text-body); font: var(--type-body); -webkit-font-smoothing: antialiased; }
+    .sindico-page *, .sindico-page *::before, .sindico-page *::after { box-sizing: border-box; }
+    .sindico-page { overflow: hidden; }
+    .sindico-page section { scroll-margin-top: 24px; }
+    .sindico-page .sindico-shell { width: min(1120px, 100%); margin-inline: auto; padding: 80px 32px; }
+    .sindico-page h1, .sindico-page h2, .sindico-page h3, .sindico-page p { margin-top: 0; }
+    .sindico-page h1 { max-width: 760px; color: var(--text-strong); font-size: clamp(42px, 6vw, 72px); line-height: 1.04; letter-spacing: -.045em; }
+    .sindico-page h2 { color: var(--text-strong); font-size: clamp(30px, 4vw, 46px); line-height: 1.12; letter-spacing: -.03em; }
+    .sindico-page h3 { color: var(--text-strong); font-size: 20px; margin-bottom: 10px; }
+    .sindico-page p { color: var(--text-muted); line-height: 1.65; }
+    .sindico-page .sindico-kicker { color: var(--prestare-blue-700); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; }
+    .sindico-page .sindico-hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 50px; align-items: center; min-height: 620px; background-image: linear-gradient(rgba(37,96,232,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(37,96,232,.07) 1px, transparent 1px); background-size: 36px 36px; }
+    .sindico-page .sindico-lead { max-width: 620px; font-size: 20px; }
+    .sindico-page .sindico-button { display: inline-flex; justify-content: center; align-items: center; min-height: 50px; padding: 12px 20px; border-radius: var(--radius-md); background: var(--prestare-blue-600); color: var(--text-on-brand); font-weight: 700; text-decoration: none; box-shadow: var(--shadow-row); }
+    .sindico-page .sindico-button:hover { background: var(--prestare-blue-700); color: var(--text-on-brand); }
+    .sindico-page .sindico-button:focus-visible, .sindico-page input:focus-visible { outline: 3px solid var(--prestare-blue-400); outline-offset: 3px; }
+    .sindico-page .sindico-hero-card, .sindico-page .sindico-card { border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); box-shadow: var(--shadow-row); }
+    .sindico-page .sindico-hero-card { padding: 30px; border-color: var(--prestare-blue-200); }
+    .sindico-page .sindico-hero-card strong { display: block; color: var(--prestare-blue-700); font-size: 38px; margin-bottom: 10px; }
+    .sindico-page .sindico-alt { background: var(--prestare-blue-50); }
+    .sindico-page .sindico-gains, .sindico-page .sindico-process-grid, .sindico-page .sindico-console-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .sindico-page .sindico-card { padding: 24px; }
+    .sindico-page .sindico-process-grid { grid-template-columns: repeat(3, 1fr); }
+    .sindico-page .sindico-card span { color: var(--prestare-blue-600); font-weight: 800; }
+    .sindico-page .sindico-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .sindico-page .sindico-comparison article { padding: 30px; border-radius: var(--radius-lg); }
+    .sindico-page .sindico-before { border: 1px solid var(--border-subtle); background: var(--surface-card); }
+    .sindico-page .sindico-after { background: var(--prestare-blue-800); }
+    .sindico-page .sindico-after h3, .sindico-page .sindico-after p { color: var(--text-on-brand); }
+    .sindico-page .sindico-after p { color: var(--text-on-brand-muted); }
+    .sindico-page .sindico-console-grid { grid-template-columns: repeat(2, 1fr); }
+    .sindico-page figure { margin: 0; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); }
+    .sindico-page figure img { display: block; width: 100%; border-radius: var(--radius-md); }
+    .sindico-page figcaption { padding: 12px 4px 0; color: var(--text-strong); font-weight: 700; }
+    .sindico-page .sindico-closing { background: var(--prestare-blue-900); }
+    .sindico-page .sindico-closing h2 { max-width: 720px; color: var(--text-on-brand); }
+    .sindico-page .sindico-closing p { max-width: 600px; color: var(--text-on-brand-muted); }
+    .sindico-page .sindico-form { display: grid; gap: 14px; max-width: 620px; padding: 26px; border-radius: var(--radius-lg); background: var(--surface-card); }
+    .sindico-page label { display: grid; gap: 6px; color: var(--text-strong); font-weight: 700; }
+    .sindico-page input { width: 100%; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-card); color: var(--text-strong); font: inherit; }
+    .sindico-page .sindico-success { display: none; color: var(--prestare-blue-700); font-weight: 700; }
+    .sindico-page .sindico-success.is-visible { display: block; }
+    @media (max-width: 680px) {
+      .sindico-page .sindico-hero,
+      .sindico-page .sindico-comparison,
+      .sindico-page .sindico-console-grid { grid-template-columns: 1fr; }
+      .sindico-page .sindico-shell { padding-inline: 20px; }
+      .sindico-page .sindico-shell { padding-block: 56px; }
+      .sindico-page .sindico-gains, .sindico-page .sindico-process-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="sindico-page">
+    <section aria-labelledby="sindico-title">
+      <div class="sindico-shell sindico-hero">
+        <div>
+          <p class="sindico-kicker">Prestare Gestão para síndicos</p>
+          <span id="sindico-title" hidden>Prestare Gestão para síndicos</span>
+          <h1>Gestão do condomínio sem consumir o seu dia.</h1>
+          <p class="sindico-lead">Centralize a operação, dê mais autonomia à equipe e acompanhe o que importa sem depender de planilhas, mensagens soltas ou tarefas manuais.</p>
+          <a class="sindico-button" href="#orcamento">Pedir orçamento para meu condomínio</a>
+        </div>
+        <aside class="sindico-hero-card" aria-label="Resumo da plataforma">
+          <strong>Uma operação conectada.</strong>
+          <p>Informações, aprovações e rotinas do condomínio reunidas em um só lugar para você decidir com segurança.</p>
+        </aside>
+      </div>
+    </section>
+    <section class="sindico-alt" aria-label="Impactos na rotina">
+      <div class="sindico-shell">
+        <p class="sindico-kicker">Impacto na rotina</p>
+        <h2>Mais clareza para cuidar do condomínio.</h2>
+        <div class="sindico-gains">
+          <article class="sindico-card"><h3>Menos interrupções</h3><p>As rotinas ficam organizadas e acessíveis para todos que precisam agir.</p></article>
+          <article class="sindico-card"><h3>Mais visibilidade</h3><p>Acompanhe o andamento de cada processo, sem procurar informações em vários canais.</p></article>
+          <article class="sindico-card"><h3>Decisões mais rápidas</h3><p>Dados e registros à mão para priorizar o que realmente exige sua atenção.</p></article>
+        </div>
+      </div>
+    </section>
+    <section aria-labelledby="processos-title">
+      <div class="sindico-shell">
+        <p class="sindico-kicker">Processos em ordem</p>
+        <h2 id="processos-title">A rotina inteira, em uma plataforma.</h2>
+        <div class="sindico-process-grid">
+          <article class="sindico-card"><span>01</span><h3>Visitantes</h3><p>Autorizações e entradas com registro claro.</p></article>
+          <article class="sindico-card"><span>02</span><h3>Encomendas</h3><p>Controle de recebimento e retirada.</p></article>
+          <article class="sindico-card"><span>03</span><h3>Comunicados</h3><p>Mensagens importantes para os moradores.</p></article>
+          <article class="sindico-card"><span>04</span><h3>Áreas sociais</h3><p>Reservas com transparência para todos.</p></article>
+          <article class="sindico-card"><span>05</span><h3>Financeiro</h3><p>Informações para acompanhar a saúde do condomínio.</p></article>
+          <article class="sindico-card"><span>06</span><h3>Ocorrências</h3><p>Registros que facilitam acompanhamento e resposta.</p></article>
+        </div>
+      </div>
+    </section>
+    <section class="sindico-alt" aria-labelledby="comparativo-title">
+      <div class="sindico-shell">
+        <p class="sindico-kicker">Antes e depois</p>
+        <h2 id="comparativo-title">Antes e depois da Prestare.</h2>
+        <div class="sindico-comparison">
+          <article class="sindico-before"><h3>Antes</h3><p>Pedidos espalhados, informações desencontradas e muita energia consumida para manter a rotina em dia.</p></article>
+          <article class="sindico-after"><h3>Com a Prestare</h3><p>Uma operação organizada, comunicada e rastreável — para você acompanhar sem carregar tudo sozinho.</p></article>
+        </div>
+      </div>
+    </section>
+    <section aria-labelledby="console-title">
+      <div class="sindico-shell">
+        <p class="sindico-kicker">Console web</p>
+        <h2 id="console-title">Veja a gestão acontecendo na prática.</h2>
+        <div class="sindico-console-grid">
+          <figure><img src="/sobre/assets/web-dashboard.png" alt="Dashboard da Prestare Gestão"><figcaption>Visão geral da operação</figcaption></figure>
+          <figure><img src="/sobre/assets/web-visitantes.png" alt="Tela de visitantes"><figcaption>Visitantes e autorizações</figcaption></figure>
+          <figure><img src="/sobre/assets/web-financeiro.png" alt="Tela financeira"><figcaption>Financeiro do condomínio</figcaption></figure>
+          <figure><img src="/sobre/assets/web-autorizacao.png" alt="Tela de autorização"><figcaption>Autorizações em poucos cliques</figcaption></figure>
+        </div>
+      </div>
+    </section>
+    <section id="orcamento" class="sindico-closing" aria-labelledby="orcamento-title">
+      <div class="sindico-shell">
+        <h2 id="orcamento-title">Seu tempo deve ir para decisões — não para tarefas repetitivas.</h2>
+        <p>Conte um pouco sobre o seu condomínio. Vamos preparar a melhor conversa para sua rotina.</p>
+        <a class="sindico-button" href="#orcamento">Pedir orçamento para meu condomínio</a>
+        <form class="sindico-form" data-orcamento-form>
+          <label>Seu nome<input name="nome" required autocomplete="name"></label>
+          <label>Condomínio<input name="condominio" required></label>
+          <label>WhatsApp com DDD<input name="contato" required inputmode="tel" autocomplete="tel"></label>
+          <button class="sindico-button" type="submit">Enviar pedido</button>
+          <p class="sindico-success" aria-live="polite">Pedido enviado. Vamos continuar pelo WhatsApp.</p>
+        </form>
+      </div>
+    </section>
+  </main>
+  <script>
+    window.psEnviarPedido = function (pedido) {
+      var form = pedido.form;
+      var dados = new FormData(form);
+      var nome = String(dados.get('nome') || '').trim();
+      var condominio = String(dados.get('condominio') || '').trim();
+      var contato = String(dados.get('contato') || '').trim();
+      var digitos = contato.replace(/\D/g, '');
+      if (!nome || !condominio || !contato || digitos.length < 10 || digitos.length > 13) return false;
+      var api = location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.prestarecondominios.com.br';
+      fetch(api + '/api/public/leads', {
+        method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: nome, condominio: condominio, whatsapp: contato, pagina: pedido.pagina })
+      }).catch(function () {});
+      window.open('https://wa.me/5517996608148?text=' + encodeURIComponent('Olá! Quero um orçamento para o condomínio ' + condominio + '.'), '_blank', 'noopener');
+      return true;
+    };
+    var formulario = document.querySelector('[data-orcamento-form]');
+    if (formulario) formulario.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var form = event.currentTarget;
+      var ok = window.psEnviarPedido({ form: form, pagina: '/sindico/#orcamento' });
+      if (ok) form.querySelector('.sindico-success').classList.add('is-visible');
+    });
+  </script>
+</body>
+</html>
