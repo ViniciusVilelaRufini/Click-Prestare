@@ -164,17 +164,8 @@
     .sindico-lightbox-text p { max-width: 760px; margin: 0; color: var(--text-muted); line-height: 1.65; }
     .sindico-lightbox-close { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--prestare-blue-900); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; }
     .sindico-lightbox-close:focus-visible { outline: 3px solid var(--prestare-blue-400); outline-offset: 2px; }
-    .sindico-page .sindico-closing { background: #fff; }
-    .sindico-page .sindico-closing-panel { padding: clamp(28px,5vw,56px); display: grid; grid-template-columns: minmax(0,.9fr) minmax(340px,1.1fr); gap: 48px; align-items: center; border-radius: var(--radius-lg); background: var(--prestare-blue-900); box-shadow: 0 20px 48px rgba(21,47,89,.16); }
-    .sindico-page .sindico-closing h2 { max-width: 720px; color: var(--text-on-brand); }
-    .sindico-page .sindico-closing p { max-width: 600px; color: var(--text-on-brand-muted); }
-    .sindico-page .sindico-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; max-width: none; padding: 26px; border-radius: var(--radius-lg); background: var(--surface-card); }
-    .sindico-page .sindico-form .sindico-button { margin-top: 0; }
-    .sindico-page .sindico-form label:nth-child(3), .sindico-page .sindico-form label:nth-child(4), .sindico-page .sindico-form button, .sindico-page .sindico-success { grid-column: 1 / -1; }
     .sindico-page label { display: grid; gap: 6px; color: var(--text-strong); font-weight: 700; }
     .sindico-page input { width: 100%; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-card); color: var(--text-strong); font: inherit; }
-    .sindico-page .sindico-success { display: none; color: var(--prestare-blue-700); font-weight: 700; }
-    .sindico-page .sindico-success.is-visible { display: block; }
     .sindico-page .sindico-stats-inner { grid-template-columns: repeat(3,1fr); }
     .sindico-page .sindico-stats strong { font-size: 24px; }
     .sindico-page .sindico-section-lead { max-width: 640px; margin-bottom: 40px; font-size: 17px; }
@@ -193,6 +184,49 @@
     .sindico-page .sindico-benefits strong { display: block; margin-bottom: 4px; color: var(--text-strong); font: var(--type-body-strong); }
     .sindico-page .sindico-benefits span { color: var(--text-muted); font: var(--type-sub); }
     .ps-nav a[aria-current="page"] { color: var(--prestare-blue-700); }
+    .sindico-page .sindico-closing { background: #fff; }
+    .sindico-page .sindico-contact-shell { padding-block: 64px 72px; }
+    .sindico-page .sindico-contact-panel { padding: clamp(28px,4vw,48px); display: grid; grid-template-columns: repeat(auto-fit,minmax(min(300px,100%),1fr)); gap: 36px; align-items: stretch; border: 1px solid rgba(255,255,255,.14); border-radius: var(--radius-xl); background: linear-gradient(135deg,var(--prestare-blue-900),#173f73); }
+    .sindico-page .sindico-contact-copy { min-width: 0; }
+    .sindico-page .sindico-contact-eyebrow { margin: 0; display: inline-flex; align-items: center; gap: 10px; color: var(--prestare-blue-200); font: var(--type-overline); letter-spacing: .08em; text-transform: uppercase; }
+    .sindico-page .sindico-contact-eyebrow::before { content: ''; width: 22px; height: 2px; border-radius: 2px; background: currentColor; }
+    .sindico-page .sindico-contact-panel h2 { max-width: 20ch; margin: 12px 0 0; color: var(--text-on-brand); font-size: clamp(26px,3vw,36px); line-height: 1.12; }
+    .sindico-page .sindico-contact-lead { max-width: 44ch; margin: 14px 0 0; color: rgba(255,255,255,.85); }
+    .sindico-page .sindico-contact-strong { max-width: 44ch; margin: 10px 0 0; color: #fff; font: var(--type-body-strong); }
+    .sindico-page .sindico-contact-steps { max-width: 40ch; margin: 22px 0 0; padding: 0; display: grid; gap: 12px; list-style: none; }
+    .sindico-page .sindico-contact-steps li { display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,.88); font: var(--type-sub); }
+    .sindico-page .sindico-contact-steps li span { width: 26px; height: 26px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(255,255,255,.14); }
+    .sindico-page .sindico-contact-actions { margin-top: 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+    .sindico-page .sindico-contact-actions .sindico-button { margin-top: 0; }
+    .sindico-page .sindico-contact-wpp { min-height: 50px; padding: 0 20px; display: inline-flex; align-items: center; gap: 9px; border-radius: var(--radius-md); background: #fff; color: var(--prestare-blue-900); font-weight: 700; text-decoration: none; }
+    .sindico-page .sindico-contact-wpp:hover { background: var(--prestare-blue-50); }
+    .sindico-page .sindico-contact-link, .sindico-page .sindico-email summary { display: inline-flex; align-items: center; gap: 8px; color: rgba(255,255,255,.9); font: var(--type-sub); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+    .sindico-page .sindico-contact-link:hover, .sindico-page .sindico-email summary:hover { color: #fff; }
+    .sindico-page .sindico-contact-panel a:focus-visible, .sindico-page .sindico-email summary:focus-visible, .sindico-page .sindico-email-menu button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+    .sindico-page .sindico-email { max-width: 100%; }
+    .sindico-page .sindico-email-menu { width: min(100%,330px); margin-top: 12px; padding: 7px; display: grid; gap: 2px; border-radius: var(--radius-lg); background: var(--surface-card); box-shadow: 0 18px 40px rgba(6,42,93,.3); }
+    .sindico-page .sindico-email-menu button { padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--text-body); font: var(--type-sub); text-align: left; cursor: pointer; }
+    .sindico-page .sindico-email-menu button:hover { background: var(--prestare-blue-50); color: var(--prestare-blue-700); }
+    .sindico-page .sindico-email-menu button[data-email="copiar"] { border-top: 1px solid var(--border-row); border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+    .sindico-page .sindico-email-menu small { padding: 4px 12px 8px; color: var(--text-faint); overflow-wrap: anywhere; }
+    .sindico-page .sindico-contact-form { min-width: 0; margin: 0; padding: 24px; display: flex; flex-direction: column; justify-content: center; gap: 14px; border-radius: var(--radius-xl); background: var(--surface-card); box-shadow: 0 18px 40px rgba(6,42,93,.28); }
+    .sindico-page .sindico-form-head h3 { margin: 0; color: var(--text-strong); font: var(--type-h2); }
+    .sindico-page .sindico-form-head p { margin: 4px 0 0; color: var(--text-muted); font: var(--type-sub); line-height: 1.5; }
+    .sindico-page .sindico-contact-form label { display: grid; gap: 6px; color: var(--text-strong); font-weight: 600; }
+    .sindico-page .sindico-contact-form input { width: 100%; padding: 11px 13px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: #f5f7fb; color: var(--text-strong); font: inherit; }
+    .sindico-page .sindico-contact-form input:focus { border-color: var(--border-brand); background: var(--surface-card); box-shadow: 0 0 0 3px rgba(37,96,232,.28); outline: 0; }
+    .sindico-page .sindico-contact-form .sindico-button { width: 100%; min-height: 52px; margin-top: 0; }
+    .sindico-page .sindico-honeypot { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    .sindico-page .sindico-form-notes { margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 16px; list-style: none; color: var(--text-faint); font: var(--type-caption); }
+    .sindico-page .sindico-success { display: none; padding: 12px 0; }
+    .sindico-page .sindico-success strong { color: var(--text-strong); font: var(--type-h2); }
+    .sindico-page .sindico-success p { margin: 8px 0 0; }
+    .sindico-page .sindico-contact-form.is-sent > :not(.sindico-success) { display: none; }
+    .sindico-page .sindico-contact-form.is-sent .sindico-success { display: block; }
+    @media (min-width: 640px) {
+      .sindico-page .sindico-contact-form { display: grid; grid-template-columns: 1fr 1fr; align-content: center; }
+      .sindico-page .sindico-contact-form > .sindico-form-head, .sindico-page .sindico-contact-form > .sindico-button, .sindico-page .sindico-contact-form > .sindico-form-notes, .sindico-page .sindico-contact-form > .sindico-success { grid-column: 1 / -1; }
+    }
     @media (max-width: 680px) {
       .ps-nav { display: none; }
       .ps-mobile-menu { display: block; }
@@ -202,11 +236,11 @@
       .sindico-page .sindico-hero,
       .sindico-page .sindico-story-layout,
       .sindico-page .sindico-console-grid,
-      .sindico-page .sindico-closing-panel { grid-template-columns: 1fr; }
+      .sindico-page .sindico-contact-panel { grid-template-columns: 1fr; }
       .sindico-page .sindico-shell { padding-inline: 20px; }
       .sindico-page .sindico-shell { padding-block: 72px; }
       .sindico-page .sindico-hero { gap: 52px; min-height: auto; padding-top: 64px; }
-      .sindico-page .sindico-stats-inner, .sindico-page .sindico-form, .sindico-page .sindico-card-grid, .sindico-page .sindico-compare-grid, .sindico-page .sindico-benefits { grid-template-columns: 1fr; }
+      .sindico-page .sindico-stats-inner, .sindico-page .sindico-card-grid, .sindico-page .sindico-compare-grid, .sindico-page .sindico-benefits { grid-template-columns: 1fr; }
       .sindico-page .sindico-stats article { padding: 14px 0; border-left: 0; border-top: 1px solid rgba(255,255,255,.18); }
       .sindico-page .sindico-hero-visual { min-height: 420px; }
       .sindico-page .sindico-device-web { top: 0; width: 100%; height: 275px; border-radius: 17px; transform: none; }
@@ -232,8 +266,7 @@
       .sindico-page .sindico-ops-core::before, .sindico-page .sindico-ops-core::after { left: 50%; right: auto; top: auto; width: 1px; height: 34px; background: linear-gradient(var(--prestare-blue-100),var(--prestare-blue-500)); }
       .sindico-page .sindico-ops-core::before { bottom: 100%; }
       .sindico-page .sindico-ops-core::after { top: 100%; transform: rotate(180deg); }
-            .sindico-page .sindico-form label, .sindico-page .sindico-form button, .sindico-page .sindico-success { grid-column: 1 / -1; }
-    }
+          }
     @media (max-width: 980px) and (min-width: 681px) {
       .sindico-page .sindico-card-grid, .sindico-page .sindico-console-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
       .sindico-page .sindico-hero { grid-template-columns: 1fr; gap: 56px; }
@@ -418,21 +451,54 @@
       </div>
     </section>
     <section id="orcamento" class="sindico-closing" aria-labelledby="orcamento-title">
-      <div class="sindico-shell">
-        <div class="sindico-closing-panel">
-          <div>
-            <p class="sindico-kicker" style="color:var(--prestare-blue-200)">Fale com a Prestare</p>
+      <div class="sindico-shell sindico-contact-shell">
+        <div class="sindico-contact-panel">
+          <div class="sindico-contact-copy">
+            <p class="sindico-contact-eyebrow">Orçamento</p>
             <h2 id="orcamento-title">Seu tempo deve ir para decisões — não para tarefas repetitivas.</h2>
-            <p>Conte um pouco sobre o seu condomínio. Vamos preparar a melhor conversa para sua rotina.</p>
-            <a class="sindico-button" href="#orcamento">Pedir orçamento para meu condomínio <span aria-hidden="true">→</span></a>
+            <p class="sindico-contact-lead">O valor acompanha o tamanho do condomínio. Diga quantas unidades e eu respondo com o orçamento e os módulos que fazem sentido para vocês.</p>
+            <p class="sindico-contact-strong">Condição de lançamento: implantação grátis para os 10 primeiros condomínios.</p>
+            <ul class="sindico-contact-steps">
+              <li><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>Conte o nome do condomínio e quantas unidades</li>
+              <li><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>Resposta na hora pelo WhatsApp</li>
+              <li><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.5 8 9 4.6-.5 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/></svg></span>Sem compromisso, seus dados ficam protegidos</li>
+            </ul>
+            <div class="sindico-contact-actions">
+              <a class="sindico-button" href="#orcamento-form">Pedir orçamento para meu condomínio <span aria-hidden="true">→</span></a>
+              <a class="sindico-contact-wpp" href="https://wa.me/5517996608148" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Falar no WhatsApp agora</a>
+              <a class="sindico-contact-link" href="https://ig.me/m/prestare.gestao" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>Mandar mensagem no Instagram · @prestare.gestao</a>
+              <details class="sindico-email">
+                <summary>Prefiro escrever um e-mail</summary>
+                <div class="sindico-email-menu">
+                  <button type="button" data-email="gmail">Abrir no Gmail <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></button>
+                  <button type="button" data-email="outlook">Abrir no Outlook <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></button>
+                  <button type="button" data-email="app">Abrir no meu app de e-mail <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></button>
+                  <button type="button" data-email="copiar"><span data-email-rotulo>Copiar endereço</span></button>
+                  <small>suporte@clickprestarecondominios.com.br</small>
+                </div>
+              </details>
+            </div>
           </div>
-          <form class="sindico-form" data-orcamento-form>
-            <label>Seu nome<input name="nome" required autocomplete="name"></label>
-            <label>Condomínio<input name="condominio" required></label>
-            <label>WhatsApp com DDD<input name="contato" required inputmode="tel" autocomplete="tel"></label>
-            <label>Quantas unidades<input name="unidades" required inputmode="numeric" placeholder="Ex: 84 apartamentos"></label>
-            <button class="sindico-button" type="submit">Enviar pedido</button>
-            <p class="sindico-success" aria-live="polite">Pedido enviado. Vamos continuar pelo WhatsApp.</p>
+          <form id="orcamento-form" class="sindico-form sindico-contact-form" data-orcamento-form>
+            <div class="sindico-form-head">
+              <h3>Pedir orçamento</h3>
+              <p>Preencha e eu respondo com o valor pelo WhatsApp.</p>
+            </div>
+            <label>Seu nome<input name="nome" required autocomplete="name" placeholder="Ex: Vinicius Rufini"></label>
+            <label>WhatsApp<input name="contato" required inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000"></label>
+            <label>Condomínio<input name="condominio" required placeholder="Ex: Edifício Demo"></label>
+            <label>Quantas unidades · define o valor<input name="unidades" required inputmode="numeric" placeholder="Ex: 59 apartamentos"></label>
+            <input name="site" tabindex="-1" autocomplete="off" aria-hidden="true" class="sindico-honeypot">
+            <button class="sindico-button" type="submit">Enviar e abrir o WhatsApp <span aria-hidden="true">→</span></button>
+            <ul class="sindico-form-notes">
+              <li>Resposta na hora pelo WhatsApp</li>
+              <li>Seus dados sob a LGPD, sem spam</li>
+              <li>Atendimento humano em horário comercial</li>
+            </ul>
+            <div class="sindico-success" aria-live="polite">
+              <strong>Pedido de orçamento enviado</strong>
+              <p>Abrimos o WhatsApp com os seus dados. Se a janela não abrir, chame em (17) 99660-8148.</p>
+            </div>
           </form>
         </div>
       </div>
@@ -523,14 +589,45 @@
       });
       dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
     })();
+    (function () {
+      var EMAIL = 'suporte@clickprestarecondominios.com.br';
+      var corpo = function () {
+        var f = document.querySelector('[data-orcamento-form]');
+        var v = function (n) { var el = f && f.elements.namedItem(n); return el && el.value ? el.value.trim() : ''; };
+        return ['Olá! Gostaria de receber um orçamento do Prestare Gestão para o meu condomínio.', '', 'Nome: ' + v('nome'), 'Condomínio: ' + v('condominio'), 'WhatsApp: ' + v('contato'), 'Unidades: ' + v('unidades'), '', 'Enviado pelo site prestarecondominios.com.br/sindico'].join('\n');
+      };
+      var link = function (onde) {
+        var to = encodeURIComponent(EMAIL), su = encodeURIComponent('Orçamento Prestare Gestão'), bo = encodeURIComponent(corpo());
+        if (onde === 'gmail') return 'https://mail.google.com/mail/?view=cm&fs=1&to=' + to + '&su=' + su + '&body=' + bo;
+        if (onde === 'outlook') return 'https://outlook.live.com/mail/0/deeplink/compose?to=' + to + '&subject=' + su + '&body=' + bo;
+        return 'mailto:' + EMAIL + '?subject=' + su + '&body=' + bo;
+      };
+      var menu = document.querySelector('.sindico-email');
+      if (!menu) return;
+      menu.addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-email]');
+        if (!b) return;
+        var onde = b.getAttribute('data-email');
+        if (onde === 'copiar') {
+          var rotulo = b.querySelector('[data-email-rotulo]');
+          var ok = function () { rotulo.textContent = 'Endereço copiado'; setTimeout(function () { rotulo.textContent = 'Copiar endereço'; }, 2400); };
+          try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(EMAIL).then(ok, function () {}); } } catch (err) {}
+          return;
+        }
+        if (onde === 'app') window.location.href = link(onde); else window.open(link(onde), '_blank', 'noopener');
+        menu.removeAttribute('open');
+      });
+    })();
     var anoRodape = document.getElementById('ano-rodape');
     if (anoRodape) anoRodape.textContent = String(new Date().getFullYear());
     var formulario = document.querySelector('[data-orcamento-form]');
     if (formulario) formulario.addEventListener('submit', function (event) {
       event.preventDefault();
       var form = event.currentTarget;
+        var isca = form.elements.namedItem('site');
+        if (isca && isca.value) return;
         window.psEnviarPedido({ form: form, pagina: '/sindico/#orcamento' }).then(function (ok) {
-          if (ok) form.querySelector('.sindico-success').classList.add('is-visible');
+          if (ok) { form.classList.add('is-sent'); form.querySelector('.sindico-success').classList.add('is-visible'); }
         });
     });
   </script>
