@@ -174,3 +174,9 @@ it('apresenta eyebrow do spec, cards de processos, comparativo e benefícios do 
   expect(document.body.textContent).not.toContain('24/7');
   expect(document.body.textContent).not.toContain('0 papel');
 });
+
+it('redireciona /sindico/ para a página estática quando o SPA responde no lugar dela', () => {
+  const index = readFileSync(join(process.cwd(), 'apps/portaria-web/src/index.html'), 'utf8');
+  expect(index).toContain('/^\\/sindico\\/?$/.test(location.pathname)');
+  expect(index).toContain('location.replace("/sindico/index.html"');
+});
