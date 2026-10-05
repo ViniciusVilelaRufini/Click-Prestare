@@ -16,7 +16,7 @@ describe('FacialController — gestão de terminais só para síndico', () => {
 
   function montar() {
     const service: any = {
-      getDevice: jest.fn(async () => ({ id: 5, id_condominio: COND })),
+      getDevice: jest.fn(async () => ({ id: 5, id_condominio: COND, webhook_token: 'tok', api_password: 'pw', api_user: 'u', nome: 'T' })),
       createDevice: jest.fn(async () => ({ id: 5 })),
       updateDevice: jest.fn(async () => ({ id: 5 })),
       removeDevice: jest.fn(async () => ({ ok: true })),
@@ -26,7 +26,7 @@ describe('FacialController — gestão de terminais só para síndico', () => {
       getAgentConfigFile: jest.fn(async () => ({ filename: 'a.env', content: 'x', contentType: 'text/plain' })),
       triggerDevice: jest.fn(async () => ({ ok: true })),
       testDevice: jest.fn(async () => ({ ok: true })),
-      listDevices: jest.fn(async () => []),
+      listDevices: jest.fn(async () => [{ id: 5, id_condominio: COND, webhook_token: 'tok', api_password: 'pw', api_user: 'u', nome: 'T' }]),
       syncAllForCondominio: jest.fn(async () => ({ ok: true })),
     };
     const descoberta: any = { listar: jest.fn(), pedirProcura: jest.fn() };
@@ -76,5 +76,28 @@ describe('FacialController — gestão de terminais só para síndico', () => {
   it('síndico também passa nas rotas operacionais', async () => {
     const { ctrl } = montar();
     await expect(ctrl.trigger(5, sindico)).resolves.toBeDefined();
+  });
+
+  it('GET devices e devices/:id: porteiro não recebe webhook_token, api_password nem api_user', async () => {
+    const { ctrl } = montar();
+    const [item] = (await ctrl.list(COND, porteiro)) as any[];
+    const um: any = await ctrl.get(5, porteiro);
+    for (const d of [item, um]) {
+      expect(d).not.toHaveProperty('webhook_token');
+      expect(d).not.toHaveProperty('api_password');
+      expect(d).not.toHaveProperty('api_user');
+      expect(d.nome).toBe('T');
+    }
+  });
+
+  it('GET devices e devices/:id: síndico recebe os segredos', async () => {
+    const { ctrl } = montar();
+    const [item] = (await ctrl.list(COND, sindico)) as any[];
+    const um: any = await ctrl.get(5, sindico);
+    for (const d of [item, um]) {
+      expect(d.webhook_token).toBe('tok');
+      expect(d.api_password).toBe('pw');
+      expect(d.api_user).toBe('u');
+    }
   });
 });

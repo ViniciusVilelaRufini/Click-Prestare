@@ -135,6 +135,9 @@ export function isOperador(user: JwtPayload | undefined): boolean {
  * e editar perfil/assinatura do condomínio (nome, endereço, moeda,
  * vencimento). Sem essa distinção, um porteiro comprometido poderia criar
  * outro porteiro ou mexer na assinatura do condomínio.
+ *
+ * Confia no `turno` (texto livre): para qualquer coisa que toque acesso físico
+ * ou segredos, use `assertSindicoEstrito`.
  */
 export function assertSindico(user: JwtPayload | undefined, contexto = 'ação'): void {
   const tipo = user?.typeAccess ?? user?.user?.typeAccess;
@@ -155,9 +158,13 @@ export function assertSindico(user: JwtPayload | undefined, contexto = 'ação')
  *
  * Use junto de assertTenantStrict, nunca no lugar dele.
  */
-export function assertSindicoEstrito(user: JwtPayload | undefined, contexto = 'ação'): void {
+export function isSindicoEstrito(user: JwtPayload | undefined): boolean {
   const tipo = (user?.typeAccess ?? user?.user?.typeAccess ?? '').toString().toLowerCase();
-  if (tipo !== 'sindico') {
+  return tipo === 'sindico';
+}
+
+export function assertSindicoEstrito(user: JwtPayload | undefined, contexto = 'ação'): void {
+  if (!isSindicoEstrito(user)) {
     throw new ForbiddenException(`Acesso negado: ${contexto} exige síndico.`);
   }
 }

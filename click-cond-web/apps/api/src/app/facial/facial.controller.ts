@@ -25,7 +25,7 @@ import { MockRelayService } from './mock-relay.service';
 import { CategoriaPessoa } from './access-rules.util';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertOperador, assertSindicoEstrito, assertTenantStrict, requireTenant } from '../auth/tenant.util';
+import { assertOperador, assertSindicoEstrito, assertTenantStrict, isSindicoEstrito, requireTenant } from '../auth/tenant.util';
 import { timingSafeEqual } from 'crypto';
 import { AgentBridgeService } from './agent-bridge.service';
 import { AgentVersionService, compararVersoesAgente } from './agent-version.service';
@@ -57,6 +57,17 @@ function assertTokenInterno(token: string | undefined): void {
 /** Domínio HTTPS da API (CloudFront), o mesmo que o app usa. */
 const API_URL_PUBLICA_PADRAO = 'https://api.prestarecondominios.com.br';
 
+/**
+ * O webhook_token vale como credencial do agente (resolveCondominioForAgent) e
+ * api_user/api_password abrem o aparelho: operador que não é síndico recebe o
+ * terminal sem esses campos.
+ */
+function semSegredosSeNaoSindico<T extends Record<string, any>>(d: T, user: JwtPayload): T {
+  if (isSindicoEstrito(user)) return d;
+  const { webhook_token: _t, api_password: _p, api_user: _u, ...resto } = d;
+  return resto as unknown as T;
+}
+
 @Controller('facial')
 export class FacialController {
   constructor(
@@ -76,7 +87,9 @@ export class FacialController {
       user,
       `dispositivos do condomínio ${idCondominio}`,
     );
-    return this.service.listDevices(idCondominio);
+    return this.service
+      .listDevices(idCondominio)
+      .then((ds) => ds.map((d) => semSegredosSeNaoSindico(d, user)));
   }
 
   @Get('health')
@@ -99,7 +112,7 @@ export class FacialController {
   ) {
     const device = await this.service.getDevice(id);
     assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
-    return device;
+    return semSegredosSeNaoSindico(device, user);
   }
 
   @Post('devices')
