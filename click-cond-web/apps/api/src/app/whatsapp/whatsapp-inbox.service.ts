@@ -26,6 +26,25 @@ export const MODELO_PRIMEIRO_CONTATO = {
     'Olá! Aqui é a Prestare Gestão. Recebemos seu interesse em controle de acesso e portaria digital para o condomínio. Podemos conversar para montar um orçamento?',
 };
 
+/**
+ * Apresentação personalizada ({{1}} = nome do contato). Enquanto o Meta não aprovar,
+ * o envio falha e o primeiro contato cai no MODELO_PRIMEIRO_CONTATO.
+ */
+export const MODELO_APRESENTACAO = {
+  nome: 'apresentacao_controle_acesso',
+  texto: (nome: string) => `Olá ${nome}, tudo bem?
+Meu nome é Vinicius e trabalho na Prestare.
+Gostaria de compartilhar uma novidade: a Prestare agora possui um sistema de controle de acesso para condomínios.
+A solução ajuda a trazer mais segurança e organização para a entrada e saída de moradores, visitantes, encomendas e reservas, tornando a rotina da portaria e do síndico mais prática.
+Faz sentido eu te explicar rapidamente como funciona?
+https://www.prestarecondominios.com.br/sobre`,
+};
+
+/** Parâmetro de modelo não aceita quebra de linha, tab nem 4+ espaços seguidos. */
+function parametroModelo(v: string): string {
+  return v.replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' ').trim().slice(0, 60);
+}
+
 export interface ConversaDto {
   id: number; waId: string; nome: string; leadId: number | null; ultimaMsgEm: string;
   ultimaDoClienteEm: string | null; naoLidas: number; trecho: string; janelaAberta: boolean;
@@ -382,15 +401,23 @@ export class WhatsappInboxService {
     let wamid: string;
     let status = 'enviada';
     let erro: string | null = null;
+    const nomeContato = parametroModelo(lead.nome);
+    let texto = MODELO_APRESENTACAO.texto(nomeContato);
     try {
-      wamid = await this.graph.enviarModelo(waId, MODELO_PRIMEIRO_CONTATO.nome);
+      try {
+        wamid = await this.graph.enviarModelo(waId, MODELO_APRESENTACAO.nome, [nomeContato]);
+      } catch (e: any) {
+        this.logger.warn(`Modelo ${MODELO_APRESENTACAO.nome} recusado, usando ${MODELO_PRIMEIRO_CONTATO.nome}: ${e?.message ?? e}`);
+        texto = MODELO_PRIMEIRO_CONTATO.texto;
+        wamid = await this.graph.enviarModelo(waId, MODELO_PRIMEIRO_CONTATO.nome);
+      }
     } catch (e: any) {
       wamid = `falha-${randomUUID()}`;
       status = 'falhou';
       erro = String(e?.message ?? e).slice(0, 500);
     }
     const m = await this.prisma.crm_WhatsApp_Mensagens.create({
-      data: { conversa_id: conversa.id, wamid, direcao: 'saida', tipo: 'template', texto: MODELO_PRIMEIRO_CONTATO.texto, status, erro, criado_em: agora },
+      data: { conversa_id: conversa.id, wamid, direcao: 'saida', tipo: 'template', texto, status, erro, criado_em: agora },
     });
     await this.prisma.crm_WhatsApp_Conversas.update({ where: { id: conversa.id }, data: { ultima_msg_em: agora } });
     return { conversaId: conversa.id, mensagem: msgDto(m) };
