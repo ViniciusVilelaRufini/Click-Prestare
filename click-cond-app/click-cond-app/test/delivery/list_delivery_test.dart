@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:click/pages/shared/delivery/delivery_status_style.dart';
 import 'package:click/pages/shared/delivery/list_delivery.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_client.dart';
@@ -210,5 +211,61 @@ void main() {
         greaterThanOrEqualTo(tester.getRect(titulo).bottom));
     final text = tester.widget<Text>(titulo);
     expect(text.maxLines, 2);
+  });
+  testWidgets('resumo no topo das ativas e cabeçalhos de dia nas duas abas',
+      (tester) async {
+    final agora = DateTime.now().toIso8601String();
+    ApiClient.client = MockClient((_) async => http.Response(
+        jsonEncode([
+          {...aviso(1, 'AGUARDANDO_AUTORIZACAO', 'Mercado'), 'created_at': agora},
+          {...aviso(2, 'CHEGOU', 'Farmácia'), 'created_at': agora},
+          aviso(3, 'CONCLUIDA', 'Pizzaria'),
+          aviso(4, 'CANCELADA', 'Padaria'),
+        ]),
+        200));
+
+    await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 aguardando você'), findsOneWidget);
+    expect(find.text('1 em andamento'), findsOneWidget);
+    expect(find.text('1 concluída'), findsOneWidget);
+    expect(find.text('Hoje'), findsOneWidget);
+
+    await tester.tap(find.text('Histórico (2)'));
+    await tester.pumpAndSettle();
+    for (final id in [3, 4]) {
+      final label = deliveryDayLabel(DateTime.parse('2026-10-0${id}T12:00:00'));
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+  });
+
+  testWidgets('o resumo esconde as contagens zeradas', (tester) async {
+    ApiClient.client = MockClient((_) async => http.Response(
+        jsonEncode([aviso(1, 'AGENDADA', 'Padaria')]), 200));
+
+    await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('delivery-summary')), findsOneWidget);
+    expect(find.text('1 em andamento'), findsOneWidget);
+    expect(find.textContaining('concluída'), findsNothing);
+  });
+
+  testWidgets('card encolhe levemente ao ser pressionado', (tester) async {
+    ApiClient.client = MockClient((_) async => http.Response(
+        jsonEncode([aviso(1, 'AGENDADA', 'Padaria')]), 200));
+
+    await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
+    await tester.pumpAndSettle();
+
+    final gesture =
+        await tester.startGesture(tester.getCenter(find.text('Padaria')));
+    await tester.pumpAndSettle();
+    final scale = tester.widget<AnimatedScale>(find.ancestor(
+        of: find.text('Padaria'), matching: find.byType(AnimatedScale)));
+    expect(scale.scale, 0.98);
+    await gesture.cancel();
+    await tester.pumpAndSettle();
   });
 }

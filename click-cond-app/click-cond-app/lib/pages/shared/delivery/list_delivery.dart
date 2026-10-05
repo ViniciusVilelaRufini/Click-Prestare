@@ -11,6 +11,7 @@ import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListDelivery extends StatefulWidget {
@@ -77,6 +78,7 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
   /// Mesma resposta dos detalhes (com confirmação para recusar), direto da
   /// lista.
   Future<void> _responder(DeliveryModel delivery, bool autorizar) async {
+    HapticFeedback.lightImpact();
     if (!autorizar) {
       final confirmed = await showConfirmDialog(
         context,
@@ -89,6 +91,7 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
     if (!mounted) return;
     setState(() => _respondendo.remove(delivery.id));
     if (result.success) {
+      HapticFeedback.mediumImpact();
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(autorizar ? 'Entrega autorizada.' : 'Entrega recusada.')));
     } else {
@@ -189,12 +192,17 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
     // ordenação); as demais seguem como cards.
     final pendentes = ativas.where((d) => d.canRespond).toList();
     final demais = ativas.where((d) => !d.canRespond).toList();
+    final resumo = deliverySummary(_deliveries);
     return RefreshIndicator(
       onRefresh: loadList,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: _listPadding,
         children: [
+          if (resumo.isNotEmpty) ...[
+            _SummaryStrip(key: const Key('delivery-summary'), items: resumo),
+            const SizedBox(height: AppSpacing.lg),
+          ],
           for (final d in pendentes) ...[
             _RespondBanner(
               delivery: d,
@@ -205,16 +213,7 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
             ),
             const SizedBox(height: AppSpacing.md),
           ],
-          if (pendentes.isNotEmpty && demais.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.md),
-              child: Text('Em andamento',
-                  style: AppTypography.captionMedium(context).copyWith(color: AppColors.textSecondary(context))),
-            ),
-          for (final d in demais) ...[
-            _DeliveryCard(delivery: d, onTap: () => _openDetails(d)),
-            const SizedBox(height: AppSpacing.md),
-          ],
+          ..._groupedCards(demais),
         ],
       ),
     );
@@ -233,22 +232,101 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
     }
     return RefreshIndicator(
       onRefresh: loadList,
-      child: ListView.separated(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: _listPadding,
-        itemCount: historico.length,
-        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
-        itemBuilder: (_, index) => _DeliveryCard(
-          delivery: historico[index],
-          onTap: () => _openDetails(historico[index]),
+        children: _groupedCards(historico),
+      ),
+    );
+  }
+
+  /// Cards sob cabeçalhos de dia ('Hoje', 'Ontem', '27 de set').
+  List<Widget> _groupedCards(List<DeliveryModel> deliveries) => [
+        for (final group in groupDeliveriesByDay(deliveries)) ...[
+          _DayHeader(group.label),
+          for (final d in group.items) ...[
+            _DeliveryCard(delivery: d, onTap: () => _openDetails(d)),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ],
+      ];
+}
+
+class _DayHeader extends StatelessWidget {
+  final String label;
+  const _DayHeader(this.label);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.md),
+        child: Semantics(
+          header: true,
+          child: Text(label,
+              style: AppTypography.captionMedium(context)
+                  .copyWith(color: AppColors.textSecondary(context), fontWeight: FontWeight.w700)),
         ),
+      );
+}
+
+/// Resumo discreto no topo das ativas ('1 aguardando você · 2 concluídas').
+class _SummaryStrip extends StatelessWidget {
+  final List<String> items;
+  const _SummaryStrip({super.key, required this.items});
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: 'Resumo: ${items.join(', ')}',
+        excludeSemantics: true,
+        child: Wrap(spacing: AppSpacing.sm, runSpacing: AppSpacing.sm, children: [
+          for (final item in items)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppRadius.full),
+              ),
+              child: Text(item,
+                  style: AppTypography.tiny(context)
+                      .copyWith(color: AppColors.textSecondary(context), fontWeight: FontWeight.w600)),
+            ),
+        ]),
+      );
+}
+
+/// Encolhe levemente (0.98) enquanto o dedo está sobre o card.
+class _PressScale extends StatefulWidget {
+  final Widget child;
+  const _PressScale({required this.child});
+
+  @override
+  State<_PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<_PressScale> {
+  bool _pressed = false;
+
+  void _set(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    return Listener(
+      onPointerDown: (_) => _set(true),
+      onPointerUp: (_) => _set(false),
+      onPointerCancel: (_) => _set(false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.98 : 1,
+        duration: reduce ? Duration.zero : const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: widget.child,
       ),
     );
   }
 }
 
-String _deliveryTitle(DeliveryModel delivery) =>
-    delivery.estabelecimento?.trim().isNotEmpty == true ? delivery.estabelecimento!.trim() : 'Entrega avisada';
+String _deliveryTitle(DeliveryModel delivery) => deliveryTitle(delivery);
 
 /// Destaque no topo das ativas: a portaria pediu a autorização do morador.
 class _RespondBanner extends StatelessWidget {
@@ -271,10 +349,19 @@ class _RespondBanner extends StatelessWidget {
     final style = DeliveryStatusStyle.of(delivery.status);
     final title = _deliveryTitle(delivery);
     final time = deliveryTimeLabel(delivery);
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: style.color.withValues(alpha: 0.10),
-        borderRadius: AppRadius.rxl,
+        // Mesmo tratamento da faixa de rastreio dos detalhes.
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            style.color.withValues(alpha: dark ? 0.26 : 0.18),
+            style.color.withValues(alpha: dark ? 0.08 : 0.04),
+          ],
+        ),
+        borderRadius: AppRadius.rxxl,
         border: Border.all(color: style.color.withValues(alpha: 0.40), width: 1.2),
       ),
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -362,6 +449,7 @@ class _DeliveryCard extends StatelessWidget {
     final modo = portaria ? 'Na portaria' : 'Na unidade';
     final observacao = delivery.observacaoMorador?.trim();
     final hasObservacao = observacao != null && observacao.isNotEmpty;
+    final dark = Theme.of(context).brightness == Brightness.dark;
 
     return Semantics(
       button: true,
@@ -375,14 +463,25 @@ class _DeliveryCard extends StatelessWidget {
       // excludeSemantics descarta o toque do InkWell: repete aqui.
       onTap: onTap,
       excludeSemantics: true,
-      child: Material(
-        color: AppColors.surface(context),
+      child: _PressScale(
+        child: Container(
+          // Profundidade suave: sombra leve no claro, borda no escuro.
+          decoration: BoxDecoration(
+            color: dark ? AppColors.surface(context) : AppColors.surfaceElevated(context),
+            borderRadius: AppRadius.rlg,
+            border: Border.all(color: AppColors.border(context)),
+            boxShadow: dark
+                ? null
+                : [BoxShadow(color: const Color(0xFF64748B).withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
+          ),
+          child: Material(
+        color: Colors.transparent,
         borderRadius: AppRadius.rlg,
         child: InkWell(
           onTap: onTap,
           borderRadius: AppRadius.rlg,
           child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
                 width: 44,
@@ -433,6 +532,8 @@ class _DeliveryCard extends StatelessWidget {
                 child: Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
               ),
             ]),
+          ),
+        ),
           ),
         ),
       ),
