@@ -1644,14 +1644,23 @@ export class MobileAuthService {
           take: 20,
         });
         for (const e of encomendas) {
-          const retirada = (e.status || '').toLowerCase() === 'retirada';
+          const status = (e.status || '').toLowerCase();
+          const retirada = status === 'retirada';
+          // `Esperando` = o morador avisou, mas ainda não chegou na portaria.
+          const esperando = status === 'esperando';
           itens.push({
             id: `encomenda-${e.id}`,
             tipo: 'encomenda',
-            titulo: retirada ? 'Encomenda retirada' : 'Encomenda recebida',
+            titulo: retirada
+              ? 'Encomenda retirada'
+              : esperando
+                ? 'Encomenda a caminho'
+                : 'Encomenda recebida',
             descricao: retirada
               ? `${e.descricao} foi retirada.`
-              : `${e.descricao} chegou e está aguardando retirada.`,
+              : esperando
+                ? `${e.descricao} foi avisada e ainda não chegou na portaria.`
+                : `${e.descricao} chegou e está aguardando retirada.`,
             timestamp: e.created_at,
           });
         }
