@@ -37,6 +37,8 @@ export class EncomendasPageComponent implements OnInit {
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  /** Erros de registrar() (validação e falha do create); exibido só dentro do formulário. */
+  readonly formError = signal<string | null>(null);
   readonly filtro = signal<string>('');
 
   readonly busca = signal<string>('');
@@ -181,6 +183,7 @@ export class EncomendasPageComponent implements OnInit {
     this.carregarApartamentos();
     this.route.queryParams.subscribe((params) => {
       if (params['novo'] === 'true') {
+        this.formError.set(null);
         this.showForm = true;
       }
     });
@@ -211,9 +214,9 @@ export class EncomendasPageComponent implements OnInit {
   }
 
   registrar() {
-    this.error.set(null);
+    this.formError.set(null);
     if (!this.novo.descricao?.trim() || !this.selectedApto) {
-      this.error.set('Descrição e apto destinatário são obrigatórios.');
+      this.formError.set('Descrição e apto destinatário são obrigatórios.');
       return;
     }
     
@@ -222,13 +225,13 @@ export class EncomendasPageComponent implements OnInit {
 
     this.api.create(this.novo).subscribe({
       next: () => { 
-        this.error.set(null);
+        this.formError.set(null);
         this.showForm = false; 
         this.novo = this.estadoInicial(); 
         this.selectedApto = null;
         this.carregar(); 
       },
-      error: (e) => this.error.set(e?.message ?? 'Erro'),
+      error: (e) => this.formError.set(e?.message ?? 'Erro'),
     });
   }
 
