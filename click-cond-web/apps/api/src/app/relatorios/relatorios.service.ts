@@ -969,7 +969,11 @@ export class RelatoriosService {
           nome: aptoStr,
           blocoApto: aptoStr,
           recebidoDe: e.recebido_de || 'Courier',
-          dataEntrada: e.recebido_em.toISOString(),
+          // `Esperando` = o morador só avisou; ainda não chegou na portaria,
+          // então não há data de recebimento a mostrar.
+          dataEntrada: (e.status || '').toLowerCase() === 'esperando'
+            ? null
+            : e.recebido_em.toISOString(),
           status: e.status,
           recebidoPor: e.recebidoPor?.name || 'Sistema',
           retiradoPor: e.entreguePor?.name || undefined,
