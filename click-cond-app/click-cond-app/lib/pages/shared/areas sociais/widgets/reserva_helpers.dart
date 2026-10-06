@@ -9,12 +9,21 @@ const _statusDoMorador = {'pendente', 'aprovado', 'recusado'};
 
 String _normalizar(dynamic v) => (v ?? '').toString().trim().toLowerCase();
 
+/// Bloco normalizado: nulo, vazio e o texto 'null' (de `null.toString()`)
+/// valem todos '' — condomínio sem blocos.
+String _normalizarBloco(dynamic v) {
+  final b = _normalizar(v);
+  return b == 'null' ? '' : b;
+}
+
 /// Reservas que a tela de detalhe deve listar.
 ///
 /// - [podeVerTodas] (síndico ou funcionário com permissão `areas_sociais`):
 ///   pendentes e aprovadas de todos os apartamentos.
 /// - Senão (morador): só as do [bloco] + [apto] informados, com status
-///   pendente, aprovado ou recusado. Sem bloco/apto não devolve nada.
+///   pendente, aprovado ou recusado. Sem apto não devolve nada. Bloco vazio
+///   ou nulo é válido (condomínio sem blocos) e só casa com reservas de bloco
+///   vazio/nulo.
 ///
 /// Status, bloco e apto são comparados ignorando maiúsculas e espaços.
 /// A ordem original da lista é mantida.
@@ -34,13 +43,13 @@ List<dynamic> reservasVisiveis(
   if (podeVerTodas) {
     return lista.where((r) => r is Map && _statusAtivos.contains(_normalizar(r['status']))).toList();
   }
-  final b = _normalizar(bloco);
+  final b = _normalizarBloco(bloco);
   final a = _normalizar(apto);
-  if (b.isEmpty || a.isEmpty) return const [];
+  if (a.isEmpty || a == 'null') return const [];
   return lista
       .where((r) =>
           r is Map &&
-          _normalizar(r['bloco']) == b &&
+          _normalizarBloco(r['bloco']) == b &&
           _normalizar(r['apto']) == a &&
           _statusDoMorador.contains(_normalizar(r['status'])))
       .toList();

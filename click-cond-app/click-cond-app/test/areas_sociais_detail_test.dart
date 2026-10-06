@@ -99,7 +99,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Finder rodape() => find.text('Reservar este espaço');
+  Finder rodape() => find.text('Nova reserva');
 
   List<int> idsListados(WidgetTester tester) => tester
       .widgetList<MinhaReservaCard>(find.byType(MinhaReservaCard, skipOffstage: false))
@@ -126,7 +126,7 @@ void main() {
     await abrir(tester);
 
     expect(find.text('Minhas reservas'), findsNothing);
-    expect(find.text('Reservas'), findsOneWidget);
+    expect(find.text('Agendamentos'), findsOneWidget);
     expect(idsListados(tester), [1, 4]);
     final cards = tester.widgetList<MinhaReservaCard>(find.byType(MinhaReservaCard, skipOffstage: false));
     expect(cards.every((c) => c.mostrarApto && c.onEditar != null), isTrue);
@@ -150,7 +150,7 @@ void main() {
     expect(idsListados(tester), [1, 4]);
     final cards = tester.widgetList<MinhaReservaCard>(find.byType(MinhaReservaCard, skipOffstage: false));
     expect(cards.every((c) => c.mostrarApto && c.onEditar == null), isTrue);
-    expect(find.text('Nenhuma reserva ainda'), findsNothing);
+    expect(find.text('Nenhum registro encontrado!'), findsNothing);
     expect(rodape(), findsNothing);
     expect(find.byType(FloatingActionButton), findsNothing);
   });
@@ -161,7 +161,7 @@ void main() {
     await abrir(tester);
 
     expect(find.byType(MinhaReservaCard), findsNothing);
-    expect(find.text('Nenhuma reserva ainda'), findsOneWidget);
+    expect(find.text('Nenhum registro encontrado!'), findsOneWidget);
     expect(rodape(), findsOneWidget);
   });
 
@@ -174,6 +174,19 @@ void main() {
     final cards = tester.widgetList<MinhaReservaCard>(find.byType(MinhaReservaCard, skipOffstage: false));
     expect(cards, isNotEmpty);
     expect(cards.every((c) => c.onEditar == null), isTrue);
+  });
+
+  testWidgets('condomínio sem blocos: morador com bloco vazio vê as reservas do apto de bloco nulo', (tester) async {
+    entrarComoMorador();
+    Singleton.instance.bloco = ''; // my_condominium grava (apto_bloco ?? '').toString()
+    servir(area(agendamentos: [
+      {'id': 7, 'bloco': null, 'apto': '101', 'data': '12/10/2026', 'horaDe': '10:00', 'horaAte': '16:00', 'status': 'pendente'},
+      {'id': 8, 'bloco': 'null', 'apto': '102', 'data': '12/10/2026', 'horaDe': '10:00', 'horaAte': '16:00', 'status': 'pendente'},
+      ..._agendamentos,
+    ]));
+    await abrir(tester);
+
+    expect(idsListados(tester), [7]);
   });
 
   testWidgets('área sem agendamento: sem seção de reservas e sem botão', (tester) async {
@@ -191,9 +204,9 @@ void main() {
     servir(area());
     await abrir(tester);
 
-    expect(find.text('Regras de uso'), findsOneWidget);
+    expect(find.text('Regras da área'), findsOneWidget);
     expect(find.text('Proibido som alto após 22h.'), findsNothing);
-    await tester.tap(find.text('Regras de uso'));
+    await tester.tap(find.text('Regras da área'));
     await tester.pumpAndSettle();
     expect(find.text('Proibido som alto após 22h.'), findsOneWidget);
   });
@@ -202,7 +215,7 @@ void main() {
     entrarComoMorador();
     servir(area(regras: '   '));
     await abrir(tester);
-    expect(find.text('Regras de uso'), findsNothing);
+    expect(find.text('Regras da área'), findsNothing);
   });
 
   testWidgets('tags viram chips curtos', (tester) async {
@@ -237,7 +250,7 @@ void main() {
     expect(find.text('Agendamento'), findsOneWidget); // a linha das tags segue normal
   });
 
-  testWidgets('"Reservar este espaço" abre a NewReserva e recarrega ao voltar', (tester) async {
+  testWidgets('botão do rodapé (nova_reserva) abre a NewReserva e recarrega ao voltar', (tester) async {
     entrarComoMorador();
     servir(area());
     await abrir(tester);
@@ -279,7 +292,7 @@ void main() {
     await abrir(tester, largura: 320, tema: ThemeData(brightness: Brightness.dark));
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.text('Regras de uso'));
+    await tester.tap(find.text('Regras da área'));
     await tester.pumpAndSettle();
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -2000));
     await tester.pumpAndSettle();

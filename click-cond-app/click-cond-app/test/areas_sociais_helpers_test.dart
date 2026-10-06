@@ -61,6 +61,26 @@ void main() {
       expect(reservasVisiveis(l, podeVerTodas: false, bloco: 'Torre B', apto: '12B'), isEmpty);
     });
 
+    test('condomínio sem blocos: morador com bloco vazio vê só o apto dele de bloco vazio/nulo', () {
+      final l = [
+        {'id': 1, 'bloco': '', 'apto': '101', 'status': 'pendente'},
+        {'id': 2, 'bloco': null, 'apto': '101', 'status': 'recusado'},
+        {'id': 3, 'apto': '101', 'status': 'aprovado'},
+        {'id': 4, 'bloco': 'A', 'apto': '101', 'status': 'pendente'},
+        {'id': 5, 'bloco': '', 'apto': '102', 'status': 'pendente'},
+        {'id': 6, 'bloco': '', 'apto': '101', 'status': 'cancelado'},
+      ];
+      expect(ids(reservasVisiveis(l, podeVerTodas: false, bloco: '', apto: '101')), [1, 2, 3]);
+      expect(ids(reservasVisiveis(l, podeVerTodas: false, bloco: null, apto: '101')), [1, 2, 3]);
+      // 'null' de null.toString() vale bloco vazio, nunca um bloco chamado "null".
+      expect(ids(reservasVisiveis(l, podeVerTodas: false, bloco: 'null', apto: '101')), [1, 2, 3]);
+      // Morador de bloco não vê as de bloco vazio do mesmo número.
+      expect(ids(reservasVisiveis(l, podeVerTodas: false, bloco: 'A', apto: '101')), [4]);
+      // Apto vazio continua sem nada.
+      expect(reservasVisiveis(l, podeVerTodas: false, bloco: '', apto: ''), isEmpty);
+      expect(reservasVisiveis(l, podeVerTodas: false, bloco: '', apto: 'null'), isEmpty);
+    });
+
     test('bloco/apto numéricos vindos da API também casam', () {
       final l = [
         {'bloco': 1, 'apto': 101, 'status': 'pendente'},

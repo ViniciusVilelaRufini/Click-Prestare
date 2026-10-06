@@ -166,8 +166,10 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     return reservasVisiveis(
       lista is List ? lista : null,
       podeVerTodas: _podeVerTodas,
-      bloco: morador ? Singleton.instance.bloco.toString() : null,
-      apto: morador ? Singleton.instance.apartamento.toString() : null,
+      // Singleton.bloco é String não nula (os pontos que gravam fazem
+      // `?? ''`); sem blocos chega ''. O helper ainda trata 'null' como ''.
+      bloco: morador ? Singleton.instance.bloco : null,
+      apto: morador ? Singleton.instance.apartamento : null,
     );
   }
 
@@ -459,7 +461,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
             child: Icon(PhosphorIcons.scroll, size: 20, color: _destaque()),
           ),
           title: Text(
-            'Regras de uso',
+            getText('lb_regras_area'),
             style: AppTypography.bodyMedium(context).copyWith(
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary(context),
@@ -520,7 +522,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
           children: [
             Flexible(
               child: Text(
-                todas ? 'Reservas' : 'Minhas reservas',
+                todas ? getText('area_social_agendamentos') : 'Minhas reservas',
                 style: AppTypography.title(context).copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary(context),
@@ -598,7 +600,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Nenhuma reserva ainda',
+            getText('alert_list_empty_generic'),
             textAlign: TextAlign.center,
             style: AppTypography.bodyMedium(context).copyWith(
               fontWeight: FontWeight.w600,
@@ -631,7 +633,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
           child: AppButton(
-            label: 'Reservar este espaço',
+            label: getText('nova_reserva'),
             icon: PhosphorIcons.calendarPlus,
             onPressed: _abrirNovaReserva,
           ),

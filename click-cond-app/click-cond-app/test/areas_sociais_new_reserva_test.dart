@@ -50,7 +50,10 @@ Future<void> tocar(WidgetTester tester, Finder alvo) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() {
+  setUp(() async {
+    // Sem isto o primeiro teste grava o loginType antes do storage abrir
+    // (mesmo motivo de areas_sociais_detail_test.dart).
+    await ensureStorageReady();
     storageMorador({
       'token': 'token-morador',
       'user': {'id': 1, 'nome': 'Ana'},
@@ -225,6 +228,41 @@ void main() {
     await tocar(tester, find.text('Solicitar reserva'));
     final payload = jsonDecode(enviado.body) as Map<String, dynamic>;
     expect((payload['agendamento'] as Map)['convidados'], isNull);
+  });
+
+  testWidgets('síndico: dica pede bloco e apartamento até escolher os dois (botão segue a regra antiga)',
+      (tester) async {
+    storageLogin({'token': 't', 'user': {'id': 2, 'name': 'Sid'}});
+    ApiClient.client = MockClient((request) async {
+      if (request.url.path.endsWith('/apartamentos/get-all')) {
+        return http.Response(jsonEncode([{'id': 77, 'bloco': 'Torre9', 'apto': '707'}]), 200,
+            headers: {'content-type': 'application/json; charset=utf-8'});
+      }
+      return http.Response('', 404);
+    });
+    await abrir(tester, NewReserva(obj: area(regras: '  ')));
+    const dica = 'Escolha bloco e apartamento.';
+    expect(find.text(dica), findsOneWidget);
+
+    // Dia + horário: botão habilita (gating inalterado), dica continua.
+    await tocar(tester, diaDoCalendario('12'));
+    await tocar(tester, find.text('10:00 – 16:00'));
+    expect(botaoAcao(tester).onPressed, isNotNull);
+    expect(find.text(dica), findsOneWidget);
+
+    await tocar(tester, find.text('Bloco'));
+    await tocar(tester, find.text('Torre9').last);
+    expect(find.text(dica), findsOneWidget, reason: 'falta o apto');
+
+    await tocar(tester, find.text('Apartamento'));
+    await tocar(tester, find.text('707').last);
+    expect(find.text(dica), findsNothing);
+  });
+
+  testWidgets('morador não vê a dica de bloco e apartamento', (tester) async {
+    await abrir(tester, NewReserva(obj: area()));
+    expect(find.text('Escolha bloco e apartamento.'), findsNothing);
+    expect(find.text('Escolha um dia no calendário.'), findsOneWidget);
   });
 
   testWidgets('edição: sem calendário, mostra resumo e o botão excluir', (tester) async {

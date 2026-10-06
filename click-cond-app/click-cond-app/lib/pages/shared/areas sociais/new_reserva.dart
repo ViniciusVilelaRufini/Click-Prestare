@@ -331,7 +331,11 @@ class _NewReservaPageState extends State<NewReserva> {
               ),
             ),
           ),
-          _rodape(),
+          // A dica do rodapé também depende do bloco/apto escolhidos.
+          ListenableBuilder(
+            listenable: Listenable.merge([txtBloco, txtApto]),
+            builder: (context, _) => _rodape(),
+          ),
         ],
       ),
     );
@@ -369,7 +373,7 @@ class _NewReservaPageState extends State<NewReserva> {
     return [
       _cabecalho(),
       const SizedBox(height: AppSpacing.xl),
-      _section('Escolha o dia'),
+      _section(getText('dia')),
       DisponibilidadeCalendario(
         diasDisponiveis: _diasDisponiveis,
         selecionado: selectedDay,
@@ -383,7 +387,7 @@ class _NewReservaPageState extends State<NewReserva> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _section('Escolha o horário'),
+              _section(getText('hora')),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
                 layoutBuilder: _layoutTopo,
@@ -565,7 +569,7 @@ class _NewReservaPageState extends State<NewReserva> {
                       style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w600),
                     ),
                     Text(
-                      capacidade > 0 ? 'Até $capacidade pessoas' : getText('capacidade_indeterminada'),
+                      capacidade > 0 ? '$capacidade ${getText('pessoas')}' : getText('capacidade_indeterminada'),
                       style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
                     ),
                   ],
@@ -580,7 +584,7 @@ class _NewReservaPageState extends State<NewReserva> {
                 Expanded(
                   child: _ChipUnidade(
                     icone: PhosphorIcons.buildings,
-                    texto: bloco.isEmpty ? 'Escolher bloco' : bloco,
+                    texto: bloco.isEmpty ? getText('lb_bloco') : bloco,
                     vazio: bloco.isEmpty,
                     carregando: _isLoading,
                     onTap: _isLoading ? null : _escolherBloco,
@@ -590,7 +594,7 @@ class _NewReservaPageState extends State<NewReserva> {
                 Expanded(
                   child: _ChipUnidade(
                     icone: PhosphorIcons.door,
-                    texto: apto.isEmpty ? 'Escolher apto' : 'Apto $apto',
+                    texto: apto.isEmpty ? getText('lb_apartamento') : '${getText('lb_apto')} $apto',
                     vazio: apto.isEmpty,
                     carregando: _isLoading,
                     onTap: _isLoading ? null : _escolherApto,
@@ -603,7 +607,7 @@ class _NewReservaPageState extends State<NewReserva> {
               alignment: Alignment.centerLeft,
               child: _ChipUnidade(
                 icone: PhosphorIcons.house,
-                texto: [if (bloco.isNotEmpty) bloco, if (apto.isNotEmpty) 'Apto $apto'].join(' · '),
+                texto: [if (bloco.isNotEmpty) bloco, if (apto.isNotEmpty) '${getText('lb_apto')} $apto'].join(' · '),
               ),
             ),
         ],
@@ -614,6 +618,11 @@ class _NewReservaPageState extends State<NewReserva> {
   /// Dica curta acima do botão explicando o que ainda falta.
   String? get _dicaPendente {
     if (_diasDisponiveis.isEmpty) return 'Não há dias disponíveis para reserva.';
+    // Síndico/funcionário escolhem a unidade no cabeçalho. O botão não depende
+    // disso: o save() continua avisando "Bloco e apartamento são obrigatórios.".
+    if (getUserType() != 'morador' && (txtBloco.text.isEmpty || txtApto.text.isEmpty)) {
+      return 'Escolha bloco e apartamento.';
+    }
     if (!_temDia) return 'Escolha um dia no calendário.';
     if (!_horarioValido) return 'Escolha um horário.';
     if (hasRegras && !acceptTerms) return 'Aceite as regras da área para continuar.';
