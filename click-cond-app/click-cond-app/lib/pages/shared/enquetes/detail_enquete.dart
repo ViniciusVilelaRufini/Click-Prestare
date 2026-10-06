@@ -6,13 +6,24 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/votacao/opcao_resultado_bar.dart';
+import 'package:click/widgets/votacao/opcao_selecionavel.dart';
+import 'package:click/widgets/votacao/votacao_helpers.dart';
+import 'package:click/widgets/votacao/votacao_status_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class DetailEnquete extends StatefulWidget {
   const DetailEnquete({super.key, required this.id});
   final int id;
+
+  /// Botão fixo do rodapé (votar / confirmar novo voto / alterar voto).
+  static const chaveBotaoVotar = Key('enquete-botao-votar');
+
+  /// Botão do síndico para encerrar a enquete antes do prazo.
+  static const chaveBotaoFinalizar = Key('enquete-botao-finalizar');
 
   @override
   _DetailEnquetePageState createState() => _DetailEnquetePageState();
@@ -21,6 +32,13 @@ class DetailEnquete extends StatefulWidget {
 class _DetailEnquetePageState extends State<DetailEnquete> {
   var _isLoading = false;
   dynamic obj;
+
+  /// Opção marcada antes de enviar o voto (id em texto, como em `meuVoto`).
+  String? _escolhida;
+
+  /// Quem já votou numa enquete em andamento pode trocar o voto (a API
+  /// substitui o voto anterior); este modo volta a mostrar as opções.
+  bool _alterando = false;
 
   @override
   void initState() {
@@ -32,6 +50,9 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     try {
       setState(() => _isLoading = true);
       obj = await apiGetDetails('assembleias/votacoes/enquetes', widget.id);
+      // Dado novo (ex.: depois de votar): volta ao estado de leitura.
+      _escolhida = null;
+      _alterando = false;
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -72,250 +93,485 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     }
   }
 
-  Color _statusColor(int status) {
-    if (status == 1) return Colors.green;
-    if (status == 2) return Colors.red;
-    return Colors.orange;
+  // ── Estado derivado ───────────────────────────────────────────────────────
+
+  dynamic get _votacao => obj == null ? null : obj['votacao'];
+
+  int? get _status {
+    final s = _votacao?['status'];
+    if (s is int) return s;
+    return int.tryParse('${s ?? ''}');
   }
 
-  String _statusLabel(int status) {
-    if (status == 0) return getText('votacao_agendado');
-    if (status == 1) return getText('votacao_andamento');
-    if (status == 2) return getText('votacao_finalizado');
-    return '';
+  List<dynamic> get _meuVoto {
+    final m = obj?['meuVoto'];
+    return m is List ? m : const [];
   }
+
+  bool get _jaVotou => _meuVoto.isNotEmpty;
+
+  /// Mostra as opções para escolher: enquete em andamento e ainda sem voto
+  /// (ou trocando o voto).
+  bool get _escolhendo => _status == 1 && (!_jaVotou || _alterando);
+
+  /// Mesma regra de antes: síndico, com a enquete em andamento.
+  bool get _podeFinalizar => getUserType() == 'sindico' && _status == 1;
+
+  void _votar() {
+    final id = _escolhida;
+    final votacaoId = _votacao?['id'];
+    if (id == null || votacaoId == null) return;
+    final opcao = int.tryParse(id);
+    if (opcao == null) return;
+    insertVoto(opcao, votacaoId is int ? votacaoId : int.parse('$votacaoId'));
+  }
+
+  void _comecarAlteracao() {
+    setState(() {
+      _alterando = true;
+      _escolhida = _meuVoto.isEmpty ? null : _meuVoto.first.toString();
+    });
+  }
+
+  void _cancelarAlteracao() {
+    setState(() {
+      _alterando = false;
+      _escolhida = null;
+    });
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final Widget body;
+    if (obj == null) {
+      body = _isLoading ? const Center(child: CircularProgressIndicator()) : const SizedBox();
+    } else {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: load,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _cabecalho(),
+                    const SizedBox(height: AppSpacing.lg),
+                    _avisoEstado(),
+                    const SizedBox(height: AppSpacing.xl),
+                    _secaoOpcoes(),
+                    if (_podeFinalizar) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      _cardFinalizar(),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_status == 1) _rodape(),
+        ],
+      );
+    }
+
     return AppScaffold(
       title: getText('votacao_enquete'),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : obj == null
-              ? const SizedBox()
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _section(getText('votacao_infos')),
-                      const SizedBox(height: AppSpacing.sm),
-                      _buildPollCard(context),
-                      const SizedBox(height: AppSpacing.xxxl),
-                    ],
-                  ),
-                ),
+      body: body,
     );
   }
 
-  Widget _buildPollCard(BuildContext context) {
-    final votacao = obj['votacao'];
-    final status = votacao['status'] as int;
-    final title = votacao['titulo'] ?? '';
-    final description = votacao['descricao'] ?? '';
-    final options = votacao['opcoes'] ?? [];
-    final myVotes = obj['meuVoto'] ?? [];
+  Widget _cabecalho() {
+    final votacao = _votacao;
+    final titulo = _texto(votacao['titulo']).isNotEmpty ? _texto(votacao['titulo']) : _texto(votacao['pergunta']);
+    final pergunta = _texto(votacao['pergunta']);
+    final descricao = _texto(votacao['descricao']);
+    final prazo = prazoLabel(_texto(votacao['data_termino']), votacao['status'],
+        dataInicio: _texto(votacao['data_inicio']));
+    final inicio = _texto(votacao['data_inicio']);
+    final termino = _texto(votacao['data_termino']);
+    final periodo = inicio.isNotEmpty && termino.isNotEmpty
+        ? '$inicio a $termino'
+        : termino.isNotEmpty
+            ? 'Até $termino'
+            : inicio;
+    final total = totalVotos(votacao['opcoes']);
+    final urgente = prazo == 'Encerra hoje' || prazo == 'Encerra amanhã';
 
     return Container(
-      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(24),
+        color: AppColors.surfaceElevated(context),
+        borderRadius: AppRadius.rlg,
         border: Border.all(color: AppColors.border(context)),
       ),
-      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              _StatusChip(
-                label: _statusLabel(status),
-                color: _statusColor(status),
-              ),
-              Row(
-                children: [
-                  Icon(
-                    PhosphorIcons.calendarBlank,
-                    size: 14,
-                    color: AppColors.textSecondary(context),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Até ${votacao['data_termino']}',
-                    style: AppTypography.caption(context).copyWith(
-                      color: AppColors.textSecondary(context),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+              VotacaoStatusBadge(status: votacao['status']),
+              if (prazo.isNotEmpty)
+                _ChipMeta(
+                  icone: PhosphorIcons.clock,
+                  texto: prazo,
+                  cor: urgente ? statusVotacaoInfo(0).corTexto(context) : null,
+                ),
             ],
           ),
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.md),
           Text(
-            title,
+            titulo,
             style: AppTypography.title(context).copyWith(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               color: AppColors.textPrimary(context),
+              height: 1.3,
             ),
           ),
-          if (description.isNotEmpty) ...[
+          if (pergunta.isNotEmpty && pergunta != titulo) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(
-              description,
-              style: AppTypography.bodySecondary(context).copyWith(
+              pergunta,
+              style: AppTypography.bodyMedium(context).copyWith(
+                color: AppColors.textPrimary(context),
+                height: 1.4,
+              ),
+            ),
+          ],
+          if (descricao.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              descricao,
+              style: AppTypography.body(context).copyWith(
                 color: AppColors.textSecondary(context),
+                height: 1.45,
               ),
             ),
           ],
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
-            child: Divider(height: 1),
-          ),
-          Text(
-            getText('escolha_opcao_desejada'),
-            style: AppTypography.bodySecondary(context).copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary(context),
-            ),
-          ),
           const SizedBox(height: AppSpacing.md),
-          for (var opcao in options)
-            _buildOptionRow(
-              context,
-              votacao,
-              opcao.split(';')[0],
-              opcao.split(';')[1],
-              int.tryParse(opcao.split(';')[2]) ?? 0,
-              myVotes,
-            ),
-          if (getUserType() == 'sindico' && status == 1) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-              child: Divider(height: 1),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: finish,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.orange,
-                ),
-                icon: const Icon(PhosphorIcons.flagCheckered, size: 16),
-                label: Text(
-                  getText('votacao_finalizar'),
-                  style: AppTypography.bodySecondary(context).copyWith(
-                    color: Colors.orange,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          Divider(height: 1, color: AppColors.border(context)),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.lg,
+            runSpacing: AppSpacing.sm,
+            children: [
+              if (periodo.isNotEmpty) _meta(PhosphorIcons.calendarBlank, periodo),
+              _meta(PhosphorIcons.users, votosLabel(total)),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildOptionRow(
-    BuildContext context,
-    dynamic votacao,
-    String id,
-    String text,
-    int votesCount,
-    List<dynamic> myVotes,
-  ) {
-    final isSelected = myVotes.contains(id);
-    final isClosed = votacao['status'] != 1;
-    
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: InkWell(
-        onTap: () {
-          if (isClosed) {
-            displayMessage(context, getText('alert_ops'), getText('votacao_fora_periodo'));
-          } else {
-            insertVoto(int.parse(id), votacao['id']);
-          }
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
-          decoration: BoxDecoration(
-            color: isSelected 
-                ? AppColors.primary.withValues(alpha: 0.08) 
-                : AppColors.surface(context),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.border(context),
-              width: isSelected ? 1.5 : 1,
+  Widget _meta(IconData icone, String texto) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icone, size: 16, color: AppColors.textTertiary(context)),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(
+            child: Text(
+              texto,
+              style: AppTypography.caption(context).copyWith(
+                fontSize: 13,
+                color: AppColors.textSecondary(context),
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
-          child: Row(
-            children: [
-              Icon(
-                isSelected ? PhosphorIcons.checkCircleFill : PhosphorIcons.circle,
-                color: isSelected ? AppColors.primary : AppColors.textTertiary(context),
-                size: 20,
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Text(
-                  text,
-                  style: AppTypography.bodyMedium(context).copyWith(
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                    color: AppColors.textPrimary(context),
+        ],
+      );
+
+  /// Faixa que explica, em uma frase, o que dá para fazer agora.
+  Widget _avisoEstado() {
+    final status = _status;
+    final inicio = _texto(_votacao['data_inicio']);
+    final IconData icone;
+    final Color cor;
+    final String titulo;
+    final String texto;
+
+    if (status == 1 && _alterando) {
+      icone = PhosphorIcons.arrowsClockwise;
+      cor = statusVotacaoInfo(1).cor;
+      titulo = 'Alterando seu voto';
+      texto = 'Escolha a nova opção e confirme. Seu voto anterior será substituído.';
+    } else if (status == 1 && _jaVotou) {
+      icone = PhosphorIcons.checkCircle;
+      cor = statusVotacaoInfo(1).cor;
+      titulo = 'Você já votou';
+      texto = 'Seu voto está destacado abaixo. Você pode alterá-lo até o encerramento.';
+    } else if (status == 1) {
+      icone = PhosphorIcons.handPointing;
+      cor = statusVotacaoInfo(1).cor;
+      titulo = 'Votação aberta';
+      texto = 'Escolha uma opção e toque em Votar.';
+    } else if (status == 0) {
+      icone = PhosphorIcons.hourglassMedium;
+      cor = statusVotacaoInfo(0).cor;
+      titulo = 'Enquete ainda não começou';
+      texto = inicio.isEmpty
+          ? 'A votação ainda não foi aberta.'
+          : 'A votação abre em $inicio.';
+    } else if (status == 2) {
+      icone = PhosphorIcons.lockSimple;
+      cor = statusVotacaoInfo(2).cor;
+      titulo = 'Enquete encerrada';
+      texto = _jaVotou ? 'Este é o resultado final. Seu voto está destacado.' : 'Este é o resultado final.';
+    } else {
+      icone = PhosphorIcons.info;
+      cor = statusVotacaoInfo(null).cor;
+      titulo = getText('votacao_fora_periodo');
+      texto = '';
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = isDark ? Color.lerp(cor, Colors.white, 0.3)! : Color.lerp(cor, Colors.black, 0.4)!;
+
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: cor.withValues(alpha: isDark ? 0.14 : 0.07),
+          borderRadius: AppRadius.rmd,
+          border: Border.all(color: cor.withValues(alpha: isDark ? 0.35 : 0.25)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icone, size: 20, color: fg),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titulo,
+                    style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w700, color: fg),
                   ),
-                ),
+                  if (texto.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      texto,
+                      style: AppTypography.caption(context).copyWith(
+                        fontSize: 13,
+                        color: AppColors.textPrimary(context),
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isSelected 
-                      ? AppColors.primary.withValues(alpha: 0.12) 
-                      : AppColors.bg(context),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  votesCount == 1 ? '1 voto' : '$votesCount votos',
-                  style: AppTypography.caption(context).copyWith(
-                    color: isSelected ? AppColors.primary : AppColors.textSecondary(context),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _section(String title) => Text(
-        title.toUpperCase(),
-        style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary, letterSpacing: 0.8),
+  Widget _secaoOpcoes() {
+    final opcoes = parseOpcoes(_votacao['opcoes']);
+    final escolhendo = _escolhendo;
+    final pcts = percentuais([for (final o in opcoes) o.votos]);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          escolhendo ? getText('escolha_opcao_desejada') : 'Resultado',
+          style: AppTypography.title(context).copyWith(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary(context),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (opcoes.isEmpty)
+          Text(
+            getText('alert_list_empty_generic'),
+            style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+          )
+        else
+          for (var i = 0; i < opcoes.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: escolhendo
+                  ? OpcaoSelecionavel(
+                      rotulo: opcoes[i].nome,
+                      selecionado: _escolhida == opcoes[i].id,
+                      habilitado: !_isLoading,
+                      onTap: () => setState(() => _escolhida = opcoes[i].id),
+                    )
+                  : OpcaoResultadoBar(
+                      rotulo: opcoes[i].nome,
+                      votos: opcoes[i].votos,
+                      percentual: pcts[i],
+                      meuVoto: votouNaOpcao(opcoes[i].id, _meuVoto),
+                    ),
+            ),
+      ],
+    );
+  }
+
+  Widget _cardFinalizar() {
+    final rotulo = getText('votacao_finalizar').replaceAll('?', '').trim();
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: AppRadius.rlg,
+        border: Border.all(color: AppColors.border(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Área do síndico',
+            style: AppTypography.bodyMedium(context).copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary(context),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Encerra a enquete agora, antes da data de término.',
+            style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppButton(
+            key: DetailEnquete.chaveBotaoFinalizar,
+            label: rotulo,
+            icon: PhosphorIcons.flagCheckered,
+            variant: AppButtonVariant.secondary,
+            size: AppButtonSize.md,
+            onPressed: _isLoading ? null : finish,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Rodapé fixo (enquete em andamento): "Votar" habilitado só com uma opção
+  /// escolhida; quem já votou vê "Alterar voto".
+  Widget _rodape() {
+    final Widget conteudo;
+    if (_escolhendo) {
+      final mesmaOpcao = _alterando && _escolhida != null && votouNaOpcao(_escolhida, _meuVoto);
+      final pode = _escolhida != null && !mesmaOpcao && !_isLoading;
+      final dica = _escolhida == null
+          ? 'Escolha uma opção para votar.'
+          : mesmaOpcao
+              ? 'Escolha uma opção diferente do seu voto atual.'
+              : null;
+      final votar = AppButton(
+        key: DetailEnquete.chaveBotaoVotar,
+        label: _alterando ? 'Confirmar voto' : 'Votar',
+        icon: PhosphorIcons.checkCircle,
+        loading: _isLoading,
+        onPressed: pode ? _votar : null,
       );
+      conteudo = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (dica != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text(
+                dica,
+                textAlign: TextAlign.center,
+                style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+              ),
+            ),
+          if (_alterando)
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: AppButton(
+                    label: 'Cancelar',
+                    variant: AppButtonVariant.secondary,
+                    onPressed: _isLoading ? null : _cancelarAlteracao,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(flex: 3, child: votar),
+              ],
+            )
+          else
+            votar,
+        ],
+      );
+    } else {
+      conteudo = AppButton(
+        key: DetailEnquete.chaveBotaoVotar,
+        label: 'Alterar voto',
+        icon: PhosphorIcons.arrowsClockwise,
+        variant: AppButtonVariant.secondary,
+        onPressed: _isLoading ? null : _comecarAlteracao,
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bg(context),
+        border: Border(top: BorderSide(color: AppColors.border(context))),
+      ),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
+      child: conteudo,
+    );
+  }
+
+  static String _texto(dynamic v) {
+    final s = (v ?? '').toString().trim();
+    return s == 'null' ? '' : s;
+  }
 }
 
-class _StatusChip extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _StatusChip({required this.label, required this.color});
+/// Chip de prazo do cabeçalho, ao lado do selo de status.
+class _ChipMeta extends StatelessWidget {
+  final IconData icone;
+  final String texto;
+  final Color? cor;
+  const _ChipMeta({required this.icone, required this.texto, this.cor});
 
   @override
   Widget build(BuildContext context) {
+    final fg = cor ?? AppColors.textSecondary(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        border: Border.all(color: AppColors.border(context)),
       ),
-      child: Text(
-        label,
-        style: AppTypography.caption(context).copyWith(color: color, fontWeight: FontWeight.w600),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icone, size: 14, color: fg),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(
+            child: Text(
+              texto,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.caption(context).copyWith(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: fg,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
