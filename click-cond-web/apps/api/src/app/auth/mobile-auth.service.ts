@@ -1661,7 +1661,14 @@ export class MobileAuthService {
               : esperando
                 ? `${e.descricao} foi avisada e ainda não chegou na portaria.`
                 : `${e.descricao} chegou e está aguardando retirada.`,
-            timestamp: e.created_at,
+            // Momento do evento mais recente: o app marca como nova comparando
+            // com a última visita ao feed, e uma encomenda avisada (created_at)
+            // que chega depois na portaria (recebido_em) precisa reaparecer.
+            timestamp: retirada
+              ? (e.retirado_em ?? e.recebido_em ?? e.created_at)
+              : esperando
+                ? e.created_at
+                : (e.recebido_em ?? e.created_at),
           });
         }
       }

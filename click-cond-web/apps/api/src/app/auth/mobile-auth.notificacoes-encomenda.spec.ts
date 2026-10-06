@@ -6,8 +6,11 @@ import { MobileAuthService } from './mobile-auth.service';
  * "chegou e está aguardando retirada" — ela ainda não chegou na portaria.
  */
 describe('MobileAuthService — getNotificacoes() encomendas por status', () => {
-  function build(status: string) {
-    const created_at = new Date();
+  const created_at = new Date('2026-10-01T10:00:00Z');
+  const recebido_em = new Date('2026-10-03T14:00:00Z');
+  const retirado_em = new Date('2026-10-04T09:00:00Z');
+
+  function build(status: string, extra: Record<string, any> = {}) {
     const prisma: any = {
       isConnected: true,
       users: {
@@ -26,7 +29,7 @@ describe('MobileAuthService — getNotificacoes() encomendas por status', () => 
       apartamentos_Users: { findMany: jest.fn(async () => []) },
       encomendas: {
         findMany: jest.fn(async () => [
-          { id: 5, descricao: 'Caixa dos Correios', status, created_at },
+          { id: 5, descricao: 'Caixa dos Correios', status, created_at, ...extra },
         ]),
       },
       visitantes: { findMany: jest.fn(async () => []) },
@@ -38,16 +41,15 @@ describe('MobileAuthService — getNotificacoes() encomendas por status', () => 
       prisma, {} as any, {} as any, {} as any, {} as any, {} as any,
       {} as any, {} as any, {} as any, {} as any,
     );
-    return { svc, created_at };
+    return { svc };
   }
 
-  async function itemEncomenda(status: string) {
-    const { svc, created_at } = build(status);
+  async function itemEncomenda(status: string, extra: Record<string, any> = {}) {
+    const { svc } = build(status, extra);
     const itens: any[] = await svc.getNotificacoes(9);
     const item = itens.find((i) => i.tipo === 'encomenda');
     expect(item).toBeDefined();
     expect(item.id).toBe('encomenda-5');
-    expect(item.timestamp).toBe(created_at);
     return item;
   }
 
@@ -72,5 +74,34 @@ describe('MobileAuthService — getNotificacoes() encomendas por status', () => 
     const item = await itemEncomenda('Retirada');
     expect(item.titulo).toBe('Encomenda retirada');
     expect(item.descricao).toBe('Caixa dos Correios foi retirada.');
+  });
+
+  // O app compara `timestamp` com a última visita ao feed: o feed precisa
+  // refletir o evento mais recente (chegada/retirada), não o aviso inicial.
+  describe('timestamp = momento do evento mais recente', () => {
+    it('Esperando: usa created_at (o aviso), ignora recebido_em', async () => {
+      const item = await itemEncomenda('Esperando', { recebido_em, retirado_em: null });
+      expect(item.timestamp).toBe(created_at);
+    });
+
+    it('Aguardando: usa recebido_em (chegada na portaria), não o aviso', async () => {
+      const item = await itemEncomenda('Aguardando', { recebido_em, retirado_em: null });
+      expect(item.timestamp).toBe(recebido_em);
+    });
+
+    it('Aguardando sem recebido_em: cai para created_at', async () => {
+      const item = await itemEncomenda('Aguardando', { recebido_em: null });
+      expect(item.timestamp).toBe(created_at);
+    });
+
+    it('Retirada: usa retirado_em', async () => {
+      const item = await itemEncomenda('Retirada', { recebido_em, retirado_em });
+      expect(item.timestamp).toBe(retirado_em);
+    });
+
+    it('Retirada sem retirado_em: cai para recebido_em e depois created_at', async () => {
+      expect((await itemEncomenda('Retirada', { recebido_em, retirado_em: null })).timestamp).toBe(recebido_em);
+      expect((await itemEncomenda('Retirada', { recebido_em: null, retirado_em: null })).timestamp).toBe(created_at);
+    });
   });
 });
