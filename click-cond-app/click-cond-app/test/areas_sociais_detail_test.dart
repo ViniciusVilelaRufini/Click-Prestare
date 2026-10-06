@@ -142,14 +142,17 @@ void main() {
     expect(rodape(), findsNothing);
   });
 
-  testWidgets('funcionário sem permissão não vê reservas de ninguém nem o botão', (tester) async {
+  testWidgets('funcionário sem permissão vê todas em leitura, sem editar nem reservar', (tester) async {
     entrarComoFuncionario(areasSociais: 0);
     servir(area());
     await abrir(tester);
 
-    expect(idsListados(tester), isEmpty);
-    expect(find.text('Nenhuma reserva ainda'), findsOneWidget);
+    expect(idsListados(tester), [1, 4]);
+    final cards = tester.widgetList<MinhaReservaCard>(find.byType(MinhaReservaCard, skipOffstage: false));
+    expect(cards.every((c) => c.mostrarApto && c.onEditar == null), isTrue);
+    expect(find.text('Nenhuma reserva ainda'), findsNothing);
     expect(rodape(), findsNothing);
+    expect(find.byType(FloatingActionButton), findsNothing);
   });
 
   testWidgets('morador sem reservas vê o estado vazio', (tester) async {

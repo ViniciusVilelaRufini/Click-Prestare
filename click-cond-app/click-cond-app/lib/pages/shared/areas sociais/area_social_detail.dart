@@ -144,10 +144,13 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     }
   }
 
-  /// Síndico e funcionário com permissão `areas_sociais` veem a agenda de
-  /// todos (pendente/aprovada); os demais só as reservas do próprio apto.
+  /// Síndico e funcionário (com ou sem a permissão `areas_sociais`, como
+  /// hoje) veem a agenda de todos (pendente/aprovada); o morador só as do
+  /// próprio apto. Ver não é editar: a edição segue `_canEditAgendamento`.
   bool get _podeVerTodas =>
-      getUserType() == 'sindico' || getUserPermission('areas_sociais') == 1;
+      getUserType() == 'sindico' ||
+      getUserType() == 'funcionario' ||
+      getUserPermission('areas_sociais') == 1;
 
   /// Mesma condição do antigo botão "Nova reserva": a área exige agendamento
   /// e o usuário não é funcionário.
@@ -356,7 +359,6 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
       ),
     );
   }
-
 
   /// Clima em chip discreto na linha das tags. O resultado vem de
   /// `_fetchWeatherForCondominium` (timeout de 8 s); sem previsão confirmada
