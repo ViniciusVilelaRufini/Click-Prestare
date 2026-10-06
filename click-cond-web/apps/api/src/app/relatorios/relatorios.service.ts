@@ -209,7 +209,8 @@ export class RelatoriosService {
         Descrição: e.descricao,
         Destinatário: `Apto ${e.destinatario_apto}${e.destinatario_bloco ?? ''}`,
         Remetente: e.recebido_de || 'Não informado',
-        Recebido: formatDateTime(e.recebido_em),
+        // `Esperando`: o morador só avisou, ainda não chegou na portaria.
+        Recebido: (e.status || '').toLowerCase() === 'esperando' ? '-' : formatDateTime(e.recebido_em),
         Retirado: e.retirado_em ? formatDateTime(e.retirado_em) : 'Aguardando',
         Status: e.status,
         'Recebido Por': e.recebidoPor?.name || 'Sistema',
@@ -242,7 +243,7 @@ export class RelatoriosService {
               ...list.map((e) => [
                 e.descricao,
                 `Apto ${e.destinatario_apto}${e.destinatario_bloco ?? ''}`,
-                formatDateTime(e.recebido_em),
+                (e.status || '').toLowerCase() === 'esperando' ? '-' : formatDateTime(e.recebido_em),
                 e.retirado_em ? formatDateTime(e.retirado_em) : 'Aguardando',
                 e.status,
                 e.recebidoPor?.name || 'Sistema',
