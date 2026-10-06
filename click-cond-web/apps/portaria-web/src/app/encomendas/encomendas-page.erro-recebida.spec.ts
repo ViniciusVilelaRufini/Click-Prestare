@@ -33,7 +33,7 @@ describe('EncomendasPageComponent — erro do formulário e coluna Recebida', ()
 
   afterEach(() => jest.clearAllMocks());
 
-  // O componente é OnPush: só um evento de clique (ou signal) marca a view como suja,
+  // O ambiente de teste é zoneless (src/test-setup.ts): só um evento de clique (ou signal) agenda a detecção,
   // então os testes abrem o formulário e confirmam pelos botões, como o porteiro faz.
   function clicar(fixture: ComponentFixture<EncomendasPageComponent>, rotulo: string) {
     const botoes = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
