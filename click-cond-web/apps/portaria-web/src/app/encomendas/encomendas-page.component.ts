@@ -37,6 +37,8 @@ export class EncomendasPageComponent implements OnInit {
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  /** Erros de registrar() (validação e falha do create); exibido só dentro do formulário. */
+  readonly formError = signal<string | null>(null);
   readonly filtro = signal<string>('');
 
   readonly busca = signal<string>('');
@@ -181,12 +183,14 @@ export class EncomendasPageComponent implements OnInit {
     this.carregarApartamentos();
     this.route.queryParams.subscribe((params) => {
       if (params['novo'] === 'true') {
+        this.formError.set(null);
         this.showForm = true;
       }
     });
   }
 
   carregar() {
+    this.error.set(null);
     this.loading.set(true);
     this.api.list().subscribe({
       next: (data) => { 
@@ -211,8 +215,9 @@ export class EncomendasPageComponent implements OnInit {
   }
 
   registrar() {
+    this.formError.set(null);
     if (!this.novo.descricao?.trim() || !this.selectedApto) {
-      this.error.set('Descrição e apto destinatário são obrigatórios.');
+      this.formError.set('Descrição e apto destinatário são obrigatórios.');
       return;
     }
     
@@ -221,16 +226,18 @@ export class EncomendasPageComponent implements OnInit {
 
     this.api.create(this.novo).subscribe({
       next: () => { 
+        this.formError.set(null);
         this.showForm = false; 
         this.novo = this.estadoInicial(); 
         this.selectedApto = null;
         this.carregar(); 
       },
-      error: (e) => this.error.set(e?.message ?? 'Erro'),
+      error: (e) => this.formError.set(e?.message ?? 'Erro'),
     });
   }
 
   notificar(e: Encomenda) {
+    this.error.set(null);
     this.loading.set(true);
     this.api.notificar(e.id).subscribe({
       next: () => {
@@ -245,6 +252,7 @@ export class EncomendasPageComponent implements OnInit {
 
   /** Porteiro confirma o recebimento de uma encomenda "a chegar" (Esperando). */
   receber(e: Encomenda) {
+    this.error.set(null);
     this.loading.set(true);
     this.api.receber(e.id).subscribe({
       next: () => this.carregar(),
@@ -303,6 +311,7 @@ export class EncomendasPageComponent implements OnInit {
     const photo = this.capturedPhoto;
     const details = `${this.retiranteNome} (${this.retiranteParentesco})`;
 
+    this.error.set(null);
     this.loading.set(true);
     if (this.isBatchRetirada) {
       const sel = Array.from(this.selecionadas());
@@ -415,6 +424,7 @@ export class EncomendasPageComponent implements OnInit {
     const sel = Array.from(this.selecionadas());
     if (sel.length === 0) return;
     
+    this.error.set(null);
     this.loading.set(true);
     import('rxjs').then(({ forkJoin }) => {
       const requests = sel.map(id => this.api.notificar(id));

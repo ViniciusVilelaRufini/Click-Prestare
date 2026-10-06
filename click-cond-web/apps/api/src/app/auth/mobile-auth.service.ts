@@ -1644,15 +1644,31 @@ export class MobileAuthService {
           take: 20,
         });
         for (const e of encomendas) {
-          const retirada = (e.status || '').toLowerCase() === 'retirada';
+          const status = (e.status || '').toLowerCase();
+          const retirada = status === 'retirada';
+          // `Esperando` = o morador avisou, mas ainda não chegou na portaria.
+          const esperando = status === 'esperando';
           itens.push({
             id: `encomenda-${e.id}`,
             tipo: 'encomenda',
-            titulo: retirada ? 'Encomenda retirada' : 'Encomenda recebida',
+            titulo: retirada
+              ? 'Encomenda retirada'
+              : esperando
+                ? 'Encomenda a caminho'
+                : 'Encomenda recebida',
             descricao: retirada
               ? `${e.descricao} foi retirada.`
-              : `${e.descricao} chegou e está aguardando retirada.`,
-            timestamp: e.created_at,
+              : esperando
+                ? `${e.descricao} foi avisada e ainda não chegou na portaria.`
+                : `${e.descricao} chegou e está aguardando retirada.`,
+            // Momento do evento mais recente: o app marca como nova comparando
+            // com a última visita ao feed, e uma encomenda avisada (created_at)
+            // que chega depois na portaria (recebido_em) precisa reaparecer.
+            timestamp: retirada
+              ? (e.retirado_em ?? e.recebido_em ?? e.created_at)
+              : esperando
+                ? e.created_at
+                : (e.recebido_em ?? e.created_at),
           });
         }
       }

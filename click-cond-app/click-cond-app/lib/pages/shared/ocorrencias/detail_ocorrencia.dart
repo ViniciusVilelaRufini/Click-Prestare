@@ -1,3 +1,4 @@
+import 'package:click/utils/datas.dart';
 import 'package:click/utils/log.dart';
 import 'package:click/pages/shared/ocorrencias/ocorrencia_chat.dart';
 
@@ -197,7 +198,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _InfoCard(children: [
-                          _Row(icon: PhosphorIcons.clock, label: getText('data_hora_criacao'), value: obj['created_at'] ?? ''),
+                          _Row(icon: PhosphorIcons.clock, label: getText('data_hora_criacao'), value: formatarDataHoraCurta(obj['created_at'])),
                           const Divider(height: AppSpacing.xl),
                           _Row(icon: PhosphorIcons.warningCircle, label: getText('lb_tipo'), value: obj['tipo'] ?? '',
                               valueColor: (obj['tipo'] ?? '').toString().toLowerCase().contains('urgente') ? AppColors.error : null),
@@ -377,7 +378,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                 if (obj['resposta_at'] != null) ...[
                                   const SizedBox(height: 4),
                                   Text(
-                                    obj['resposta_at'],
+                                    formatarDataHoraCurta(obj['resposta_at']),
                                     style: AppTypography.caption(context).copyWith(
                                       fontSize: 10,
                                     ),

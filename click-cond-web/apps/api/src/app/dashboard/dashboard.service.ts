@@ -24,7 +24,7 @@ export interface DashboardSummary {
       documento?: string;
       blocoApto?: string;
       tipoPessoa?: 'morador' | 'visitante' | 'prestador' | 'funcionario';
-      dataEntrada?: string;
+      dataEntrada?: string | null;
       dataSaida?: string;
       autorizadoPor?: string;
       status?: string;
@@ -506,7 +506,10 @@ export class DashboardService {
           blocoApto: aptoStr,
           recebidoDe: e.recebido_de || 'Não informado',
           status: e.status,
-          dataEntrada: e.recebido_em.toISOString(),
+          // `Esperando` = o morador só avisou; ainda não chegou na portaria.
+          dataEntrada: (e.status || '').toLowerCase() === 'esperando'
+            ? null
+            : e.recebido_em.toISOString(),
           dataSaida: e.retirado_em ? e.retirado_em.toISOString() : undefined,
           retiradoPor: e.retirado_por || undefined,
           recebidoPor: e.recebidoPor?.name || 'Sistema',

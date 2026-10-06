@@ -8,6 +8,7 @@ import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/shared/visitantes/convites_visita.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/visitantes_presenca.dart';
+import 'package:click/utils/visitantes_pessoas.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -1130,8 +1131,13 @@ class ListVisitantesPageState extends State<ListVisitantes> {
 
     // Lista conjunta: visitantes + prestadores. O chip escolhe o recorte e é
     // aplicado antes das abas, para os contadores refletirem o filtro.
-    final prestadoresCount = list.where((e) => e['is_prestador'] == 1).length;
-    final visitantesCount = list.length - prestadoresCount;
+    // Os chips contam PESSOAS, não visitas: quem entrou 20 vezes conta 1,
+    // igual à aba "Cadastrados".
+    final prestadoresCount = deduplicarPessoas(
+        list.where((e) => e['is_prestador'] == 1)).length;
+    final visitantesCount = deduplicarPessoas(
+        list.where((e) => e['is_prestador'] != 1)).length;
+    final todosCount = deduplicarPessoas(list).length;
     final visitorsOnlyList = _tipoFiltro == 'todos'
         ? list.toList()
         : list
@@ -1151,76 +1157,11 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     final listInside =
         visitorsOnlyList.where((e) => estaNoLocal(e as Map)).toList();
 
-    // Filtrar visitantes cadastrados únicos para histórico e liberação rápida
-    final List<Map<String, dynamic>> listCadastrados = [];
+    // Filtrar visitantes cadastrados únicos para histórico e liberação rápida.
+    // Mesma regra de pessoa dos chips (utils/visitantes_pessoas.dart).
+    final List<Map<String, dynamic>> listCadastrados =
+        deduplicarPessoas(visitorsOnlyList);
 
-    for (var rawItem in visitorsOnlyList) {
-      final item = Map<String, dynamic>.from(rawItem);
-      final docDigits = (item['doc_identificacao'] ?? '')
-          .toString()
-          .replaceAll(RegExp(r'\D'), '')
-          .trim();
-      final nomeNorm = (item['nome'] ?? '')
-          .toString()
-          .trim()
-          .toLowerCase()
-          .replaceAll(RegExp(r'\s+'), ' ');
-      final photoUrl =
-          (item['foto_pessoa'] ?? item['photo'])?.toString().trim() ?? '';
-      final hasValidPhoto =
-          photoUrl.isNotEmpty && photoUrl != 'null' && photoUrl != 'undefined';
-
-      int matchIndex = -1;
-      for (int i = 0; i < listCadastrados.length; i++) {
-        final existing = listCadastrados[i];
-        final existingDoc = (existing['doc_identificacao'] ?? '')
-            .toString()
-            .replaceAll(RegExp(r'\D'), '')
-            .trim();
-        final existingNome = (existing['nome'] ?? '')
-            .toString()
-            .trim()
-            .toLowerCase()
-            .replaceAll(RegExp(r'\s+'), ' ');
-        final existingPhoto =
-            (existing['foto_pessoa'] ?? existing['photo'])?.toString().trim() ??
-                '';
-        final existingHasPhoto = existingPhoto.isNotEmpty &&
-            existingPhoto != 'null' &&
-            existingPhoto != 'undefined';
-
-        final matchDoc = docDigits.length >= 4 && existingDoc == docDigits;
-        final matchNome = nomeNorm.isNotEmpty && existingNome == nomeNorm;
-        final matchPhoto = hasValidPhoto &&
-            existingHasPhoto &&
-            photoUrl.startsWith('http') &&
-            existingPhoto == photoUrl;
-
-        if (matchDoc || matchNome || matchPhoto) {
-          matchIndex = i;
-          break;
-        }
-      }
-
-      if (matchIndex == -1) {
-        listCadastrados.add(item);
-      } else {
-        final existing = listCadastrados[matchIndex];
-        final existingPhoto =
-            (existing['foto_pessoa'] ?? existing['photo'])?.toString().trim() ??
-                '';
-        if ((existingPhoto.isEmpty || existingPhoto == 'null') &&
-            hasValidPhoto) {
-          existing['foto_pessoa'] = photoUrl;
-          existing['photo'] = photoUrl;
-        }
-        final existingDoc =
-            (existing['doc_identificacao'] ?? '').toString().trim();
-        if (existingDoc.isEmpty && docDigits.isNotEmpty) {
-          existing['doc_identificacao'] = item['doc_identificacao'];
-        }
-      }
-    }
     return DefaultTabController(
       length: 2,
       child: AppScaffold(
@@ -1421,7 +1362,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                   children: [
                     Expanded(
                       child: _TipoChip(
-                        label: 'Todos (${list.length})',
+                        label: 'Todos ($todosCount)',
                         selected: _tipoFiltro == 'todos',
                         onTap: () => setState(() => _tipoFiltro = 'todos'),
                       ),
