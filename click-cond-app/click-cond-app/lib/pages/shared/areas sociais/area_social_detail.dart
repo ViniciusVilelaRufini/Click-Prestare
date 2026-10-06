@@ -11,13 +11,15 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
-import 'package:click/widgets/cells/cell_morador_agendamento.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'new_area_social.dart';
+import 'widgets/minha_reserva_card.dart';
+import 'widgets/reserva_helpers.dart';
 
 class AreaSocialDetail extends StatefulWidget {
   const AreaSocialDetail({super.key, this.myId});
@@ -142,15 +144,43 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     }
   }
 
-  /// Só reservas que ocupam o horário (pendente/aprovado). A API devolve a
-  /// agenda inteira, e canceladas/recusadas apareciam como se valessem.
-  List<dynamic> _agendamentosAtivos(dynamic area) {
-    final lista = area['agendamentos'];
-    if (lista is! List) return const [];
-    return lista
-        .where((a) => const ['pendente', 'aprovado']
-            .contains((a['status'] ?? '').toString().toLowerCase().trim()))
-        .toList();
+  /// Síndico e funcionário com permissão `areas_sociais` veem a agenda de
+  /// todos (pendente/aprovada); os demais só as reservas do próprio apto.
+  bool get _podeVerTodas =>
+      getUserType() == 'sindico' || getUserPermission('areas_sociais') == 1;
+
+  /// Mesma condição do antigo botão "Nova reserva": a área exige agendamento
+  /// e o usuário não é funcionário.
+  bool get _podeReservar =>
+      obj != null && obj['precisa_agendar'] == 1 && getUserType() != 'funcionario';
+
+  /// Reservas exibidas. Pendente/aprovada de todos para quem pode ver todas;
+  /// para o morador, as do próprio bloco/apto (pendente, aprovada e recusada).
+  /// Quem não é morador nem privilegiado não tem apto: lista vazia.
+  List<dynamic> _reservasExibidas() {
+    final lista = obj['agendamentos'];
+    final morador = getUserType() == 'morador';
+    return reservasVisiveis(
+      lista is List ? lista : null,
+      podeVerTodas: _podeVerTodas,
+      bloco: morador ? Singleton.instance.bloco.toString() : null,
+      apto: morador ? Singleton.instance.apartamento.toString() : null,
+    );
+  }
+
+  void _abrirNovaReserva() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => NewReserva(obj: obj)),
+    ).then((_) => load());
+  }
+
+  void _abrirEdicaoReserva(dynamic item) {
+    if (!_canEditAgendamento(item)) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => NewReserva(obj: obj, objEditReserva: item)),
+    ).then((_) => load());
   }
 
   bool _canEditAgendamento(dynamic item) {
@@ -202,6 +232,8 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
               children: [
                 Text(
                   obj['nome'],
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.headline(context).copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -217,13 +249,19 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                       color: Colors.white70,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      obj['capacidade'].toString() != '-1'
-                          ? '${obj['capacidade']} ${getText('pessoas')}'
-                          : getText('capacidade_indeterminada'),
-                      style: AppTypography.body(context).copyWith(
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w500,
+                    // Flexible: em 320dp "Capacidade indeterminada" + selo de
+                    // ocupação estourava a linha.
+                    Flexible(
+                      child: Text(
+                        obj['capacidade'].toString() != '-1'
+                            ? '${obj['capacidade']} ${getText('pessoas')}'
+                            : getText('capacidade_indeterminada'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.body(context).copyWith(
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     if (obj['tem_monitoramento'] == true) ...[
@@ -319,73 +357,122 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     );
   }
 
-  Widget _buildWeatherWidget() {
+
+  /// Clima em chip discreto na linha das tags. O resultado vem de
+  /// `_fetchWeatherForCondominium` (timeout de 8 s); sem previsão confirmada
+  /// (falha, timeout, cidade vazia) o chip some.
+  Widget? _buildWeatherWidget() {
     if (_weatherLoading) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        child: AppSkeleton(width: double.infinity, height: 65, borderRadius: AppRadius.lg),
-      );
+      return AppSkeleton(width: 108, height: 30, borderRadius: AppRadius.full);
     }
 
-    if (_temp == null) return const SizedBox.shrink();
+    if (_temp == null) return null;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final desc = _weatherDesc ?? 'Tempo limpo';
+    final temp = '${_temp!.round()}°C';
+    final cidade = (_cityName ?? '').trim();
+    final local = cidade.isEmpty ? 'o condomínio' : cidade;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
-          ),
+    return Tooltip(
+      message: 'Previsão para $local',
+      child: Semantics(
+        label: 'Previsão para $local: $desc, $temp',
+        excludeSemantics: true,
+        child: _ChipInfo(
+          icon: _weatherIcon ?? PhosphorIcons.sun,
+          label: '$temp · $desc',
         ),
-        child: Row(
+      ),
+    );
+  }
+
+  Widget _linhaChips() {
+    final clima = _buildWeatherWidget();
+    final chips = <Widget>[
+      if (obj['precisa_agendar'] == 1)
+        _ChipInfo(
+          label: 'Agendamento',
+          descricao: getText('area_social_precisa_agendamento'),
+          icon: PhosphorIcons.calendarCheck,
+          color: AppColors.primary,
+        ),
+      if (obj['precisa_autorizacao'] == 1)
+        _ChipInfo(
+          label: 'Autorização',
+          descricao: getText('area_social_precisa_autorizacao'),
+          icon: PhosphorIcons.shieldCheck,
+          color: Colors.teal,
+        ),
+      if (obj['precisa_pagamento'] == 1)
+        _ChipInfo(
+          label: 'Pagamento',
+          descricao: getText('area_social_precisa_pagamento'),
+          icon: PhosphorIcons.creditCard,
+          color: Colors.orange,
+        ),
+      if (clima != null) clima,
+    ];
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: chips,
+    );
+  }
+
+  /// Destaque (texto/ícone) sobre fundo tingido de primária: o primário puro
+  /// tem pouco contraste sobre a superfície escura.
+  Color _destaque() =>
+      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF93B4F8) : AppColors.primaryDark;
+
+  Widget _cardRegras() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: AppColors.surfaceElevated(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.rlg,
+        side: BorderSide(color: AppColors.border(context)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        // Sem as linhas divisórias que o ExpansionTile desenha ao abrir.
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          shape: const Border(),
+          collapsedShape: const Border(),
+          tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+          childrenPadding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
+          expandedCrossAxisAlignment: CrossAxisAlignment.start,
+          expandedAlignment: Alignment.centerLeft,
+          iconColor: AppColors.textSecondary(context),
+          collapsedIconColor: AppColors.textSecondary(context),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.08),
+              borderRadius: AppRadius.rmd,
+            ),
+            child: Icon(PhosphorIcons.scroll, size: 20, color: _destaque()),
+          ),
+          title: Text(
+            'Regras de uso',
+            style: AppTypography.bodyMedium(context).copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary(context),
+            ),
+          ),
+          subtitle: Text(
+            'Leia antes de reservar',
+            style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+          ),
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                _weatherIcon ?? PhosphorIcons.sun,
-                color: AppColors.primary,
-                size: 26,
-              ),
-            ),
-            AppSpacing.gapMd,
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _weatherDesc ?? 'Tempo Limpo',
-                    style: AppTypography.bodySecondary(context).copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary(context),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Previsão para ${_cityName ?? 'o condomínio'}',
-                    style: AppTypography.tiny(context).copyWith(
-                      color: AppColors.textSecondary(context),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            Divider(height: 1, color: AppColors.border(context)),
+            const SizedBox(height: AppSpacing.md),
             Text(
-              '${_temp!.toStringAsFixed(1)}°C',
-              style: AppTypography.title(context).copyWith(
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary(context),
-                fontSize: 18,
-              ),
+              obj['regras'].toString().trim(),
+              style: AppTypography.body(context).copyWith(height: 1.45),
             ),
           ],
         ),
@@ -393,9 +480,169 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     );
   }
 
+  Widget _avisoFacial() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.06),
+        borderRadius: AppRadius.rmd,
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(PhosphorIcons.userCircle, size: 18, color: _destaque()),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Acesso por reconhecimento facial: liberado automaticamente durante o horário da sua reserva aprovada.',
+              style: AppTypography.caption(context).copyWith(color: AppColors.textPrimary(context)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _secaoReservas() {
+    final todas = _podeVerTodas;
+    final reservas = _reservasExibidas();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                todas ? 'Reservas' : 'Minhas reservas',
+                style: AppTypography.title(context).copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary(context),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (reservas.isNotEmpty) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  border: Border.all(color: AppColors.border(context)),
+                ),
+                child: Text(
+                  '${reservas.length}',
+                  style: AppTypography.captionMedium(context).copyWith(
+                    color: AppColors.textSecondary(context),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (todas) ...[
+          const SizedBox(height: 2),
+          Text(
+            'Pendentes e aprovadas de todos os apartamentos',
+            style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.md),
+        if (obj['tem_monitoramento'] == true) _avisoFacial(),
+        if (reservas.isEmpty)
+          _estadoVazioReservas(todas)
+        else
+          for (final item in reservas)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: MinhaReservaCard(
+                reserva: item,
+                mostrarApto: todas,
+                // Regra estrita de edição: síndico, permissão ou o próprio apto.
+                onEditar: _canEditAgendamento(item) ? () => _abrirEdicaoReserva(item) : null,
+              ),
+            ),
+      ],
+    );
+  }
+
+  Widget _estadoVazioReservas(bool todas) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.xxl),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: AppRadius.rlg,
+        border: Border.all(color: AppColors.border(context)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(PhosphorIcons.calendarBlank, size: 26, color: _destaque()),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Nenhuma reserva ainda',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyMedium(context).copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary(context),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            todas
+                ? 'Não há reservas pendentes ou aprovadas para este espaço.'
+                : _podeReservar
+                    ? 'Quando você reservar este espaço, a reserva aparece aqui.'
+                    : 'Suas reservas deste espaço aparecem aqui.',
+            textAlign: TextAlign.center,
+            style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rodape() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bg(context),
+        border: Border(top: BorderSide(color: AppColors.border(context))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
+          child: AppButton(
+            label: 'Reservar este espaço',
+            icon: PhosphorIcons.calendarPlus,
+            onPressed: _abrirNovaReserva,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final podeEditarArea = getUserType() == 'sindico' || getUserPermission('areas_sociais') == 1;
+    final carregado = !_isLoading && obj != null;
+    final temRegras = carregado && (obj['regras'] ?? '').toString().trim().isNotEmpty;
 
     return AppScaffold(
       title: getText('lb_area_social'),
@@ -407,170 +654,26 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                   slivers: [
                     SliverToBoxAdapter(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _buildHeroHeader(),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Wrap(
-                                  spacing: AppSpacing.sm,
-                                  runSpacing: AppSpacing.sm,
-                                  children: [
-                                    if (obj['precisa_agendar'] == 1)
-                                      _Tag(
-                                        label: getText('area_social_precisa_agendamento'),
-                                        icon: PhosphorIcons.calendarCheck,
-                                        color: AppColors.primary,
-                                      ),
-                                    if (obj['precisa_autorizacao'] == 1)
-                                      _Tag(
-                                        label: getText('area_social_precisa_autorizacao'),
-                                        icon: PhosphorIcons.shieldCheck,
-                                        color: Colors.teal,
-                                      ),
-                                    if (obj['precisa_pagamento'] == 1)
-                                      _Tag(
-                                        label: getText('area_social_precisa_pagamento'),
-                                        icon: PhosphorIcons.creditCard,
-                                        color: Colors.orange,
-                                      ),
-                                  ],
-                                ),
-                                _buildWeatherWidget(),
-                                if ((obj['regras'] ?? '').toString().trim().isNotEmpty) ...[
-                                  const SizedBox(height: AppSpacing.md),
-                                  Text(
-                                    getText('lb_regras_area').toUpperCase(),
-                                    style: AppTypography.captionMedium(context).copyWith(
-                                      color: AppColors.primary,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                  const SizedBox(height: AppSpacing.sm),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(AppSpacing.md),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.surface(context),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: AppColors.border(context)),
-                                    ),
-                                    child: Text(
-                                      obj['regras'].toString(),
-                                      style: AppTypography.body(context),
-                                    ),
-                                  ),
+                                _linhaChips(),
+                                if (temRegras) ...[
+                                  const SizedBox(height: AppSpacing.lg),
+                                  _cardRegras(),
                                 ],
                                 if (obj['precisa_agendar'] == 1) ...[
-                                  const SizedBox(height: AppSpacing.lg),
-                                  if (obj['tem_monitoramento'] == true)
-                                    Container(
-                                      width: double.infinity,
-                                      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                                      padding: const EdgeInsets.all(AppSpacing.md),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primary.withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                            color: AppColors.primary.withValues(alpha: 0.25)),
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(PhosphorIcons.userCircle,
-                                              size: 18, color: AppColors.primary),
-                                          const SizedBox(width: AppSpacing.sm),
-                                          Expanded(
-                                            child: Text(
-                                              'Acesso por reconhecimento facial: liberado automaticamente durante o horário da sua reserva aprovada.',
-                                              style: AppTypography.caption(context),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        getText('area_social_agendamentos').toUpperCase(),
-                                        style: AppTypography.captionMedium(context).copyWith(
-                                          color: AppColors.primary,
-                                          letterSpacing: 1.0,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      if (getUserType() != 'funcionario')
-                                        ElevatedButton.icon(
-                                          onPressed: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(builder: (_) => NewReserva(obj: obj)),
-                                          ).then((_) => load()),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                                            foregroundColor: AppColors.primary,
-                                            elevation: 0,
-                                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                          ),
-                                          icon: const Icon(PhosphorIcons.plus, size: 14),
-                                          label: Text(
-                                            getText('nova_reserva'),
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: AppSpacing.md),
-                                  if (_agendamentosAtivos(obj).isEmpty)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 40),
-                                      width: double.infinity,
-                                      decoration: BoxDecoration(
-                                        color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.01),
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
-                                        ),
-                                      ),
-                                      child: Center(
-                                        child: Column(
-                                          children: [
-                                            Icon(
-                                              PhosphorIcons.calendarBlank,
-                                              size: 32,
-                                              color: AppColors.textSecondary(context).withValues(alpha: 0.5),
-                                            ),
-                                            const SizedBox(height: 10),
-                                            Text(
-                                              getText('alert_list_empty_generic'),
-                                              style: AppTypography.bodySecondary(context).copyWith(
-                                                color: AppColors.textSecondary(context),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  for (var item in _agendamentosAtivos(obj))
-                                    GestureDetector(
-                                      onTap: () {
-                                        if (_canEditAgendamento(item)) {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(builder: (_) => NewReserva(obj: obj, objEditReserva: item)),
-                                          ).then((_) => load());
-                                        }
-                                      },
-                                      child: CellMoradorAgendamento(item: item, canEdit: _canEditAgendamento(item)),
-                                    ),
+                                  const SizedBox(height: AppSpacing.xl),
+                                  _secaoReservas(),
                                 ],
-                                const SizedBox(height: AppSpacing.xxxl),
+                                // Folga para o FAB de editar a área não cobrir o
+                                // último card.
+                                SizedBox(height: podeEditarArea ? 88 : AppSpacing.xl),
                               ],
                             ),
                           ),
@@ -579,7 +682,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                     ),
                   ],
                 ),
-      floatingActionButton: (getUserType() == 'sindico' || getUserPermission('areas_sociais') == 1)
+      floatingActionButton: podeEditarArea
           ? FloatingActionButton(
               onPressed: () => Navigator.push(
                 context,
@@ -589,51 +692,82 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
               child: const Icon(PhosphorIcons.pencil, color: Colors.white),
             )
           : null,
+      // No bottomNavigationBar o Scaffold posiciona o FAB acima do rodapé.
+      bottomNavigationBar: carregado && _podeReservar ? _rodape() : null,
     );
   }
 }
 
-class _Tag extends StatelessWidget {
+/// Chip compacto da linha de informações (tags da área e clima). Com [color]
+/// fica tingido; sem, neutro e discreto. [descricao] é o texto completo para
+/// o leitor de tela e o tooltip.
+class _ChipInfo extends StatelessWidget {
   final String label;
+  final String? descricao;
   final IconData icon;
-  final Color color;
+  final Color? color;
 
-  const _Tag({
+  const _ChipInfo({
     required this.label,
     required this.icon,
-    required this.color,
+    this.descricao,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = color;
+    // Texto/ícone com contraste sobre o fundo tingido nos dois temas.
+    final Color fg;
+    final Color bg;
+    final Color borda;
+    if (base == null) {
+      fg = AppColors.textSecondary(context);
+      bg = AppColors.surface(context);
+      borda = AppColors.border(context);
+    } else {
+      fg = isDark ? Color.lerp(base, Colors.white, 0.45)! : Color.lerp(base, Colors.black, 0.35)!;
+      bg = base.withValues(alpha: isDark ? 0.18 : 0.08);
+      borda = base.withValues(alpha: isDark ? 0.35 : 0.22);
+    }
+
+    Widget chip = Container(
+      constraints: const BoxConstraints(minHeight: 30),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: color.withValues(alpha: 0.2),
-          width: 1,
-        ),
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        border: Border.all(color: borda),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 14,
-            color: color,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: AppTypography.caption(context).copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
+          Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.caption(context).copyWith(
+                color: fg,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
       ),
     );
+
+    final texto = descricao;
+    if (texto != null) {
+      chip = Tooltip(
+        message: texto,
+        child: Semantics(label: texto, excludeSemantics: true, child: chip),
+      );
+    }
+    return chip;
   }
 }
