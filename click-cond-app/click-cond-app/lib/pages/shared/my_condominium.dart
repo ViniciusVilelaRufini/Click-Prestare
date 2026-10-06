@@ -165,7 +165,7 @@ class _MyCondominiumState extends State<MyCondominium> {
       _MenuItem(getText('lb_areas_sociais'), PhosphorIcons.usersFour, ListAreasSociais()),
       _MenuItem(getText('lb_financeiro'), PhosphorIcons.wallet, getUserType() == 'morador' ? const MoradorFinanceiroView() : const ListFinanceiro()),
       _MenuItem('Minhas Encomendas', PhosphorIcons.package, const ListEncomendas()),
-      _MenuItem(getText('lb_assembleia_votacoes'), PhosphorIcons.usersThree, ListAssembleias()),
+      _MenuItem(getText('lb_assembleias'), PhosphorIcons.usersThree, ListAssembleias()),
       _MenuItem(getText('lb_enquetes'), PhosphorIcons.chartBar, ListEnquetes()),
       _MenuItem(getText('lb_comunicados'), PhosphorIcons.megaphone, ListComunicados()),
       _MenuItem(getText('lb_ocorrencias'), PhosphorIcons.warningCircle, ListOcorrencias()),
@@ -196,7 +196,7 @@ class _MyCondominiumState extends State<MyCondominium> {
     if (getUserType() == 'funcionario') {
       final list = all.where((i) =>
           i.label != getText('lb_financeiro') &&
-          i.label != getText('lb_assembleia_votacoes') &&
+          i.label != getText('lb_assembleias') &&
           i.label != getText('lb_enquetes') &&
           i.label != getText('lb_funcionarios_condominio')).toList();
       list.sort((a, b) => _normalize(a.label).compareTo(_normalize(b.label)));
