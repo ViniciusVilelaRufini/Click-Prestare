@@ -53,7 +53,10 @@ class _ListEnquetesPageState extends State<ListEnquetes> {
     loadList();
     // Scroll to the current month (index 6) after build
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_monthScrollController.hasClients) {
+      if (!_monthScrollController.hasClients) return;
+      if (mounted && (MediaQuery.maybeDisableAnimationsOf(context) ?? false)) {
+        _monthScrollController.jumpTo(6 * _MonthStrip.passo);
+      } else {
         _monthScrollController.animateTo(
           6 * _MonthStrip.passo,
           duration: const Duration(milliseconds: 300),
@@ -206,6 +209,7 @@ class _MonthStrip extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final destaque = corDestaqueVotacao(context);
     final now = DateTime.now();
+    final reduzir = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
     return Container(
       height: 72,
@@ -249,7 +253,7 @@ class _MonthStrip extends StatelessWidget {
                   onTap: () => onMonthSelected(dt),
                   borderRadius: BorderRadius.circular(AppRadius.full),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
+                    duration: reduzir ? Duration.zero : const Duration(milliseconds: 200),
                     curve: Curves.easeOut,
                     width: largura,
                     alignment: Alignment.center,

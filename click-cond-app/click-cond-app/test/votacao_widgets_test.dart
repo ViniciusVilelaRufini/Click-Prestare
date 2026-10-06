@@ -74,7 +74,10 @@ void main() {
       )));
       expect(find.text('Pintar a fachada?'), findsOneWidget);
       expect(find.text('Assembleia de outubro'), findsOneWidget);
-      expect(find.text('Encerrada'), findsOneWidget);
+      // Finalizada: só o selo "Finalizado", sem chip de prazo duplicado.
+      expect(find.text('Finalizado'), findsOneWidget);
+      expect(find.text('Encerrada'), findsNothing);
+      expect(find.byIcon(PhosphorIcons.clock), findsNothing);
       expect(find.text('0 votos'), findsOneWidget);
     });
 
@@ -133,6 +136,18 @@ void main() {
       final fim = tester.widget<FractionallySizedBox>(find.byKey(OpcaoResultadoBar.chaveBarra)).widthFactor!;
       expect(inicio, lessThan(fim));
       expect(fim, closeTo(0.63, 0.001));
+    });
+
+    testWidgets('com "reduzir movimento" a barra já nasce no valor final', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: const Scaffold(body: OpcaoResultadoBar(rotulo: 'Esteira', votos: 5, percentual: 63)),
+        ),
+      ));
+      final inicio = tester.widget<FractionallySizedBox>(find.byKey(OpcaoResultadoBar.chaveBarra)).widthFactor!;
+      expect(inicio, closeTo(0.63, 0.001));
+      expect(tester.hasRunningAnimations, isFalse);
     });
 
     testWidgets('destaca o voto do usuário', (tester) async {

@@ -42,6 +42,8 @@ class OpcaoResultadoBar extends StatelessWidget {
     final destaque = corDestaqueVotacao(context);
     final pct = percentual.clamp(0, 100);
     final votosTxt = votosLabel(votos);
+    // "Reduzir movimento" do sistema: barra já no valor final, sem transição.
+    final reduzir = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
     final corBarra = meuVoto ? destaque : destaque.withValues(alpha: isDark ? 0.55 : 0.45);
     final corTrilho = isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.primary.withValues(alpha: 0.08);
@@ -51,7 +53,7 @@ class OpcaoResultadoBar extends StatelessWidget {
       label: '$rotulo: $pct%, $votosTxt${meuVoto ? ', seu voto' : ''}',
       excludeSemantics: true,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: reduzir ? Duration.zero : const Duration(milliseconds: 180),
         curve: Curves.easeOut,
         padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
         decoration: BoxDecoration(
@@ -100,8 +102,8 @@ class OpcaoResultadoBar extends StatelessWidget {
                 color: corTrilho,
                 alignment: Alignment.centerLeft,
                 child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: pct / 100),
-                  duration: const Duration(milliseconds: 700),
+                  tween: Tween(begin: reduzir ? pct / 100 : 0, end: pct / 100),
+                  duration: reduzir ? Duration.zero : const Duration(milliseconds: 700),
                   curve: Curves.easeOutCubic,
                   builder: (_, v, __) => FractionallySizedBox(
                     key: chaveBarra,

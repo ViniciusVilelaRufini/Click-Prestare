@@ -131,7 +131,7 @@ int _diasAte(DateTime data, DateTime agora) {
 }
 
 /// Texto curto de prazo para o chip do card/cabeçalho:
-/// - finalizada (2) → `'Encerrada'`;
+/// - finalizada (2) → `''` (o selo "Finalizado" já diz; sem chip duplicado);
 /// - em andamento (1) → `'Encerra hoje'`, `'Encerra amanhã'`,
 ///   `'Encerra em 3 dias'` (término já passado → `'Encerrada'`);
 /// - agendada (0) → `'Começa hoje'`, `'Começa amanhã'`, `'Começa em 2 dias'`
@@ -141,7 +141,6 @@ int _diasAte(DateTime data, DateTime agora) {
 /// desconhecido devolve `''` (esconda o chip). [agora] é para testes.
 String prazoLabel(String? dataTermino, dynamic status, {String? dataInicio, DateTime? agora}) {
   final s = _status(status);
-  if (s == 2) return 'Encerrada';
   final now = agora ?? DateTime.now();
   if (s == 0) {
     final ini = parseDataReserva(dataInicio);
@@ -161,6 +160,24 @@ String prazoLabel(String? dataTermino, dynamic status, {String? dataInicio, Date
     return 'Encerra em $d dias';
   }
   return '';
+}
+
+/// Se o prazo pede atenção (destaque em âmbar): votação em andamento que
+/// encerra hoje ou amanhã. Finalizada, agendada, término passado ou data
+/// inválida → falso. [agora] é para testes.
+bool prazoUrgente(String? dataTermino, dynamic status, {DateTime? agora}) {
+  if (_status(status) != 1) return false;
+  final fim = parseDataReserva(dataTermino);
+  if (fim == null) return false;
+  final d = _diasAte(fim, agora ?? DateTime.now());
+  return d == 0 || d == 1;
+}
+
+/// Texto de um campo da API: nulo, `'null'` (de `null.toString()`) e só
+/// espaços viram `''`; o resto vem sem espaços nas pontas.
+String textoLimpo(dynamic v) {
+  final s = (v ?? '').toString().trim();
+  return s == 'null' ? '' : s;
 }
 
 /// Rótulo, cor semântica e ícone de um status de votação.

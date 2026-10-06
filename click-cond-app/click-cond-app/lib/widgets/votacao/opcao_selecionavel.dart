@@ -39,6 +39,10 @@ class OpcaoSelecionavel extends StatelessWidget {
     final destaque = corDestaqueVotacao(context);
     final ativo = habilitado && onTap != null;
     final acao = ativo ? onTap : null;
+    // "Reduzir movimento" do sistema: troca de estado sem transição.
+    final duracao = (MediaQuery.maybeDisableAnimationsOf(context) ?? false)
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
 
     // excludeSemantics descarta a semântica do InkWell (inclusive a ação de
     // toque), então o onTap precisa ser repassado aqui — senão o toque duplo
@@ -54,7 +58,7 @@ class OpcaoSelecionavel extends StatelessWidget {
       child: Opacity(
         opacity: ativo ? 1 : 0.55,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: duracao,
           curve: Curves.easeOut,
           constraints: const BoxConstraints(minHeight: 56),
           decoration: BoxDecoration(
@@ -77,7 +81,7 @@ class OpcaoSelecionavel extends StatelessWidget {
                 child: Row(
                   children: [
                     AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
+                      duration: duracao,
                       transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
                       child: selecionado
                           ? Icon(PhosphorIcons.checkCircleFill,

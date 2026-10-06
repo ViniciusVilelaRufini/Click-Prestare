@@ -25,8 +25,6 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 /// opcoes: ['id;nome;votos'] }`. [meusVotos] são os ids (texto) das opções
 /// em que o usuário votou na assembleia inteira.
 class CellVotacao extends StatefulWidget {
-  /// Mantido por compatibilidade (não é usado no visual atual).
-  final bool? hasArrow;
   final dynamic item;
   final List<dynamic> meusVotos;
 
@@ -35,9 +33,6 @@ class CellVotacao extends StatefulWidget {
   final VoidCallback onPressedDelete;
   final Function(int) onPressedChoice;
 
-  /// Substitui o título do item.
-  final String? title;
-
   /// A tela está enviando/recarregando: desabilita opções e botões.
   final bool carregando;
 
@@ -45,8 +40,6 @@ class CellVotacao extends StatefulWidget {
     super.key,
     required this.item,
     required this.meusVotos,
-    this.hasArrow,
-    this.title,
     required this.isRegister,
     required this.onPressedDelete,
     required this.onPressedChoice,
@@ -95,11 +88,6 @@ class _CellVotacaoState extends State<CellVotacao> {
 
   bool get _escolhendo => !widget.isRegister && _status == 1 && (!_jaVotou || _alterando);
 
-  static String _txt(dynamic v) {
-    final s = (v ?? '').toString().trim();
-    return s == 'null' ? '' : s;
-  }
-
   void _votar() {
     final id = int.tryParse(_escolhida ?? '');
     if (id == null) return;
@@ -110,17 +98,20 @@ class _CellVotacaoState extends State<CellVotacao> {
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
     final status = _status;
-    final titulo = widget.title ?? (_txt(_item['titulo']).isNotEmpty ? _txt(_item['titulo']) : _txt(_item['pergunta']));
-    final descricao = _txt(_item['descricao']);
-    final inicio = _txt(_item['data_inicio']);
-    final termino = _txt(_item['data_termino']);
+    // Mesmo vermelho no ícone e no rótulo do "Excluir", ajustado ao tema.
+    final corExcluir =
+        Theme.of(context).brightness == Brightness.dark ? const Color(0xFFF87171) : const Color(0xFFDC2626);
+    final titulo = textoLimpo(_item['titulo']).isNotEmpty ? textoLimpo(_item['titulo']) : textoLimpo(_item['pergunta']);
+    final descricao = textoLimpo(_item['descricao']);
+    final inicio = textoLimpo(_item['data_inicio']);
+    final termino = textoLimpo(_item['data_termino']);
     final periodo = inicio.isNotEmpty && termino.isNotEmpty
         ? '$inicio a $termino'
         : termino.isNotEmpty
             ? 'Até $termino'
             : inicio;
     final prazo = prazoLabel(termino, status, dataInicio: inicio);
-    final urgente = prazo == 'Encerra hoje' || prazo == 'Encerra amanhã';
+    final urgente = prazoUrgente(termino, status);
     final opcoes = _opcoes;
 
     return Container(
@@ -205,16 +196,14 @@ class _CellVotacaoState extends State<CellVotacao> {
                 key: CellVotacao.chaveExcluir(_item['id']),
                 onPressed: widget.carregando ? null : widget.onPressedDelete,
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFFDC2626),
+                  foregroundColor: corExcluir,
                   minimumSize: const Size(48, 48),
                 ),
-                icon: const Icon(PhosphorIcons.trash, size: 18),
+                icon: Icon(PhosphorIcons.trash, size: 18, color: corExcluir),
                 label: Text(
                   getText('btn_delete'),
                   style: AppTypography.body(context).copyWith(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFFF87171)
-                        : const Color(0xFFDC2626),
+                    color: corExcluir,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

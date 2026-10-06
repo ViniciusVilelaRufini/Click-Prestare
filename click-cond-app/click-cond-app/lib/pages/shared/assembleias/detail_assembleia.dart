@@ -61,7 +61,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
       var res = await apiDeleteObject('assembleias/votacoes', idToRemove);
       if (mounted) setState(() => _isLoading = false);
       if (res) {
-        load();
+        await load();
       } else {
         if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
       }
@@ -74,7 +74,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
       var voto = VotoModel(opcao_id: opcao_id, votacao_id: votacao_id);
       var res = await apiSaveObject("assembleias/votacoes/voto", "voto", voto, false);
       if (res.toString().isEmpty) {
-        load();
+        await load();
       } else {
         if (mounted) displayMessage(context, getText('alert_error'), res.toString());
       }
@@ -83,11 +83,6 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  static String _txt(dynamic v) {
-    final s = (v ?? '').toString().trim();
-    return s == 'null' ? '' : s;
   }
 
   @override
@@ -121,7 +116,6 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
                     child: CellVotacao(
                       key: ValueKey('votacao-${item['id']}'),
                       item: item,
-                      hasArrow: true,
                       isRegister: false,
                       meusVotos: meus_votos,
                       carregando: _isLoading,
@@ -152,11 +146,11 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
   }
 
   Widget _cabecalho(bool isSindico) {
-    final titulo = _txt(obj['titulo']);
+    final titulo = textoLimpo(obj['titulo']);
     final quando = dataHoraExtensoAssembleia(obj['data'], obj['hora']);
-    final local = _txt(obj['local']);
-    final descricao = _txt(obj['descricao']);
-    final anexos = _txt(obj['anexos']).split(';').where((s) => s.trim().isNotEmpty).toList();
+    final local = textoLimpo(obj['local']);
+    final descricao = textoLimpo(obj['descricao']);
+    final anexos = textoLimpo(obj['anexos']).split(';').where((s) => s.trim().isNotEmpty).toList();
     final proximidade = quandoAssembleia(obj['data']);
 
     return Container(
@@ -203,7 +197,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
               style: AppTypography.caption(context).copyWith(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: proximidade == 'Hoje'
+                color: assembleiaEhHoje(obj['data'])
                     ? statusVotacaoInfo(1).corTexto(context)
                     : statusVotacaoInfo(0).corTexto(context),
               ),

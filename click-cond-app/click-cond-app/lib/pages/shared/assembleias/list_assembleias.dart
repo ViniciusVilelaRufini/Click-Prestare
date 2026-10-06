@@ -110,17 +110,12 @@ class AssembleiaCard extends StatelessWidget {
 
   const AssembleiaCard({super.key, required this.item, this.onTap, this.agora});
 
-  static String _txt(dynamic v) {
-    final s = (v ?? '').toString().trim();
-    return s == 'null' ? '' : s;
-  }
-
   @override
   Widget build(BuildContext context) {
     final m = item is Map ? item as Map : const {};
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titulo = _txt(m['titulo']);
-    final descricao = _txt(m['descricao']);
+    final titulo = textoLimpo(m['titulo']);
+    final descricao = textoLimpo(m['descricao']);
     final data = dataAssembleia(m['data']);
     final quando = quandoAssembleia(m['data'], agora: agora);
     final passou = assembleiaPassou(m['data'], agora: agora);
@@ -128,7 +123,7 @@ class AssembleiaCard extends StatelessWidget {
 
     final destaque = corDestaqueVotacao(context);
     final corBloco = passou ? AppColors.textTertiary(context) : destaque;
-    final corQuando = quando == 'Hoje'
+    final corQuando = assembleiaEhHoje(m['data'], agora: agora)
         ? statusVotacaoInfo(1).corTexto(context)
         : statusVotacaoInfo(0).corTexto(context);
     final secundario = AppTypography.caption(context).copyWith(fontSize: 13);

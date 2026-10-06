@@ -67,7 +67,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
       if (choice != null && choice) {
         setState(() => _isLoading = true);
         await apiFinishEnquete(widget.id.toString());
-        load();
+        await load();
       }
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), e.toString());
@@ -82,7 +82,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
       var voto = VotoModel(opcao_id: opcao_id, votacao_id: votacao_id);
       var res = await apiSaveObject("assembleias/votacoes/voto", "voto", voto, false);
       if (res.toString().isEmpty) {
-        load();
+        await load();
       } else {
         if (mounted) displayMessage(context, getText('alert_error'), res.toString());
       }
@@ -187,20 +187,20 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
 
   Widget _cabecalho() {
     final votacao = _votacao;
-    final titulo = _texto(votacao['titulo']).isNotEmpty ? _texto(votacao['titulo']) : _texto(votacao['pergunta']);
-    final pergunta = _texto(votacao['pergunta']);
-    final descricao = _texto(votacao['descricao']);
-    final prazo = prazoLabel(_texto(votacao['data_termino']), votacao['status'],
-        dataInicio: _texto(votacao['data_inicio']));
-    final inicio = _texto(votacao['data_inicio']);
-    final termino = _texto(votacao['data_termino']);
+    final titulo = textoLimpo(votacao['titulo']).isNotEmpty ? textoLimpo(votacao['titulo']) : textoLimpo(votacao['pergunta']);
+    final pergunta = textoLimpo(votacao['pergunta']);
+    final descricao = textoLimpo(votacao['descricao']);
+    final prazo = prazoLabel(textoLimpo(votacao['data_termino']), votacao['status'],
+        dataInicio: textoLimpo(votacao['data_inicio']));
+    final inicio = textoLimpo(votacao['data_inicio']);
+    final termino = textoLimpo(votacao['data_termino']);
     final periodo = inicio.isNotEmpty && termino.isNotEmpty
         ? '$inicio a $termino'
         : termino.isNotEmpty
             ? 'Até $termino'
             : inicio;
     final total = totalVotos(votacao['opcoes']);
-    final urgente = prazo == 'Encerra hoje' || prazo == 'Encerra amanhã';
+    final urgente = prazoUrgente(termino, votacao['status']);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -292,7 +292,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
   /// Faixa que explica, em uma frase, o que dá para fazer agora.
   Widget _avisoEstado() {
     final status = _status;
-    final inicio = _texto(_votacao['data_inicio']);
+    final inicio = textoLimpo(_votacao['data_inicio']);
     final IconData icone;
     final Color cor;
     final String titulo;
@@ -528,11 +528,6 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
       child: conteudo,
     );
-  }
-
-  static String _texto(dynamic v) {
-    final s = (v ?? '').toString().trim();
-    return s == 'null' ? '' : s;
   }
 }
 

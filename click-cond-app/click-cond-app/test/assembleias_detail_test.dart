@@ -237,7 +237,7 @@ void main() {
     expect(barras.map((b) => b.meuVoto), [false, false, true, false, false]);
     expect(find.text('Votação encerrada. Seu voto está destacado.'), findsOneWidget);
     expect(find.text('A votação abre em 01/10/2026.'), findsOneWidget);
-    expect(find.text('Encerrada'), findsOneWidget);
+    expect(find.text('Encerrada'), findsNothing); // finalizada: só o selo, sem chip de prazo
     expect(find.byKey(CellVotacao.chaveVotar(7)), findsNothing);
     expect(find.byKey(CellVotacao.chaveVotar(8)), findsNothing);
   });

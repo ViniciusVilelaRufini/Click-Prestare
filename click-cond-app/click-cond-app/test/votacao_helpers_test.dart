@@ -108,9 +108,9 @@ void main() {
   group('prazoLabel', () {
     final agora = DateTime(2026, 10, 6, 15, 30);
 
-    test('finalizada é "Encerrada"', () {
-      expect(prazoLabel('10/10/2026', 2, agora: agora), 'Encerrada');
-      expect(prazoLabel('', 2, agora: agora), 'Encerrada');
+    test('finalizada não tem prazo (o selo "Finalizado" já diz tudo)', () {
+      expect(prazoLabel('10/10/2026', 2, agora: agora), '');
+      expect(prazoLabel('', 2, agora: agora), '');
     });
 
     test('em andamento conta os dias até o término', () {
@@ -132,7 +132,7 @@ void main() {
 
     test('status como texto também funciona', () {
       expect(prazoLabel('09/10/2026', '1', agora: agora), 'Encerra em 3 dias');
-      expect(prazoLabel('09/10/2026', '2', agora: agora), 'Encerrada');
+      expect(prazoLabel('09/10/2026', '2', agora: agora), '');
     });
 
     test('data inválida devolve vazio (sem exceção)', () {
@@ -142,6 +142,34 @@ void main() {
       expect(prazoLabel('2026-10-09', 1, agora: agora), '');
       expect(prazoLabel('30/10/2026', 0, agora: agora), '');
       expect(prazoLabel('09/10/2026', null, agora: agora), '');
+    });
+  });
+
+  group('prazoUrgente', () {
+    final agora = DateTime(2026, 10, 6, 15, 30);
+
+    test('em andamento encerrando hoje ou amanhã é urgente', () {
+      expect(prazoUrgente('06/10/2026', 1, agora: agora), isTrue);
+      expect(prazoUrgente('07/10/2026', '1', agora: agora), isTrue);
+    });
+
+    test('3 dias, término passado, finalizada, agendada e data inválida não são', () {
+      expect(prazoUrgente('09/10/2026', 1, agora: agora), isFalse);
+      expect(prazoUrgente('01/10/2026', 1, agora: agora), isFalse);
+      expect(prazoUrgente('06/10/2026', 2, agora: agora), isFalse);
+      expect(prazoUrgente('06/10/2026', 0, agora: agora), isFalse);
+      expect(prazoUrgente('', 1, agora: agora), isFalse);
+      expect(prazoUrgente(null, 1, agora: agora), isFalse);
+      expect(prazoUrgente('31/02/2026', 1, agora: agora), isFalse);
+    });
+  });
+
+  group('textoLimpo', () {
+    test('nulo, "null" e espaços viram vazio', () {
+      expect(textoLimpo(null), '');
+      expect(textoLimpo('null'), '');
+      expect(textoLimpo('  x '), 'x');
+      expect(textoLimpo(12), '12');
     });
   });
 

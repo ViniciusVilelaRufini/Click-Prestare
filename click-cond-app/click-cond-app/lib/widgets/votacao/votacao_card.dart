@@ -61,10 +61,7 @@ class VotacaoCard extends StatelessWidget {
     DateTime? agora,
   }) {
     final m = item is Map ? item : const {};
-    String txt(String k) {
-      final v = (m[k] ?? '').toString().trim();
-      return v == 'null' ? '' : v;
-    }
+    String txt(String k) => h.textoLimpo(m[k]);
 
     final titulo = txt('titulo').isNotEmpty ? txt('titulo') : txt('pergunta');
     return VotacaoCard(
@@ -116,7 +113,7 @@ class VotacaoCard extends StatelessWidget {
 
     // "Encerra hoje/amanhã" pede atenção: prazo em âmbar (a cor de texto do
     // status agendado, já ajustada para contraste em cada tema).
-    final urgente = prazo == 'Encerra hoje' || prazo == 'Encerra amanhã';
+    final urgente = h.prazoUrgente(dataTermino, status, agora: agora);
     final corPrazo = urgente ? h.statusVotacaoInfo(0).corTexto(context) : null;
 
     // excludeSemantics descarta a semântica do InkWell (inclusive a ação de

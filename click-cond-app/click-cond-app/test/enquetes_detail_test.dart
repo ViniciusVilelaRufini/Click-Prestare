@@ -172,7 +172,7 @@ void main() {
     await abrir(tester);
 
     expect(find.text('Enquete encerrada'), findsOneWidget);
-    expect(find.text('Encerrada'), findsOneWidget); // chip de prazo
+    expect(find.text('Encerrada'), findsNothing); // sem chip de prazo: o selo já diz "Finalizado"
     expect(find.text('3 votos'), findsOneWidget); // total no cabeçalho
     final barras = tester.widgetList<OpcaoResultadoBar>(find.byType(OpcaoResultadoBar)).toList();
     expect(barras.map((b) => b.percentual), [34, 33, 33]);

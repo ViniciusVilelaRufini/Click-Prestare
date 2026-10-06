@@ -26,6 +26,16 @@ void main() {
     test('inválida → vazio', () => expect(quandoAssembleia('', agora: agora), ''));
   });
 
+  group('assembleiaEhHoje', () {
+    test('só a data de hoje', () {
+      expect(assembleiaEhHoje('06/10/2026', agora: agora), isTrue);
+      expect(assembleiaEhHoje('07/10/2026', agora: agora), isFalse);
+      expect(assembleiaEhHoje('05/10/2026', agora: agora), isFalse);
+      expect(assembleiaEhHoje('', agora: agora), isFalse);
+      expect(assembleiaEhHoje(null, agora: agora), isFalse);
+    });
+  });
+
   group('assembleiaPassou / mesCurto', () {
     test('ontem passou, hoje não', () {
       expect(assembleiaPassou('05/10/2026', agora: agora), isTrue);
