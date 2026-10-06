@@ -53,6 +53,14 @@ void main() {
       expect(reservasVisiveis(null, podeVerTodas: true), isEmpty);
     });
 
+    test('compara bloco e apto sem diferenciar maiúsculas', () {
+      final l = [
+        {'bloco': 'Torre a', 'apto': '12b', 'status': 'pendente'},
+      ];
+      expect(reservasVisiveis(l, podeVerTodas: false, bloco: 'TORRE A', apto: '12B'), hasLength(1));
+      expect(reservasVisiveis(l, podeVerTodas: false, bloco: 'Torre B', apto: '12B'), isEmpty);
+    });
+
     test('bloco/apto numéricos vindos da API também casam', () {
       final l = [
         {'bloco': 1, 'apto': 101, 'status': 'pendente'},

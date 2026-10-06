@@ -18,6 +18,12 @@ String _normalizar(dynamic v) => (v ?? '').toString().trim().toLowerCase();
 ///
 /// Status, bloco e apto são comparados ignorando maiúsculas e espaços.
 /// A ordem original da lista é mantida.
+///
+/// Atenção: essa comparação frouxa de bloco/apto serve só para EXIBIR. A regra
+/// de edição continua sendo a de `_canEditAgendamento` em
+/// `area_social_detail.dart` (síndico, permissão `areas_sociais` ou bloco/apto
+/// com igualdade exata) — as telas devem passar o callback de editar (ex.:
+/// `MinhaReservaCard.onEditar`) só quando essa regra mais estrita permitir.
 List<dynamic> reservasVisiveis(
   List<dynamic>? lista, {
   required bool podeVerTodas,

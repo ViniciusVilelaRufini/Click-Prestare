@@ -165,6 +165,15 @@ class _DisponibilidadeCalendarioState extends State<DisponibilidadeCalendario> {
               todayBuilder: (c, d, _) => _Dia(dia: d, disponivel: _disponivel(d), hoje: true, isDark: isDark),
               selectedBuilder: (c, d, _) => _Dia(dia: d, disponivel: true, selecionado: true, isDark: isDark),
               disabledBuilder: (c, d, _) => _Dia(dia: d, disponivel: false, isDark: isDark),
+              // O TableCalendar envolve o conteúdo de cada dia num Semantics
+              // com excludeSemantics (rótulo "domingo, 11 de outubro de 2026"),
+              // então o estado não pode ir dentro do _Dia. O rangeHighlight é
+              // chamado para todo dia e fica ao lado do conteúdo, dentro do
+              // mesmo GestureDetector: a semântica dele se junta ao nó do dia.
+              rangeHighlightBuilder: (c, d, _) => _SemanticaDia(
+                disponivel: _disponivel(d),
+                selecionado: widget.selecionado != null && isSameDay(d, widget.selecionado),
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -225,6 +234,24 @@ class _Dia extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Só semântica: "disponível" / "indisponível" / "selecionado" como valor do
+/// nó do dia, mais o flag de selecionado. Não desenha nada.
+class _SemanticaDia extends StatelessWidget {
+  final bool disponivel;
+  final bool selecionado;
+
+  const _SemanticaDia({required this.disponivel, required this.selecionado});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      selected: selecionado,
+      value: selecionado ? 'selecionado' : (disponivel ? 'disponível' : 'indisponível'),
+      child: const SizedBox.shrink(),
     );
   }
 }

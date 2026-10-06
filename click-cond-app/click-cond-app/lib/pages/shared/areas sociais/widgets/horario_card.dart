@@ -40,10 +40,16 @@ class HorarioCard extends StatelessWidget {
     final faixa = faixaHorario(de, ate);
     final destaque = isDark ? const Color(0xFF93B4F8) : AppColors.primary;
 
+    // excludeSemantics descarta a semântica do InkWell (inclusive a ação de
+    // toque), então o onTap precisa ser repassado aqui — senão o toque duplo
+    // do TalkBack/VoiceOver não faz nada.
     return Semantics(
+      container: true,
       button: true,
+      enabled: onTap != null,
       selected: selecionado,
       label: duracao.isEmpty ? faixa : '$faixa, duração $duracao',
+      onTap: onTap,
       excludeSemantics: true,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),

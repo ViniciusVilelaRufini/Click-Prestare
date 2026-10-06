@@ -104,6 +104,29 @@ void main() {
       expect(find.byIcon(PhosphorIcons.checkCircleFill), findsOneWidget);
       expect(find.text('1 h 30'), findsOneWidget);
     });
+
+    testWidgets('leitor de tela: botão com ação de toque, rótulo e estado selecionado', (tester) async {
+      final semantica = tester.ensureSemantics();
+      var toques = 0;
+      await tester.pumpWidget(app(HorarioCard(de: '10:00', ate: '16:00', selecionado: true, onTap: () => toques++)));
+
+      final no = tester.getSemantics(find.byType(HorarioCard));
+      expect(
+        no,
+        isSemantics(
+          label: '10:00 – 16:00, duração 6 h',
+          isButton: true,
+          isSelected: true,
+          hasTapAction: true,
+        ),
+      );
+
+      // Toque duplo do TalkBack/VoiceOver chega como SemanticsAction.tap.
+      tester.semantics.tap(find.semantics.byLabel('10:00 – 16:00, duração 6 h'));
+      await tester.pump();
+      expect(toques, 1);
+      semantica.dispose();
+    });
   });
 
   group('ConvidadosStepper', () {
@@ -237,6 +260,30 @@ void main() {
       )));
       await tester.pumpAndSettle();
       expect(find.text('Novembro de 2026'), findsOneWidget);
+    });
+
+    testWidgets('leitor de tela: cada dia anuncia disponível, indisponível ou selecionado', (tester) async {
+      final semantica = tester.ensureSemantics();
+      await tester.pumpWidget(app(DisponibilidadeCalendario(
+        diasDisponiveis: dias,
+        selecionado: DateTime(2026, 10, 10),
+        onSelecionar: (_) {},
+      )));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(find.text('12')),
+        isSemantics(label: 'segunda-feira, 12 de outubro de 2026', value: 'disponível', isSelected: false),
+      );
+      expect(
+        tester.getSemantics(find.text('11')),
+        isSemantics(label: 'domingo, 11 de outubro de 2026', value: 'indisponível', isSelected: false),
+      );
+      expect(
+        tester.getSemantics(find.text('10')),
+        isSemantics(label: 'sábado, 10 de outubro de 2026', value: 'selecionado', isSelected: true),
+      );
+      semantica.dispose();
     });
 
     testWidgets('conjunto vazio mostra estado vazio', (tester) async {
