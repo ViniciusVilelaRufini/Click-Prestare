@@ -211,6 +211,7 @@ export class EncomendasPageComponent implements OnInit {
   }
 
   registrar() {
+    this.error.set(null);
     if (!this.novo.descricao?.trim() || !this.selectedApto) {
       this.error.set('Descrição e apto destinatário são obrigatórios.');
       return;
@@ -221,6 +222,7 @@ export class EncomendasPageComponent implements OnInit {
 
     this.api.create(this.novo).subscribe({
       next: () => { 
+        this.error.set(null);
         this.showForm = false; 
         this.novo = this.estadoInicial(); 
         this.selectedApto = null;

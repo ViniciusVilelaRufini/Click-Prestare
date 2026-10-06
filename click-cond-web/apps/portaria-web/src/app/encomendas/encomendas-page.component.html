@@ -178,7 +178,7 @@
 
   <!-- Form -->
   @if (showForm) {
-    <div class="p-6 rounded-2xl bg-graphite-200 border border-emerald-400/30">
+    <div class="p-6 rounded-2xl bg-graphite-200 border border-emerald-400/30" data-testid="form-encomenda">
       <div class="flex items-center gap-2 mb-4">
         <div class="w-1 h-5 rounded-full bg-emerald-400"></div>
         <h2 class="text-sm font-semibold text-white">Receber nova encomenda</h2>
@@ -238,8 +238,11 @@
           </div>
         </label>
       </div>
+      @if (error()) {
+        <div role="alert" class="mt-4 p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300">{{ error() }}</div>
+      }
       <div class="mt-5 flex justify-end gap-2">
-        <button (click)="showForm = false"
+        <button (click)="showForm = false; error.set(null)"
           class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition">
           Cancelar
         </button>
@@ -251,7 +254,7 @@
     </div>
   }
 
-  @if (error()) {
+  @if (error() && !showForm) {
     <div class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300">{{ error() }}</div>
   }
 
@@ -316,7 +319,7 @@
               @if (e.recebido_de) {
                 <span [class]="'inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded border ' + getBrandBadgeClass(e.recebido_de).bg + ' ' + getBrandBadgeClass(e.recebido_de).text + ' ' + getBrandBadgeClass(e.recebido_de).border">{{ e.recebido_de }}</span>
               }
-              <span class="font-mono">{{ e.recebido_em | date: 'dd/MM HH:mm' }}</span>
+              <span class="font-mono" data-testid="recebida-card">{{ e.status === 'Esperando' ? '—' : (e.recebido_em | date: 'dd/MM HH:mm') }}</span>
               @if (e.status === 'Aguardando' && diasArmazenada(e) >= 7) {
                 <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-red-500/10 border border-red-500/20 text-red-400">{{ diasArmazenada(e) }}d - Crítico</span>
               } @else if (e.status === 'Aguardando' && diasArmazenada(e) >= 3) {
@@ -427,7 +430,7 @@
                   }
                 </td>
                 <td class="px-5 py-3.5 align-middle whitespace-nowrap">
-                  <p class="text-sm text-slate-700 dark:text-slate-200">{{ e.recebido_em | date: 'dd/MM HH:mm' }}</p>
+                  <p class="text-sm text-slate-700 dark:text-slate-200" data-testid="recebida-tabela">{{ e.status === 'Esperando' ? '—' : (e.recebido_em | date: 'dd/MM HH:mm') }}</p>
                   @switch (nivelArmazenada(e)) {
                     @case ('critico') {
                       <p class="text-xs font-semibold text-red-500 dark:text-red-400 mt-0.5" title="Aguardando retirada há 7 dias ou mais">{{ textoArmazenada(e) }} · crítico</p>
