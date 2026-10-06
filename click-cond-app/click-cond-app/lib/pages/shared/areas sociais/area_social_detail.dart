@@ -61,9 +61,17 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     }
   }
 
+  /// Sem prazo, uma chamada travada deixava o skeleton do clima para sempre.
+  /// O TimeoutException cai no catch e o finally encerra o carregamento.
+  static const Duration _weatherTimeout = Duration(seconds: 8);
+
   Future<void> _fetchWeatherForCondominium() async {
     try {
-      setState(() => _weatherLoading = true);
+      // Sem previsão confirmada o widget não aparece: limpa o dado antigo.
+      setState(() {
+        _weatherLoading = true;
+        _temp = null;
+      });
       final condInfo = await getCondominio(Singleton.instance.id_condominio);
       if (condInfo != null && condInfo is Map<String, dynamic>) {
         final String city = condInfo['cidade'] ?? '';
@@ -71,7 +79,9 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
         _cityName = city;
         if (city.isNotEmpty) {
           final geoUrl = Uri.parse("https://nominatim.openstreetmap.org/search?city=${Uri.encodeComponent(city)}&state=${Uri.encodeComponent(stateCode)}&country=Brazil&format=json&limit=1");
-          final geoResponse = await http.get(geoUrl, headers: {'User-Agent': 'ClickCondominioWeatherApp/1.0'});
+          final geoResponse = await http
+              .get(geoUrl, headers: {'User-Agent': 'ClickCondominioWeatherApp/1.0'})
+              .timeout(_weatherTimeout);
           if (geoResponse.statusCode == 200) {
             final geoData = jsonDecode(geoResponse.body) as List<dynamic>;
             if (geoData.isNotEmpty) {
@@ -79,7 +89,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
               final lon = geoData[0]['lon'];
 
               final weatherUrl = Uri.parse("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&timezone=auto");
-              final weatherResponse = await http.get(weatherUrl);
+              final weatherResponse = await http.get(weatherUrl).timeout(_weatherTimeout);
               if (weatherResponse.statusCode == 200) {
                 final weatherData = jsonDecode(weatherResponse.body) as Map<String, dynamic>;
                 final current = weatherData['current'] as Map<String, dynamic>?;
