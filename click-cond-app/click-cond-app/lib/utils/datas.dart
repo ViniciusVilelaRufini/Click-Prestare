@@ -14,6 +14,8 @@
 /// campo do calendário — hora, dia, mês — para exibir ou filtrar.
 library;
 
+import 'package:intl/intl.dart';
+
 /// Converte uma data da API para o fuso do aparelho. Devolve `null` quando o
 /// valor está ausente ou não é uma data válida.
 DateTime? parseDataApi(dynamic valor) {
@@ -28,4 +30,17 @@ String formatarDataHora(dynamic valor, {String fallback = ''}) {
   if (d == null) return fallback;
   String pad(int n) => n.toString().padLeft(2, '0');
   return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
+}
+
+/// `11/08/2026 12:20` no fuso do aparelho. Se o valor não for uma data
+/// interpretável, devolve o texto original (nulo vira `fallback`).
+///
+/// Telas que mostravam o campo cru exibiam `2026-08-11T15:20:00.000Z`.
+String formatarDataHoraCurta(dynamic valor, {String fallback = ''}) {
+  final d = parseDataApi(valor);
+  if (d == null) {
+    final texto = valor?.toString();
+    return (texto == null || texto.isEmpty) ? fallback : texto;
+  }
+  return DateFormat('dd/MM/yyyy HH:mm').format(d);
 }
