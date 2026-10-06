@@ -190,6 +190,7 @@ export class EncomendasPageComponent implements OnInit {
   }
 
   carregar() {
+    this.error.set(null);
     this.loading.set(true);
     this.api.list().subscribe({
       next: (data) => { 
@@ -236,6 +237,7 @@ export class EncomendasPageComponent implements OnInit {
   }
 
   notificar(e: Encomenda) {
+    this.error.set(null);
     this.loading.set(true);
     this.api.notificar(e.id).subscribe({
       next: () => {
@@ -250,6 +252,7 @@ export class EncomendasPageComponent implements OnInit {
 
   /** Porteiro confirma o recebimento de uma encomenda "a chegar" (Esperando). */
   receber(e: Encomenda) {
+    this.error.set(null);
     this.loading.set(true);
     this.api.receber(e.id).subscribe({
       next: () => this.carregar(),
@@ -308,6 +311,7 @@ export class EncomendasPageComponent implements OnInit {
     const photo = this.capturedPhoto;
     const details = `${this.retiranteNome} (${this.retiranteParentesco})`;
 
+    this.error.set(null);
     this.loading.set(true);
     if (this.isBatchRetirada) {
       const sel = Array.from(this.selecionadas());
@@ -420,6 +424,7 @@ export class EncomendasPageComponent implements OnInit {
     const sel = Array.from(this.selecionadas());
     if (sel.length === 0) return;
     
+    this.error.set(null);
     this.loading.set(true);
     import('rxjs').then(({ forkJoin }) => {
       const requests = sel.map(id => this.api.notificar(id));

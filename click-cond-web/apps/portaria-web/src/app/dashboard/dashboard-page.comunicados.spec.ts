@@ -16,6 +16,13 @@ registerLocaleData(ɵfindLocaleData('en'), 'pt');
  * contradizia a página de Comunicados.
  */
 describe('DashboardPageComponent — card Comunicados', () => {
+  /** Linha do card "Comunicados" em Informações Gerais (rótulo + contador). */
+  function linhaComunicados(el: HTMLElement): HTMLElement {
+    const rotulo = (Array.from(el.querySelectorAll('span')) as HTMLElement[])
+      .find((x) => x.textContent?.trim() === 'Comunicados')!;
+    return rotulo.closest('.justify-between') as HTMLElement;
+  }
+
   function render(comunicadosRecentes: number): HTMLElement {
     TestBed.configureTestingModule({
       imports: [DashboardPageComponent],
@@ -34,12 +41,13 @@ describe('DashboardPageComponent — card Comunicados', () => {
 
   it('sem comunicados recentes diz "Nenhum nos últimos 7 dias"', () => {
     const el = render(0);
-    expect(el.textContent).toContain('Nenhum nos últimos 7 dias');
+    expect(linhaComunicados(el).textContent).toContain('Nenhum nos últimos 7 dias');
     expect(el.textContent).not.toContain('Nenhum ativo');
   });
 
   it('com comunicados recentes mostra o número e não o rótulo vazio', () => {
     const el = render(3);
+    expect(linhaComunicados(el).textContent?.replace(/\s+/g, ' ').trim()).toBe('Comunicados3');
     expect(el.textContent).not.toContain('Nenhum nos últimos 7 dias');
     expect(el.textContent).not.toContain('Nenhum ativo');
   });

@@ -13,7 +13,7 @@ const enc = (over: Partial<Encomenda>): Encomenda => ({
 
 describe('EncomendasPageComponent — erro do formulário e coluna Recebida', () => {
   const apto = { id: 1, bloco: 'A', apto: '101' };
-  const api = { list: jest.fn(), create: jest.fn() };
+  const api = { list: jest.fn(), create: jest.fn(), notificar: jest.fn() };
 
   function montar(lista: Encomenda[]) {
     api.list.mockReturnValue(of(lista));
@@ -111,6 +111,28 @@ describe('EncomendasPageComponent — erro do formulário e coluna Recebida', ()
     fixture.componentInstance.error.set('Erro ao notificar morador');
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Erro ao notificar morador');
+  });
+
+  it('banner de erro de ação some após uma nova tentativa bem-sucedida e após recarregar', () => {
+    const fixture = montar([enc({ id: 7, status: 'Aguardando' })]);
+    const c = fixture.componentInstance;
+    const e = c.encomendas()[0];
+
+    api.notificar.mockReturnValue(throwError(() => ({ message: 'Erro ao notificar morador' })));
+    c.notificar(e);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Erro ao notificar morador');
+
+    api.notificar.mockReturnValue(of({}));
+    c.notificar(e);
+    fixture.detectChanges();
+    expect(c.error()).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Erro ao notificar morador');
+
+    c.error.set('Erro ao receber encomenda');
+    c.carregar();
+    fixture.detectChanges();
+    expect(c.error()).toBeNull();
   });
 
   it('coluna Recebida mostra "—" para Esperando e a data para os demais (tabela e cartões)', () => {
