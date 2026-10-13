@@ -18,6 +18,7 @@ describe('MoradoresService - Envio de Credenciais Aleatórias', () => {
         findUnique: jest.fn(),
         create: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
+        count: jest.fn().mockResolvedValue(0),
       },
       users: {
         findFirst: jest.fn(),
@@ -29,7 +30,10 @@ describe('MoradoresService - Envio de Credenciais Aleatórias', () => {
       },
       apartamentos_Users: {
         create: jest.fn().mockResolvedValue({}),
+        count: jest.fn().mockResolvedValue(0),
       },
+      sindicos_Condominios: { count: jest.fn().mockResolvedValue(0) },
+      funcionarios: { count: jest.fn().mockResolvedValue(0) },
       facial_Devices: {
         findMany: jest.fn().mockResolvedValue([]),
       },

@@ -114,7 +114,7 @@ export class SindicoMobileController {
   @HttpCode(200)
   linkMorador(@ReqUser() payload: JwtPayload, @Body() body: { id_apartamento: number; tipo?: string }) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.linkUserAsMorador(Number(idUser), Number(body.id_apartamento), body.tipo);
+    return this.service.linkUserAsMorador(Number(idUser), Number(body.id_apartamento), body.tipo, payload);
   }
 
   @Get('list-sindicos')
@@ -646,6 +646,7 @@ export class EncomendasMobileController {
       idCondominio ? Number(idCondominio) : undefined,
       typeAccess,
       status,
+      payload,
     );
   }
 

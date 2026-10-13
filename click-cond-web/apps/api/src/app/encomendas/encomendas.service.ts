@@ -202,6 +202,8 @@ export class EncomendasService implements OnModuleInit {
   }
 
   async create(dto: CreateEncomendaDto, operador?: JwtPayload) {
+    // id_condominio vem do body no app: sem isto o chamador cadastrava (e notificava moradores) em outro condomínio.
+    await this.tenant.assertCondominio(dto.id_condominio, operador);
     if (!this.prisma.isConnected) {
       return {
         id: Date.now(),

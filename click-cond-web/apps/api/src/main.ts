@@ -26,8 +26,16 @@ import { json, text, urlencoded } from 'express';
 import { requestContext, extractClientIp } from './app/common/context/request-context';
 import { CORS_ORIGINS_PRINCIPAIS } from './app/common/cors-origins';
 
+// Rede de segurança: uma promessa rejeitada e esquecida (sem await) derruba o
+// processo Node (padrão do Node 15+) e, com ele, todos os condomínios.
+process.on('unhandledRejection', (reason) => {
+  new Logger('UnhandledRejection').error(
+    reason instanceof Error ? (reason.stack ?? reason.message) : String(reason),
+  );
+});
+
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+  const app =await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
   // Habilita trust proxy para 2 saltos (CloudFront + AWS ALB).
   // Salto 1: AWS ALB (conexão direta na EC2/Beanstalk)
@@ -77,6 +85,14 @@ async function bootstrap() {
   );
 
   // Serve arquivos estáticos copiados de src/assets (simulador facial em /simulator.html)
+  // Só HTML dos simuladores. A pasta também carrega a credencial de serviço do
+  // Firebase (copiada pelo build) — nunca pode sair por aqui.
+  app.use((req: any, res: any, next: any) => {
+    if (/^\/[^/]+\.json$/i.test(req.path ?? '') || /service-account/i.test(req.path ?? '')) {
+      return res.status(404).end();
+    }
+    next();
+  });
   app.useStaticAssets(join(__dirname, 'assets'));
 
   app.useGlobalPipes(

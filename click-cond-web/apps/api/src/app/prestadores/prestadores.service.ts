@@ -5,6 +5,7 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import * as bcrypt from 'bcrypt';
+import { assertOperador } from '../auth/tenant.util';
 
 export interface CreatePrestadorDto {
   nome: string;
@@ -252,9 +253,31 @@ export class PrestadoresService {
     return { ...p, hasPortariaAccess };
   }
 
+  /**
+   * Dar acesso à portaria cria/liga uma conta de login. O e-mail NÃO pode ser de uma conta
+   * já existente que não seja da equipe deste condomínio: antes o fluxo sobrescrevia a senha
+   * do Users dessa pessoa (de qualquer condomínio) e dava ao chamador a conta dela.
+   */
+  private async assertContaLivreParaPortaria(email: string, idCondominio: number) {
+    const existente = await this.prisma.users.findFirst({
+      where: { OR: [{ login: email }, { email }] },
+      select: { id: true },
+    });
+    if (!existente) return;
+    const daEquipe = await this.prisma.funcionarios.findFirst({
+      where: { id_user: existente.id, id_condominio: Number(idCondominio) },
+      select: { id: true },
+    });
+    if (!daEquipe) {
+      throw new BadRequestException('Já existe uma conta com este e-mail. Use outro e-mail para o acesso à portaria.');
+    }
+  }
+
   async create(dto: CreatePrestadorDto, user?: JwtPayload) {
     await this.tenant.assertCondominio(dto.id_condominio, user);
     await this.tenant.assertPermissaoFuncionario(dto.id_condominio, 'prestadores_servico', user);
+    // Conceder login de portaria é ato do console (síndico/portaria), não de morador nem de funcionário do app.
+    if (dto.hasPortariaAccess) assertOperador(user, 'conceder acesso à portaria a um prestador');
     if (!this.prisma.isConnected) {
       return {
         id: Date.now(),
@@ -279,6 +302,7 @@ export class PrestadoresService {
       if (conflito) {
         throw new BadRequestException('Já existe um funcionário com este e-mail.');
       }
+      await this.assertContaLivreParaPortaria(dto.email.trim(), dto.id_condominio);
     }
 
     const fotoPes = await this.resolveFoto(dto.foto_pessoa);
@@ -359,9 +383,10 @@ export class PrestadoresService {
             },
           });
         } else {
+          // Conta já existente (da equipe deste condomínio): nunca troca a senha dela.
           await this.prisma.users.update({
             where: { id: user.id },
-            data: { is_funcionario: 1, password: hash },
+            data: { is_funcionario: 1 },
           });
         }
 
@@ -421,6 +446,11 @@ export class PrestadoresService {
       if (conflito) {
         throw new BadRequestException('Já existe outro funcionário com este e-mail.');
       }
+    }
+    if (dto.hasPortariaAccess) {
+      assertOperador(user, 'conceder acesso à portaria a um prestador');
+      const emailAcesso = (dto.email ?? atual.email ?? '').trim();
+      if (emailAcesso) await this.assertContaLivreParaPortaria(emailAcesso, atual.id_condominio);
     }
 
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
@@ -504,13 +534,8 @@ export class PrestadoresService {
           } else {
             await this.prisma.users.update({
               where: { id: user.id },
-              data: {
-                is_funcionario: 1,
-                ...(hash && { password: hash }),
-                name: dto.nome ?? atualizado.nome,
-                phone: dto.telefone ?? atualizado.telefone,
-                ...(fotoPes && { photo: fotoPes, profile_image: fotoPes }),
-              },
+              // Conta já existente (da equipe deste condomínio): não troca senha nem dados pessoais dela.
+              data: { is_funcionario: 1 },
             });
           }
 

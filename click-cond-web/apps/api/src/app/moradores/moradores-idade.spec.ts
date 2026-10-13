@@ -10,7 +10,7 @@ describe('MoradoresService - Validação de Menor de 18 Anos', () => {
     prismaMock = {
       isConnected: true,
       apartamentos: {
-        findUnique: jest.fn().mockResolvedValue({ id: 10, bloco: 'A', apto: '101' }),
+        findUnique: jest.fn().mockResolvedValue({ id: 10, id_condominio: 1, bloco: 'A', apto: '101' }),
       },
       users: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -245,7 +245,10 @@ describe('MoradoresService.update - fecha o mesmo buraco de maioridade que exist
         findUnique: jest.fn().mockResolvedValue(registro),
         findFirst: jest.fn().mockResolvedValue(null),
         update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ ...registro, ...data })),
+        count: jest.fn().mockResolvedValue(0),
       },
+      sindicos_Condominios: { count: jest.fn().mockResolvedValue(0) },
+      funcionarios: { count: jest.fn().mockResolvedValue(0) },
       visitantes: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
@@ -257,9 +260,10 @@ describe('MoradoresService.update - fecha o mesmo buraco de maioridade que exist
         deleteMany: jest.fn().mockResolvedValue({}),
         create: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn().mockResolvedValue({}),
+        count: jest.fn().mockResolvedValue(0),
       },
       apartamentos: {
-        findUnique: jest.fn().mockResolvedValue({ id: 10, bloco: 'A', apto: '101' }),
+        findUnique: jest.fn().mockResolvedValue({ id: 10, id_condominio: 1, bloco: 'A', apto: '101' }),
       },
       facial_Devices: {
         findMany: jest.fn().mockResolvedValue([]),

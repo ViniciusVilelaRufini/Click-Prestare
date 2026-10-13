@@ -5,6 +5,7 @@ import { createHash } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { QrSessionStore } from './qr-session.store';
+import { idUsuarioDoToken } from './usuario-do-token.util';
 
 /**
  * Lockout em memória por login. Após N tentativas falhas em janela,
@@ -161,7 +162,9 @@ export class AuthService {
       turno: sindico ? 'Síndico' : funcionario.turno,
       id_condominio: funcionario.id_condominio,
       condominio_nome: cond?.nome || 'Click Condomínio',
-      condominios: await this.condominiosDoSindicoPorLogin(login),
+      // Só lista os condomínios quando este login É o síndico do condomínio da sessão. Um porteiro cujo
+      // login coincide com o e-mail de um síndico de OUTRO condomínio não pode ver nem trocar para os dele.
+      condominios: sindico ? await this.condominiosDoSindicoPorLogin(login) : [],
     };
   }
 
@@ -311,19 +314,32 @@ export class AuthService {
     // ou token de funcionário, quando existe Funcionarios_Portaria com o mesmo
     // login — o caso comum na web. Resolve o Users.id em ambos.
     let idUserSindico: number | null = null;
+    if ((payload as any).role === 'crm_admin') {
+      throw new UnauthorizedException('Apenas síndicos podem trocar de condomínio.');
+    }
     if (payload.typeAccess === 'Sindico') {
       idUserSindico = payload.sub;
-    } else {
-      const funcionario = await this.prisma.funcionarios_Portaria.findUnique({
-        where: { id: payload.sub },
-        select: { login: true },
+    } else if (!payload.typeAccess && payload.id_condominio) {
+      // Só o token de console do porteiro (sem typeAccess, com condomínio) tem sub = Funcionarios_Portaria.id.
+      // Token de app (Morador/Funcionario) tem sub = Users.id e jamais pode cair neste lookup por coincidência de número.
+      const funcionario = await this.prisma.funcionarios_Portaria.findFirst({
+        where: { id: payload.sub, ativo: 1 },
+        select: { login: true, id_condominio: true },
       });
       if (funcionario?.login) {
         const user = await this.prisma.users.findFirst({
           where: { login: funcionario.login },
           include: { sindicos: { select: { id: true } } },
         });
-        if (user && user.sindicos.length > 0) idUserSindico = user.id;
+        // O síndico precisa administrar o condomínio do PRÓPRIO porteiro: o login do porteiro é livre
+        // e podia ser o e-mail de um síndico de outro condomínio.
+        if (user && user.sindicos.length > 0) {
+          const dono = await this.prisma.sindicos_Condominios.findFirst({
+            where: { id_user: user.id, id_condominio: funcionario.id_condominio },
+            select: { id: true },
+          });
+          if (dono) idUserSindico = user.id;
+        }
       }
     }
 
@@ -518,8 +534,14 @@ export class AuthService {
       throw new UnauthorizedException('Condomínio não encontrado.');
     }
 
-    const userId = payload.sub;
-    const typeAccess = payload.typeAccess ?? 'Sindico';
+    // sub só é Users.id em token de USUÁRIO (Sindico/Morador/Funcionario). O token do porteiro do console
+    // tem sub = Funcionarios_Portaria.id e o do CRM, crm_admins.id: tratá-los como Users.id, com default
+    // 'Sindico', fazia um número coincidente emitir token de síndico de outro condomínio.
+    const userId = idUsuarioDoToken(payload);
+    if (!userId) {
+      throw new UnauthorizedException('Sessão inválida para autorizar o QR Code.');
+    }
+    const typeAccess = (payload.typeAccess ?? payload.user?.typeAccess) as string;
 
     // Verifica que o usuário autenticado realmente tem vínculo com o condomínio
     // solicitado. Sem isso, um síndico de um condomínio mintava um token de

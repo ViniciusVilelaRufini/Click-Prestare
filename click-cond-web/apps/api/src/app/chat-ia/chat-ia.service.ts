@@ -32,6 +32,7 @@ import { MudancasService } from '../mudancas/mudancas.service';
 import { ComunicadosService } from '../comunicados/comunicados.service';
 import { AgendaService } from '../agenda/agenda.service';
 import type { CartaoAcao } from './acao-pendente.store';
+import { urlExternaSegura } from '../common/url-segura.util';
 
 const CHUNK_SIZE = 1200; // caracteres por trecho
 const CHUNK_OVERLAP = 200; // sobreposição p/ não cortar contexto no meio
@@ -1061,9 +1062,14 @@ ${docsTxt}`;
   }
 
   private async extrairTextoPdf(url: string): Promise<string> {
-    const res = await fetch(url);
+    if (!(await urlExternaSegura(url))) throw new Error('URL do documento bloqueada (host interno/inválido)');
+    // redirect:'error' — um 302 para IP interno contornaria a checagem acima.
+    const res = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(20000) });
     if (!res.ok) throw new Error(`Falha ao baixar documento (${res.status})`);
+    const declarado = Number(res.headers.get('content-length') ?? 0);
+    if (declarado > 30 * 1024 * 1024) throw new Error('Documento acima do limite');
     const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length > 30 * 1024 * 1024) throw new Error('Documento acima do limite');
 
     // require adiado de propósito: importado no topo, o pdf-parse tenta ler um
     // PDF de teste do próprio pacote e quebra o boot.

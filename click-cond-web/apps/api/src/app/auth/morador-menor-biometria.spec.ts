@@ -48,17 +48,24 @@ describe('Morador menor — biometria com termo do responsável', () => {
         create: jest.fn(async ({ data }: any) => ({ id: 500, ...data })),
         findUnique: jest.fn(async () => null),
         update: jest.fn(async () => ({})),
+        count: jest.fn(async () => 0),
       },
+      sindicos_Condominios: { count: jest.fn(async () => 0) },
+      funcionarios: { count: jest.fn(async () => 0) },
       users: {
         findFirst: jest.fn(async () => null),
         create: jest.fn(async ({ data }: any) => ({ id: 900, ...data })),
         update: jest.fn(async () => ({})),
         findUnique: jest.fn(async () => null),
       },
-      apartamentos_Users: { findFirst: jest.fn(async () => null), create: jest.fn(async () => ({})) },
+      apartamentos_Users: { findFirst: jest.fn(async () => null), create: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
       consentimentos: { create: jest.fn(async () => ({})) },
       ...extra,
     };
+    // vínculo do Users com outros condomínios (checagem de credencial compartilhada): nenhum nestes cenários.
+    for (const m of ['moradores', 'sindicos_Condominios', 'funcionarios', 'apartamentos_Users']) {
+      prisma[m] = { ...(prisma[m] ?? {}), count: jest.fn(async () => 0) };
+    }
     prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
     const storage: any = { isDataUrl: () => true, uploadDataUrl: jest.fn(async () => 'https://s3/qa.jpg') };
     const tenant: any = { assertCondominio: jest.fn(async () => undefined), assertEntidade: jest.fn(async () => undefined) };

@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -137,6 +137,19 @@ export class RegrasAcessoService {
     return regra;
   }
 
+  /** Todo dispositivo da regra tem de ser do condomínio: senão a regra acionava o relé de outro prédio. */
+  private async assertDispositivosDoCondominio(ids: unknown[] | undefined, idCondominio: number) {
+    const lista = [...new Set((ids ?? []).map((i) => Number(i)))];
+    if (!lista.length) return;
+    if (lista.some((i) => !Number.isInteger(i) || i <= 0)) {
+      throw new BadRequestException('Dispositivo inválido.');
+    }
+    const ok = await this.prisma.facial_Devices.count({
+      where: { id: { in: lista }, id_condominio: Number(idCondominio) },
+    });
+    if (ok !== lista.length) throw new BadRequestException('Dispositivo não pertence a este condomínio.');
+  }
+
   async create(idCondominio: number, dto: CreateRegraAcessoDto, operador?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return {
@@ -148,6 +161,7 @@ export class RegrasAcessoService {
       };
     }
 
+    await this.assertDispositivosDoCondominio(dto.dispositivosIds, idCondominio);
     // Criar a regra e os vínculos N:N com os dispositivos em uma única transação
     const criada = await this.prisma.regras_Acesso.create({
       data: {
@@ -213,6 +227,7 @@ export class RegrasAcessoService {
       throw new ForbiddenException(`Regra #${id} não pertence a este condomínio`);
     }
 
+    await this.assertDispositivosDoCondominio(dto.dispositivosIds, regraExistente.id_condominio);
     // Se novos dispositivosIds foram passados, removemos os antigos e inserimos os novos
     if (dto.dispositivosIds !== undefined) {
       await this.prisma.regras_Dispositivos.deleteMany({

@@ -14,7 +14,7 @@ describe('MoradoresService.create — telefone', () => {
         create: jest.fn().mockResolvedValue({ id: 46 }),
       },
       users: { create: jest.fn().mockResolvedValue({ id: 45 }) },
-      apartamentos: { findUnique: jest.fn().mockResolvedValue({ id: 7, bloco: 'Bloco A', apto: '106' }) },
+      apartamentos: { findUnique: jest.fn().mockResolvedValue({ id: 7, id_condominio: 1, bloco: 'Bloco A', apto: '106' }) },
       apartamentos_Users: { create: jest.fn().mockResolvedValue({}) },
       facial_Devices: { findMany: jest.fn().mockResolvedValue([]) },
     };

@@ -9,6 +9,7 @@ import { SuperlogicaWriteService } from '../superlogica/superlogica-write.servic
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import * as bcrypt from 'bcrypt';
+import { usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio } from '../common/vinculos-usuario.util';
 import { randomBytes } from 'crypto';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 
@@ -273,6 +274,11 @@ export class MoradoresService {
 
     const user = await this.prisma.users.findUnique({ where: { id: idUser } });
     if (!user) throw new NotFoundException('Usuário não encontrado.');
+    // Users.id é sequencial e global: só liga quem JÁ tem vínculo (síndico/equipe/morador) com este
+    // condomínio. Antes qualquer id copiava nome/CPF/e-mail de outra pessoa e abria a troca de login dela.
+    if (!(await usuarioTemVinculoNoCondominio(this.prisma as any, idUser, Number(idCondominio)))) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
 
     const already = await this.prisma.apartamentos_Users.findFirst({
       where: { id_user: idUser, id_apto: idApto },
@@ -323,7 +329,8 @@ export class MoradoresService {
     // "órfãos" (sem ficha em Moradores) e bate exatamente com a contagem do card/app.
     if (idApto) {
       const rels = await this.prisma.apartamentos_Users.findMany({
-        where: { id_apto: Number(idApto) },
+        // O apto do filtro tem de ser DESTE condomínio: sem isto, um id_apto de outro prédio listava os moradores dele.
+        where: { id_apto: Number(idApto), apartamento: { id_condominio: Number(idCondominio) } },
         include: {
           apartamento: true,
           user: { include: { moradores: true } },
@@ -714,6 +721,9 @@ export class MoradoresService {
       aptoObj = await this.prisma.apartamentos.findUnique({
         where: { id: Number(dto.id_apartamento) },
       });
+      if (aptoObj && aptoObj.id_condominio !== dto.id_condominio) {
+        throw new BadRequestException('Apartamento não pertence a este condomínio.');
+      }
     }
 
     const duplicationCheck = await this.prisma.moradores.findFirst({
@@ -1027,6 +1037,9 @@ export class MoradoresService {
             const aptoObj = await tx.apartamentos.findUnique({
               where: { id: Number(dto.id_apartamento) },
             });
+            if (aptoObj && aptoObj.id_condominio !== atual.id_condominio) {
+              throw new BadRequestException('Apartamento não pertence a este condomínio.');
+            }
             if (aptoObj) {
               bloco = aptoObj.bloco || '';
               aptoNum = aptoObj.apto || '';
@@ -1091,6 +1104,14 @@ export class MoradoresService {
         if (fotoPessoaUrl !== undefined) {
           userPatch.photo = fotoPessoaUrl;
           userPatch.profile_image = fotoPessoaUrl;
+        }
+        // Conta compartilhada com outro condomínio: dados do cadastro mudam só no Moradores; login/e-mail/CPF
+        // do Users ficam (quem tem a conta é a pessoa, não este condomínio).
+        if (atual.id_user && atual.id_condominio != null &&
+            (await usuarioTemVinculoEmOutroCondominio(tx as any, atual.id_user, atual.id_condominio))) {
+          delete userPatch.email;
+          delete userPatch.login;
+          delete userPatch.cpf;
         }
         if (Object.keys(userPatch).length > 0 && atual.id_user) {
           await tx.users.update({
@@ -1241,6 +1262,9 @@ export class MoradoresService {
         });
       }
 
+      if (m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, userId, m.id_condominio))) {
+        throw new BadRequestException('Esta pessoa também tem conta em outro condomínio. Peça que use "Esqueci a senha" no app.');
+      }
       const senhaHash = await bcrypt.hash(senhaInicial, 10);
       await this.prisma.users.update({
         where: { id: userId },

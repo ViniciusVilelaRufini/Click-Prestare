@@ -15,6 +15,30 @@ import { randomUUID } from 'crypto';
  * Se as variáveis não estiverem setadas, o upload é desativado e o método
  * retorna a string original (compatibilidade com ambiente de dev).
  */
+/**
+ * Tipos aceitos no upload. O arquivo é público (public-read) no domínio do
+ * storage: HTML/SVG/JS ali seriam XSS armazenado, então o Content-Type NUNCA
+ * vem do cliente — só estes tipos passam, com extensão derivada do tipo.
+ */
+const TIPOS_PERMITIDOS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'text/plain': 'txt',
+  'application/pdf': 'pdf',
+  'text/csv': 'csv',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+};
+/** Teto do arquivo decodificado (a API aceita 100 MB de JSON; o storage não deve). */
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
@@ -85,7 +109,7 @@ export class StorageService {
   async uploadDataUrl(
     dataUrl: string,
     prefix: string,
-    hint?: string,
+    _hint?: string,
   ): Promise<string | null> {
     // Se o S3 não está configurado, retorna o base64 original como fallback
     if (!this.enabled || !this.client) return dataUrl;
@@ -96,10 +120,18 @@ export class StorageService {
         this.logger.warn('uploadDataUrl: data URL inválida.');
         return null;
       }
-      const contentType = dataUrl.slice(5, base64Index) || 'application/octet-stream';
+      const contentType = dataUrl.slice(5, base64Index).split(';')[0].trim().toLowerCase();
+      const ext = TIPOS_PERMITIDOS[contentType];
+      if (!ext) {
+        this.logger.warn(`uploadDataUrl: tipo não permitido (${contentType.slice(0, 60)}).`);
+        return null;
+      }
       const rawBase64 = dataUrl.slice(base64Index + 8).replace(/\s+/g, '');
+      if (Math.floor((rawBase64.length * 3) / 4) > MAX_UPLOAD_BYTES) {
+        this.logger.warn('uploadDataUrl: arquivo acima do limite.');
+        return null;
+      }
       const buffer = Buffer.from(rawBase64, 'base64');
-      const ext = (hint ?? this.extFromMime(contentType)).replace(/^\.+/, '');
       const safePrefix = prefix.replace(/[^a-z0-9_\-\/]/gi, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '').slice(0, 60) || 'arquivo';
       const key = `${safePrefix}/${Date.now()}-${randomUUID()}.${ext}`;
 
@@ -126,19 +158,21 @@ export class StorageService {
     if (this.isDataUrl(url)) return true; // base64 inline não fica no storage
 
     try {
-      let key = url;
-      if (this.publicUrl && url.startsWith(this.publicUrl)) {
+      // Só apaga objetos do NOSSO storage. Antes, qualquer URL (de qualquer host)
+      // tinha o pathname usado como key — um cliente que controla uma foto_url
+      // fazia o expurgo apagar objetos arbitrários do bucket.
+      let key: string;
+      if (this.publicUrl && url.startsWith(this.publicUrl + '/')) {
         key = url.slice(this.publicUrl.length).replace(/^\/+/, '');
+      } else if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+        this.logger.warn('deleteUrl: URL fora do storage público, ignorada.');
+        return false;
       } else {
-        try {
-          const parsed = new URL(url);
-          key = parsed.pathname.replace(/^\/+/, '');
-        } catch {
-          // Já é uma key relativa
-        }
+        key = url.replace(/^\/+/, '');
       }
+      key = key.split(/[?#]/)[0];
 
-      if (!key) return false;
+      if (!key || key.split('/').includes('..')) return false;
 
       await this.client.send(new DeleteObjectCommand({
         Bucket: this.bucket,
@@ -152,16 +186,4 @@ export class StorageService {
     }
   }
 
-  private extFromMime(mime: string): string {
-    const m = mime.toLowerCase();
-    if (m.includes('pdf')) return 'pdf';
-    if (m.includes('png')) return 'png';
-    if (m.includes('jpeg') || m.includes('jpg')) return 'jpg';
-    if (m.includes('webp')) return 'webp';
-    if (m.includes('gif')) return 'gif';
-    if (m.includes('svg')) return 'svg';
-    if (m.includes('sheet') || m.includes('excel')) return 'xlsx';
-    if (m.includes('csv')) return 'csv';
-    return 'bin';
-  }
 }

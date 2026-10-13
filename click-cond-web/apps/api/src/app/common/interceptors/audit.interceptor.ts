@@ -6,6 +6,21 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SKIP_AUDIT_KEY } from './skip-audit.decorator';
 import { extractClientIp } from '../context/request-context';
 
+/** Chaves cujo valor nunca deve ir para AuditLog.detalhes (legível por operadores do condomínio). */
+const CHAVE_SENSIVEL = /(senha|password|passwd|secret|token|api_?(user|key|password)|photo|foto|assinatura)/i;
+
+/** Copia o valor descartando, recursivamente, qualquer chave sensível. */
+export function redigirSegredos(valor: unknown, profundidade = 0): unknown {
+  if (valor === null || typeof valor !== 'object' || profundidade > 6) return valor;
+  if (Array.isArray(valor)) return valor.map((v) => redigirSegredos(v, profundidade + 1));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(valor as Record<string, unknown>)) {
+    if (CHAVE_SENSIVEL.test(k)) continue;
+    out[k] = redigirSegredos(v, profundidade + 1);
+  }
+  return out;
+}
+
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   constructor(
@@ -44,7 +59,7 @@ export class AuditInterceptor implements NestInterceptor {
             // Extrair info do usuário do JWT payload
             const jwtPayload = user?.user ?? user ?? {};
             const idCondominio: number =
-              Number(jwtPayload?.id_condominio ?? body?.id_condominio ?? 0);
+              Number(jwtPayload?.id_condominio ?? (user ? body?.id_condominio : 0) ?? 0);
 
             // Nome e e-mail do porteiro/síndico
             const usuarioNome: string = jwtPayload?.nome ?? jwtPayload?.name ?? 'Sistema';
@@ -130,21 +145,14 @@ export class AuditInterceptor implements NestInterceptor {
     else if (params?.id) entityId = Number(params.id);
 
     // Detalhes (sem dados sensíveis)
-    const cleanDetails = { ...body };
-    delete cleanDetails.password;
-    delete cleanDetails.senha;
-    delete cleanDetails.photo;
-    delete cleanDetails.retirado_foto;
-    delete cleanDetails.retirado_assinatura;
-    delete cleanDetails.assinatura;
-    delete cleanDetails.foto;
+    const cleanDetails = redigirSegredos(body);
 
     return {
       module,
       action,
       entityId,
       descricao,
-      details: JSON.stringify(cleanDetails).substring(0, 2000),
+      details: JSON.stringify(cleanDetails ?? {}).substring(0, 2000),
     };
   }
 

@@ -34,6 +34,7 @@ import { normalizarPayloadNativo } from './webhook-payload.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
 import { normalizarMac } from './descoberta.service';
+import { urlExternaSegura } from '../common/url-segura.util';
 
 function pessoasMigrationEnabled(prisma?: any): boolean {
   if (process.env['PESSOAS_MIGRATION_ENABLED'] !== 'true') return false;
@@ -914,7 +915,18 @@ export class FacialService {
     };
   }
 
+  /** A área vinculada tem de ser do mesmo condomínio do dispositivo (senão grava/aciona dados de outro prédio). */
+  private async assertAreaDoCondominio(idArea: number | null | undefined, idCondominio: number) {
+    if (idArea == null) return;
+    const area = await this.prisma.areas_Sociais.findFirst({
+      where: { id: Number(idArea), id_condominio: Number(idCondominio) },
+      select: { id: true },
+    });
+    if (!area) throw new BadRequestException('Área social não pertence a este condomínio.');
+  }
+
   async createDevice(dto: CreateDeviceDto, operador?: JwtPayload) {
+    await this.assertAreaDoCondominio(dto.id_area_social, dto.id_condominio);
     const token = crypto.randomBytes(32).toString('hex');
     const created = await this.prisma.facial_Devices.create({
       data: {
@@ -982,6 +994,7 @@ export class FacialService {
 
   async updateDevice(id: number, dto: UpdateDeviceDto, operador?: JwtPayload) {
     const antes = await this.getDevice(id);
+    await this.assertAreaDoCondominio(dto.id_area_social, antes.id_condominio);
     const atual = await this.prisma.facial_Devices.update({
       where: { id },
       data: {
@@ -1349,12 +1362,19 @@ export class FacialService {
     if (foto.startsWith('data:')) return foto;
     if (foto.startsWith('http://') || foto.startsWith('https://')) {
       try {
+        if (!(await urlExternaSegura(foto))) {
+          this.logger.warn('toDataUrl: URL de foto bloqueada (host interno/inválido).');
+          return null;
+        }
         const axios = (await import('axios')).default;
         const res = await axios.get(foto, {
           responseType: 'arraybuffer',
           timeout: 15000,
+          maxRedirects: 0,
+          maxContentLength: 15 * 1024 * 1024,
         });
-        const mime = res.headers['content-type'] || 'image/jpeg';
+        const mimeBruto = String(res.headers['content-type'] || 'image/jpeg').split(';')[0].trim().toLowerCase();
+        const mime = /^image\/(jpeg|jpg|png|webp|gif|heic|heif)$/.test(mimeBruto) ? mimeBruto : 'image/jpeg';
         const b64 = Buffer.from(res.data).toString('base64');
         return `data:${mime};base64,${b64}`;
       } catch (err: any) {
@@ -5358,6 +5378,7 @@ export class FacialService {
             if (
               d &&
               d.id !== device.id &&
+              d.id_condominio === device.id_condominio &&
               d.ativo === 1 &&
               (d.tipo === 'botoeira' || d.tipo === 'catraca')
             ) {
@@ -5896,10 +5917,16 @@ export class FacialService {
     }
     if (foto.startsWith('http://') || foto.startsWith('https://')) {
       try {
+        if (!(await urlExternaSegura(foto))) {
+          this.logger.warn('fetchPhotoBruta: URL de foto bloqueada (host interno/inválido).');
+          return null;
+        }
         const axios = (await import('axios')).default;
         const res = await axios.get(foto, {
           responseType: 'arraybuffer',
           timeout: 15000,
+          maxRedirects: 0,
+          maxContentLength: 15 * 1024 * 1024,
         });
         return Buffer.from(res.data).toString('base64');
       } catch (err) {

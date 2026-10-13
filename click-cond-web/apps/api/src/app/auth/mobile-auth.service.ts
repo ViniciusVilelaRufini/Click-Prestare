@@ -12,8 +12,9 @@ import { somenteDigitos } from '../common/documento.util';
 import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from './tenant-access.service';
+import { usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio } from '../common/vinculos-usuario.util';
 import { NotificationsService } from '../notifications/notifications.service';
-import { assertStaff, assertSindico, assertOperador } from './tenant.util';
+import { assertStaff, assertSindico, assertSindicoEstrito, assertOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 import { POLITICA_VERSAO } from '../consentimentos/consentimentos.service';
@@ -497,7 +498,7 @@ export class MobileAuthService {
    * morador, sem criar conta nova: cria Apartamentos_Users + Moradores e marca
    * is_morador=1. Idempotente (bloqueia vínculo duplicado no mesmo apto).
    */
-  async linkUserAsMorador(idUser: number, idApto: number, tipoRaw?: string) {
+  async linkUserAsMorador(idUser: number, idApto: number, tipoRaw?: string, payload?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível. Tente novamente em instantes.');
     }
@@ -511,6 +512,10 @@ export class MobileAuthService {
 
     const apto = await this.prisma.apartamentos.findUnique({ where: { id: Number(idApto) } });
     if (!apto) throw new NotFoundException('Apartamento não encontrado.');
+    // Auto-vínculo é do SÍNDICO deste condomínio: sem isto, qualquer conta (inclusive um
+    // signup anônimo) virava morador de um apartamento de outro condomínio.
+    assertSindicoEstrito(payload, 'vincular-se a um apartamento');
+    await this.tenant.assertCondominio(apto.id_condominio, payload);
 
     const user = await this.prisma.users.findUnique({ where: { id: Number(idUser) } });
     if (!user) throw new NotFoundException('Usuário não encontrado.');
@@ -713,6 +718,18 @@ export class MobileAuthService {
         ? portaria.password
         : await bcrypt.hash(senhaRaw, 10);
 
+      // A senha da portaria só vale como credencial de uma conta Users que já é da equipe/vínculo deste
+      // condomínio (ou que não tem vínculo nenhum). Sem isto, quem cadastrava um porteiro com o e-mail de
+      // outra pessoa entrava na conta dela com a senha que ele mesmo escolheu.
+      if (
+        user &&
+        portaria.id_condominio != null &&
+        (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, user.id, portaria.id_condominio)) &&
+        !(await usuarioTemVinculoNoCondominio(this.prisma as any, user.id, portaria.id_condominio))
+      ) {
+        throw new UnauthorizedException('Login ou Senha incorretos');
+      }
+
       // Sincroniza / cria o registro em Users e Funcionarios para o mobile
       if (!user) {
         user = await this.prisma.users.create({
@@ -793,7 +810,9 @@ export class MobileAuthService {
 
       if (portaria) {
         const isPortariaMatch = await this.verifyPassword(senhaRaw, portaria.password, portaria.id);
-        if (isPortariaMatch) {
+        // Só aceita se a portaria é do mesmo condomínio em que esta conta é funcionária.
+        const mesmoCondominio = user.funcionarios.some((f) => f.id_condominio === portaria.id_condominio);
+        if (isPortariaMatch && mesmoCondominio) {
           const newHash = portaria.password.startsWith('$2')
             ? portaria.password
             : await bcrypt.hash(senhaRaw, 10);
@@ -2861,14 +2880,26 @@ export class MobileAuthService {
     try {
       if (this.jwt?.sign) {
         if (registro.papel === 'funcionario') {
-          const userRec = await this.prisma.users.findUnique({
+          // id_conta aqui é Funcionarios_Portaria.id, NÃO Users.id (outra tabela, outra numeração). Usá-lo como
+          // Users.id entregava uma sessão de 365 dias de OUTRA pessoa. Resolve a conta real pelo login.
+          const fp = await this.prisma.funcionarios_Portaria.findUnique({
             where: { id: registro.id_conta },
+            select: { login: true, id_condominio: true },
           });
-          const funcRec = await this.prisma.funcionarios.findFirst({
-            where: { id_user: registro.id_conta },
-          });
+          const userRec = fp?.login
+            ? await this.prisma.users.findFirst({ where: { OR: [{ login: fp.login }, { email: fp.login }] } })
+            : null;
+          const funcRec = userRec
+            ? await this.prisma.funcionarios.findFirst({
+                where: { id_user: userRec.id, id_condominio: fp!.id_condominio },
+              })
+            : null;
+          if (!userRec || !funcRec) {
+            // Sem conta de app correspondente: a senha foi redefinida, mas não há auto-login.
+            throw new Error('sem-conta-app');
+          }
           const userObj = {
-            id: registro.id_conta,
+            id: userRec.id,
             nome: funcRec?.nome || usuarioNome,
             photo: userRec?.photo ?? '',
             areas_sociais: funcRec?.areas_sociais ?? 1,
@@ -2881,7 +2912,7 @@ export class MobileAuthService {
             apartamentos: funcRec?.apartamentos ?? 1,
           };
           const payload = {
-            sub: registro.id_conta,
+            sub: userRec.id,
             nome: funcRec?.nome || usuarioNome,
             typeAccess: 'Funcionario',
             user: userObj,
@@ -3253,6 +3284,7 @@ export class MobileAuthService {
           select: { id: true },
         });
         if (conflito) throw new BadRequestException('Já existe outro funcionário com este e-mail.');
+        await this.assertLoginLivreParaPortaria(func.email, atual.id_condominio);
         data.login = func.email;
       }
 
@@ -3270,6 +3302,7 @@ export class MobileAuthService {
 
     const conflito = await this.prisma.funcionarios_Portaria.findUnique({ where: { login: loginFinal } });
     if (conflito) throw new BadRequestException('Já existe um funcionário com este e-mail.');
+    await this.assertLoginLivreParaPortaria(loginFinal, idCondominio);
 
     // Senha inicial = senha recebida, documento (só dígitos) ou '123456'.
     // A senha escolhida no formulário passa intacta — normalizar ali
@@ -3297,6 +3330,25 @@ export class MobileAuthService {
     await sincronizarUsuarioMobile(created, senhaInicial, photoUrl);
 
     return { id: created.id };
+  }
+
+  /**
+   * O login do porteiro (Funcionarios_Portaria) é único só na própria tabela. Sem esta checagem,
+   * um síndico (inclusive de signup anônimo) cadastrava um porteiro com o e-mail de OUTRA pessoa
+   * (síndico/morador de outro condomínio) e, pelo loginFuncionario/selecionarCondominio, herdava a conta dela.
+   * Permitido: e-mail sem conta, ou conta que já tem vínculo com ESTE condomínio (ex.: síndico que também é porteiro).
+   */
+  private async assertLoginLivreParaPortaria(login: string, idCondominio: number) {
+    const u = await this.prisma.users.findFirst({
+      where: { OR: [{ login }, { email: login }] },
+      select: { id: true },
+    });
+    if (!u) return;
+    const aqui = await usuarioTemVinculoNoCondominio(this.prisma as any, u.id, idCondominio);
+    if (aqui) return;
+    if (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, u.id, idCondominio)) {
+      throw new BadRequestException('Já existe uma conta com este e-mail. Use outro e-mail para o porteiro.');
+    }
   }
 
   async removeFuncionario(id: number, requester?: JwtPayload) {
@@ -3591,6 +3643,14 @@ export class MobileAuthService {
             userPatch.photo = photoUrl;
             userPatch.profile_image = photoUrl;
           }
+          // Editar o cadastro de OUTRA pessoa que também tem conta em outro condomínio não pode trocar
+          // o login/e-mail/CPF globais dela (era a porta para tomar a conta e redefinir a senha).
+          if (atual.id_user && atual.id_user !== callerId && atual.id_condominio != null &&
+              (await usuarioTemVinculoEmOutroCondominio(tx as any, atual.id_user, atual.id_condominio))) {
+            delete userPatch.email;
+            delete userPatch.login;
+            delete userPatch.cpf;
+          }
           if (Object.keys(userPatch).length > 0 && atual.id_user) {
             await tx.users.update({ where: { id: atual.id_user }, data: userPatch });
           }
@@ -3628,6 +3688,10 @@ export class MobileAuthService {
 
       const idCondominio = Number(body.id_condominio) || apto.id_condominio;
       await this.tenant.assertCondominio(idCondominio, user);
+      // O apto tem de ser do condomínio informado: senão o vínculo (autoridade de morador) caía em outro prédio.
+      if (apto.id_condominio !== idCondominio) {
+        throw new BadRequestException('Apartamento não pertence a este condomínio.');
+      }
 
       // Menor não tem conta no app: o e-mail que o app antigo manda é do
       // responsável. Ignorado ANTES da checagem de duplicidade — senão o
@@ -3721,7 +3785,8 @@ export class MobileAuthService {
         if (!existing.cpf && cpf) patch.cpf = cpf;
         if (!existing.phone && mor.telefone) patch.phone = mor.telefone;
         if (!existing.name && mor.nome) patch.name = mor.nome;
-        if (photoUrl !== null) {
+        // Não troca a foto de quem já tem conta em outro condomínio.
+        if (photoUrl !== null && !(await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, idCondominio))) {
           patch.photo = photoUrl;
           patch.profile_image = photoUrl;
         }
@@ -4348,7 +4413,7 @@ export class MobileAuthService {
   // ENCOMENDAS (MOBILE)
   // ==========================================
 
-  async listEncomendasByUser(idUser: number, idCondominio?: number, typeAccess?: string, status?: string) {
+  async listEncomendasByUser(idUser: number, idCondominio?: number, typeAccess?: string, status?: string, payload?: JwtPayload) {
     try {
       if (this.prisma.isConnected) {
         const type = (typeAccess ?? '').toLowerCase();
@@ -4372,6 +4437,8 @@ export class MobileAuthService {
           }
 
           if (condId) {
+            // id_condominio vem da query: sem isto, qualquer síndico/funcionário lia as encomendas de outro condomínio.
+            await this.tenant.assertCondominio(Number(condId), payload);
             const list = await this.prisma.encomendas.findMany({
               where: {
                 id_condominio: Number(condId),
@@ -4625,6 +4692,8 @@ export class MobileAuthService {
     if (!idCondominio) {
       throw new BadRequestException('Condomínio não identificado.');
     }
+    // id_condominio do body: exige vínculo do chamador com ele (evita cadastrar/rastrear em outro condomínio).
+    await this.tenant.assertCondominio(Number(idCondominio), payload);
 
     if (!apto) {
       apto = 'Portaria';

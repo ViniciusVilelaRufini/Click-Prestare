@@ -39,8 +39,9 @@ export class OcorrenciasController {
   }
 
   @Delete('categorias/:catId')
-  removeCategoria(@Param('catId', ParseIntPipe) catId: number, @ReqUser() payload: JwtPayload) {
-    this.service.removeCategoria(catId, payload);
+  async removeCategoria(@Param('catId', ParseIntPipe) catId: number, @ReqUser() payload: JwtPayload) {
+    // await: sem ele a rejeição (403/404) vira unhandledRejection e derruba o processo Node.
+    await this.service.removeCategoria(catId, payload);
     return { ok: true };
   }
 
@@ -118,8 +119,9 @@ export class OcorrenciasController {
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @ReqUser() payload: JwtPayload) {
-    this.service.remove(id, payload);
+  async remove(@Param('id', ParseIntPipe) id: number, @ReqUser() payload: JwtPayload) {
+    // await: sem ele a rejeição (403/404) vira unhandledRejection e derruba o processo Node.
+    await this.service.remove(id, payload);
     return { ok: true };
   }
 
