@@ -45,7 +45,7 @@
       --ps-text-2: rgba(255,255,255,.80); --ps-text-3: rgba(255,255,255,.70); --ps-text-4: rgba(255,255,255,.52);
       --ps-brand: #2560E8; --ps-brand-hover: #1E4FD8; --ps-link: #7FA4F5;
       --ps-ease: cubic-bezier(.2,.8,.28,1);
-      --ps-gutter: clamp(18px, 4vw, 40px);
+      --ps-gutter: clamp(18px, 4.5vw, 88px);
     }
     html { scroll-behavior: smooth; background: var(--ps-bg); }
     body { margin: 0; background: var(--ps-bg); color: #fff; font: var(--type-body); -webkit-font-smoothing: antialiased; }
@@ -56,7 +56,7 @@
 
     /* Header */
     .ps-site-header { position: sticky; top: 0; z-index: 30; background: rgba(5,11,34,.82); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,.08); }
-    .ps-header-inner { max-width: 1360px; margin: auto; min-height: 72px; padding: 14px var(--ps-gutter); display: flex; align-items: center; gap: 28px; }
+    .ps-header-inner { max-width: 1760px; margin: auto; min-height: 72px; padding: 14px var(--ps-gutter); display: flex; align-items: center; gap: 28px; }
     .ps-brand { display: inline-flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
     .ps-brand img { width: 38px; height: 38px; border-radius: 9px; }
     .ps-logo-txt { font: var(--weight-extrabold) 18px/1 var(--font-display); letter-spacing: .04em; color: #fff; white-space: nowrap; }
@@ -78,7 +78,7 @@
 
     /* Rodapé */
     .ps-footer { border-top: 1px solid rgba(255,255,255,.08); background: #030817; }
-    .ps-foot { max-width: 1360px; margin: 0 auto; padding: 64px var(--ps-gutter) 40px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 44px; }
+    .ps-foot { max-width: 1760px; margin: 0 auto; padding: 64px var(--ps-gutter) 40px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 44px; }
     .ps-foot-brand { flex: 1 1 320px; min-width: 0; max-width: 44ch; }
     .ps-foot-brand .ps-brand-name { font: var(--weight-extrabold) 17px/1 var(--font-display); letter-spacing: .04em; color: #fff; }
     .ps-foot-brand .ps-brand-name span { font-weight: 400; color: rgba(255,255,255,.7); }
@@ -90,14 +90,14 @@
     .ps-foot nav a { font: 400 15px/1.4 var(--font-ui); color: var(--ps-text-3); text-decoration: none; }
     .ps-foot nav a:hover { color: #fff; }
     .ps-foot-title { font: var(--weight-semibold) 12px/1.2 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: #fff; }
-    .ps-foot-bottom { max-width: 1360px; margin: 0 auto; padding: 0 var(--ps-gutter) 32px; }
+    .ps-foot-bottom { max-width: 1760px; margin: 0 auto; padding: 0 var(--ps-gutter) 32px; }
     .ps-foot-bottom div { padding-top: 22px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; border-top: 1px solid rgba(255,255,255,.08); font: 400 13px/1.4 var(--font-ui); color: var(--ps-text-4); }
 
     /* Base da página */
     .sindico-page *, .sindico-page *::before, .sindico-page *::after { box-sizing: border-box; }
     .sindico-page { overflow: hidden; }
     .sindico-page section { scroll-margin-top: 80px; }
-    .sindico-page .sindico-shell { width: min(1360px, 100%); margin-inline: auto; padding: 96px var(--ps-gutter); }
+    .sindico-page .sindico-shell { width: min(1760px, 100%); margin-inline: auto; padding: 96px var(--ps-gutter); }
     .sindico-page h1, .sindico-page h2, .sindico-page h3, .sindico-page p { margin-top: 0; }
     .sindico-page h1 { max-width: 13ch; margin: 0; color: #fff; font: 400 clamp(44px,5.8vw,84px)/1.03 var(--font-ui); letter-spacing: -.03em; text-wrap: balance; }
     .sindico-page h2 { max-width: 22ch; margin: 18px 0 0; color: #fff; font: 400 clamp(34px,4vw,58px)/1.08 var(--font-ui); letter-spacing: -.025em; text-wrap: balance; }
@@ -153,7 +153,7 @@
 
     /* Números: régua com traço azul à esquerda (padrão do v2) */
     .sindico-page .sindico-stats { background: transparent; }
-    .sindico-page .sindico-stats-inner { width: min(1360px,100%); margin: auto; padding: 8px var(--ps-gutter) 32px; display: grid; grid-template-columns: repeat(3,1fr); gap: 32px; }
+    .sindico-page .sindico-stats-inner { width: min(1760px, 100%); margin: auto; padding: 8px var(--ps-gutter) 32px; display: grid; grid-template-columns: repeat(3,1fr); gap: 32px; }
     .sindico-page .sindico-stats article { min-width: 0; padding-left: 22px; border-left: 2px solid var(--ps-brand); }
     .sindico-page .sindico-stats strong { display: block; color: #fff; font: 400 clamp(28px,2.8vw,40px)/1.05 var(--font-ui); letter-spacing: -.02em; }
     .sindico-page .sindico-stats span { display: block; margin-top: 12px; color: var(--ps-text-3); font: 400 15px/1.4 var(--font-ui); }

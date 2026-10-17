@@ -174,7 +174,7 @@
     --ps-text: #ffffff; --ps-text-2: rgba(255,255,255,.80); --ps-text-3: rgba(255,255,255,.70); --ps-text-4: rgba(255,255,255,.52);
     --ps-brand: #2560E8; --ps-brand-hover: #1E4FD8; --ps-link: #7FA4F5;
     --ps-ease: cubic-bezier(.2,.8,.28,1);
-    --ps-gutter: clamp(18px, 4vw, 40px);
+    --ps-gutter: clamp(18px, 4.5vw, 88px);
   }
   html { scroll-behavior: smooth; background: var(--ps-bg); }
   section[id] { scroll-margin-top: 85px; }
@@ -197,7 +197,7 @@
   @keyframes ps-zoom { from { opacity: 0; transform: translateY(14px) scale(.965) } to { opacity: 1; transform: none } }
 
   /* Contêiner e régua de títulos */
-  .ps-wrap { max-width: 1360px; margin: 0 auto; padding-left: var(--ps-gutter); padding-right: var(--ps-gutter); }
+  .ps-wrap { max-width: 1760px; margin: 0 auto; padding-left: var(--ps-gutter); padding-right: var(--ps-gutter); }
   .ps-sec { padding-top: 96px; padding-bottom: 96px; }
   .ps-sec-tight { padding-top: 64px; padding-bottom: 64px; }
   .ps-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 56px 96px; align-items: start; }
@@ -319,7 +319,7 @@
   @media (min-width: 640px) { .ps-field-row { grid-template-columns: 1fr 1fr; } }
 
   /* Carrossel do console: as setas moram na calha lateral, nunca sobre a tela. */
-  .ps-console { margin: 48px auto 0; max-width: 1180px; padding: 0 64px; position: relative; }
+  .ps-console { margin: 48px auto 0; max-width: 1480px; padding: 0 64px; position: relative; }
   .ps-arrow { position: absolute; top: calc(50% - 30px); transform: translateY(-50%); z-index: 2; width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.04); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 150ms var(--ps-ease); }
   .ps-arrow:hover { background: rgba(255,255,255,.12); }
   .ps-seta-esq { left: 4px; }
@@ -335,8 +335,36 @@
   .ps-steps span { display: block; margin-top: 8px; font: 400 15px/1.55 var(--font-ui); color: var(--ps-text-3); }
 
   /* Chips "e também" */
-  .ps-chips { display: flex; flex-wrap: wrap; gap: 10px; }
-  .ps-chips span { display: inline-flex; align-items: center; gap: 9px; border: 1px solid var(--ps-line); border-radius: var(--radius-pill); padding: 10px 16px; font: 400 15px/1.2 var(--font-ui); color: var(--ps-text-2); }
+  .ps-mq { position: relative; margin-top: 72px; overflow: hidden; border: 1px solid var(--ps-line-soft); border-radius: 22px; padding: clamp(28px, 3.5vw, 44px) 0 clamp(28px, 3.5vw, 40px); background: radial-gradient(60% 90% at 50% 0%, rgba(37,96,232,.22), transparent 70%), var(--ps-bg-2); }
+  .ps-mq::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px); background-size: 56px 56px; mask-image: radial-gradient(70% 80% at 50% 0%, #000, transparent 75%); -webkit-mask-image: radial-gradient(70% 80% at 50% 0%, #000, transparent 75%); pointer-events: none; }
+  .ps-mq-head { position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 48px; padding: 0 clamp(24px, 3.5vw, 44px); margin-bottom: 32px; }
+  .ps-mq-head h3 { margin: 14px 0 0; font: 400 clamp(26px, 2.6vw, 36px)/1.1 var(--font-ui); letter-spacing: -.02em; color: #fff; }
+  .ps-mq-head p { margin: 0; max-width: 46ch; font: 400 16px/1.6 var(--font-ui); color: var(--ps-text-3); }
+  .ps-mq-row { position: relative; overflow: hidden; padding: 8px 0; -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
+  .ps-mq-track { display: flex; width: max-content; animation: ps-marquee 60s linear infinite; }
+  .ps-mq-b .ps-mq-track { animation-duration: 72s; animation-direction: reverse; }
+  .ps-mq:hover .ps-mq-track { animation-play-state: paused; }
+  .ps-mq-group { display: flex; gap: 16px; margin: 0; padding: 0 8px; list-style: none; }
+  .ps-mq-card { flex: none; display: flex; align-items: center; gap: 16px; padding: 14px 22px 14px 14px; border: 1px solid var(--ps-line-soft); border-radius: 16px; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); transition: border-color 200ms var(--ps-ease), transform 200ms var(--ps-ease), background 200ms var(--ps-ease); }
+  .ps-mq-card:hover { border-color: rgba(127,164,245,.5); background: linear-gradient(180deg, rgba(37,96,232,.16), rgba(37,96,232,.04)); transform: translateY(-3px); }
+  .ps-mq-ico { flex: none; width: 50px; height: 50px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(145deg, rgba(37,96,232,.55), rgba(37,96,232,.12)); border: 1px solid rgba(127,164,245,.4); box-shadow: 0 10px 26px rgba(37,96,232,.28), inset 0 1px 0 rgba(255,255,255,.18); }
+  .ps-mq-txt { display: grid; gap: 5px; white-space: nowrap; }
+  .ps-mq-txt b { font: var(--weight-semibold) 17px/1.2 var(--font-ui); color: #fff; }
+  .ps-mq-txt small { font: 400 13.5px/1.3 var(--font-ui); color: var(--ps-text-4); }
+  @keyframes ps-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @media (max-width: 720px) {
+    .ps-mq { margin-top: 48px; }
+    .ps-mq-card { padding: 12px 18px 12px 12px; gap: 12px; }
+    .ps-mq-ico { width: 42px; height: 42px; border-radius: 12px; }
+    .ps-mq-txt b { font-size: 15.5px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ps-mq-row { -webkit-mask-image: none; mask-image: none; padding: 0 clamp(24px, 3.5vw, 44px); }
+    .ps-mq-track { animation: none; width: auto; }
+    .ps-mq-group { flex-wrap: wrap; padding: 0; }
+    .ps-mq-group[aria-hidden="true"], .ps-mq-b { display: none; }
+    .ps-mq-txt { white-space: normal; }
+  }
 
   /* Comparativo */
   .ps-dif-tabela { width: 100%; margin-top: 48px; border-collapse: separate; border-spacing: 0; border: 1px solid var(--ps-line); border-radius: 18px; overflow: hidden; background: var(--ps-bg-2); }
@@ -814,16 +842,64 @@
       </div>
     </div>
 
-    <p style="margin: 64px 0 16px; font: var(--weight-semibold) 16px/1.3 var(--font-ui); color: #fff;">E também no mesmo console:</p>
-    <div class="ps-chips">
-      <span><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="truck" size="17" color="#7FA4F5" hint-size="17px,17px"></x-import>Prestadores</span>
-      <span><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="circle-alert" size="17" color="#7FA4F5" hint-size="17px,17px"></x-import>Ocorrências</span>
-      <span><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="users" size="17" color="#7FA4F5" hint-size="17px,17px"></x-import>Moradores e apartamentos</span>
-      <span><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="car" size="17" color="#7FA4F5" hint-size="17px,17px"></x-import>Veículos</span>
-      <span><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="megaphone" size="17" color="#7FA4F5" hint-size="17px,17px"></x-import>Comunicados</span>
-      <span><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="calendar-days" size="17" color="#7FA4F5" hint-size="17px,17px"></x-import>Áreas sociais</span>
-      <span><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="file-text" size="17" color="#7FA4F5" hint-size="17px,17px"></x-import>Assembleias</span>
-      <span><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="chart-column" size="17" color="#7FA4F5" hint-size="17px,17px"></x-import>Relatórios gerenciais</span>
+    <div class="ps-mq">
+      <div class="ps-mq-head">
+        <div>
+          <span class="ps-eyebrow">Plataforma completa</span>
+          <h3>E também no mesmo console</h3>
+        </div>
+        <p>Além dos três módulos do dia a dia, o condomínio liga o que fizer sentido — tudo no mesmo login, com o mesmo histórico.</p>
+      </div>
+      <!-- Duas faixas em sentidos opostos. Em cada uma, o segundo grupo é cópia
+           do primeiro (aria-hidden) para a animação de -50% fechar o laço sem salto. -->
+      <div class="ps-mq-row ps-mq-a">
+        <div class="ps-mq-track">
+        <ul class="ps-mq-group">
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="truck" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Prestadores</b><small>Entrada e saída de quem trabalha no condomínio</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="circle-alert" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Ocorrências</b><small>Prazo por categoria e responsável</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="users" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Moradores e apartamentos</b><small>Cadastro organizado por bloco e unidade</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="car" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Veículos</b><small>Placas vinculadas a cada unidade</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="megaphone" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Comunicados</b><small>Um aviso para todos de uma vez</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="calendar-days" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Áreas sociais</b><small>Reservas sem conflito de horário</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="file-text" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Assembleias</b><small>Convocação e votação pelo app</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="chart-column" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Relatórios gerenciais</b><small>Os números do período para decidir</small></span></li>
+        </ul>
+        <ul class="ps-mq-group" aria-hidden="true">
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="truck" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Prestadores</b><small>Entrada e saída de quem trabalha no condomínio</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="circle-alert" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Ocorrências</b><small>Prazo por categoria e responsável</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="users" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Moradores e apartamentos</b><small>Cadastro organizado por bloco e unidade</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="car" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Veículos</b><small>Placas vinculadas a cada unidade</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="megaphone" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Comunicados</b><small>Um aviso para todos de uma vez</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="calendar-days" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Áreas sociais</b><small>Reservas sem conflito de horário</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="file-text" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Assembleias</b><small>Convocação e votação pelo app</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="chart-column" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Relatórios gerenciais</b><small>Os números do período para decidir</small></span></li>
+        </ul>
+        </div>
+      </div>
+      <div class="ps-mq-row ps-mq-b" aria-hidden="true">
+        <div class="ps-mq-track">
+        <ul class="ps-mq-group">
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="megaphone" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Comunicados</b><small>Um aviso para todos de uma vez</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="calendar-days" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Áreas sociais</b><small>Reservas sem conflito de horário</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="file-text" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Assembleias</b><small>Convocação e votação pelo app</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="chart-column" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Relatórios gerenciais</b><small>Os números do período para decidir</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="truck" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Prestadores</b><small>Entrada e saída de quem trabalha no condomínio</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="circle-alert" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Ocorrências</b><small>Prazo por categoria e responsável</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="users" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Moradores e apartamentos</b><small>Cadastro organizado por bloco e unidade</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="car" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Veículos</b><small>Placas vinculadas a cada unidade</small></span></li>
+        </ul>
+        <ul class="ps-mq-group" aria-hidden="true">
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="megaphone" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Comunicados</b><small>Um aviso para todos de uma vez</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="calendar-days" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Áreas sociais</b><small>Reservas sem conflito de horário</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="file-text" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Assembleias</b><small>Convocação e votação pelo app</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="chart-column" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Relatórios gerenciais</b><small>Os números do período para decidir</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="truck" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Prestadores</b><small>Entrada e saída de quem trabalha no condomínio</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="circle-alert" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Ocorrências</b><small>Prazo por categoria e responsável</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="users" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Moradores e apartamentos</b><small>Cadastro organizado por bloco e unidade</small></span></li>
+          <li class="ps-mq-card"><span class="ps-mq-ico"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="car" size="22" color="#cfdcff" hint-size="22px,22px"></x-import></span><span class="ps-mq-txt"><b>Veículos</b><small>Placas vinculadas a cada unidade</small></span></li>
+        </ul>
+        </div>
+      </div>
     </div>
   </section>
 
