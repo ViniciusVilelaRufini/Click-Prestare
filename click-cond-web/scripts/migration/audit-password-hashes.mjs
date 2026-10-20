@@ -26,7 +26,7 @@ for (const p of envPaths) {
 }
 
 // Extrair configurações de conexão
-let host = process.env.DB_HOST || 'database-1.crq2ie2ww3dh.sa-east-1.rds.amazonaws.com';
+let host = process.env.DB_HOST || '';
 let port = parseInt(process.env.DB_PORT || '3306', 10);
 let user = process.env.DB_USER || 'admin';
 let password = process.env.DB_PASSWORD || process.env.AWS_RDS_PASSWORD;

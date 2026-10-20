@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const RAILWAY_URL = process.env.DATABASE_URL_RAILWAY;
 const AWS_CONFIG = {
-  host: process.env.AWS_RDS_HOST || 'database-1.crq2ie2ww3dh.sa-east-1.rds.amazonaws.com',
+  host: process.env.AWS_RDS_HOST || '',
   port: parseInt(process.env.AWS_RDS_PORT || '3306', 10),
   user: process.env.AWS_RDS_USER || 'admin',
   password: process.env.AWS_RDS_PASSWORD || process.env.DB_PASSWORD,
