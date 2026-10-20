@@ -45,9 +45,36 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Install AWS RDS CA bundle
         run: curl --fail --location --silent --show-error https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem --output rds-global-bundle.pem
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: sa-east-1
+      # A 3306 do RDS não é aberta para a internet (só o Elastic Beanstalk e o
+      # IP de quem aplica migração à mão). O runner tem IP variável: libera só
+      # esse IP enquanto a migração roda e revoga no fim, mesmo se ela falhar.
+      - name: Allow runner IP on RDS security group
+        id: runner_ip
+        run: |
+          IP=$(curl --fail --silent --show-error https://checkip.amazonaws.com | tr -d '[:space:]')
+          echo "cidr=$IP/32" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --group-id "$RDS_SECURITY_GROUP" \
+            --ip-permissions "IpProtocol=tcp,FromPort=3306,ToPort=3306,IpRanges=[{CidrIp=$IP/32,Description=github-actions-migration-temporario}]"
+        env:
+          RDS_SECURITY_GROUP: sg-09bd286c887c5522b
       - name: Apply migration over TLS
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MIGRATION_FILE: ${{ inputs.migration_file }}
           RDS_CA_BUNDLE: rds-global-bundle.pem
         run: node scripts/run-sql-migration.mjs
+      - name: Revoke runner IP from RDS security group
+        if: always() && steps.runner_ip.outputs.cidr != ''
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id "$RDS_SECURITY_GROUP" \
+            --protocol tcp --port 3306 --cidr "${{ steps.runner_ip.outputs.cidr }}"
+        env:
+          RDS_SECURITY_GROUP: sg-09bd286c887c5522b
