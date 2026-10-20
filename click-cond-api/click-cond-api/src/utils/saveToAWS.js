@@ -51,6 +51,7 @@ module.exports = (base64, folder, name, id) => {
       Key: `dev/${folder}/${name}-${Date.now()}.${fileType}`,
       ContentEncoding: 'base64',
       ContentType: applicationType,
+      ACL: 'public-read',
     }, (err, data) => {
       console.log(1)
       console.log(data);

@@ -33,7 +33,6 @@ import { ComunicadosService } from '../comunicados/comunicados.service';
 import { AgendaService } from '../agenda/agenda.service';
 import type { CartaoAcao } from './acao-pendente.store';
 import { urlExternaSegura } from '../common/url-segura.util';
-import { StorageService } from '../common/storage/storage.service';
 
 const CHUNK_SIZE = 1200; // caracteres por trecho
 const CHUNK_OVERLAP = 200; // sobreposição p/ não cortar contexto no meio
@@ -93,8 +92,6 @@ export class ChatIaService {
     private readonly mudancas: MudancasService,
     private readonly comunicados: ComunicadosService,
     private readonly agenda: AgendaService,
-    // Bucket privado: o PDF de documento é baixado por link assinado.
-    private readonly storage?: StorageService,
   ) {}
 
   // =========================================================================
@@ -1067,9 +1064,7 @@ ${docsTxt}`;
   private async extrairTextoPdf(url: string): Promise<string> {
     if (!(await urlExternaSegura(url))) throw new Error('URL do documento bloqueada (host interno/inválido)');
     // redirect:'error' — um 302 para IP interno contornaria a checagem acima.
-    // Bucket privado: o PDF é lido por link assinado.
-    const leitura = (await this.storage?.assinarUrl(url)) ?? url;
-    const res = await fetch(leitura, { redirect: 'error', signal: AbortSignal.timeout(20000) });
+    const res = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(20000) });
     if (!res.ok) throw new Error(`Falha ao baixar documento (${res.status})`);
     const declarado = Number(res.headers.get('content-length') ?? 0);
     if (declarado > 30 * 1024 * 1024) throw new Error('Documento acima do limite');

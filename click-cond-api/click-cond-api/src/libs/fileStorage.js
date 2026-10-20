@@ -72,11 +72,14 @@ exports.createSignedUrl = async function createSignedUrl(fileType) {
     typeInfo.extension;
   const fullS3Path = baseFolder + "/" + filename;
 
+  const acl = "public-read";
+
   const params = {
     Bucket: bucketName,
     Key: fullS3Path,
     ContentType: typeInfo.contentType,
     Expires: 300,
+    ACL: acl,
   };
 
   return new Promise((resolve, reject) => {

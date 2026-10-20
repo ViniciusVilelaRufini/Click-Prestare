@@ -35,7 +35,6 @@ import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
 import { normalizarMac } from './descoberta.service';
 import { urlExternaSegura } from '../common/url-segura.util';
-import { StorageService } from '../common/storage/storage.service';
 
 function pessoasMigrationEnabled(prisma?: any): boolean {
   if (process.env['PESSOAS_MIGRATION_ENABLED'] !== 'true') return false;
@@ -315,8 +314,6 @@ export class FacialService {
     private readonly tenant: TenantAccessService,
     private readonly consentimentos: ConsentimentosService,
     private readonly consentimentosTerceiros: ConsentimentosTerceirosService,
-    // Bucket privado: a foto que vai ao terminal é baixada por link assinado.
-    private readonly storage?: StorageService,
   ) {
     // Re-sincroniza quem tem restrição de dia da semana ao virar o dia (0h BRT).
     // Delay de 5 min no boot para aguardar banco conectar após deploy.
@@ -1370,7 +1367,7 @@ export class FacialService {
           return null;
         }
         const axios = (await import('axios')).default;
-        const res = await axios.get((await this.storage?.assinarUrl(foto)) ?? foto, {
+        const res = await axios.get(foto, {
           responseType: 'arraybuffer',
           timeout: 15000,
           maxRedirects: 0,
@@ -5925,7 +5922,7 @@ export class FacialService {
           return null;
         }
         const axios = (await import('axios')).default;
-        const res = await axios.get((await this.storage?.assinarUrl(foto)) ?? foto, {
+        const res = await axios.get(foto, {
           responseType: 'arraybuffer',
           timeout: 15000,
           maxRedirects: 0,
