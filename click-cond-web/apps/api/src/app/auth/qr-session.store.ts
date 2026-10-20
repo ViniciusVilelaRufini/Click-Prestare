@@ -19,7 +19,7 @@ export class QrSessionStore {
 
   constructor() {
     // Limpeza periódica automática a cada 30 segundos
-    setInterval(() => this.cleanup(), 30000);
+    setInterval(() => this.cleanup(), 30000).unref?.();
   }
 
   create(): QrSession {

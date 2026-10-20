@@ -73,8 +73,8 @@ export class AreasSociaisService {
     // não-confirmação em áreas opt-in. Mesmo padrão dos ticks de facial.service
     // (setTimeout de warm-up + setInterval). 5 min de intervalo, casando com a
     // janela de 10 min do lembrete (ver `enviarLembretesConfirmacao`).
-    setTimeout(() => void this.tickConfirmacaoReservas(), 5 * 60 * 1000);
-    setInterval(() => void this.tickConfirmacaoReservas(), 5 * 60 * 1000);
+    setTimeout(() => void this.tickConfirmacaoReservas(), 5 * 60 * 1000).unref?.();
+    setInterval(() => void this.tickConfirmacaoReservas(), 5 * 60 * 1000).unref?.();
   }
 
   /**

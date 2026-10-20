@@ -317,31 +317,31 @@ export class FacialService {
   ) {
     // Re-sincroniza quem tem restrição de dia da semana ao virar o dia (0h BRT).
     // Delay de 5 min no boot para aguardar banco conectar após deploy.
-    setTimeout(() => void this.tickDiasSemanaSync(), 5 * 60 * 1000);
-    setInterval(() => void this.tickDiasSemanaSync(), 60 * 60 * 1000);
+    setTimeout(() => void this.tickDiasSemanaSync(), 5 * 60 * 1000).unref?.();
+    setInterval(() => void this.tickDiasSemanaSync(), 60 * 60 * 1000).unref?.();
 
     // Cron de expiração automática de visitantes e prestadores
-    setTimeout(() => void this.tickExpiracaoAutomatica(), 2 * 60 * 1000);
-    setInterval(() => void this.tickExpiracaoAutomatica(), 15 * 60 * 1000);
+    setTimeout(() => void this.tickExpiracaoAutomatica(), 2 * 60 * 1000).unref?.();
+    setInterval(() => void this.tickExpiracaoAutomatica(), 15 * 60 * 1000).unref?.();
 
     // Tick novo — pré-enrolamento 30 min antes da chegada (a cada 15 min, delay 3 min)
-    setTimeout(() => void this.tickPreEnrolamento(), 3 * 60 * 1000);
-    setInterval(() => void this.tickPreEnrolamento(), 15 * 60 * 1000);
+    setTimeout(() => void this.tickPreEnrolamento(), 3 * 60 * 1000).unref?.();
+    setInterval(() => void this.tickPreEnrolamento(), 15 * 60 * 1000).unref?.();
 
     // Tick novo — varredura de fantasmas (uma vez por dia às 3h BRT, delay 10 min)
-    setTimeout(() => void this.tickFantasmas(), 10 * 60 * 1000);
-    setInterval(() => void this.tickFantasmas(), 60 * 60 * 1000);
+    setTimeout(() => void this.tickFantasmas(), 10 * 60 * 1000).unref?.();
+    setInterval(() => void this.tickFantasmas(), 60 * 60 * 1000).unref?.();
 
     // Tick novo — retry automático de sync: quem ficou 'pending'/'error'
     // (upload ou REMOÇÃO que não chegou ao aparelho) é re-tentado sem
     // depender de clique manual no portal. Só roda com agente online.
-    setTimeout(() => void this.tickSyncRetry(), 7 * 60 * 1000);
-    setInterval(() => void this.tickSyncRetry(), 30 * 60 * 1000);
+    setTimeout(() => void this.tickSyncRetry(), 7 * 60 * 1000).unref?.();
+    setInterval(() => void this.tickSyncRetry(), 30 * 60 * 1000).unref?.();
 
     // Tick novo — áreas sociais: pré-enrola/reconcilia reservas aprovadas de
     // hoje no facial da área (delay 4 min, a cada 10 min).
-    setTimeout(() => void this.tickReservasAreas(), 4 * 60 * 1000);
-    setInterval(() => void this.tickReservasAreas(), 10 * 60 * 1000);
+    setTimeout(() => void this.tickReservasAreas(), 4 * 60 * 1000).unref?.();
+    setInterval(() => void this.tickReservasAreas(), 10 * 60 * 1000).unref?.();
   }
 
   /**

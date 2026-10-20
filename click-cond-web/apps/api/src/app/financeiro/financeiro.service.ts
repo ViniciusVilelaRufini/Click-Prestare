@@ -42,8 +42,8 @@ export class FinanceiroService implements OnModuleInit {
     // 1h após startup roda a primeira vez (não 30s — evita rodar durante o
     // warm-up se Railway ainda está terminando deploy). Depois checa a cada
     // hora se está dentro da janela horária permitida (9h-18h por padrão).
-    setTimeout(() => this.tickBillingJob(), 60 * 60 * 1000);
-    setInterval(() => this.tickBillingJob(), 60 * 60 * 1000);
+    setTimeout(() => this.tickBillingJob(), 60 * 60 * 1000).unref?.();
+    setInterval(() => this.tickBillingJob(), 60 * 60 * 1000).unref?.();
   }
 
   /**

@@ -88,8 +88,8 @@ export class SuperlogicaSyncService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    setInterval(() => void this.tickSincronizacao(), INTERVALO_SYNC_MS);
-    setTimeout(() => void this.tickSincronizacao(), ATRASO_INICIAL_MS);
+    setInterval(() => void this.tickSincronizacao(), INTERVALO_SYNC_MS).unref?.();
+    setTimeout(() => void this.tickSincronizacao(), ATRASO_INICIAL_MS).unref?.();
   }
 
   /**

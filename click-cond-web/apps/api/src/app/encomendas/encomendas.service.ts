@@ -30,10 +30,10 @@ export class EncomendasService implements OnModuleInit {
 
   onModuleInit() {
     // Verificar rastreamentos a cada 2 horas
-    setInterval(() => this.tickTrackingJob(), 2 * 60 * 60 * 1000);
+    setInterval(() => this.tickTrackingJob(), 2 * 60 * 60 * 1000).unref?.();
 
     // Executar verificação inicial após 15 segundos do bootstrap
-    setTimeout(() => this.tickTrackingJob(), 15000);
+    setTimeout(() => this.tickTrackingJob(), 15000).unref?.();
   }
 
   /**

@@ -29,8 +29,8 @@ export class CrmFaturasService implements OnModuleInit {
     // Geração mensal: checa 1x/dia; no dia 1 gera as faturas do mês.
     // Idempotente (unique id_condominio+referencia), então rodar de novo
     // no mesmo dia não duplica nada.
-    setInterval(() => this.tickGeracaoMensal(), 24 * 60 * 60 * 1000);
-    setTimeout(() => this.tickGeracaoMensal(), 30 * 60 * 1000);
+    setInterval(() => this.tickGeracaoMensal(), 24 * 60 * 60 * 1000).unref?.();
+    setTimeout(() => this.tickGeracaoMensal(), 30 * 60 * 1000).unref?.();
   }
 
   private async tickGeracaoMensal() {

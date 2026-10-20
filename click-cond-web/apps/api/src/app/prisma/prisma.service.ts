@@ -58,7 +58,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       if (!this._connected && process.env['DATABASE_URL']) {
         this.ensureConnected().catch(() => {});
       }
-    }, 10000);
+    }, 10000).unref?.();
   }
 
   async onModuleDestroy() {
