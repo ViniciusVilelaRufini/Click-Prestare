@@ -34,3 +34,13 @@ describe('AppController', () => {
     });
   });
 });
+
+// /debug-ip era público e devolvia os IPs da cadeia de proxies (CloudFront,
+// load balancer) a qualquer um. Serviu para diagnosticar o trust proxy e não
+// tem consumidor: não pode voltar como rota pública.
+describe('AppController — sem rota de diagnóstico pública', () => {
+  it('não expõe debug-ip', () => {
+    expect((AppController.prototype as any).getDebugIp).toBeUndefined();
+    expect((AppController.prototype as any).getDebugIpApi).toBeUndefined();
+  });
+});

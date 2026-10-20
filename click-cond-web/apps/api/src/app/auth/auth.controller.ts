@@ -52,10 +52,10 @@ export class AuthController {
     return this.authService.loginPortaria(body.login, body.senha);
   }
 
-  @Public()
+  // Só a portaria-web já logada usa (recupera o nome do próprio condomínio).
   @Get('condominio/:id')
-  async getCondominio(@Param('id', ParseIntPipe) id: number) {
-    return this.authService.getCondominioNome(id);
+  async getCondominio(@Param('id', ParseIntPipe) id: number, @ReqUser() payload: JwtPayload) {
+    return this.authService.getCondominioNome(id, payload);
   }
 
   // Síndico com mais de um condomínio escolhe em qual entrar (ou troca depois).

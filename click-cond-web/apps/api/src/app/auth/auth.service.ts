@@ -1,4 +1,4 @@
-import { Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { createHash } from 'crypto';
@@ -6,6 +6,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { QrSessionStore } from './qr-session.store';
 import { idUsuarioDoToken } from './usuario-do-token.util';
+import { TenantAccessService } from './tenant-access.service';
 
 /**
  * Lockout em memória por login. Após N tentativas falhas em janela,
@@ -30,6 +31,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly qrStore: QrSessionStore,
+    private readonly tenant?: TenantAccessService,
   ) {}
 
   private isLocked(login: string): boolean {
@@ -428,7 +430,12 @@ export class AuthService {
     return { success: true, message: 'Senha updated com sucesso.' };
   }
 
-  async getCondominioNome(id: number) {
+  async getCondominioNome(id: number, payload: JwtPayload | undefined) {
+    // Era público: com id sequencial, listava todos os clientes da plataforma.
+    // Exige a sessão e o vínculo — assertCondominio libera quando não há payload.
+    if (!payload) throw new UnauthorizedException('Sessão necessária.');
+    if (!this.tenant) throw new ForbiddenException('Não foi possível validar o vínculo.');
+    await this.tenant.assertCondominio(id, payload);
     if (!this.prisma.isConnected) {
       return { nome: 'Click Condomínio' };
     }

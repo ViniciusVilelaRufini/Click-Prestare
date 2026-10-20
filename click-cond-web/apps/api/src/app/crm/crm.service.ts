@@ -374,37 +374,33 @@ export class CrmService {
   async healthCheck(): Promise<{
     connected: boolean;
     mode: 'live' | 'mock';
-    totalCondominios: number;
     serverTime: string;
     dbLatencyMs: number;
   }> {
     const serverTime = new Date().toISOString();
 
     if (!this.prisma.isConnected) {
-      const mockCount = this._mockClientesDb?.length ?? 5;
       return {
         connected: false,
         mode: 'mock',
-        totalCondominios: mockCount,
         serverTime,
         dbLatencyMs: -1,
       };
     }
 
-    // Medir latência do banco com um SELECT simples
+    // Latência do banco com um SELECT simples. A rota é pública: não devolve
+    // dado de negócio (antes devolvia o total de condomínios da carteira).
     const start = Date.now();
-    let totalCondominios = 0;
     try {
-      totalCondominios = await this.prisma.condominios.count();
+      await this.prisma.$queryRaw`SELECT 1`;
     } catch {
-      totalCondominios = 0;
+      // Mantém connected=true: isConnected já reflete o estado do pool.
     }
     const dbLatencyMs = Date.now() - start;
 
     return {
       connected: true,
       mode: 'live',
-      totalCondominios,
       serverTime,
       dbLatencyMs,
     };

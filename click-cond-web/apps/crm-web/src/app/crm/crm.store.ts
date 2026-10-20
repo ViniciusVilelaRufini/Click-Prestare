@@ -277,7 +277,7 @@ export class CrmStore {
         this.healthLoading.set(false);
       },
       error: () => {
-        this.dbHealth.set({ connected: false, mode: 'mock', totalCondominios: 0, serverTime: new Date().toISOString(), dbLatencyMs: -1 });
+        this.dbHealth.set({ connected: false, mode: 'mock', serverTime: new Date().toISOString(), dbLatencyMs: -1 });
         this.healthLoading.set(false);
       },
     });

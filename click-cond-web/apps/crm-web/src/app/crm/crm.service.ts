@@ -92,7 +92,6 @@ export interface CrmOverview {
 export interface CrmHealth {
   connected: boolean;
   mode: 'live' | 'mock';
-  totalCondominios: number;
   serverTime: string;
   dbLatencyMs: number;
 }
