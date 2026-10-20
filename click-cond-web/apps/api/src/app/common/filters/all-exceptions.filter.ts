@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
+import { ROTAS_HARDWARE, origemConfiavel } from '../cors-origins';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -64,7 +65,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = exception.message;
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      // Falha interna (Prisma, serviço externo, bug): o texto original pode
+      // trazer a query com valores, a resposta crua de terceiros ou caminhos.
+      // Fica no logger.error abaixo; o cliente recebe só a mensagem genérica.
+      message = 'Erro interno do servidor. Tente novamente.';
     }
 
     // Sanitiza: nao vaza mensagens de erro de runtime JS engine pro cliente.
@@ -115,11 +119,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     // Garante headers CORS na resposta de erro (Express bypassa o cors middleware
     // quando o filter responde direto via httpAdapter.reply).
+    // Mesma regra do enableCors do main.ts: refletir qualquer Origin aqui faria
+    // a resposta de erro confiar em quem a resposta de sucesso não confia.
     const origin = request?.headers?.origin;
+    const path: string = request?.originalUrl || request?.url || '';
     if (origin && response?.setHeader) {
-      response.setHeader('Access-Control-Allow-Origin', origin);
-      response.setHeader('Access-Control-Allow-Credentials', 'true');
-      response.setHeader('Vary', 'Origin');
+      if (ROTAS_HARDWARE.test(path)) {
+        response.setHeader('Access-Control-Allow-Origin', origin);
+        response.setHeader('Vary', 'Origin');
+      } else if (origemConfiavel(origin)) {
+        response.setHeader('Access-Control-Allow-Origin', origin);
+        response.setHeader('Access-Control-Allow-Credentials', 'true');
+        response.setHeader('Vary', 'Origin');
+      }
     }
 
     httpAdapter.reply(response, responseBody, httpStatus);

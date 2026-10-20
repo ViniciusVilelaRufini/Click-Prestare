@@ -24,7 +24,7 @@ import { AppModule } from './app/app.module';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
 import { json, text, urlencoded } from 'express';
 import { requestContext, extractClientIp } from './app/common/context/request-context';
-import { CORS_ORIGINS_PRINCIPAIS } from './app/common/cors-origins';
+import { ROTAS_HARDWARE, origensConfiaveis } from './app/common/cors-origins';
 
 // Rede de segurança: uma promessa rejeitada e esquecida (sem await) derruba o
 // processo Node (padrão do Node 15+) e, com ele, todos os condomínios.
@@ -107,24 +107,13 @@ async function bootstrap() {
   const httpAdapterHost = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapterHost));
 
-  // Origens sempre confiáveis: os domínios que nós controlamos. Não inclui
-  // *.vercel.app — a Vercel foi desativada na migração para a AWS, e domínio
-  // .vercel.app abandonado pode ser RECLAMADO por terceiros, que passariam a
-  // falar com esta API como origem confiável.
-  const alwaysAllowed = CORS_ORIGINS_PRINCIPAIS;
-
-  // CORS_ORIGINS (env do Beanstalk) acrescenta origens à lista — não a substitui,
-  // senão um valor mal preenchido derruba a portaria-web em produção.
-  const allowedOriginsEnv = process.env.CORS_ORIGINS;
-  const extraOrigins = allowedOriginsEnv
-    ? allowedOriginsEnv.split(',').map((o) => o.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
-    : [];
-
-  // A env CORS_ORIGINS do Beanstalk ainda carrega resíduo da Vercel. Descartamos
-  // aqui para que uma variável desatualizada não devolva confiança a um domínio
-  // que hoje qualquer pessoa pode registrar.
-  const vercelResiduo = extraOrigins.filter((o) => /\.vercel\.app$/i.test(o));
-  const extraLimpas = extraOrigins.filter((o) => !/\.vercel\.app$/i.test(o));
+  // A env CORS_ORIGINS do Beanstalk ainda carrega resíduo da Vercel.
+  // origensConfiaveis() já o descarta (domínio .vercel.app abandonado pode ser
+  // RECLAMADO por terceiros); aqui só avisamos para a variável ser limpa.
+  const vercelResiduo = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim().replace(/^["']|["']$/g, ''))
+    .filter((o) => /\.vercel\.app$/i.test(o));
   if (vercelResiduo.length) {
     Logger.warn(
       `CORS: ignorando ${vercelResiduo.length} origem(ns) .vercel.app vindas de CORS_ORIGINS (${vercelResiduo.join(', ')}). ` +
@@ -133,7 +122,7 @@ async function bootstrap() {
     );
   }
 
-  const allowedOrigins = [...new Set([...alwaysAllowed, ...extraLimpas])];
+  const allowedOrigins = origensConfiaveis();
 
   // Assinatura (req, callback): dá acesso à URL para liberar rotas públicas.
   app.enableCors((req: any, callback: (err: Error | null, options?: any) => void) => {
@@ -141,7 +130,7 @@ async function bootstrap() {
     // hardware (catraca/leitor) e pelas páginas de simulador a partir de
     // QUALQUER host. Não há cookie/credencial — libera qualquer origem.
     const path: string = req.originalUrl || req.url || '';
-    if (/^\/api\/facial\/(webhook|sim|simulator)\b/.test(path)) {
+    if (ROTAS_HARDWARE.test(path)) {
       return callback(null, { origin: true, credentials: false });
     }
 

@@ -11,16 +11,18 @@ import { AllExceptionsFilter } from './all-exceptions.filter';
  * Aqui o assert é sobre o body REALMENTE entregue ao httpAdapter.reply().
  */
 describe('AllExceptionsFilter — body entregue na rede', () => {
-  function build() {
+  function build(opts: { origin?: string; url?: string } = {}) {
     const reply = jest.fn();
+    const url = opts.url ?? '/areas-sociais/manutencao/insert';
     const filter = new AllExceptionsFilter({
-      httpAdapter: { reply, getRequestUrl: () => '/areas-sociais/manutencao/insert' },
+      httpAdapter: { reply, getRequestUrl: () => url },
     } as any);
 
     const response = { setHeader: jest.fn() };
+    const headers = opts.origin ? { origin: opts.origin } : {};
     const host: any = {
       switchToHttp: () => ({
-        getRequest: () => ({ headers: {} }),
+        getRequest: () => ({ headers, originalUrl: url }),
         getResponse: () => response,
       }),
     };
@@ -34,7 +36,7 @@ describe('AllExceptionsFilter — body entregue na rede', () => {
       return { body, status };
     };
 
-    return { capturar, reply };
+    return { capturar, reply, response };
   }
 
   it('payload de objeto: as chaves próprias sobrevivem ao lado de statusCode/timestamp/path', () => {
@@ -97,5 +99,64 @@ describe('AllExceptionsFilter — body entregue na rede', () => {
     const { body, status } = capturar(new TypeError('Cannot read properties of undefined'));
     expect(status).toBe(500);
     expect(body.message).toBe('Erro interno do servidor. Tente novamente.');
+  });
+
+  // Erro que não é HttpException é falha interna: o texto original pode trazer
+  // a query do Prisma (com valores), a resposta crua de um serviço externo ou
+  // caminho de arquivo. Fica no log; o cliente recebe só a mensagem genérica.
+  it('erro não-HTTP (Error comum) não devolve a mensagem interna', () => {
+    const { capturar } = build();
+    const { body, status } = capturar(new Error('[Gemini] HTTP 500: {"detalhe":"interno"}'));
+    expect(status).toBe(500);
+    expect(body.message).toBe('Erro interno do servidor. Tente novamente.');
+  });
+
+  it('erro do Prisma não devolve a query', () => {
+    const { capturar } = build();
+    const e = new Error('Invalid `prisma.users.findFirst()` invocation: { where: { email: "x@y.z" } }');
+    e.name = 'PrismaClientValidationError';
+    expect(capturar(e).body.message).toBe('Erro interno do servidor. Tente novamente.');
+  });
+
+  it('erro HTTP mantém a mensagem de negócio', () => {
+    const { capturar } = build();
+    expect(capturar(new BadRequestException('CPF inválido')).body.message).toBe('CPF inválido');
+  });
+});
+
+describe('AllExceptionsFilter — CORS na resposta de erro', () => {
+  function build(opts: { origin?: string; url?: string } = {}) {
+    const reply = jest.fn();
+    const url = opts.url ?? '/api/moradores';
+    const filter = new AllExceptionsFilter({
+      httpAdapter: { reply, getRequestUrl: () => url },
+    } as any);
+    const response = { setHeader: jest.fn() };
+    const host: any = {
+      switchToHttp: () => ({
+        getRequest: () => ({ headers: opts.origin ? { origin: opts.origin } : {}, originalUrl: url }),
+        getResponse: () => response,
+      }),
+    };
+    jest.spyOn((filter as any).logger, 'error').mockImplementation(() => undefined);
+    filter.catch(new BadRequestException('x'), host);
+    return response.setHeader;
+  }
+
+  it('origem desconhecida não recebe Access-Control-Allow-Origin', () => {
+    const setHeader = build({ origin: 'https://atacante.example' });
+    expect(setHeader).not.toHaveBeenCalledWith('Access-Control-Allow-Origin', expect.anything());
+  });
+
+  it('origem confiável continua recebendo CORS com credenciais', () => {
+    const setHeader = build({ origin: 'https://www.prestarecondominios.com.br' });
+    expect(setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', 'https://www.prestarecondominios.com.br');
+    expect(setHeader).toHaveBeenCalledWith('Access-Control-Allow-Credentials', 'true');
+  });
+
+  it('rota de hardware recebe CORS de qualquer origem, sem credenciais', () => {
+    const setHeader = build({ origin: 'http://192.168.0.50', url: '/api/facial/webhook/abc' });
+    expect(setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', 'http://192.168.0.50');
+    expect(setHeader).not.toHaveBeenCalledWith('Access-Control-Allow-Credentials', 'true');
   });
 });
