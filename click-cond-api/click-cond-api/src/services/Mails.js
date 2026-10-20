@@ -71,8 +71,8 @@ module.exports = {
             port: 587,
             secure: false,
             auth: {
-              user: "suporte@clickprestarecondominios.com.br",
-              pass: "njyqoenhmsyzblwa"
+              user: process.env.SMTP_USER,
+              pass: (process.env.SMTP_PASS || "").replace(/\s+/g, "")
             }
           });
           var emailASerEnviado = {
@@ -151,8 +151,8 @@ module.exports = {
             port: 587,
             secure: false,
             auth: {
-              user: "suporte@clickprestarecondominios.com.br",
-              pass: "njyqoenhmsyzblwa"
+              user: process.env.SMTP_USER,
+              pass: (process.env.SMTP_PASS || "").replace(/\s+/g, "")
             }
           });
           var emailASerEnviado = {
@@ -174,4 +174,4 @@ module.exports = {
       })    
     },
 
-}
+}
