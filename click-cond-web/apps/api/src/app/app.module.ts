@@ -32,6 +32,7 @@ import { FacialModule } from './facial/facial.module';
 import { RegrasAcessoModule } from './regras-acesso/regras-acesso.module';
 import { CaminhosAcessoModule } from './caminhos-acesso/caminhos-acesso.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { ArquivosPrivadosInterceptor } from './common/interceptors/arquivos-privados.interceptor';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { CrmModule } from './crm/crm.module';
 import { MarketingModule } from './marketing/marketing.module';
@@ -100,6 +101,7 @@ import { THROTTLERS } from './common/throttle/throttlers';
     { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: ArquivosPrivadosInterceptor },
   ],
 })
 export class AppModule {}

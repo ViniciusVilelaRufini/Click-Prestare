@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 
 /**
@@ -16,7 +17,7 @@ import { randomUUID } from 'crypto';
  * retorna a string original (compatibilidade com ambiente de dev).
  */
 /**
- * Tipos aceitos no upload. O arquivo é público (public-read) no domínio do
+ * Tipos aceitos no upload. O arquivo é servido por link assinado no domínio do
  * storage: HTML/SVG/JS ali seriam XSS armazenado, então o Content-Type NUNCA
  * vem do cliente — só estes tipos passam, com extensão derivada do tipo.
  */
@@ -38,6 +39,15 @@ const TIPOS_PERMITIDOS: Record<string, string> = {
 };
 /** Teto do arquivo decodificado (a API aceita 100 MB de JSON; o storage não deve). */
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Validade dos links assinados: 7 dias, o máximo do SigV4. A assinatura parte
+ * do início do dia (UTC), então o link é o mesmo o dia inteiro — o cache de
+ * imagem do app e da web continua valendo — e vale de 6 a 7 dias. O app guarda
+ * a foto do usuário entre sessões e a tela inicial a rebusca; uma validade de
+ * horas quebraria o avatar de quem não abre o app todo dia.
+ */
+const VALIDADE_LINK_S = 7 * 24 * 60 * 60;
 
 @Injectable()
 export class StorageService {
@@ -140,7 +150,6 @@ export class StorageService {
         Key: key,
         Body: buffer,
         ContentType: contentType,
-        ACL: 'public-read',
       }));
 
       return `${this.publicUrl}/${key}`;
@@ -148,6 +157,57 @@ export class StorageService {
       this.logger.error(`Falha ao subir para R2: ${err?.message ?? err}. Usando base64 fallback.`);
       return dataUrl;
     }
+  }
+
+  /**
+   * Key do objeto quando a URL é do NOSSO bucket (forma canônica ou qualquer
+   * host S3 do bucket, assinada ou não); null para o resto.
+   */
+  private keyDoBucket(url: unknown): string | null {
+    if (typeof url !== 'string' || !this.bucket || !/^https?:\/\//i.test(url)) return null;
+    let u: URL;
+    try {
+      u = new URL(url);
+    } catch {
+      return null;
+    }
+    const base = this.publicUrl ? new URL(this.publicUrl) : null;
+    // Hosts que o S3 usa para o bucket: bucket.s3.amazonaws.com e as variantes
+    // regionais (bucket.s3.us-east-1.amazonaws.com, bucket.s3-us-east-1...).
+    const host = u.host.toLowerCase();
+    const bucket = this.bucket.toLowerCase();
+    const hostDoBucket =
+      (host.startsWith(`${bucket}.s3.`) || host.startsWith(`${bucket}.s3-`)) && host.endsWith('.amazonaws.com');
+    const nosso = (base && host === base.host.toLowerCase()) || hostDoBucket;
+    if (!nosso) return null;
+    const key = decodeURIComponent(u.pathname.replace(/^\/+/, ''));
+    return key && !key.split('/').includes('..') ? key : null;
+  }
+
+  /**
+   * Forma canônica (sem assinatura) de uma URL do bucket — é o que vai para o
+   * banco. O cliente devolve a URL assinada que recebeu ao salvar um cadastro;
+   * gravada assim, ela expiraria junto com o link.
+   */
+  normalizarUrl<T>(url: T): T {
+    const key = this.keyDoBucket(url);
+    return (key ? `${this.publicUrl}/${key}` : url) as T;
+  }
+
+  /**
+   * Link temporário de leitura para um arquivo do bucket (privado). URL de
+   * outro host, data URL ou storage desativado: devolve como está.
+   */
+  async assinarUrl(url: string): Promise<string> {
+    if (!this.enabled || !this.client) return url;
+    const key = this.keyDoBucket(url);
+    if (!key) return url;
+    const agora = new Date();
+    const inicioDoDia = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate()));
+    return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
+      expiresIn: VALIDADE_LINK_S,
+      signingDate: inicioDoDia,
+    });
   }
 
   /**
