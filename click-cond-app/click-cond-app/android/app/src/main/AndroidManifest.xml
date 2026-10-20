@@ -25,7 +25,11 @@
 
    <application
         android:label="Prestare"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:replace="android:allowBackup,android:fullBackupContent">
         <!-- Canal padrão e ícone de notificações de alta importância do Firebase -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"

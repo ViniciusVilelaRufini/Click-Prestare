@@ -1,6 +1,7 @@
 import 'package:click/pages/singleton.dart';
 import 'package:click/services/firebase_service.dart';
 import 'package:click/utils/cond_cache.dart';
+import 'package:click/utils/segredos_sessao.dart';
 import 'package:localstorage/localstorage.dart';
 
 // Instância única — inicializada via ensureReady() no main antes de usar
@@ -9,6 +10,14 @@ final _storage = LocalStorage('user_data');
 /// Deve ser chamado uma vez no startup (já feito em LocalStorageConfig.initializeLocalStorage)
 Future<void> ensureStorageReady() async {
   await _storage.ready;
+  // Token e dispositivo confiável vivem no armazenamento seguro (fora do
+  // JSON em texto puro e do backup). O legado serve para migrar e de reserva.
+  SegredosSessao.legado = LegadoSessao(
+    ler: (k) => _storage.getItem(k),
+    gravar: (k, v) => _storage.setItem(k, v),
+    apagar: (k) => _storage.deleteItem(k),
+  );
+  await SegredosSessao.carregar();
 }
 
 /// Token de uma resposta de autenticação.
@@ -31,11 +40,11 @@ String? tokenDaResposta(Map<String, dynamic> parsed) {
 /// zerava as 8 permissões e ainda trocava o loginType do porteiro.
 void atualizarTokenSessao(Map<String, dynamic> parsed) {
   final token = tokenDaResposta(parsed);
-  if (token != null) _storage.setItem('token', token);
+  if (token != null) SegredosSessao.gravar('token', token);
 }
 
 storageLogin(Map<String, dynamic> parsed) {
-  _storage.setItem('token', parsed["token"]);
+  SegredosSessao.gravar('token', parsed["token"]?.toString());
   _storage.setItem('id', parsed["user"]["id"]);
   _storage.setItem('name', parsed["user"]["name"]);
   final photo = parsed["user"]["photo"]?.toString().trim() ?? '';
@@ -45,7 +54,7 @@ storageLogin(Map<String, dynamic> parsed) {
 }
 
 storageMorador(Map<String, dynamic> parsed) {
-  _storage.setItem('token', parsed["token"]);
+  SegredosSessao.gravar('token', parsed["token"]?.toString());
   _storage.setItem('id', parsed["user"]["id"]);
   _storage.setItem('name', parsed["user"]["nome"]);
   final photo = parsed["user"]["photo"]?.toString().trim() ?? '';
@@ -55,7 +64,7 @@ storageMorador(Map<String, dynamic> parsed) {
 }
 
 storageFuncionario(Map<String, dynamic> parsed) {
-  _storage.setItem('token', parsed["token"]);
+  SegredosSessao.gravar('token', parsed["token"]?.toString());
   _storage.setItem('id', parsed["user"]["id"]);
   _storage.setItem('name', parsed["user"]["nome"]);
   final photo = parsed["user"]["photo"]?.toString().trim() ?? '';
@@ -94,22 +103,25 @@ Future<void> storageLogout() async {
   try {
     await FirebaseService.instance.desregistrarNoServidor();
   } catch (_) {}
+  await SegredosSessao.apagar('token');
   _storage.clear();
+  // O dispositivo confiável do MFA sobrevive ao logout (fica no armazenamento
+  // seguro, que o clear acima não toca); regrava para garantir o cache.
   if (deviceToken.isNotEmpty) {
     setSindicoDeviceToken(deviceToken);
   }
 }
 
 String getSindicoDeviceToken() {
-  return _storage.getItem('sindico_device_token')?.toString() ?? "";
+  return SegredosSessao.ler('sindico_device_token');
 }
 
 void setSindicoDeviceToken(String token) {
-  _storage.setItem('sindico_device_token', token);
+  SegredosSessao.gravar('sindico_device_token', token);
 }
 
 String getToken() {
-  return _storage.getItem('token') ?? "";
+  return SegredosSessao.ler('token');
 }
 
 String getUsername() {
