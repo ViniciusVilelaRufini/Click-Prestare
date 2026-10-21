@@ -3,11 +3,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com/api/:path*"
+      "destination": "https://api.prestarecondominios.com.br/api/:path*"
     },
     {
       "source": "/simulador-acesso.html",
-      "destination": "http://Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com/simulador-acesso.html"
+      "destination": "https://api.prestarecondominios.com.br/simulador-acesso.html"
     },
     {
       "source": "/:path*",
