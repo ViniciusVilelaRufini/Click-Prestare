@@ -1836,6 +1836,7 @@ export class MobileAuthService {
   // Exclusão de conta (LGPD / requisito Play Store): apaga o usuário logado e,
   // por cascata de FK no banco, seus dados vinculados (morador/síndico, veículos,
   // vagas, etc.). Escopo estrito por id do JWT — remove apenas a própria conta.
+  // O rosto nos terminais não segue a cascata: é removido antes, como no remove do morador.
   async deleteAccount(idUser: number) {
     if (!this.prisma.isConnected) return { success: true };
     if (!idUser || Number.isNaN(idUser)) {
@@ -1852,6 +1853,24 @@ export class MobileAuthService {
       await this.prisma.funcionarios_Portaria.deleteMany({
         where: { login: { in: emails } },
       });
+    }
+    // O rosto do morador também está gravado nos terminais. A cascata apaga as linhas de Moradores,
+    // que são o único lugar com o face_id, e o template biométrico ficava no aparelho. Mesmo caminho
+    // do remove do morador (best-effort): falha de terminal não impede a exclusão da conta.
+    try {
+      const comRosto = await this.prisma.moradores.findMany({
+        where: { id_user: idUser, face_id: { not: null } },
+        select: { id: true, face_id: true, id_condominio: true },
+      });
+      for (const m of comRosto) {
+        this.facial
+          .unsyncMorador(m.id, m.face_id, m.id_condominio)
+          .catch((err: any) =>
+            this.logger.warn(`Unsync facial morador ${m.id} (exclusão de conta) falhou: ${err?.message ?? err}`),
+          );
+      }
+    } catch (err: any) {
+      this.logger.warn(`Exclusão de conta ${idUser}: não foi possível listar os rostos: ${err?.message ?? err}`);
     }
     await this.prisma.$executeRaw`DELETE FROM Users WHERE id = ${idUser}`;
     return { success: true };
