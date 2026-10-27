@@ -1,10 +1,23 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { COMANDO_AJUSTE_TAREFA, FacialService, LINHAS_ECHO_LACO_SERVICO } from './facial.service';
+import {
+  COMANDO_AJUSTE_TAREFA,
+  FacialService,
+  LINHAS_ECHO_LACO_SERVICO,
+  LINHAS_TRANCAR_PASTA_AGENTE,
+} from './facial.service';
 
 /** Linhas de um .bat (CRLF ou LF), sem o terminador. */
 function linhasDe(texto: string): string[] {
   return texto.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n');
+}
+
+/** Índice da 1ª linha onde `bloco` aparece inteiro e contíguo em `linhas`; -1 se não aparece. */
+function indiceDoBloco(linhas: string[], bloco: readonly string[]): number {
+  for (let i = 0; i + bloco.length <= linhas.length; i++) {
+    if (bloco.every((l, j) => linhas[i + j] === l)) return i;
+  }
+  return -1;
 }
 
 /** O bloco "(" ... ") > <destino>" que escreve o run-agent-service.cmd. */
@@ -210,6 +223,23 @@ describe('FacialService.getAgentConfigFile(bat) — laço de reinício (tarefa 9
       'echo for %%%%A in ^("%%~dp0agent-service.log"^) do if %%%%~zA GTR 5242880 move /y "%%~dp0agent-service.log" "%%~dp0agent-service.1.log" ^>nul',
     );
   });
+
+  it('B9: instala em %ProgramFiles%\\ClickAgente (não em Downloads) e tranca a pasta antes do .env e da tarefa SYSTEM', () => {
+    const linhas = linhasDe(conteudo);
+    expect(linhas).toContain('set "DIR=%ProgramFiles%\\ClickAgente\\"');
+    expect(linhas).not.toContain('set "DIR=%~dp0"');
+    expect(LINHAS_TRANCAR_PASTA_AGENTE[0]).toBe(
+      'icacls "%DIR%." /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F /Q',
+    );
+    const idxMkdir = linhas.indexOf('if not exist "%DIR%" mkdir "%DIR%"');
+    const idxAcl = indiceDoBloco(linhas, LINHAS_TRANCAR_PASTA_AGENTE);
+    const idxEnv = linhas.indexOf('echo AGENT_TOKEN=token-fixo-123');
+    const idxCreate = linhas.findIndex((l) => l.startsWith('schtasks /Create '));
+    expect(idxMkdir).toBeGreaterThan(-1);
+    expect(idxAcl).toBeGreaterThan(idxMkdir);
+    expect(idxEnv).toBeGreaterThan(idxAcl);
+    expect(idxCreate).toBeGreaterThan(idxAcl);
+  });
 });
 
 /**
@@ -272,6 +302,17 @@ describe('agent/install-windows.bat — mesmo laço de reinício e rotação de 
   it('tasklist procura o bundle atual (click-agent.cjs), não o index.js antigo', () => {
     expect(conteudo).toContain('click-agent.cjs');
     expect(conteudo).not.toContain('index.js');
+  });
+
+  it('B9: recusa pasta de perfil e tranca a pasta (só SYSTEM e Administradores) antes de registrar a tarefa SYSTEM', () => {
+    const linhas = linhasDe(conteudo);
+    expect(linhas).toContain('set "DIR=%~dp0"');
+    const idxGuarda = linhas.indexOf('if /I "%DIR:~1,8%"==":\\Users\\" (');
+    const idxAcl = indiceDoBloco(linhas, LINHAS_TRANCAR_PASTA_AGENTE);
+    const idxCreate = linhas.findIndex((l) => l.startsWith('schtasks /Create '));
+    expect(idxGuarda).toBeGreaterThan(-1);
+    expect(idxAcl).toBeGreaterThan(idxGuarda);
+    expect(idxCreate).toBeGreaterThan(idxAcl);
   });
 });
 

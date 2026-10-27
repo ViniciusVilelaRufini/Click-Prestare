@@ -224,6 +224,25 @@ export const COMANDO_AJUSTE_TAREFA =
   'powershell -NoProfile -Command "Set-ScheduledTask -TaskName ClickPortariaAgent -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1))"';
 
 /**
+ * Tranca a pasta do agente: a tarefa roda como SYSTEM, entao so SYSTEM
+ * (S-1-5-18) e Administradores (S-1-5-32-544) podem escrever ou ler ali - sem
+ * isto um usuario comum trocava o click-agent.exe/run-agent-service.cmd e
+ * ganhava SYSTEM, ou lia o AGENT_TOKEN do .env. Dono vira Administradores e os
+ * arquivos existentes voltam a herdar a ACL da pasta. Usa %DIR% (com a barra
+ * final). As MESMAS linhas estao em agent/install-windows.bat (um teste confere).
+ */
+export const LINHAS_TRANCAR_PASTA_AGENTE: readonly string[] = [
+  'icacls "%DIR%." /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F /Q',
+  'if errorlevel 1 (',
+  '  echo [ERRO] Nao consegui proteger a pasta do agente. Rode este arquivo como Administrador.',
+  '  pause',
+  '  exit /b 1',
+  ')',
+  'icacls "%DIR%." /setowner *S-1-5-32-544 /T /C /Q >nul',
+  'icacls "%DIR%*" /reset /T /C /Q >nul',
+];
+
+/**
  * instalar-agente-<condominio>.bat do portal: 1 clique instala OU ATUALIZA.
  * Para a tarefa e o processo ANTES de mexer em qualquer arquivo (o cmd.exe
  * le o .cmd em execucao pelo deslocamento - reescreve-lo com o laco rodando
@@ -248,7 +267,9 @@ export function montarInstaladorBat(apiBase: string, token: string, downloadUrl:
   const linhas = [
     '@echo off',
     'setlocal',
-    'set "DIR=%~dp0"',
+    // Pasta fixa e protegida - nao a pasta de onde o .bat rodou (Downloads),
+    // que qualquer usuario escreve: a tarefa roda como SYSTEM.
+    'set "DIR=%ProgramFiles%\\ClickAgente\\"',
     'set "EXE=%DIR%click-agent.exe"',
     'set "NOVO=%DIR%click-agent.new.exe"',
     'set "ENVFILE=%DIR%.env"',
@@ -262,7 +283,12 @@ export function montarInstaladorBat(apiBase: string, token: string, downloadUrl:
     'if exist "%DIR%atualizacao.json" del "%DIR%atualizacao.json"',
     'if exist "%DIR%atualizacao-falhas.txt" del "%DIR%atualizacao-falhas.txt"',
     '',
-    'REM 2) Baixa a versao atual do agente (instala ou atualiza)',
+    'REM 2) Pasta protegida do agente: so SYSTEM e Administradores (a tarefa roda como SYSTEM)',
+    'if not exist "%DIR%" mkdir "%DIR%"',
+    ...LINHAS_TRANCAR_PASTA_AGENTE,
+    'if not exist "%EXE%" if exist "%~dp0click-agent.exe" copy /y "%~dp0click-agent.exe" "%EXE%" >nul',
+    '',
+    'REM 3) Baixa a versao atual do agente (instala ou atualiza)',
     ...baixaExe,
     'if not exist "%EXE%" (',
     '  echo [ERRO] click-agent.exe nao encontrado nesta pasta. Baixe-o pelo portal e rode de novo.',
@@ -270,18 +296,18 @@ export function montarInstaladorBat(apiBase: string, token: string, downloadUrl:
     '  exit /b 1',
     ')',
     '',
-    'REM 3) Escreve a configuracao do condominio',
+    'REM 4) Escreve a configuracao do condominio',
     '(',
     `echo API_URL=${apiBase}`,
     `echo AGENT_TOKEN=${token}`,
     ') > "%ENVFILE%"',
     '',
-    'REM 4) Escreve o laco de reinicio (run-agent-service.cmd)',
+    'REM 5) Escreve o laco de reinicio (run-agent-service.cmd)',
     '(',
     ...LINHAS_ECHO_LACO_SERVICO,
     ') > "%CMDFILE%"',
     '',
-    'REM 5) Inicia com o Windows, sem limite de 72h nem parada na bateria',
+    'REM 6) Inicia com o Windows, sem limite de 72h nem parada na bateria',
     'schtasks /Create /TN "ClickPortariaAgent" /TR "\\"%CMDFILE%\\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F',
     'if errorlevel 1 (',
     '  echo [ERRO] Falha ao registrar a tarefa. Rode este arquivo como Administrador.',
@@ -292,7 +318,7 @@ export function montarInstaladorBat(apiBase: string, token: string, downloadUrl:
     'if errorlevel 1 echo [AVISO] Nao consegui ajustar as opcoes da tarefa - ela pode parar sozinha apos 72h.',
     'schtasks /Run /TN "ClickPortariaAgent"',
     'echo.',
-    'echo Pronto! Agente instalado e rodando. Confira "Agente conectado" no portal.',
+    'echo Pronto! Agente instalado em %DIR% e rodando. Confira "Agente conectado" no portal.',
     'pause',
   ];
   return linhas.join('\r\n') + '\r\n';

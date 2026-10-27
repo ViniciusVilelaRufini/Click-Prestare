@@ -10,6 +10,7 @@ REM ===================================================================
 setlocal
 set TASK=ClickPortariaAgent
 set EXE=%~dp0click-agent.exe
+set "DIR=%~dp0"
 
 if not exist "%EXE%" (
   echo [ERRO] click-agent.exe nao encontrado nesta pasta.
@@ -35,6 +36,26 @@ REM isso, o exe instalado agora contaria como "versao nova em teste" e
 REM poderia ser revertido para um click-agent.old.exe mais velho.
 if exist "%~dp0atualizacao.json" del "%~dp0atualizacao.json"
 if exist "%~dp0atualizacao-falhas.txt" del "%~dp0atualizacao-falhas.txt"
+
+REM Pasta do agente: a tarefa roda como SYSTEM, entao so SYSTEM e
+REM Administradores podem escrever aqui - senao qualquer usuario troca o
+REM click-agent.exe/run-agent-service.cmd e ganha SYSTEM, ou le o AGENT_TOKEN.
+REM Pasta de perfil (Downloads, Desktop...) nao: trancar tiraria o acesso do
+REM usuario a ela. As linhas do icacls sao IDENTICAS as do instalador do portal
+REM (LINHAS_TRANCAR_PASTA_AGENTE em apps/api/src/app/facial/facial.service.ts).
+if /I "%DIR:~1,8%"==":\Users\" (
+  echo [ERRO] Instale numa pasta propria, ex.: C:\ClickAgente - nao dentro de C:\Users.
+  pause
+  exit /b 1
+)
+icacls "%DIR%." /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F /Q
+if errorlevel 1 (
+  echo [ERRO] Nao consegui proteger a pasta do agente. Rode este arquivo como Administrador.
+  pause
+  exit /b 1
+)
+icacls "%DIR%." /setowner *S-1-5-32-544 /T /C /Q >nul
+icacls "%DIR%*" /reset /T /C /Q >nul
 
 if not exist "%~dp0.env" (
   echo [AVISO] Arquivo .env nao encontrado. Crie a partir de .env.example
