@@ -598,6 +598,9 @@ export class AuthService {
     }
 
     if (session.status === 'confirmed') {
+      // Uma entrega só: o navegador que gerou o QR consulta a cada 1,5 s e é
+      // quem recebe; uma segunda consulta (QR fotografado/repassado) não leva o token.
+      this.qrStore.consumir(qrToken);
       return {
         status: 'confirmed',
         access_token: session.access_token,

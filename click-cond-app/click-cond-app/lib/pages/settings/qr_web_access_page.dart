@@ -8,9 +8,43 @@ import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/api_config.dart';
-import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+
+/// Pergunta ao usuário antes de liberar a sessão web e só então chama
+/// POST /auth/qr/authorize. Devolve null quando ele cancela — nada chega ao
+/// servidor.
+///
+/// O QR do console é só um código de sessão: quem estiver com a tela dele
+/// recebe o acesso. Autorizar no instante da leitura deixava um golpista
+/// repassar o QR da tela de login DELE e entrar no console com o acesso de
+/// quem escaneou (QRLjacking).
+Future<http.Response?> confirmarEAutorizarQrWeb(
+  BuildContext context, {
+  required String qrToken,
+  required int idCondominio,
+  VoidCallback? aoConfirmar,
+}) async {
+  final confirmou = await showAppConfirmDialog(
+    context,
+    title: 'Liberar acesso ao console web?',
+    message: 'Só autorize se foi VOCÊ quem acabou de abrir a tela de login do console, '
+        'em um computador à sua frente. Se alguém te enviou este QR Code ou pediu '
+        'para você escaneá-lo, cancele: quem estiver com essa tela entra no console '
+        'com o seu acesso.',
+    confirmLabel: 'Autorizar',
+    cancelLabel: 'Cancelar',
+    icon: PhosphorIcons.warningCircleFill,
+    iconColor: AppColors.warning,
+  );
+  if (!confirmou) return null;
+  aoConfirmar?.call();
+  return ApiClient.post(
+    ApiConfig.buildUri('/auth/qr/authorize'),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'qrToken': qrToken, 'id_condominio': idCondominio}),
+  );
+}
 
 class QrWebAccessPage extends StatefulWidget {
   final int idCondominio;
@@ -48,13 +82,12 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
     setState(() => _isProcessing = true);
     _scannerController.stop();
 
-    // Mostrar loader de autorização
-    _showProcessingDialog();
     // Sem esta flag, o jsonDecode lancando (corpo nao-JSON, HTML de proxy)
     // levava o fluxo ao catch, que dava um SEGUNDO pop: o primeiro fechou o
     // loader, o segundo desempilhava a propria tela do scanner. O usuario via
     // a tela sumir sem explicacao — numa tela de autorizacao de sessao web.
-    var loaderAberto = true;
+    // O loader só abre depois que o usuário confirma.
+    var loaderAberto = false;
     void fecharLoader() {
       if (loaderAberto && mounted) {
         loaderAberto = false;
@@ -63,19 +96,23 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
     }
 
     try {
-      final response = await ApiClient.post(
-        ApiConfig.buildUri('/auth/qr/authorize'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': getToken(),
+      final response = await confirmarEAutorizarQrWeb(
+        context,
+        qrToken: code,
+        idCondominio: widget.idCondominio,
+        aoConfirmar: () {
+          loaderAberto = true;
+          _showProcessingDialog();
         },
-        body: jsonEncode({
-          'qrToken': code,
-          'id_condominio': widget.idCondominio,
-        }),
       );
 
       if (!mounted) return;
+      if (response == null) {
+        // Cancelou: nada foi enviado ao servidor. Volta a escanear.
+        setState(() => _isProcessing = false);
+        _scannerController.start();
+        return;
+      }
       fecharLoader();
 
       if (response.statusCode == 200) {

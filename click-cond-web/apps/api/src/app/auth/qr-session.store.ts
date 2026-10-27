@@ -56,6 +56,14 @@ export class QrSessionStore {
     return true;
   }
 
+  /**
+   * Entrega única: depois que o token de portaria sai pelo status, a sessão
+   * deixa de existir — quem fotografou o QR e consulta depois não recebe nada.
+   */
+  consumir(token: string): void {
+    this.sessions.delete(token);
+  }
+
   private cleanup() {
     const now = Date.now();
     for (const [token, session] of this.sessions.entries()) {
