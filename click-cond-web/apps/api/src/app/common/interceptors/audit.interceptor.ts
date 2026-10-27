@@ -1,10 +1,12 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Optional } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SKIP_AUDIT_KEY } from './skip-audit.decorator';
 import { extractClientIp } from '../context/request-context';
+import { TenantAccessService } from '../../auth/tenant-access.service';
+import { idUsuarioDoToken } from '../../auth/usuario-do-token.util';
 
 /** Chaves cujo valor nunca deve ir para AuditLog.detalhes (legível por operadores do condomínio). */
 const CHAVE_SENSIVEL = /(senha|password|passwd|secret|token|api_?(user|key|password)|photo|foto|assinatura)/i;
@@ -26,6 +28,7 @@ export class AuditInterceptor implements NestInterceptor {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
+    @Optional() private readonly tenant?: TenantAccessService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -58,8 +61,7 @@ export class AuditInterceptor implements NestInterceptor {
 
             // Extrair info do usuário do JWT payload
             const jwtPayload = user?.user ?? user ?? {};
-            const idCondominio: number =
-              Number(jwtPayload?.id_condominio ?? (user ? body?.id_condominio : 0) ?? 0);
+            const idCondominio = await this.condominioDoRegistro(user, jwtPayload, params, body);
 
             // Nome e e-mail do porteiro/síndico
             const usuarioNome: string = jwtPayload?.nome ?? jwtPayload?.name ?? 'Sistema';
@@ -89,6 +91,28 @@ export class AuditInterceptor implements NestInterceptor {
         },
       }),
     );
+  }
+
+  /**
+   * Condomínio em que o registro é gravado. Nunca o corpo sozinho: token de app e de CRM não trazem
+   * id_condominio, e o fallback para body.id_condominio deixava qualquer usuário escrever no log de
+   * auditoria de OUTRO condomínio (ex.: POST /users/remove-fcm-token com {"id_condominio": B}).
+   *  1. id_condominio do token (console/portaria);
+   *  2. :idCondominio da URL ou id_condominio do corpo, só para token de usuário do app e só com o
+   *     vínculo conferido no banco (TenantAccessService). Sem vínculo: não grava.
+   */
+  private async condominioDoRegistro(user: any, jwtPayload: any, params: any, body: any): Promise<number> {
+    const doToken = Number(user?.id_condominio ?? jwtPayload?.id_condominio ?? 0);
+    if (doToken) return doToken;
+    if (!user || !this.tenant || !idUsuarioDoToken(user)) return 0;
+    const alvo = Number(params?.idCondominio ?? body?.id_condominio ?? 0);
+    if (!alvo) return 0;
+    try {
+      await this.tenant.assertCondominio(alvo, user);
+      return alvo;
+    } catch {
+      return 0;
+    }
   }
 
   private parseRequest(method: string, url: string, body: any, params: any, response: any) {
