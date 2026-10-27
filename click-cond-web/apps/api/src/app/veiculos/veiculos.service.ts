@@ -42,9 +42,32 @@ export class VeiculosService {
     });
   }
 
+  /**
+   * `id_tag` vem do corpo e `Veiculos.id_tag` referencia Tags só por id: sem
+   * esta checagem o operador anexava a tag de outro condomínio — e a resposta
+   * (`include: { tag: true }`) devolvia o `codigo` RFID dela.
+   */
+  private async assertTagDoCondominio(idCondominio: number, idTag: number | null): Promise<void> {
+    if (idTag == null) return;
+    const tag = await this.prisma.tags.findFirst({
+      where: { id: Number(idTag), id_condominio: idCondominio },
+      select: { id: true },
+    });
+    if (!tag) throw new BadRequestException('Tag inválida para este condomínio.');
+  }
+
   async create(idCondominio: number, idMorador: number, dto: VeiculoDto) {
     const data = this.normalizar(dto);
     data.placa = validarPlaca(data.placa);
+    // O morador vem da URL e o TenantGuard só amarra o :idCondominio: confere
+    // que ele é deste condomínio, senão o veículo aparecia no app (e na cota
+    // de vagas) de um morador de outro prédio.
+    const morador = await this.prisma.moradores.findFirst({
+      where: { id: Number(idMorador), id_condominio: idCondominio },
+      select: { id: true },
+    });
+    if (!morador) throw new NotFoundException(`Morador ${idMorador} não encontrado`);
+    await this.assertTagDoCondominio(idCondominio, data.id_tag);
     try {
       return await this.prisma.veiculos.create({
         data: { ...data, id_condominio: idCondominio, id_morador: idMorador },
@@ -65,6 +88,7 @@ export class VeiculosService {
     if (!existing) throw new NotFoundException(`Veículo ${id} não encontrado`);
     const data = this.normalizar(dto);
     data.placa = validarPlaca(data.placa);
+    await this.assertTagDoCondominio(idCondominio, data.id_tag);
     try {
       return await this.prisma.veiculos.update({
         where: { id: Number(id) },
