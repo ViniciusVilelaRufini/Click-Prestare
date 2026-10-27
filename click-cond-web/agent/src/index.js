@@ -59,6 +59,7 @@ const { resolverDriver, resolverDriverDeEventos } = require('./drivers/registro'
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
 const controlidFacial = require('./drivers/controlid-facial');
+const { avaliarAcessoLiveView, origensLiveView } = require('./core/liveview-acesso');
 
 /**
  * Fabricantes que NÃO falam HTTP para comandos. Usam protocolo binário em
@@ -589,8 +590,16 @@ async function doSnapshot(device) {
 // — aqui só orquestramos o servidor HTTP local e o loop de quadros.
 
 function startLiveViewServer() {
+  // Só o portaria-web lê o preview: Host local + Origin da lista (ver core/liveview-acesso.js).
+  const origensPreview = origensLiveView(process.env);
   const server = http.createServer((req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const acesso = avaliarAcessoLiveView(req.headers, LIVEVIEW_PORT, origensPreview);
+    if (!acesso.permitido) {
+      res.writeHead(403);
+      return res.end('origem nao autorizada');
+    }
+    res.setHeader('Vary', 'Origin');
+    if (acesso.origem) res.setHeader('Access-Control-Allow-Origin', acesso.origem);
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
       return res.end();
