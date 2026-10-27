@@ -13,6 +13,7 @@ import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from './tenant-access.service';
 import { usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio } from '../common/vinculos-usuario.util';
+import { idUsuarioDoToken } from './usuario-do-token.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { assertStaff, assertSindico, assertSindicoEstrito, assertOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
@@ -3227,7 +3228,11 @@ export class MobileAuthService {
           await this.prisma.users.update({ where: { id: user.id }, data: patch });
         }
 
-        const f = await this.prisma.funcionarios.findFirst({ where: { id_user: user.id } });
+        // Por condomínio: sem o recorte, o vínculo de equipe que a pessoa tem em
+        // OUTRO prédio era achado aqui e "movido" para este pelo update abaixo.
+        const f = await this.prisma.funcionarios.findFirst({
+          where: { id_user: user.id, id_condominio: fp.id_condominio },
+        });
         if (!f) {
           await this.prisma.funcionarios.create({
             data: {
@@ -3284,7 +3289,7 @@ export class MobileAuthService {
           select: { id: true },
         });
         if (conflito) throw new BadRequestException('Já existe outro funcionário com este e-mail.');
-        await this.assertLoginLivreParaPortaria(func.email, atual.id_condominio);
+        await this.assertLoginLivreParaPortaria(func.email, atual.id_condominio, idUsuarioDoToken(user));
         data.login = func.email;
       }
 
@@ -3302,7 +3307,7 @@ export class MobileAuthService {
 
     const conflito = await this.prisma.funcionarios_Portaria.findUnique({ where: { login: loginFinal } });
     if (conflito) throw new BadRequestException('Já existe um funcionário com este e-mail.');
-    await this.assertLoginLivreParaPortaria(loginFinal, idCondominio);
+    await this.assertLoginLivreParaPortaria(loginFinal, idCondominio, idUsuarioDoToken(user));
 
     // Senha inicial = senha recebida, documento (só dígitos) ou '123456'.
     // A senha escolhida no formulário passa intacta — normalizar ali
@@ -3336,16 +3341,19 @@ export class MobileAuthService {
    * O login do porteiro (Funcionarios_Portaria) é único só na própria tabela. Sem esta checagem,
    * um síndico (inclusive de signup anônimo) cadastrava um porteiro com o e-mail de OUTRA pessoa
    * (síndico/morador de outro condomínio) e, pelo loginFuncionario/selecionarCondominio, herdava a conta dela.
-   * Permitido: e-mail sem conta, ou conta que já tem vínculo com ESTE condomínio (ex.: síndico que também é porteiro).
+   *
+   * Vínculo em outro condomínio barra SEMPRE, mesmo havendo vínculo aqui: o vínculo daqui pode ter sido
+   * fabricado por este mesmo síndico (o cadastro de morador liga uma conta existente pelo e-mail/CPF).
+   * Exceção: a conta é a do próprio solicitante (síndico cadastrando o login de portaria dele) — a sessão
+   * prova a posse.
    */
-  private async assertLoginLivreParaPortaria(login: string, idCondominio: number) {
+  private async assertLoginLivreParaPortaria(login: string, idCondominio: number, idSolicitante?: number | null) {
     const u = await this.prisma.users.findFirst({
       where: { OR: [{ login }, { email: login }] },
       select: { id: true },
     });
     if (!u) return;
-    const aqui = await usuarioTemVinculoNoCondominio(this.prisma as any, u.id, idCondominio);
-    if (aqui) return;
+    if (idSolicitante && u.id === idSolicitante) return;
     if (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, u.id, idCondominio)) {
       throw new BadRequestException('Já existe uma conta com este e-mail. Use outro e-mail para o porteiro.');
     }
