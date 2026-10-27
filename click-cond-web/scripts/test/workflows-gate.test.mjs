@@ -53,3 +53,22 @@ test('database-migration.yml só roda a partir do master', () => {
   const mig = workflows().find((w) => w.arquivo === 'database-migration.yml').wf;
   assert.match(String(mig.jobs.migrate.if ?? ''), /github\.ref\s*==\s*'refs\/heads\/master'/);
 });
+
+test('ci.yml: o deploy confere a versão que ficou no ambiente (falha silenciosa do EB)', () => {
+  const ci = workflows().find((w) => w.arquivo === 'ci.yml').wf;
+  const passos = ci.jobs.deploy.steps ?? [];
+  const iDeploy = passos.findIndex((s) => String(s.uses ?? '').startsWith('einaregilsson/beanstalk-deploy'));
+  const iVerifica = passos.findIndex((s) => s.name === 'Verify deployed version');
+  assert.ok(iDeploy >= 0, 'passo de deploy existe');
+  assert.ok(iVerifica > iDeploy, 'Verify deployed version vem depois do deploy');
+  const run = String(passos[iVerifica].run ?? '');
+  assert.match(run, /Environments\[0\]\.VersionLabel/);
+  assert.match(run, /exit 1/);
+  // Confere a MESMA versão que o passo de deploy publica.
+  assert.match(String(ci.jobs.deploy.env?.VERSION_LABEL ?? ''), /github\.sha/);
+  assert.equal(passos[iDeploy].with?.version_label, '${{ env.VERSION_LABEL }}');
+  assert.match(run, /\$VERSION_LABEL/);
+  // O aws CLI do passo precisa de credencial: configure-aws-credentials antes dele.
+  const iCred = passos.findIndex((s) => String(s.uses ?? '').startsWith('aws-actions/configure-aws-credentials'));
+  assert.ok(iCred >= 0 && iCred < iVerifica, 'credenciais AWS configuradas antes da verificação');
+});

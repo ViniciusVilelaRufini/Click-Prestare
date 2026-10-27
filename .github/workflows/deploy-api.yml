@@ -8,6 +8,9 @@ on:
       - 'click-cond-web/.platform/**'
       - 'click-cond-web/scripts/migration/bundle-eb.mjs'
       - '.github/workflows/deploy-api.yml'
+  # Disparo manual só publica a partir da main (ver `if` do job). O padrão do
+  # gh é a branch padrão do repo (master), então dispare com a ref explícita:
+  #   gh workflow run deploy-api.yml --ref main
   workflow_dispatch:
 
 concurrency:

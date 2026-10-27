@@ -90,6 +90,10 @@ jobs:
     concurrency:
       group: elastic-beanstalk-api-production
       cancel-in-progress: false
+    env:
+      AWS_REGION: sa-east-1
+      ENVIRONMENT_NAME: Clickprestareapi-env
+      VERSION_LABEL: "v-${{ github.run_number }}-${{ github.sha }}"
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -101,13 +105,40 @@ jobs:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           application_name: click-prestare-api
-          environment_name: Clickprestareapi-env
-          version_label: "v-${{ github.run_number }}-${{ github.sha }}"
-          region: sa-east-1
+          environment_name: ${{ env.ENVIRONMENT_NAME }}
+          version_label: ${{ env.VERSION_LABEL }}
+          region: ${{ env.AWS_REGION }}
           deployment_package: deploy-api-aws.zip
           use_existing_version_if_available: true
           wait_for_deployment: true
           wait_for_environment_recovery: 180
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Mesma conferência do deploy-api.yml: update-environment que falha
+      # (ex.: env acima de 4096 chars) deixa o ambiente "Ready" na versão
+      # antiga e o deploy volta verde.
+      - name: Verify deployed version
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL="$(aws elasticbeanstalk describe-environments \
+            --environment-names "$ENVIRONMENT_NAME" \
+            --query 'Environments[0].VersionLabel' --output text)"
+          echo "Versão esperada: $VERSION_LABEL"
+          echo "Versão no ambiente: $ACTUAL"
+          if [ "$ACTUAL" != "$VERSION_LABEL" ]; then
+            echo "::error::O ambiente não está na versão implantada. Últimos eventos:"
+            aws elasticbeanstalk describe-events \
+              --environment-name "$ENVIRONMENT_NAME" --max-items 15 \
+              --query 'Events[].[EventDate,Severity,Message]' --output text
+            exit 1
+          fi
 
   app:
     name: App Flutter (analyze e testes)
