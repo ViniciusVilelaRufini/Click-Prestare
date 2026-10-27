@@ -106,7 +106,11 @@ export class MudancasService {
     if (!atual) throw new NotFoundException(`Mudança ${id} não encontrada`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
     const callerId = user?.user?.id ?? user?.sub;
-    if (atual.user !== callerId) assertStaff(user, 'editar mudança de outro morador');
+    if (atual.user !== callerId) {
+      assertStaff(user, 'editar mudança de outro morador');
+      // Mesma flag do updateStatus: gerir mudança alheia é "agendar mudança".
+      await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'agendar_mudanca', user);
+    }
     if (dto.id_apartamento !== undefined) {
       await assertApartamentoGravavel(this.prisma as any, Number(dto.id_apartamento), atual.id_condominio, user);
     }
@@ -152,7 +156,10 @@ export class MudancasService {
     if (!atual) throw new NotFoundException(`Mudança ${id} não encontrada`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
     const callerId = user?.user?.id ?? user?.sub;
-    if (atual.user !== callerId) assertStaff(user, 'remover mudança de outro morador');
+    if (atual.user !== callerId) {
+      assertStaff(user, 'remover mudança de outro morador');
+      await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'agendar_mudanca', user);
+    }
     try {
       await this.prisma.mudancas.delete({ where: { id: Number(id) } });
     } catch {

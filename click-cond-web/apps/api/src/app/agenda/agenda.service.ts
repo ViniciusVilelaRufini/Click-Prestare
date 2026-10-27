@@ -41,6 +41,9 @@ export class AgendaService {
   async create(idCondominio: number, agenda: any, user?: JwtPayload) {
     assertStaff(user, 'cadastrar manutenção programada');
     await this.tenant.assertCondominio(idCondominio, user);
+    // assertStaff só garante "não é morador": o funcionário com a flag
+    // desligada pelo síndico publicava manutenção (com alerta) pela API.
+    await this.tenant.assertPermissaoFuncionario(idCondominio, 'manutencoes_programadas', user);
 
     const titulo = String(agenda?.titulo ?? '').trim();
     if (!titulo) throw new BadRequestException('O título é obrigatório.');
@@ -74,6 +77,7 @@ export class AgendaService {
     });
     if (!atual) throw new NotFoundException(`Manutenção ${id} não encontrada`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `manutenção #${id}`);
+    await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'manutencoes_programadas', user);
 
     return this.prisma.agenda.update({
       where: { id },
@@ -97,6 +101,7 @@ export class AgendaService {
     });
     if (!atual) throw new NotFoundException(`Manutenção ${id} não encontrada`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `manutenção #${id}`);
+    await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'manutencoes_programadas', user);
     await this.prisma.agenda.delete({ where: { id: Number(id) } });
     return { ok: true };
   }
