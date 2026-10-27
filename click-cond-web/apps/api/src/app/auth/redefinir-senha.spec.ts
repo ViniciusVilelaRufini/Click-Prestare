@@ -364,6 +364,53 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
         }),
       });
     });
+
+    describe('funcionário com conta de app (Users pelo mesmo login)', () => {
+      const prepara = (contas: { sindicos?: number; moradores?: number; unidades?: number; equipeFora?: number }) => {
+        const rawToken = 'token-porteiro-app';
+        const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+        prisma.redefinicoes_Senha.findFirst.mockResolvedValue({
+          id: 110, papel: 'funcionario', id_conta: 77, token_hash: tokenHash,
+          expira_em: new Date(Date.now() + 15 * 60 * 1000), usado_em: new Date(), ip: '1.2.3.4',
+        });
+        prisma.funcionarios_Portaria.findFirst.mockResolvedValue({
+          id: 77, id_condominio: 8, nome: 'Porteiro Marcos', login: 'marcos@portaria.com', email: 'marcos@portaria.com',
+        });
+        prisma.funcionarios_Portaria.update.mockResolvedValue({ id: 77 });
+        prisma.users.findFirst.mockResolvedValue({ id: 300, login: 'marcos@portaria.com', password: '$2b$04$antiga' });
+        prisma.sindicos = { count: jest.fn().mockResolvedValue(0) };
+        prisma.sindicos_Condominios.count = jest.fn().mockResolvedValue(contas.sindicos ?? 0);
+        prisma.moradores.count = jest.fn().mockResolvedValue(contas.moradores ?? 0);
+        prisma.apartamentos_Users.count = jest.fn().mockResolvedValue(contas.unidades ?? 0);
+        prisma.funcionarios = { count: jest.fn().mockResolvedValue(contas.equipeFora ?? 0), findFirst: jest.fn().mockResolvedValue(null) };
+        return rawToken;
+      };
+
+      it('conta só da equipe deste condomínio: Users recebe a nova senha e senha_alterada_em', async () => {
+        const rawToken = prepara({});
+
+        await service.confirmarRedefinicaoSenha(rawToken, 'SenhaNovaPorteiro1');
+
+        expect(prisma.users.update).toHaveBeenCalledWith({
+          where: { id: 300 },
+          data: { password: expect.stringMatching(/^\$2[aby]\$/), senha_alterada_em: expect.any(Date) },
+        });
+        const hashPortaria = prisma.funcionarios_Portaria.update.mock.calls[0][0].data.password;
+        expect(prisma.users.update.mock.calls[0][0].data.password).toBe(hashPortaria);
+      });
+
+      it('conta com outros papéis (morador): só senha_alterada_em, a senha da conta não muda', async () => {
+        const rawToken = prepara({ moradores: 1 });
+
+        await service.confirmarRedefinicaoSenha(rawToken, 'SenhaNovaPorteiro1');
+
+        expect(prisma.users.update).toHaveBeenCalledWith({
+          where: { id: 300 },
+          data: { senha_alterada_em: expect.any(Date) },
+        });
+      });
+    });
+
   });
 
   describe('Recuperação de Senha por Código de 6 Dígitos no App Mobile', () => {

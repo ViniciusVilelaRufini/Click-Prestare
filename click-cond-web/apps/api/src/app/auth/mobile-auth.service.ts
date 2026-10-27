@@ -858,9 +858,10 @@ export class MobileAuthService {
           const newHash = portaria.password.startsWith('$2')
             ? portaria.password
             : await bcrypt.hash(senhaRaw, 10);
+          // senha_alterada_em: a senha da conta mudou, tokens emitidos com a anterior deixam de valer.
           await this.prisma.users.update({
             where: { id: user.id },
-            data: { password: newHash },
+            data: { password: newHash, senha_alterada_em: momentoTrocaSenha() },
           });
           isMatch = true;
         }
@@ -2849,8 +2850,9 @@ export class MobileAuthService {
         where: { id: registro.id_conta },
         data: { password: hash },
       });
+      let func: { id_condominio: number | null; nome: string | null; login: string | null; email: string | null } | null = null;
       try {
-        const func = await this.prisma.funcionarios_Portaria.findFirst({
+        func = await this.prisma.funcionarios_Portaria.findFirst({
           where: { id: registro.id_conta },
           select: { id_condominio: true, nome: true, login: true, email: true },
         });
@@ -2860,6 +2862,24 @@ export class MobileAuthService {
           usuarioEmail = func.email || func.login || null;
         }
       } catch (_) {}
+      // A conta de app (Users, mesmo login) do porteiro: os tokens 'Funcionario' têm sub=Users.id e só caem
+      // com senha_alterada_em. A senha da conta só acompanha a nova quando ela é só da equipe deste
+      // condomínio — conta com outros papéis segue com a própria senha (mesma regra do loginFuncionario).
+      if (func?.login) {
+        const userApp = await this.prisma.users.findFirst({
+          where: { OR: [{ login: func.login }, { email: func.login }] },
+        });
+        if (userApp) {
+          const soEquipe =
+            func.id_condominio != null && (await this.contaSoDaEquipeDoCondominio(userApp.id, func.id_condominio));
+          await this.prisma.users.update({
+            where: { id: userApp.id },
+            data: soEquipe
+              ? { password: hash, senha_alterada_em: momentoTrocaSenha() }
+              : { senha_alterada_em: momentoTrocaSenha() },
+          });
+        }
+      }
     } else if (registro.papel === 'sindico') {
       // senha_alterada_em derruba os tokens emitidos antes (JwtStrategy).
       await this.prisma.users.update({

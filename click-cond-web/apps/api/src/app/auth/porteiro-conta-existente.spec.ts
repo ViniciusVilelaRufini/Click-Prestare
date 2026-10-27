@@ -183,7 +183,10 @@ describe('loginFuncionario — senha da portaria x conta existente', () => {
     const { svc } = servico(prisma);
 
     await expect(svc.loginFuncionario('p@t', 'nova')).resolves.toMatchObject({ token: 'token-assinado' });
-    expect(prisma.users.update).toHaveBeenCalledWith({ where: { id: 60 }, data: { password: hNova } });
+    expect(prisma.users.update).toHaveBeenCalledWith({
+      where: { id: 60 },
+      data: { password: hNova, senha_alterada_em: expect.any(Date) },
+    });
   });
 });
 
