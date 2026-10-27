@@ -3834,7 +3834,7 @@ export class MobileAuthService {
 
         userId = existing.id;
         // Users é global. Conta com vínculo em OUTRO condomínio só é ligada a este apartamento:
-        // login, e-mail, CPF, senha e foto dela não são gravados aqui (vinculos-usuario.util).
+        // login, e-mail, CPF, senha, telefone, nome e foto dela não são gravados aqui (vinculos-usuario.util).
         // Antes, quem cadastrava achava a conta pelo CPF, gravava o PRÓPRIO e-mail como login
         // e uma senha que conhecia, e entrava como a pessoa — com os vínculos dela no outro prédio.
         const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, idCondominio);
@@ -3848,9 +3848,9 @@ export class MobileAuthService {
           }
           if (!existing.email && mor.email) patch.email = mor.email;
           if (!existing.cpf && cpf) patch.cpf = cpf;
+          if (!existing.phone && mor.telefone) patch.phone = mor.telefone;
+          if (!existing.name && mor.nome) patch.name = mor.nome;
         }
-        if (!existing.phone && mor.telefone) patch.phone = mor.telefone;
-        if (!existing.name && mor.nome) patch.name = mor.nome;
         // Não troca a foto de quem já tem conta em outro condomínio.
         if (photoUrl !== null && !contaDeOutroCondominio) {
           patch.photo = photoUrl;

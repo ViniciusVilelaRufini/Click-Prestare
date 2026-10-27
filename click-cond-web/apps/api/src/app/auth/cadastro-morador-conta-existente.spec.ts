@@ -12,7 +12,7 @@ describe('saveMorador — conta existente com vínculo em outro condomínio', ()
   const sindico = { sub: 1, nome: 'Síndico A', typeAccess: 'Sindico' } as any;
   const vitima = { id: 70, cpf: CPF, email: null, login: null, password: null, name: 'Vítima', phone: '17999990000' };
 
-  function montar(vinculoFora: boolean) {
+  function montar(vinculoFora: boolean, conta: any = vitima) {
     // Respeita `id_condominio: { not: n }` como o util de vínculos consulta.
     const contaFora = jest.fn(async ({ where }: any) => (vinculoFora && where.id_condominio?.not !== undefined ? 1 : 0));
     const prisma: any = {
@@ -24,7 +24,7 @@ describe('saveMorador — conta existente com vínculo em outro condomínio', ()
         count: contaFora,
       },
       users: {
-        findFirst: jest.fn(async () => ({ ...vitima })),
+        findFirst: jest.fn(async () => ({ ...conta })),
         create: jest.fn(),
         update: jest.fn(async () => ({})),
       },
@@ -53,6 +53,13 @@ describe('saveMorador — conta existente com vínculo em outro condomínio', ()
     expect(prisma.apartamentos_Users.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ id_apto: 11, id_user: 70 }),
     });
+  });
+
+  it('NÃO preenche telefone/nome vazios na conta de outro condomínio', async () => {
+    const { svc, prisma } = montar(true, { ...vitima, phone: null, name: null });
+    const body = corpo(true);
+    await svc.saveMorador({ morador: { ...body.morador, telefone: '17988887777' } }, false, sindico);
+    expect(prisma.users.update).not.toHaveBeenCalled();
   });
 
   it('conta sem vínculo fora deste condomínio continua recebendo login e senha', async () => {

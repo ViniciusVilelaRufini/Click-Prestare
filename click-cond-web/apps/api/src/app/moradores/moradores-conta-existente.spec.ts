@@ -42,6 +42,14 @@ describe('MoradoresService.create — conta existente com vínculo em outro cond
     expect(prisma.moradores.create.mock.calls[0][0].data.id_user).toBe(70);
   });
 
+  it('conta de outro condomínio recebe só o aviso de conta existente, sem senha', async () => {
+    const { svc, mail } = build(true);
+    await svc.create(dto as any);
+    // O e-mail achou a conta, então o aviso vai para o endereço dela mesma.
+    expect(mail.sendWelcomeMoradorExisting).toHaveBeenCalledWith('v@x.com', 'V');
+    expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
+  });
+
   it('conta só deste condomínio continua recebendo login/senha', async () => {
     const { svc, prisma } = build(false);
     await svc.create(dto as any);

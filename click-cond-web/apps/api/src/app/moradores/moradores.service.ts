@@ -909,9 +909,11 @@ export class MoradoresService {
       );
     }
 
-    // Conta de outro condomínio não recebeu senha nova: não há credencial a enviar.
-    if (dto.sendCredentials && dto.email && passwordWasSet) {
-      this.fireWelcomeEmail(dto.email, dto.nome, senhaInicial);
+    // A conta existente foi achada por dto.email, então o aviso vai sempre para o endereço
+    // dela. Conta de outro condomínio não recebe senha nova (passwordWasSet fica false):
+    // só o aviso de "você já tem conta", sem credencial.
+    if (dto.sendCredentials && dto.email) {
+      this.fireWelcomeEmail(dto.email, dto.nome, passwordWasSet ? senhaInicial : undefined);
     }
 
     // Mão dupla com a Superlógica. Best-effort de propósito: o ERP fora do ar
