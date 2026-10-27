@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { assertApartamentoGravavel, ehMoradorMobile } from '../common/apartamento-gravavel.util';
 
 @Injectable()
 export class MudancasService {
@@ -15,7 +16,13 @@ export class MudancasService {
   async findAll(idCondominio: number, idApto?: number, user?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, user);
     const where: any = { id_condominio: Number(idCondominio) };
-    if (idApto && Number(idApto) > 0) {
+    if (ehMoradorMobile(user)) {
+      // O recorte do morador vem dos vínculos dele, não do `id_apto` do cliente:
+      // omitindo o parâmetro, a lista trazia as mudanças do prédio inteiro.
+      const { userId, aptos } = await this.aptosDoMorador(Number(idCondominio), user!);
+      const alvo = idApto && aptos.includes(Number(idApto)) ? [Number(idApto)] : aptos;
+      where.OR = [{ user: userId }, ...(alvo.length ? [{ id_apartamento: { in: alvo } }] : [])];
+    } else if (idApto && Number(idApto) > 0) {
       where.id_apartamento = Number(idApto);
     }
 
@@ -40,7 +47,24 @@ export class MudancasService {
     });
     if (!m) throw new NotFoundException(`Mudança ${id} não encontrada`);
     await this.tenant.assertEntidade(m.id_condominio, user, `mudança #${id}`);
+    if (ehMoradorMobile(user)) {
+      const { userId, aptos } = await this.aptosDoMorador(m.id_condominio, user!);
+      if (m.user !== userId && !aptos.includes(m.id_apartamento)) {
+        throw new ForbiddenException('Acesso negado: esta mudança não é de um apartamento seu.');
+      }
+    }
     return this.flatten(m);
+  }
+
+  /** Users.id do morador e os apartamentos dele neste condomínio. */
+  private async aptosDoMorador(idCondominio: number, user: JwtPayload) {
+    const userId = Number(user.user?.id ?? user.sub);
+    if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_user: userId, apartamento: { id_condominio: Number(idCondominio) } },
+      select: { id_apto: true },
+    });
+    return { userId, aptos: [...new Set(vinculos.map((v) => v.id_apto))] };
   }
 
   async create(dto: {
@@ -51,11 +75,17 @@ export class MudancasService {
     user?: number | null;
   }, requester?: JwtPayload) {
     await this.tenant.assertCondominio(dto.id_condominio, requester);
+    const idApartamento = Number(dto.id_apartamento);
+    if (!Number.isInteger(idApartamento) || idApartamento <= 0) {
+      throw new BadRequestException('Apartamento não informado.');
+    }
+    // Do condomínio informado e, para morador, um apartamento dele.
+    await assertApartamentoGravavel(this.prisma as any, idApartamento, Number(dto.id_condominio), requester);
     return this.prisma.mudancas.create({
       data: {
         data: dto.data ? new Date(dto.data) : null,
         hora_inicio: dto.hora_inicio ? new Date(`1970-01-01T${dto.hora_inicio}:00`) : null,
-        id_apartamento: Number(dto.id_apartamento),
+        id_apartamento: idApartamento,
         id_condominio: Number(dto.id_condominio),
         user: dto.user ?? null,
         status: 'pendente',
@@ -77,6 +107,9 @@ export class MudancasService {
     await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
     const callerId = user?.user?.id ?? user?.sub;
     if (atual.user !== callerId) assertStaff(user, 'editar mudança de outro morador');
+    if (dto.id_apartamento !== undefined) {
+      await assertApartamentoGravavel(this.prisma as any, Number(dto.id_apartamento), atual.id_condominio, user);
+    }
     try {
       return await this.prisma.mudancas.update({
         where: { id: Number(id) },

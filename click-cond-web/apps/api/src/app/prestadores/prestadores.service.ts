@@ -6,6 +6,7 @@ import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import * as bcrypt from 'bcrypt';
 import { assertOperador } from '../auth/tenant.util';
+import { assertApartamentoGravavel } from '../common/apartamento-gravavel.util';
 
 export interface CreatePrestadorDto {
   nome: string;
@@ -318,6 +319,13 @@ export class PrestadoresService {
     // Antes do upload, para a foto recusada nem chegar ao storage.
     if (existing) await this.assertPodeGerenciarPrestador(existing, user);
 
+    // Unidade que de fato vai para o banco (no upsert, a ausente mantém a atual):
+    // tem de ser do condomínio e, para morador, um apartamento dele.
+    const idApartamento = existing
+      ? (normalizarIdApartamento(dto.id_apartamento) ?? existing.id_apartamento)
+      : (normalizarIdApartamento(dto.id_apartamento) ?? null);
+    await assertApartamentoGravavel(this.prisma as any, idApartamento, Number(dto.id_condominio), user);
+
     const fotoPes = await this.resolveFoto(dto.foto_pessoa);
     const fotoDoc = await this.resolveFoto(dto.foto_documento);
 
@@ -329,7 +337,7 @@ export class PrestadoresService {
           telefone: dto.telefone ?? existing.telefone,
           email: dto.email !== undefined ? (dto.email ? dto.email.trim() : null) : existing.email,
           categorias: dto.categorias ?? existing.categorias,
-          id_apartamento: normalizarIdApartamento(dto.id_apartamento) ?? existing.id_apartamento,
+          id_apartamento: idApartamento,
           foto_pessoa: fotoPes ?? existing.foto_pessoa,
           foto_documento: fotoDoc ?? existing.foto_documento,
           dias_semana: dto.dias_semana !== undefined ? dto.dias_semana : existing.dias_semana,
@@ -343,7 +351,7 @@ export class PrestadoresService {
           email: dto.email ? dto.email.trim() : null,
           categorias: dto.categorias ?? null,
           id_condominio: dto.id_condominio,
-          id_apartamento: normalizarIdApartamento(dto.id_apartamento) ?? null,
+          id_apartamento: idApartamento,
           foto_pessoa: fotoPes,
           foto_documento: fotoDoc,
           dias_semana: dto.dias_semana ?? null,
@@ -443,6 +451,15 @@ export class PrestadoresService {
     await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
     await this.assertPodeGerenciarPrestador(atual, user);
     await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'prestadores_servico', user);
+    // assertPodeGerenciarPrestador olha a unidade ATUAL; a nova também tem de ser válida.
+    if (dto.id_apartamento !== undefined) {
+      await assertApartamentoGravavel(
+        this.prisma as any,
+        normalizarIdApartamento(dto.id_apartamento) ?? null,
+        atual.id_condominio,
+        user,
+      );
+    }
 
     if (dto.email && dto.hasPortariaAccess) {
       const conflito = await this.prisma.funcionarios_Portaria.findFirst({
