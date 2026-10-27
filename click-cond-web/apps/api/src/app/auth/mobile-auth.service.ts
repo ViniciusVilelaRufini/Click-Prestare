@@ -710,7 +710,11 @@ export class MobileAuthService {
         throw new UnauthorizedException('Login ou Senha incorretos');
       }
 
-      const isMatch = await this.verifyPassword(senhaRaw, portaria.password, portaria.id);
+      // Conta Users que já tem senha própria só entra com ELA. A senha do porteiro é escolhida por quem
+      // o cadastrou: aceitá-la aqui entregava a conta de outra pessoa (mesmo e-mail) a quem a cadastrou.
+      const isMatch = user?.password
+        ? await this.verifyPassword(senhaRaw, user.password, user.id)
+        : await this.verifyPassword(senhaRaw, portaria.password, portaria.id);
       if (!isMatch) {
         throw new UnauthorizedException('Login ou Senha incorretos');
       }
@@ -811,9 +815,16 @@ export class MobileAuthService {
 
       if (portaria) {
         const isPortariaMatch = await this.verifyPassword(senhaRaw, portaria.password, portaria.id);
-        // Só aceita se a portaria é do mesmo condomínio em que esta conta é funcionária.
+        // Só aceita se a portaria é do mesmo condomínio em que esta conta é funcionária E a conta é só da
+        // equipe desse condomínio: aí quem cadastrou o porteiro administra TODOS os vínculos dela
+        // (vinculos-usuario.util.ts) e pode definir a senha. Conta de síndico/morador, ou com vínculo em
+        // outro prédio, entra só com a própria senha — senão o cadastro de porteiro trocava a senha dela.
         const mesmoCondominio = user.funcionarios.some((f) => f.id_condominio === portaria.id_condominio);
-        if (isPortariaMatch && mesmoCondominio) {
+        if (
+          isPortariaMatch &&
+          mesmoCondominio &&
+          (await this.contaSoDaEquipeDoCondominio(user.id, portaria.id_condominio))
+        ) {
           const newHash = portaria.password.startsWith('$2')
             ? portaria.password
             : await bcrypt.hash(senhaRaw, 10);
@@ -3357,6 +3368,27 @@ export class MobileAuthService {
     if (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, u.id, idCondominio)) {
       throw new BadRequestException('Já existe uma conta com este e-mail. Use outro e-mail para o porteiro.');
     }
+    // Conta existente sem vínculo nenhum (síndico que se cadastrou e ainda não registrou prédio, morador
+    // que saiu de todas as unidades): nada prova que quem cadastra o porteiro é o dono dela.
+    if (!(await usuarioTemVinculoNoCondominio(this.prisma as any, u.id, idCondominio))) {
+      throw new BadRequestException('Já existe uma conta com este e-mail. Use outro e-mail para o porteiro.');
+    }
+  }
+
+  /**
+   * A conta existe só como equipe deste condomínio: nenhum perfil de síndico, nenhum vínculo de
+   * síndico/morador/unidade e nenhum vínculo de equipe em outro prédio. Só então o síndico deste
+   * condomínio administra todos os vínculos dela e pode definir a senha pelo cadastro do porteiro.
+   */
+  private async contaSoDaEquipeDoCondominio(idUser: number, idCondominio: number): Promise<boolean> {
+    const [perfisSindico, sindicoEm, moradorEm, unidades, equipeFora] = await Promise.all([
+      this.prisma.sindicos.count({ where: { id_user: idUser } }),
+      this.prisma.sindicos_Condominios.count({ where: { id_user: idUser } }),
+      this.prisma.moradores.count({ where: { id_user: idUser } }),
+      this.prisma.apartamentos_Users.count({ where: { id_user: idUser } }),
+      this.prisma.funcionarios.count({ where: { id_user: idUser, id_condominio: { not: Number(idCondominio) } } }),
+    ]);
+    return perfisSindico + sindicoEm + moradorEm + unidades + equipeFora === 0;
   }
 
   async removeFuncionario(id: number, requester?: JwtPayload) {

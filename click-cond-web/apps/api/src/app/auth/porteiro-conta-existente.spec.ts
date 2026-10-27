@@ -128,3 +128,77 @@ describe('saveFuncionario — conta existente com o mesmo e-mail', () => {
     });
   });
 });
+
+describe('loginFuncionario — senha da portaria x conta existente', () => {
+  let hV: string;
+  let hA: string;
+  beforeAll(async () => {
+    hV = await bcrypt.hash('v', 4); // senha do dono da conta
+    hA = await bcrypt.hash('a', 4); // senha escolhida por quem cadastrou o porteiro
+  });
+  const portaria = () => ({ id: 7, login: 'v@t', email: 'v@t', password: hA, id_condominio: 2, nome: 'P', telefone: null, turno: null });
+
+  it('fallback: conta com perfil de síndico NÃO entra com a senha do porteiro e a senha dela não é trocada', async () => {
+    const prisma = prismaFalso({
+      usuarioPorLogin: { 'v@t': { id: 50, login: 'v@t', email: 'v@t', password: hV, photo: null, funcionarios: [{ id_condominio: 2, nome: 'P' }] } },
+      perfisSindico: [50],
+      funcionarios: [{ id_user: 50, id_condominio: 2 }],
+      portaria: portaria(),
+    });
+    const { svc, jwt } = servico(prisma);
+
+    await expect(svc.loginFuncionario('v@t', 'a')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.users.update).not.toHaveBeenCalled();
+    expect(jwt.sign).not.toHaveBeenCalled();
+  });
+
+  it('1º ramo: conta existente com senha própria e sem vínculo NÃO entra com a senha do porteiro', async () => {
+    const prisma = prismaFalso({
+      usuarioPorLogin: { 'v@t': { id: 50, login: 'v@t', email: 'v@t', password: hV, photo: null, funcionarios: [] } },
+      portaria: portaria(),
+    });
+    const { svc, jwt } = servico(prisma);
+
+    await expect(svc.loginFuncionario('v@t', 'a')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(jwt.sign).not.toHaveBeenCalled();
+  });
+
+  it('1º ramo: o dono da conta entra com a PRÓPRIA senha', async () => {
+    const prisma = prismaFalso({
+      usuarioPorLogin: { 'v@t': { id: 50, login: 'v@t', email: 'v@t', password: hV, photo: null, funcionarios: [] } },
+      portaria: portaria(),
+    });
+    const { svc } = servico(prisma);
+
+    await expect(svc.loginFuncionario('v@t', 'v')).resolves.toMatchObject({ token: 'token-assinado' });
+  });
+
+  it('conta que é só da equipe deste condomínio: a senha redefinida no cadastro do porteiro continua valendo', async () => {
+    const hNova = await bcrypt.hash('nova', 4);
+    const prisma = prismaFalso({
+      usuarioPorLogin: { 'p@t': { id: 60, login: 'p@t', email: 'p@t', password: hV, photo: null, funcionarios: [{ id_condominio: 2, nome: 'P' }] } },
+      funcionarios: [{ id_user: 60, id_condominio: 2 }],
+      portaria: { id: 8, login: 'p@t', email: 'p@t', password: hNova, id_condominio: 2, nome: 'P', telefone: null, turno: null },
+    });
+    const { svc } = servico(prisma);
+
+    await expect(svc.loginFuncionario('p@t', 'nova')).resolves.toMatchObject({ token: 'token-assinado' });
+    expect(prisma.users.update).toHaveBeenCalledWith({ where: { id: 60 }, data: { password: hNova } });
+  });
+});
+
+describe('saveFuncionario — conta existente sem vínculo nenhum', () => {
+  it('NEGA porteiro com o e-mail de uma conta que não tem vínculo com condomínio algum', async () => {
+    const prisma = prismaFalso({
+      usuarioPorLogin: { 'v@t': { id: 50, login: 'v@t', email: 'v@t', password: '$2b$04$hash' } },
+      perfisSindico: [50],
+      sindicos: [{ id_user: 20, id_condominio: 2 }],
+    });
+    const { svc } = servico(prisma);
+
+    await expect(
+      svc.saveFuncionario({ id_condominio: 2, funcionario: { nome: 'P', email: 'v@t', senha: 'a' } }, false, atacante),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.funcionarios_Portaria.create).not.toHaveBeenCalled();
+  });
+});
