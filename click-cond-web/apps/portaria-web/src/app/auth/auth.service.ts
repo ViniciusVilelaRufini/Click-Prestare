@@ -165,10 +165,13 @@ export class AuthService {
 
   alterarSenha(senhaAtual: string, novaSenha: string) {
     // O id NÃO é mais enviado: o backend identifica o funcionário pelo JWT.
-    return this.http.post<{ success: boolean; message: string }>('/api/auth/change-password', {
-      senhaAtual,
-      novaSenha
-    });
+    return this.http
+      .post<{ success: boolean; message: string; access_token?: string }>('/api/auth/change-password', {
+        senhaAtual,
+        novaSenha,
+      })
+      // A troca de senha do síndico derruba as sessões anteriores; a API devolve o token que continua valendo.
+      .pipe(tap((res) => { if (res?.access_token) localStorage.setItem(TOKEN_KEY, res.access_token); }));
   }
 
   logout() {

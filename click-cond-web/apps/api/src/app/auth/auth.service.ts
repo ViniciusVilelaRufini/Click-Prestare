@@ -8,6 +8,7 @@ import { QrSessionStore } from './qr-session.store';
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { TenantAccessService } from './tenant-access.service';
 import { MfaService } from './mfa/mfa.service';
+import { momentoTrocaSenha } from './senha-alterada.util';
 
 /**
  * Lockout em memória por login. Após N tentativas falhas em janela,
@@ -471,7 +472,7 @@ export class AuthService {
     };
   }
 
-  async changePassword(id: number, senhaAtual: string, novaSenha: string, typeAccess?: string) {
+  async changePassword(id: number, senhaAtual: string, novaSenha: string, typeAccess?: string, sessao?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
     }
@@ -489,8 +490,17 @@ export class AuthService {
       if (!isMatch) throw new UnauthorizedException('Senha atual incorreta.');
 
       const newHash = await bcrypt.hash(novaSenha, 12);
-      await this.prisma.users.update({ where: { id }, data: { password: newHash } });
-      return { success: true, message: 'Senha atualizada com sucesso.' };
+      await this.prisma.users.update({ where: { id }, data: { password: newHash, senha_alterada_em: momentoTrocaSenha() } });
+      // A troca derruba as sessões anteriores (inclusive esta). Devolve um token novo com o mesmo escopo
+      // para o console que fez a troca seguir logado.
+      let access_token: string | undefined;
+      if (sessao) {
+        const novoPayload: any = { ...sessao };
+        delete novoPayload.iat;
+        delete novoPayload.exp;
+        access_token = this.jwt.sign(novoPayload, { expiresIn: this.portariaJwtExpiresIn });
+      }
+      return { success: true, message: 'Senha atualizada com sucesso.', ...(access_token ? { access_token } : {}) };
     }
 
     const funcionario = await this.prisma.funcionarios_Portaria.findUnique({

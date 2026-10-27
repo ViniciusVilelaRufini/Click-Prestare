@@ -259,6 +259,8 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
         where: { id: 55 },
         data: {
           password: expect.stringMatching(/^\$2[aby]\$/),
+          // Derruba os tokens emitidos antes da redefinição (JwtStrategy compara o iat).
+          senha_alterada_em: expect.any(Date),
         },
       });
 
@@ -348,6 +350,8 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
         where: { id: 10 },
         data: {
           password: expect.stringMatching(/^\$2[aby]\$/),
+          // Derruba os tokens emitidos antes da redefinição (JwtStrategy compara o iat).
+          senha_alterada_em: expect.any(Date),
         },
       });
       expect(prisma.auditLog.create).toHaveBeenCalledWith({

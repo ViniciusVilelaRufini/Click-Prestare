@@ -14,6 +14,7 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from './tenant-access.service';
 import { usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio } from '../common/vinculos-usuario.util';
 import { idUsuarioDoToken } from './usuario-do-token.util';
+import { momentoTrocaSenha } from './senha-alterada.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { assertStaff, assertSindico, assertSindicoEstrito, assertOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
@@ -2829,9 +2830,10 @@ export class MobileAuthService {
         }
       } catch (_) {}
     } else if (registro.papel === 'sindico') {
+      // senha_alterada_em derruba os tokens emitidos antes (JwtStrategy).
       await this.prisma.users.update({
         where: { id: registro.id_conta },
-        data: { password: hash },
+        data: { password: hash, senha_alterada_em: momentoTrocaSenha() },
       });
       try {
         const rel = await this.prisma.sindicos_Condominios.findFirst({
@@ -2852,7 +2854,7 @@ export class MobileAuthService {
       // 'morador'
       await this.prisma.users.update({
         where: { id: registro.id_conta },
-        data: { password: hash },
+        data: { password: hash, senha_alterada_em: momentoTrocaSenha() },
       });
       try {
         const morador = await this.prisma.moradores.findFirst({
@@ -4634,9 +4636,10 @@ export class MobileAuthService {
     }
 
     const hash = await bcrypt.hash(newPasswordPlana, 10);
+    // senha_alterada_em derruba as outras sessões; o token devolvido abaixo é emitido depois e segue valendo.
     const user = await this.prisma.users.update({
       where: { id: idUser },
-      data: { password: hash },
+      data: { password: hash, senha_alterada_em: momentoTrocaSenha() },
       include: {
         sindicos: true,
         moradores: true,
