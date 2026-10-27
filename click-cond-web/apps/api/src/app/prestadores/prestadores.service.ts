@@ -305,15 +305,21 @@ export class PrestadoresService {
       await this.assertContaLivreParaPortaria(dto.email.trim(), dto.id_condominio);
     }
 
-    const fotoPes = await this.resolveFoto(dto.foto_pessoa);
-    const fotoDoc = await this.resolveFoto(dto.foto_documento);
-
     const existing = await this.prisma.prestadores_servico.findFirst({
       where: {
         id_condominio: Number(dto.id_condominio),
         nome: dto.nome.trim(),
       },
     });
+    // Mesmo nome = ATUALIZAÇÃO do cadastro existente (foto facial, unidade,
+    // dias). Vale a mesma regra do update: sem isto, um morador repetia o nome
+    // do eletricista do prédio — que todo morador vê na lista — ou do
+    // prestador do vizinho e trocava a foto que o terminal facial reconhece.
+    // Antes do upload, para a foto recusada nem chegar ao storage.
+    if (existing) await this.assertPodeGerenciarPrestador(existing, user);
+
+    const fotoPes = await this.resolveFoto(dto.foto_pessoa);
+    const fotoDoc = await this.resolveFoto(dto.foto_documento);
 
     let criado;
     if (existing) {
