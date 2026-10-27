@@ -72,6 +72,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       return valor;
     } catch (e: any) {
       this.logger.warn(`Não foi possível conferir a troca de senha do usuário ${idUser}: ${e?.message ?? e}`);
+      // A falha também fica em cache: sem a coluna (SQL não aplicado) ou com o banco instável, não refaz
+      // a consulta nem o aviso a cada requisição. Segue aceitando (fail-open).
+      if (this.trocaSenhaCache.size > 10_000) this.trocaSenhaCache.clear();
+      this.trocaSenhaCache.set(idUser, { valor: null, expira: agora + CACHE_TROCA_SENHA_MS });
       return null;
     }
   }

@@ -8,6 +8,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
+import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import * as bcrypt from 'bcrypt';
 import { usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio } from '../common/vinculos-usuario.util';
 import { randomBytes } from 'crypto';
@@ -1271,6 +1272,8 @@ export class MoradoresService {
         data: {
           login: m.email,
           password: senhaHash,
+          // Senha nova: derruba os tokens emitidos antes (JwtStrategy).
+          senha_alterada_em: momentoTrocaSenha(),
         },
       });
     }

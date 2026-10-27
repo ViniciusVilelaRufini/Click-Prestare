@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FacialDeviceClientService } from '../facial/facial-device-client.service';
 
@@ -237,7 +238,8 @@ export class CrmCondominiosService {
 
     await this.prisma.users.update({
       where: { id: vinculo.user.id },
-      data: { password: await bcrypt.hash(senha, 10) },
+      // senha_alterada_em derruba os tokens emitidos antes (JwtStrategy).
+      data: { password: await bcrypt.hash(senha, 10), senha_alterada_em: momentoTrocaSenha() },
     });
 
     await this.auditoria.registrar({

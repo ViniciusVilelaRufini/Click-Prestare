@@ -4,6 +4,8 @@ import { JwtStrategy } from './jwt.strategy';
 import { AuthService } from './auth.service';
 import { MobileAuthService } from './mobile-auth.service';
 import { momentoTrocaSenha } from './senha-alterada.util';
+import { CrmCondominiosService } from '../crm/crm-condominios.service';
+import { MoradoresService } from '../moradores/moradores.service';
 
 /**
  * Tokens do app valem 365 dias e a JwtStrategy só conferia a assinatura.
@@ -45,6 +47,20 @@ describe('JwtStrategy — sessão anterior à troca de senha', () => {
   it('aceita quando a conta nunca trocou a senha', async () => {
     const { strategy } = build(null);
     await expect(validar(strategy, { sub: 1, nome: 'M', typeAccess: 'Morador', iat: 1 })).resolves.toBeTruthy();
+  });
+
+  it('falha na consulta fica em cache: dois validates na janela consultam o banco uma vez só (segue aceitando)', async () => {
+    const prisma: any = {
+      isConnected: true,
+      users: { findUnique: jest.fn(async () => { throw new Error("Unknown column 'senha_alterada_em'"); }) },
+    };
+    const strategy = new JwtStrategy(prisma);
+    (strategy as any).logger = { warn: jest.fn() };
+    const p = { sub: 1, nome: 'M', typeAccess: 'Morador', iat: 1 };
+
+    await expect(validar(strategy, p)).resolves.toBeTruthy();
+    await expect(validar(strategy, p)).resolves.toBeTruthy();
+    expect(prisma.users.findUnique).toHaveBeenCalledTimes(1);
   });
 
   it('token do porteiro do console (sub = Funcionarios_Portaria.id) não consulta Users', async () => {
@@ -97,5 +113,51 @@ describe('troca de senha grava senha_alterada_em', () => {
       expect.anything(),
     );
     expect(res.access_token).toBe('token-novo');
+  });
+});
+
+describe('outras redefinições de senha de Users também gravam senha_alterada_em', () => {
+  it('CRM: redefinirSenhaSindico', async () => {
+    const prisma: any = {
+      sindicos_Condominios: {
+        findFirst: jest.fn(async () => ({ user: { id: 42, name: 'S', email: 's@t', login: 's@t' } })),
+      },
+      users: { update: jest.fn(async () => ({})) },
+    };
+    const svc = new CrmCondominiosService(prisma, { registrar: jest.fn(async () => ({})) } as any, {} as any);
+    await svc.redefinirSenhaSindico(7, 'nova-senha', 'crm');
+
+    expect(prisma.users.update.mock.calls[0][0].data.senha_alterada_em).toBeInstanceOf(Date);
+  });
+
+  it('console: sendCredentials (nova senha inicial do morador) derruba os tokens antigos', async () => {
+    const prisma: any = {
+      isConnected: true,
+      moradores: {
+        findUnique: jest.fn(async () => ({
+          id: 10, nome: 'M', documento: '1', email: 'm@t', telefone: '1', id_condominio: 1, id_user: 99,
+          user: { photo: null, apartamentosUsers: [{ id_apto: 1 }] },
+        })),
+        update: jest.fn(async () => ({})),
+        count: jest.fn(async () => 0),
+      },
+      users: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn(async () => ({})) },
+      apartamentos: { findUnique: jest.fn(async () => ({ id: 1, bloco: 'A', apto: '106' })) },
+      apartamentos_Users: { create: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
+      sindicos_Condominios: { count: jest.fn(async () => 0) },
+      funcionarios: { count: jest.fn(async () => 0) },
+      facial_Devices: { findMany: jest.fn(async () => []) },
+    };
+    const svc = new MoradoresService(
+      prisma,
+      { sendWelcomeMorador: jest.fn(async () => ({})), sendWelcomeMoradorExisting: jest.fn(async () => ({})) } as any,
+      { isDataUrl: jest.fn(() => false), uploadDataUrl: jest.fn(async () => null) } as any,
+      { syncMorador: jest.fn(async () => ({})) } as any,
+      { registrar: jest.fn(async () => ({})) } as any,
+      { enviarMorador: jest.fn(async () => ({ enviado: false })) } as any,
+    );
+    await svc.sendCredentials(10);
+
+    expect(prisma.users.update.mock.calls[0][0].data.senha_alterada_em).toBeInstanceOf(Date);
   });
 });
