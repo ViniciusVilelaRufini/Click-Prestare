@@ -524,6 +524,13 @@ export class AuthService {
       return { success: true, message: 'Senha atualizada com sucesso.', ...(access_token ? { access_token } : {}) };
     }
 
+    // Só o token do porteiro do console declara sub = Funcionarios_Portaria.id. Token 'Funcionario' (QR do
+    // app) ou de morador tem sub = Users.id — outra numeração: tratá-lo como porteiro trocava a senha de
+    // OUTRO porteiro. A senha dessas contas é a do app e se troca por lá.
+    if (sessao?.tipo_sub !== 'funcionario_portaria') {
+      throw new ForbiddenException('Esta sessão não troca senha aqui. Altere a senha pelo aplicativo.');
+    }
+
     const funcionario = await this.prisma.funcionarios_Portaria.findUnique({
       where: { id },
     });
