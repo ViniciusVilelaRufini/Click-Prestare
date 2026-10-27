@@ -753,6 +753,18 @@ export class MobileAuthService {
         throw new UnauthorizedException('Login ou Senha incorretos');
       }
 
+      // Conta Users SEM senha: a senha do porteiro vira a senha da conta logo abaixo. Só pode quando a conta
+      // é só da equipe deste condomínio (ou não tem vínculo nenhum) — senão o síndico que cadastrou o
+      // porteiro com o e-mail de um morador/síndico daqui tomava a conta dele.
+      if (
+        user &&
+        !user.password &&
+        (portaria.id_condominio == null ||
+          !(await this.contaSoDaEquipeDoCondominio(user.id, portaria.id_condominio)))
+      ) {
+        throw new UnauthorizedException('Login ou Senha incorretos');
+      }
+
       // Sincroniza / cria o registro em Users e Funcionarios para o mobile
       if (!user) {
         user = await this.prisma.users.create({

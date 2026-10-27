@@ -202,3 +202,48 @@ describe('saveFuncionario — conta existente sem vínculo nenhum', () => {
     expect(prisma.funcionarios_Portaria.create).not.toHaveBeenCalled();
   });
 });
+
+describe('loginFuncionario — conta existente SEM senha (1º ramo)', () => {
+  let hA: string;
+  beforeAll(async () => {
+    hA = await bcrypt.hash('a', 4); // senha escolhida por quem cadastrou o porteiro
+  });
+  const portaria = () => ({ id: 7, login: 'v@t', email: 'v@t', password: hA, id_condominio: 2, nome: 'P', telefone: null, turno: null });
+
+  it('NEGA a senha do porteiro para conta sem senha que é moradora deste condomínio (e de outro)', async () => {
+    const prisma = prismaFalso({
+      usuarioPorLogin: { 'v@t': { id: 50, login: 'v@t', email: 'v@t', password: null, photo: null, funcionarios: [] } },
+      moradores: [{ id_user: 50, id_condominio: 2 }, { id_user: 50, id_condominio: 1 }],
+      portaria: portaria(),
+    });
+    const { svc, jwt } = servico(prisma);
+
+    await expect(svc.loginFuncionario('v@t', 'a')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.users.update).not.toHaveBeenCalled();
+    expect(jwt.sign).not.toHaveBeenCalled();
+  });
+
+  it('NEGA a senha do porteiro para conta sem senha com perfil de síndico', async () => {
+    const prisma = prismaFalso({
+      usuarioPorLogin: { 'v@t': { id: 50, login: 'v@t', email: 'v@t', password: null, photo: null, funcionarios: [] } },
+      perfisSindico: [50],
+      portaria: portaria(),
+    });
+    const { svc, jwt } = servico(prisma);
+
+    await expect(svc.loginFuncionario('v@t', 'a')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.users.update).not.toHaveBeenCalled();
+    expect(jwt.sign).not.toHaveBeenCalled();
+  });
+
+  it('PERMITE conta sem senha e sem vínculo nenhum (adota a senha do porteiro)', async () => {
+    const prisma = prismaFalso({
+      usuarioPorLogin: { 'v@t': { id: 50, login: 'v@t', email: 'v@t', password: null, photo: null, funcionarios: [] } },
+      portaria: portaria(),
+    });
+    const { svc } = servico(prisma);
+
+    await expect(svc.loginFuncionario('v@t', 'a')).resolves.toMatchObject({ token: 'token-assinado' });
+    expect(prisma.users.update).toHaveBeenCalledWith({ where: { id: 50 }, data: { is_funcionario: 1, password: hA } });
+  });
+});
