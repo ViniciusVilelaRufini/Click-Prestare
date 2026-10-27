@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { UsuarioAppGuard, papelUsuarioApp } from './usuario-app.guard';
 import { MobileAuthService } from './mobile-auth.service';
@@ -94,6 +94,13 @@ export class SindicoMobileController {
   @Post('update')
   @HttpCode(200)
   updateSindico(@ReqUser() payload: JwtPayload, @Body() body: any) {
+    // A resposta traz um token de síndico (365 dias). Sem conferir o papel de
+    // quem chama, um token de morador/funcionário da mesma conta — emitido sem
+    // o 2º fator do login de síndico — virava sessão de síndico só porque a
+    // conta tem perfil em Sindicos.
+    if (papelUsuarioApp(payload) !== 'Sindico') {
+      throw new ForbiddenException('Acesso negado: atualizar o cadastro de síndico exige sessão de síndico.');
+    }
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.updateSindico(Number(idUser), body);
   }
