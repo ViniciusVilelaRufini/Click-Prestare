@@ -164,6 +164,8 @@ export class AuthService {
           nome: funcionario.nome,
           id_condominio: funcionario.id_condominio,
           turno: funcionario.turno,
+          // sub = Funcionarios_Portaria.id: declarado, para ninguém inferir pela forma do token.
+          tipo_sub: 'funcionario_portaria',
         };
 
     const resposta = {
@@ -416,11 +418,12 @@ export class AuthService {
     }
     if (payload.typeAccess === 'Sindico') {
       idUserSindico = payload.sub;
-    } else if (!payload.typeAccess && payload.id_condominio) {
-      // Só o token de console do porteiro (sem typeAccess, com condomínio) tem sub = Funcionarios_Portaria.id.
-      // Token de app (Morador/Funcionario) tem sub = Users.id e jamais pode cair neste lookup por coincidência de número.
+    } else if (!payload.typeAccess && payload.id_condominio && payload.tipo_sub === 'funcionario_portaria') {
+      // Só o token de console do porteiro tem sub = Funcionarios_Portaria.id, e é o único que o
+      // montarSessaoPortaria carimba com tipo_sub. Antes o ramo era escolhido pela FORMA do token
+      // (sem typeAccess, com condomínio), que o login por QR também produzia com sub = Users.id.
       const funcionario = await this.prisma.funcionarios_Portaria.findFirst({
-        where: { id: payload.sub, ativo: 1 },
+        where: { id: payload.sub, ativo: 1, condominio: { ativo: 1 } },
         select: { login: true, id_condominio: true },
       });
       if (funcionario?.login) {
@@ -445,7 +448,8 @@ export class AuthService {
     }
 
     const vinculo = await this.prisma.sindicos_Condominios.findFirst({
-      where: { id_user: idUserSindico, id_condominio: Number(idCondominio) },
+      // condominio.ativo: o mesmo corte do loginPortaria — condomínio desativado no CRM não ganha sessão.
+      where: { id_user: idUserSindico, id_condominio: Number(idCondominio), condominio: { ativo: 1 } },
       include: { condominio: { select: { nome: true } } },
     });
     if (!vinculo) {
@@ -462,8 +466,22 @@ export class AuthService {
     delete (novoPayload as any).iat;
     delete (novoPayload as any).exp;
 
+    // Trocar de condomínio não renova a sessão: o token novo vence junto com o de origem (ou antes,
+    // pelo teto da portaria). Sem isto, chamar a rota no próprio condomínio a cada 23h mantinha a
+    // sessão viva para sempre, sem senha.
+    const expOrigem = typeof (payload as any).exp === 'number' ? (payload as any).exp : null;
+    const agora = Math.floor(Date.now() / 1000);
+    if (expOrigem !== null && expOrigem <= agora) {
+      throw new UnauthorizedException('Sessão expirada. Entre novamente.');
+    }
+    let accessToken = this.jwt.sign(novoPayload, { expiresIn: this.portariaJwtExpiresIn });
+    const expNovo = (this.jwt.decode(accessToken) as any)?.exp;
+    if (expOrigem !== null && typeof expNovo === 'number' && expNovo > expOrigem) {
+      accessToken = this.jwt.sign(novoPayload, { expiresIn: expOrigem - agora });
+    }
+
     return {
-      access_token: this.jwt.sign(novoPayload, { expiresIn: this.portariaJwtExpiresIn }),
+      access_token: accessToken,
       id: payload.sub,
       nome: payload.nome,
       turno: payload.turno ?? 'Síndico',

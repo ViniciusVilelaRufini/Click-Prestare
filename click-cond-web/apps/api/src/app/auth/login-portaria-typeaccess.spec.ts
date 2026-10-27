@@ -96,6 +96,8 @@ describe('AuthService.loginPortaria — papel real no token', () => {
     // sub = Users.id, não Funcionarios_Portaria.id (3).
     expect(token.sub).toBe(42);
     expect(token.id_condominio).toBe(7);
+    // Síndico: sub = Users.id, sem o carimbo do porteiro.
+    expect(token.tipo_sub).toBeUndefined();
     expect(() => assertStaff(token, 'alterar status de pagamento')).not.toThrow();
 
     expect(res.turno).toBe('Síndico');
@@ -110,6 +112,8 @@ describe('AuthService.loginPortaria — papel real no token', () => {
     const token = tokenAssinado();
     expect(token.typeAccess).toBeUndefined();
     expect(token.sub).toBe(3);
+    // sub = Funcionarios_Portaria.id, declarado no próprio token (selecionarCondominio depende disto).
+    expect(token.tipo_sub).toBe('funcionario_portaria');
     expect(() => assertStaff(token, 'alterar status de pagamento')).toThrow();
     expect(res.condominios).toEqual([]);
   });

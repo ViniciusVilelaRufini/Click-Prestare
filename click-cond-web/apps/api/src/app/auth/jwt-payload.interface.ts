@@ -7,5 +7,11 @@ export interface JwtPayload {
   typeAccess?: string;
   /** Marca tokens administrativos do CRM ('crm_admin'). Ausente em tokens de porteiro/app. */
   role?: string;
+  /**
+   * Namespace do `sub` quando ele NÃO é Users.id. Só o login do console por Funcionarios_Portaria
+   * carimba 'funcionario_portaria'; nenhum cliente escolhe (vem assinado). Quem precisa saber de
+   * que tabela é o `sub` lê isto, nunca a forma do token.
+   */
+  tipo_sub?: 'funcionario_portaria';
   user?: any;
 }
