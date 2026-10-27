@@ -100,3 +100,13 @@ test('agruparPorMac funde o mesmo aparelho e mantém sem-MAC por IP', () => {
   assert.strictEqual(f.numero_serie, 'K3');
   assert.strictEqual(f.classe, 'BSC');
 });
+
+test('agruparPorMac NÃO funde o mesmo MAC visto em dois IPs (conflito vai para a nuvem)', () => {
+  const base = { porta: 80, fabricante: 'intelbras', modelo: null, numero_serie: null, dhcp: null, validado_em_campo: true, classe: null };
+  const r = agruparPorMac([
+    { ...base, mac: 'b4:4c:3b:f4:e3:01', ip: '192.168.3.175' },
+    { ...base, mac: 'b4:4c:3b:f4:e3:01', ip: '192.168.3.66' },
+  ]);
+  assert.strictEqual(r.length, 2);
+  assert.deepStrictEqual(r.map((a) => a.ip).sort(), ['192.168.3.175', '192.168.3.66']);
+});

@@ -8,7 +8,9 @@
  *    interface IPv4 não interna; coleta respostas por `esperaMs`.
  *  - Control iD (sem protocolo de descoberta): com `varredura`, GET / na
  *    porta 80 de cada host das /24 locais, concorrência limitada.
- *  - MAC que faltar vem da tabela ARP; no fim, um achado por MAC.
+ *  - MAC que faltar vem da tabela ARP; no fim, um achado por MAC+IP.
+ *  - Resposta UDP só vale se o IP declarado for o do remetente: o conteúdo
+ *    não é autenticado e decide para onde a nuvem aponta o terminal.
  *
  * `destinos`/`hostsVarredura` substituem a rede real (testes e harness).
  */
@@ -67,9 +69,11 @@ function sondarUdp(destinos, esperaMs) {
         erros.count++;
         if (!erros.primeira) erros.primeira = err.message || String(err);
       });
-      s.on('message', (msg) => {
+      s.on('message', (msg, rinfo) => {
         const a = interpretar(msg);
-        if (a) achados.push(a);
+        // IP e MAC vêm do payload, que qualquer host da LAN escreve. O IP declarado
+        // tem de ser o de quem mandou: senão um host se passaria por outro endereço.
+        if (a && a.ip === rinfo.address) achados.push(a);
       });
       s.bind(0, plano.endereco, () => {
         try {

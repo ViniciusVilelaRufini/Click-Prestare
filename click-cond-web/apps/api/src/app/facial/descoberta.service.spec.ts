@@ -240,3 +240,53 @@ describe('DescobertaService — aparelho que mudou de IP e outro herdou o endere
     expect(r.ips_corrigidos).toBe(1);
   });
 });
+
+describe('DescobertaService — resposta forjada na LAN não re-aponta o terminal', () => {
+  const MAC = 'b4:4c:3b:f4:e3:01';
+  const dev = (o: Record<string, unknown> = {}) => ({
+    id: 1, id_condominio: 10, ativo: 1, nome: 'facial', fabricante: 'intelbras',
+    ip: '192.168.3.175', porta: 80, mac: MAC, numero_serie: 'K3LJ3400209RH', ...o,
+  });
+
+  it('mesmo MAC em dois endereços no relato: não corrige', async () => {
+    const devs = [dev()];
+    const { svc } = montar(devs);
+    jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => undefined);
+    const r = await svc.receber(10, { achados: [achado({ ip: '192.168.3.66' }), achado()] });
+    expect(r.ips_corrigidos).toBe(0);
+    expect(devs[0].ip).toBe('192.168.3.175');
+  });
+
+  it('agente relata o device online no endereço cadastrado com o MAC cadastrado: não corrige', async () => {
+    const devs = [dev()];
+    const { svc } = montar(devs);
+    jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => undefined);
+    const r = await svc.receber(10, { achados: [achado({ ip: '192.168.3.66' })], macs_cadastrados: [{ id: 1, mac: MAC }] });
+    expect(r.ips_corrigidos).toBe(0);
+    expect(devs[0].ip).toBe('192.168.3.175');
+  });
+
+  it('fabricante de outra família: não corrige', async () => {
+    const devs = [dev({ fabricante: 'hikvision' })];
+    const { svc } = montar(devs);
+    jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => undefined);
+    const r = await svc.receber(10, { achados: [achado({ ip: '192.168.3.66' })] });
+    expect(r.ips_corrigidos).toBe(0);
+  });
+
+  it('número de série conhecido e diferente: não corrige', async () => {
+    const devs = [dev()];
+    const { svc } = montar(devs);
+    jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => undefined);
+    const r = await svc.receber(10, { achados: [achado({ ip: '192.168.3.66', numero_serie: 'OUTRA' })] });
+    expect(r.ips_corrigidos).toBe(0);
+  });
+
+  it('DHCP de verdade (device cadastrado como dahua, achado intelbras, sumiu do IP antigo): corrige', async () => {
+    const devs = [dev({ fabricante: 'dahua' })];
+    const { svc } = montar(devs);
+    const r = await svc.receber(10, { achados: [achado({ ip: '192.168.3.66' })] });
+    expect(r.ips_corrigidos).toBe(1);
+    expect(devs[0].ip).toBe('192.168.3.66');
+  });
+});

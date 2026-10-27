@@ -82,6 +82,12 @@ function prefixo24(ip: unknown): string | null {
   return typeof ip === 'string' ? ip.split('.').slice(0, 3).join('.') : null;
 }
 
+/** Intelbras é OEM da Dahua (mesmo protocolo): as duas grafias são a mesma família. */
+function familiaFabricante(f: unknown): string {
+  const s = String(f ?? '').trim().toLowerCase();
+  return s === 'dahua' ? 'intelbras' : s;
+}
+
 function texto(s: unknown, max: number): string | null {
   return typeof s === 'string' && s.trim() ? s.trim().slice(0, max) : null;
 }
@@ -205,6 +211,20 @@ export class DescobertaService {
       const d = devices.find((x) => x.mac === a.mac);
       if (!d || (d.ip === a.ip && d.porta === a.porta)) continue;
       if (devices.some((o) => o.id !== d.id && o.ip === a.ip)) continue;
+      // A resposta de descoberta não é autenticada: qualquer host da LAN que saiba o MAC
+      // se declara "o terminal" no próprio IP, e o próximo poll mandaria para lá a senha,
+      // as fotos e os comandos de porta. Só segue a mudança quando nada a contradiz.
+      const enderecosDoMac = new Set(achados.filter((x) => x.mac === a.mac).map((x) => `${x.ip}:${x.porta}`));
+      const onlineNoCadastro = macs_cadastrados.some((m) => m.id === d.id && m.mac === d.mac);
+      const outraFamilia = !!d.fabricante && familiaFabricante(d.fabricante) !== familiaFabricante(a.fabricante);
+      const outraSerie = !!d.numero_serie && !!a.numero_serie && d.numero_serie !== a.numero_serie;
+      if (enderecosDoMac.size > 1 || onlineNoCadastro || outraFamilia || outraSerie) {
+        this.logger.warn(
+          `Correção de IP ignorada: dispositivo ${d.id} (${d.ip}:${d.porta}) → ${a.ip}:${a.porta} contradita ` +
+            `(enderecos=${enderecosDoMac.size}, online_no_cadastro=${onlineNoCadastro}, fabricante=${outraFamilia}, serie=${outraSerie})`,
+        );
+        continue;
+      }
       if (!this.destinoPlausivel(d, a.ip, devices)) {
         this.logger.warn(`Correção de IP ignorada: dispositivo ${d.id} (${d.ip}) → ${a.ip} fora das redes do condomínio ${idCondominio}`);
         continue;

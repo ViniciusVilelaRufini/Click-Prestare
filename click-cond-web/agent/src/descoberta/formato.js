@@ -27,13 +27,18 @@ function normalizarMac(s) {
 
 /**
  * Um aparelho pode responder por dois caminhos (multicast + varredura, ou
- * duas interfaces). Funde por MAC; os campos não nulos do repetido preenchem
- * os que faltavam. Sem MAC (ARP ainda não viu o IP), agrupa por IP.
+ * duas interfaces). Funde por MAC+IP; os campos não nulos do repetido
+ * preenchem os que faltavam. Sem MAC (ARP ainda não viu o IP), agrupa por IP.
+ *
+ * O mesmo MAC em dois IPs NÃO é fundido: um dos dois é falso (resposta
+ * forjada na LAN) ou a rede está quebrada. Antes ficava a primeira resposta,
+ * e a nuvem "corrigia" o IP do terminal para quem respondesse mais rápido;
+ * mandando as duas, a nuvem vê o conflito e não mexe.
  */
 function agruparPorMac(achados) {
   const porChave = new Map();
   for (const a of achados) {
-    const chave = a.mac || `ip:${a.ip}`;
+    const chave = a.mac ? `${a.mac}|${a.ip}` : `ip:${a.ip}`;
     const atual = porChave.get(chave);
     if (!atual) {
       porChave.set(chave, { ...a });

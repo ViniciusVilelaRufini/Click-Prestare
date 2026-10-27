@@ -39,6 +39,25 @@ test('descobrir junta resposta DHIP e página Control iD', async () => {
   }
 });
 
+test('resposta cujo IP declarado não é o do remetente é descartada', async () => {
+  // Quem responde é 127.0.0.1, mas o payload diz ser o terminal 192.168.3.175:
+  // é assim que um host da LAN tentaria se passar pelo aparelho.
+  const forjada = RESPOSTA.replace('"IPAddress":"127.0.0.1"', '"IPAddress":"192.168.3.175"');
+  const udp = dgram.createSocket('udp4');
+  udp.on('message', (msg, r) => { if (msg.includes('DHDiscover')) udp.send(dhip(forjada), r.port, r.address); });
+  await new Promise((ok) => udp.bind(0, '127.0.0.1', ok));
+  try {
+    const achados = await descobrir({
+      varredura: false,
+      esperaMs: 500,
+      destinos: [{ protocolo: 'dhip', host: '127.0.0.1', porta: udp.address().port }],
+    });
+    assert.deepStrictEqual(achados, []);
+  } finally {
+    udp.close();
+  }
+});
+
 test('sem varredura não faz HTTP; sem resposta devolve lista vazia sem lançar', async () => {
   const logOutput = [];
   const originalLog = console.log;
