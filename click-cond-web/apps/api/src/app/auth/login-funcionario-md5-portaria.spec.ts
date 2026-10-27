@@ -60,6 +60,9 @@ describe('loginFuncionario — senha MD5 legada da portaria', () => {
       where: { id: 5 },
       data: { password: expect.stringMatching(/^\$2/) },
     });
-    expect(prisma.users.update).toHaveBeenCalledWith({ where: { id: 60 }, data: { password: expect.stringMatching(/^\$2/) } });
+    expect(prisma.users.update).toHaveBeenCalledWith({
+      where: { id: 60 },
+      data: { password: expect.stringMatching(/^\$2/), senha_alterada_em: expect.any(Date) },
+    });
   });
 });
