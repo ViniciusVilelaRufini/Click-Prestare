@@ -15,7 +15,16 @@ module.exports = {
       compiler: 'tsc',
       main: './src/main.ts',
       tsConfig: './tsconfig.app.json',
-      assets: ['./src/assets'],
+      // src/assets vai para dist/assets, servido na raiz do site: nada de
+      // .json/credencial (a chave do Firebase do dev mora ali, gitignored).
+      assets: [
+        {
+          input: './src/assets',
+          glob: '**/*',
+          output: 'assets',
+          ignore: ['**/*.json', '**/*service-account*', '**/.env*'],
+        },
+      ],
       optimization: false,
       outputHashing: 'none',
       generatePackageJson: false,

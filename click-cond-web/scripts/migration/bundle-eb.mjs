@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { assetVaiNoPacote } from './assets-do-pacote.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,11 +26,15 @@ async function bundle() {
     path.join(EB_DIR, 'main.js')
   );
 
-  // 2. Copia assets se existirem
+  // 2. Copia assets se existirem — sem .json/credenciais (a pasta é pública e,
+  // na máquina do dev, carrega a chave do Firebase).
   const assetsSrc = path.join(WEB_ROOT, 'apps/api/dist/assets');
   if (fs.existsSync(assetsSrc)) {
-    console.log('2. Copiando assets...');
-    fs.cpSync(assetsSrc, path.join(EB_DIR, 'assets'), { recursive: true });
+    console.log('2. Copiando assets (sem .json/credenciais)...');
+    fs.cpSync(assetsSrc, path.join(EB_DIR, 'assets'), {
+      recursive: true,
+      filter: (origem) => assetVaiNoPacote(path.relative(assetsSrc, origem)),
+    });
   }
 
   // 3. Copia Prisma Client gerado (mantendo a mesma estrutura relativa)
