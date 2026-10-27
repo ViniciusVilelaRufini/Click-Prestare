@@ -35,6 +35,7 @@ import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
 import { normalizarMac } from './descoberta.service';
 import { agentesSemRedeInterna, urlExternaSegura } from '../common/url-segura.util';
+import { validarIpDispositivo, validarPortaDispositivo } from './device-endereco.util';
 
 function pessoasMigrationEnabled(prisma?: any): boolean {
   if (process.env['PESSOAS_MIGRATION_ENABLED'] !== 'true') return false;
@@ -926,6 +927,8 @@ export class FacialService {
   }
 
   async createDevice(dto: CreateDeviceDto, operador?: JwtPayload) {
+    const ip = validarIpDispositivo(dto.ip);
+    const porta = validarPortaDispositivo(dto.porta ?? 80);
     await this.assertAreaDoCondominio(dto.id_area_social, dto.id_condominio);
     const token = crypto.randomBytes(32).toString('hex');
     const created = await this.prisma.facial_Devices.create({
@@ -937,8 +940,8 @@ export class FacialService {
         confianca_minima: dto.confianca_minima ?? 0,
         fabricante: dto.fabricante,
         modelo: dto.modelo ?? null,
-        ip: dto.ip,
-        porta: dto.porta ?? 80,
+        ip,
+        porta,
         api_user: dto.api_user ?? null,
         api_password: encryptSecret(dto.api_password ?? null),
         id_area_social: dto.id_area_social ?? null,
@@ -994,6 +997,8 @@ export class FacialService {
 
   async updateDevice(id: number, dto: UpdateDeviceDto, operador?: JwtPayload) {
     const antes = await this.getDevice(id);
+    const ip = dto.ip !== undefined ? validarIpDispositivo(dto.ip) : undefined;
+    const porta = dto.porta !== undefined ? validarPortaDispositivo(dto.porta ?? 80) : undefined;
     await this.assertAreaDoCondominio(dto.id_area_social, antes.id_condominio);
     const atual = await this.prisma.facial_Devices.update({
       where: { id },
@@ -1006,8 +1011,8 @@ export class FacialService {
         }),
         ...(dto.fabricante !== undefined && { fabricante: dto.fabricante }),
         ...(dto.modelo !== undefined && { modelo: dto.modelo }),
-        ...(dto.ip !== undefined && { ip: dto.ip }),
-        ...(dto.porta !== undefined && { porta: dto.porta }),
+        ...(ip !== undefined && { ip }),
+        ...(porta !== undefined && { porta }),
         ...(dto.api_user !== undefined && { api_user: dto.api_user }),
         ...(dto.api_password !== undefined && {
           api_password: encryptSecret(dto.api_password),
