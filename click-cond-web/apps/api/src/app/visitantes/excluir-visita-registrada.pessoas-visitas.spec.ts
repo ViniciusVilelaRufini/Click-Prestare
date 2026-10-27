@@ -43,7 +43,10 @@ describe('POST /visitantes/remove — visita já registrada pela portaria', () =
       },
       $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
     };
-    const tenant: any = { assertCondominio: jest.fn(async () => undefined) };
+    const tenant: any = {
+      assertCondominio: jest.fn(async () => undefined),
+      assertPermissaoFuncionario: jest.fn(async () => undefined),
+    };
     const svc = new VisitantesService(
       prisma, {} as any, {} as any, {} as any, { registrar: jest.fn() } as any, tenant,
     );

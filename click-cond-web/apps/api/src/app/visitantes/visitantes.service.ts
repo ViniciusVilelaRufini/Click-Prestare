@@ -360,6 +360,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return !!check;
   }
 
+  /**
+   * Flag `cadastrar_visitante` do funcionário do app nas ESCRITAS sobre uma
+   * visita que já existe (editar, excluir) — mesmo critério do create() e dos
+   * prestadores (update/remove). Só funcionário é afetado (o helper central
+   * retorna cedo para os demais). Sem payload é chamada interna: não cobra.
+   */
+  private async assertFlagCadastrarVisitante(idCondominio: number, payload?: JwtPayload): Promise<void> {
+    if (!payload) return;
+    await this.tenant.assertPermissaoFuncionario(idCondominio, 'cadastrar_visitante', payload);
+  }
+
   private async assertPodeAcessarVisitante(idVisitante: number, payload?: JwtPayload) {
     const v = await this.prisma.visitantes.findUnique({ where: { id: Number(idVisitante) } });
     if (!v) throw new NotFoundException('Visitante não encontrado.');
@@ -2421,6 +2432,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    */
   private async removeViaPessoasVisitas(id: number, payload?: JwtPayload) {
     const v = await this.assertPodeAcessarVisita(id, payload);
+    await this.assertFlagCadastrarVisitante(v.id_condominio, payload);
 
     // A visita que já passou pela portaria é o registro de entrada/saída do
     // condomínio. O morador só cancela o que ainda não aconteceu — apagar pelo
@@ -2476,6 +2488,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    */
   private async updateViaPessoasVisitas(dto: UpdateVisitanteDto, payload?: JwtPayload) {
     const ref = await this.assertPodeAcessarVisita(dto.id, payload);
+    await this.assertFlagCadastrarVisitante(ref.id_condominio, payload);
     await this.assertPodeUsarApartamento(dto.id_apartamento, payload);
 
     const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
@@ -3620,7 +3633,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Autorização de tenant antes de qualquer escrita.
-    await this.assertPodeAcessarVisitante(dto.id, payload);
+    const refLegado = await this.assertPodeAcessarVisitante(dto.id, payload);
+    await this.assertFlagCadastrarVisitante(refLegado.id_condominio, payload);
     // O visitante é do solicitante, mas o apto de DESTINO também precisa ser:
     // senão dava para mover a visita (e o acesso) para a unidade do vizinho.
     await this.assertPodeUsarApartamento(dto.id_apartamento, payload);
@@ -3717,7 +3731,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     // Morador só apaga visita de apartamento dele; porteiro/síndico, do
     // condomínio deles. Mesma regra de todas as outras ações da visita.
-    await this.assertPodeAcessarVisitante(id, payload);
+    const refLegado = await this.assertPodeAcessarVisitante(id, payload);
+    await this.assertFlagCadastrarVisitante(refLegado.id_condominio, payload);
 
     const v = await this.prisma.visitantes.findUnique({
       where: { id: Number(id) },

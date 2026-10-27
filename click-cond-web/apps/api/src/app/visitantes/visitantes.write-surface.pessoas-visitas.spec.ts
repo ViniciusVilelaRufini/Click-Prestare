@@ -162,7 +162,10 @@ describe('VisitantesService — superfície de escrita Pessoas/Visitas (Task 4)'
       };
       const auditoria: any = { registrar: jest.fn() };
       const facial: any = { syncPessoa: jest.fn().mockResolvedValue({}) };
-      const tenant: any = { assertCondominio: jest.fn().mockResolvedValue(true) };
+      const tenant: any = {
+        assertCondominio: jest.fn().mockResolvedValue(true),
+        assertPermissaoFuncionario: jest.fn().mockResolvedValue(true),
+      };
 
       const service = new VisitantesService(
         prisma,

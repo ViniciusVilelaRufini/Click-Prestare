@@ -49,6 +49,7 @@ describe('POST /visitantes/remove — excluir visita pelo app', () => {
     const tenant: any = {
       assertCondominio: jest.fn(async () => undefined),
       assertEntidade: jest.fn(async () => undefined),
+      assertPermissaoFuncionario: jest.fn(async () => undefined),
     };
     const svc = new VisitantesService(prisma, {} as any, {} as any, facial, auditoria, tenant);
     return { svc, prisma, ctrl: new VisitantesGlobalController(svc) };

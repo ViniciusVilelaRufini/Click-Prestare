@@ -676,7 +676,15 @@ export class AreasSociaisService {
     const isentoDoLimite = peloSindico || this.ehOperador(user, typeAccess);
     // Sem essa checagem, qualquer morador mandava agendarPeloSindico:true e
     // auto-aprovava a própria reserva pulando a fila de autorização.
-    if (peloSindico) assertOperador(user, 'agendar em nome de outro morador (auto-aprovação)');
+    if (peloSindico) {
+      assertOperador(user, 'agendar em nome de outro morador (auto-aprovação)');
+      // Reservar em nome de um apartamento nasce 'aprovado' e enrola os
+      // moradores dele no facial da área: é gestão de reservas, a mesma
+      // decisão que a flag `areas_sociais` já controla no aprovar/recusar.
+      // A reserva do próprio funcionário (sem agendarPeloSindico) não passa
+      // por aqui — ver areas-sociais.permissao.spec.
+      await this.tenant.assertPermissaoFuncionario(areaAlvo.id_condominio, 'areas_sociais', user);
+    }
     let donoReservaId = Number(userId);
 
     if (peloSindico) {
@@ -877,6 +885,12 @@ export class AreasSociaisService {
       if (agTenantCheck.id_user !== Number(userId)) {
         throw new ForbiddenException('Você só pode remover seus próprios agendamentos.');
       }
+    }
+    // Apagar a reserva de OUTRO morador é gestão de reservas: o funcionário
+    // precisa da flag `areas_sociais`. A própria reserva ele apaga como
+    // qualquer morador.
+    if (agTenantCheck.id_user !== Number(userId)) {
+      await this.tenant.assertPermissaoFuncionario(agTenantCheck.area?.id_condominio, 'areas_sociais', user);
     }
 
     // Cancelamento (dono ou síndico via remove): revoga o acesso facial ANTES

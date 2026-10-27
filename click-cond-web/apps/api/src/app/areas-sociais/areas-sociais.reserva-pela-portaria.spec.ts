@@ -17,7 +17,10 @@ describe('Reserva pela portaria — dono e apartamento', () => {
       apartamentos_Users: { findFirst: jest.fn(async () => opts.vinculo ?? null) },
       areas_Sociais_Agendamentos: { create: jest.fn(async () => ({ id: 1 })) },
     };
-    const tenant: any = { assertEntidade: jest.fn(async () => undefined) };
+    const tenant: any = {
+      assertEntidade: jest.fn(async () => undefined),
+      assertPermissaoFuncionario: jest.fn(async () => undefined),
+    };
     const svc = new AreasSociaisService(prisma, {} as any, {} as any, {} as any, tenant);
     return { svc, prisma };
   }
