@@ -5,6 +5,7 @@ import { MobileAuthService } from './mobile-auth.service';
 import { Public } from './public.decorator';
 import { ReqUser } from './req-user.decorator';
 import type { JwtPayload } from './jwt-payload.interface';
+import { extractClientIp } from '../common/context/request-context';
 
 @Controller('auth')
 export class AuthController {
@@ -48,8 +49,24 @@ export class AuthController {
   @Throttle({ medium: { limit: 5, ttl: 60_000 } })
   @Post('login-portaria')
   @HttpCode(200)
-  login(@Body() body: { login: string; senha: string }) {
-    return this.authService.loginPortaria(body.login, body.senha);
+  login(@Body() body: { login: string; senha: string; device_token?: string }, @Req() req: any) {
+    const deviceToken = (req?.headers?.['x-device-token'] as string) || body.device_token;
+    return this.authService.loginPortaria(body.login, body.senha, deviceToken);
+  }
+
+  // 2ª etapa do login de síndico no console (código enviado por e-mail).
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Post('login-portaria/mfa')
+  @HttpCode(200)
+  verificarMfaPortaria(
+    @Body() body: { mfa_token: string; code: string; remember_device?: boolean },
+    @Req() req: any,
+  ) {
+    return this.authService.verificarMfaPortaria(body.mfa_token, body.code, body.remember_device ?? false, {
+      userAgent: req?.headers?.['user-agent'],
+      ip: extractClientIp(req) || req?.ip,
+    });
   }
 
   // Só a portaria-web já logada usa (recupera o nome do próprio condomínio).

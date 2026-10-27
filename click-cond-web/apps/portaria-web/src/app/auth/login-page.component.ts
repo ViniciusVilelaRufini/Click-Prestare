@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { AuthService } from './auth.service';
+import { AuthService, ehDesafioMfa } from './auth.service';
 import { ThemeService } from '../shared/theme.service';
 
 @Component({
@@ -190,7 +190,7 @@ import { ThemeService } from '../shared/theme.service';
             </div>
 
             <!-- MODO CONVENCIONAL DE LOGIN -->
-            @if (!isQrMode()) {
+            @if (!isQrMode() && !mfaToken()) {
               <div class="hidden lg:block space-y-2">
                 <h2 
                   class="text-3xl font-extrabold tracking-tight transition-colors duration-300"
@@ -321,6 +321,60 @@ import { ThemeService } from '../shared/theme.service';
                   </svg>
                   <span>Acessar via QR Code (App)</span>
                 </button>
+              </form>
+            }
+
+            <!-- SEGUNDA ETAPA DO SÍNDICO: CÓDIGO ENVIADO POR E-MAIL -->
+            @if (mfaToken()) {
+              <form (ngSubmit)="onSubmitMfa()" class="space-y-5 animate-fadeIn">
+                <div class="space-y-2">
+                  <h2
+                    class="text-2xl font-extrabold tracking-tight"
+                    [ngClass]="isLight() ? 'text-slate-800' : 'text-white'"
+                  >Verificação em duas etapas</h2>
+                  <p class="text-sm font-light" [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'">
+                    Enviamos um código de 6 dígitos para {{ mfaEmail() }}.
+                  </p>
+                </div>
+
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  maxlength="6"
+                  [(ngModel)]="codigoMfa"
+                  name="codigoMfa"
+                  required
+                  class="w-full border rounded-xl px-4 py-3.5 text-center text-lg tracking-[0.5em] transition shadow-inner focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
+                  [ngClass]="isLight()
+                    ? 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
+                    : 'bg-slate-900/60 border-white/10 text-white placeholder-slate-600'"
+                  placeholder="000000"
+                />
+
+                <label class="flex items-center gap-2 text-xs" [ngClass]="isLight() ? 'text-slate-600' : 'text-slate-400'">
+                  <input type="checkbox" [(ngModel)]="lembrarDispositivo" name="lembrarDispositivo" />
+                  Confiar neste computador por 30 dias
+                </label>
+
+                @if (erro()) {
+                  <div class="flex items-center gap-2.5 text-xs text-rose-400 bg-rose-400/10 border border-rose-400/20 rounded-xl px-4 py-3">
+                    <span>{{ erro() }}</span>
+                  </div>
+                }
+
+                <button
+                  type="submit"
+                  [disabled]="carregando()"
+                  class="w-full bg-accent hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl px-4 py-3.5 transition shadow-lg shadow-accent/15 active:scale-[0.98]"
+                >
+                  {{ carregando() ? 'Verificando...' : 'Confirmar código' }}
+                </button>
+
+                <div class="flex justify-between text-xs">
+                  <button type="button" (click)="cancelarMfa()" class="text-slate-500 hover:text-accent transition">Voltar</button>
+                  <button type="button" (click)="reenviarCodigo()" class="text-slate-500 hover:text-accent transition">Reenviar código</button>
+                </div>
               </form>
             }
 
@@ -459,6 +513,11 @@ export class LoginPageComponent implements OnDestroy {
   senhaValue = '';
   carregando = signal(false);
   erro = signal('');
+  // Segunda etapa do síndico (código por e-mail)
+  mfaToken = signal('');
+  mfaEmail = signal('');
+  codigoMfa = '';
+  lembrarDispositivo = true;
 
   // Theme State
   readonly isLight = this.theme.isLight;
@@ -485,7 +544,15 @@ export class LoginPageComponent implements OnDestroy {
     this.erro.set('');
 
     this.auth.login(this.loginValue, this.senhaValue).subscribe({
-      next: () => this.router.navigate([this.destinoPosLogin()]),
+      next: (res) => {
+        if (ehDesafioMfa(res)) {
+          this.carregando.set(false);
+          this.mfaEmail.set(res.email_masked);
+          this.mfaToken.set(res.mfa_token);
+          return;
+        }
+        this.router.navigate([this.destinoPosLogin()]);
+      },
       error: (err) => {
         this.carregando.set(false);
         this.erro.set(
@@ -495,6 +562,38 @@ export class LoginPageComponent implements OnDestroy {
         );
       },
     });
+  }
+
+  onSubmitMfa() {
+    const codigo = this.codigoMfa.trim();
+    if (!codigo) return;
+    this.carregando.set(true);
+    this.erro.set('');
+
+    this.auth.verificarMfa(this.mfaToken(), codigo, this.lembrarDispositivo).subscribe({
+      next: () => {
+        this.mfaToken.set('');
+        this.codigoMfa = '';
+        this.router.navigate([this.destinoPosLogin()]);
+      },
+      error: (err) => {
+        this.carregando.set(false);
+        this.erro.set(err?.error?.message || 'Código inválido ou expirado.');
+      },
+    });
+  }
+
+  reenviarCodigo() {
+    this.erro.set('');
+    this.auth.reenviarMfa(this.mfaToken()).subscribe({
+      error: (err) => this.erro.set(err?.error?.message || 'Não foi possível reenviar o código.'),
+    });
+  }
+
+  cancelarMfa() {
+    this.mfaToken.set('');
+    this.codigoMfa = '';
+    this.erro.set('');
   }
 
   /**

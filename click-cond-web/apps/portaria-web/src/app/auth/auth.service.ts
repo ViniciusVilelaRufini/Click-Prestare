@@ -19,8 +19,22 @@ export interface PorteiroInfo {
   condominios?: CondominioVinculo[];
 }
 
+/** Resposta do login quando o síndico precisa confirmar o código enviado por e-mail. */
+export interface DesafioMfa {
+  mfa_required: true;
+  mfa_token: string;
+  email_masked: string;
+  expires_in_seconds: number;
+}
+
+export function ehDesafioMfa(res: PorteiroInfo | DesafioMfa): res is DesafioMfa {
+  return (res as DesafioMfa)?.mfa_required === true;
+}
+
 const TOKEN_KEY = 'portaria_token';
 const INFO_KEY = 'portaria_info';
+/** Aparelho confiável do síndico (30 dias). Fica após o logout, como no app. */
+const DEVICE_KEY = 'portaria_device_token';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -73,8 +87,42 @@ export class AuthService {
 
   login(login: string, senha: string) {
     return this.http
-      .post<PorteiroInfo>('/api/auth/login-portaria', { login, senha })
-      .pipe(tap((res) => this._persist(res)));
+      .post<PorteiroInfo | DesafioMfa>('/api/auth/login-portaria', {
+        login,
+        senha,
+        device_token: this._deviceToken() ?? undefined,
+      })
+      // Desafio de 2 etapas não é sessão: nada é gravado até o código ser confirmado.
+      .pipe(tap((res) => { if (!ehDesafioMfa(res)) this._persist(res); }));
+  }
+
+  verificarMfa(mfaToken: string, code: string, lembrar: boolean) {
+    return this.http
+      .post<PorteiroInfo & { device_token?: string }>('/api/auth/login-portaria/mfa', {
+        mfa_token: mfaToken,
+        code,
+        remember_device: lembrar,
+      })
+      .pipe(
+        tap((res) => {
+          if (res.device_token) {
+            try { localStorage.setItem(DEVICE_KEY, res.device_token); } catch { /* sem storage: pede o código de novo */ }
+          }
+          this._persist(res);
+        }),
+      );
+  }
+
+  reenviarMfa(mfaToken: string) {
+    return this.http.post<{ success: boolean; message: string }>('/api/auth/mfa/resend', { mfa_token: mfaToken });
+  }
+
+  private _deviceToken(): string | null {
+    try {
+      return localStorage.getItem(DEVICE_KEY);
+    } catch {
+      return null;
+    }
   }
 
   loginComToken(res: PorteiroInfo) {

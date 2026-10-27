@@ -1,0 +1,81 @@
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { AuthService } from './auth.service';
+import { LoginPageComponent } from './login-page.component';
+import { ThemeService } from '../shared/theme.service';
+
+describe('Login da portaria — 2ª etapa do síndico', () => {
+  function build() {
+    TestBed.configureTestingModule({
+      imports: [LoginPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ThemeService, useValue: { isLight: signal(false), toggleTheme: jest.fn() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LoginPageComponent);
+    return {
+      component: fixture.componentInstance,
+      http: TestBed.inject(HttpTestingController),
+      auth: TestBed.inject(AuthService),
+    };
+  }
+
+  beforeEach(() => localStorage.clear());
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('desafio MFA não grava token e abre a etapa do código', () => {
+    const { component, http } = build();
+    component.loginValue = 'sindico@demo.com';
+    component.senhaValue = 'x';
+    component.onSubmit();
+
+    http.expectOne('/api/auth/login-portaria').flush({
+      mfa_required: true,
+      mfa_token: 'm1',
+      email_masked: 'si****@demo.com',
+      expires_in_seconds: 600,
+    });
+
+    expect(localStorage.getItem('portaria_token')).toBeNull();
+    expect(component.mfaToken()).toBe('m1');
+    expect(component.mfaEmail()).toBe('si****@demo.com');
+  });
+
+  it('código confirmado grava a sessão e o token do dispositivo', () => {
+    const { component, http } = build();
+    component.mfaToken.set('m1');
+    component.codigoMfa = '123456';
+    component.lembrarDispositivo = true;
+    component.onSubmitMfa();
+
+    const req = http.expectOne('/api/auth/login-portaria/mfa');
+    expect(req.request.body).toEqual({ mfa_token: 'm1', code: '123456', remember_device: true });
+    req.flush({
+      access_token: 'tok',
+      id: 1,
+      nome: 'S',
+      turno: 'Síndico',
+      id_condominio: 10,
+      condominio_nome: 'C',
+      condominios: [{ id: 10, nome: 'C' }],
+      device_token: 'dev1',
+    });
+
+    expect(localStorage.getItem('portaria_token')).toBe('tok');
+    expect(localStorage.getItem('portaria_device_token')).toBe('dev1');
+  });
+
+  it('login seguinte envia o token do dispositivo confiável', () => {
+    localStorage.setItem('portaria_device_token', 'dev1');
+    const { auth, http } = build();
+    auth.login('s@d', 'x').subscribe();
+
+    expect(http.expectOne('/api/auth/login-portaria').request.body).toEqual({ login: 's@d', senha: 'x', device_token: 'dev1' });
+  });
+});

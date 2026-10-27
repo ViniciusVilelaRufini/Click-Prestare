@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { createHash } from 'crypto';
@@ -7,6 +7,7 @@ import { JwtPayload } from './jwt-payload.interface';
 import { QrSessionStore } from './qr-session.store';
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { TenantAccessService } from './tenant-access.service';
+import { MfaService } from './mfa/mfa.service';
 
 /**
  * Lockout em memória por login. Após N tentativas falhas em janela,
@@ -26,12 +27,18 @@ export class AuthService {
   private readonly failureWindowMs = Number(process.env.AUTH_FAILURE_WINDOW_MS ?? 600_000);
   private readonly lockoutMs = Number(process.env.AUTH_LOCKOUT_MS ?? 900_000);
   private readonly portariaJwtExpiresIn = (process.env.PORTARIA_JWT_EXPIRES_IN ?? '24h') as any;
+  /**
+   * Sessões de síndico aguardando o código do e-mail, por mfa_token. Em memória como o QrSessionStore e o
+   * lockout: se a API reiniciar no meio, o síndico só faz login de novo.
+   */
+  private readonly mfaPendentes = new Map<string, { payload: JwtPayload; resposta: Record<string, unknown>; expiraEm: number }>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly qrStore: QrSessionStore,
     private readonly tenant?: TenantAccessService,
+    @Optional() private readonly mfa?: MfaService,
   ) {}
 
   private isLocked(login: string): boolean {
@@ -134,6 +141,7 @@ export class AuthService {
   private async montarSessaoPortaria(
     funcionario: { id: number; nome: string; turno: string | null; id_condominio: number },
     login: string,
+    deviceToken?: string,
   ) {
     const cond = await this.prisma.condominios.findUnique({
       where: { id: funcionario.id_condominio },
@@ -157,8 +165,7 @@ export class AuthService {
           turno: funcionario.turno,
         };
 
-    return {
-      access_token: this.jwt.sign(payload, { expiresIn: this.portariaJwtExpiresIn }),
+    const resposta = {
       id: sindico ? sindico.id : funcionario.id,
       nome: sindico ? sindico.nome : funcionario.nome,
       turno: sindico ? 'Síndico' : funcionario.turno,
@@ -168,9 +175,19 @@ export class AuthService {
       // login coincide com o e-mail de um síndico de OUTRO condomínio não pode ver nem trocar para os dele.
       condominios: sindico ? await this.condominiosDoSindicoPorLogin(login) : [],
     };
+
+    if (sindico) {
+      const desafio = await this.exigirMfaSindico(sindico.id, deviceToken, payload, resposta);
+      if (desafio) return desafio;
+    }
+
+    return {
+      access_token: this.jwt.sign(payload, { expiresIn: this.portariaJwtExpiresIn }),
+      ...resposta,
+    };
   }
 
-  async loginPortaria(login: string, senha: string) {
+  async loginPortaria(login: string, senha: string, deviceToken?: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
     }
@@ -210,7 +227,7 @@ export class AuthService {
 
       if (isMatch) {
         this.limparFalhas(login);
-        return this.montarSessaoPortaria(funcionario, login);
+        return this.montarSessaoPortaria(funcionario, login, deviceToken);
       }
       // Se a senha do funcionário não confere, não sobrescreve nem auto-sincroniza com o síndico
       // (Conformidade LGPD e isolamento estrito de credenciais/auditoria).
@@ -283,8 +300,7 @@ export class AuthService {
       typeAccess: 'Sindico',
     };
 
-    return {
-      access_token: this.jwt.sign(sindicoPayload, { expiresIn: this.portariaJwtExpiresIn }),
+    const resposta = {
       id: user.id,
       nome: sindico.name,
       turno: 'Síndico',
@@ -296,6 +312,84 @@ export class AuthService {
         id: v.id_condominio,
         nome: v.condominio?.nome || 'Condomínio',
       })),
+    };
+
+    const desafio = await this.exigirMfaSindico(user.id, deviceToken, sindicoPayload, resposta);
+    if (desafio) return desafio;
+
+    return {
+      access_token: this.jwt.sign(sindicoPayload, { expiresIn: this.portariaJwtExpiresIn }),
+      ...resposta,
+    };
+  }
+
+  /**
+   * Síndico no console passa pelo MESMO 2º fator do login do app (MobileAuthService.loginSindico):
+   * aparelho confiável ou código por e-mail. O token do console carrega typeAccess 'Sindico' e vale nas
+   * rotas do app, então sem isto uma senha vazada pulava o 2º fator por aqui.
+   *
+   * Devolve null quando pode entrar direto (aparelho confiável ou MFA não configurado — mesmo critério
+   * do app); senão, o desafio, e guarda a sessão já montada até o código ser conferido.
+   */
+  private async exigirMfaSindico(
+    idUser: number,
+    deviceToken: string | undefined,
+    payload: JwtPayload,
+    resposta: Record<string, unknown>,
+  ) {
+    if (!this.mfa) return null;
+    if (await this.mfa.isDeviceTrusted(idUser, deviceToken)) return null;
+
+    const user = await this.prisma.users.findUnique({ where: { id: idUser }, include: { sindicos: true } });
+    const sindico = user?.sindicos?.[0];
+    const email = (sindico?.email?.trim() && sindico.email.includes('@'))
+      ? sindico.email.trim()
+      : (user?.email?.trim() && user.email.includes('@'))
+        ? user.email.trim()
+        : (user?.login?.trim() && user.login.includes('@'))
+          ? user.login.trim()
+          : '';
+    if (!email) {
+      throw new BadRequestException(
+        'Não há um e-mail válido vinculado a este cadastro de Síndico para envio do código de segurança de 2 etapas. Atualize o e-mail no painel.',
+      );
+    }
+
+    const desafio = await this.mfa.createChallenge({ id: idUser, email, name: sindico?.name || 'Síndico' });
+    const agora = Date.now();
+    for (const [token, pendente] of this.mfaPendentes) {
+      if (pendente.expiraEm < agora) this.mfaPendentes.delete(token);
+    }
+    this.mfaPendentes.set(desafio.mfa_token, {
+      payload,
+      resposta,
+      expiraEm: agora + desafio.expires_in_seconds * 1000,
+    });
+    return desafio;
+  }
+
+  /** 2ª etapa do login de síndico no console: confere o código e emite o token de console guardado. */
+  async verificarMfaPortaria(
+    mfaToken: string,
+    code: string,
+    rememberDevice: boolean,
+    meta?: { userAgent?: string; ip?: string },
+  ) {
+    const pendente = mfaToken ? this.mfaPendentes.get(mfaToken) : undefined;
+    if (!pendente || pendente.expiraEm < Date.now() || !this.mfa) {
+      if (mfaToken) this.mfaPendentes.delete(mfaToken);
+      throw new UnauthorizedException('Código expirado ou inválido. Faça login novamente.');
+    }
+
+    // verifyChallenge confere o código (limite de 5 tentativas) e apaga o desafio. O token de app que
+    // ele também assina é descartado: o console recebe o token de console montado no login.
+    const verificado = await this.mfa.verifyChallenge(mfaToken, code, rememberDevice, meta);
+    this.mfaPendentes.delete(mfaToken);
+
+    return {
+      access_token: this.jwt.sign(pendente.payload, { expiresIn: this.portariaJwtExpiresIn }),
+      ...pendente.resposta,
+      device_token: verificado.device_token,
     };
   }
 
