@@ -47,6 +47,8 @@ const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 export const PREFIXOS_FOTO_CONVITE: readonly string[] = ['convites/'];
 /** Foto de visitante nasce em visitantes/ ou é herdada do convite (convites/). */
 export const PREFIXOS_FOTO_VISITANTE: readonly string[] = ['visitantes/', 'convites/'];
+/** Foto de morador (rosto do facial) nasce em moradores/ (MoradoresService.resolveFoto e saveMorador). */
+export const PREFIXOS_FOTO_MORADOR: readonly string[] = ['moradores/'];
 
 @Injectable()
 export class StorageService {

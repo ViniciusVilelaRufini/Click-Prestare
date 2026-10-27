@@ -1,5 +1,6 @@
-import { ForbiddenException, Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, Inject, Optional, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage.service';
 import type { FacialService } from '../facial/facial.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
@@ -36,6 +37,7 @@ export class ConsentimentosService {
       }),
     )
     private readonly facial: FacialService,
+    @Optional() private readonly storage?: StorageService,
   ) {}
 
   /** Expõe o PrismaService para os controllers do módulo quando necessário */
@@ -159,7 +161,9 @@ export class ConsentimentosService {
     });
 
     let allRemoved = true;
+    const fotos = new Set<string>();
     for (const m of moradores) {
+      if (m.foto_pessoa) fotos.add(m.foto_pessoa);
       if (m.face_id && m.id_condominio) {
         const ok = await this.facial.unsyncMorador(m.id, m.face_id, m.id_condominio);
         if (ok) {
@@ -183,6 +187,20 @@ export class ConsentimentosService {
             },
           });
         }
+      } else if (m.foto_pessoa) {
+        // Foto guardada mas nunca enrolada (sem face_id): sai do banco também.
+        await this.prisma.moradores.update({ where: { id: m.id }, data: { foto_pessoa: null } });
+      }
+    }
+
+    // O banco só guardava o LINK: o objeto (public-read) seguia no storage para quem já tinha a URL.
+    // Users.photo/profile_image recebem a mesma URL no cadastro; apagado o objeto, apontariam para nada.
+    if (fotos.size > 0) {
+      const urls = [...fotos];
+      await this.prisma.users.updateMany({ where: { id: idUser, photo: { in: urls } }, data: { photo: null } });
+      await this.prisma.users.updateMany({ where: { id: idUser, profile_image: { in: urls } }, data: { profile_image: null } });
+      for (const url of urls) {
+        await this.storage?.deleteUrl(url, PREFIXOS_FOTO_MORADOR).catch(() => false);
       }
     }
 
