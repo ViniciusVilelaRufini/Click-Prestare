@@ -34,7 +34,7 @@ import { normalizarPayloadNativo } from './webhook-payload.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
 import { normalizarMac } from './descoberta.service';
-import { urlExternaSegura } from '../common/url-segura.util';
+import { agentesSemRedeInterna, urlExternaSegura } from '../common/url-segura.util';
 
 function pessoasMigrationEnabled(prisma?: any): boolean {
   if (process.env['PESSOAS_MIGRATION_ENABLED'] !== 'true') return false;
@@ -1368,6 +1368,7 @@ export class FacialService {
         }
         const axios = (await import('axios')).default;
         const res = await axios.get(foto, {
+          ...agentesSemRedeInterna(), // o IP checado é o IP conectado (DNS rebinding)
           responseType: 'arraybuffer',
           timeout: 15000,
           maxRedirects: 0,
@@ -5923,6 +5924,7 @@ export class FacialService {
         }
         const axios = (await import('axios')).default;
         const res = await axios.get(foto, {
+          ...agentesSemRedeInterna(), // o IP checado é o IP conectado (DNS rebinding)
           responseType: 'arraybuffer',
           timeout: 15000,
           maxRedirects: 0,
