@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { assertStaff } from './tenant.util';
 import type { JwtPayload } from './jwt-payload.interface';
@@ -17,10 +17,10 @@ import type { JwtPayload } from './jwt-payload.interface';
  * no token vem do vínculo conferido no banco, nunca do token de origem.
  */
 describe('AuthService.authorizeQrSession — papel no token de portaria', () => {
-  function build(vinculos: { sindico?: boolean; funcionario?: boolean; portaria?: boolean }) {
+  function build(vinculos: { sindico?: boolean; funcionario?: boolean; portaria?: boolean; conectado?: boolean }) {
     let assinado: JwtPayload | null = null;
     const prisma: any = {
-      isConnected: true,
+      isConnected: vinculos.conectado ?? true,
       condominios: { findUnique: jest.fn(async () => ({ nome: 'Edifício Demo' })) },
       sindicos_Condominios: { findFirst: jest.fn(async () => (vinculos.sindico ? { id: 1 } : null)) },
       funcionarios: { findFirst: jest.fn(async () => (vinculos.funcionario ? { id: 2 } : null)) },
@@ -72,6 +72,14 @@ describe('AuthService.authorizeQrSession — papel no token de portaria', () => 
       expect(tokenAssinado()).toBeNull();
     },
   );
+
+  it('banco desconectado: recusa (503) e não assina token', async () => {
+    const { svc, tokenAssinado } = build({ sindico: true, conectado: false });
+    await expect(
+      svc.authorizeQrSession({ sub: 5, nome: 'Ana', typeAccess: 'Sindico' }, 'qr', 1),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(tokenAssinado()).toBeNull();
+  });
 
   it('não confia no typeAccess do token de origem: quem não é síndico no banco não vira síndico', async () => {
     const { svc, tokenAssinado } = build({ funcionario: true });

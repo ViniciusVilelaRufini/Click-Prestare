@@ -464,8 +464,10 @@ export class AuthService {
     userId: number,
     typeAccess: string,
     idCondominio: number,
-  ): Promise<'Sindico' | 'Funcionario' | null> {
-    if (!this.prisma.isConnected) return null;
+  ): Promise<'Sindico' | 'Funcionario'> {
+    if (!this.prisma.isConnected) {
+      throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
+    }
 
     const tipo = (typeAccess ?? '').toLowerCase();
 
@@ -562,7 +564,7 @@ export class AuthService {
       // Code via um livro caixa só com o que já estava pago e tomava 403 em
       // qualquer alteração — o login por senha funcionava, o por QR não.
       // Vem do vínculo conferido no banco, não do token de origem.
-      ...(papelReal ? { typeAccess: papelReal } : {}),
+      typeAccess: papelReal,
     };
 
     const accessToken = this.jwt.sign(portariaPayload, { expiresIn: this.portariaJwtExpiresIn });
