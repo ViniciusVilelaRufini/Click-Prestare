@@ -81,7 +81,17 @@ export class MobileAuthService {
     return isNaN(parsed.getTime()) ? null : parsed;
   }
 
-  private async verifyPassword(senhaRaw: string, stored: string | null | undefined, userId: number): Promise<boolean> {
+  /**
+   * @param idRegistro id da linha dona do hash: Users.id, ou Funcionarios_Portaria.id quando `tabela`
+   *   é 'funcionarios_Portaria'. A migração MD5→bcrypt grava NA tabela de onde o hash veio — gravar em
+   *   Users com o id de um porteiro trocava a senha de outra pessoa (outra numeração).
+   */
+  private async verifyPassword(
+    senhaRaw: string,
+    stored: string | null | undefined,
+    idRegistro: number,
+    tabela: 'users' | 'funcionarios_Portaria' = 'users',
+  ): Promise<boolean> {
     if (!stored) return false;
 
     if (stored.startsWith('$2')) {
@@ -94,10 +104,17 @@ export class MobileAuthService {
     if (isMatch) {
       try {
         const newHash = await bcrypt.hash(senhaRaw, 10);
-        await this.prisma.users.update({
-          where: { id: userId },
-          data: { password: newHash },
-        });
+        if (tabela === 'funcionarios_Portaria') {
+          await this.prisma.funcionarios_Portaria.update({
+            where: { id: idRegistro },
+            data: { password: newHash },
+          });
+        } else {
+          await this.prisma.users.update({
+            where: { id: idRegistro },
+            data: { password: newHash },
+          });
+        }
       } catch (e) {
         // Falha na migração não deve bloquear o login
       }
@@ -714,7 +731,7 @@ export class MobileAuthService {
       // o cadastrou: aceitá-la aqui entregava a conta de outra pessoa (mesmo e-mail) a quem a cadastrou.
       const isMatch = user?.password
         ? await this.verifyPassword(senhaRaw, user.password, user.id)
-        : await this.verifyPassword(senhaRaw, portaria.password, portaria.id);
+        : await this.verifyPassword(senhaRaw, portaria.password, portaria.id, 'funcionarios_Portaria');
       if (!isMatch) {
         throw new UnauthorizedException('Login ou Senha incorretos');
       }
@@ -814,7 +831,7 @@ export class MobileAuthService {
       });
 
       if (portaria) {
-        const isPortariaMatch = await this.verifyPassword(senhaRaw, portaria.password, portaria.id);
+        const isPortariaMatch = await this.verifyPassword(senhaRaw, portaria.password, portaria.id, 'funcionarios_Portaria');
         // Só aceita se a portaria é do mesmo condomínio em que esta conta é funcionária E a conta é só da
         // equipe desse condomínio: aí quem cadastrou o porteiro administra TODOS os vínculos dela
         // (vinculos-usuario.util.ts) e pode definir a senha. Conta de síndico/morador, ou com vínculo em
