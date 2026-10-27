@@ -20,6 +20,10 @@ permissions:
 jobs:
   deploy:
     name: Build and deploy API
+    # Só a partir da main (push ou disparo manual NA main): antes, disparar de
+    # qualquer branch publicava o código dela em produção.
+    if: github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-latest
     defaults:
       run:

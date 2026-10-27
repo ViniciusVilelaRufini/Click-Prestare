@@ -2,6 +2,8 @@ name: Prepare Prestare API Domain
 on: { workflow_dispatch: {} }
 jobs:
   certificate:
+    if: github.ref == 'refs/heads/master'
+    environment: production
     runs-on: ubuntu-latest
     steps:
       - uses: aws-actions/configure-aws-credentials@v5

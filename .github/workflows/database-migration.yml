@@ -29,6 +29,9 @@ concurrency:
 jobs:
   migrate:
     name: Apply selected migration
+    # O SQL e o próprio run-sql-migration.mjs saem do checkout da ref
+    # disparada: só o master (protegido) pode fornecê-los.
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 10

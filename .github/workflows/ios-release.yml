@@ -15,9 +15,16 @@ on:
           - testflight
           - app-store
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build e envio
+    # Assinar e enviar à Apple só a partir de branch protegida: o Matchfile
+    # diz que acesso ao código não pode bastar para assinar.
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    environment: production
     runs-on: macos-15
     timeout-minutes: 60
     defaults:
