@@ -7,6 +7,7 @@ const upload = require('express-fileupload');
 const session = require('express-session');
 const cors = require('cors');
 const compression = require('compression');
+const { resolveSecret } = require('./src/configs/secrets');
 
 const condominioRoutes = require('./src/routes/condominio');
 const sindicoRoutes = require('./src/routes/sindico');
@@ -48,7 +49,7 @@ app.use((req, res, next) => {
 
 app.use(compression());
 app.use(cors());
-app.use(session({ secret: process.env.SESSION_SECRET || 'dev-session-secret' }));
+app.use(session({ secret: resolveSecret('SESSION_SECRET') }));
 app.use(upload());
 
 // view engine setup
