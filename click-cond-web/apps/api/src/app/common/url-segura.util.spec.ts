@@ -79,6 +79,10 @@ describe('lookupSeguro — o IP validado é o IP conectado (DNS rebinding)', () 
     expect(todos.addr).toEqual([{ address: '8.8.8.8', family: 4 }]);
   });
 
+  it('agentesSemRedeInterna desliga o proxy do ambiente (senão o lookup resolveria o proxy)', () => {
+    expect(agentesSemRedeInterna().proxy).toBe(false);
+  });
+
   it('axios com agentesSemRedeInterna não conecta num servidor interno', async () => {
     const server = http.createServer((_req, res) => res.end('segredo-interno'));
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
@@ -88,7 +92,6 @@ describe('lookupSeguro — o IP validado é o IP conectado (DNS rebinding)', () 
       await expect(
         axios.get(`http://rebind.exemplo.com:${port}/`, {
           ...agentesSemRedeInterna(),
-          proxy: false,
           timeout: 3000,
         }),
       ).rejects.toThrow(/endereço interno/);

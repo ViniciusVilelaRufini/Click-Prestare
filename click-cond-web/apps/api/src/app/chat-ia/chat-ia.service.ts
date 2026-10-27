@@ -1070,6 +1070,7 @@ ${docsTxt}`;
       ...agentesSemRedeInterna(),
       responseType: 'arraybuffer',
       timeout: 20000,
+      signal: AbortSignal.timeout(20000),
       maxRedirects: 0,
       maxContentLength: 30 * 1024 * 1024,
       validateStatus: () => true,

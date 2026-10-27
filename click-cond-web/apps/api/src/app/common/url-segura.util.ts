@@ -126,8 +126,10 @@ export function lookupSeguro(hostname: string, options: any, callback?: any): vo
 }
 
 /** Agentes para axios (`{ ...agentesSemRedeInterna() }`) que conectam só em IP público. */
-export function agentesSemRedeInterna(): { httpAgent: http.Agent; httpsAgent: https.Agent } {
+export function agentesSemRedeInterna(): { httpAgent: http.Agent; httpsAgent: https.Agent; proxy: false } {
   return {
+    // sem proxy do ambiente: com proxy o lookup resolveria o proxy, não o destino
+    proxy: false as const,
     httpAgent: new http.Agent({ lookup: lookupSeguro as any }),
     httpsAgent: new https.Agent({ lookup: lookupSeguro as any }),
   };
