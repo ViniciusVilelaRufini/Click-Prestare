@@ -1548,6 +1548,13 @@ export class AreasSociaisService {
     });
     if (!atual) throw new NotFoundException('Agendamento não encontrado.');
     await this.tenant.assertEntidade(atual.area?.id_condominio, user, `agendamento #${agendamento.id}`);
+    // Editar data/horário/status de uma reserva é operação: o vínculo com o
+    // condomínio deixava qualquer morador auto-aprovar a própria reserva (o
+    // tick facial enrola quem está 'aprovado') ou mexer na do vizinho. Mesmo
+    // par de checagens do updateStatusAgendamento. Nenhum cliente usa esta
+    // rota hoje — app e portaria-web decidem pelo update-status.
+    assertOperador(user, 'editar reserva');
+    await this.tenant.assertPermissaoFuncionario(atual.area?.id_condominio, 'areas_sociais', user);
 
     const updateData: any = {};
     if (agendamento.data) {
