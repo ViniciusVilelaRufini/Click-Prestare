@@ -8,12 +8,12 @@
  * produção). Mesmo critério do resolveJwtSecret da API NestJS
  * (click-cond-web/apps/api/src/app/auth/jwt-secret.ts): sem a env, não sobe.
  *
- * NODE_ENV=test usa um valor só de teste para os testes rodarem sem .env.
+ * Vale também com NODE_ENV=test: nenhum valor previsível é aceito; quem
+ * testa define a variável explicitamente.
  */
 function resolveSecret(name, env = process.env) {
   const value = env[name];
   if (typeof value === 'string' && value.trim().length > 0) return value;
-  if (env.NODE_ENV === 'test') return `test-only-${name}`;
   throw new Error(
     `${name} não está definido. Configure a variável de ambiente antes de iniciar a API legada.`,
   );

@@ -25,8 +25,19 @@ test('resolveSecret recusa segredo ausente ou em branco fora de teste', () => {
   assert.throws(() => resolveSecret('SESSION_SECRET', { NODE_ENV: 'development' }), /SESSION_SECRET/);
 });
 
-test('em NODE_ENV=test usa um segredo só de teste', () => {
-  assert.equal(resolveSecret('JWT_SECRET', { NODE_ENV: 'test' }), 'test-only-JWT_SECRET');
+test('NODE_ENV=test também exige o segredo (sem valor previsível)', () => {
+  assert.throws(() => resolveSecret('JWT_SECRET', { NODE_ENV: 'test' }), /JWT_SECRET não está definido/);
+  assert.equal(resolveSecret('JWT_SECRET', { NODE_ENV: 'test', JWT_SECRET: 'x-teste' }), 'x-teste');
+});
+
+test('config.js com NODE_ENV=test e sem JWT_SECRET também não carrega', () => {
+  const r = spawnSync(process.execPath, ['-e', "require('./src/configs/config.js')"], {
+    cwd: ROOT,
+    env: { ...envSem('JWT_SECRET'), NODE_ENV: 'test' },
+    encoding: 'utf8',
+  });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /JWT_SECRET não está definido/);
 });
 
 test('config.js não carrega sem JWT_SECRET (sem fallback público)', () => {
