@@ -2,7 +2,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideHttpClient } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { AuthService } from './auth.service';
 import { LoginPageComponent } from './login-page.component';
 import { ThemeService } from '../shared/theme.service';
@@ -77,5 +77,21 @@ describe('Login da portaria — 2ª etapa do síndico', () => {
     auth.login('s@d', 'x').subscribe();
 
     expect(http.expectOne('/api/auth/login-portaria').request.body).toEqual({ login: 's@d', senha: 'x', device_token: 'dev1' });
+  });
+
+  it('PC compartilhado da portaria: "lembrar dispositivo" começa desmarcado', () => {
+    const { component } = build();
+    expect(component.lembrarDispositivo).toBe(false);
+  });
+
+  it('logout apaga o token do dispositivo confiável', () => {
+    localStorage.setItem('portaria_device_token', 'dev1');
+    localStorage.setItem('portaria_token', 'tok');
+    const { auth } = build();
+    jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    auth.logout();
+
+    expect(localStorage.getItem('portaria_device_token')).toBeNull();
+    expect(localStorage.getItem('portaria_token')).toBeNull();
   });
 });

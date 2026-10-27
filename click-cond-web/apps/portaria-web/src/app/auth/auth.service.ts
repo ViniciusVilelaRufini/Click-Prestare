@@ -33,7 +33,7 @@ export function ehDesafioMfa(res: PorteiroInfo | DesafioMfa): res is DesafioMfa 
 
 const TOKEN_KEY = 'portaria_token';
 const INFO_KEY = 'portaria_info';
-/** Aparelho confiável do síndico (30 dias). Fica após o logout, como no app. */
+/** Aparelho confiável do síndico (30 dias). Sai no logout: o PC da portaria é compartilhado. */
 const DEVICE_KEY = 'portaria_device_token';
 
 @Injectable({ providedIn: 'root' })
@@ -177,6 +177,8 @@ export class AuthService {
   logout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(INFO_KEY);
+    // Sem isto, o próximo a usar o PC da portaria pulava o código do síndico por 30 dias.
+    localStorage.removeItem(DEVICE_KEY);
     this._info.set(null);
     this.router.navigate(['/login']);
   }

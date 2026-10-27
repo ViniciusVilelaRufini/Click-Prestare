@@ -517,7 +517,8 @@ export class LoginPageComponent implements OnDestroy {
   mfaToken = signal('');
   mfaEmail = signal('');
   codigoMfa = '';
-  lembrarDispositivo = true;
+  // Desmarcado por padrão: o PC da portaria costuma ser compartilhado entre turnos.
+  lembrarDispositivo = false;
 
   // Theme State
   readonly isLight = this.theme.isLight;
