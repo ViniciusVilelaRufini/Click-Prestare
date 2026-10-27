@@ -39,6 +39,15 @@ const TIPOS_PERMITIDOS: Record<string, string> = {
 /** Teto do arquivo decodificado (a API aceita 100 MB de JSON; o storage não deve). */
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
+/**
+ * Pastas do bucket que o expurgo de cada dono pode apagar. O valor da foto
+ * vem do cliente (URL não-data é guardada como veio), então o expurgo nunca
+ * pode apagar fora da pasta onde o próprio fluxo grava.
+ */
+export const PREFIXOS_FOTO_CONVITE: readonly string[] = ['convites/'];
+/** Foto de visitante nasce em visitantes/ ou é herdada do convite (convites/). */
+export const PREFIXOS_FOTO_VISITANTE: readonly string[] = ['visitantes/', 'convites/'];
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
@@ -152,8 +161,13 @@ export class StorageService {
 
   /**
    * Remove um arquivo do R2/S3 a partir de sua URL pública ou key (expurgo LGPD).
+   * Só apaga se a key estiver dentro de um dos `prefixosPermitidos` (pasta do
+   * dono — ver PREFIXOS_FOTO_*); lista vazia não apaga nada.
    */
-  async deleteUrl(url: string | null | undefined): Promise<boolean> {
+  async deleteUrl(
+    url: string | null | undefined,
+    prefixosPermitidos: readonly string[],
+  ): Promise<boolean> {
     if (!url || !this.enabled || !this.client) return false;
     if (this.isDataUrl(url)) return true; // base64 inline não fica no storage
 
@@ -173,6 +187,10 @@ export class StorageService {
       key = key.split(/[?#]/)[0];
 
       if (!key || key.split('/').includes('..')) return false;
+      if (!(prefixosPermitidos ?? []).some((p) => key.startsWith(p))) {
+        this.logger.warn('deleteUrl: objeto fora da pasta do dono, ignorado.');
+        return false;
+      }
 
       await this.client.send(new DeleteObjectCommand({
         Bucket: this.bucket,

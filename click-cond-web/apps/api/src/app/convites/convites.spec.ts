@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { ConvitesService, MAX_CONVITES_ATIVOS } from './convites.service';
+import { PREFIXOS_FOTO_CONVITE } from '../common/storage/storage.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 /**
@@ -363,7 +364,7 @@ describe('ConvitesService', () => {
       await svc.recusar(1, MORADOR);
 
       // Dado de quem não foi autorizado não fica esperando job de limpeza.
-      expect(storage.deleteUrl).toHaveBeenCalledWith('https://cdn/foto.jpg');
+      expect(storage.deleteUrl).toHaveBeenCalledWith('https://cdn/foto.jpg', PREFIXOS_FOTO_CONVITE);
       expect(convites[0].status).toBe('recusado');
       expect(convites[0].foto_url).toBeNull();
     });
@@ -535,7 +536,7 @@ describe('ConvitesService', () => {
 
       const n = await svc.tickRetencaoConvites();
 
-      expect(storage.deleteUrl).toHaveBeenCalledWith('https://cdn/f.jpg');
+      expect(storage.deleteUrl).toHaveBeenCalledWith('https://cdn/f.jpg', PREFIXOS_FOTO_CONVITE);
       expect(prisma.convites_Visita.deleteMany).toHaveBeenCalled();
       expect(n).toBe(1);
     });

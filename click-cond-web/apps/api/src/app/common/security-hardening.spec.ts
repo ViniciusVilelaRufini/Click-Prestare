@@ -78,10 +78,10 @@ describe('StorageService (upload público)', () => {
 
   it('deleteUrl só apaga objetos do próprio storage', async () => {
     const svc = criar();
-    expect(await svc.deleteUrl('https://evil.example.org/documentos/segredo.pdf')).toBe(false);
-    expect(await svc.deleteUrl('https://pub.example.com/../x')).toBe(false);
+    expect(await svc.deleteUrl('https://evil.example.org/documentos/segredo.pdf', ['documentos/'])).toBe(false);
+    expect(await svc.deleteUrl('https://pub.example.com/../x', ['fotos/'])).toBe(false);
     expect(svc.client.send).not.toHaveBeenCalled();
-    expect(await svc.deleteUrl('https://pub.example.com/fotos/a.png')).toBe(true);
+    expect(await svc.deleteUrl('https://pub.example.com/fotos/a.png', ['fotos/'])).toBe(true);
     expect(svc.client.send.mock.calls[0][0].input.Key).toBe('fotos/a.png');
   });
 });

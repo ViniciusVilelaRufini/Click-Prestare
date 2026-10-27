@@ -13,7 +13,7 @@ import { randomInt } from 'crypto';
 import { erroDocumento, erroVisita } from '../common/documento.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { StorageService } from '../common/storage/storage.service';
+import { PREFIXOS_FOTO_VISITANTE, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -222,8 +222,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         // Expurga arquivos físicos no Cloudflare R2 / S3
         await Promise.all(
           paraExpurgo.flatMap((v) => [
-            this.storage.deleteUrl(v.foto_pessoa),
-            this.storage.deleteUrl(v.foto_documento),
+            this.storage.deleteUrl(v.foto_pessoa, PREFIXOS_FOTO_VISITANTE),
+            this.storage.deleteUrl(v.foto_documento, PREFIXOS_FOTO_VISITANTE),
           ]),
         );
 
@@ -298,8 +298,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       if (resultado.count > 0) {
         totalExpurgado += resultado.count;
         await Promise.all([
-          this.storage.deleteUrl(pessoa.foto_pessoa),
-          this.storage.deleteUrl(pessoa.foto_documento),
+          this.storage.deleteUrl(pessoa.foto_pessoa, PREFIXOS_FOTO_VISITANTE),
+          this.storage.deleteUrl(pessoa.foto_documento, PREFIXOS_FOTO_VISITANTE),
         ]);
       }
     }

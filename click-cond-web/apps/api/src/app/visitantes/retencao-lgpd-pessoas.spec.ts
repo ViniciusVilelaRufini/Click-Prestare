@@ -1,4 +1,5 @@
 import { VisitantesService } from './visitantes.service';
+import { PREFIXOS_FOTO_VISITANTE } from '../common/storage/storage.service';
 
 /**
  * C4 da auditoria (núcleo Pessoas+Visitas): com a flag ligada, toda foto de
@@ -47,8 +48,8 @@ describe('VisitantesService.tickRetencaoDadosVisitantes — alcança Pessoas tam
     // Prova que o early-return do ramo Visitantes (legado, sem nada a
     // expurgar neste teste) não pulou o ramo Pessoas.
     expect(prisma.visitantes.updateMany).not.toHaveBeenCalled();
-    expect(storage.deleteUrl).toHaveBeenCalledWith('https://r2/rosto.jpg');
-    expect(storage.deleteUrl).toHaveBeenCalledWith('https://r2/doc.jpg');
+    expect(storage.deleteUrl).toHaveBeenCalledWith('https://r2/rosto.jpg', PREFIXOS_FOTO_VISITANTE);
+    expect(storage.deleteUrl).toHaveBeenCalledWith('https://r2/doc.jpg', PREFIXOS_FOTO_VISITANTE);
     expect(prisma.pessoas.updateMany).toHaveBeenCalledWith({
       where: {
         id: 2000001,

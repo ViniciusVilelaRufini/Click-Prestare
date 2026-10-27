@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { StorageService } from '../common/storage/storage.service';
+import { PREFIXOS_FOTO_CONVITE, StorageService } from '../common/storage/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   VisitantesService,
@@ -138,7 +138,7 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
         await this.consentimentosTerceiros.descartarConvite(c.id).catch(() => undefined);
         if (c.foto_url && this.storage.enabled) {
           try {
-            await this.storage.deleteUrl(c.foto_url);
+            await this.storage.deleteUrl(c.foto_url, PREFIXOS_FOTO_CONVITE);
           } catch (err: any) {
             this.logger.warn(`Retenção: falha ao apagar foto do convite ${c.id}: ${err?.message ?? err}`);
           }
@@ -588,7 +588,7 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
 
     if (fotoParaApagar && this.storage.enabled) {
       try {
-        await this.storage.deleteUrl(fotoParaApagar);
+        await this.storage.deleteUrl(fotoParaApagar, PREFIXOS_FOTO_CONVITE);
       } catch (err: any) {
         this.logger.warn(`Falha ao apagar foto de convite recusado: ${err?.message ?? err}`);
       }
