@@ -797,14 +797,17 @@ export class MoradoresService {
       });
       if (existing) {
         userId = existing.id;
+        // Users é global: conta com vínculo em OUTRO condomínio só é ligada a este cadastro.
+        // Login, senha e foto dela não são tocados (vinculos-usuario.util; mesma regra do sendCredentials).
+        const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, dto.id_condominio);
         // Atualiza login e password caso estejam vazios para permitir acesso, e as fotos
         const userUpdates: any = {};
-        if (!existing.login || !existing.password) {
+        if (!contaDeOutroCondominio && (!existing.login || !existing.password)) {
           userUpdates.login = dto.email;
           userUpdates.password = senhaHash;
           passwordWasSet = true;
         }
-        if (fotoPessoaUrl) {
+        if (fotoPessoaUrl && !contaDeOutroCondominio) {
           userUpdates.photo = fotoPessoaUrl;
           userUpdates.profile_image = fotoPessoaUrl;
         }
@@ -906,8 +909,9 @@ export class MoradoresService {
       );
     }
 
-    if (dto.sendCredentials && dto.email) {
-      this.fireWelcomeEmail(dto.email, dto.nome, passwordWasSet ? senhaInicial : undefined);
+    // Conta de outro condomínio não recebeu senha nova: não há credencial a enviar.
+    if (dto.sendCredentials && dto.email && passwordWasSet) {
+      this.fireWelcomeEmail(dto.email, dto.nome, senhaInicial);
     }
 
     // Mão dupla com a Superlógica. Best-effort de propósito: o ERP fora do ar

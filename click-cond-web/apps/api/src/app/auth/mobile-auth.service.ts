@@ -3833,19 +3833,26 @@ export class MobileAuthService {
         }
 
         userId = existing.id;
-        // Garante que o usuário tem login/senha para acessar o app
+        // Users é global. Conta com vínculo em OUTRO condomínio só é ligada a este apartamento:
+        // login, e-mail, CPF, senha e foto dela não são gravados aqui (vinculos-usuario.util).
+        // Antes, quem cadastrava achava a conta pelo CPF, gravava o PRÓPRIO e-mail como login
+        // e uma senha que conhecia, e entrava como a pessoa — com os vínculos dela no outro prédio.
+        const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, idCondominio);
         const patch: any = {};
-        if (!existing.login && mor.email) patch.login = mor.email;
-        if (!existing.password) {
-          patch.password = senhaHash;
-          passwordWasSet = true;
+        if (!contaDeOutroCondominio) {
+          // Garante que o usuário tem login/senha para acessar o app
+          if (!existing.login && mor.email) patch.login = mor.email;
+          if (!existing.password) {
+            patch.password = senhaHash;
+            passwordWasSet = true;
+          }
+          if (!existing.email && mor.email) patch.email = mor.email;
+          if (!existing.cpf && cpf) patch.cpf = cpf;
         }
-        if (!existing.email && mor.email) patch.email = mor.email;
-        if (!existing.cpf && cpf) patch.cpf = cpf;
         if (!existing.phone && mor.telefone) patch.phone = mor.telefone;
         if (!existing.name && mor.nome) patch.name = mor.nome;
         // Não troca a foto de quem já tem conta em outro condomínio.
-        if (photoUrl !== null && !(await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, idCondominio))) {
+        if (photoUrl !== null && !contaDeOutroCondominio) {
           patch.photo = photoUrl;
           patch.profile_image = photoUrl;
         }
@@ -3935,7 +3942,7 @@ export class MobileAuthService {
       }
 
       // Dispara email de boas-vindas (assíncrono, não bloqueia resposta)
-      if (mor.email && mor.sendCredentials !== false) {
+      if (mor.email && mor.sendCredentials !== false && (passwordWasSet || !existing || existing.email === mor.email)) {
         if (passwordWasSet) {
           this.mail
             .sendWelcomeMorador(mor.email, mor.nome ?? '', senhaInicial)
