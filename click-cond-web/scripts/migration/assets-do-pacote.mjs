@@ -7,7 +7,7 @@
 const BLOQUEADOS = [
   /\.json$/i,
   /service-account/i,
-  /(^|[\/])\.env/i,
+  /(^|[\\/])\.env/i,
   /\.(pem|key|p12|pfx)$/i,
 ];
 

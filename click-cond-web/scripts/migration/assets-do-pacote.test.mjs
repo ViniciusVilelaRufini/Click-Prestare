@@ -14,6 +14,8 @@ test('credenciais e .json ficam fora do pacote do Elastic Beanstalk', () => {
     'chave-service-account.txt',
     '.env',
     'sub/.env.local',
+    'sub\\.env.local',
+    'sub\\.env',
     'cert.pem',
     'id.key',
     'loja.p12',
