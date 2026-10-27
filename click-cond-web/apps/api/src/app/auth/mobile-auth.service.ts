@@ -3784,7 +3784,7 @@ export class MobileAuthService {
         throw new BadRequestException('Este morador já está cadastrado neste condomínio (e-mail, documento ou nome/apartamento duplicado).');
       }
 
-      // Cria/reutiliza Users por email OU cpf — senha inicial = documento ou '123456'
+      // Cria/reutiliza Users por email OU cpf — senha inicial aleatória
       const cpf = mor.documento ? String(mor.documento).trim() : null;
       const ehMenor = mor.data_nascimento ? calcularIdade(mor.data_nascimento) < 18 : false;
       if (mor.email || mor.sendCredentials !== false) {
@@ -3797,11 +3797,11 @@ export class MobileAuthService {
 
       let userId: number;
       let passwordWasSet = false;
-      const senhaInicial = (mor.email && mor.sendCredentials !== false)
-        ? this.gerarNovaSenha()
-        : (somenteDigitos(cpf) || this.gerarNovaSenha());
-      // bcrypt: a senha inicial sao os digitos do CPF, que nao e segredo. Em
-      // MD5 sem sal, qualquer vazamento do banco entrega a senha na hora.
+      // Senha inicial SEMPRE aleatória. Com envio de credenciais ela vai no e-mail
+      // de boas-vindas; sem, ninguém a conhece e a conta é ativada depois por
+      // "Enviar credenciais" (moradores.sendCredentials) ou "Esqueci a senha".
+      // Antes, sem o envio, virava os dígitos do CPF — que não é segredo.
+      const senhaInicial = this.gerarNovaSenha();
       const senhaHash = await bcrypt.hash(senhaInicial, 10);
 
       // Procura usuário existente: por email ou por CPF (campos UNIQUE)

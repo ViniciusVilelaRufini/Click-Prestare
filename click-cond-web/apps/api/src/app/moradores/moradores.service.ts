@@ -2,7 +2,6 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
 import { StorageService } from '../common/storage/storage.service';
-import { somenteDigitos } from '../common/documento.util';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
@@ -754,12 +753,10 @@ export class MoradoresService {
     const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa);
     const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento);
 
-    // Senha inicial temporária gerada de forma aleatória quando as credenciais são enviadas,
-    // evitando expor documento/CPF como credencial de acesso.
-    const senhaAleatoria = this.gerarSenhaAleatoria();
-    const senhaInicial = (dto.sendCredentials && dto.email)
-      ? senhaAleatoria
-      : (somenteDigitos(dto.documento) || senhaAleatoria);
+    // Senha inicial SEMPRE aleatória. Com sendCredentials ela vai no e-mail de boas-vindas;
+    // sem, ninguém a conhece e a conta é ativada por "Enviar credenciais" ou "Esqueci a senha".
+    // Antes, sem o envio, virava os dígitos do CPF — que não é segredo.
+    const senhaInicial = this.gerarSenhaAleatoria();
     const senhaHash = await bcrypt.hash(senhaInicial, 10);
     let passwordWasSet = false;
 
