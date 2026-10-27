@@ -21,7 +21,7 @@ import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
-import { PessoasService } from '../pessoas/pessoas.service';
+import { PessoasService, pessoaTemVisitaForaDosAptos } from '../pessoas/pessoas.service';
 import { VisitasService } from '../visitas/visitas.service';
 
 /**
@@ -2062,6 +2062,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // Mesma rotina do gerarPinUnico, mas escopada a `visitas` — gerarPinUnico
     // olha só `Visitantes`, que este caminho para de escrever.
     const pin = await this.gerarPinUnicoVisita();
+    // Morador: a Pessoa (e o PIN) de outro apartamento não são dele — ver
+    // OpcoesObterOuCriar e desativarOutrosCodigosVisita.
+    const aptosDoChamador = await this.aptosDoMoradorMobile(operador);
 
     const visita = await this.visitasService.criarVisita({
       id_condominio: Number(dto.id_condominio),
@@ -2082,7 +2085,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       liberado: 1,
       dias_semana: dto.dias_semana ?? null,
       categorias: dto.categorias ?? null,
-    } as any);
+    } as any, aptosDoChamador ? { aptosDoChamador } : undefined);
 
     // Porta o `desativarOutrosCodigos` do caminho legado: sem isto, registrar
     // a mesma pessoa de novo deixava o PIN anterior (de uma Visita aberta
@@ -2090,7 +2093,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // dois. Aqui a "mesma pessoa" é `id_pessoa`, direto — não a heurística de
     // doc/nome que o caminho legado precisa porque Visitantes não tem esse
     // vínculo estrutural.
-    await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id);
+    await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id, aptosDoChamador);
 
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctxCreate = this.construirContextoAuditoria(visita);
@@ -2183,6 +2186,24 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Apartamentos do morador do app; `undefined` para operador (portaria-web,
+   * síndico, funcionário) ou chamada interna. Mesma definição de "morador
+   * mobile" de assertPodeAcessarVisita/assertPodeUsarApartamento.
+   */
+  private async aptosDoMoradorMobile(payload?: JwtPayload): Promise<number[] | undefined> {
+    if (!payload) return undefined;
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
+    if (!ehMoradorMobile) return undefined;
+    const userId = Number(payload.user?.id ?? payload.sub);
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_user: userId },
+      select: { id_apto: true },
+    });
+    return vinculos.map((v) => Number(v.id_apto));
+  }
+
+  /**
    * Porta o `desativarOutrosCodigos` do caminho legado para `Visitas`: zera
    * `liberado`/`codigo_acesso` das OUTRAS visitas em aberto da mesma pessoa.
    * Sem isso, reregistrar alguém 3x deixava 3 PINs simultaneamente válidos
@@ -2197,6 +2218,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     idCondominio: number,
     idPessoa: number,
     idVisitaAtual: number,
+    // Morador: só revoga códigos das visitas dos apartamentos DELE. A visita
+    // em aberto do vizinho para a mesma Pessoa não é dele para derrubar.
+    aptosDoChamador?: number[],
   ): Promise<void> {
     if (!this.prisma.isConnected) return;
     await this.prisma.visitas.updateMany({
@@ -2206,6 +2230,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         id: { not: Number(idVisitaAtual) },
         data_entrada: null,
         data_saida: null,
+        ...(aptosDoChamador ? { id_apartamento: { in: aptosDoChamador } } : {}),
       },
       data: {
         liberado: 0,
@@ -2472,6 +2497,23 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
     if (fotoPes !== undefined) pessoaData.foto_pessoa = fotoPes;
     if (fotoDoc !== undefined) pessoaData.foto_documento = fotoDoc;
+
+    // Pessoa compartilhada com outro apartamento: o morador edita a visita
+    // dele (janela, dias), não nome/documento/fotos de quem o vizinho
+    // autorizou. Ignora em vez de recusar — o app manda o formulário inteiro
+    // em toda edição, e recusar travaria até a troca de horário.
+    if (Object.keys(pessoaData).length > 0) {
+      const aptosDoChamador = await this.aptosDoMoradorMobile(payload);
+      if (
+        aptosDoChamador &&
+        (await pessoaTemVisitaForaDosAptos(this.prisma, ref.id_pessoa, aptosDoChamador))
+      ) {
+        this.logger.warn(
+          `[visitantes.update] Pessoa ${ref.id_pessoa} tem visita em outro apartamento; dados pessoais ignorados para morador.`,
+        );
+        for (const k of Object.keys(pessoaData)) delete pessoaData[k];
+      }
+    }
 
     let updatedVisita: any;
     try {

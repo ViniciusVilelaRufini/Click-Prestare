@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PessoasService } from '../pessoas/pessoas.service';
+import { OpcoesObterOuCriar, PessoasService } from '../pessoas/pessoas.service';
 import { CriarVisitaDto } from './dto/criar-visita.dto';
 
 @Injectable()
@@ -38,9 +38,14 @@ export class VisitasService {
     }
   }
 
-  async criarVisita(dto: CriarVisitaDto) {
+  async criarVisita(dto: CriarVisitaDto, opts?: OpcoesObterOuCriar) {
     await this.assertApartamentoDoCondominio(Number(dto.id_apartamento), Number(dto.id_condominio));
-    const pessoa = await this.pessoasService.obterOuCriar(Number(dto.id_condominio), dto.pessoa);
+    // `opts` só chega quando quem registra é morador (VisitantesService). Sem
+    // ele a chamada fica idêntica à anterior (visitas.service.spec confere os
+    // argumentos exatos).
+    const pessoa = opts
+      ? await this.pessoasService.obterOuCriar(Number(dto.id_condominio), dto.pessoa, opts)
+      : await this.pessoasService.obterOuCriar(Number(dto.id_condominio), dto.pessoa);
 
     const inicio = dto.data_hora_inicio ? new Date(dto.data_hora_inicio) : null;
     const termino = dto.data_hora_termino ? new Date(dto.data_hora_termino) : null;

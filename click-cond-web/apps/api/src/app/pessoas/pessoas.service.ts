@@ -2,6 +2,33 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { CriarPessoaDto } from './dto/criar-pessoa.dto';
 
+export interface OpcoesObterOuCriar {
+  /**
+   * Apartamentos do MORADOR que está registrando a visita. Presente só quando
+   * o chamador é morador do app; operador (portaria/síndico/funcionário) não
+   * manda. Com ele, uma Pessoa já existente só tem a identidade reescrita se
+   * não tiver visita em apartamento fora desta lista.
+   */
+  aptosDoChamador?: number[];
+}
+
+/**
+ * A Pessoa é uma linha só por (condomínio, documento), compartilhada por
+ * todas as visitas de todos os apartamentos — e pelo mesmo rosto no terminal.
+ * Morador só tem autoridade sobre os apartamentos dele: se a Pessoa tem visita
+ * em outro, nome/fotos dela não são dele para trocar.
+ */
+export async function pessoaTemVisitaForaDosAptos(
+  prisma: PrismaService,
+  idPessoa: number,
+  aptos: number[],
+): Promise<boolean> {
+  const n = await prisma.visitas.count({
+    where: { id_pessoa: Number(idPessoa), id_apartamento: { notIn: aptos.map(Number) } },
+  });
+  return n > 0;
+}
+
 @Injectable()
 export class PessoasService {
   constructor(private readonly prisma: PrismaService) {}
@@ -45,7 +72,16 @@ export class PessoasService {
     });
   }
 
-  private async atualizarSeNecessario(existente: any, dto: CriarPessoaDto) {
+  private async atualizarSeNecessario(existente: any, dto: CriarPessoaDto, opts?: OpcoesObterOuCriar) {
+    // Identidade compartilhada com outro apartamento: o morador anexa a visita
+    // dele à Pessoa como ela está, sem trocar nome/fotos de quem o vizinho
+    // autorizou (e cujo rosto está no terminal).
+    if (
+      opts?.aptosDoChamador &&
+      (await pessoaTemVisitaForaDosAptos(this.prisma, existente.id, opts.aptosDoChamador))
+    ) {
+      return existente;
+    }
     const updateData: any = {};
     if (dto.telefone && !existente.telefone) updateData.telefone = dto.telefone;
     // Nome: propaga a correção (ex.: "Vinicius dd" -> "Vinicius Vilela").
@@ -73,7 +109,7 @@ export class PessoasService {
     return existente;
   }
 
-  async obterOuCriar(idCondominio: number, dto: CriarPessoaDto) {
+  async obterOuCriar(idCondominio: number, dto: CriarPessoaDto, opts?: OpcoesObterOuCriar) {
     if (dto.id_pessoa) {
       const existente = await this.prisma.pessoas.findFirst({
         where: { id: Number(dto.id_pessoa), id_condominio: Number(idCondominio) },
@@ -92,7 +128,7 @@ export class PessoasService {
       });
 
       if (existentePorDoc) {
-        return this.atualizarSeNecessario(existentePorDoc, dto);
+        return this.atualizarSeNecessario(existentePorDoc, dto, opts);
       }
     }
 
@@ -109,7 +145,7 @@ export class PessoasService {
       });
 
       if (existentePorFace) {
-        return this.atualizarSeNecessario(existentePorFace, dto);
+        return this.atualizarSeNecessario(existentePorFace, dto, opts);
       }
     }
 
@@ -140,7 +176,7 @@ export class PessoasService {
           },
         });
         if (criadaPelaOutraRequisicao) {
-          return this.atualizarSeNecessario(criadaPelaOutraRequisicao, dto);
+          return this.atualizarSeNecessario(criadaPelaOutraRequisicao, dto, opts);
         }
       }
       throw err;
