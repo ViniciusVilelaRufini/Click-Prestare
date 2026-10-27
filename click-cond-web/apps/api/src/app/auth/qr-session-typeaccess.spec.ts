@@ -1,3 +1,4 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { assertStaff } from './tenant.util';
 import type { JwtPayload } from './jwt-payload.interface';
@@ -56,14 +57,21 @@ describe('AuthService.authorizeQrSession — papel no token de portaria', () => 
     expect(tokenAssinado().typeAccess).toBe('Funcionario');
   });
 
-  it('porteiro do console continua SEM typeAccess — sem alçada no financeiro', async () => {
-    const { svc, tokenAssinado } = build({ portaria: true });
-    await svc.authorizeQrSession({ sub: 7, nome: 'Carlos', typeAccess: 'Funcionario' }, 'qr', 1);
-
-    const token = tokenAssinado();
-    expect(token.typeAccess).toBeUndefined();
-    expect(() => assertStaff(token, 'lançar movimento')).toThrow();
-  });
+  /**
+   * O sub de token de app é Users.id; Funcionarios_Portaria.id é outra
+   * numeração. Comparar os dois deixava um morador cujo Users.id coincidia com
+   * o id de um porteiro de OUTRO condomínio mintar token de console lá.
+   */
+  it.each([['Morador'], ['Funcionario']])(
+    'token %s cujo Users.id coincide com um Funcionarios_Portaria.id de outro condomínio NÃO autoriza',
+    async (papel) => {
+      const { svc, tokenAssinado } = build({ portaria: true });
+      await expect(
+        svc.authorizeQrSession({ sub: 7, nome: 'Carlos', typeAccess: papel }, 'qr', 99),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(tokenAssinado()).toBeNull();
+    },
+  );
 
   it('não confia no typeAccess do token de origem: quem não é síndico no banco não vira síndico', async () => {
     const { svc, tokenAssinado } = build({ funcionario: true });

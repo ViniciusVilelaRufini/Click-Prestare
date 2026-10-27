@@ -449,15 +449,16 @@ export class AuthService {
   /**
    * Garante que o usuário autenticado tem vínculo com o condomínio antes de
    * emitir um token de portaria via QR. Síndico: precisa estar em
-   * Sindicos_Condominios. Demais (porteiro/app): via Funcionarios ou
-   * Funcionarios_Portaria do condomínio.
-   */
-  /**
-   * Confirma o vínculo com o condomínio e devolve o papel REAL, resolvido no
-   * banco (não o que veio no token). Quem chama usa isso para carimbar o
-   * typeAccess do token de portaria — daí a diferença entre 'Funcionario'
-   * (equipe do condomínio, tem alçada administrativa) e o porteiro do console,
-   * que continua sem typeAccess e portanto sem alçada no financeiro.
+   * Sindicos_Condominios. Funcionário/morador do app: via Funcionarios.
+   *
+   * Confirma o vínculo e devolve o papel REAL, resolvido no banco (não o que
+   * veio no token). Quem chama usa isso para carimbar o typeAccess do token de
+   * portaria.
+   *
+   * Não há fallback por Funcionarios_Portaria: `userId` é sempre Users.id
+   * (idUsuarioDoToken recusa o token do console), e Funcionarios_Portaria.id é
+   * outra numeração — a comparação só casava por coincidência, com o porteiro
+   * de outra pessoa.
    */
   private async assertVinculoCondominio(
     userId: number,
@@ -479,19 +480,12 @@ export class AuthService {
       return 'Sindico';
     }
 
-    // Funcionário/porteiro: vínculo via Funcionarios (id_user) ou, para o
-    // porteiro-web, via Funcionarios_Portaria.
+    // Funcionário: vínculo via Funcionarios (id_user).
     const func = await this.prisma.funcionarios.findFirst({
       where: { id_user: userId, id_condominio: idCondominio },
       select: { id: true },
     });
     if (func) return 'Funcionario';
-
-    const funcPortaria = await this.prisma.funcionarios_Portaria.findFirst({
-      where: { id: userId, id_condominio: idCondominio },
-      select: { id: true },
-    });
-    if (funcPortaria) return null;
 
     throw new UnauthorizedException('Você não tem vínculo com este condomínio.');
   }
