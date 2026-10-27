@@ -27,7 +27,12 @@ async function main() {
   const NOME = 'Sindico Teste';
   const EMAIL = 'sindico.teste@clickprestarecondominios.com.br';
   const LOGIN = EMAIL;
-  const SENHA = 'sindico123';
+  // Senha da conta: nunca literal (este script grava no banco do .env, que é
+  // o RDS de produção). Ex.: SCRIPT_PASSWORD='...' npx tsx scripts/create-sindico.ts
+  const SENHA = process.env['SCRIPT_PASSWORD'] ?? '';
+  if (SENHA.length < 12) {
+    throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) com a senha da conta.');
+  }
   const CPF = '12345678901';
   const TELEFONE = '11999990000';
 
@@ -93,7 +98,7 @@ async function main() {
     console.log('   ID........:', id);
     console.log('   Nome......:', NOME);
     console.log('   Login.....:', LOGIN);
-    console.log('   Senha.....:', SENHA);
+    console.log('   Senha.....: (a definida em SCRIPT_PASSWORD)');
     console.log('\nUse no app mobile (/api/sindico/login) ou no painel web.\n');
   }
 }

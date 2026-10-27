@@ -11,7 +11,8 @@ async function debugLogin() {
   });
 
   const email = 'teste@click.com';
-  const pass = '123456';
+  const pass = process.env.SCRIPT_PASSWORD || '';
+  if (!pass) throw new Error('Defina SCRIPT_PASSWORD com a senha a testar.');
 
   console.log(`Debugging login for ${email}...`);
 
@@ -25,7 +26,7 @@ async function debugLogin() {
 
   // Verificando o resultado do MD5 no próprio MySQL
   const [md5Rows] = await connection.execute('SELECT MD5(?) as my_md5', [pass]);
-  console.log("MySQL MD5('123456'):", md5Rows[0].my_md5);
+  console.log('MySQL MD5(SCRIPT_PASSWORD):', md5Rows[0].my_md5);
 
   // Testando a query EXATA do backend
   const query = `select u.id, s.nome, u.photo                           

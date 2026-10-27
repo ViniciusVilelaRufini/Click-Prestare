@@ -12,10 +12,11 @@ async function fixUser() {
   });
 
   const email = 'morador@teste.com';
-  const newPass = '123456';
+  const newPass = process.env.SCRIPT_PASSWORD || '';
+  if (newPass.length < 12) throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) com a nova senha.');
   const hash = await bcrypt.hash(newPass, 10);
 
-  console.log(`Reseting password for ${email} to ${newPass}...`);
+  console.log(`Reseting password for ${email} (nova senha: a de SCRIPT_PASSWORD)...`);
 
   // Atualizando a senha para bcrypt e garantindo que is_morador = 1
   await connection.execute(`

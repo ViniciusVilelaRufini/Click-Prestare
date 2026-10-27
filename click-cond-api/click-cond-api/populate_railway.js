@@ -15,7 +15,8 @@ async function populateRailway() {
   const connection = await mysql.createConnection(config);
 
   const email = 'fui@eu.com';
-  const pass = '999888';
+  const pass = process.env.SCRIPT_PASSWORD || '';
+  if (pass.length < 12) throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) com a senha da conta.');
 
   try {
     // 1. Garantir que existe pelo menos um Condomínio
@@ -68,7 +69,7 @@ async function populateRailway() {
       VALUES (?, ?, 'Proprietário', DATE_ADD(NOW(), INTERVAL 365 DAY))
     `, [aptoId, userId]);
 
-    console.log("\nSUCCESS! User 'fui@eu.com' / '999888' is now ready on AWS RDS cloud.");
+    console.log(`\nSUCCESS! User '${email}' is now ready on AWS RDS cloud (senha: a de SCRIPT_PASSWORD).`);
     console.log("You can now test the app on any device!");
 
   } catch (err) {

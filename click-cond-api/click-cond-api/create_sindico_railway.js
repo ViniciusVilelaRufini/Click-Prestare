@@ -14,7 +14,8 @@ async function createSindicoRailway() {
   const connection = await mysql.createConnection(config);
 
   const email = 'sindico@click.com';
-  const pass = 'sindico123';
+  const pass = process.env.SCRIPT_PASSWORD || '';
+  if (pass.length < 12) throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) com a senha da conta.');
   const hash = await bcrypt.hash(pass, 10);
 
   try {
@@ -46,7 +47,7 @@ async function createSindicoRailway() {
       VALUES (?, ?)
     `, [userId, condoId]);
 
-    console.log("\nSUCCESS! Sindico 'sindico@click.com' / 'sindico123' is ready on AWS RDS.");
+    console.log(`\nSUCCESS! Sindico '${email}' is ready on AWS RDS (senha: a de SCRIPT_PASSWORD).`);
 
   } catch (err) {
     console.error("Error creating Sindico:", err);

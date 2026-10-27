@@ -1,8 +1,9 @@
 const http = require('http');
 
+if (!process.env.SCRIPT_PASSWORD) throw new Error('Defina SCRIPT_PASSWORD com a senha a testar.');
 const data = JSON.stringify({
   login: 'morador@teste.com',
-  password: '123456'
+  password: process.env.SCRIPT_PASSWORD
 });
 
 const options = {

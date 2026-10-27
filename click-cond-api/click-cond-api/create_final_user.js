@@ -12,7 +12,8 @@ async function createFinalUser() {
   });
 
   const email = 'fui@eu.com';
-  const pass = '999888';
+  const pass = process.env.SCRIPT_PASSWORD || '';
+  if (pass.length < 12) throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) com a senha da conta.');
   const hash = await bcrypt.hash(pass, 10);
 
   console.log(`Creating final test user ${email}...`);

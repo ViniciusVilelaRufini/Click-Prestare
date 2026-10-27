@@ -182,7 +182,12 @@ async function main() {
 
   // 5. Moradores (230 distribuídos nos primeiros 230 aptos)
   console.log('👥 Criando moradores (230)...');
-  const senhaPadrao = await bcrypt.hash('123456', 10);
+  // Senha dos moradores de teste: nunca literal (o seed roda no banco do .env).
+  const senhaSeed = process.env['SCRIPT_PASSWORD'] ?? '';
+  if (senhaSeed.length < 12) {
+    throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) para a senha dos moradores do seed.');
+  }
+  const senhaPadrao = await bcrypt.hash(senhaSeed, 10);
   const TIPOS = ['proprietario', 'inquilino', 'dependente'];
 
   const moradoresCriados: any[] = [];

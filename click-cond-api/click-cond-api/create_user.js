@@ -12,10 +12,11 @@ async function createFreshUser() {
   });
 
   const email = 'teste@click.com';
-  const pass = '123456';
+  const pass = process.env.SCRIPT_PASSWORD || '';
+  if (pass.length < 12) throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) com a senha da conta.');
   const hash = await bcrypt.hash(pass, 10);
 
-  console.log(`Creating fresh user ${email} with password ${pass}...`);
+  console.log(`Creating fresh user ${email} (senha: a de SCRIPT_PASSWORD)...`);
 
   // Remover se já existir
   await connection.execute('DELETE FROM Users WHERE login = ?', [email]);

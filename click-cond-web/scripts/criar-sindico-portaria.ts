@@ -19,7 +19,11 @@ async function main() {
     const login = "sindico@click.com";
     const nome = "Sindico Prestare";
     const email = "sindico@click.com";
-    const senhaPlana = "clickpassword123";
+    // Nunca literal: grava no banco do .env (RDS de produção).
+    const senhaPlana = process.env['SCRIPT_PASSWORD'] ?? '';
+    if (senhaPlana.length < 12) {
+      throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) com a senha da conta.');
+    }
     const turno = "Síndico"; // Crucial para o frontend não tratar como porteiro comum
 
     // 3. Gerar hash bcrypt da senha
@@ -60,7 +64,7 @@ async function main() {
     console.log("\n==================================================");
     console.log("CONTA DE ACESSO WEB GERADA COM SUCESSO!");
     console.log(`Identificador / Usuário: ${login}`);
-    console.log(`Senha de Segurança:     ${senhaPlana}`);
+    console.log(`Senha de Segurança:     (a definida em SCRIPT_PASSWORD)`);
     console.log(`Condomínio Vinculado:   ${condominio.nome}`);
     console.log(`Tipo de Acesso:         Síndico (Acesso total habilitado)`);
     console.log("==================================================\n");
