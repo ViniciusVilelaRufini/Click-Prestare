@@ -474,10 +474,13 @@ export class AuthService {
     if (expOrigem !== null && expOrigem <= agora) {
       throw new UnauthorizedException('Sessão expirada. Entre novamente.');
     }
-    let accessToken = this.jwt.sign(novoPayload, { expiresIn: this.portariaJwtExpiresIn });
+    // iat fixado em `agora`: senão o jsonwebtoken lê o relógio de novo e, se o segundo virar no meio,
+    // o exp sai 1s depois do de origem.
+    const assinado = { ...novoPayload, iat: agora };
+    let accessToken = this.jwt.sign(assinado, { expiresIn: this.portariaJwtExpiresIn });
     const expNovo = (this.jwt.decode(accessToken) as any)?.exp;
     if (expOrigem !== null && typeof expNovo === 'number' && expNovo > expOrigem) {
-      accessToken = this.jwt.sign(novoPayload, { expiresIn: expOrigem - agora });
+      accessToken = this.jwt.sign(assinado, { expiresIn: expOrigem - agora });
     }
 
     return {

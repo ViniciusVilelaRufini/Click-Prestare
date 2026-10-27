@@ -56,6 +56,22 @@ describe('AuthService.selecionarCondominio', () => {
     expect(novo.exp).toBeLessThanOrEqual(exp);
   });
 
+  it('não renova nem quando o relógio vira de segundo durante a assinatura', async () => {
+    const { svc, jwt } = build();
+    // `agora` do serviço cai em T.999s; a assinatura (jsonwebtoken) lê o relógio já em T+1.
+    const base = agora() * 1000 + 999;
+    const exp = Math.floor(base / 1000) + 60;
+    const origem = sindico(exp);
+    const spy = jest.spyOn(Date, 'now').mockReturnValueOnce(base).mockReturnValue(base + 1);
+    try {
+      const res = await svc.selecionarCondominio(origem, 7);
+      const novo: any = jwt.decode(res.access_token);
+      expect(novo.exp).toBeLessThanOrEqual(exp);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('token de origem longo (app, 365d) continua limitado ao teto da portaria', async () => {
     const { svc, jwt } = build();
     const res = await svc.selecionarCondominio(sindico(agora() + 300 * 86400), 8);
