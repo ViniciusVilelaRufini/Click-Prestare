@@ -8,6 +8,19 @@ import {
 import { ConfirmService } from '../shared/confirm.service';
 import { Apartamento, ApartamentosApi } from '../apartamentos/apartamentos.service';
 
+/**
+ * Escapa texto para o HTML das etiquetas: document.write não passa pelo escape
+ * do Angular, e descricao/recebido_de/apto/bloco vêm do morador.
+ */
+function esc(v: unknown): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 @Component({
   selector: 'app-encomendas-page',
   standalone: true,
@@ -468,10 +481,10 @@ export class EncomendasPageComponent implements OnInit {
     list.forEach(e => {
       htmlContent += `
         <div class="label">
-          <div class="id">Encomenda #${e.id}</div>
-          <div class="apto">${e.destinatario_bloco ? e.destinatario_bloco + ' / ' : ''}${e.destinatario_apto}</div>
-          <div class="desc">${e.descricao}</div>
-          <div class="meta">Recebido de: ${e.recebido_de ?? '—'}<br>Em: ${new Date(e.recebido_em).toLocaleString('pt-BR')}</div>
+          <div class="id">Encomenda #${esc(e.id)}</div>
+          <div class="apto">${e.destinatario_bloco ? esc(e.destinatario_bloco) + ' / ' : ''}${esc(e.destinatario_apto)}</div>
+          <div class="desc">${esc(e.descricao)}</div>
+          <div class="meta">Recebido de: ${esc(e.recebido_de ?? '—')}<br>Em: ${esc(new Date(e.recebido_em).toLocaleString('pt-BR'))}</div>
         </div>
       `;
     });
@@ -489,7 +502,7 @@ export class EncomendasPageComponent implements OnInit {
     const w = window.open('', '_blank', 'width=400,height=300');
     if (!w) return;
     w.document.write(`
-      <html><head><title>Etiqueta #${e.id}</title>
+      <html><head><title>Etiqueta #${esc(e.id)}</title>
       <style>
         body{font-family:Arial,sans-serif;padding:20px;margin:0}
         .label{border:2px solid #000;padding:16px;border-radius:8px}
@@ -499,10 +512,10 @@ export class EncomendasPageComponent implements OnInit {
         .meta{font-size:11px;color:#666;margin-top:12px}
       </style></head><body>
       <div class="label">
-        <div class="id">Encomenda #${e.id}</div>
-        <div class="apto">${e.destinatario_bloco ? e.destinatario_bloco + ' / ' : ''}${e.destinatario_apto}</div>
-        <div class="desc">${e.descricao}</div>
-        <div class="meta">Recebido de: ${e.recebido_de ?? '—'}<br>Em: ${new Date(e.recebido_em).toLocaleString('pt-BR')}</div>
+        <div class="id">Encomenda #${esc(e.id)}</div>
+        <div class="apto">${e.destinatario_bloco ? esc(e.destinatario_bloco) + ' / ' : ''}${esc(e.destinatario_apto)}</div>
+        <div class="desc">${esc(e.descricao)}</div>
+        <div class="meta">Recebido de: ${esc(e.recebido_de ?? '—')}<br>Em: ${esc(new Date(e.recebido_em).toLocaleString('pt-BR'))}</div>
       </div>
       <script>window.onload=()=>window.print()</script>
       </body></html>
