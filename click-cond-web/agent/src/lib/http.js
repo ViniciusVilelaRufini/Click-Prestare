@@ -42,13 +42,10 @@ function request(urlStr, opts = {}) {
       return reject(new Error(`URL inválida: ${urlStr}`));
     }
     const lib = u.protocol === 'https:' ? https : http;
+    // Credencial NUNCA vai na primeira requisição: Basic preventivo mandava a
+    // senha de admin do terminal em Base64 (texto claro) pela LAN, mesmo para
+    // aparelhos que só aceitam Digest. Ela só sai depois do 401 (ver abaixo).
     const headers = { Accept: 'application/json', ...(opts.headers || {}) };
-    if (opts.auth && !headers.Authorization) {
-      const tok = Buffer.from(`${opts.auth.user}:${opts.auth.pass}`).toString(
-        'base64',
-      );
-      headers.Authorization = `Basic ${tok}`;
-    }
 
     let payload;
     if (opts.json !== undefined) {
@@ -84,32 +81,35 @@ function request(urlStr, opts = {}) {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
-        // Desafio Digest (ex.: Hikvision): recalcula e repete uma vez.
+        // 401 com desafio: Digest (Hikvision/Dahua) se oferecido; Basic só se
+        // o aparelho pedir Basic. Repete uma vez com a credencial.
         const wa = res.headers['www-authenticate'] || '';
-        if (
-          res.statusCode === 401 &&
-          opts.auth &&
-          !opts._retry &&
-          /digest/i.test(wa)
-        ) {
-          try {
-            const dh = buildDigestHeader(
-              opts.auth.user,
-              opts.auth.pass,
-              reqOpts.method,
-              reqOpts.path,
-              wa,
-            );
+        if (res.statusCode === 401 && opts.auth && !opts._retry) {
+          let authorization = null;
+          if (/digest/i.test(wa)) {
+            try {
+              authorization = buildDigestHeader(
+                opts.auth.user,
+                opts.auth.pass,
+                reqOpts.method,
+                reqOpts.path,
+                wa,
+              );
+            } catch (e) {
+              /* cai para a resposta 401 normal */
+            }
+          } else if (/^\s*basic\b/i.test(wa)) {
+            authorization = `Basic ${Buffer.from(`${opts.auth.user}:${opts.auth.pass}`).toString('base64')}`;
+          }
+          if (authorization) {
             return resolve(
               request(urlStr, {
                 ...opts,
                 _retry: true,
                 auth: undefined,
-                headers: { ...(opts.headers || {}), Authorization: dh },
+                headers: { ...(opts.headers || {}), Authorization: authorization },
               }),
             );
-          } catch (e) {
-            /* cai para a resposta 401 normal */
           }
         }
         const buffer = Buffer.concat(chunks);
@@ -149,7 +149,8 @@ function lanRequest(device, method, pathname, opts = {}, defaultTimeoutMs = DEFA
   const scheme = isHttps ? 'https' : 'http';
   const url = `${scheme}://${device.ip}:${device.porta}${pathname}`;
   // control_id usa sessão (na query), não auth por header. Para os demais,
-  // request() tenta Basic e cai para Digest se o aparelho exigir (Hikvision).
+  // request() manda a credencial só depois do 401: Digest se o aparelho
+  // oferecer, Basic só se ele pedir Basic.
   const auth =
     device.api_user && device.api_password && device.fabricante !== 'control_id'
       ? { user: device.api_user, pass: device.api_password }

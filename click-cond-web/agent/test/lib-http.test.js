@@ -190,3 +190,82 @@ test('lanRequest(): monta a URL http://ip:porta e usa o defaultTimeoutMs recebid
     await fechar();
   }
 });
+
+test('request(): sem Basic preventivo — aparelho Digest nunca vê a senha em Base64', async () => {
+  const vistos = [];
+  const { url, fechar } = await comServidor((req, res) => {
+    vistos.push(req.headers.authorization || '');
+    if (!/^Digest /.test(req.headers.authorization || '')) {
+      res.writeHead(401, { 'WWW-Authenticate': 'Digest realm="r", nonce="n1", qop="auth"' });
+      return res.end();
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('{"ok":true}');
+  });
+  try {
+    const res = await request(`${url}/cgi-bin/magicBox.cgi`, { auth: { user: 'admin', pass: 'segredo' } });
+    assert.equal(res.status, 200);
+    assert.equal(vistos[0], '');
+    assert.ok(vistos.every((h) => !/^Basic /i.test(h)), vistos.join(' | '));
+  } finally {
+    await fechar();
+  }
+});
+
+test('request(): Basic só depois de um 401 com desafio Basic', async () => {
+  const vistos = [];
+  const esperado = `Basic ${Buffer.from('admin:segredo').toString('base64')}`;
+  const { url, fechar } = await comServidor((req, res) => {
+    vistos.push(req.headers.authorization || '');
+    if (req.headers.authorization !== esperado) {
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="r"' });
+      return res.end();
+    }
+    res.writeHead(200);
+    res.end('ok');
+  });
+  try {
+    const res = await request(`${url}/x`, { auth: { user: 'admin', pass: 'segredo' } });
+    assert.equal(res.status, 200);
+    assert.deepEqual(vistos, ['', esperado]);
+  } finally {
+    await fechar();
+  }
+});
+
+test('request(): 401 sem desafio reconhecido não reenvia credencial', async () => {
+  const vistos = [];
+  const { url, fechar } = await comServidor((req, res) => {
+    vistos.push(req.headers.authorization || '');
+    res.writeHead(401);
+    res.end();
+  });
+  try {
+    const res = await request(`${url}/x`, { auth: { user: 'admin', pass: 'segredo' } });
+    assert.equal(res.status, 401);
+    assert.deepEqual(vistos, ['']);
+  } finally {
+    await fechar();
+  }
+});
+
+test('lanRequest(): aparelho Hikvision/Dahua (Digest) não recebe Basic na LAN', async () => {
+  const vistos = [];
+  const { port, fechar } = await comServidor((req, res) => {
+    vistos.push(req.headers.authorization || '');
+    if (!/^Digest /.test(req.headers.authorization || '')) {
+      res.writeHead(401, { 'WWW-Authenticate': 'Digest realm="r", nonce="n2", qop="auth"' });
+      return res.end();
+    }
+    res.writeHead(200);
+    res.end('ok');
+  });
+  try {
+    const device = { ip: '127.0.0.1', porta: port, fabricante: 'hikvision', api_user: 'admin', api_password: 'segredo' };
+    const res = await lanRequest(device, 'GET', '/ISAPI/System/deviceInfo', {}, 5000);
+    assert.equal(res.status, 200);
+    assert.ok(vistos.every((h) => !/^Basic /i.test(h)), vistos.join(' | '));
+  } finally {
+    await fechar();
+  }
+});
