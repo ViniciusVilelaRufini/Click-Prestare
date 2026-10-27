@@ -556,10 +556,12 @@ export class LoginPageComponent implements OnDestroy {
       },
       error: (err) => {
         this.carregando.set(false);
+        // 400/503 (síndico sem e-mail, falha ao enviar o código) trazem o motivo em `message`.
+        const msgApi = typeof err?.error?.message === 'string' ? err.error.message : '';
         this.erro.set(
           err.status === 401
             ? 'Login ou senha incorretos'
-            : 'Falha na conexão com o servidor',
+            : msgApi || 'Falha na conexão com o servidor',
         );
       },
     });

@@ -94,4 +94,29 @@ describe('Login da portaria — 2ª etapa do síndico', () => {
     expect(localStorage.getItem('portaria_device_token')).toBeNull();
     expect(localStorage.getItem('portaria_token')).toBeNull();
   });
+
+  it('erro que não é 401 mostra a mensagem da API (ex.: falha ao enviar o código)', () => {
+    const { component, http } = build();
+    component.loginValue = 'sindico@demo.com';
+    component.senhaValue = 'x';
+    component.onSubmit();
+
+    http.expectOne('/api/auth/login-portaria').flush(
+      { message: 'Não foi possível enviar o código de verificação.' },
+      { status: 503, statusText: 'Service Unavailable' },
+    );
+
+    expect(component.erro()).toBe('Não foi possível enviar o código de verificação.');
+  });
+
+  it('erro sem mensagem da API continua com o aviso de conexão', () => {
+    const { component, http } = build();
+    component.loginValue = 'sindico@demo.com';
+    component.senhaValue = 'x';
+    component.onSubmit();
+
+    http.expectOne('/api/auth/login-portaria').flush(null, { status: 502, statusText: 'Bad Gateway' });
+
+    expect(component.erro()).toBe('Falha na conexão com o servidor');
+  });
 });
