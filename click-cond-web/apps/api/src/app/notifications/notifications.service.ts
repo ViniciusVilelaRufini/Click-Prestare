@@ -32,13 +32,26 @@ export class NotificationsService implements OnModuleInit {
         return;
       }
 
-      // 2) Tenta arquivo local.
-      const serviceAccountPath = path.resolve(
-        __dirname,
-        'assets/firebase-service-account.json',
-      );
+      // 2) Arquivo de credencial FORA da pasta servida: dist/assets é público na
+      // raiz do site (main.ts), então o antigo assets/firebase-service-account.json
+      // ia no pacote e ficava a um bypass de filtro de ser baixado.
+      const caminhoCred = process.env.FIREBASE_SERVICE_ACCOUNT_PATH?.trim();
+      if (!caminhoCred) {
+        this.logger.warn(
+          'Notificações push desativadas (defina FIREBASE_SERVICE_ACCOUNT_JSON ou FIREBASE_SERVICE_ACCOUNT_PATH).',
+        );
+        return;
+      }
+      const serviceAccountPath = path.resolve(caminhoCred);
+      const pastaPublica = path.resolve(__dirname, 'assets') + path.sep;
+      if (serviceAccountPath.startsWith(pastaPublica)) {
+        this.logger.warn(
+          'FIREBASE_SERVICE_ACCOUNT_PATH aponta para a pasta pública assets/. Notificações push desativadas.',
+        );
+        return;
+      }
       if (!fs.existsSync(serviceAccountPath)) {
-        this.logger.warn('Notificações push desativadas (firebase-service-account.json ausente).');
+        this.logger.warn(`Notificações push desativadas (${serviceAccountPath} ausente).`);
         return;
       }
 

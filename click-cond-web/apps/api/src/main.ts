@@ -24,6 +24,7 @@ import { AppModule } from './app/app.module';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
 import { json, text, urlencoded } from 'express';
 import { requestContext, extractClientIp } from './app/common/context/request-context';
+import { caminhoEstaticoBloqueado } from './app/common/assets-estaticos.util';
 import { ROTAS_HARDWARE, origensConfiaveis } from './app/common/cors-origins';
 
 // Rede de segurança: uma promessa rejeitada e esquecida (sem await) derruba o
@@ -85,10 +86,10 @@ async function bootstrap() {
   );
 
   // Serve arquivos estáticos copiados de src/assets (simulador facial em /simulator.html)
-  // Só HTML dos simuladores. A pasta também carrega a credencial de serviço do
-  // Firebase (copiada pelo build) — nunca pode sair por aqui.
+  // Só HTML dos simuladores. Nenhum .json/credencial pode sair por aqui — e o
+  // filtro olha o caminho DECODIFICADO, igual ao que o serve-static abre.
   app.use((req: any, res: any, next: any) => {
-    if (/^\/[^/]+\.json$/i.test(req.path ?? '') || /service-account/i.test(req.path ?? '')) {
+    if (caminhoEstaticoBloqueado(req.path)) {
       return res.status(404).end();
     }
     next();
