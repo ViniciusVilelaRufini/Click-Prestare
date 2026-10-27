@@ -232,14 +232,14 @@ export const COMANDO_AJUSTE_TAREFA =
  * final). As MESMAS linhas estao em agent/install-windows.bat (um teste confere).
  */
 export const LINHAS_TRANCAR_PASTA_AGENTE: readonly string[] = [
+  'icacls "%DIR%." /setowner *S-1-5-32-544 /T /C /Q >nul',
   'icacls "%DIR%." /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F /Q',
   'if errorlevel 1 (',
   '  echo [ERRO] Nao consegui proteger a pasta do agente. Rode este arquivo como Administrador.',
   '  pause',
   '  exit /b 1',
   ')',
-  'icacls "%DIR%." /setowner *S-1-5-32-544 /T /C /Q >nul',
-  'icacls "%DIR%*" /reset /T /C /Q >nul',
+  'icacls "%DIR%*" /reset /T /C /Q >nul 2>nul',
 ];
 
 /**

@@ -2,6 +2,7 @@
 REM ===================================================================
 REM  Click Portaria - Agente Local: instalar / ATUALIZAR
 REM  Rode COMO ADMINISTRADOR, na mesma pasta do click-agent.exe.
+REM  Instala em %ProgramFiles%\ClickAgente (copia os arquivos para la).
 REM
 REM  Este script PARA qualquer agente antigo que esteja rodando (e a
 REM  tarefa agendada), registra a versao nova e a inicia. Assim voce
@@ -9,8 +10,9 @@ REM  nunca fica com duas versoes ao mesmo tempo.
 REM ===================================================================
 setlocal
 set TASK=ClickPortariaAgent
-set EXE=%~dp0click-agent.exe
-set "DIR=%~dp0"
+set "SRC=%~dp0"
+set "EXE=%SRC%click-agent.exe"
+set "DIR=%ProgramFiles%\ClickAgente\"
 
 if not exist "%EXE%" (
   echo [ERRO] click-agent.exe nao encontrado nesta pasta.
@@ -34,32 +36,39 @@ timeout /t 2 /nobreak >nul
 REM Instalacao manual substitui qualquer auto-atualizacao pendente: sem
 REM isso, o exe instalado agora contaria como "versao nova em teste" e
 REM poderia ser revertido para um click-agent.old.exe mais velho.
-if exist "%~dp0atualizacao.json" del "%~dp0atualizacao.json"
-if exist "%~dp0atualizacao-falhas.txt" del "%~dp0atualizacao-falhas.txt"
+if exist "%DIR%atualizacao.json" del "%DIR%atualizacao.json"
+if exist "%DIR%atualizacao-falhas.txt" del "%DIR%atualizacao-falhas.txt"
 
 REM Pasta do agente: a tarefa roda como SYSTEM, entao so SYSTEM e
-REM Administradores podem escrever aqui - senao qualquer usuario troca o
+REM Administradores podem escrever la - senao qualquer usuario troca o
 REM click-agent.exe/run-agent-service.cmd e ganha SYSTEM, ou le o AGENT_TOKEN.
-REM Pasta de perfil (Downloads, Desktop...) nao: trancar tiraria o acesso do
-REM usuario a ela. As linhas do icacls sao IDENTICAS as do instalador do portal
+REM Por isso o agente vive numa pasta que ESTE script cria
+REM (%ProgramFiles%\ClickAgente) e nunca tranca a pasta de onde foi executado.
+REM As linhas do icacls sao IDENTICAS as do instalador do portal
 REM (LINHAS_TRANCAR_PASTA_AGENTE em apps/api/src/app/facial/facial.service.ts).
-if /I "%DIR:~1,8%"==":\Users\" (
-  echo [ERRO] Instale numa pasta propria, ex.: C:\ClickAgente - nao dentro de C:\Users.
-  pause
-  exit /b 1
-)
+if not exist "%DIR%" mkdir "%DIR%"
+icacls "%DIR%." /setowner *S-1-5-32-544 /T /C /Q >nul
 icacls "%DIR%." /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F /Q
 if errorlevel 1 (
   echo [ERRO] Nao consegui proteger a pasta do agente. Rode este arquivo como Administrador.
   pause
   exit /b 1
 )
-icacls "%DIR%." /setowner *S-1-5-32-544 /T /C /Q >nul
-icacls "%DIR%*" /reset /T /C /Q >nul
+icacls "%DIR%*" /reset /T /C /Q >nul 2>nul
+REM Copia os arquivos DEPOIS de trancar a pasta (o .env com o token nunca fica exposto).
+if /I not "%SRC%"=="%DIR%" (
+  copy /y "%EXE%" "%DIR%click-agent.exe" >nul
+  if exist "%SRC%.env" copy /y "%SRC%.env" "%DIR%.env" >nul
+)
+if not exist "%DIR%click-agent.exe" (
+  echo [ERRO] Nao consegui copiar o click-agent.exe para %DIR%.
+  pause
+  exit /b 1
+)
 
-if not exist "%~dp0.env" (
+if not exist "%DIR%.env" (
   echo [AVISO] Arquivo .env nao encontrado. Crie a partir de .env.example
-  echo         antes de iniciar, senao o agente nao sobe.
+  echo         em %DIR% antes de iniciar, senao o agente nao sobe.
 )
 
 echo === 2/4  Registrando tarefa "%TASK%" (inicia com o Windows) ===
@@ -123,8 +132,8 @@ echo REM "timeout" falha na hora sem console de verdade ^(tarefa SYSTEM, sem
 echo REM sessao interativa^) e viraria busy-loop; "ping" nao depende de console.
 echo ping -n 6 127.0.0.1 ^>nul
 echo goto loop
-) > "%~dp0run-agent-service.cmd"
-schtasks /Create /TN "%TASK%" /TR "\"%~dp0run-agent-service.cmd\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
+) > "%DIR%run-agent-service.cmd"
+schtasks /Create /TN "%TASK%" /TR "\"%DIR%run-agent-service.cmd\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
 if errorlevel 1 (
   echo [ERRO] Falha ao registrar. Rode este .bat como Administrador.
   pause

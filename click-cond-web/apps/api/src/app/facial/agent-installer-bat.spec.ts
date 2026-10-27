@@ -201,7 +201,7 @@ describe('FacialService.getAgentConfigFile(bat) — laço de reinício (tarefa 9
 
   it('o bloco que escreve o .cmd é IDÊNTICO ao de agent/install-windows.bat', () => {
     expect(blocoEcho(conteudo, ') > "%CMDFILE%"')).toEqual([...LINHAS_ECHO_LACO_SERVICO]);
-    expect(blocoEcho(INSTALL_WINDOWS_BAT, ') > "%~dp0run-agent-service.cmd"')).toEqual([
+    expect(blocoEcho(INSTALL_WINDOWS_BAT, ') > "%DIR%run-agent-service.cmd"')).toEqual([
       ...LINHAS_ECHO_LACO_SERVICO,
     ]);
   });
@@ -228,8 +228,12 @@ describe('FacialService.getAgentConfigFile(bat) — laço de reinício (tarefa 9
     const linhas = linhasDe(conteudo);
     expect(linhas).toContain('set "DIR=%ProgramFiles%\\ClickAgente\\"');
     expect(linhas).not.toContain('set "DIR=%~dp0"');
-    expect(LINHAS_TRANCAR_PASTA_AGENTE[0]).toBe(
+    expect(LINHAS_TRANCAR_PASTA_AGENTE[0]).toBe('icacls "%DIR%." /setowner *S-1-5-32-544 /T /C /Q >nul');
+    expect(LINHAS_TRANCAR_PASTA_AGENTE[1]).toBe(
       'icacls "%DIR%." /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F /Q',
+    );
+    expect(LINHAS_TRANCAR_PASTA_AGENTE[LINHAS_TRANCAR_PASTA_AGENTE.length - 1]).toBe(
+      'icacls "%DIR%*" /reset /T /C /Q >nul 2>nul',
     );
     const idxMkdir = linhas.indexOf('if not exist "%DIR%" mkdir "%DIR%"');
     const idxAcl = indiceDoBloco(linhas, LINHAS_TRANCAR_PASTA_AGENTE);
@@ -278,14 +282,14 @@ describe('agent/install-windows.bat — mesmo laço de reinício e rotação de 
   });
 
   it('a tarefa agendada (schtasks /TR) aponta para run-agent-service.cmd, não direto para o .exe', () => {
-    expect(conteudo).toMatch(/schtasks \/Create .* \/TR "\\"%~dp0run-agent-service\.cmd\\""/);
+    expect(conteudo).toMatch(/schtasks \/Create .* \/TR "\\"%DIR%run-agent-service\.cmd\\""/);
   });
 
   it('I3: para a tarefa e o processo ANTES de reescrever o .cmd', () => {
     const linhas = linhasDe(conteudo);
     const idxEnd = linhas.findIndex((l) => l.startsWith('schtasks /End '));
     const idxKill = linhas.indexOf('taskkill /F /IM click-agent.exe >nul 2>&1');
-    const idxCmd = linhas.indexOf(') > "%~dp0run-agent-service.cmd"');
+    const idxCmd = linhas.indexOf(') > "%DIR%run-agent-service.cmd"');
     expect(idxEnd).toBeGreaterThan(-1);
     expect(idxKill).toBeGreaterThan(idxEnd);
     expect(idxCmd).toBeGreaterThan(idxKill);
@@ -304,15 +308,29 @@ describe('agent/install-windows.bat — mesmo laço de reinício e rotação de 
     expect(conteudo).not.toContain('index.js');
   });
 
-  it('B9: recusa pasta de perfil e tranca a pasta (só SYSTEM e Administradores) antes de registrar a tarefa SYSTEM', () => {
+  it('B9: instala em %ProgramFiles%\\ClickAgente (nunca tranca a pasta de origem), copia depois de trancar e a tarefa SYSTEM aponta para lá', () => {
     const linhas = linhasDe(conteudo);
-    expect(linhas).toContain('set "DIR=%~dp0"');
-    const idxGuarda = linhas.indexOf('if /I "%DIR:~1,8%"==":\\Users\\" (');
+    expect(linhas).toContain('set "DIR=%ProgramFiles%\\ClickAgente\\"');
+    expect(linhas).not.toContain('set "DIR=%~dp0"');
+    expect(conteudo).not.toMatch(/icacls "%~dp0/);
+    expect(conteudo).not.toContain(':\\Users\\');
+    const idxEnd = linhas.findIndex((l) => l.startsWith('schtasks /End '));
+    const idxMkdir = linhas.indexOf('if not exist "%DIR%" mkdir "%DIR%"');
     const idxAcl = indiceDoBloco(linhas, LINHAS_TRANCAR_PASTA_AGENTE);
+    const idxCopiaExe = linhas.indexOf('  copy /y "%EXE%" "%DIR%click-agent.exe" >nul');
+    const idxCopiaEnv = linhas.indexOf('  if exist "%SRC%.env" copy /y "%SRC%.env" "%DIR%.env" >nul');
     const idxCreate = linhas.findIndex((l) => l.startsWith('schtasks /Create '));
-    expect(idxGuarda).toBeGreaterThan(-1);
-    expect(idxAcl).toBeGreaterThan(idxGuarda);
-    expect(idxCreate).toBeGreaterThan(idxAcl);
+    expect(idxMkdir).toBeGreaterThan(idxEnd);
+    expect(idxAcl).toBeGreaterThan(idxMkdir);
+    expect(idxCopiaExe).toBeGreaterThan(idxAcl);
+    expect(idxCopiaEnv).toBeGreaterThan(idxAcl);
+    expect(idxCreate).toBeGreaterThan(idxCopiaEnv);
+    // nenhuma saída antes de parar o agente antigo
+    expect(linhas.slice(0, idxEnd).filter((l) => l.includes('exit /b'))).toEqual(['  exit /b 1']);
+    // /setowner antes de /inheritance:r
+    expect(LINHAS_TRANCAR_PASTA_AGENTE.findIndex((l) => l.includes('/setowner'))).toBeLessThan(
+      LINHAS_TRANCAR_PASTA_AGENTE.findIndex((l) => l.includes('/inheritance:r')),
+    );
   });
 });
 
