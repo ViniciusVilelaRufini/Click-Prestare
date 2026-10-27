@@ -52,6 +52,7 @@ export class OcorrenciasService {
     const o = await this.prisma.ocorrencias.findUnique({ where: { id }, select: { id_condominio: true } });
     if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${id}`);
+    return o;
   }
 
   /** Só a equipe (síndico/funcionário), o autor, ou qualquer um se a ocorrência é pública. */
@@ -351,7 +352,17 @@ export class OcorrenciasService {
    * idResponsavel = null desatribui.
    */
   async atribuir(id: number, idResponsavel: number | null, user?: JwtPayload) {
-    await this.loadParaMutacaoStaff(id, user, 'atribuir ocorrência');
+    const o = await this.loadParaMutacaoStaff(id, user, 'atribuir ocorrência');
+    // O responsável vem do corpo como Users.id global: precisa estar na
+    // equipe atribuível DESTE condomínio (a mesma lista que o app e o console
+    // mostram). Sem isso, a equipe de um condomínio lia o nome de qualquer
+    // usuário do sistema (responsavelNome) e mandava push para ele.
+    if (idResponsavel != null) {
+      const atribuiveis = await this.listFuncionariosAtribuiveis(o.id_condominio);
+      if (!atribuiveis.some((f) => f.id_user === Number(idResponsavel))) {
+        throw new BadRequestException('Responsável inválido: escolha um funcionário deste condomínio.');
+      }
+    }
     let updated;
     try {
       updated = await this.prisma.ocorrencias.update({
