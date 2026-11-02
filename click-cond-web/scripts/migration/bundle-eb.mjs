@@ -65,7 +65,9 @@ async function bundle() {
       start: 'node main.js'
     },
     dependencies: {
+      "@aws-sdk/client-marketplace-metering": "^3.1161.0",
       "@aws-sdk/client-s3": "^3.1048.0",
+      "@aws-sdk/credential-providers": "^3.1161.0",
       "@nestjs/common": "^11.0.0",
       "@nestjs/core": "^11.0.0",
       "@nestjs/jwt": "^11.0.2",
