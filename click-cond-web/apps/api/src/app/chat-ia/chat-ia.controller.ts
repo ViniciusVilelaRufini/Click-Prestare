@@ -28,7 +28,7 @@ import { ChatIaService } from './chat-ia.service';
 export class ChatIaController {
   constructor(private readonly service: ChatIaService) {}
 
-  // Cada pergunta gera 2 chamadas pagas ao Gemini (embedding + geração).
+  // Cada pergunta gera 2+ chamadas pagas ao modelo (embedding + geração).
   // 12/min por IP segura conversa normal e limita abuso/custo.
   @Throttle({ medium: { limit: 12, ttl: 60_000 } })
   @Post('perguntar')

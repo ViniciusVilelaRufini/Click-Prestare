@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ChatIaController } from './chat-ia.controller';
 import { ChatIaService } from './chat-ia.service';
+import { BedrockClient } from './bedrock.client';
 import { GeminiClient } from './gemini.client';
+import { IaClient } from './ia.client';
 import { AcaoPendenteStore } from './acao-pendente.store';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TenantAccessModule } from '../auth/tenant-access.module';
@@ -30,7 +32,7 @@ import { AgendaModule } from '../agenda/agenda.module';
     AgendaModule,
   ],
   controllers: [ChatIaController],
-  providers: [ChatIaService, GeminiClient, AcaoPendenteStore],
+  providers: [ChatIaService, IaClient, BedrockClient, GeminiClient, AcaoPendenteStore],
   // Exportado para o módulo de documentos indexar no upload.
   exports: [ChatIaService],
 })

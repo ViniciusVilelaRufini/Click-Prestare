@@ -65,6 +65,9 @@ async function bundle() {
       start: 'node main.js'
     },
     dependencies: {
+      "@anthropic-ai/bedrock-sdk": "1.1.0",
+      "@anthropic-ai/sdk": "1.3.0",
+      "@aws-sdk/client-bedrock-runtime": "^3.1161.0",
       "@aws-sdk/client-marketplace-metering": "^3.1161.0",
       "@aws-sdk/client-s3": "^3.1048.0",
       "@aws-sdk/credential-providers": "^3.1161.0",

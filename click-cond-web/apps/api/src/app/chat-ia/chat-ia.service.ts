@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertSindico } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { GeminiClient } from './gemini.client';
+import { IaClient } from './ia.client';
 import type {
   ChamadaFerramenta,
   ConteudoGemini,
@@ -82,7 +82,7 @@ export class ChatIaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenant: TenantAccessService,
-    private readonly gemini: GeminiClient,
+    private readonly ia: IaClient,
     private readonly acoes: AcaoPendenteStore,
     private readonly areasSociais: AreasSociaisService,
     private readonly ocorrencias: OcorrenciasService,
@@ -302,7 +302,7 @@ export class ChatIaService {
     ];
 
     for (let rodada = 0; rodada < MAX_RODADAS_FERRAMENTA; rodada++) {
-      const r = await this.gemini.gerarComFerramentas(contents, declaracoes, instrucao);
+      const r = await this.ia.gerarComFerramentas(contents, declaracoes, instrucao);
 
       if (r.chamadas.length === 0) {
         return r.texto || 'Não consegui formular uma resposta para isso.';
@@ -682,7 +682,7 @@ export class ChatIaService {
   // =========================================================================
 
   private async buscarTrechos(idCondominio: number, pergunta: string): Promise<string[]> {
-    if (!this.gemini.isConfigured) return [];
+    if (!this.ia.isConfigured) return [];
     try {
       const linhas = await this.prisma.rag_Embeddings.findMany({
         where: { id_condominio: idCondominio },
@@ -690,12 +690,14 @@ export class ChatIaService {
       });
       if (!linhas.length) return [];
 
-      const vetorPergunta = await this.gemini.embedText(pergunta);
+      const vetorPergunta = await this.ia.embedText(pergunta);
       return linhas
-        .map((l) => ({
-          texto: l.chunk_text,
-          score: this.cosine(vetorPergunta, this.toVetor(l.embedding)),
-        }))
+        .map((l) => ({ texto: l.chunk_text, vetor: this.toVetor(l.embedding) }))
+        // Trocar de provedor (Gemini 768 ↔ Titan 512) deixa vetores de outro
+        // modelo no banco até a reindexação; o cosseno cortaria no menor
+        // tamanho e devolveria trecho errado com score alto. Melhor ignorar.
+        .filter((l) => l.vetor.length === vetorPergunta.length)
+        .map((l) => ({ texto: l.texto, score: this.cosine(vetorPergunta, l.vetor) }))
         .sort((a, b) => b.score - a.score)
         .slice(0, TOP_K)
         .filter((r) => r.score > SCORE_MINIMO)
@@ -1046,7 +1048,7 @@ ${docsTxt}`;
 
     // Prefixa com o nome do documento p/ dar contexto à busca.
     const textos = pedacos.map((p) => `[${doc.nome}] ${p}`);
-    const vetores = await this.gemini.embedBatch(textos);
+    const vetores = await this.ia.embedBatch(textos);
 
     await this.prisma.rag_Embeddings.createMany({
       data: textos.map((t, i) => ({
