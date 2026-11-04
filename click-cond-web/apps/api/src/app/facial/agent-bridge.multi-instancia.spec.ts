@@ -117,6 +117,36 @@ describe('AgentBridgeService — duas instâncias', () => {
     expect(volta.changed).toBe(true);
   });
 
+  // Fix round 1 (C-1): deploy antes do SQL 2026-11-04-multi-instancia.sql.
+  it('tabelas ausentes (P2021): cai para a fila em memória, abre a porta e loga ERROR uma vez só', async () => {
+    const p2021 = () => Object.assign(new Error('The table `agente_comandos` does not exist'), { code: 'P2021' });
+    const falha = jest.fn(async () => {
+      throw p2021();
+    });
+    const prisma: any = {
+      isConnected: true,
+      agente_Comandos: { create: falha, findMany: falha, updateMany: falha, deleteMany: falha },
+      agente_Dispositivos_Estado: { findUnique: falha, findMany: falha, upsert: falha, updateMany: falha },
+    };
+    const i = criar(prisma);
+    const erro = jest.spyOn((i as any).logger, 'error').mockImplementation(() => undefined);
+
+    await i.poll(4); // heartbeat (o upsert falha com P2021 em segundo plano)
+    const r = i.enqueue(4, { type: 'open_door' });
+    await new Promise((res) => setImmediate(res)); // create rejeita → fila em memória
+    const cmds = await i.poll(4);
+    expect(cmds.map((c) => c.type)).toEqual(['open_door']);
+    await i.submitResult(cmds[0].id, { ok: true });
+    await expect(r).resolves.toEqual({ ok: true });
+
+    // status do aparelho também segue em memória
+    const st = await i.reportDeviceStatus(4, false);
+    expect(st.shouldOpenTicket).toBe(false);
+
+    const avisos = erro.mock.calls.filter((c) => String(c[0]).includes('multi-instancia.sql'));
+    expect(avisos).toHaveLength(1);
+  });
+
   it('sem banco continua tudo em memória (uma instância)', async () => {
     const i = criar(undefined);
     await i.poll(3);

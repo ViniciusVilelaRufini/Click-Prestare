@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { comLock } from '../common/lock-distribuido';
+import { comLock, PrazoDoLockEstouradoError } from '../common/lock-distribuido';
 import { SuperlogicaClient } from './superlogica.client';
 import { SuperlogicaService } from './superlogica.service';
 import { SuperlogicaContato, SuperlogicaUnidade } from './superlogica.types';
@@ -340,15 +340,26 @@ export class SuperlogicaWriteService {
   private async naFilaDaUnidade<T>(
     chave: string,
     tarefa: () => Promise<T>,
-    seOcupada: () => T,
+    seOcupada: (motivo: 'ocupada' | 'prazo') => T,
   ): Promise<T> {
     const anterior = this.filasPorUnidade.get(chave) ?? Promise.resolve();
     const comLockDoCluster = async (): Promise<T> => {
-      const r = await comLock(this.prisma, `superlogica:uni:${chave}`, tarefa, {
-        esperaSegundos: 60,
-        duracaoMaximaMs: 5 * 60 * 1000,
-      });
-      return r.obtido ? r.valor : seOcupada();
+      try {
+        const r = await comLock(this.prisma, `superlogica:uni:${chave}`, tarefa, {
+          esperaSegundos: 60,
+          duracaoMaximaMs: 5 * 60 * 1000,
+        });
+        return r.obtido ? r.valor : seOcupada('ocupada');
+      } catch (err) {
+        // Passou de 5 min com a unidade travada: o lock foi solto e a escrita
+        // segue em segundo plano sem exclusividade — não há resultado para
+        // devolver. Vira recusa com motivo (nunca `undefined`).
+        if (err instanceof PrazoDoLockEstouradoError) {
+          this.logger.error(`Escrita na unidade ${chave} da Superlógica passou de 5 min — lock liberado`);
+          return seOcupada('prazo');
+        }
+        throw err;
+      }
     };
     // O `catch` é do encadeamento, não do resultado: um envio que falhou não
     // pode travar a fila de quem vem atrás.
@@ -419,9 +430,12 @@ export class SuperlogicaWriteService {
           apartamento.id_superlogica_uni as number,
           unidadesPreCarregadas,
         ),
-      (): ResultadoEnvio => ({
+      (motivo): ResultadoEnvio => ({
         enviado: false,
-        motivo: 'outra gravação na mesma unidade do ERP está em andamento — tente reenviar em instantes',
+        motivo:
+          motivo === 'prazo'
+            ? 'a gravação no ERP passou de 5 minutos e não foi confirmada — confira a unidade no ERP antes de reenviar'
+            : 'outra gravação na mesma unidade do ERP está em andamento — tente reenviar em instantes',
       }),
     );
   }

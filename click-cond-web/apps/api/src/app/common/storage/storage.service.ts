@@ -39,7 +39,7 @@ const TIPOS_PERMITIDOS: Record<string, string> = {
   'application/msword': 'doc',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
 };
-/** Teto do arquivo decodificado (a API aceita 100 MB de JSON; o storage não deve). */
+/** Teto do arquivo decodificado (o corpo de upload vai a 35 MB em base64, ver common/limite-corpo.ts). */
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /**

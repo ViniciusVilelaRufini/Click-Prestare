@@ -1,7 +1,7 @@
 // O servidor (Elastic Beanstalk) roda em UTC; o teste força o mesmo fuso.
 process.env.TZ = 'UTC';
 
-import { FinanceiroService } from './financeiro.service';
+import { cicloLembretesCobranca, FinanceiroService } from './financeiro.service';
 import { hojeBrasilia, horaBrasilia } from '../common/hora-brasilia.util';
 
 /**
@@ -43,6 +43,23 @@ describe('cobrança no horário de Brasília', () => {
     jest.useFakeTimers({ now: new Date('2026-09-23T12:10:00Z'), doNotFake: ['nextTick', 'setImmediate'] });
     const svc = servico();
     await svc.tickBillingJob();
+    expect(svc.runBillingRemindersJob).toHaveBeenCalled();
+  });
+
+  // Fix round 1 (I-1): 2 instâncias + restart no meio da manhã — o dia não pode ficar sem lembrete.
+  it('ciclo dos lembretes: janela de 3h a partir das 9h de Brasília, chave = data de Brasília', () => {
+    process.env['BILLING_REMINDER_HOUR'] = '9';
+    expect(cicloLembretesCobranca(new Date('2026-09-23T11:59:00Z'))).toBeNull(); // 08:59 BRT
+    expect(cicloLembretesCobranca(new Date('2026-09-23T12:00:00Z'))).toBe('2026-09-23'); // 09:00
+    expect(cicloLembretesCobranca(new Date('2026-09-23T14:59:00Z'))).toBe('2026-09-23'); // 11:59
+    expect(cicloLembretesCobranca(new Date('2026-09-23T15:00:00Z'))).toBeNull(); // 12:00
+  });
+
+  it('às 10:30 de Brasília (tick atrasado por restart) o job ainda roda', async () => {
+    process.env['BILLING_REMINDER_HOUR'] = '9';
+    jest.useFakeTimers({ now: new Date('2026-09-23T13:30:00Z'), doNotFake: ['nextTick', 'setImmediate'] });
+    const svc = servico();
+    expect(await svc.tickBillingJob()).toBe(true);
     expect(svc.runBillingRemindersJob).toHaveBeenCalled();
   });
 

@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { QrSessionStore } from './qr-session.store';
@@ -12,19 +12,20 @@ import { MfaService } from './mfa/mfa.service';
 import { momentoTrocaSenha } from './senha-alterada.util';
 
 /**
- * Lockout em memória por login. Após N tentativas falhas em janela,
- * trava o login por X minutos. Defende contra password spray que muda
- * de IP a cada tentativa (escapando do rate limit por IP).
+ * Lockout por login: após N tentativas falhas na janela, trava o login por X
+ * minutos. Defende contra password spray que muda de IP a cada tentativa
+ * (escapando do rate limit por IP).
+ *
+ * Fica em `estado_compartilhado` para valer nas 2 instâncias atrás do ALB (num
+ * Map do processo cada instância contava sozinha e o limite dobrava). Uma linha
+ * por falha (`login-falha:<hash>:<uuid>`, TTL = janela) em vez de um contador:
+ * insert não perde contagem com requisições simultâneas, e o TTL de cada linha
+ * dá a janela deslizante. A trava é `login-trava:<hash>` (TTL = trava). O login
+ * entra como hash, não em claro.
  */
-interface LockoutEntry {
-  failedAt: number[];
-  lockedUntil: number;
-}
-
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly lockouts = new Map<string, LockoutEntry>();
   private readonly maxFailures = Number(process.env.AUTH_MAX_FAILURES ?? 8);
   private readonly failureWindowMs = Number(process.env.AUTH_FAILURE_WINDOW_MS ?? 600_000);
   private readonly lockoutMs = Number(process.env.AUTH_LOCKOUT_MS ?? 900_000);
@@ -32,7 +33,8 @@ export class AuthService {
   /**
    * Sessões de síndico aguardando o código do e-mail, por mfa_token. Ficam em estado_compartilhado
    * (`mfa-console:<token>`, TTL do desafio): com 2 instâncias o login cai numa e o código é conferido
-   * na outra. Sem banco, memória do processo.
+   * na outra. Sem banco, memória do processo. O lockout por login usa o mesmo estado
+   * (`login-falha:*`, `login-trava:*`).
    */
   private _estado?: EstadoCompartilhado;
   private get estadoMfa(): EstadoCompartilhado {
@@ -50,47 +52,46 @@ export class AuthService {
   /**
    * Chave do lockout. O MySQL compara `login` sem diferenciar caixa nem espaços à direita, então
    * "Joao", "JOAO" e "joao " são a MESMA conta no banco; com a string crua como chave, cada variação
-   * ganhava um contador próprio e o lockout nunca disparava (pentest 04/11).
+   * ganhava um contador próprio e o lockout nunca disparava (pentest 04/11). Vai como hash para a
+   * tabela compartilhada (o login é e-mail, dado pessoal).
    */
   private chaveLockout(login: string): string {
-    return String(login ?? '').trim().toLowerCase();
+    const normalizado = String(login ?? '').trim().toLowerCase();
+    return createHash('sha256').update(normalizado).digest('hex').slice(0, 40);
   }
 
-  private isLocked(loginBruto: string): boolean {
-    const login = this.chaveLockout(loginBruto);
-    const entry = this.lockouts.get(login);
-    if (!entry) return false;
-    if (entry.lockedUntil > Date.now()) return true;
-    if (entry.lockedUntil && entry.lockedUntil <= Date.now()) {
-      // Janela expirou — limpa.
-      this.lockouts.delete(login);
+  private async isLocked(loginBruto: string): Promise<boolean> {
+    try {
+      return !!(await this.estadoMfa.obter(`login-trava:${this.chaveLockout(loginBruto)}`));
+    } catch (e: any) {
+      // Banco instável: não trava ninguém por isso (o login em si já depende do banco).
+      this.logger.warn(`Lockout: falha ao consultar a trava: ${e?.message ?? e}`);
+      return false;
     }
-    return false;
   }
 
-  private registrarFalha(loginBruto: string) {
-    const login = this.chaveLockout(loginBruto);
-    const now = Date.now();
-    // Teto do Map: logins inventados (rota pública) não podem inflar a memória sem fim. Descarta
-    // primeiro o que já não conta (sem falha na janela e sem trava ativa).
-    if (this.lockouts.size > 10_000) {
-      for (const [k, e] of this.lockouts) {
-        if (e.lockedUntil <= now && e.failedAt.every((t) => now - t >= this.failureWindowMs)) this.lockouts.delete(k);
+  private async registrarFalha(loginBruto: string): Promise<void> {
+    const chave = this.chaveLockout(loginBruto);
+    try {
+      await this.estadoMfa.definir(`login-falha:${chave}:${randomUUID()}`, 1, this.failureWindowMs);
+      const falhas = await this.estadoMfa.listarPorPrefixo(`login-falha:${chave}:`);
+      if (falhas.length >= this.maxFailures) {
+        await this.estadoMfa.definir(`login-trava:${chave}`, 1, this.lockoutMs);
+        this.logger.warn(`Login ${chave.slice(0, 8)}… travado por ${this.lockoutMs / 60_000}min após ${falhas.length} falhas`);
       }
+    } catch (e: any) {
+      this.logger.warn(`Lockout: falha ao registrar tentativa: ${e?.message ?? e}`);
     }
-    const entry = this.lockouts.get(login) ?? { failedAt: [], lockedUntil: 0 };
-    // Mantém só falhas dentro da janela.
-    entry.failedAt = entry.failedAt.filter((t) => now - t < this.failureWindowMs);
-    entry.failedAt.push(now);
-    if (entry.failedAt.length >= this.maxFailures) {
-      entry.lockedUntil = now + this.lockoutMs;
-      this.logger.warn(`Login "${login}" travado por ${this.lockoutMs / 60_000}min após ${entry.failedAt.length} falhas`);
-    }
-    this.lockouts.set(login, entry);
   }
 
-  private limparFalhas(login: string) {
-    this.lockouts.delete(this.chaveLockout(login));
+  private async limparFalhas(login: string): Promise<void> {
+    const chave = this.chaveLockout(login);
+    try {
+      await this.estadoMfa.removerPorPrefixo(`login-falha:${chave}:`);
+      await this.estadoMfa.remover(`login-trava:${chave}`);
+    } catch (e: any) {
+      this.logger.warn(`Lockout: falha ao limpar tentativas: ${e?.message ?? e}`);
+    }
   }
 
   /**
@@ -226,7 +227,7 @@ export class AuthService {
 
     // Lockout por login antes mesmo do lookup no banco — evita user enumeration
     // (resposta diferente quando login existe vs. quando não existe).
-    if (this.isLocked(login)) {
+    if (await this.isLocked(login)) {
       throw new UnauthorizedException(
         'Muitas tentativas falhas. Tente novamente mais tarde.',
       );
@@ -258,7 +259,7 @@ export class AuthService {
       }
 
       if (isMatch) {
-        this.limparFalhas(login);
+        await this.limparFalhas(login);
         return this.montarSessaoPortaria(funcionario, login, deviceToken);
       }
       // Se a senha do funcionário não confere, não sobrescreve nem auto-sincroniza com o síndico
@@ -282,12 +283,12 @@ export class AuthService {
     });
 
     if (!user || !user.sindicos || user.sindicos.length === 0) {
-      this.registrarFalha(login);
+      await this.registrarFalha(login);
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
     if (!user.sindicosCondominios || user.sindicosCondominios.length === 0) {
-      this.registrarFalha(login);
+      await this.registrarFalha(login);
       throw new UnauthorizedException('Síndico sem condomínio ativo vinculado.');
     }
 
@@ -315,11 +316,11 @@ export class AuthService {
     }
 
     if (!sindicoMatch) {
-      this.registrarFalha(login);
+      await this.registrarFalha(login);
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
-    this.limparFalhas(login);
+    await this.limparFalhas(login);
 
     const sindico = user.sindicos[0];
     const vinculo = user.sindicosCondominios[0];

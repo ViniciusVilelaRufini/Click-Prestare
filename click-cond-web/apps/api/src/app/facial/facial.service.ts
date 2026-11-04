@@ -37,13 +37,25 @@ import { normalizarMac } from './descoberta.service';
 import { agentesSemRedeInterna, urlExternaSegura } from '../common/url-segura.util';
 import { validarIpDispositivo, validarPortaDispositivo } from './device-endereco.util';
 import { StorageService } from '../common/storage/storage.service';
-import { executarComLock } from '../common/lock-distribuido';
+import { executarComLock, OpcoesLock } from '../common/lock-distribuido';
+import { hojeBrasilia, horaBrasilia } from '../common/hora-brasilia.util';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 
 /** Validade da marca de bulk sync em andamento (instância que morreu no meio não trava o condomínio para sempre). */
 const BULK_SYNC_TTL_MS = 2 * 60 * 60 * 1000;
 /** Resultado da varredura de fantasmas (roda de hora em hora) vale até a próxima, com folga. */
 const FANTASMAS_TTL_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Ciclo de negócio do tickDiasSemanaSync (porta: hora 0 de Brasília, mesma do
+ * tick): uma passada por dia no cluster, chave = data de Brasília. Com período
+ * por tempo, um tick às 23:xx (porta fechada) marcaria o período e o das 0:xx
+ * seria pulado.
+ */
+function cicloViradaDoDia(): string | null {
+  if (horaBrasilia() !== 0) return null;
+  return hojeBrasilia().toISOString().slice(0, 10);
+}
 
 function pessoasMigrationEnabled(prisma?: any): boolean {
   if (process.env['PESSOAS_MIGRATION_ENABLED'] !== 'true') return false;
@@ -347,11 +359,12 @@ export class FacialService {
 
   /**
    * Tick agendado que roda UMA vez no cluster: a instância que pegar o lock
-   * (GET_LOCK no MySQL) roda; a outra pula este ciclo. `periodoMs` faz o job
-   * rodar uma vez por período no cluster (os timers das instâncias não são
-   * alinhados — ver OpcoesLock.intervaloMinimoMs).
+   * (GET_LOCK no MySQL) roda; a outra pula este ciclo. `periodo` é o período
+   * em ms (uma vez por período no cluster — os timers das instâncias não são
+   * alinhados; ver OpcoesLock.intervaloMinimoMs) ou, para job com porta de
+   * calendário, as opções com `cicloDeNegocio`.
    */
-  private noCluster(nome: string, tick: () => Promise<unknown>, periodoMs: number): () => void {
+  private noCluster(nome: string, tick: () => Promise<unknown>, periodo: number | OpcoesLock): () => void {
     return () =>
       void executarComLock(
         this.prisma,
@@ -359,7 +372,7 @@ export class FacialService {
         async () => {
           await tick();
         },
-        { intervaloMinimoMs: periodoMs },
+        typeof periodo === 'number' ? { intervaloMinimoMs: periodo } : periodo,
       );
   }
 
@@ -379,8 +392,8 @@ export class FacialService {
   ) {
     // Re-sincroniza quem tem restrição de dia da semana ao virar o dia (0h BRT).
     // Delay de 5 min no boot para aguardar banco conectar após deploy.
-    setTimeout(this.noCluster('facial:tickDiasSemanaSync', () => this.tickDiasSemanaSync(), 60 * 60 * 1000), 5 * 60 * 1000).unref?.();
-    setInterval(this.noCluster('facial:tickDiasSemanaSync', () => this.tickDiasSemanaSync(), 60 * 60 * 1000), 60 * 60 * 1000).unref?.();
+    setTimeout(this.noCluster('facial:tickDiasSemanaSync', () => this.tickDiasSemanaSync(), { cicloDeNegocio: cicloViradaDoDia }), 5 * 60 * 1000).unref?.();
+    setInterval(this.noCluster('facial:tickDiasSemanaSync', () => this.tickDiasSemanaSync(), { cicloDeNegocio: cicloViradaDoDia }), 60 * 60 * 1000).unref?.();
 
     // Cron de expiração automática de visitantes e prestadores
     setTimeout(this.noCluster('facial:tickExpiracaoAutomatica', () => this.tickExpiracaoAutomatica(), 15 * 60 * 1000), 2 * 60 * 1000).unref?.();
@@ -887,7 +900,8 @@ export class FacialService {
 
   async findDeviceByToken(token: string) {
     const d = await this.prisma.facial_Devices.findFirst({
-      where: { webhook_token: token, ativo: 1 },
+      // Condomínio desligado no CRM não recebe comandos nem credenciais (pentest P-11).
+      where: { webhook_token: token, ativo: 1, condominio: { ativo: 1 } },
     });
     if (!d) throw new UnauthorizedException('Token de webhook inválido');
     return { ...d, api_password: decryptSecret(d.api_password) };
@@ -4074,7 +4088,8 @@ export class FacialService {
 
   async processWebhook(token: string, payload: WebhookEventDto) {
     const device = await this.prisma.facial_Devices.findFirst({
-      where: { webhook_token: token, ativo: 1 },
+      // Condomínio desligado no CRM não registra mais eventos (pentest P-11).
+      where: { webhook_token: token, ativo: 1, condominio: { ativo: 1 } },
     });
     if (!device) throw new UnauthorizedException('Token de webhook inválido');
     return this.runWebhook(device, payload);

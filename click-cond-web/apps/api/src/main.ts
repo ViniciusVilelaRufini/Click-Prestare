@@ -22,7 +22,8 @@ import helmet from 'helmet';
 import { join } from 'path';
 import { carregarSegredosSsm } from './app/common/segredos-ssm';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
-import { json, text, urlencoded } from 'express';
+import { parserDeCorpo } from './app/common/limite-corpo';
+import { resolveJwtSecret } from './app/auth/jwt-secret';
 import { requestContext, extractClientIp } from './app/common/context/request-context';
 import { caminhoEstaticoBloqueado } from './app/common/assets-estaticos.util';
 import { ROTAS_HARDWARE, origensConfiaveis } from './app/common/cors-origins';
@@ -65,21 +66,11 @@ async function bootstrap() {
     });
   });
 
-  // O webhook do WhatsApp valida a assinatura HMAC sobre o corpo exato
-  // recebido; só essas rotas guardam a cópia bruta.
-  app.use(
-    json({
-      limit: '100mb',
-      verify: (req: any, _res, buf) => {
-        if (req.originalUrl?.startsWith('/api/public/whatsapp')) req.rawBody = buf;
-      },
-    }),
-  );
-  app.use(urlencoded({ limit: '100mb', extended: true }));
-  // Câmeras Hikvision postam notificação de evento em XML (não em JSON). Sem
-  // este parser o corpo chegava VAZIO no webhook e a leitura de placa era
-  // descartada em silêncio. O XML é convertido em webhook-payload.util.
-  app.use(text({ limit: '10mb', type: ['text/xml', 'application/xml'] }));
+  // Corpo JSON/urlencoded com teto por rota (pentest P-06): 2 MB por padrão;
+  // só as rotas de upload em base64 vão a 35 MB, e só com JWT válido. Inclui
+  // o corpo bruto do webhook do WhatsApp (HMAC) e o XML das câmeras Hikvision.
+  // Detalhes e lista de rotas em common/limite-corpo.ts.
+  app.use(parserDeCorpo(resolveJwtSecret()));
 
   // Helmet: CSP desabilitada porque os simuladores HTML em /assets carregam
   // bibliotecas de CDN (face-api.js, jsQR). Demais headers ficam ligados:

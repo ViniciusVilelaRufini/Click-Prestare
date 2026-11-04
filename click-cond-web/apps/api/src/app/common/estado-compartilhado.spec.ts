@@ -61,6 +61,16 @@ describe.each([
     expect((await e.obter<any>('acao:1'))?.valor).toEqual({ x: 2 });
   });
 
+  it('removerPorPrefixo: apaga só as chaves do prefixo', async () => {
+    const e = criar();
+    await e.definir('falha:a:1', 1, 60_000);
+    await e.definir('falha:a:2', 1, 60_000);
+    await e.definir('falha:b:1', 1, 60_000);
+    await e.removerPorPrefixo('falha:a:');
+    expect(await e.listarPorPrefixo('falha:a:')).toHaveLength(0);
+    expect(await e.listarPorPrefixo('falha:b:')).toHaveLength(1);
+  });
+
   it('criarSeAusente: não sobrescreve quem está valendo, mas ocupa o lugar de quem venceu', async () => {
     const e = criar();
     expect(await e.criarSeAusente('bulk:1', true, 60_000)).toBe(true);

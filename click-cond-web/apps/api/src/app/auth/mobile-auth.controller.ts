@@ -33,8 +33,9 @@ export class SindicoMobileController {
   }
 
   @Public()
-  // Credencial pública: sem limite próprio ficava no global (600/min/IP).
-  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  // Cria conta e grava foto sem autenticação: 10 por hora por IP (pentest P-09).
+  // Antes eram 10 por minuto (600/h). Uma pessoa só faz um cadastro.
+  @Throttle({ medium: { limit: 10, ttl: 60 * 60_000 } })
   @Post('signup')
   @HttpCode(200)
   signup(@Body() body: any) {

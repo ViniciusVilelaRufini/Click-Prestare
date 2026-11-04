@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosInstance, Method } from 'axios';
+import * as http from 'http';
 import * as https from 'https';
 import * as crypto from 'crypto';
 import { AgentBridgeService } from './agent-bridge.service';
+import { agentesSemRedeInterna, lookupSeguro, urlExternaSegura } from '../common/url-segura.util';
 
 export interface FacialDeviceConfig {
   id: number;
@@ -84,18 +86,63 @@ export class FacialDeviceClientService {
     return `${isHttps ? 'https' : 'http'}://${device.ip}:${device.porta}`;
   }
 
+  /**
+   * Endereço de rede interna só é alcançável pelo Agente Local. Na nuvem, o
+   * modo direto chamaria a VPC da AWS, não a LAN do condomínio: qualquer
+   * síndico cadastraria um "terminal" em 10.x/172.16.x e varreria a rede da
+   * instância pelo "Testar conexão" (pentest P-05). On-premise e dev ligam
+   * FACIAL_HTTP_DIRETO_REDE_INTERNA=true para falar com o aparelho da LAN.
+   */
+  private redeInternaLiberada(): boolean {
+    return process.env.FACIAL_HTTP_DIRETO_REDE_INTERNA === 'true';
+  }
+
+  private async exigirDestinoPermitido(device: FacialDeviceConfig): Promise<void> {
+    if (this.redeInternaLiberada()) return;
+    if (!(await urlExternaSegura(this.baseUrl(device)))) {
+      throw new Error(
+        `Endereço do terminal (${device.ip}) é de rede interna: só o Agente Local alcança. Verifique se o agente está conectado.`,
+      );
+    }
+  }
+
+  /**
+   * Opções de rede de toda chamada nuvem→terminal: sem seguir redirecionamento
+   * (um 302 para endereço interno contornaria a checagem), sem proxy do
+   * ambiente e com agentes que recusam conectar em IP interno também quando o
+   * nome resolve diferente na hora da conexão (DNS rebinding). O HTTPS aceita
+   * certificado self-signed, comum nos aparelhos.
+   */
+  private opcoesDeRede(): {
+    maxRedirects: 0;
+    proxy?: false;
+    httpAgent?: http.Agent;
+    httpsAgent: https.Agent;
+  } {
+    if (this.redeInternaLiberada()) {
+      return { maxRedirects: 0, httpsAgent: new https.Agent({ rejectUnauthorized: false }) };
+    }
+    const { httpAgent, proxy } = agentesSemRedeInterna();
+    return {
+      maxRedirects: 0,
+      proxy,
+      httpAgent,
+      httpsAgent: new https.Agent({ rejectUnauthorized: false, lookup: lookupSeguro as any }),
+    };
+  }
+
   /** Axios para Control iD: sem Basic auth (usa sessão na query). */
   private http(device: FacialDeviceConfig): AxiosInstance {
-    const isHttps =
-      device.porta === 443 || process.env.FACIAL_FORCE_HTTPS === 'true';
-    return axios.create({
+    const inst = axios.create({
       baseURL: this.baseUrl(device),
       timeout: this.timeoutMs,
-      // Aparelhos de LAN usam certificado self-signed; a rede local é confiável.
-      httpsAgent: isHttps
-        ? new https.Agent({ rejectUnauthorized: false })
-        : undefined,
+      ...this.opcoesDeRede(),
     });
+    inst.interceptors.request.use(async (cfg) => {
+      await this.exigirDestinoPermitido(device);
+      return cfg;
+    });
+    return inst;
   }
 
   /**
@@ -110,11 +157,9 @@ export class FacialDeviceClientService {
     data?: unknown,
     contentType?: string,
   ) {
+    await this.exigirDestinoPermitido(device);
     const url = this.baseUrl(device) + path;
-    const isHttps = url.startsWith('https');
-    const httpsAgent = isHttps
-      ? new https.Agent({ rejectUnauthorized: false })
-      : undefined;
+    const rede = this.opcoesDeRede();
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
 
@@ -133,7 +178,7 @@ export class FacialDeviceClientService {
       data,
       headers,
       timeout: this.timeoutMs,
-      httpsAgent,
+      ...rede,
       validateStatus: () => true,
     });
 
@@ -153,7 +198,7 @@ export class FacialDeviceClientService {
         data,
         headers,
         timeout: this.timeoutMs,
-        httpsAgent,
+        ...rede,
         validateStatus: () => true,
       });
     }

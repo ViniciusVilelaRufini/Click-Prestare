@@ -1,4 +1,4 @@
-import { comLock, executarComLock, nomeDoLockMysql } from './lock-distribuido';
+import { comLock, executarComLock, nomeDoLockMysql, PrazoDoLockEstouradoError } from './lock-distribuido';
 
 /**
  * Simula o MySQL: GET_LOCK/RELEASE_LOCK por sessão. Cada `$transaction`
@@ -154,6 +154,97 @@ describe('executarComLock — intervaloMinimoMs (uma execução por período no 
     await executarComLock(prisma as any, 'k', fn, { intervaloMinimoMs: 60_000 });
     await executarComLock(prisma as any, 'k', fn, { intervaloMinimoMs: 60_000 });
     expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('executarComLock — marca do período (fix round 1, I-1)', () => {
+  function comEstado(prisma: any) {
+    const linhas = new Map<string, any>();
+    prisma.estado_Compartilhado = {
+      findUnique: jest.fn(async ({ where }: any) => linhas.get(where.chave) ?? null),
+      upsert: jest.fn(async ({ where, create, update }: any) =>
+        linhas.set(where.chave, linhas.has(where.chave) ? { ...linhas.get(where.chave), ...update } : create),
+      ),
+      deleteMany: jest.fn(async () => ({ count: 0 })),
+    };
+    return linhas;
+  }
+
+  it('marca o INÍCIO do job (job longo não escorrega para cada 2 períodos)', async () => {
+    const { prisma } = prismaFalso();
+    const linhas = comEstado(prisma);
+    const antes = Date.now();
+    await executarComLock(
+      prisma as any,
+      'longo',
+      () => new Promise<void>((r) => setTimeout(r, 60)),
+      { intervaloMinimoMs: 60_000 },
+    );
+    const marca = JSON.parse(linhas.get('job:longo:ultima').valor);
+    expect(marca).toBeGreaterThanOrEqual(antes);
+    expect(marca).toBeLessThan(antes + 50);
+  });
+
+  it('job que devolve false (não trabalhou) não marca o período', async () => {
+    const { prisma } = prismaFalso();
+    comEstado(prisma);
+    const fn = jest.fn<Promise<boolean>, []>().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    expect(await executarComLock(prisma as any, 'porta', fn, { intervaloMinimoMs: 60_000 })).toBe(false);
+    expect(await executarComLock(prisma as any, 'porta', fn, { intervaloMinimoMs: 60_000 })).toBe(true);
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('cicloDeNegocio: porta fechada não roda nem marca; uma vez por chave; chave nova roda', async () => {
+    const { prisma } = prismaFalso();
+    comEstado(prisma);
+    const fn = jest.fn(async () => undefined);
+    let chave: string | null = null;
+    const opcoes = { cicloDeNegocio: () => chave };
+
+    expect(await executarComLock(prisma as any, 'crm:faturas', fn, opcoes)).toBe(false);
+    expect(fn).not.toHaveBeenCalled();
+
+    chave = '2026-12';
+    expect(await executarComLock(prisma as any, 'crm:faturas', fn, opcoes)).toBe(true);
+    // restart / outra instância no mesmo ciclo
+    expect(await executarComLock(prisma as any, 'crm:faturas', fn, opcoes)).toBe(false);
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    chave = '2027-01';
+    expect(await executarComLock(prisma as any, 'crm:faturas', fn, opcoes)).toBe(true);
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('cicloDeNegocio sem tabela de estado (memória do processo): a marca sobrevive entre os ticks', async () => {
+    const { prisma } = prismaFalso(); // sem estado_Compartilhado
+    const fn = jest.fn(async () => undefined);
+    const opcoes = { cicloDeNegocio: () => '2026-11-04' };
+    await executarComLock(prisma as any, 'billing-mem', fn, opcoes);
+    await executarComLock(prisma as any, 'billing-mem', fn, opcoes);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('cicloDeNegocio: falha não marca o ciclo (o próximo tick do mesmo dia tenta de novo)', async () => {
+    const { prisma } = prismaFalso();
+    comEstado(prisma);
+    const fn = jest.fn<Promise<void>, []>().mockRejectedValueOnce(new Error('push fora')).mockResolvedValueOnce(undefined);
+    const opcoes = { cicloDeNegocio: () => '2026-11-04' };
+    await executarComLock(prisma as any, 'billing', fn, opcoes);
+    await executarComLock(prisma as any, 'billing', fn, opcoes);
+    await executarComLock(prisma as any, 'billing', fn, opcoes);
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('comLock — prazo estourado (fix round 1, I-4)', () => {
+  it('rejeita com PrazoDoLockEstouradoError em vez de { obtido: true, valor: undefined }', async () => {
+    const { prisma, donos } = prismaFalso();
+    const lento = () => new Promise<number>((r) => setTimeout(() => r(1), 80));
+    await expect(comLock(prisma as any, 'lento', lento, { duracaoMaximaMs: 10 })).rejects.toBeInstanceOf(
+      PrazoDoLockEstouradoError,
+    );
+    expect(donos.size).toBe(0); // o lock foi liberado
+    await new Promise((r) => setTimeout(r, 100));
   });
 });
 

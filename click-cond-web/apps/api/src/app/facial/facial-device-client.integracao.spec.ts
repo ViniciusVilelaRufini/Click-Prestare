@@ -254,6 +254,8 @@ describe('FacialDeviceClientService — modo direto contra aparelho simulado', (
   });
 
   beforeAll(async () => {
+    // O aparelho simulado escuta em 127.0.0.1: modo on-premise/dev (P-05).
+    process.env.FACIAL_HTTP_DIRETO_REDE_INTERNA = 'true';
     estado = novoEstado();
     server = await subirAparelho(estado);
     porta = (server.address() as any).port;
@@ -261,6 +263,7 @@ describe('FacialDeviceClientService — modo direto contra aparelho simulado', (
   });
 
   afterAll(async () => {
+    delete process.env.FACIAL_HTTP_DIRETO_REDE_INTERNA;
     await new Promise((r) => server.close(r));
   });
 

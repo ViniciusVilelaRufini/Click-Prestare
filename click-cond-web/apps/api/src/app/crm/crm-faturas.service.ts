@@ -1,6 +1,18 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { executarComLock } from '../common/lock-distribuido';
+
+/**
+ * Ciclo de negócio da geração mensal (2 instâncias): uma vez por mês no
+ * cluster, com a chave 'AAAA-MM'. Porta = dia 1 (mesma data do servidor que o
+ * tick usa). Deduplicar pelo mês, e não pelo tempo desde a última execução,
+ * impede que um restart no dia 1 pule (ou repita) as faturas do mês.
+ */
+function cicloFaturasDoMes(): string | null {
+  const hoje = new Date();
+  if (hoje.getDate() !== 1) return null;
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+}
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CrmService } from './crm.service';
@@ -30,18 +42,21 @@ export class CrmFaturasService implements OnModuleInit {
     // Geração mensal: checa 1x/dia; no dia 1 gera as faturas do mês.
     // Idempotente (unique id_condominio+referencia), então rodar de novo
     // no mesmo dia não duplica nada.
-    setInterval(() => void executarComLock(this.prisma, 'crm:faturasMensais', () => this.tickGeracaoMensal(), { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 24 * 60 * 60 * 1000).unref?.();
-    setTimeout(() => void executarComLock(this.prisma, 'crm:faturasMensais', () => this.tickGeracaoMensal(), { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 30 * 60 * 1000).unref?.();
+    setInterval(() => void executarComLock(this.prisma, 'crm:faturasMensais', () => this.tickGeracaoMensal(), { cicloDeNegocio: cicloFaturasDoMes }), 24 * 60 * 60 * 1000).unref?.();
+    setTimeout(() => void executarComLock(this.prisma, 'crm:faturasMensais', () => this.tickGeracaoMensal(), { cicloDeNegocio: cicloFaturasDoMes }), 30 * 60 * 1000).unref?.();
   }
 
-  private async tickGeracaoMensal() {
-    if (new Date().getDate() !== 1) return;
-    if (this.gerarJobRunning) return;
+  /** true = gerou; false = fora do dia 1, já rodando ou falhou (aí o ciclo do mês não é marcado e o próximo tick tenta de novo). */
+  private async tickGeracaoMensal(): Promise<boolean> {
+    if (new Date().getDate() !== 1) return false;
+    if (this.gerarJobRunning) return false;
     this.gerarJobRunning = true;
     try {
       await this.gerarFaturasDoMes();
+      return true;
     } catch (err: any) {
       this.logger.error(`Geração mensal de faturas CRM falhou: ${err?.message ?? err}`);
+      return false;
     } finally {
       this.gerarJobRunning = false;
     }

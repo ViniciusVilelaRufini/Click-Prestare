@@ -160,3 +160,22 @@ describe('AllExceptionsFilter — CORS na resposta de erro', () => {
     expect(setHeader).not.toHaveBeenCalledWith('Access-Control-Allow-Credentials', 'true');
   });
 });
+
+describe('AllExceptionsFilter — path sem query string (pentest P-08)', () => {
+  it('não ecoa a query (ex.: ?token=<jwt>) no path do corpo nem no log', () => {
+    const reply = jest.fn();
+    const url = '/api/condominios/1/moradores?token=eyJsegredo';
+    const filter = new AllExceptionsFilter({ httpAdapter: { reply, getRequestUrl: () => url } } as any);
+    const log = jest.spyOn((filter as any).logger, 'error').mockImplementation(() => undefined);
+    const host: any = {
+      switchToHttp: () => ({
+        getRequest: () => ({ headers: {}, originalUrl: url }),
+        getResponse: () => ({ setHeader: jest.fn() }),
+      }),
+    };
+    filter.catch(new BadRequestException('x'), host);
+    const [, body] = reply.mock.calls[0];
+    expect(body.path).toBe('/api/condominios/1/moradores');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('eyJsegredo');
+  });
+});

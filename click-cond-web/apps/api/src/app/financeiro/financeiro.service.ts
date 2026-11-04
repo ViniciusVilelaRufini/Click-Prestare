@@ -2,6 +2,24 @@ import { hojeBrasilia, horaBrasilia } from '../common/hora-brasilia.util';
 import { Injectable, NotFoundException, OnModuleInit, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { executarComLock } from '../common/lock-distribuido';
+
+/** Horas, a partir da hora-gatilho, em que um tick ainda pode fazer a passada do dia. */
+const JANELA_LEMBRETES_HORAS = 3;
+
+/**
+ * Ciclo de negócio dos lembretes de cobrança: uma passada por dia de Brasília
+ * no cluster (chave 'AAAA-MM-DD'), em qualquer tick entre a hora-gatilho
+ * (BILLING_REMINDER_HOUR, padrão 9h) e +3h. Com 2 instâncias e timers
+ * desalinhados — e restart/rolling deploy no meio da manhã — exigir a hora
+ * exata podia deixar o dia sem lembrete; a chave por data impede a passada
+ * em dobro. Fora da janela devolve null (não roda, não marca).
+ */
+export function cicloLembretesCobranca(agora: Date = new Date()): string | null {
+  const gatilho = Number(process.env.BILLING_REMINDER_HOUR ?? 9);
+  const hora = horaBrasilia(agora);
+  if (hora < gatilho || hora >= gatilho + JANELA_LEMBRETES_HORAS) return null;
+  return hojeBrasilia(agora).toISOString().slice(0, 10);
+}
 import { StorageService } from '../common/storage/storage.service';
 import { MailService } from '../common/mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -43,8 +61,8 @@ export class FinanceiroService implements OnModuleInit {
     // 1h após startup roda a primeira vez (não 30s — evita rodar durante o
     // warm-up se Railway ainda está terminando deploy). Depois checa a cada
     // hora se está dentro da janela horária permitida (9h-18h por padrão).
-    setTimeout(() => void executarComLock(this.prisma, 'financeiro:lembretes', () => this.tickBillingJob(), { intervaloMinimoMs: 60 * 60 * 1000 }), 60 * 60 * 1000).unref?.();
-    setInterval(() => void executarComLock(this.prisma, 'financeiro:lembretes', () => this.tickBillingJob(), { intervaloMinimoMs: 60 * 60 * 1000 }), 60 * 60 * 1000).unref?.();
+    setTimeout(() => void executarComLock(this.prisma, 'financeiro:lembretes', () => this.tickBillingJob(), { cicloDeNegocio: () => cicloLembretesCobranca() }), 60 * 60 * 1000).unref?.();
+    setInterval(() => void executarComLock(this.prisma, 'financeiro:lembretes', () => this.tickBillingJob(), { cicloDeNegocio: () => cicloLembretesCobranca() }), 60 * 60 * 1000).unref?.();
   }
 
   /**
@@ -56,21 +74,23 @@ export class FinanceiroService implements OnModuleInit {
    * É melhor que setInterval(24h) porque sobrevive a reinícios sem perder a
    * janela do dia, e nunca dispara push fora do horário comercial.
    */
-  private async tickBillingJob() {
+  /**
+   * true = a passada do dia foi feita (mesmo com erro interno: repetir no
+   * mesmo dia reenviaria os lembretes que já saíram antes da falha, porque o
+   * dedup `lembretesEnviados` é por instância). false = fora da janela ou já
+   * rodando — não marca o ciclo do dia.
+   */
+  private async tickBillingJob(): Promise<boolean> {
     if (this.billingJobRunning) {
       this.logger.debug('Job de lembretes já em execução — pulando este tick');
-      return;
+      return false;
     }
 
-    const triggerHour = Number(process.env.BILLING_REMINDER_HOUR ?? 9);
-    // Hora local do servidor. Railway por padrão está em UTC — operador deve
-    // configurar TZ=America/Sao_Paulo ou ajustar BILLING_REMINDER_HOUR pra
-    // compensar (ex: 12 = 9h em SP quando server está em UTC).
-    // Hora de Brasília: o servidor roda em UTC e comparava a hora dele, o que
-    // disparava a cobrança às 06:00 de Brasília com o padrão de 9h.
-    const horaAtual = horaBrasilia();
-    if (horaAtual !== triggerHour) {
-      return;
+    // Janela de Brasília a partir da hora-gatilho (ver cicloLembretesCobranca).
+    // O servidor roda em UTC e comparava a hora dele, o que disparava a
+    // cobrança às 06:00 de Brasília com o padrão de 9h.
+    if (cicloLembretesCobranca() === null) {
+      return false;
     }
 
     // Limpa cache de dedup mais antigo que 3 dias (em produção longa, evita
@@ -87,6 +107,7 @@ export class FinanceiroService implements OnModuleInit {
     } finally {
       this.billingJobRunning = false;
     }
+    return true;
   }
 
   private purgarCacheLembretesAntigos() {

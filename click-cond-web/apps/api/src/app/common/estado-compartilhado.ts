@@ -213,6 +213,16 @@ export class EstadoCompartilhado {
     );
   }
 
+  /** Remove todas as chaves que começam com `prefixo`. */
+  async removerPorPrefixo(prefixo: string): Promise<void> {
+    await this.noBanco(
+      (db) => db.deleteMany({ where: { chave: { startsWith: prefixo } } }),
+      () => {
+        for (const k of [...this.memoria.keys()]) if (k.startsWith(prefixo)) this.memoria.delete(k);
+      },
+    );
+  }
+
   /** Remove e devolve `chave` (null se não havia ou venceu). Só um chamador recebe a entrada. */
   async consumirUmaVez<T>(chave: string): Promise<T | null> {
     const entrada = await this.obter<T>(chave);

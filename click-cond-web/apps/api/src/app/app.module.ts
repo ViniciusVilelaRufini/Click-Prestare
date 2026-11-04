@@ -99,9 +99,12 @@ import { THROTTLERS } from './common/throttle/throttlers';
   controllers: [AppController],
   providers: [
     AppService,
+    // Ordem importa: o Nest roda os APP_GUARD na ordem do registro. O throttle
+    // vem primeiro para que requisições recusadas com 401/403 também consumam
+    // o limite (pentest I-01). Ele usa só o IP, não precisa de req.user.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ArquivosPrivadosInterceptor },
   ],

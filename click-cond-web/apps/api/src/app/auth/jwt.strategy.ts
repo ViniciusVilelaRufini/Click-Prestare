@@ -12,6 +12,28 @@ const CACHE_TROCA_SENHA_MS = 30_000;
 /** Por quanto tempo o "porteiro segue ativo na equipe" fica em cache por token. */
 const CACHE_PORTEIRO_MS = 30_000;
 
+/**
+ * Única rota em que o JWT ainda pode vir em `?token=`: o download de mídia do
+ * WhatsApp no CRM, aberto por `<img>/<video src>` (o navegador não manda
+ * cabeçalho Authorization). Em qualquer outra rota o token na URL vazaria para
+ * logs do CloudFront/nginx, histórico e Referer (pentest P-08). O realtime lê o
+ * token do handshake do Socket.IO, à parte.
+ */
+const ROTA_TOKEN_NA_QUERY = /^\/api\/crm\/whatsapp\/midias\/\d+$/;
+
+export function extrairJwtDaRequisicao(req: any): string | null {
+  if (!req) return null;
+  const authHeader = req.headers?.['authorization'];
+  if (authHeader) {
+    return authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+  }
+  const token = req.query?.token;
+  if (typeof token !== 'string' || !token) return null;
+  const caminho = String(req.originalUrl ?? req.url ?? '').split('?')[0];
+  if (req.method === 'GET' && ROTA_TOKEN_NA_QUERY.test(caminho)) return token;
+  return null;
+}
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   private readonly logger = new Logger(JwtStrategy.name);
@@ -20,21 +42,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   constructor(@Optional() private readonly prisma?: PrismaService) {
     super({
-      jwtFromRequest: (req: any) => {
-        if (!req) return null;
-        if (req.headers && req.headers['authorization']) {
-          const authHeader = req.headers['authorization'];
-          if (authHeader) {
-            return authHeader.startsWith('Bearer ')
-              ? authHeader.substring(7)
-              : authHeader;
-          }
-        }
-        if (req.query && req.query.token) {
-          return req.query.token;
-        }
-        return null;
-      },
+      jwtFromRequest: extrairJwtDaRequisicao,
       ignoreExpiration: false,
       secretOrKey: resolveJwtSecret(),
     });

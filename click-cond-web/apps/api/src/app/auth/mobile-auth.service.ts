@@ -25,6 +25,28 @@ import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { parseLocalTimeToUTC } from '../visitantes/visitantes.service';
 
+/**
+ * Foto do signup público de síndico (pentest P-09). Só data URL de imagem
+ * jpeg/png/webp de até 5 MB em base64 (o mesmo teto do convite público).
+ * Qualquer outro tipo que o StorageService aceitaria (PDF, planilha, texto)
+ * ou acima do teto é recusado com 400; URL comum é ignorada (não vira avatar
+ * apontando para servidor de terceiros). Devolve a foto a subir, ou null.
+ */
+const MAX_FOTO_SIGNUP_BYTES = 5 * 1024 * 1024;
+const FOTO_SIGNUP_MIME = /^data:image\/(jpeg|jpg|png|webp);base64,/i;
+
+export function fotoDoSignup(photo: unknown, ehDataUrl: (v: string) => boolean): string | null {
+  if (typeof photo !== 'string' || photo === '') return null;
+  if (!ehDataUrl(photo)) return null;
+  if (!FOTO_SIGNUP_MIME.test(photo)) {
+    throw new BadRequestException('A foto precisa ser uma imagem JPEG, PNG ou WebP.');
+  }
+  if (Buffer.byteLength(photo, 'utf8') > MAX_FOTO_SIGNUP_BYTES) {
+    throw new BadRequestException('A foto é grande demais. Envie uma imagem de até 5 MB.');
+  }
+  return photo;
+}
+
 @Injectable()
 export class MobileAuthService {
   constructor(
@@ -225,6 +247,10 @@ export class MobileAuthService {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
     }
 
+    // Rota pública (pentest P-09): a foto é validada antes de qualquer gravação
+    // e só sobe para o storage depois que a conta existe (ver abaixo).
+    const fotoSignup = fotoDoSignup(body.photo, (v) => this.storage.isDataUrl(v));
+
     const emailNormalized = body.email.toLowerCase().trim();
 
     // Verificar se login já existe
@@ -267,9 +293,7 @@ export class MobileAuthService {
       } catch (e) {}
     }
 
-    const fotoUrl = await this.normalizarFoto(body.photo, 'sindicos');
-
-    // 1. Criar Usuário
+    // 1. Criar Usuário (sem foto: ela só sobe depois que a conta existe)
     const user = await this.prisma.users.create({
       data: {
         login: emailNormalized,
@@ -278,7 +302,7 @@ export class MobileAuthService {
         is_sindico: 1,
         name: body.nome,
         phone: phone,
-        photo: fotoUrl || null,
+        photo: null,
         cpf: docId,
       }
     });
@@ -295,7 +319,19 @@ export class MobileAuthService {
       }
     });
 
-    const userObj = { id: user.id, name: sindico.name, photo: user.photo ?? '' };
+    // 3. Foto: só agora, com a conta criada. Pedido recusado acima (e-mail ou
+    // CPF repetido, sem senha) não grava nada no storage. Falha no upload não
+    // derruba o cadastro: a conta fica sem foto e o síndico troca no perfil.
+    let photo = user.photo ?? '';
+    if (fotoSignup) {
+      const fotoUrl = await this.normalizarFoto(fotoSignup, 'sindicos');
+      if (fotoUrl) {
+        await this.prisma.users.update({ where: { id: user.id }, data: { photo: fotoUrl } });
+        photo = fotoUrl;
+      }
+    }
+
+    const userObj = { id: user.id, name: sindico.name, photo };
     const payload = { sub: user.id, nome: sindico.name, typeAccess: 'Sindico', user: userObj };
 
     return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };

@@ -105,11 +105,41 @@ export class AgentBridgeService implements OnModuleDestroy {
     for (const t of this.timers) clearInterval(t);
   }
 
+  /**
+   * true depois que o banco respondeu "tabela não existe" (SQL
+   * 2026-11-04-multi-instancia.sql ainda não aplicado). Daí em diante esta
+   * instância usa a fila/estado em memória — o comportamento de antes, que
+   * funciona com UMA instância. Mesmo padrão do EstadoCompartilhado.
+   */
+  private tabelasAusentes = false;
+
   /** Banco disponível e com as tabelas do modelo (Prisma falso de teste não tem). */
   private get db(): any | null {
     const p: any = this.prisma;
+    if (this.tabelasAusentes) return null;
     if (!p || !p.isConnected || !p.agente_Comandos || !p.agente_Dispositivos_Estado) return null;
     return p;
+  }
+
+  /**
+   * Erro de "tabela não existe" (Prisma P2021 / MySQL 1146)? Liga o modo
+   * memória e loga ERROR uma vez só. Devolve true para o chamador cair no
+   * caminho em memória; false = erro de outra natureza.
+   */
+  private tabelaAusente(err: any): boolean {
+    const codigo = err?.code;
+    const msg = String(err?.message ?? '');
+    const ausente =
+      codigo === 'P2021' || codigo === 'ER_NO_SUCH_TABLE' || /1146|does(?: not|n't) exist/i.test(msg);
+    if (!ausente) return false;
+    if (!this.tabelasAusentes) {
+      this.tabelasAusentes = true;
+      this.logger.error(
+        'Tabelas agente_comandos/agente_dispositivos_estado não existem — aplicar prisma/sql/2026-11-04-multi-instancia.sql. ' +
+          'Usando fila em memória (funciona com UMA instância; NÃO é seguro com mais de uma).',
+      );
+    }
+    return true;
   }
 
   /** Registra que o agente desse device fez polling agora. */
@@ -130,6 +160,7 @@ export class AgentBridgeService implements OnModuleDestroy {
       })
       .catch((err: any) => {
         this.heartbeatGravadoEm.delete(deviceId);
+        if (this.tabelaAusente(err)) return;
         this.logger.warn(`Heartbeat do device ${deviceId} não gravou: ${err?.message ?? err}`);
       });
   }
@@ -159,7 +190,15 @@ export class AgentBridgeService implements OnModuleDestroy {
   }> {
     const db = this.db;
     if (!db) return this.reportDeviceStatusEmMemoria(deviceId, online);
+    try {
+      return await this.reportDeviceStatusNoBanco(db, deviceId, online);
+    } catch (err: any) {
+      if (this.tabelaAusente(err)) return this.reportDeviceStatusEmMemoria(deviceId, online);
+      throw err;
+    }
+  }
 
+  private async reportDeviceStatusNoBanco(db: any, deviceId: number, online: boolean) {
     const agora = Date.now();
     const linha = await db.agente_Dispositivos_Estado.findUnique({ where: { id_device: deviceId } });
     const lastKnownOnline =
@@ -305,10 +344,13 @@ export class AgentBridgeService implements OnModuleDestroy {
       };
       this.pending.set(id, pendente);
 
-      if (!db) {
+      const naFilaEmMemoria = () => {
         const q = this.queue.get(deviceId) ?? [];
         q.push(id);
         this.queue.set(deviceId, q);
+      };
+      if (!db) {
+        naFilaEmMemoria();
         return;
       }
       db.agente_Comandos
@@ -322,6 +364,12 @@ export class AgentBridgeService implements OnModuleDestroy {
           },
         })
         .catch((err: any) => {
+          // SQL não aplicado: o comando vai para a fila em memória e o poll
+          // (que também cai para memória) entrega — a porta abre igual.
+          if (this.tabelaAusente(err)) {
+            if (this.pending.has(id)) naFilaEmMemoria();
+            return;
+          }
           this.logger.error(`Comando ${id} não entrou na fila do banco: ${err?.message ?? err}`);
           this.finalizar(id, { ok: false, error: 'Falha ao enfileirar o comando para o agente local.' });
         });
@@ -336,17 +384,25 @@ export class AgentBridgeService implements OnModuleDestroy {
   async poll(deviceId: number): Promise<AgentCommand[]> {
     this.heartbeat(deviceId);
     const db = this.db;
-    if (!db) {
-      const ids = this.queue.get(deviceId) ?? [];
-      this.queue.set(deviceId, []);
-      const cmds: AgentCommand[] = [];
-      for (const id of ids) {
-        const p = this.pending.get(id);
-        if (p) cmds.push(p.command);
-      }
-      return cmds;
+    // Sempre drena a fila em memória: é onde caem os comandos quando não há
+    // banco ou quando as tabelas ainda não existem.
+    const ids = this.queue.get(deviceId) ?? [];
+    this.queue.set(deviceId, []);
+    const cmds: AgentCommand[] = [];
+    for (const id of ids) {
+      const p = this.pending.get(id);
+      if (p) cmds.push(p.command);
     }
+    if (!db) return cmds;
+    try {
+      return [...cmds, ...(await this.pollNoBanco(db, deviceId))];
+    } catch (err: any) {
+      if (this.tabelaAusente(err)) return cmds;
+      throw err;
+    }
+  }
 
+  private async pollNoBanco(db: any, deviceId: number): Promise<AgentCommand[]> {
     const linhas: Array<{ id: string; comando: string }> = await db.agente_Comandos.findMany({
       where: { id_device: deviceId, status: 'pendente', expira_em: { gt: new Date() } },
       orderBy: { criado_em: 'asc' },
@@ -380,10 +436,14 @@ export class AgentBridgeService implements OnModuleDestroy {
     }
     const db = this.db;
     if (!db) return; // já expirou ou desconhecido — ignora
-    await db.agente_Comandos.updateMany({
-      where: { id: commandId, status: { in: ['pendente', 'entregue'] } },
-      data: { status: 'concluido', resultado: JSON.stringify(result ?? {}) },
-    });
+    try {
+      await db.agente_Comandos.updateMany({
+        where: { id: commandId, status: { in: ['pendente', 'entregue'] } },
+        data: { status: 'concluido', resultado: JSON.stringify(result ?? {}) },
+      });
+    } catch (err: any) {
+      if (!this.tabelaAusente(err)) throw err;
+    }
   }
 
   private finalizar(id: string, result: AgentResult) {
@@ -418,7 +478,7 @@ export class AgentBridgeService implements OnModuleDestroy {
         await db.agente_Comandos.deleteMany({ where: { id: { in: prontos.map((l) => l.id) } } });
       }
     } catch (err: any) {
-      this.logger.warn(`Conferência de resultados do agente falhou: ${err?.message ?? err}`);
+      if (!this.tabelaAusente(err)) this.logger.warn(`Conferência de resultados do agente falhou: ${err?.message ?? err}`);
     } finally {
       this.conferindoResultados = false;
     }
@@ -439,7 +499,7 @@ export class AgentBridgeService implements OnModuleDestroy {
         }
       }
     } catch (err: any) {
-      this.logger.warn(`Atualização do cache do agente falhou: ${err?.message ?? err}`);
+      if (!this.tabelaAusente(err)) this.logger.warn(`Atualização do cache do agente falhou: ${err?.message ?? err}`);
     }
   }
 
@@ -450,7 +510,7 @@ export class AgentBridgeService implements OnModuleDestroy {
     try {
       await db.agente_Comandos.deleteMany({ where: { expira_em: { lt: new Date(Date.now() - 5 * 60 * 1000) } } });
     } catch (err: any) {
-      this.logger.warn(`Faxina de agente_comandos falhou: ${err?.message ?? err}`);
+      if (!this.tabelaAusente(err)) this.logger.warn(`Faxina de agente_comandos falhou: ${err?.message ?? err}`);
     }
   }
 
@@ -462,7 +522,7 @@ export class AgentBridgeService implements OnModuleDestroy {
    *
    * `payload` é `unknown` de propósito: a rota é `@Public()` (autenticada só
    * pelo token do device, sem JWT) e `@SkipThrottle()`, sob o limite global de
-   * body (50MB) — `AgentTelemetriaPayload` é só um tipo do TypeScript, apagado
+   * body (2 MB, common/limite-corpo.ts) — `AgentTelemetriaPayload` é só um tipo do TypeScript, apagado
    * em tempo de execução, então sem `sanitizarTelemetria()` um payload
    * malicioso ou de um agente com bug seria guardado do jeito que chegou
    * (string gigante, array enorme, campos a mais). Sanitiza SEMPRE, aqui

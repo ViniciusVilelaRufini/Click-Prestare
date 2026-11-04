@@ -94,7 +94,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ...extras,
       statusCode: httpStatus,
       timestamp: new Date().toISOString(),
-      path: httpAdapter.getRequestUrl(request),
+      // Sem a query string: ela pode trazer token (?token=<jwt>) e iria para
+      // o corpo da resposta e para o log (pentest P-08).
+      path: String(httpAdapter.getRequestUrl(request) ?? '').split('?')[0],
       message,
     };
 

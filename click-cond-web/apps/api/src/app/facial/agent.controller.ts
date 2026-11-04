@@ -171,7 +171,7 @@ export class AgentController {
    * GET facial/agent/saude (FacialController, só para operador).
    *
    * `body` é `unknown` de propósito: rota `@Public()` (token do device, sem
-   * JWT) e `@SkipThrottle()`, sob o limite genérico de body (50MB) — não dá
+   * JWT) e `@SkipThrottle()`, sob o limite padrão de body (2 MB, common/limite-corpo.ts) — não dá
    * pra confiar no formato. `setTelemetria()` sanitiza antes de guardar (ver
    * `sanitizarTelemetria()` em agent-bridge.service.ts).
    */
