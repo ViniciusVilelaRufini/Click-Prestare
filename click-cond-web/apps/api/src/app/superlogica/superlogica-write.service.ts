@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { comLock } from '../common/lock-distribuido';
 import { SuperlogicaClient } from './superlogica.client';
 import { SuperlogicaService } from './superlogica.service';
 import { SuperlogicaContato, SuperlogicaUnidade } from './superlogica.types';
@@ -328,17 +329,30 @@ export class SuperlogicaWriteService {
    * a §7.1 declara não resolvida, e contra a qual reenviar todos os contatos é
    * justamente a proteção), o segundo PUT apaga um morador real do ERP.
    *
-   * Premissa: o Railway roda UMA réplica, então um mutex em processo basta. Com
-   * múltiplas réplicas isso precisa virar lock no banco — o mutex em memória de
-   * cada réplica não veria as outras.
+   * Duas camadas: a fila em processo (abaixo) serializa os envios desta
+   * instância sem gastar conexão do banco à toa, e dentro dela o lock no MySQL
+   * (GET_LOCK `superlogica:uni:<cond>:<uni>`, espera até 60s) serializa entre
+   * as instâncias da API — o mutex em memória de cada uma não vê a outra.
+   * Sem o lock em 60s, o envio volta como recusa com motivo (best-effort).
    */
   private readonly filasPorUnidade = new Map<string, Promise<unknown>>();
 
-  private async naFilaDaUnidade<T>(chave: string, tarefa: () => Promise<T>): Promise<T> {
+  private async naFilaDaUnidade<T>(
+    chave: string,
+    tarefa: () => Promise<T>,
+    seOcupada: () => T,
+  ): Promise<T> {
     const anterior = this.filasPorUnidade.get(chave) ?? Promise.resolve();
+    const comLockDoCluster = async (): Promise<T> => {
+      const r = await comLock(this.prisma, `superlogica:uni:${chave}`, tarefa, {
+        esperaSegundos: 60,
+        duracaoMaximaMs: 5 * 60 * 1000,
+      });
+      return r.obtido ? r.valor : seOcupada();
+    };
     // O `catch` é do encadeamento, não do resultado: um envio que falhou não
     // pode travar a fila de quem vem atrás.
-    const atual = anterior.catch(() => undefined).then(tarefa);
+    const atual = anterior.catch(() => undefined).then(comLockDoCluster);
     this.filasPorUnidade.set(chave, atual);
 
     try {
@@ -405,6 +419,10 @@ export class SuperlogicaWriteService {
           apartamento.id_superlogica_uni as number,
           unidadesPreCarregadas,
         ),
+      (): ResultadoEnvio => ({
+        enviado: false,
+        motivo: 'outra gravação na mesma unidade do ERP está em andamento — tente reenviar em instantes',
+      }),
     );
   }
 

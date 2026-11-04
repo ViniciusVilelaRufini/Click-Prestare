@@ -20,7 +20,7 @@ describe('Login por QR — token de portaria entregue uma vez só', () => {
 
   it('a segunda consulta depois da confirmação não recebe o token', async () => {
     const { svc } = build();
-    const s = svc.createQrSession();
+    const s = await svc.createQrSession();
     await svc.authorizeQrSession({ sub: 3, nome: 'S', typeAccess: 'Sindico' }, s.qrToken, 1);
 
     const primeira = await svc.getQrStatus(s.qrToken);
@@ -32,7 +32,7 @@ describe('Login por QR — token de portaria entregue uma vez só', () => {
 
   it('enquanto pendente, as consultas do navegador continuam vendo "pending"', async () => {
     const { svc } = build();
-    const s = svc.createQrSession();
+    const s = await svc.createQrSession();
 
     expect(await svc.getQrStatus(s.qrToken)).toEqual({ status: 'pending' });
     expect(await svc.getQrStatus(s.qrToken)).toEqual({ status: 'pending' });

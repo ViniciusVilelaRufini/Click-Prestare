@@ -43,7 +43,7 @@ export class AgentController {
     // É o que torna plug-and-play: ligou o agente → as fotos já cadastradas
     // sobem para o facial sozinhas.
     const reconectou = !this.bridge.isOnline(device.id);
-    const commands = this.bridge.poll(device.id);
+    const commands = await this.bridge.poll(device.id);
     if (reconectou && device.tipo === 'facial') {
       void this.service.syncAllForCondominio(device.id_condominio, {
         onlyPending: true,
@@ -76,7 +76,7 @@ export class AgentController {
     // Valida o token (lança se inválido) antes de aceitar o resultado.
     await this.service.findDeviceByToken(token);
     const { commandId, ...result } = body ?? ({} as any);
-    if (commandId) this.bridge.submitResult(commandId, result);
+    if (commandId) await this.bridge.submitResult(commandId, result);
     return { ok: true };
   }
 
@@ -91,9 +91,9 @@ export class AgentController {
   async condoPoll(@Param('token') token: string) {
     const idCondominio = await this.service.resolveCondominioForAgent(token);
     const devices = await this.service.getActiveDevices(idCondominio);
-    const out = devices.map((d) => {
+    const out = await Promise.all(devices.map(async (d) => {
       const reconectou = !this.bridge.isOnline(d.id);
-      const commands = this.bridge.poll(d.id);
+      const commands = await this.bridge.poll(d.id);
       if (reconectou && d.tipo === 'facial') {
         void this.service.syncAllForCondominio(idCondominio, {
           onlyPending: true,
@@ -112,13 +112,13 @@ export class AgentController {
         },
         commands,
       };
-    });
+    }));
     return {
       devices: out,
       poll_interval_ms: this.bridge.pollIntervalMs,
       // Etapa 3: pedido de descoberta feito pelo portal (DescobertaService.pedirProcura).
       // Consumido aqui — true só uma vez por pedido — para o agente disparar a varredura da LAN.
-      descobrir: this.descoberta.consumirPedido(idCondominio),
+      descobrir: await this.descoberta.consumirPedido(idCondominio),
     };
   }
 
@@ -130,7 +130,7 @@ export class AgentController {
   ) {
     await this.service.resolveCondominioForAgent(token);
     const { commandId, ...result } = body ?? ({} as any);
-    if (commandId) this.bridge.submitResult(commandId, result);
+    if (commandId) await this.bridge.submitResult(commandId, result);
     return { ok: true };
   }
 
@@ -179,7 +179,7 @@ export class AgentController {
   @Post('condo/:token/telemetria')
   async condoTelemetria(@Param('token') token: string, @Body() body: unknown) {
     const idCondominio = await this.service.resolveCondominioForAgent(token);
-    this.bridge.setTelemetria(idCondominio, body);
+    await this.bridge.setTelemetria(idCondominio, body);
     return { ok: true };
   }
 

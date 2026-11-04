@@ -1,5 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { PrismaService } from '../prisma/prisma.service';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
+
+const PREFIXO = 'enroll:';
 
 /**
  * Sessões de "captura" para enrollment guiado de RFID/QR.
@@ -13,15 +17,21 @@ import { randomBytes } from 'crypto';
  *      sessão (status=captured) em vez de processar como acesso
  *   5. Portal recebe o UID no polling e preenche o campo
  *
- * Decisão: sessões viva apenas em memória. Se o backend reiniciar, sessões
- * são perdidas — operador reinicia a captura. Não vale o custo de persistir.
+ * As sessões ficam em estado_compartilhado (TTL 90s): o portal abre a sessão
+ * numa instância e o evento do leitor chega na outra. A captura usa
+ * `reivindicar` — só um evento preenche a sessão, mesmo com as duas
+ * instâncias recebendo leituras ao mesmo tempo. Sem banco, fica em memória.
  */
 @Injectable()
 export class EnrollSessionService {
-  private readonly sessions = new Map<string, EnrollSession>();
   private readonly ttlMs = 90_000;
+  private readonly estado: EstadoCompartilhado;
 
-  start(idDevice: number): EnrollSession {
+  constructor(@Optional() prisma?: PrismaService) {
+    this.estado = new EstadoCompartilhado(prisma);
+  }
+
+  async start(idDevice: number): Promise<EnrollSession> {
     const id = randomBytes(8).toString('hex');
     const session: EnrollSession = {
       id,
@@ -31,8 +41,7 @@ export class EnrollSessionService {
       status: 'waiting',
       capturedValue: null,
     };
-    this.sessions.set(id, session);
-    this.cleanup();
+    await this.estado.definir(PREFIXO + id, session, this.ttlMs);
     return session;
   }
 
@@ -41,34 +50,24 @@ export class EnrollSessionService {
    * (já marcada como captured) se havia uma aguardando, ou null caso contrário.
    * Chamado pelo processWebhook quando recebe um valor não identificado.
    */
-  consumeForDevice(idDevice: number, value: string): EnrollSession | null {
-    this.cleanup();
-    for (const session of this.sessions.values()) {
-      if (session.idDevice === idDevice && session.status === 'waiting') {
-        session.status = 'captured';
-        session.capturedValue = value;
-        return session;
-      }
+  async consumeForDevice(idDevice: number, value: string): Promise<EnrollSession | null> {
+    const abertas = await this.estado.listarPorPrefixo<EnrollSession>(PREFIXO);
+    for (const e of abertas) {
+      if (e.consumidoEm || e.valor.idDevice !== idDevice || e.valor.status !== 'waiting') continue;
+      const capturada: EnrollSession = { ...e.valor, status: 'captured', capturedValue: value };
+      if (await this.estado.reivindicar(e.chave, capturada)) return capturada;
     }
     return null;
   }
 
-  get(id: string): EnrollSession {
-    this.cleanup();
-    const session = this.sessions.get(id);
-    if (!session) throw new NotFoundException('Sessão de enrollment expirada');
-    return session;
+  async get(id: string): Promise<EnrollSession> {
+    const e = await this.estado.obter<EnrollSession>(PREFIXO + id);
+    if (!e) throw new NotFoundException('Sessão de enrollment expirada');
+    return e.valor;
   }
 
-  cancel(id: string): void {
-    this.sessions.delete(id);
-  }
-
-  private cleanup() {
-    const now = Date.now();
-    for (const [id, session] of this.sessions) {
-      if (session.expiresAt < now) this.sessions.delete(id);
-    }
+  async cancel(id: string): Promise<void> {
+    await this.estado.remover(PREFIXO + id);
   }
 }
 

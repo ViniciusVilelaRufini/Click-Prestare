@@ -1,5 +1,7 @@
 import { ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { executarComLock } from '../common/lock-distribuido';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { SuperlogicaService } from './superlogica.service';
 import { SuperlogicaContato } from './superlogica.types';
 
@@ -40,6 +42,7 @@ const MESES_ATRAS_PROFUNDA = 12;
  * dezenas de páginas por prédio sem nada de novo para trazer.
  */
 const INTERVALO_PROFUNDA_MS = 24 * 60 * 60 * 1000;
+const CHAVE_ULTIMA_PROFUNDA = 'superlogica:ultimaProfundaEm';
 
 export interface ResultadoImportacao {
   unidadesNoErp: number;
@@ -76,20 +79,24 @@ export class SuperlogicaSyncService implements OnModuleInit {
   private syncRodando = false;
 
   /**
-   * Quando a última varredura profunda rodou. Fica em memória de propósito:
-   * o Railway roda uma réplica só, e um restart forçar uma varredura profunda
-   * logo no primeiro tick é o comportamento desejado, não um efeito colateral.
+   * Quando a última varredura profunda rodou — em estado_compartilhado
+   * (`superlogica:ultimaProfundaEm`): o tick roda na instância que pegar o
+   * lock, e com o valor em memória cada instância faria a sua profunda. Vale
+   * 48h; sem registro (primeira vez, ou banco zerado) a próxima passada é
+   * profunda, como era depois de um restart.
    */
-  private ultimaProfundaEm: number | null = null;
+  private readonly estado: EstadoCompartilhado;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly superlogica: SuperlogicaService,
-  ) {}
+  ) {
+    this.estado = new EstadoCompartilhado(prisma);
+  }
 
   onModuleInit() {
-    setInterval(() => void this.tickSincronizacao(), INTERVALO_SYNC_MS).unref?.();
-    setTimeout(() => void this.tickSincronizacao(), ATRASO_INICIAL_MS).unref?.();
+    setInterval(() => void executarComLock(this.prisma, 'superlogica:sync', () => this.tickSincronizacao(), { intervaloMinimoMs: INTERVALO_SYNC_MS }), INTERVALO_SYNC_MS).unref?.();
+    setTimeout(() => void executarComLock(this.prisma, 'superlogica:sync', () => this.tickSincronizacao(), { intervaloMinimoMs: INTERVALO_SYNC_MS }), ATRASO_INICIAL_MS).unref?.();
   }
 
   /**
@@ -426,14 +433,14 @@ export class SuperlogicaSyncService implements OnModuleInit {
       // Uma vez por dia a passada olha doze meses para trás, para pegar baixa
       // em cobrança antiga que a janela horária não alcança.
       const agora = Date.now();
-      const profunda =
-        this.ultimaProfundaEm === null || agora - this.ultimaProfundaEm >= INTERVALO_PROFUNDA_MS;
+      const ultimaProfundaEm = (await this.estado.obter<number>(CHAVE_ULTIMA_PROFUNDA))?.valor ?? null;
+      const profunda = ultimaProfundaEm === null || agora - ultimaProfundaEm >= INTERVALO_PROFUNDA_MS;
 
       await this.sincronizarTodos({ profunda });
 
       // Só marca depois de concluir: falha no meio deixa a próxima passada
       // tentar de novo em vez de esperar mais 24h.
-      if (profunda) this.ultimaProfundaEm = agora;
+      if (profunda) await this.estado.definir(CHAVE_ULTIMA_PROFUNDA, agora, 2 * INTERVALO_PROFUNDA_MS);
     } catch (err: any) {
       this.logger.error(`Tick de sincronização Superlógica falhou: ${err?.message ?? err}`);
     } finally {

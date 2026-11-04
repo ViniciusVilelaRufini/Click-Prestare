@@ -20,7 +20,7 @@ import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { join } from 'path';
-import { AppModule } from './app/app.module';
+import { carregarSegredosSsm } from './app/common/segredos-ssm';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
 import { json, text, urlencoded } from 'express';
 import { requestContext, extractClientIp } from './app/common/context/request-context';
@@ -37,7 +37,14 @@ process.on('unhandledRejection', (reason) => {
 });
 
 async function bootstrap() {
-  const app =await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+  // Segredos do SSM antes de qualquer módulo da aplicação ser carregado: vários
+  // módulos leem process.env no import (ex.: FACIAL_DISABLED, PHONE_ID). Por isso
+  // o AppModule é importado dinamicamente, só depois.
+  await carregarSegredosSsm();
+  // require (e não import()) para o bundler resolver o caminho sem extensão.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { AppModule } = require('./app/app.module') as typeof import('./app/app.module.js');
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
   // AWS X-Ray (flag --xray do Procfile ou NODE_ENV=production): primeiro middleware, para o segmento cobrir a
   // requisição inteira. Sem daemon, os segmentos se perdem sem erro.

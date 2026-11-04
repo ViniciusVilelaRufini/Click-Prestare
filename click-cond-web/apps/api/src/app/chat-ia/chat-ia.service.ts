@@ -33,6 +33,7 @@ import { ComunicadosService } from '../comunicados/comunicados.service';
 import { AgendaService } from '../agenda/agenda.service';
 import type { CartaoAcao } from './acao-pendente.store';
 import { agentesSemRedeInterna, urlExternaSegura } from '../common/url-segura.util';
+import { StorageService } from '../common/storage/storage.service';
 
 const CHUNK_SIZE = 1200; // caracteres por trecho
 const CHUNK_OVERLAP = 200; // sobreposição p/ não cortar contexto no meio
@@ -92,6 +93,8 @@ export class ChatIaService {
     private readonly mudancas: MudancasService,
     private readonly comunicados: ComunicadosService,
     private readonly agenda: AgendaService,
+    // Bucket privado: o PDF de documento é baixado por link assinado.
+    private readonly storage?: StorageService,
   ) {}
 
   // =========================================================================
@@ -347,7 +350,7 @@ export class ChatIaService {
       try {
         const { proposta, erro } = await acao.propor(chamada.args ?? {}, ctx);
         if (erro || !proposta) return { erro: erro ?? 'Não foi possível preparar essa ação.' };
-        const registrada = this.acoes.criar(proposta);
+        const registrada = await this.acoes.criar(proposta);
         propostas.push(registrada);
         this.logger.log(
           `proposta ${registrada.tipo} ${registrada.id} (user#${ctx.idUser}, cond#${ctx.idCondominio})`,
@@ -405,10 +408,13 @@ export class ChatIaService {
     await this.tenant.assertCondominio(idCondominio, user);
 
     const idUser = Number(user?.user?.id ?? user?.sub);
-    const { acao, erro } = this.acoes.obterParaConfirmar(idAcao, idUser, idCondominio);
+    const { acao, erro } = await this.acoes.obterParaConfirmar(idAcao, idUser, idCondominio);
     if (erro || !acao) throw new BadRequestException(erro ?? 'Solicitação não encontrada.');
 
-    this.acoes.marcarConsumida(acao.id);
+    // Atômico: outro toque (talvez em outra instância) pode ter chegado antes.
+    if (!(await this.acoes.marcarConsumida(acao.id))) {
+      throw new BadRequestException('Essa solicitação já foi confirmada.');
+    }
     try {
       const mensagem = await this.executarAcao(acao, user);
       await this.registrarAuditoria(acao, user);
@@ -416,7 +422,7 @@ export class ChatIaService {
     } catch (e: any) {
       // Falhou de verdade: devolve ao estado pendente para o usuário tentar
       // de novo sem precisar refazer a conversa com o assistente.
-      this.acoes.liberar(acao.id);
+      await this.acoes.liberar(acao.id);
       this.logger.error(`execução de ${acao.tipo} ${acao.id} falhou: ${e?.message ?? e}`);
       if (e?.response && e?.status) throw e; // repassa BadRequest/Forbidden dos services
       throw new BadRequestException('Não foi possível concluir essa ação.');
@@ -1067,8 +1073,10 @@ ${docsTxt}`;
     if (!(await urlExternaSegura(url))) throw new Error('URL do documento bloqueada (host interno/inválido)');
     // maxRedirects 0 — um 302 para IP interno contornaria a checagem acima; os
     // agentes refazem a checagem no IP que de fato conecta (DNS rebinding).
+    // Bucket privado: o PDF é lido por link assinado (URL de outro host segue igual).
+    const leitura = (await this.storage?.assinarUrl(url)) ?? url;
     const axios = (await import('axios')).default;
-    const res = await axios.get(url, {
+    const res = await axios.get(leitura, {
       ...agentesSemRedeInterna(),
       responseType: 'arraybuffer',
       timeout: 20000,

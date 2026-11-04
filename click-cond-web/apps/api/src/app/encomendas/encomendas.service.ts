@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { executarComLock } from '../common/lock-distribuido';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -30,10 +31,10 @@ export class EncomendasService implements OnModuleInit {
 
   onModuleInit() {
     // Verificar rastreamentos a cada 2 horas
-    setInterval(() => this.tickTrackingJob(), 2 * 60 * 60 * 1000).unref?.();
+    setInterval(() => void executarComLock(this.prisma, 'encomendas:tracking', async () => { await this.tickTrackingJob(); }, { intervaloMinimoMs: 2 * 60 * 60 * 1000 }), 2 * 60 * 60 * 1000).unref?.();
 
     // Executar verificação inicial após 15 segundos do bootstrap
-    setTimeout(() => this.tickTrackingJob(), 15000).unref?.();
+    setTimeout(() => void executarComLock(this.prisma, 'encomendas:tracking', async () => { await this.tickTrackingJob(); }, { intervaloMinimoMs: 2 * 60 * 60 * 1000 }), 15000).unref?.();
   }
 
   /**

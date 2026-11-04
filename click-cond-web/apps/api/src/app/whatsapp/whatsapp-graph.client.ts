@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Readable } from 'node:stream';
 import { MarketingSegredosService } from '../marketing/marketing-segredos.service';
+import { limiteExterno } from '../common/limitar-concorrencia';
+
+/** Bulkhead da WhatsApp Cloud API (máx. 8 em voo por instância — ver LIMITES_EXTERNOS). */
+const limitarWhatsapp = limiteExterno('whatsapp');
+const fetchGraph = (input: string, init?: RequestInit): Promise<Response> =>
+  limitarWhatsapp(() => fetch(input, init));
 
 const PHONE_ID = process.env.WA_PHONE_ID || '1356887267509002';
 const BASE = `https://graph.facebook.com/v25.0/${PHONE_ID}/messages`;
@@ -28,7 +34,7 @@ export class WhatsappGraphClient {
   private async post(corpo: object): Promise<any> {
     const token = await this.segredos.obter('WA_ACCESS_TOKEN');
     if (!token) throw new Error('WA_ACCESS_TOKEN não configurado');
-    const r = await fetch(BASE, {
+    const r = await fetchGraph(BASE, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ messaging_product: 'whatsapp', ...corpo }),
@@ -81,7 +87,7 @@ export class WhatsappGraphClient {
     form.append('messaging_product', 'whatsapp');
     form.append('type', arquivo.mimetype);
     form.append('file', new Blob([conteudoArquivo], { type: arquivo.mimetype }), this.nomeArquivoSeguro(arquivo.originalname));
-    const upload = await fetch(MEDIA_BASE, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+    const upload = await fetchGraph(MEDIA_BASE, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
     const uploadJson: any = await upload.json().catch(() => ({}));
     if (!upload.ok) throw new Error(uploadJson?.error?.message ?? `Graph API ${upload.status}`);
     if (!uploadJson?.id) throw new Error('Graph API não devolveu o id da mídia');
@@ -99,7 +105,7 @@ export class WhatsappGraphClient {
   async obterMidia(mediaId: string): Promise<{ mime: string; nome?: string; tamanho: number }> {
     const token = await this.segredos.obter('WA_ACCESS_TOKEN');
     if (!token) throw new Error('WA_ACCESS_TOKEN não configurado');
-    const r = await fetch(`https://graph.facebook.com/v25.0/${encodeURIComponent(mediaId)}`, {
+    const r = await fetchGraph(`https://graph.facebook.com/v25.0/${encodeURIComponent(mediaId)}`, {
       headers: {
         Authorization: `Bearer ${token}`,
         'User-Agent': 'curl/7.64.1',
@@ -115,7 +121,7 @@ export class WhatsappGraphClient {
   async baixarMidia(mediaId: string): Promise<Readable> {
     const token = await this.segredos.obter('WA_ACCESS_TOKEN');
     if (!token) throw new Error('WA_ACCESS_TOKEN não configurado');
-    const metadados = await fetch(`https://graph.facebook.com/v25.0/${encodeURIComponent(mediaId)}`, {
+    const metadados = await fetchGraph(`https://graph.facebook.com/v25.0/${encodeURIComponent(mediaId)}`, {
       headers: {
         Authorization: `Bearer ${token}`,
         'User-Agent': 'curl/7.64.1',
@@ -123,7 +129,7 @@ export class WhatsappGraphClient {
     });
     const json: any = await metadados.json().catch(() => ({}));
     if (!metadados.ok || !json?.url) throw new Error(json?.error?.message ?? `Graph API ${metadados.status}`);
-    const arquivo = await fetch(String(json.url), {
+    const arquivo = await fetchGraph(String(json.url), {
       headers: {
         Authorization: `Bearer ${token}`,
         'User-Agent': 'curl/7.64.1',

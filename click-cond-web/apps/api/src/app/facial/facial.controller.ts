@@ -337,7 +337,7 @@ export class FacialController {
       `saúde do agente do condomínio ${idCondominio}`,
     );
     assertOperador(user, 'ver a saúde do agente local');
-    const telemetria = this.bridge.getTelemetria(idCondominio);
+    const telemetria = await this.bridge.getTelemetria(idCondominio);
     const versaoAtual = telemetria?.versao || null;
     const ultima = await this.agentVersion.getLatest();
     const versaoDisponivel =
@@ -374,7 +374,7 @@ export class FacialController {
   ) {
     assertTenantStrict(idCondominio, user, `procurar aparelhos na rede do condomínio ${idCondominio}`);
     assertOperador(user, 'procurar aparelhos na rede');
-    this.descoberta.pedirProcura(idCondominio);
+    await this.descoberta.pedirProcura(idCondominio);
     return { ok: true };
   }
 

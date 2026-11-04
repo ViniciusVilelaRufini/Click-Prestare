@@ -1772,3 +1772,51 @@ model Crm_Anuncios_Diario {
   @@map("crm_anuncios_diario")
 }
 
+
+/// Estado efêmero compartilhado entre as instâncias da API (chave → JSON com
+/// validade). Substitui os Map em memória que quebravam com 2 instâncias:
+/// sessão do QR de login, MFA pendente do console, lockout de login, ação
+/// proposta pelo assistente IA, captura de crachá, descoberta e telemetria do
+/// agente, bulk sync em andamento. Ver apps/api/src/app/common/estado-compartilhado.ts.
+model Estado_Compartilhado {
+  chave        String    @id @db.VarChar(191)
+  valor        String    @db.LongText
+  expira_em    DateTime  @db.DateTime(3)
+  consumido_em DateTime? @db.DateTime(3)
+  criado_em    DateTime  @default(now()) @db.DateTime(3)
+
+  @@index([expira_em], map: "idx_estado_compartilhado_expira")
+  @@map("estado_compartilhado")
+}
+
+/// Fila de comandos nuvem → Agente Local (abrir porta, enrolar rosto...). Antes
+/// era um Map no processo: com 2 instâncias o operador enfileirava numa e o
+/// agente fazia poll na outra. Linhas vivem segundos/minutos (expira_em) e são
+/// apagadas pela faxina do AgentBridgeService.
+model Agente_Comandos {
+  id        String   @id @db.VarChar(32)
+  id_device Int
+  comando   String   @db.LongText
+  /// pendente | entregue | concluido
+  status    String   @db.VarChar(16)
+  resultado String?  @db.LongText
+  criado_em DateTime @default(now()) @db.DateTime(3)
+  expira_em DateTime @db.DateTime(3)
+
+  @@index([id_device, status], map: "idx_agente_comandos_device_status")
+  @@index([expira_em], map: "idx_agente_comandos_expira")
+  @@map("agente_comandos")
+}
+
+/// Último poll do agente e status do aparelho na LAN, por dispositivo —
+/// compartilhado entre as instâncias (antes: Maps em AgentBridgeService).
+model Agente_Dispositivos_Estado {
+  id_device          Int       @id
+  ultimo_poll_em     DateTime? @db.DateTime(3)
+  aparelho_online    Int?      @db.TinyInt
+  aparelho_status_em DateTime? @db.DateTime(3)
+  offline_desde      DateTime? @db.DateTime(3)
+  ticket_aberto      Int       @default(0) @db.TinyInt
+
+  @@map("agente_dispositivos_estado")
+}

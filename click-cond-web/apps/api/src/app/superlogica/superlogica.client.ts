@@ -1,4 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { limiteExterno } from '../common/limitar-concorrencia';
+
+/** Bulkhead da Superlógica (máx. 4 em voo por instância — ver LIMITES_EXTERNOS). */
+const limitarSuperlogica = limiteExterno('superlogica');
 
 /**
  * Cliente HTTP da API Superlógica Condomínios.
@@ -137,9 +141,16 @@ export class SuperlogicaClient {
   }
 
   /**
-   * GET numa rota da allowlist. Único método de rede da classe.
+   * GET numa rota da allowlist. Único método de rede de leitura da classe.
+   * Passa pelo bulkhead `superlogica` (LIMITES_EXTERNOS): ERP lento não
+   * acumula requisições em voo na instância. O timeout só começa a contar
+   * depois que a vaga sai.
    */
-  async get<T>(rota: string, params: Record<string, string | number> = {}): Promise<T[]> {
+  get<T>(rota: string, params: Record<string, string | number> = {}): Promise<T[]> {
+    return limitarSuperlogica(() => this.getDireto<T>(rota, params));
+  }
+
+  private async getDireto<T>(rota: string, params: Record<string, string | number>): Promise<T[]> {
     const rotaValida = this.validarRota(rota, ROTAS_PERMITIDAS, 'leitura');
 
     const query = new URLSearchParams();
@@ -191,7 +202,14 @@ export class SuperlogicaClient {
    * O corpo vai como `x-www-form-urlencoded` porque é o que a Superlógica
    * espera nos endpoints de gravação — JSON é silenciosamente ignorado.
    */
-  async putEscritaRestrita<T = unknown>(
+  putEscritaRestrita<T = unknown>(
+    rota: string,
+    campos: Record<string, string | number>,
+  ): Promise<T> {
+    return limitarSuperlogica(() => this.putEscritaRestritaDireto<T>(rota, campos));
+  }
+
+  private async putEscritaRestritaDireto<T>(
     rota: string,
     campos: Record<string, string | number>,
   ): Promise<T> {

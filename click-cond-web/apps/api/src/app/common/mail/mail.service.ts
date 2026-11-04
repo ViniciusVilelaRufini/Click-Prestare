@@ -3,6 +3,13 @@ import { Resend } from 'resend';
 import * as nodemailer from 'nodemailer';
 import * as dns from 'dns';
 import { promisify } from 'util';
+import { limiteExterno } from '../limitar-concorrencia';
+
+/**
+ * Bulkhead do envio de e-mail (SMTP ou Resend): máx. 4 envios simultâneos por
+ * instância (LIMITES_EXTERNOS.smtp). Um SMTP pendurado não acumula conexões.
+ */
+const limitarEmail = limiteExterno('smtp');
 
 dns.setDefaultResultOrder('ipv4first');
 const dnsLookup = promisify(dns.lookup);
@@ -487,15 +494,18 @@ export class MailService implements OnModuleInit {
 
     if (this.resend) {
       try {
-        const { data, error } = await this.resend.emails.send({
-          from: this.fromAddress,
-          replyTo: this.fromAddress,
-          to: [to],
-          subject,
-          html: htmlComRodape,
-          text: textContent,
-          headers,
-        });
+        const resend = this.resend;
+        const { data, error } = await limitarEmail(() =>
+          resend.emails.send({
+            from: this.fromAddress,
+            replyTo: this.fromAddress,
+            to: [to],
+            subject,
+            html: htmlComRodape,
+            text: textContent,
+            headers,
+          }),
+        );
         if (error) {
           this.logger.error(`Falha Resend para ${to}: ${error.name ?? ''} ${error.message ?? error}`);
           throw new Error(error.message ?? 'Resend error');
@@ -510,15 +520,18 @@ export class MailService implements OnModuleInit {
 
     if (this.transporter) {
       try {
-        const info = await this.transporter.sendMail({
-          from: this.fromAddress,
-          replyTo: this.fromAddress,
-          to,
-          subject,
-          text: textContent,
-          html: htmlComRodape,
-          headers,
-        });
+        const transporter = this.transporter;
+        const info = await limitarEmail(() =>
+          transporter.sendMail({
+            from: this.fromAddress,
+            replyTo: this.fromAddress,
+            to,
+            subject,
+            text: textContent,
+            html: htmlComRodape,
+            headers,
+          }),
+        );
         this.logger.log(`E-mail enviado via SMTP para ${to}. messageId=${info.messageId}`);
       } catch (err: any) {
         this.logger.error(`Erro no envio SMTP para ${to}: ${err?.message ?? err}`);

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { executarComLock } from '../common/lock-distribuido';
 import { PREFIXOS_FOTO_CONVITE, StorageService } from '../common/storage/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -98,8 +99,8 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
     if (process.env['NODE_ENV'] === 'test') return;
     // Mesmo formato do tickRetencaoDadosVisitantes: um disparo após o boot
     // assentar e depois uma vez por dia.
-    this.retencaoTimer = setTimeout(() => void this.tickRetencaoConvites(), 6 * 60 * 1000);
-    this.retencaoInterval = setInterval(() => void this.tickRetencaoConvites(), 24 * 60 * 60 * 1000);
+    this.retencaoTimer = setTimeout(() => void executarComLock(this.prisma, 'convites:retencao', async () => { await this.tickRetencaoConvites(); }, { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 6 * 60 * 1000);
+    this.retencaoInterval = setInterval(() => void executarComLock(this.prisma, 'convites:retencao', async () => { await this.tickRetencaoConvites(); }, { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 24 * 60 * 60 * 1000);
   }
 
   onModuleDestroy() {

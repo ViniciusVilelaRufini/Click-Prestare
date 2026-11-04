@@ -26,7 +26,7 @@ export type PermissaoFuncionario =
  *
  *  - Porteiro / portaria-web: id_condominio fixo no JWT → compara direto.
  *  - Síndico mobile: valida via Sindicos_Condominios.
- *  - Funcionário mobile: valida via Funcionarios (é da equipe do condomínio).
+ *  - Funcionário mobile: valida via Funcionarios (é da equipe do condomínio), nunca por e-mail.
  *  - Morador mobile: valida via Apartamentos_Users (tem apto no condomínio).
  *
  * Use `assertCondominio` quando o condomínio-alvo já é conhecido (veio da URL
@@ -114,18 +114,11 @@ export class TenantAccessService {
       });
       if (vincFunc) return;
 
-      const u = await this.prisma.users.findUnique({
-        where: { id: userId },
-        select: { email: true },
-      });
-      if (u?.email) {
-        const vincPort = await this.prisma.funcionarios_Portaria.findFirst({
-          where: { email: u.email, id_condominio: condId },
-          select: { id: true },
-        });
-        if (vincPort) return;
-      }
-
+      // Não há fallback por e-mail (Users.email = Funcionarios_Portaria.email): o e-mail de Users não é
+      // verificado — o /sindico/signup é público —, então qualquer um que criasse conta com o e-mail de
+      // um porteiro e obtivesse um token de funcionário em QUALQUER condomínio (o próprio, por exemplo)
+      // passava a acessar o condomínio desse porteiro. O vínculo do funcionário do app é a linha em
+      // Funcionarios, que o loginFuncionario e o cadastro do porteiro já criam.
       throw new ForbiddenException('Acesso negado: você não trabalha neste condomínio.');
     }
 

@@ -81,4 +81,17 @@ describe('TenantAccessService — vínculo do funcionário', () => {
     await expect(service.assertCondominio(2, portaria)).resolves.toBeUndefined();
     await expect(service.assertCondominio(5, portaria)).rejects.toThrow(ForbiddenException);
   });
+
+  // Pentest 04/11: o e-mail de Users não é verificado (signup público). Uma conta criada com o e-mail
+  // de um porteiro do condomínio 5, com token de funcionário de outro prédio, não pode entrar no 5.
+  it('NEGA funcionário só porque o e-mail da conta coincide com um porteiro do condomínio', async () => {
+    const { service, prisma } = build({
+      funcionarios: { findFirst: jest.fn(async () => null) },
+      users: { findUnique: jest.fn(async () => ({ email: 'porteiro@vitima.com' })) },
+      funcionarios_Portaria: { findFirst: jest.fn(async () => ({ id: 77 })) },
+    });
+
+    await expect(service.assertCondominio(5, funcionario)).rejects.toThrow(ForbiddenException);
+    expect(prisma.funcionarios_Portaria.findFirst).not.toHaveBeenCalled();
+  });
 });

@@ -84,12 +84,12 @@ describe('DescobertaService', () => {
     expect((await svc.listar(11)).achados).toEqual([]);
   });
 
-  it('pedido de procura é consumido uma vez', () => {
+  it('pedido de procura é consumido uma vez', async () => {
     const { svc } = montar([]);
-    expect(svc.consumirPedido(10)).toBe(false);
-    svc.pedirProcura(10);
-    expect(svc.consumirPedido(10)).toBe(true);
-    expect(svc.consumirPedido(10)).toBe(false);
+    expect(await svc.consumirPedido(10)).toBe(false);
+    await svc.pedirProcura(10);
+    expect(await svc.consumirPedido(10)).toBe(true);
+    expect(await svc.consumirPedido(10)).toBe(false);
   });
 });
 

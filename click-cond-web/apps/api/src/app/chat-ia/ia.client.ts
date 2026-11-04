@@ -2,6 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { BedrockClient } from './bedrock.client';
 import { GeminiClient } from './gemini.client';
 import type { ConteudoGemini, DeclaracaoFerramenta, RespostaGemini } from './gemini.client';
+import { limiteExterno } from '../common/limitar-concorrencia';
+
+/**
+ * Bulkhead do provedor de IA (Bedrock ou Gemini): máx. 8 chamadas em voo por
+ * instância, fila curta e 503 claro quando saturar (LIMITES_EXTERNOS.ia).
+ * Chamadas de IA duram dezenas de segundos — sem teto, um pico no chat prende
+ * memória e sockets e atrasa o resto da API.
+ */
+const limitarIa = limiteExterno('ia');
 
 /**
  * Provedor do Assistente IA, escolhido por IA_PROVEDOR (`bedrock` | `gemini`).
@@ -31,11 +40,11 @@ export class IaClient {
   }
 
   embedText(texto: string): Promise<number[]> {
-    return this.provedor.embedText(texto);
+    return limitarIa(() => this.provedor.embedText(texto));
   }
 
   embedBatch(textos: string[]): Promise<number[][]> {
-    return this.provedor.embedBatch(textos);
+    return limitarIa(() => this.provedor.embedBatch(textos));
   }
 
   gerarComFerramentas(
@@ -43,6 +52,6 @@ export class IaClient {
     ferramentas: DeclaracaoFerramenta[],
     instrucaoSistema?: string,
   ): Promise<RespostaGemini> {
-    return this.provedor.gerarComFerramentas(contents, ferramentas, instrucaoSistema);
+    return limitarIa(() => this.provedor.gerarComFerramentas(contents, ferramentas, instrucaoSistema));
   }
 }

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { executarComLock } from '../common/lock-distribuido';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CrmService } from './crm.service';
@@ -29,8 +30,8 @@ export class CrmFaturasService implements OnModuleInit {
     // Geração mensal: checa 1x/dia; no dia 1 gera as faturas do mês.
     // Idempotente (unique id_condominio+referencia), então rodar de novo
     // no mesmo dia não duplica nada.
-    setInterval(() => this.tickGeracaoMensal(), 24 * 60 * 60 * 1000).unref?.();
-    setTimeout(() => this.tickGeracaoMensal(), 30 * 60 * 1000).unref?.();
+    setInterval(() => void executarComLock(this.prisma, 'crm:faturasMensais', () => this.tickGeracaoMensal(), { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 24 * 60 * 60 * 1000).unref?.();
+    setTimeout(() => void executarComLock(this.prisma, 'crm:faturasMensais', () => this.tickGeracaoMensal(), { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 30 * 60 * 1000).unref?.();
   }
 
   private async tickGeracaoMensal() {

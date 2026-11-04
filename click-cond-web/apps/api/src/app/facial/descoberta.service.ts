@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
+
+/** Última descoberta e avisos valem 24h (o portal só mostra avisos das últimas 24h). */
+const DESCOBERTA_TTL_MS = 24 * 3600 * 1000;
+/** Pedido de "procurar agora" espera o próximo poll do agente por até 10 min. */
+const PEDIDO_TTL_MS = 10 * 60 * 1000;
 
 /**
  * Descoberta na rede (etapa 3 do agente). O agente acha aparelhos na LAN e
@@ -135,16 +141,20 @@ export function sanitizarDescobertos(raw: unknown): {
 @Injectable()
 export class DescobertaService {
   private readonly logger = new Logger(DescobertaService.name);
-  private readonly ultimos = new Map<number, { recebido_em: string; achados: Achado[] }>();
-  private readonly avisos = new Map<number, AvisoIp[]>();
-  private readonly pedidos = new Set<number>();
-  /** Por device, quando houve correção de endereço (ms) — limite de frequência em memória. */
-  private readonly correcoes = new Map<number, number[]>();
+  /**
+   * Última descoberta, avisos de IP corrigido, pedidos de "procurar agora" e o
+   * limite de correções por device ficam em estado_compartilhado: o agente
+   * reporta numa instância e o portal consulta na outra (antes eram Maps do
+   * processo). Sem banco, cai em memória como antes.
+   */
+  private readonly estado: EstadoCompartilhado;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditoria: AuditoriaService,
-  ) {}
+  ) {
+    this.estado = new EstadoCompartilhado(prisma);
+  }
 
   async receber(idCondominio: number, corpo: unknown) {
     const { achados, macs_cadastrados } = sanitizarDescobertos(corpo);
@@ -229,7 +239,7 @@ export class DescobertaService {
         this.logger.warn(`Correção de IP ignorada: dispositivo ${d.id} (${d.ip}) → ${a.ip} fora das redes do condomínio ${idCondominio}`);
         continue;
       }
-      if (!this.dentroDoLimite(d.id)) {
+      if (!(await this.dentroDoLimite(d.id))) {
         this.logger.warn(
           `Correção de IP ignorada: dispositivo ${d.id} já teve ${MAX_CORRECOES_POR_HORA} correções na última hora (${d.ip}:${d.porta} → ${a.ip}:${a.porta})`,
         );
@@ -245,7 +255,8 @@ export class DescobertaService {
       d.porta = a.porta;
       ips_corrigidos++;
       const aviso: AvisoIp = { id_dispositivo: d.id, nome: d.nome, tipo: ipMudou ? 'ip' : 'porta', de, para, em: new Date().toISOString() };
-      this.avisos.set(idCondominio, [aviso, ...(this.avisos.get(idCondominio) ?? [])].slice(0, 10));
+      const avisosAntes = (await this.estado.obter<AvisoIp[]>(`descoberta:avisos:${idCondominio}`))?.valor ?? [];
+      await this.estado.definir(`descoberta:avisos:${idCondominio}`, [aviso, ...avisosAntes].slice(0, 10), DESCOBERTA_TTL_MS);
       const descricao = ipMudou
         ? `IP do dispositivo "${d.nome}" atualizado de ${de} para ${para} (mesmo MAC ${a.mac}).`
         : `Porta do dispositivo "${d.nome}" atualizada de ${de} para ${para} (mesmo MAC ${a.mac}).`;
@@ -261,7 +272,7 @@ export class DescobertaService {
       });
     }
 
-    this.ultimos.set(idCondominio, { recebido_em: new Date().toISOString(), achados });
+    await this.estado.definir(`descoberta:ultimos:${idCondominio}`, { recebido_em: new Date().toISOString(), achados }, DESCOBERTA_TTL_MS);
     return { ok: true as const, ips_corrigidos, macs_aprendidos };
   }
 
@@ -273,24 +284,22 @@ export class DescobertaService {
   }
 
   /**
-   * No máximo MAX_CORRECOES_POR_HORA por device (em memória, por instância).
+   * No máximo MAX_CORRECOES_POR_HORA por device (estado compartilhado entre instâncias).
    * Um IP que "pula" toda hora é sinal de rede estranha (dois aparelhos
    * brigando pelo mesmo MAC, relato forjado) — não vale seguir cegamente.
    * Registra a correção quando permite.
    */
-  private dentroDoLimite(idDevice: number): boolean {
+  private async dentroDoLimite(idDevice: number): Promise<boolean> {
     const agora = Date.now();
-    const recentes = (this.correcoes.get(idDevice) ?? []).filter((t) => agora - t < UMA_HORA_MS);
-    if (recentes.length >= MAX_CORRECOES_POR_HORA) {
-      this.correcoes.set(idDevice, recentes);
-      return false;
-    }
-    this.correcoes.set(idDevice, [...recentes, agora]);
+    const chave = `descoberta:correcoes:${idDevice}`;
+    const recentes = ((await this.estado.obter<number[]>(chave))?.valor ?? []).filter((t) => agora - t < UMA_HORA_MS);
+    if (recentes.length >= MAX_CORRECOES_POR_HORA) return false;
+    await this.estado.definir(chave, [...recentes, agora], UMA_HORA_MS);
     return true;
   }
 
   async listar(idCondominio: number): Promise<{ recebido_em: string | null; achados: AchadoNuvem[]; avisos: AvisoIp[] }> {
-    const u = this.ultimos.get(idCondominio);
+    const u = (await this.estado.obter<{ recebido_em: string; achados: Achado[] }>(`descoberta:ultimos:${idCondominio}`))?.valor;
     // Leitura fresca: um device cadastrado (ou apagado) depois da última
     // recepção já aparece certo no portal, sem esperar a próxima descoberta.
     const devs = u?.achados.length
@@ -306,15 +315,16 @@ export class DescobertaService {
         ...a,
         id_dispositivo: devs.find((d) => (a.mac && d.mac === a.mac) || d.ip === a.ip)?.id ?? null,
       })),
-      avisos: (this.avisos.get(idCondominio) ?? []).filter((v) => Date.parse(v.em) >= limite),
+      avisos: ((await this.estado.obter<AvisoIp[]>(`descoberta:avisos:${idCondominio}`))?.valor ?? []).filter((v) => Date.parse(v.em) >= limite),
     };
   }
 
-  pedirProcura(idCondominio: number): void {
-    this.pedidos.add(idCondominio);
+  async pedirProcura(idCondominio: number): Promise<void> {
+    await this.estado.definir(`descoberta:pedido:${idCondominio}`, true, PEDIDO_TTL_MS);
   }
 
-  consumirPedido(idCondominio: number): boolean {
-    return this.pedidos.delete(idCondominio);
+  /** true uma vez por pedido (entrega única mesmo com as duas instâncias no poll). */
+  async consumirPedido(idCondominio: number): Promise<boolean> {
+    return (await this.estado.consumirUmaVez<boolean>(`descoberta:pedido:${idCondominio}`)) !== null;
   }
 }

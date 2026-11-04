@@ -12,6 +12,7 @@ import {
 import { randomInt } from 'crypto';
 import { erroDocumento, erroVisita } from '../common/documento.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { executarComLock } from '../common/lock-distribuido';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PREFIXOS_FOTO_VISITANTE, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
@@ -177,8 +178,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (process.env['NODE_ENV'] === 'test') return;
     // Dispara rotina diária de retenção/expurgo LGPD (Art. 15 e 16)
-    this.retencaoTimer = setTimeout(() => void this.tickRetencaoDadosVisitantes(), 5 * 60 * 1000);
-    this.retencaoInterval = setInterval(() => void this.tickRetencaoDadosVisitantes(), 24 * 60 * 60 * 1000);
+    this.retencaoTimer = setTimeout(() => void executarComLock(this.prisma, 'visitantes:retencao', async () => { await this.tickRetencaoDadosVisitantes(); }, { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 5 * 60 * 1000);
+    this.retencaoInterval = setInterval(() => void executarComLock(this.prisma, 'visitantes:retencao', async () => { await this.tickRetencaoDadosVisitantes(); }, { intervaloMinimoMs: 24 * 60 * 60 * 1000 }), 24 * 60 * 60 * 1000);
   }
 
   onModuleDestroy() {

@@ -36,6 +36,14 @@ import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
 import { normalizarMac } from './descoberta.service';
 import { agentesSemRedeInterna, urlExternaSegura } from '../common/url-segura.util';
 import { validarIpDispositivo, validarPortaDispositivo } from './device-endereco.util';
+import { StorageService } from '../common/storage/storage.service';
+import { executarComLock } from '../common/lock-distribuido';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
+
+/** Validade da marca de bulk sync em andamento (instância que morreu no meio não trava o condomínio para sempre). */
+const BULK_SYNC_TTL_MS = 2 * 60 * 60 * 1000;
+/** Resultado da varredura de fantasmas (roda de hora em hora) vale até a próxima, com folga. */
+const FANTASMAS_TTL_MS = 3 * 60 * 60 * 1000;
 
 function pessoasMigrationEnabled(prisma?: any): boolean {
   if (process.env['PESSOAS_MIGRATION_ENABLED'] !== 'true') return false;
@@ -327,8 +335,33 @@ export function montarInstaladorBat(apiBase: string, token: string, downloadUrl:
 @Injectable()
 export class FacialService {
   private readonly logger = new Logger(FacialService.name);
-  /** Condomínios com um bulk sync rodando agora (evita rodar em paralelo). */
-  private readonly bulkSyncEmAndamento = new Set<number>();
+  /**
+   * Estado compartilhado entre as instâncias da API: marca de bulk sync em
+   * andamento por condomínio (`facial:bulk:<id>`, evita rodar em paralelo nas
+   * duas instâncias) e o resultado da última varredura de fantasmas.
+   */
+  private _estado?: EstadoCompartilhado;
+  private get estado(): EstadoCompartilhado {
+    return (this._estado ??= new EstadoCompartilhado(this.prisma));
+  }
+
+  /**
+   * Tick agendado que roda UMA vez no cluster: a instância que pegar o lock
+   * (GET_LOCK no MySQL) roda; a outra pula este ciclo. `periodoMs` faz o job
+   * rodar uma vez por período no cluster (os timers das instâncias não são
+   * alinhados — ver OpcoesLock.intervaloMinimoMs).
+   */
+  private noCluster(nome: string, tick: () => Promise<unknown>, periodoMs: number): () => void {
+    return () =>
+      void executarComLock(
+        this.prisma,
+        nome,
+        async () => {
+          await tick();
+        },
+        { intervaloMinimoMs: periodoMs },
+      );
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -341,34 +374,36 @@ export class FacialService {
     private readonly tenant: TenantAccessService,
     private readonly consentimentos: ConsentimentosService,
     private readonly consentimentosTerceiros: ConsentimentosTerceirosService,
+    // Bucket privado: a foto que vai ao terminal é baixada por link assinado.
+    private readonly storage?: StorageService,
   ) {
     // Re-sincroniza quem tem restrição de dia da semana ao virar o dia (0h BRT).
     // Delay de 5 min no boot para aguardar banco conectar após deploy.
-    setTimeout(() => void this.tickDiasSemanaSync(), 5 * 60 * 1000).unref?.();
-    setInterval(() => void this.tickDiasSemanaSync(), 60 * 60 * 1000).unref?.();
+    setTimeout(this.noCluster('facial:tickDiasSemanaSync', () => this.tickDiasSemanaSync(), 60 * 60 * 1000), 5 * 60 * 1000).unref?.();
+    setInterval(this.noCluster('facial:tickDiasSemanaSync', () => this.tickDiasSemanaSync(), 60 * 60 * 1000), 60 * 60 * 1000).unref?.();
 
     // Cron de expiração automática de visitantes e prestadores
-    setTimeout(() => void this.tickExpiracaoAutomatica(), 2 * 60 * 1000).unref?.();
-    setInterval(() => void this.tickExpiracaoAutomatica(), 15 * 60 * 1000).unref?.();
+    setTimeout(this.noCluster('facial:tickExpiracaoAutomatica', () => this.tickExpiracaoAutomatica(), 15 * 60 * 1000), 2 * 60 * 1000).unref?.();
+    setInterval(this.noCluster('facial:tickExpiracaoAutomatica', () => this.tickExpiracaoAutomatica(), 15 * 60 * 1000), 15 * 60 * 1000).unref?.();
 
     // Tick novo — pré-enrolamento 30 min antes da chegada (a cada 15 min, delay 3 min)
-    setTimeout(() => void this.tickPreEnrolamento(), 3 * 60 * 1000).unref?.();
-    setInterval(() => void this.tickPreEnrolamento(), 15 * 60 * 1000).unref?.();
+    setTimeout(this.noCluster('facial:tickPreEnrolamento', () => this.tickPreEnrolamento(), 15 * 60 * 1000), 3 * 60 * 1000).unref?.();
+    setInterval(this.noCluster('facial:tickPreEnrolamento', () => this.tickPreEnrolamento(), 15 * 60 * 1000), 15 * 60 * 1000).unref?.();
 
     // Tick novo — varredura de fantasmas (uma vez por dia às 3h BRT, delay 10 min)
-    setTimeout(() => void this.tickFantasmas(), 10 * 60 * 1000).unref?.();
-    setInterval(() => void this.tickFantasmas(), 60 * 60 * 1000).unref?.();
+    setTimeout(this.noCluster('facial:tickFantasmas', () => this.tickFantasmas(), 60 * 60 * 1000), 10 * 60 * 1000).unref?.();
+    setInterval(this.noCluster('facial:tickFantasmas', () => this.tickFantasmas(), 60 * 60 * 1000), 60 * 60 * 1000).unref?.();
 
     // Tick novo — retry automático de sync: quem ficou 'pending'/'error'
     // (upload ou REMOÇÃO que não chegou ao aparelho) é re-tentado sem
     // depender de clique manual no portal. Só roda com agente online.
-    setTimeout(() => void this.tickSyncRetry(), 7 * 60 * 1000).unref?.();
-    setInterval(() => void this.tickSyncRetry(), 30 * 60 * 1000).unref?.();
+    setTimeout(this.noCluster('facial:tickSyncRetry', () => this.tickSyncRetry(), 30 * 60 * 1000), 7 * 60 * 1000).unref?.();
+    setInterval(this.noCluster('facial:tickSyncRetry', () => this.tickSyncRetry(), 30 * 60 * 1000), 30 * 60 * 1000).unref?.();
 
     // Tick novo — áreas sociais: pré-enrola/reconcilia reservas aprovadas de
     // hoje no facial da área (delay 4 min, a cada 10 min).
-    setTimeout(() => void this.tickReservasAreas(), 4 * 60 * 1000).unref?.();
-    setInterval(() => void this.tickReservasAreas(), 10 * 60 * 1000).unref?.();
+    setTimeout(this.noCluster('facial:tickReservasAreas', () => this.tickReservasAreas(), 10 * 60 * 1000), 4 * 60 * 1000).unref?.();
+    setInterval(this.noCluster('facial:tickReservasAreas', () => this.tickReservasAreas(), 10 * 60 * 1000), 10 * 60 * 1000).unref?.();
   }
 
   /**
@@ -414,19 +449,19 @@ export class FacialService {
         'Captura guiada só funciona em leitores RFID ou QR',
       );
     }
-    return this.enrollSessions.start(idDevice);
+    return await this.enrollSessions.start(idDevice);
   }
 
   async pollEnrollCapture(sessionId: string, user?: JwtPayload) {
-    const session = this.enrollSessions.get(sessionId);
+    const session = await this.enrollSessions.get(sessionId);
     await this.assertSessionSameTenant(session.idDevice, user);
     return session;
   }
 
   async cancelEnrollCapture(sessionId: string, user?: JwtPayload) {
-    const session = this.enrollSessions.get(sessionId);
+    const session = await this.enrollSessions.get(sessionId);
     await this.assertSessionSameTenant(session.idDevice, user);
-    this.enrollSessions.cancel(sessionId);
+    await this.enrollSessions.cancel(sessionId);
     return { ok: true };
   }
 
@@ -620,7 +655,13 @@ export class FacialService {
       }
     }, 0);
 
-    const varredura = this.fantasmasPorCondominio.get(idCondominio);
+    const varredura = (
+      await this.estado.obter<{
+        terminouEm: string;
+        terminaisVarridos: number;
+        terminaisComFalha: { id: number; nome: string; erro: string }[];
+      }>(`facial:fantasmas:${idCondominio}`)
+    )?.valor;
 
     return {
       terminais: {
@@ -635,7 +676,7 @@ export class FacialService {
       fantasmas: {
         // Resultado da última varredura DESTE condomínio (null até a primeira
         // rodar após o boot). Terminal que não respondeu vem em terminaisComFalha.
-        ultimaVarreduraEm: varredura?.terminouEm ?? null,
+        ultimaVarreduraEm: varredura?.terminouEm ? new Date(varredura.terminouEm) : null,
         terminaisVarridos: varredura?.terminaisVarridos ?? 0,
         terminaisComFalha: varredura?.terminaisComFalha ?? [],
         removidosHoje,
@@ -677,7 +718,7 @@ export class FacialService {
     online: boolean,
     isManual = false,
   ) {
-    const { shouldOpenTicket } = this.agent.reportDeviceStatus(
+    const { shouldOpenTicket } = await this.agent.reportDeviceStatus(
       device.id,
       online,
     );
@@ -1398,7 +1439,7 @@ export class FacialService {
           return null;
         }
         const axios = (await import('axios')).default;
-        const res = await axios.get(foto, {
+        const res = await axios.get((await this.storage?.assinarUrl(foto)) ?? foto, {
           ...agentesSemRedeInterna(), // o IP checado é o IP conectado (DNS rebinding)
           responseType: 'arraybuffer',
           timeout: 15000,
@@ -3003,7 +3044,7 @@ export class FacialService {
       return { skipped: true, reason: 'no_facial_devices' };
     }
 
-    if (this.bulkSyncEmAndamento.has(idCondominio)) {
+    if (await this.estado.obter(`facial:bulk:${idCondominio}`)) {
       return { alreadyRunning: true };
     }
 
@@ -3129,7 +3170,9 @@ export class FacialService {
     const total = moradores.length + visitantes.length + prestadores.length + pessoas.length;
     if (total === 0) return { total: 0, started: false };
 
-    this.bulkSyncEmAndamento.add(idCondominio);
+    if (!(await this.estado.criarSeAusente(`facial:bulk:${idCondominio}`, true, BULK_SYNC_TTL_MS))) {
+      return { alreadyRunning: true };
+    }
     // Não await: roda em background. O event loop continua após o return.
     void (async () => {
       let ok = 0;
@@ -3183,7 +3226,7 @@ export class FacialService {
           `Bulk sync condomínio ${idCondominio}: ${ok} sincronizado(s), ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${total}`,
         );
       } finally {
-        this.bulkSyncEmAndamento.delete(idCondominio);
+        await this.estado.remover(`facial:bulk:${idCondominio}`).catch(() => undefined);
       }
     })();
 
@@ -3215,7 +3258,7 @@ export class FacialService {
       return { skipped: true, reason: 'no_facial_devices' };
     }
 
-    if (this.bulkSyncEmAndamento.has(idCondominio)) {
+    if (await this.estado.obter(`facial:bulk:${idCondominio}`)) {
       return { alreadyRunning: true };
     }
 
@@ -3291,7 +3334,9 @@ export class FacialService {
       moradores.length + visitantes.length + prestadores.length + pessoas.length;
     if (total === 0) return { total: 0, started: false };
 
-    this.bulkSyncEmAndamento.add(idCondominio);
+    if (!(await this.estado.criarSeAusente(`facial:bulk:${idCondominio}`, true, BULK_SYNC_TTL_MS))) {
+      return { alreadyRunning: true };
+    }
     void (async () => {
       let ok = 0;
       let falhou = 0;
@@ -3400,7 +3445,7 @@ export class FacialService {
           `Bulk unsync condomínio ${idCondominio}: ${ok} ok, ${falhou} falha(s) de ${total}`,
         );
       } finally {
-        this.bulkSyncEmAndamento.delete(idCondominio);
+        await this.estado.remover(`facial:bulk:${idCondominio}`).catch(() => undefined);
       }
     })();
 
@@ -3711,19 +3756,12 @@ export class FacialService {
   }
 
   /**
-   * Resultado da última varredura POR CONDOMÍNIO (efêmero — mesmo padrão do
-   * AgentBridgeService, zera ao reiniciar). Um timestamp global dizia "varrido
-   * há 16 min" mesmo quando o único terminal do condomínio estava offline e
-   * nada foi de fato verificado — falsa tranquilidade para o síndico.
+   * Resultado da última varredura POR CONDOMÍNIO fica em estado_compartilhado
+   * (`facial:fantasmas:<id>`, TTL 3h): a varredura roda numa instância (lock) e
+   * o portal lê em qualquer uma. Um timestamp global dizia "varrido há 16 min"
+   * mesmo quando o único terminal do condomínio estava offline e nada foi de
+   * fato verificado — falsa tranquilidade para o síndico.
    */
-  private fantasmasPorCondominio = new Map<
-    number,
-    {
-      terminouEm: Date;
-      terminaisVarridos: number;
-      terminaisComFalha: { id: number; nome: string; erro: string }[];
-    }
-  >();
 
   /**
    * Varredura de fantasmas biométricos (de hora em hora): lista UserIDs no
@@ -3862,13 +3900,14 @@ export class FacialService {
       }
       const terminouEm = new Date();
       for (const [idCondominio, r] of resultado) {
-        this.fantasmasPorCondominio.set(idCondominio, { terminouEm, ...r });
+        await this.estado.definir(`facial:fantasmas:${idCondominio}`, { terminouEm, ...r }, FANTASMAS_TTL_MS);
       }
       // O findMany respondeu: condomínio sem terminal listável nesta rodada
       // (terminal removido/desativado) não pode manter alerta antigo para sempre.
-      for (const idCondominio of [...this.fantasmasPorCondominio.keys()]) {
+      for (const e of await this.estado.listarPorPrefixo('facial:fantasmas:')) {
+        const idCondominio = Number(e.chave.slice('facial:fantasmas:'.length));
         if (!resultado.has(idCondominio)) {
-          this.fantasmasPorCondominio.delete(idCondominio);
+          await this.estado.remover(e.chave);
         }
       }
     } catch (e: any) {
@@ -3939,7 +3978,7 @@ export class FacialService {
       semFoto: total - comFoto,
       comFoto,
       total,
-      running: this.bulkSyncEmAndamento.has(idCondominio),
+      running: !!(await this.estado.obter(`facial:bulk:${idCondominio}`)),
     };
   }
 
@@ -4460,7 +4499,7 @@ export class FacialService {
         device.tipo === 'lpr';
       const valorLido = qrCodeLido ?? tagRfidLida ?? (placaLida || externalId);
       if (isLeitor && valorLido) {
-        const captured = this.enrollSessions.consumeForDevice(
+        const captured = await this.enrollSessions.consumeForDevice(
           device.id,
           valorLido,
         );
@@ -5034,13 +5073,12 @@ export class FacialService {
     // registro como suspeito; "hard" nega. Estado é perdido em restart
     // (limitação documentada no serviço — mitigar com Redis se houver SLA).
     if (evento === 'entrada' || evento === 'saida') {
-      // Pós-restart o estado em memória está vazio — semeia a presença a
-      // partir do último evento persistido em Acessos_Facial, para o APB
-      // não "esquecer" quem está dentro a cada deploy.
-      if (
-        idPessoa != null &&
-        !this.accessState.hasPresenca(device.id_condominio, tipoPessoa, idPessoa)
-      ) {
+      // A presença vem SEMPRE do último evento persistido em Acessos_Facial
+      // (o Map do AccessStateService é só o lugar onde a decisão é tomada).
+      // Com 2 instâncias, o Map desta instância não vê a saída registrada
+      // pela outra — confiar nele faria o modo "hard" negar a entrada de quem
+      // de fato saiu. Também cobre o pós-restart (Map vazio).
+      if (idPessoa != null) {
         const ultimo = await this.prisma.acessos_Facial.findFirst({
           where: {
             id_condominio: device.id_condominio,
@@ -5954,7 +5992,7 @@ export class FacialService {
           return null;
         }
         const axios = (await import('axios')).default;
-        const res = await axios.get(foto, {
+        const res = await axios.get((await this.storage?.assinarUrl(foto)) ?? foto, {
           ...agentesSemRedeInterna(), // o IP checado é o IP conectado (DNS rebinding)
           responseType: 'arraybuffer',
           timeout: 15000,

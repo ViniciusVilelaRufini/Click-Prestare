@@ -45,7 +45,7 @@ describe('POST facial/agent/condo/:token/telemetria', () => {
     const res = await ctrl.condoTelemetria('token-ok', payload as any);
 
     expect(res).toEqual({ ok: true });
-    const guardada = bridge.getTelemetria(7);
+    const guardada = await bridge.getTelemetria(7);
     expect(guardada?.versao).toBe(payload.versao);
     expect(guardada?.so).toBe(payload.so);
     expect(guardada?.dispositivos).toEqual(payload.dispositivos);
@@ -72,7 +72,7 @@ describe('GET facial/agent/saude', () => {
 
   it('operador lê a última telemetria; sem versão nova publicada, versao_disponivel é null', async () => {
     const bridge = new AgentBridgeService();
-    bridge.setTelemetria(7, {
+    await bridge.setTelemetria(7, {
       versao: '2026.09.24',
       so: 'win32 10.0.26100',
       iniciado_em: '2026-09-23T00:00:00.000Z',
@@ -94,7 +94,7 @@ describe('GET facial/agent/saude', () => {
 
   it('versão publicada mais nova que a do agente: versao_disponivel vem preenchida', async () => {
     const bridge = new AgentBridgeService();
-    bridge.setTelemetria(7, {
+    await bridge.setTelemetria(7, {
       versao: '2026.09.24',
       so: 'win32 10.0.26100',
       iniciado_em: '2026-09-23T00:00:00.000Z',
@@ -111,7 +111,7 @@ describe('GET facial/agent/saude', () => {
 
   it('versão publicada mais velha (ou igual) que a do agente: versao_disponivel continua null', async () => {
     const bridge = new AgentBridgeService();
-    bridge.setTelemetria(7, {
+    await bridge.setTelemetria(7, {
       versao: '2026.09.24',
       so: 'x',
       iniciado_em: 'x',

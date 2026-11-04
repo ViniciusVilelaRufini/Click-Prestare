@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { executarComLock } from '../common/lock-distribuido';
 import { OpenAiAdsClient } from './openai-ads.client';
 import { MarketingSegredosService } from './marketing-segredos.service';
 
@@ -54,8 +55,8 @@ export class MarketingAdsService implements OnModuleInit {
   onModuleInit() {
     // OpenAI Ads: sincroniza de hora em hora os últimos 7 dias (números do dia
     // corrente e de ontem ainda mudam). Upsert torna a repetição inofensiva.
-    setInterval(() => this.tickOpenAi(), 60 * 60 * 1000).unref?.();
-    setTimeout(() => this.tickOpenAi(), 2 * 60 * 1000).unref?.();
+    setInterval(() => void executarComLock(this.prisma, 'marketing:openai', () => this.tickOpenAi(), { intervaloMinimoMs: 60 * 60 * 1000 }), 60 * 60 * 1000).unref?.();
+    setTimeout(() => void executarComLock(this.prisma, 'marketing:openai', () => this.tickOpenAi(), { intervaloMinimoMs: 60 * 60 * 1000 }), 2 * 60 * 1000).unref?.();
   }
 
   private async tickOpenAi() {

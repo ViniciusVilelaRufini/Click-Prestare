@@ -737,6 +737,20 @@ export class MobileAuthService {
         throw new UnauthorizedException('Login ou Senha incorretos');
       }
 
+      // A senha da PRÓPRIA conta só prova quem é o dono da conta, não quem é o porteiro: o e-mail de
+      // Users não é verificado (o /sindico/signup é público). Sem isto, quem criava uma conta com o
+      // e-mail de um porteiro já cadastrado entrava aqui com a senha que ele mesmo escolheu e virava
+      // funcionário (com todas as permissões) do condomínio do porteiro. Conta sem vínculo com este
+      // condomínio só adota o cadastro da portaria se também souber a senha da portaria.
+      if (
+        user?.password &&
+        portaria.id_condominio != null &&
+        !(await usuarioTemVinculoNoCondominio(this.prisma as any, user.id, portaria.id_condominio)) &&
+        !(await this.verifyPassword(senhaRaw, portaria.password, portaria.id, 'funcionarios_Portaria'))
+      ) {
+        throw new UnauthorizedException('Login ou Senha incorretos');
+      }
+
       const senhaHash = portaria.password.startsWith('$2')
         ? portaria.password
         : await bcrypt.hash(senhaRaw, 10);

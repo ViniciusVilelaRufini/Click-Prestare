@@ -1,5 +1,6 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { executarComLock } from '../common/lock-distribuido';
 import type { Prisma } from '../prisma/generated';
 
 // Client "de dentro" de um `prisma.$transaction(async (tx) => ...)` — mesma
@@ -73,8 +74,8 @@ export class AreasSociaisService {
     // não-confirmação em áreas opt-in. Mesmo padrão dos ticks de facial.service
     // (setTimeout de warm-up + setInterval). 5 min de intervalo, casando com a
     // janela de 10 min do lembrete (ver `enviarLembretesConfirmacao`).
-    setTimeout(() => void this.tickConfirmacaoReservas(), 5 * 60 * 1000).unref?.();
-    setInterval(() => void this.tickConfirmacaoReservas(), 5 * 60 * 1000).unref?.();
+    setTimeout(() => void executarComLock(this.prisma, 'areas:tickConfirmacaoReservas', () => this.tickConfirmacaoReservas(), { intervaloMinimoMs: 5 * 60 * 1000 }), 5 * 60 * 1000).unref?.();
+    setInterval(() => void executarComLock(this.prisma, 'areas:tickConfirmacaoReservas', () => this.tickConfirmacaoReservas(), { intervaloMinimoMs: 5 * 60 * 1000 }), 5 * 60 * 1000).unref?.();
   }
 
   /**

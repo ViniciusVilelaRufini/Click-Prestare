@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { PrismaService } from '../prisma/prisma.service';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
 
 /**
  * Ações que o assistente propôs e aguardam confirmação do usuário no app.
@@ -9,9 +11,10 @@ import { randomUUID } from 'crypto';
  * errada e ocorrência duplicada. O modelo PROPÕE, o app mostra os dados já
  * resolvidos, e só o toque do usuário executa.
  *
- * Guardado em memória, no mesmo padrão do QrSessionStore: a proposta vive
- * minutos e perdê-la num restart só faz o usuário pedir de novo. Se um dia a
- * API rodar em várias instâncias, isso precisa virar tabela.
+ * Guardado em estado_compartilhado (`acao-ia:<id>`, TTL 10 min): a API roda
+ * em 2 instâncias e a confirmação pode cair na instância que não criou a
+ * proposta. "Consumida" é marcada com UPDATE condicional — dois toques em
+ * instâncias diferentes não executam duas vezes. Sem banco, memória.
  */
 
 export type TipoAcao =
@@ -79,20 +82,18 @@ export interface AcaoPendente {
 }
 
 const TTL_MS = 10 * 60 * 1000; // 10 minutos
-const LIMPEZA_MS = 60 * 1000;
+const PREFIXO = 'acao-ia:';
 
 @Injectable()
 export class AcaoPendenteStore {
   private readonly logger = new Logger(AcaoPendenteStore.name);
-  private readonly acoes = new Map<string, AcaoPendente>();
+  private readonly estado: EstadoCompartilhado;
 
-  constructor() {
-    const timer = setInterval(() => this.limpar(), LIMPEZA_MS);
-    // Sem unref o processo não encerra sozinho (atrapalha teste e shutdown).
-    timer.unref?.();
+  constructor(@Optional() prisma?: PrismaService) {
+    this.estado = new EstadoCompartilhado(prisma);
   }
 
-  criar(dados: Omit<AcaoPendente, 'id' | 'criadaEm' | 'expiraEm'>): AcaoPendente {
+  async criar(dados: Omit<AcaoPendente, 'id' | 'criadaEm' | 'expiraEm'>): Promise<AcaoPendente> {
     const agora = new Date();
     const acao: AcaoPendente = {
       ...dados,
@@ -100,7 +101,7 @@ export class AcaoPendenteStore {
       criadaEm: agora,
       expiraEm: new Date(agora.getTime() + TTL_MS),
     };
-    this.acoes.set(acao.id, acao);
+    await this.estado.definir(PREFIXO + acao.id, acao, TTL_MS);
     return acao;
   }
 
@@ -111,17 +112,19 @@ export class AcaoPendenteStore {
    * um usuário confirmaria a ação proposta para outro. Devolve motivo em vez
    * de boolean para o endpoint dar mensagem útil.
    */
-  obterParaConfirmar(
+  async obterParaConfirmar(
     id: string,
     idUser: number,
     idCondominio: number,
-  ): { acao?: AcaoPendente; erro?: string } {
-    const acao = this.acoes.get(id);
-    if (!acao) return { erro: 'Essa solicitação expirou. Peça novamente ao assistente.' };
-    if (acao.expiraEm.getTime() < Date.now()) {
-      this.acoes.delete(id);
-      return { erro: 'Essa solicitação expirou. Peça novamente ao assistente.' };
-    }
+  ): Promise<{ acao?: AcaoPendente; erro?: string }> {
+    const e = typeof id === 'string' && id ? await this.estado.obter<AcaoPendente>(PREFIXO + id) : null;
+    if (!e) return { erro: 'Essa solicitação expirou. Peça novamente ao assistente.' };
+    const acao: AcaoPendente = {
+      ...e.valor,
+      criadaEm: new Date(e.valor.criadaEm),
+      expiraEm: new Date(e.valor.expiraEm),
+      consumidaEm: e.consumidoEm ?? undefined,
+    };
     if (acao.idUser !== idUser || acao.idCondominio !== idCondominio) {
       this.logger.warn(
         `tentativa de confirmar acao ${id} por user#${idUser}/cond#${idCondominio} (dona: user#${acao.idUser}/cond#${acao.idCondominio})`,
@@ -132,22 +135,17 @@ export class AcaoPendenteStore {
     return { acao };
   }
 
-  /** Marca como consumida ANTES de executar — dois toques não viram duas reservas. */
-  marcarConsumida(id: string): void {
-    const acao = this.acoes.get(id);
-    if (acao) acao.consumidaEm = new Date();
+  /**
+   * Marca como consumida ANTES de executar — dois toques não viram duas
+   * reservas. Atômico no banco: com dois toques chegando em instâncias
+   * diferentes, só um recebe true.
+   */
+  async marcarConsumida(id: string): Promise<boolean> {
+    return this.estado.reivindicar(PREFIXO + id);
   }
 
   /** Devolve ao estado pendente se a execução falhar, para o usuário tentar de novo. */
-  liberar(id: string): void {
-    const acao = this.acoes.get(id);
-    if (acao) acao.consumidaEm = undefined;
-  }
-
-  private limpar(): void {
-    const agora = Date.now();
-    for (const [id, acao] of this.acoes) {
-      if (acao.expiraEm.getTime() < agora) this.acoes.delete(id);
-    }
+  async liberar(id: string): Promise<void> {
+    await this.estado.liberar(PREFIXO + id);
   }
 }

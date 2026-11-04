@@ -30,14 +30,14 @@ describe('AgentController — descoberta na rede', () => {
   it('poll devolve descobrir: true exatamente uma vez depois de pedirProcura', async () => {
     const { ctrl, descoberta } = montar();
     expect((await ctrl.condoPoll('token-ok')).descobrir).toBe(false);
-    descoberta.pedirProcura(7);
+    await descoberta.pedirProcura(7);
     expect((await ctrl.condoPoll('token-ok')).descobrir).toBe(true);
     expect((await ctrl.condoPoll('token-ok')).descobrir).toBe(false);
   });
 
   it('pedido de outro condomínio não vaza para este token', async () => {
     const { ctrl, descoberta } = montar();
-    descoberta.pedirProcura(8);
+    await descoberta.pedirProcura(8);
     expect((await ctrl.condoPoll('token-ok')).descobrir).toBe(false);
   });
 

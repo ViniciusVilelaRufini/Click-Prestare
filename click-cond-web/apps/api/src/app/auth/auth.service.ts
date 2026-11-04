@@ -5,6 +5,7 @@ import { createHash } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { QrSessionStore } from './qr-session.store';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { TenantAccessService } from './tenant-access.service';
 import { MfaService } from './mfa/mfa.service';
@@ -29,10 +30,14 @@ export class AuthService {
   private readonly lockoutMs = Number(process.env.AUTH_LOCKOUT_MS ?? 900_000);
   private readonly portariaJwtExpiresIn = (process.env.PORTARIA_JWT_EXPIRES_IN ?? '24h') as any;
   /**
-   * Sessões de síndico aguardando o código do e-mail, por mfa_token. Em memória como o QrSessionStore e o
-   * lockout: se a API reiniciar no meio, o síndico só faz login de novo.
+   * Sessões de síndico aguardando o código do e-mail, por mfa_token. Ficam em estado_compartilhado
+   * (`mfa-console:<token>`, TTL do desafio): com 2 instâncias o login cai numa e o código é conferido
+   * na outra. Sem banco, memória do processo.
    */
-  private readonly mfaPendentes = new Map<string, { payload: JwtPayload; resposta: Record<string, unknown>; expiraEm: number }>();
+  private _estado?: EstadoCompartilhado;
+  private get estadoMfa(): EstadoCompartilhado {
+    return (this._estado ??= new EstadoCompartilhado(this.prisma));
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -42,7 +47,17 @@ export class AuthService {
     @Optional() private readonly mfa?: MfaService,
   ) {}
 
-  private isLocked(login: string): boolean {
+  /**
+   * Chave do lockout. O MySQL compara `login` sem diferenciar caixa nem espaços à direita, então
+   * "Joao", "JOAO" e "joao " são a MESMA conta no banco; com a string crua como chave, cada variação
+   * ganhava um contador próprio e o lockout nunca disparava (pentest 04/11).
+   */
+  private chaveLockout(login: string): string {
+    return String(login ?? '').trim().toLowerCase();
+  }
+
+  private isLocked(loginBruto: string): boolean {
+    const login = this.chaveLockout(loginBruto);
     const entry = this.lockouts.get(login);
     if (!entry) return false;
     if (entry.lockedUntil > Date.now()) return true;
@@ -53,8 +68,16 @@ export class AuthService {
     return false;
   }
 
-  private registrarFalha(login: string) {
+  private registrarFalha(loginBruto: string) {
+    const login = this.chaveLockout(loginBruto);
     const now = Date.now();
+    // Teto do Map: logins inventados (rota pública) não podem inflar a memória sem fim. Descarta
+    // primeiro o que já não conta (sem falha na janela e sem trava ativa).
+    if (this.lockouts.size > 10_000) {
+      for (const [k, e] of this.lockouts) {
+        if (e.lockedUntil <= now && e.failedAt.every((t) => now - t >= this.failureWindowMs)) this.lockouts.delete(k);
+      }
+    }
     const entry = this.lockouts.get(login) ?? { failedAt: [], lockedUntil: 0 };
     // Mantém só falhas dentro da janela.
     entry.failedAt = entry.failedAt.filter((t) => now - t < this.failureWindowMs);
@@ -67,7 +90,7 @@ export class AuthService {
   }
 
   private limparFalhas(login: string) {
-    this.lockouts.delete(login);
+    this.lockouts.delete(this.chaveLockout(login));
   }
 
   /**
@@ -193,6 +216,12 @@ export class AuthService {
   async loginPortaria(login: string, senha: string, deviceToken?: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
+    }
+
+    // O corpo da rota é tipo inline (não DTO), então o ValidationPipe não barra objeto no lugar de
+    // string: `{"login": {"not": ""}}` virava filtro do Prisma e a senha não-string estourava 500.
+    if (typeof login !== 'string' || typeof senha !== 'string' || !login.trim()) {
+      throw new UnauthorizedException('Credenciais inválidas.');
     }
 
     // Lockout por login antes mesmo do lookup no banco — evita user enumeration
@@ -359,15 +388,11 @@ export class AuthService {
     }
 
     const desafio = await this.mfa.createChallenge({ id: idUser, email, name: sindico?.name || 'Síndico' });
-    const agora = Date.now();
-    for (const [token, pendente] of this.mfaPendentes) {
-      if (pendente.expiraEm < agora) this.mfaPendentes.delete(token);
-    }
-    this.mfaPendentes.set(desafio.mfa_token, {
-      payload,
-      resposta,
-      expiraEm: agora + desafio.expires_in_seconds * 1000,
-    });
+    await this.estadoMfa.definir(
+      `mfa-console:${desafio.mfa_token}`,
+      { payload, resposta },
+      desafio.expires_in_seconds * 1000,
+    );
     return desafio;
   }
 
@@ -378,16 +403,20 @@ export class AuthService {
     rememberDevice: boolean,
     meta?: { userAgent?: string; ip?: string },
   ) {
-    const pendente = mfaToken ? this.mfaPendentes.get(mfaToken) : undefined;
-    if (!pendente || pendente.expiraEm < Date.now() || !this.mfa) {
-      if (mfaToken) this.mfaPendentes.delete(mfaToken);
+    const chave = `mfa-console:${mfaToken}`;
+    const pendente =
+      typeof mfaToken === 'string' && mfaToken
+        ? (await this.estadoMfa.obter<{ payload: JwtPayload; resposta: Record<string, unknown> }>(chave))?.valor
+        : undefined;
+    if (!pendente || !this.mfa) {
+      if (typeof mfaToken === 'string' && mfaToken) await this.estadoMfa.remover(chave);
       throw new UnauthorizedException('Código expirado ou inválido. Faça login novamente.');
     }
 
     // verifyChallenge confere o código (limite de 5 tentativas) e apaga o desafio. O token de app que
     // ele também assina é descartado: o console recebe o token de console montado no login.
     const verificado = await this.mfa.verifyChallenge(mfaToken, code, rememberDevice, meta);
-    this.mfaPendentes.delete(mfaToken);
+    await this.estadoMfa.remover(chave);
 
     return {
       access_token: this.jwt.sign(pendente.payload, { expiresIn: this.portariaJwtExpiresIn }),
@@ -624,21 +653,24 @@ export class AuthService {
     throw new UnauthorizedException('Você não tem vínculo com este condomínio.');
   }
 
-  createQrSession() {
-    const session = this.qrStore.create();
+  async createQrSession() {
+    const session = await this.qrStore.create();
     return { qrToken: session.qrToken, expiresAt: session.expiresAt };
   }
 
   async getQrStatus(qrToken: string) {
-    const session = this.qrStore.get(qrToken);
-    if (!session) {
+    const atual = await this.qrStore.get(qrToken);
+    if (!atual) {
       return { status: 'expired' };
     }
 
-    if (session.status === 'confirmed') {
+    if (atual.status === 'confirmed') {
       // Uma entrega só: o navegador que gerou o QR consulta a cada 1,5 s e é
       // quem recebe; uma segunda consulta (QR fotografado/repassado) não leva o token.
-      this.qrStore.consumir(qrToken);
+      // A remoção é atômica no banco: duas consultas simultâneas (em instâncias
+      // diferentes) — só a que apagou leva o token.
+      const session = await this.qrStore.consumir(qrToken);
+      if (!session) return { status: 'expired' };
       return {
         status: 'confirmed',
         access_token: session.access_token,
@@ -654,7 +686,7 @@ export class AuthService {
   }
 
   async authorizeQrSession(payload: JwtPayload, qrToken: string, idCondominio: number) {
-    const session = this.qrStore.get(qrToken);
+    const session = await this.qrStore.get(qrToken);
     if (!session) {
       throw new UnauthorizedException('QR Code expirado ou inválido.');
     }
@@ -704,7 +736,7 @@ export class AuthService {
 
     const accessToken = this.jwt.sign(portariaPayload, { expiresIn: this.portariaJwtExpiresIn });
 
-    this.qrStore.confirm(qrToken, {
+    const confirmada = await this.qrStore.confirm(qrToken, {
       idUser: userId,
       nome: nomeUsuario,
       typeAccess,
@@ -712,6 +744,10 @@ export class AuthService {
       condominio_nome: cond.nome,
       access_token: accessToken,
     });
+    // Outra confirmação chegou antes (ou a sessão venceu no meio do caminho).
+    if (confirmada === false) {
+      throw new UnauthorizedException('Sessão QR Code já processada.');
+    }
 
     return { success: true };
   }

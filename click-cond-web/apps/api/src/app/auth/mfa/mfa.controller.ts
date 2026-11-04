@@ -32,7 +32,8 @@ export class MfaController {
     return this.mfaService.resendChallenge(body.mfa_token);
   }
 
-  @Public()
+  // Não é pública (pentest 04/11): cada chamada abre uma conexão SMTP (transporter.verify) e, em
+  // falha, devolvia a mensagem crua do servidor de e-mail. Nenhum front-end a usa.
   @Get('health')
   async health() {
     return this.mfaService.checkMailHealth();

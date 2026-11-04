@@ -46,10 +46,11 @@ describe('FacialService.syncAllForCondominio — skip não conta como sincroniza
   }
 
   async function aguardarBulkSyncTerminar(svc: any, idCondominio: number) {
-    for (let i = 0; i < 100 && svc.bulkSyncEmAndamento.has(idCondominio); i++) {
+    const rodando = async () => !!(await svc.estado.obter(`facial:bulk:${idCondominio}`));
+    for (let i = 0; i < 100 && (await rodando()); i++) {
       await new Promise((r) => setImmediate(r));
     }
-    expect(svc.bulkSyncEmAndamento.has(idCondominio)).toBe(false);
+    expect(await rodando()).toBe(false);
   }
 
   it('conta skip separado de ok e o log distingue "N sincronizado(s)" de "M ignorado(s)"', async () => {

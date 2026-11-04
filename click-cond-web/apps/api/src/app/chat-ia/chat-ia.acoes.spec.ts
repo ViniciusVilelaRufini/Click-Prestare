@@ -379,47 +379,54 @@ describe('Ações do Assistente IA', () => {
       payload: { descricao: 'teste de vazamento no hall' },
     });
 
-    it('o dono confirma', () => {
+    it('o dono confirma', async () => {
       const store = new AcaoPendenteStore();
-      const a = store.criar(nova());
-      expect(store.obterParaConfirmar(a.id, 47, 1).acao).toBeDefined();
+      const a = await store.criar(nova());
+      expect((await store.obterParaConfirmar(a.id, 47, 1)).acao).toBeDefined();
     });
 
-    it('OUTRO usuário não confirma a proposta alheia', () => {
+    it('OUTRO usuário não confirma a proposta alheia', async () => {
       const store = new AcaoPendenteStore();
-      const a = store.criar(nova());
-      const r = store.obterParaConfirmar(a.id, 99, 1);
+      const a = await store.criar(nova());
+      const r = await store.obterParaConfirmar(a.id, 99, 1);
       expect(r.acao).toBeUndefined();
       expect(r.erro).toBeDefined();
     });
 
-    it('não confirma a partir de outro condomínio', () => {
+    it('não confirma a partir de outro condomínio', async () => {
       const store = new AcaoPendenteStore();
-      const a = store.criar(nova());
-      expect(store.obterParaConfirmar(a.id, 47, 2).acao).toBeUndefined();
+      const a = await store.criar(nova());
+      expect((await store.obterParaConfirmar(a.id, 47, 2)).acao).toBeUndefined();
     });
 
-    it('confirmar duas vezes não executa duas vezes', () => {
+    it('confirmar duas vezes não executa duas vezes', async () => {
       const store = new AcaoPendenteStore();
-      const a = store.criar(nova());
-      expect(store.obterParaConfirmar(a.id, 47, 1).acao).toBeDefined();
-      store.marcarConsumida(a.id);
-      const segunda = store.obterParaConfirmar(a.id, 47, 1);
+      const a = await store.criar(nova());
+      expect((await store.obterParaConfirmar(a.id, 47, 1)).acao).toBeDefined();
+      expect(await store.marcarConsumida(a.id)).toBe(true);
+      const segunda = await store.obterParaConfirmar(a.id, 47, 1);
       expect(segunda.acao).toBeUndefined();
       expect(segunda.erro).toMatch(/já foi confirmada/i);
     });
 
-    it('liberar devolve ao pendente quando a execução falha', () => {
+    it('dois toques simultâneos: só um consegue marcar como consumida', async () => {
       const store = new AcaoPendenteStore();
-      const a = store.criar(nova());
-      store.marcarConsumida(a.id);
-      store.liberar(a.id);
-      expect(store.obterParaConfirmar(a.id, 47, 1).acao).toBeDefined();
+      const a = await store.criar(nova());
+      const [x, y] = await Promise.all([store.marcarConsumida(a.id), store.marcarConsumida(a.id)]);
+      expect([x, y].filter(Boolean)).toHaveLength(1);
     });
 
-    it('id inexistente devolve erro amigável', () => {
+    it('liberar devolve ao pendente quando a execução falha', async () => {
       const store = new AcaoPendenteStore();
-      expect(store.obterParaConfirmar('acao_inexistente', 47, 1).erro).toBeDefined();
+      const a = await store.criar(nova());
+      await store.marcarConsumida(a.id);
+      await store.liberar(a.id);
+      expect((await store.obterParaConfirmar(a.id, 47, 1)).acao).toBeDefined();
+    });
+
+    it('id inexistente devolve erro amigável', async () => {
+      const store = new AcaoPendenteStore();
+      expect((await store.obterParaConfirmar('acao_inexistente', 47, 1)).erro).toBeDefined();
     });
   });
 });
