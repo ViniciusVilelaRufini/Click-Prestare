@@ -81,6 +81,8 @@ async function bundle() {
       "@nestjs/websockets": "^11.1.28",
       "@prisma/client": "^6.19.3",
       "adm-zip": "^0.6.1",
+      "aws-xray-sdk-core": "3.12.0",
+      "aws-xray-sdk-express": "3.12.0",
       "axios": "^1.6.0",
       "bcrypt": "^6.0.0",
       "class-transformer": "^0.5.1",
@@ -129,6 +131,15 @@ SMTP_SECURE=false
   if (fs.existsSync(platformSrc)) {
     console.log('5.2 Copiando .platform/ (config de nginx do EB)...');
     fs.cpSync(platformSrc, path.join(EB_DIR, '.platform'), { recursive: true });
+  }
+
+  // 6.3 Copia .ebextensions/ (option_settings do EB, ex.: daemon do X-Ray).
+  // Config de ambiente vai por aqui, não por variável: o env do EB está no
+  // limite de 4096 caracteres.
+  const ebextSrc = path.join(WEB_ROOT, '.ebextensions');
+  if (fs.existsSync(ebextSrc)) {
+    console.log('5.3 Copiando .ebextensions/ (config do ambiente EB)...');
+    fs.cpSync(ebextSrc, path.join(EB_DIR, '.ebextensions'), { recursive: true });
   }
 
   // 7. Gera o arquivo .zip compatível com Linux usando adm-zip

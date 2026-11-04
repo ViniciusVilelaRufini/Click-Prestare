@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import { credenciaisContaPrestare } from '../aws-credenciais.util';
+import { rastrearClienteAws } from '../xray';
 
 /**
  * Storage service usando Cloudflare R2 (compatível com S3 API).
@@ -91,11 +92,13 @@ export class StorageService {
       return;
     }
 
-    this.client = new S3Client({
-      region,
-      ...(endpoint ? { endpoint } : {}),
-      credentials: usaRole ? credenciaisContaPrestare() : { accessKeyId: accessKeyId!, secretAccessKey: secretAccessKey! },
-    });
+    this.client = rastrearClienteAws(
+      new S3Client({
+        region,
+        ...(endpoint ? { endpoint } : {}),
+        credentials: usaRole ? credenciaisContaPrestare() : { accessKeyId: accessKeyId!, secretAccessKey: secretAccessKey! },
+      }),
+    );
     this.enabled = true;
     this.logger.log(`StorageService pronto (bucket=${this.bucket}, provider=${endpoint ? 'R2' : 'AWS S3'}).`);
   }

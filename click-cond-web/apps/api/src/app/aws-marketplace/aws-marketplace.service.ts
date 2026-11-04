@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MarketplaceMeteringClient, ResolveCustomerCommand } from '@aws-sdk/client-marketplace-metering';
 import { credenciaisContaPrestare } from '../common/aws-credenciais.util';
+import { rastrearClienteAws } from '../common/xray';
 
 // Código do produto "Prestare - Condominium Access Control" no AWS Marketplace.
 export const PRODUTO_MARKETPLACE = process.env.AWS_MARKETPLACE_PRODUCT_CODE || '9wwpc0fjcjirjupzxwbxdae01';
@@ -22,10 +23,12 @@ export class AwsMarketplaceService {
   private readonly logger = new Logger(AwsMarketplaceService.name);
 
   constructor(
-    private readonly client: Pick<MarketplaceMeteringClient, 'send'> = new MarketplaceMeteringClient({
-      region: 'us-east-1',
-      credentials: credenciaisContaPrestare(),
-    }),
+    private readonly client: Pick<MarketplaceMeteringClient, 'send'> = rastrearClienteAws(
+      new MarketplaceMeteringClient({
+        region: 'us-east-1',
+        credentials: credenciaisContaPrestare(),
+      }),
+    ),
   ) {}
 
   async resolverCliente(token: string): Promise<ClienteMarketplace | null> {

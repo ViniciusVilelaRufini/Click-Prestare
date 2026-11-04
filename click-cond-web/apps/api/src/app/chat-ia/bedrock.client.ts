@@ -8,6 +8,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { credenciaisContaPrestare } from '../common/aws-credenciais.util';
+import { rastrearClienteAws } from '../common/xray';
 import type {
   ChamadaFerramenta,
   ConteudoGemini,
@@ -167,7 +168,9 @@ export class BedrockClient {
   }
 
   private bedrockRuntime(): BedrockRuntimeClient {
-    this.runtime ??= new BedrockRuntimeClient({ region: REGIAO, credentials: credenciaisContaPrestare() });
+    this.runtime ??= rastrearClienteAws(
+      new BedrockRuntimeClient({ region: REGIAO, credentials: credenciaisContaPrestare() }),
+    );
     return this.runtime;
   }
 

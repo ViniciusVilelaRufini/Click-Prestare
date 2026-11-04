@@ -26,6 +26,7 @@ import { json, text, urlencoded } from 'express';
 import { requestContext, extractClientIp } from './app/common/context/request-context';
 import { caminhoEstaticoBloqueado } from './app/common/assets-estaticos.util';
 import { ROTAS_HARDWARE, origensConfiaveis } from './app/common/cors-origins';
+import { instalarXRay } from './app/common/xray';
 
 // Rede de segurança: uma promessa rejeitada e esquecida (sem await) derruba o
 // processo Node (padrão do Node 15+) e, com ele, todos os condomínios.
@@ -37,6 +38,10 @@ process.on('unhandledRejection', (reason) => {
 
 async function bootstrap() {
   const app =await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+
+  // AWS X-Ray (só em produção): primeiro middleware, para o segmento cobrir a
+  // requisição inteira. Sem daemon, os segmentos se perdem sem erro.
+  instalarXRay(app);
 
   // Habilita trust proxy para 2 saltos (CloudFront + AWS ALB).
   // Salto 1: AWS ALB (conexão direta na EC2/Beanstalk)

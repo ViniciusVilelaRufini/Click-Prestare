@@ -6,6 +6,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { Readable } from 'node:stream';
 import { credenciaisContaPrestare } from '../common/aws-credenciais.util';
+import { rastrearClienteAws } from '../common/xray';
 import { ArquivoWhatsapp } from './whatsapp-graph.client';
 import { TipoMidiaSaida, validarMidiaSaida } from './whatsapp-media.validation';
 
@@ -143,14 +144,14 @@ export class WhatsappMediaService {
            '');
     this.maxBytes = config?.maxBytes ?? Number(process.env.WA_MEDIA_MAX_BYTES || LIMITE_PADRAO);
     if (!Number.isSafeInteger(this.maxBytes) || this.maxBytes <= 0) throw new Error('WA_MEDIA_MAX_BYTES inválido');
-    this.s3 = this.bucket ? s3 ?? new S3Client({
+    this.s3 = this.bucket ? s3 ?? rastrearClienteAws(new S3Client({
       region,
       ...(endpoint ? { endpoint } : {}),
       // Sem chave, S3 da AWS usa o role da instância (ver StorageService).
       ...(accessKeyId && secretAccessKey
         ? { credentials: { accessKeyId, secretAccessKey } }
         : endpoint ? {} : { credentials: credenciaisContaPrestare() }),
-    }) : null;
+    })) : null;
   }
 
   async guardarEntrada({ wamid, tipo, mediaId }: MidiaEntradaWhatsApp): Promise<MidiaWhatsApp> {
