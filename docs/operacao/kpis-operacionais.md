@@ -19,3 +19,15 @@ Observações:
 
 ## Linha de base (teste de carga)
 
+**2026-11-04, 19:15 UTC** — `autocannon -c 20 -d 60` contra `https://api.prestarecondominios.com.br/api/health` (via CloudFront), a partir de um único IP:
+
+| Métrica | Resultado |
+|---------|-----------|
+| Requisições em 60 s | ~75 mil (média ~1.246 req/s) |
+| Latência p50 / p97,5 / p99 / máx. | 14 ms / 28 ms / 41 ms / 260 ms |
+| Respostas 2xx | 600 |
+| Respostas não-2xx | 74.158, todas 429 (throttle por IP) |
+| Respostas 5xx | 0 |
+
+Leitura: o throttle por IP limita um único cliente a ~600 requisições/min e rejeita o excesso na hora com 429, sem derrubar a API. Um minuto depois do teste, o mesmo IP voltou a receber 200 (120 ms). Durante o teste o canary e os alarmes seguiram OK. Repetir o teste a cada trimestre e depois de qualquer mudança de instância ou de throttle.
+

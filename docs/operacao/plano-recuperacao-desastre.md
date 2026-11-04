@@ -44,3 +44,12 @@ Seguir `responsabilidades-e-escalonamento.md` (modelos de aviso e escalonamento 
 
 ## Testes executados
 
+### 2026-11-04 — restauração point-in-time do `database-1`
+
+- **Procedimento:** `restore-db-instance-to-point-in-time` com `UseLatestRestorableTime` para a instância temporária `prestare-dr-teste` (db.t4g.micro, mesmo subnet group e security group), depois exclusão sem snapshot final.
+- **Ponto restaurado:** 2026-11-04 19:13:25 UTC; a restauração começou às ~19:13 UTC. **Perda de dados efetiva: segundos** (PITR), dentro do RPO de 24 h.
+- **Tempo até a instância ficar disponível:** ~16 min (19:13 → 19:29 UTC), dentro do RTO de 4 h. Para um failover real ainda contam a troca do `DATABASE_URL` e um deploy (ver `runbooks.md`).
+- **Integridade:** contagem de linhas de todas as tabelas comparada com a produção: **78 tabelas e 983 linhas nos dois lados, nenhuma diferença**.
+- **Limpeza:** instância temporária apagada no mesmo dia.
+- **Próximo teste:** trimestral (próximo até 2027-02-04) e depois de mudanças de schema grandes.
+
