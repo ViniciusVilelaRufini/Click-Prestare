@@ -31,7 +31,7 @@ jobs:
       run:
         working-directory: click-cond-web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # 24.x é o que o package.json declara em `engines` e o que roda no
       # ambiente de desenvolvimento — o CI não pode divergir disso.
@@ -154,7 +154,7 @@ jobs:
       run:
         working-directory: click-cond-web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -185,7 +185,7 @@ jobs:
       run:
         working-directory: click-cond-app/click-cond-app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
