@@ -62,7 +62,7 @@ async function bundle() {
     version: '1.0.0',
     private: true,
     scripts: {
-      start: 'node main.js'
+      start: 'node main.js --xray'
     },
     dependencies: {
       "@anthropic-ai/bedrock-sdk": "1.1.0",
@@ -110,8 +110,10 @@ async function bundle() {
   fs.writeFileSync(path.join(EB_DIR, 'package.json'), JSON.stringify(pkg, null, 2));
 
   // 6. Cria Procfile
+  // `--xray` liga o AWS X-Ray (ver apps/api/src/app/common/xray.ts): o EB não
+  // define NODE_ENV e o env não comporta variável nova (limite de 4096).
   console.log('5. Criando Procfile...');
-  fs.writeFileSync(path.join(EB_DIR, 'Procfile'), 'web: node main.js\n');
+  fs.writeFileSync(path.join(EB_DIR, 'Procfile'), 'web: node main.js --xray\n');
 
   // 6.1 Cria .env só com configuração não secreta de SMTP. Usuário, senha e
   // remetente ficam nas variáveis de ambiente do Elastic Beanstalk.

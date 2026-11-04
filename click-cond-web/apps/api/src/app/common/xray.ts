@@ -3,7 +3,7 @@ import type * as XRayCore from 'aws-xray-sdk-core';
 import type * as XRayExpress from 'aws-xray-sdk-express';
 
 /**
- * Rastreamento distribuído com AWS X-Ray (só em produção).
+ * Rastreamento distribuído com AWS X-Ray (só quando `xrayAtivo()`).
  *
  * Cada requisição HTTP vira um segmento `prestare-api`; as chamadas de saída
  * (http/https: axios, Superlógica, WhatsApp, Firebase...) e os clientes do AWS
@@ -23,8 +23,16 @@ const NOME_SEGMENTO = 'prestare-api';
 const logger = new Logger('XRay');
 let sdkConfigurado = false;
 
-function emProducao(): boolean {
-  return process.env.NODE_ENV === 'production';
+/**
+ * O X-Ray liga com a flag `--xray` na linha de comando (Procfile do EB:
+ * `web: node main.js --xray`) ou com NODE_ENV=production. O EB não define
+ * NODE_ENV e não cabe variável nova no env (limite de 4096 caracteres).
+ */
+export function xrayAtivo(
+  argv: readonly string[] = process.argv,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return argv.includes('--xray') || env.NODE_ENV === 'production';
 }
 
 function carregarCore(): typeof XRayCore {
@@ -61,10 +69,10 @@ function configurarSdk(core: typeof XRayCore): void {
 /**
  * Liga o X-Ray na aplicação. Deve ser chamado logo depois de criar o app,
  * antes dos outros middlewares, para o segmento cobrir a requisição inteira.
- * Fora de produção não faz nada.
+ * Com o X-Ray inativo não faz nada.
  */
 export function instalarXRay(app: INestApplication): void {
-  if (!emProducao()) return;
+  if (!xrayAtivo()) return;
   try {
     const core = carregarCore();
     configurarSdk(core);
@@ -81,10 +89,10 @@ export function instalarXRay(app: INestApplication): void {
 
 /**
  * Embrulha um cliente do AWS SDK v3 para gerar subsegmentos com o nome do
- * serviço e da operação. Fora de produção devolve o próprio cliente.
+ * serviço e da operação. Com o X-Ray inativo devolve o próprio cliente.
  */
 export function rastrearClienteAws<T>(cliente: T): T {
-  if (!emProducao()) return cliente;
+  if (!xrayAtivo()) return cliente;
   try {
     const core = carregarCore();
     configurarSdk(core);

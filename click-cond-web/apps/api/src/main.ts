@@ -39,7 +39,7 @@ process.on('unhandledRejection', (reason) => {
 async function bootstrap() {
   const app =await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
-  // AWS X-Ray (só em produção): primeiro middleware, para o segmento cobrir a
+  // AWS X-Ray (flag --xray do Procfile ou NODE_ENV=production): primeiro middleware, para o segmento cobrir a
   // requisição inteira. Sem daemon, os segmentos se perdem sem erro.
   instalarXRay(app);
 

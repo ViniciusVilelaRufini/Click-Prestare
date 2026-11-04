@@ -1,6 +1,6 @@
 import { Controller, Get, INestApplication, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { instalarXRay, rastrearClienteAws } from './xray';
+import { instalarXRay, rastrearClienteAws, xrayAtivo } from './xray';
 
 @Controller('ping')
 class PingController {
@@ -20,12 +20,29 @@ class PingController {
 @Module({ controllers: [PingController] })
 class PingModule {}
 
+describe('xrayAtivo', () => {
+  it('liga com a flag --xray mesmo sem NODE_ENV', () => {
+    expect(xrayAtivo(['node', 'main.js', '--xray'], {})).toBe(true);
+  });
+
+  it('liga com NODE_ENV=production', () => {
+    expect(xrayAtivo(['node', 'main.js'], { NODE_ENV: 'production' })).toBe(true);
+  });
+
+  it('fica desligado sem a flag e fora de produção', () => {
+    expect(xrayAtivo(['node', 'main.js'], {})).toBe(false);
+    expect(xrayAtivo(['node', 'main.js'], { NODE_ENV: 'development' })).toBe(false);
+  });
+});
+
 describe('instalarXRay', () => {
   const nodeEnvOriginal = process.env.NODE_ENV;
+  const argvOriginal = process.argv;
   let app: INestApplication | undefined;
 
   afterEach(async () => {
     process.env.NODE_ENV = nodeEnvOriginal;
+    process.argv = argvOriginal;
     await app?.close();
     app = undefined;
   });
@@ -45,6 +62,16 @@ describe('instalarXRay', () => {
 
     expect(rastrearClienteAws(cliente)).toBe(cliente);
     expect(cliente.middlewareStack.add).not.toHaveBeenCalled();
+  });
+
+  it('com --xray (sem NODE_ENV=production) registra o middleware', () => {
+    process.env.NODE_ENV = 'test';
+    process.argv = [...argvOriginal, '--xray'];
+    const use = jest.fn();
+
+    instalarXRay({ use } as unknown as INestApplication);
+
+    expect(use).toHaveBeenCalledTimes(1);
   });
 
   it('em produção, sem daemon, a requisição responde 200', async () => {
