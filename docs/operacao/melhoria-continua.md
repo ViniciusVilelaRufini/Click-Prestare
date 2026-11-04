@@ -16,7 +16,7 @@ Dono: o fundador. Objetivo: aprender com incidentes e feedback sem burocracia.
 
 1. KPIs do mês (`kpis-operacionais.md`) contra as metas.
 2. Cotas e limites (`cotas-e-limites.md`): algo acima de 70%?
-3. Drift: console x saved configuration do EB; atualizar a saved configuration se mudou.
+3. Drift: console x saved configuration do EB; se mudou, criar nova saved configuration (base atual: `prestare-api-baseline-2026-11-04`).
 4. Incidentes e ações abertas: o que fechou, o que atrasou.
 5. Riscos abertos (`prioridades-e-governanca.md`): reavaliar.
 6. Pendências de segurança: rotações e dependências (Dependabot, `npm audit`).
@@ -24,7 +24,7 @@ Dono: o fundador. Objetivo: aprender com incidentes e feedback sem burocracia.
 
 ## Modelo de pós-incidente (sem culpados)
 
-Preencher em até 3 dias úteis e guardar em `docs/operacao/incidentes/AAAA-MM-DD-titulo.md`.
+Preencher em até 5 dias úteis e guardar em `docs/operacao/incidentes/AAAA-MM-DD-titulo.md` (modelo em `incidentes/README.md`).
 
 ```
 # Incidente: [título]

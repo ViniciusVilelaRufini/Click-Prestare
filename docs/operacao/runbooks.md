@@ -6,10 +6,10 @@ Dono de todos os procedimentos: o fundador (Vinicius Vilela). Conta AWS `8504011
 
 ## 1. Deploy
 
-Fluxo real (`.github/workflows/deploy-api.yml`, executado a partir da `main`):
+Há dois caminhos, ambos autenticados por OIDC (role `github-deploy-prestare`, sem chave estática): `deploy-api.yml` (push na `main`, descrito abaixo) e o job `deploy` do `ci.yml` (push no `master`, versão `v-<run>-<sha>`). Fluxo do `deploy-api.yml`:
 
 1. Migrações SQL, se houver, são aplicadas **antes** do push, manualmente no RDS (nunca depois).
-2. `git push` em `master` e `main`. Só a execução na `main` publica.
+2. `git push` em `master` e `main`; cada branch dispara seu caminho e o `deploy-api.yml` espera o ambiente ficar `Ready` antes de atualizar.
 3. O workflow: `npm ci` -> `nx build @org/api` -> `scripts/migration/bundle-eb.mjs` (gera `deploy-api-aws.zip`) -> envia ao S3 do EB como versão `api-<SHA>` -> `update-environment`.
 4. Verificações automáticas do workflow: a versão no ambiente é a esperada, `Status=Ready` e `Health != Red`, e `GET /api/health` responde com CORS correto.
 5. Disparo manual: `gh workflow run deploy-api.yml --ref main` (sem `--ref main` o padrão é `master` e o job não roda).
@@ -18,7 +18,7 @@ Cuidados: não acrescentar `--option-settings` (variáveis do EB já no limite d
 
 ## 2. Rollback
 
-Reimplantar a versão anterior do EB (versões `api-<SHA>` ficam guardadas):
+Reimplantar a versão anterior do EB (ficam guardadas as versões `api-<SHA>` do `deploy-api.yml` e `v-<run>-<SHA>` do `ci.yml`; use o rótulo que `describe-application-versions` listar):
 
 ```bash
 aws elasticbeanstalk describe-application-versions --application-name <app> \
@@ -35,7 +35,7 @@ Depois confirme `https://api.prestarecondominios.com.br/api/health`. Se a versã
 Restauração cria uma **nova** instância; não sobrescreve a atual.
 
 1. Console RDS -> `database-1` -> Actions -> *Restore to point in time* (qualquer instante dentro da retenção, ~5 min de granularidade) ou escolha um snapshot automático/manual.
-2. Nome novo (ex.: `database-1-restore-AAAAMMDD`), mesma VPC, mesmo security group e mesma criptografia.
+2. Nome novo (ex.: `database-1-restore-AAAAMMDD`), mesma VPC, mesmo security group e mesma criptografia (instância atual: db.t4g.micro, 20 GB, single-AZ).
 3. Valide: conectar e contar linhas nas tabelas centrais (ex.: `Users`, `Acessos_Facial`).
 4. Troque o endpoint: ajustar o host no env do EB (atenção ao limite de 4096 caracteres: substituir valor, não acrescentar). A deletion protection da instância original permanece ligada.
 5. Pós-restauração: confirmar `/api/health`, rodar o canary manualmente, anotar horário e causa.
@@ -46,7 +46,7 @@ Detalhes de RTO/RPO em `plano-recuperacao-desastre.md`.
 
 Regra geral: criar a nova -> atualizar onde é usada -> verificar -> revogar a antiga. Nunca registrar o valor em repo, chat ou log.
 
-- **Chave AWS do GitHub Actions** (secrets do ambiente `production`): criar nova chave do usuário IAM, atualizar os secrets, rodar o deploy, desativar e apagar a antiga. Objetivo: trocar por OIDC (role `github-deploy-prestare`) e remover a chave.
+- **Deploy (GitHub Actions)**: não há chave a rotacionar; os dois caminhos usam OIDC (role `github-deploy-prestare`). Pendentes com chave estática em secrets: `database-migration.yml` e `prepare-api-domain.yml`; até migrá-los para OIDC, rotacione criando nova chave IAM, atualizando o secret, testando e apagando a antiga.
 - **Variáveis do EB** (JWT, banco, SMTP, chaves de API): alterar o valor existente (não acrescentar variáveis; limite 4096) e aplicar via `update-environment`. Trocar o segredo do JWT desloga todos os usuários.
 - **Senha do banco**: alterar no RDS (modify master password) e no env do EB na mesma janela; breve indisponibilidade.
 - **Chave S3 `click_user`** (conta 952520388262): gerar nova no IAM daquela conta, atualizar o env do EB, apagar a antiga.
@@ -54,28 +54,31 @@ Regra geral: criar a nova -> atualizar onde é usada -> verificar -> revogar a a
 
 ## 5. Respostas aos alarmes
 
+Alarmes pelo nome (CloudWatch, `sa-east-1`, exceto o do CloudFront): `prestare-eb-saude`, `prestare-ec2-statuscheck`, `prestare-rds-cpu`, `prestare-rds-armazenamento`, `prestare-rds-conexoes`, `prestare-cloudfront-5xx`, `prestare-canary-falha`, `prestare-api-erros`.
+
 Primeiro passo comum: abrir o painel `Prestare-Operacao`, checar `/api/health` e os eventos recentes do EB (`aws elasticbeanstalk describe-events --environment-name Clickprestareapi-env --max-items 20`).
 
-### 5.1 EB health (Degraded/Severe)
+### 5.1 `prestare-eb-saude` (EB health Degraded/Severe)
 Ver o motivo no console do EB (Health). Causas usuais: deploy ruim, processo caindo, disco cheio. Se começou logo após deploy: rollback (seção 2). Senão, ler os logs do EB no CloudWatch Logs; como último recurso, *Restart app server(s)*.
 
-### 5.2 CloudFront 5xx
+### 5.2 `prestare-cloudfront-5xx`
+O alarme e o tópico SNS `prestare-alertas` correspondente ficam em **us-east-1** (métricas globais do CloudFront).
 Distinguir 502/504 (origem fora ou lenta) de 500 (erro da aplicação). Testar `/api/health`. 502/504 com EB verde: verificar prefix list/security group da instância (só aceita porta 80 do CloudFront) e a saúde do EB. 500: ver filtro ERROR (5.8).
 
-### 5.3 RDS CPU alta
+### 5.3 `prestare-rds-cpu` (CPU alta)
 Ver Performance Insights/processlist: consulta lenta ou varredura. Encerrar a consulta travada, corrigir índice depois. Se recorrente, avaliar classe maior (custo; decisão do fundador). Cruzar com picos de tráfego do agente de portaria.
 
-### 5.4 RDS armazenamento baixo
+### 5.4 `prestare-rds-armazenamento` (espaço baixo; disco de 20 GB)
 Ver o que cresceu (tabelas de eventos como `Acessos_Facial`). Aumentar o armazenamento alocado (só cresce, não encolhe; há intervalo mínimo entre alterações) e abrir tarefa de expurgo/retenção.
 
-### 5.5 RDS conexões altas
+### 5.5 `prestare-rds-conexoes` (mais de 50 conexões)
 Checar `SHOW PROCESSLIST`: vazamento de conexão após deploy ou rajada. Reiniciar o app no EB libera o pool. Se recorrente, ajustar o pool da API ou a classe da instância.
 
-### 5.6 EC2 StatusCheckFailed
+### 5.6 `prestare-ec2-statuscheck` (StatusCheckFailed)
 Instância única (sem SSH). Fazer *Reboot* da instância; se persistir, *Rebuild environment* do EB. Single-AZ: se for falha da AWS, abrir caso no AWS Support.
 
-### 5.7 Canary `prestare-health` falhou
-O canary roda a cada 15 min contra o endpoint público de saúde. Verificar se é a API (`curl /api/health`), CloudFront ou DNS. Se a API está de pé, ver o relatório do canary (pode ser falso positivo de rede). Dois ciclos seguidos falhando = indisponibilidade real: seguir `plano-recuperacao-desastre.md` e comunicar clientes (`responsabilidades-e-escalonamento.md`).
+### 5.7 `prestare-canary-falha` (canary `prestare-health`)
+O canary roda a cada 15 min com dois passos: `api-health` (API) e `site-sobre` (página `/sobre`); veja qual passo falhou. Verificar se é a API (`curl /api/health`), CloudFront ou DNS. Se a API está de pé, ver o relatório do canary (pode ser falso positivo de rede). Dois ciclos seguidos falhando = indisponibilidade real: seguir `plano-recuperacao-desastre.md` e comunicar clientes (`responsabilidades-e-escalonamento.md`).
 
-### 5.8 Filtro de log ERROR
-O grupo de logs do EB (retenção 30 dias) tem um metric filter para `ERROR`. No CloudWatch Logs Insights: `fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 50`. Identificar rota/serviço; se repetitivo e afeta usuários, tratar como incidente; se isolado, abrir issue.
+### 5.8 `prestare-api-erros` (filtro ERROR)
+O metric filter `ERROR` no log group `/aws/elasticbeanstalk/Clickprestareapi-env/var/log/web.stdout.log` (retenção 30 dias) dispara o alarme com mais de 20 ocorrências em 5 min. No CloudWatch Logs Insights: `fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 50`. Identificar rota/serviço; se repetitivo e afeta usuários, tratar como incidente; se isolado, abrir issue.

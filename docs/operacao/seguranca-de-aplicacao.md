@@ -13,7 +13,7 @@ Relacionados: [modelo-de-ameacas.md](modelo-de-ameacas.md), [objetivos-de-contro
 | Testes automatizados de regressão de segurança | Rodam em todo push/PR (`nx test api`) | `common/security-hardening.spec.ts`, `auth/*.spec.ts`, `auth/mobile-auth.authz.spec.ts`, `auth/tenant-access.*.spec.ts`, `common/storage/storage-delete-prefixo.spec.ts` |
 | Typecheck, testes e build em todo push e PR | Ativo | `.github/workflows/ci.yml` |
 | Varredura de dependências | `npm audit` no CI (informativo, não bloqueia) + Dependabot semanal (npm, pub, actions) | `ci.yml` job `audit`, `.github/dependabot.yml` |
-| Deploy sem chave estática | OIDC com role `github-deploy-prestare`, só a partir da `main`, ambiente `production` | `.github/workflows/deploy-api.yml` |
+| Deploy sem chave estática | Os dois caminhos de deploy (`deploy-api.yml` na `main` e o job `deploy` do `ci.yml` no `master`) usam OIDC com a role `github-deploy-prestare` | `.github/workflows/deploy-api.yml`, `.github/workflows/ci.yml` |
 | Verificação pós-deploy | Confere a versão no EB, saúde do ambiente e `/api/health` com CORS | `deploy-api.yml` |
 | Pentest externo / de caixa preta | **Ainda não realizado**; primeiro ciclo previsto para o próximo trimestre | — |
 | SAST/DAST automatizado (CodeQL, ZAP) | **Não existe** | — |
@@ -48,13 +48,13 @@ Uma vez por ano, ou antes de fechar contrato com cliente que exija, contratar te
 
 Checklist (o fundador executa no mesmo dia do pentest):
 
-- [ ] `.github/workflows/*.yml`: nenhuma ação sem versão fixa de major; permissões mínimas (`permissions:` por workflow); `deploy-api.yml` continua restrito à `main` e ao ambiente `production`.
+- [ ] `.github/workflows/*.yml`: nenhuma ação sem versão fixa de major; permissões mínimas (`permissions:` por workflow); o deploy usa só OIDC (nenhum `AWS_ACCESS_KEY_ID` nos dois caminhos). Pendentes com chave estática: `database-migration.yml` e `prepare-api-domain.yml`.
 - [ ] Role `github-deploy-prestare` no IAM: política só com o necessário (Elastic Beanstalk e o bucket do bundle); trust policy limitada ao repositório e à branch/ambiente; sem chaves estáticas do GitHub sobrando em *Settings → Secrets*.
 - [ ] Dependabot: PRs abertos há mais de 30 dias; atualizar ou justificar.
 - [ ] `npm audit`: nenhum `high`/`critical` aberto sem decisão registrada. Se algum persistir, decidir se o job `audit` passa a bloquear (hoje é informativo).
 - [ ] Segredos do EB: listar variáveis, conferir se alguma não é mais usada, checar o limite de 4096 caracteres e a data da última rotação (SMTP, `JWT_SECRET`, `INTERNAL_SYNC_TOKEN`).
 - [ ] Migrações: `database-migration.yml` lista apenas arquivos revisados de `click-cond-web/prisma/sql/`; migração nova entra na lista antes de ser aplicada, e é aplicada **antes** do push.
-- [ ] Branches `master` e `main`: lembrar que ambas disparam CI e só a `main` implanta; conferir proteção de branch no GitHub.
+- [ ] Branches `master` e `main`: `master` e `main` disparam deploy (ambos por OIDC, com verificação de versão); conferir proteção de branch no GitHub.
 - [ ] Repositório continua privado; checar *Security → Secret scanning* do GitHub e alertas abertos.
 - [ ] Último deploy: o passo "Verify deployed version" passou? (falha silenciosa já aconteceu — env acima de 4096).
 
@@ -82,6 +82,6 @@ Antes de fazer merge de mudanças em autenticação, autorização, upload, expu
 
 - Nunca houve pentest externo; a confiança vem da auditoria de 23/09, da varredura de 20/10 e dos testes automatizados.
 - `npm audit` é informativo; vulnerabilidade `high` pode chegar ao `main`. O Dependabot e a revisão trimestral são a rede de segurança.
-- O CI do `master` convive com testes antigos e o deploy depende do workflow do `main`; conferir a execução certa a cada deploy.
+- O CI do `master` convive com testes antigos; os dois caminhos publicam, então conferir a verificação de versão a cada deploy.
 - Pessoa única executa, revisa e aprova: não há revisão por segundo par de olhos. Mitigação: checklist e testes automatizados; contratar revisão externa anual.
 - Bucket de fotos público em outra conta, chave `click_user` em quarentena, senha SMTP a rotacionar e conta AWS compartilhada: ver [modelo-de-ameacas.md](modelo-de-ameacas.md), seção 5.

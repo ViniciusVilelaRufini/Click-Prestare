@@ -79,7 +79,7 @@ Detalhe em [classificacao-e-retencao-de-dados.md](classificacao-e-retencao-de-da
 | CI: typecheck, testes Jest e builds em todo push e PR | `.github/workflows/ci.yml` |
 | Job `audit` roda `npm audit` e `--audit-level=high`, com resumo por severidade na execução; é **informativo** (`continue-on-error`, não bloqueia o merge). Dependabot semanal (npm, pub, actions) abre os PRs de correção | `ci.yml` (job `audit`), `.github/dependabot.yml` |
 | Auditoria não grava senhas/segredos de dispositivo; busca de URL externa bloqueia IP privado (SSRF) | `common/interceptors/audit.interceptor.ts` (`redigirSegredos`), `common/url-segura.util.ts`, `common/security-hardening.spec.ts` |
-| Deploy só da `main`, ambiente `production`, credencial AWS temporária por OIDC | `.github/workflows/deploy-api.yml` |
+| Deploy por credencial AWS temporária (OIDC, role `github-deploy-prestare`) nos dois caminhos: `main` (`deploy-api.yml`) e `master` (job `deploy` do `ci.yml`). Pendentes com chave estática: `database-migration.yml`, `prepare-api-domain.yml` | `.github/workflows/deploy-api.yml`, `.github/workflows/ci.yml` |
 | Passo "Verify deployed version" confere a versão no EB | `deploy-api.yml` |
 | Migrações SQL aplicadas manualmente, antes do push, por workflow dedicado ou pelo fundador | `.github/workflows/database-migration.yml`, `click-cond-web/prisma/sql/` |
 | Revisão do pipeline e pentest trimestral | [seguranca-de-aplicacao.md](seguranca-de-aplicacao.md) |

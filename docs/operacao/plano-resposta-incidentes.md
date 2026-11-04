@@ -67,7 +67,7 @@ Sintomas: alarme de saúde do EB, 5xx no CloudFront, canary `prestare-health` fa
 
 1. Confirmar de fora: `https://api.prestarecondominios.com.br/api/health` (via CloudFront) e a página `/sobre`.
 2. Classificar: aplicação (deploy ruim, exceção), instância (CPU/memória, `StatusCheckFailed`), banco (conexões/armazenamento/CPU do RDS), dependência externa (Bedrock/SMTP/Superlógica) ou AWS.
-3. Se começou após um deploy: voltar a versão anterior do EB (versões `api-<sha>` ficam no bucket do EB; o `deploy-api.yml` reaproveita versões existentes). Conferir com o passo de verificação de versão.
+3. Se começou após um deploy: voltar a versão anterior do EB (versões `api-<sha>` do `deploy-api.yml` e `v-<run>-<sha>` do `ci.yml` ficam no bucket do EB; ver `runbooks.md`, seção 2). Conferir com o passo de verificação de versão.
 4. Instância travada: reiniciar o servidor de aplicação do ambiente; persistindo, reconstruir o ambiente.
 5. Banco: ver [plano-recuperacao-desastre.md](plano-recuperacao-desastre.md) (RTO 4 h / RPO 24 h; restauração por snapshot ou PITR).
 6. Lembrar: ambiente é single-instance e single-AZ — uma falha de zona exige recriação em outra (risco aceito).

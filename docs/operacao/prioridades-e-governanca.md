@@ -40,7 +40,7 @@ Dono: o fundador, que também é o patrocinador executivo.
 |---|---|
 | Single-AZ (EB e RDS) | Aceito até haver clientes reais; ver `plano-recuperacao-desastre.md` |
 | Bucket `storage-click-dev` público em outra conta, com chave em quarentena | Aceito por ora; migração pendente |
-| Chave estática no env do EB e chave AWS no GitHub | Meta: OIDC com a role `github-deploy-prestare` |
+| Chave estática `click_user` no env do EB; chaves estáticas nos workflows `database-migration.yml` e `prepare-api-domain.yml` | Deploy já usa OIDC (`github-deploy-prestare`) nos dois caminhos; esses itens seguem pendentes |
 | Senha SMTP a rotacionar | Pendente |
 | Conta AWS compartilhada com o projeto Volti | Aceito; separar quando viável |
 | Sem IAM Identity Center | Aceito por ora |

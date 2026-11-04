@@ -85,7 +85,7 @@ Fronteiras de confiança: Internet → CloudFront → API; API → serviços de 
 
 - Perfis por papel (Síndico, Morador, Funcionário, porteiro, `crm_admin`): `auth/usuario-app.guard.ts` (`UsuarioAppGuard`), `crm/crm-admin.guard.ts`; permissões por funcionário cobertas em `auth/permissao-funcionario*.spec.ts`.
 - Rotas do app exigem token de usuário do app, não apenas token válido.
-- Pipeline: deploy só a partir da `main`, ambiente `production` do GitHub e credencial AWS por OIDC (role `github-deploy-prestare`) em `.github/workflows/deploy-api.yml`.
+- Pipeline: deploy por `main` (`deploy-api.yml`, ambiente `production`) e por `master` (job `deploy` do `ci.yml`), ambos com credencial AWS por OIDC (role `github-deploy-prestare`), sem chave estática. Pendentes com chave estática: `database-migration.yml` e `prepare-api-domain.yml`.
 
 ## 4. Ameaças específicas do produto
 
