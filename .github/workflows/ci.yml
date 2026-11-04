@@ -140,6 +140,40 @@ jobs:
             exit 1
           fi
 
+  audit:
+    name: Auditoria de dependências (npm audit)
+    runs-on: ubuntu-latest
+    # Informativo: não bloqueia o CI. Vulnerabilidades altas aparecem no resumo
+    # da execução e o Dependabot abre os PRs de correção.
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: click-cond-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: click-cond-web/package-lock.json
+
+      - run: npm ci --ignore-scripts
+
+      - name: Resumo da auditoria
+        run: |
+          npm audit --json > audit.json || true
+          node -e "
+          const a = JSON.parse(require('fs').readFileSync('audit.json', 'utf8'));
+          const v = (a.metadata && a.metadata.vulnerabilities) || {};
+          const rows = ['critical','high','moderate','low','info'].map(k => '| ' + k + ' | ' + (v[k] || 0) + ' |');
+          const out = ['## npm audit (click-cond-web)', '', '| Severidade | Qtde |', '|---|---|', ...rows, ''].join(String.fromCharCode(10));
+          require('fs').appendFileSync(process.env.GITHUB_STEP_SUMMARY, out);
+          "
+
+      - name: npm audit (nível high)
+        run: npm audit --audit-level=high
+
   app:
     name: App Flutter (analyze e testes)
     runs-on: ubuntu-latest
