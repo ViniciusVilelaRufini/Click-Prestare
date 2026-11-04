@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
+import { credenciaisContaPrestare } from '../aws-credenciais.util';
 
 /**
  * Storage service usando Cloudflare R2 (compatível com S3 API).
@@ -78,7 +79,12 @@ export class StorageService {
       (this.bucket ? `https://${this.bucket}.s3.amazonaws.com` : '');
     this.publicUrl = baseS3Url.replace(/\/+$/, '');
 
-    if (!accessKeyId || !secretAccessKey || !this.bucket || !this.publicUrl) {
+    // Sem chave no ambiente, o S3 da AWS usa o role da instância do EB, que o
+    // bucket (conta 952520388262) libera por bucket policy. É o caminho
+    // preferido: chave fixa já vazou uma vez (click_user em quarentena). O R2
+    // continua exigindo chave.
+    const usaRole = !accessKeyId && !secretAccessKey && !endpoint;
+    if ((!usaRole && (!accessKeyId || !secretAccessKey)) || !this.bucket || !this.publicUrl) {
       this.client = null;
       this.enabled = false;
       this.logger.warn('StorageService desativado (S3/R2 envs incompletas). Uploads serão ignorados.');
@@ -88,7 +94,7 @@ export class StorageService {
     this.client = new S3Client({
       region,
       ...(endpoint ? { endpoint } : {}),
-      credentials: { accessKeyId, secretAccessKey },
+      credentials: usaRole ? credenciaisContaPrestare() : { accessKeyId: accessKeyId!, secretAccessKey: secretAccessKey! },
     });
     this.enabled = true;
     this.logger.log(`StorageService pronto (bucket=${this.bucket}, provider=${endpoint ? 'R2' : 'AWS S3'}).`);

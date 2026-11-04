@@ -5,6 +5,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { Readable } from 'node:stream';
+import { credenciaisContaPrestare } from '../common/aws-credenciais.util';
 import { ArquivoWhatsapp } from './whatsapp-graph.client';
 import { TipoMidiaSaida, validarMidiaSaida } from './whatsapp-media.validation';
 
@@ -145,7 +146,10 @@ export class WhatsappMediaService {
     this.s3 = this.bucket ? s3 ?? new S3Client({
       region,
       ...(endpoint ? { endpoint } : {}),
-      ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
+      // Sem chave, S3 da AWS usa o role da instância (ver StorageService).
+      ...(accessKeyId && secretAccessKey
+        ? { credentials: { accessKeyId, secretAccessKey } }
+        : endpoint ? {} : { credentials: credenciaisContaPrestare() }),
     }) : null;
   }
 
