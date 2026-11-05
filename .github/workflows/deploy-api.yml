@@ -104,17 +104,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # O waiter da CLI desiste em ~6,5 min; o deploy rolling (1 instância
+          # por vez atrás do ALB) passa disso. Espera até 30 min pelo Ready.
+          esperar_ready() {
+            for _ in $(seq 1 90); do
+              STATUS="$(aws elasticbeanstalk describe-environments \
+                --environment-names "$ENVIRONMENT_NAME" \
+                --query 'Environments[0].Status' --output text)"
+              [ "$STATUS" = "Ready" ] && return 0
+              sleep 20
+            done
+            echo "Ambiente não voltou para Ready em 30 min (status: $STATUS)" >&2
+            return 1
+          }
           # Push em master e main disparam dois deploys: espera o anterior
           # terminar (ambiente Ready) em vez de falhar com "invalid state".
-          aws elasticbeanstalk wait environment-updated \
-            --environment-names "$ENVIRONMENT_NAME"
+          esperar_ready
           aws elasticbeanstalk update-environment \
             --environment-name "$ENVIRONMENT_NAME" \
             --version-label "${{ steps.application.outputs.version_label }}"
           # Sem --option-settings: as variáveis do EB já estão no limite de 4096
           # caracteres (CloudFormation) e qualquer acréscimo faz o update falhar.
-          aws elasticbeanstalk wait environment-updated \
-            --environment-names "$ENVIRONMENT_NAME"
+          sleep 20
+          esperar_ready
 
       - name: Verify deployed version
         shell: bash
