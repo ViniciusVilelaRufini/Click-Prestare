@@ -8,7 +8,9 @@ A Prestare é uma empresa pequena. **O fundador (Vinicius Vilela) é dono de tud
 |---|---|---|
 | Patrocinador executivo | Fundador | Decide prioridade, custo e exceções |
 | Código (API, portaria-web, CRM, app, agente) | Fundador | Repo privado no GitHub |
-| Conta AWS, EB, RDS, CloudFront, Amplify, Bedrock | Fundador | Conta `850401152034` |
+| Conta AWS, EB, RDS, CloudFront, Amplify, Bedrock | Fundador | Conta `850401152034` (management da AWS Organizations `o-4u23300she`) |
+| Acesso à AWS (Identity Center) | Fundador | Portal `https://d-946752aa07.awsapps.com/start`, usuário `vinicius`, permission set `Administrador` (sessões de 4 h). Root com MFA, sem chaves de acesso, só para emergência. Contatos alternativos (segurança, operações, cobrança) definidos. Novas pessoas entram como usuários do Identity Center com permission set de menor privilégio, nunca com usuário IAM e chave estática |
+| Acesso ao banco | Fundador | Só por túnel SSM a partir do CloudShell (`runbooks.md`, seção 6) |
 | Deploys e migrações | Fundador | `runbooks.md` |
 | Alarmes e painel | Fundador | SNS `prestare-alertas` (e-mail do fundador) |
 | Atendimento a clientes e comercial | Fundador | WhatsApp comercial e e-mail |
@@ -21,6 +23,8 @@ A Prestare é uma empresa pequena. **O fundador (Vinicius Vilela) é dono de tud
 2. **AWS Support**: quando o problema está na infraestrutura AWS (falha de instância/AZ, RDS que não restaura, cota). Abrir caso no console; o tipo de caso disponível depende do plano de suporte contratado (no plano Basic, só conta/cobrança).
 3. **Fornecedores**: Firebase/Google, provedor SMTP, Meta (WhatsApp Cloud API), GitHub, Apple/Google (lojas), conforme o componente.
 4. Incidente de segurança: `plano-resposta-incidentes.md`.
+
+Contas e papéis: sem usuários IAM com chave; deploy por OIDC (role `github-deploy-prestare`). O usuário `github-actions-deploy` está com a chave desativada.
 
 Limitação assumida: não há segunda pessoa para cobrir a ausência do fundador; o risco é aceito e listado em `prioridades-e-governanca.md`.
 

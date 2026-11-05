@@ -18,7 +18,7 @@ Nomes de modelos vêm de `click-cond-web/prisma/schema.prisma`; código em `clic
 
 | Dado | Onde | Classe | Retenção real |
 |---|---|---|---|
-| Foto de rosto de morador (`Moradores.foto_pessoa`, `face_id`) | S3 (`moradores/`) + banco + terminal facial | C4 | Enquanto o morador estiver vinculado; apagada ao revogar a biometria ou excluir a conta/morador |
+| Foto de rosto de morador (`Moradores.foto_pessoa`, `face_id`) | S3 privado `prestare-arquivos-850401152034` (`moradores/`), entregue por URL assinada de até 1 h + banco + terminal facial | C4 | Enquanto o morador estiver vinculado; apagada ao revogar a biometria ou excluir a conta/morador |
 | Foto de rosto e de documento de visitante/pessoa (`Visitantes`, `Pessoas`: `foto_pessoa`, `foto_documento`) | S3 (`visitantes/`, `convites/`) + banco | C4 | **90 dias** após o fim da visita (expurgo diário); só o arquivo e a coluna são apagados, o registro da visita permanece |
 | Foto/documento de prestador (`Prestadores_servico`) | S3 + banco | C4 | Sem expurgo automático hoje — ver pendências |
 | Número do documento (`doc_identificacao`, `documento`) | Banco | C3/C4 | Segue o registro; exibido mascarado na interface |
@@ -31,7 +31,9 @@ Nomes de modelos vêm de `click-cond-web/prisma/schema.prisma`; código em `clic
 | Dispositivo confiável MFA | `User_Trusted_Devices` | C2 | 30 dias; só o hash SHA-256 do token é guardado |
 | Perguntas e respostas do assistente IA | Enviadas ao Bedrock (sa-east-1) ou ao Gemini na contingência | C3 | Ver pendências sobre o contrato de retenção do provedor |
 | Logs da aplicação | CloudWatch Logs | C1 (podem conter ids) | 30 dias |
-| Backups do RDS | AWS (criptografados) | C3/C4 | Janela de backup automático do RDS (ver [plano-recuperacao-desastre.md](plano-recuperacao-desastre.md)) |
+| Versões antigas de arquivos | Versionamento do bucket de arquivos | C3/C4 | 90 dias após deixar de ser a versão atual (regra de expiração de versões não correntes) |
+| Segredos (`/prestare/api/*`) | SSM Parameter Store, SecureString com KMS `alias/prestare-dados` | C2 | Até serem rotacionados; sem valor no repositório |
+| Backups do RDS | AWS (criptografados) | C3/C4 | 7 dias (backup automático + PITR); a réplica Multi-AZ não é backup (ver [plano-recuperacao-desastre.md](plano-recuperacao-desastre.md)) |
 
 ## 3. Como o expurgo funciona (o que de fato roda)
 
@@ -50,7 +52,7 @@ Teste: `visitantes/retencao-lgpd-pessoas.spec.ts`.
 ### 3.2 Proteção do próprio expurgo
 
 `deleteUrl` em `common/storage/storage.service.ts` só apaga se:
-- a URL pertence ao storage público configurado (URL de outro host é ignorada);
+- a URL pertence ao storage configurado (URL de outro host é ignorada; com o bucket privado, a chave é extraída da URL assinada ou do caminho guardado);
 - a key não contém `..`;
 - a key começa com um dos prefixos do dono: `PREFIXOS_FOTO_CONVITE` (`convites/`), `PREFIXOS_FOTO_VISITANTE` (`visitantes/`, `convites/`), `PREFIXOS_FOTO_MORADOR` (`moradores/`).
 
@@ -83,10 +85,10 @@ Prazo interno de resposta ao condomínio: 5 dias úteis. Responsável: o fundado
 
 ## 5. Riscos aceitos / pendentes
 
-1. **Fotos em bucket `public-read` de outra conta** (`storage-click-dev`): a classe C4 está sujeita a leitura por qualquer pessoa que tenha a URL. Pendência: bucket próprio privado com URL assinada e política de ciclo de vida. Até lá, o expurgo de 90 dias é a principal mitigação.
+1. **Fotos**: desde 2026-11-04 ficam em bucket privado (Block Public Access, SSE-KMS com bucket key, versionamento, política só HTTPS, ACLs desabilitadas) e são servidas por URL assinada de até 1 h. Foram migrados 8 objetos do bucket público antigo `storage-click-dev` (outra conta, intocado e ainda público até ser desativado); 12 mídias de teste do WhatsApp não foram recuperáveis. Atenção: o versionamento guarda por 90 dias a versão anterior de um arquivo apagado ou substituído, então o expurgo de 90 dias só remove o dado de fato ao fim de mais 90 dias; considerar isso ao atender pedido de exclusão (apagar também as versões, se o titular exigir).
 2. **Expurgo é best-effort**: se a remoção no S3 falhar, a coluna é zerada mas o objeto pode permanecer órfão. Pendência: varredura periódica de objetos sem referência (ainda não existe).
 3. **Prestadores** e **eventos de acesso/auditoria** não têm prazo de expurgo automático. Decisão pendente de prazo (proposta inicial: 12 meses para eventos de acesso, 5 anos para auditoria e consentimentos), a ser fechada no próximo trimestre.
 4. **Assistente IA**: confirmar e documentar a política de retenção/treinamento do Bedrock (esperado: não usa dados para treinar) e do Gemini antes de ligar a contingência para dados de clientes reais.
 5. **Sem dados reais ainda**: tudo no RDS é teste; este documento vale para produção e deve ser reconferido contra o banco real no primeiro cliente.
-6. Backups do RDS carregam dados já expurgados até saírem da janela de retenção.
-7. O expurgo roda dentro da API (timer em processo); se a instância ficar fora do ar por dias, o expurgo atrasa. Os logs `[LGPD Retenção]` devem aparecer a cada dia — ausência é sinal de alerta.
+6. Backups do RDS (7 dias) carregam dados já expurgados até saírem da janela de retenção. Com várias instâncias, o expurgo e demais tarefas agendadas rodam uma vez por cluster (trava `GET_LOCK`).
+7. O expurgo roda dentro da API (timer em processo, com trava distribuída); se a API ficar fora do ar por dias, o expurgo atrasa. Os logs `[LGPD Retenção]` devem aparecer a cada dia — ausência é sinal de alerta.

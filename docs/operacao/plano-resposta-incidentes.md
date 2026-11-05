@@ -40,13 +40,13 @@ Fora de horário comercial a meta é "primeira ação ao ver o alerta"; não há
 
 Sintomas: aviso da AWS (ex.: política `AWSCompromisedKeyQuarantine`), segredo achado em repositório/log/print, uso estranho no CloudTrail.
 
-1. **Desativar** a chave no IAM (não apagar ainda — preserva a evidência). A chave `click_user` (conta 952520388262) já está em quarentena da AWS; tratar qualquer novo aviso do mesmo modo.
+1. **Desativar** a chave no IAM (não apagar ainda — preserva a evidência). A chave `click_user` (conta 952520388262) está em quarentena da AWS e já não é usada pela API (removida do EB); tratar qualquer novo aviso do mesmo modo.
 2. **Verificar uso**: CloudTrail da chave nas últimas 24–72 h (chamadas que não vieram da API ou do deploy).
-3. **Rotacionar** e atualizar o valor no ambiente do EB. Atenção: as variáveis do EB estão no limite de 4096 caracteres; um acréscimo faz o `update-environment` falhar em silêncio (por isso o deploy não usa `--option-settings`). Troque o valor existente em vez de criar variável nova e confira que a versão em produção continua a mesma.
+3. **Rotacionar** pelo procedimento de `runbooks.md` (seção 4): atualizar o parâmetro SSM `/prestare/api/<NOME>` e reiniciar os app servers do EB (`restart-app-server`). Para o que ainda estiver como variável do EB, lembre do limite de 4096 caracteres (um acréscimo faz o `update-environment` falhar em silêncio; por isso o deploy não usa `--option-settings`): troque o valor existente e confira que a versão em produção continua a mesma.
 4. Por tipo:
    - `JWT_SECRET` (`auth/jwt-secret.ts`): trocar invalida **todas** as sessões; avisar clientes que terão de logar de novo.
-   - `INTERNAL_SYNC_TOKEN` (`facial/facial.controller.ts`): trocar no EB e no agente local.
-   - Senha SMTP: trocar no provedor e no EB (`MailService`).
+   - `INTERNAL_SYNC_TOKEN` (`facial/facial.controller.ts`): trocar no SSM (e reiniciar a API) e no agente local.
+   - Senha SMTP: trocar no provedor e em `/prestare/api/SMTP_PASS` (`MailService`).
    - Segredo no Git: remover do histórico se aplicável, tratar o segredo como queimado mesmo com repo privado.
 5. Registrar no post-mortem como o segredo vazou e como evitar (varredura de 20/10 é o precedente).
 
@@ -59,25 +59,25 @@ Sintomas: login de IP/horário incomum em `AuditLog`, morador/síndico relata a�
 3. Admin do CRM: trocar a senha em `crm_admins` (bcrypt) e revisar o que foi alterado em condomínios (`crm/crm-condominios.service.ts`; desativação/reativação ficam auditadas como `DEACTIVATE`/`REACTIVATE`).
 4. Levantar o que a conta fez no período em `AuditLog`/`Auditoria` por usuário e IP; reverter alterações indevidas.
 5. Se a conta acessou dados pessoais de terceiros, seguir 4.4.
-6. Conta AWS (root ou IAM): trocar senha, revisar MFA, listar chaves e usuários criados, checar CloudTrail.
+6. Conta AWS (Identity Center, root ou IAM): encerrar as sessões do usuário no Identity Center, trocar a senha, revisar o MFA, listar chaves e usuários criados (não deve haver chave de acesso ativa) e checar o CloudTrail.
 
 ### 4.3 Indisponibilidade
 
 Sintomas: alarme de saúde do EB, 5xx no CloudFront, canary `prestare-health` falhando, cliente sem conseguir logar.
 
 1. Confirmar de fora: `https://api.prestarecondominios.com.br/api/health` (via CloudFront) e a página `/sobre`.
-2. Classificar: aplicação (deploy ruim, exceção), instância (CPU/memória, `StatusCheckFailed`), banco (conexões/armazenamento/CPU do RDS), dependência externa (Bedrock/SMTP/Superlógica) ou AWS.
+2. Classificar: aplicação (deploy ruim, exceção, 503 de bulkhead por provedor lento), instâncias (CPU/memória, `StatusCheckFailed`, targets do ALB), banco (conexões/armazenamento/CPU do RDS), dependência externa (Bedrock/SMTP/Superlógica) ou AWS.
 3. Se começou após um deploy: voltar a versão anterior do EB (versões `api-<sha>` do `deploy-api.yml` e `v-<run>-<sha>` do `ci.yml` ficam no bucket do EB; ver `runbooks.md`, seção 2). Conferir com o passo de verificação de versão.
 4. Instância travada: reiniciar o servidor de aplicação do ambiente; persistindo, reconstruir o ambiente.
-5. Banco: ver [plano-recuperacao-desastre.md](plano-recuperacao-desastre.md) (RTO 4 h / RPO 24 h; restauração por snapshot ou PITR).
-6. Lembrar: ambiente é single-instance e single-AZ — uma falha de zona exige recriação em outra (risco aceito).
+5. Banco: ver [plano-recuperacao-desastre.md](plano-recuperacao-desastre.md) (RTO 4 h / RPO 24 h para erro lógico; Multi-AZ cobre falha de zona; restauração por snapshot ou PITR).
+6. Lembrar: o ambiente tem 2 a 4 instâncias em duas zonas atrás de um ALB e o RDS é Multi-AZ; falha de uma zona é absorvida sozinha. Falha da região inteira não tem cobertura automática (risco aceito).
 7. Impacto na portaria: o agente local reenvia eventos offline com deduplicação; a portaria física continua com os dispositivos na LAN. Avisar o condomínio por WhatsApp/e-mail.
 
 ### 4.4 Vazamento de dados pessoais (LGPD)
 
 Gatilhos: foto/documento/biometria acessados por quem não devia, bucket exposto indevidamente, export com dados de outro condomínio, conta comprometida (4.2) que leu dados de terceiros.
 
-1. **Conter**: bloquear o acesso (revogar conta/chave; se for objeto no bucket, remover o objeto com `StorageService.deleteUrl` ou direto no S3 da conta 952520388262; se for bug de isolamento, desligar a rota).
+1. **Conter**: bloquear o acesso (revogar conta/chave; se for objeto no bucket, remover o objeto com `StorageService.deleteUrl` ou direto no bucket `prestare-arquivos-850401152034` (versionamento ligado: apagar também a versão, se for o caso); se for bug de isolamento, desligar a rota).
 2. **Dimensionar**: quais titulares (moradores, visitantes, funcionários), quais dados (biometria e documento são os mais graves), qual condomínio, de quando a quando. Fontes: `AuditLog`, logs do EB, CloudTrail, logs de acesso do bucket (se existirem).
 3. **Avaliar risco ao titular** (art. 48 da LGPD). Dado biométrico ou documento exposto presume risco relevante.
 4. **Comunicar**:
@@ -87,7 +87,7 @@ Gatilhos: foto/documento/biometria acessados por quem não devia, bucket exposto
 5. **Corrigir a causa** e registrar no post-mortem; acrescentar teste automatizado que impeça a recorrência (padrão dos `*.spec.ts` do `auth/`).
 6. Guardar evidências e a linha do tempo por no mínimo 5 anos.
 
-Situação atual do risco: fotos ficam em bucket de outra conta com objetos `public-read` (qualquer um com a URL lê). Sem listagem pública, mas a exposição por URL vazada é possível. Ver riscos pendentes.
+Situação atual do risco: desde 2026-11-04 as fotos ficam em bucket privado e são entregues por URL assinada de até 1 h; uma URL vazada deixa de valer em até 1 h. O bucket público antigo (`storage-click-dev`, outra conta) ainda existe até ser desativado. Ver riscos pendentes.
 
 ## 5. Contatos e ferramentas (sem segredos)
 
@@ -100,7 +100,7 @@ Situação atual do risco: fotos ficam em bucket de outra conta com objetos `pub
 
 - Pessoa única: sem substituto operacional, sem plantão 24x7. Mitigação: alarmes por e-mail e runbooks escritos; a decisão de contratar apoio é revisada a cada trimestre.
 - Logs da aplicação retidos por 30 dias; incidente descoberto depois disso fica sem evidência de aplicação (CloudTrail e auditoria no banco permanecem).
-- Bucket de fotos público em outra conta e chave `click_user` em quarentena: um incidente de storage depende de acesso à conta 952520388262.
+- Bucket antigo `storage-click-dev` e chave `click_user` em quarentena (conta 952520388262) ainda existem; um incidente relacionado a eles depende de acesso àquela conta. Conta AWS compartilhada com o projeto Volti.
 - Revogação individual de sessão do app não existe (JWT de 365 dias); a mitigação é a troca de senha.
-- Single-AZ: recuperação de indisponibilidade de zona é manual.
+- Sem cópia entre regiões: falha regional exige recuperação manual.
 - O plano nunca foi exercitado ponta a ponta; o primeiro tabletop está previsto para o próximo trimestre.

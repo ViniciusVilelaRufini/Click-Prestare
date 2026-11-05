@@ -15,7 +15,8 @@ Relacionados: [modelo-de-ameacas.md](modelo-de-ameacas.md), [objetivos-de-contro
 | Varredura de dependências | `npm audit` no CI (informativo, não bloqueia) + Dependabot semanal (npm, pub, actions) | `ci.yml` job `audit`, `.github/dependabot.yml` |
 | Deploy sem chave estática | Os dois caminhos de deploy (`deploy-api.yml` na `main` e o job `deploy` do `ci.yml` no `master`) usam OIDC com a role `github-deploy-prestare` | `.github/workflows/deploy-api.yml`, `.github/workflows/ci.yml` |
 | Verificação pós-deploy | Confere a versão no EB, saúde do ambiente e `/api/health` com CORS | `deploy-api.yml` |
-| Pentest externo / de caixa preta | **Ainda não realizado**; primeiro ciclo previsto para o próximo trimestre | — |
+| Pentest interno (caixa-branca + dinâmico limitado) | **Primeiro ciclo executado em 2026-11-04**: 1 achado Alto (P-01, corrigido no código; causa raiz, o signup sem verificação de e-mail, segue aberta). Próximo até 2027-02-04 | [pentest/README.md](pentest/README.md), [pentest/2026-11-04-pentest-interno.md](pentest/2026-11-04-pentest-interno.md) |
+| Pentest externo / de caixa preta | **Não realizado** | — |
 | SAST/DAST automatizado (CodeQL, ZAP) | **Não existe** | — |
 | Varredura de segredos no CI | **Não existe** (só as varreduras manuais) | — |
 
@@ -29,14 +30,14 @@ Responsável: o fundador. Ciclo: um por trimestre, ~1 dia de trabalho, contra o 
 2. **Autorização / isolamento**: com duas contas de condomínios diferentes, tentar ler/alterar recursos do outro por id (IDOR) em todos os controllers com `:idCondominio` e, sobretudo, nas rotas **sem** `:idCondominio`, que dependem do service (ver comentário em `auth/tenant.guard.ts`). Testar também token de porteiro e `crm_admin` em rotas do app e vice-versa (`auth/usuario-app.guard.ts`).
 3. **Entrada de dados**: payloads com campos extras (o `ValidationPipe` usa `whitelist`), tipos trocados, limites (JSON de até 100 MB), upload com MIME perigoso (`common/storage/storage.service.ts`), URLs que o servidor busca (SSRF — `common/url-segura.util.ts`).
 4. **Superfície pública**: rotas `@Public()`, webhooks (WhatsApp HMAC, facial/hardware sem CORS), `INTERNAL_SYNC_TOKEN`, simuladores em `/assets` (`common/assets-estaticos.util.ts`).
-5. **Infraestrutura**: acesso direto à instância (deve falhar fora do CloudFront), portas expostas (3306 fechada), bucket de fotos (listagem, escrita anônima), cabeçalhos de segurança, CORS.
+5. **Infraestrutura**: acesso direto ao ALB e às instâncias (deve falhar fora do CloudFront), portas expostas, RDS inalcançável pela internet, bucket de arquivos privado (listagem, escrita anônima, URL assinada expirada), cabeçalhos de segurança, CORS.
 6. **Assistente IA**: prompt injection, vazamento de contexto de outro condomínio, abuso de custo (`chat-ia/`).
 7. **App móvel**: segredos embutidos no binário, armazenamento do token, pinning não é exigido hoje.
 
 ### 2.2 Execução
 
 - Ferramentas: Burp Suite Community ou OWASP ZAP, `curl`, scripts de teste de IDOR, `npm audit`, `trufflehog`/`gitleaks` no repositório.
-- Registrar achados em uma nota por ciclo (data, achado, severidade, evidência, correção, data de fechamento). Local: `docs/operacao/pentest/AAAA-MM.md` (a ser criado no primeiro ciclo).
+- Registrar achados em uma nota por ciclo (data, achado, severidade, evidência, correção, data de fechamento). Local: `docs/operacao/pentest/AAAA-MM-DD-pentest-interno.md`, com o roteiro do ciclo em [pentest/README.md](pentest/README.md).
 - Severidade ≥ alta: tratar como incidente SEV2 ([plano-resposta-incidentes.md](plano-resposta-incidentes.md)); corrigir com teste de regressão antes de fechar.
 - A cada achado corrigido, acrescentar um `*.spec.ts` no mesmo padrão dos existentes e atualizar o [modelo de ameaças](modelo-de-ameacas.md).
 
@@ -48,12 +49,12 @@ Uma vez por ano, ou antes de fechar contrato com cliente que exija, contratar te
 
 Checklist (o fundador executa no mesmo dia do pentest):
 
-- [ ] `.github/workflows/*.yml`: nenhuma ação sem versão fixa de major; permissões mínimas (`permissions:` por workflow); o deploy usa só OIDC (nenhum `AWS_ACCESS_KEY_ID` nos dois caminhos). Pendentes com chave estática: `database-migration.yml` e `prepare-api-domain.yml`.
-- [ ] Role `github-deploy-prestare` no IAM: política só com o necessário (Elastic Beanstalk e o bucket do bundle); trust policy limitada ao repositório e à branch/ambiente; sem chaves estáticas do GitHub sobrando em *Settings → Secrets*.
+- [ ] `.github/workflows/*.yml`: nenhuma ação sem versão fixa de major; permissões mínimas (`permissions:` por workflow); o deploy usa só OIDC (nenhum `AWS_ACCESS_KEY_ID`); `database-migration.yml` e `prepare-api-domain.yml` foram aposentados e não devem reaparecer.
+- [ ] Role `github-deploy-prestare` no IAM: política só com o necessário (Elastic Beanstalk e o bucket do bundle); trust policy limitada ao repositório e à branch/ambiente; sem chaves estáticas do GitHub sobrando em *Settings → Secrets* (os secrets do usuário `github-actions-deploy` foram removidos em 2026-11-04). Conferir também que nenhum usuário IAM tem chave de acesso ativa e que o acesso humano é pelo IAM Identity Center.
 - [ ] Dependabot: PRs abertos há mais de 30 dias; atualizar ou justificar.
 - [ ] `npm audit`: nenhum `high`/`critical` aberto sem decisão registrada. Se algum persistir, decidir se o job `audit` passa a bloquear (hoje é informativo).
-- [ ] Segredos do EB: listar variáveis, conferir se alguma não é mais usada, checar o limite de 4096 caracteres e a data da última rotação (SMTP, `JWT_SECRET`, `INTERNAL_SYNC_TOKEN`).
-- [ ] Migrações: `database-migration.yml` lista apenas arquivos revisados de `click-cond-web/prisma/sql/`; migração nova entra na lista antes de ser aplicada, e é aplicada **antes** do push.
+- [ ] Segredos: listar os parâmetros `/prestare/api/*` no SSM e conferir a data da última rotação (SMTP, `JWT_SECRET`, `INTERNAL_SYNC_TOKEN`, Superlógica, Firebase, `DATABASE_URL`); conferir que nenhum segredo voltou para o ambiente do EB e o limite de 4096 caracteres do que sobrou.
+- [ ] Migrações: aplicadas manualmente pelo túnel SSM (`runbooks.md`, seção 6), **antes** do push, a partir de arquivos revisados de `click-cond-web/prisma/sql/`; compatíveis com o código antigo (rolling).
 - [ ] Branches `master` e `main`: `master` e `main` disparam deploy (ambos por OIDC, com verificação de versão); conferir proteção de branch no GitHub.
 - [ ] Repositório continua privado; checar *Security → Secret scanning* do GitHub e alertas abertos.
 - [ ] Último deploy: o passo "Verify deployed version" passou? (falha silenciosa já aconteceu — env acima de 4096).
@@ -73,15 +74,17 @@ Antes de fazer merge de mudanças em autenticação, autorização, upload, expu
 
 | Item | Prazo | Dono |
 |---|---|---|
-| Primeiro pentest interno completo e nota em `docs/operacao/pentest/` | Próximo trimestre | Fundador |
+| Primeiro pentest interno completo e nota em `docs/operacao/pentest/` | **Feito em 2026-11-04**. Próximo ciclo até 2027-02-04 | Fundador |
+| Verificação de e-mail no cadastro (causa raiz do P-01) | Antes do primeiro cliente real | Fundador |
 | Habilitar secret scanning/push protection no GitHub | Próximo trimestre | Fundador |
 | Avaliar CodeQL no CI | Próximo trimestre | Fundador |
 | Decidir se `npm audit` passa a bloquear o CI | Na primeira revisão de pipeline | Fundador |
 
 ## Riscos aceitos / pendentes
 
-- Nunca houve pentest externo; a confiança vem da auditoria de 23/09, da varredura de 20/10 e dos testes automatizados.
+- Nunca houve pentest externo; a confiança vem do pentest interno de 04/11, da auditoria de 23/09, da varredura de 20/10 e dos testes automatizados.
+- Causa raiz do P-01 aberta: cadastro sem verificação de e-mail.
 - `npm audit` é informativo; vulnerabilidade `high` pode chegar ao `main`. O Dependabot e a revisão trimestral são a rede de segurança.
 - O CI do `master` convive com testes antigos; os dois caminhos publicam, então conferir a verificação de versão a cada deploy.
 - Pessoa única executa, revisa e aprova: não há revisão por segundo par de olhos. Mitigação: checklist e testes automatizados; contratar revisão externa anual.
-- Bucket de fotos público em outra conta, chave `click_user` em quarentena, senha SMTP a rotacionar e conta AWS compartilhada: ver [modelo-de-ameacas.md](modelo-de-ameacas.md), seção 5.
+- Conta AWS compartilhada com o projeto Volti (cargas não separadas em contas distintas), bucket antigo `storage-click-dev` ainda público em outra conta e demais pendências: ver [modelo-de-ameacas.md](modelo-de-ameacas.md), seção 5.

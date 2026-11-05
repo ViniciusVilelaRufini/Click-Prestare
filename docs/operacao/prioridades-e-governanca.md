@@ -38,10 +38,10 @@ Dono: o fundador, que também é o patrocinador executivo.
 
 | Risco | Situação |
 |---|---|
-| Single-AZ (EB e RDS) | Aceito até haver clientes reais; ver `plano-recuperacao-desastre.md` |
-| Bucket `storage-click-dev` público em outra conta, com chave em quarentena | Aceito por ora; migração pendente |
-| Chave estática `click_user` no env do EB; chaves estáticas nos workflows `database-migration.yml` e `prepare-api-domain.yml` | Deploy já usa OIDC (`github-deploy-prestare`) nos dois caminhos; esses itens seguem pendentes |
-| Senha SMTP a rotacionar | Pendente |
-| Conta AWS compartilhada com o projeto Volti | Aceito; separar quando viável |
-| Sem IAM Identity Center | Aceito por ora |
+| Cargas não separadas em contas AWS distintas (a conta também hospeda o projeto Volti) | Aberto; decisão do fundador pendente (Organizations já criada) |
+| Cadastro sem verificação de e-mail (causa raiz do P-01 do pentest) | Aberto; resolver antes do primeiro cliente real |
+| Sem cópia entre regiões (banco e arquivos) | Aceito até haver clientes reais |
+| Bucket antigo `storage-click-dev` (outra conta) ainda público; `database-1-antigo` parado | A desativar/excluir; decidir `database-1-antigo` até 2026-11-11 |
+| Senha SMTP | Agora no SSM; confirmar a troca no provedor |
+| Resolvidos em 2026-11-04 | Single-AZ (ALB + ASG 2-4, RDS Multi-AZ privado); segredos no SSM; bucket privado com URL assinada; chave `click_user` fora do EB; chaves estáticas de deploy desativadas; IAM Identity Center ativo |
 | Dependência de uma só pessoa | Aceito; a documentação desta pasta mitiga |

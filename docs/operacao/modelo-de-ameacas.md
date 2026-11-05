@@ -21,17 +21,21 @@ Método: STRIDE simplificado sobre o diagrama de fluxo de dados abaixo. Cada ame
 [App Flutter]  [Portaria-web (Amplify)]  [CRM admin]  [Agente local Windows]
         \              |                    |              /
          +------- HTTPS -------> CloudFront api.prestarecondominios.com.br
-                                   |  (instância só aceita porta 80 da prefix list do CloudFront)
                                    v
-                    Elastic Beanstalk (NestJS, single-instance t3.small)
-                      |-- RDS MySQL (criptografado, single-AZ)
-                      |-- S3 storage-click-dev (outra conta): fotos/arquivos
+                    Application Load Balancer (SG prestare-alb: porta 80 só da prefix list do CloudFront)
+                                   v
+                    Elastic Beanstalk (NestJS, Auto Scaling 2-4 x t3.small, sa-east-1b/1c; SG só aceita o ALB)
+                      |-- RDS MySQL (criptografado, Multi-AZ, subnets privadas sem rota para a internet)
+                      |-- SSM Parameter Store /prestare/api/* (segredos, KMS), lido no boot
+                      |-- S3 prestare-arquivos-850401152034 (privado, SSE-KMS): fotos/arquivos por URL assinada
                       |-- Amazon Bedrock (assistente IA); Gemini como contingência
                       |-- SMTP, WhatsApp Cloud API, Firebase (push), Superlógica
 [Dispositivos Dahua/Intelbras na LAN] <--LAN--> Agente local (só conexões de saída HTTPS)
 ```
 
-Fronteiras de confiança: Internet → CloudFront → API; API → serviços de terceiros; LAN do condomínio → agente → API.
+Acesso humano ao banco: AWS CloudShell (Identity Center) → túnel SSM por uma instância → RDS; não há acesso direto da internet.
+
+Fronteiras de confiança: Internet → CloudFront → ALB → API; API → serviços de terceiros; LAN do condomínio → agente → API.
 
 ## 3. Ameaças e controles
 
@@ -72,39 +76,46 @@ Fronteiras de confiança: Internet → CloudFront → API; API → serviços de 
 | Vazamento de segredo no repositório | repo privado; varredura de 20/10; `npm audit` e Dependabot | `.github/workflows/ci.yml`, `.github/dependabot.yml` |
 | Interceptação em trânsito | HTTPS no CloudFront; HSTS de 180 dias com preload (Helmet) | `main.ts` |
 | CORS aberto | lista fechada de origens; `.vercel.app` descartado | `common/cors-origins.ts` |
-| Fotos legíveis por quem tiver a URL | **risco aceito**: objetos `public-read` em bucket de outra conta | seção 5, item 1 |
+| Fotos legíveis por quem tiver a URL | Mitigado em 2026-11-04: bucket privado (Block Public Access, SSE-KMS, só HTTPS) e URLs assinadas de até 1 h. O bucket público antigo (`storage-click-dev`, outra conta) ainda existe até ser desativado; ver seção 5 | `common/storage/storage.service.ts` |
+| Segredos lidos do ambiente da instância/console do EB | Segredos no SSM SecureString (KMS), fora do EB; permissão só ao role da instância | `common/segredos-ssm.ts` |
+| Banco alcançável pela internet | Banco em subnet sem rota para a internet, `PubliclyAccessible=false`; acesso humano só por túnel SSM | RDS, `scripts/ops/tunel-rds.sh` |
 
 ### 3.5 Denial of service
 
 - Throttle global por IP: 20 req/s e 600 req/min (`common/throttle/throttlers.ts`), mais restrito em login e recuperação de senha.
-- A instância só aceita tráfego do CloudFront; `trust proxy` de 2 saltos extrai o IP real (`main.ts`, `common/throttle/trust-proxy.spec.ts`).
+- O ALB só aceita a prefix list do CloudFront e as instâncias só aceitam o ALB; `trust proxy` extrai o IP real (`main.ts`, `common/throttle/trust-proxy.spec.ts`; conferir o número de saltos após a entrada do ALB).
+- Bulkhead por dependência (IA 8, Superlógica 4, WhatsApp 8, SMTP 4 por instância): provedor lento não esgota a API, que responde 503 na hora (`common/limitar-concorrencia.ts`). Tarefas agendadas rodam uma vez por cluster (`common/lock-distribuido.ts`) e o bloqueio de login é compartilhado.
 - Promessa rejeitada e esquecida não derruba o processo (`main.ts`, handler de `unhandledRejection`).
-- Risco residual: single-instance e single-AZ; o parser aceita JSON de até 100 MB (`main.ts`), limite alto.
+- Risco residual: o teto é 4 instâncias e o limite de requisições é por instância; sem cópia entre regiões; o parser aceita JSON de até 100 MB (`main.ts`), limite alto.
 
 ### 3.6 Elevation of privilege
 
 - Perfis por papel (Síndico, Morador, Funcionário, porteiro, `crm_admin`): `auth/usuario-app.guard.ts` (`UsuarioAppGuard`), `crm/crm-admin.guard.ts`; permissões por funcionário cobertas em `auth/permissao-funcionario*.spec.ts`.
 - Rotas do app exigem token de usuário do app, não apenas token válido.
-- Pipeline: deploy por `main` (`deploy-api.yml`, ambiente `production`) e por `master` (job `deploy` do `ci.yml`), ambos com credencial AWS por OIDC (role `github-deploy-prestare`), sem chave estática. Pendentes com chave estática: `database-migration.yml` e `prepare-api-domain.yml`.
+- Pipeline: deploy por `main` (`deploy-api.yml`, ambiente `production`) e por `master` (job `deploy` do `ci.yml`), ambos com credencial AWS por OIDC (role `github-deploy-prestare`), sem chave estática. Os workflows com chave estática (`database-migration.yml`, `prepare-api-domain.yml`) foram aposentados e a chave do usuário `github-actions-deploy` foi desativada. Acesso humano à AWS é pelo IAM Identity Center (sessões de 4 h); root com MFA e sem chaves.
 
 ## 4. Ameaças específicas do produto
 
 | Cenário | Controle / lacuna |
 |---|---|
 | Porteiro libera entrada sem autorização do morador | Portaria remota: o morador autoriza ou nega no app; ação auditada |
-| Agente local comprometido na LAN | Só conexões de saída HTTPS; token interno; reenvio offline com deduplicação. Lacuna: o agente guarda credenciais dos dispositivos na máquina do condomínio |
+| Agente local comprometido na LAN | Só conexões de saída HTTPS; token interno; reenvio offline com deduplicação. Lacuna: o agente guarda credenciais dos dispositivos na máquina do condomínio. Comandos e estado do agente ficam em tabelas compartilhadas (`agente_comandos`, `agente_dispositivos_estado`), válidas para qualquer instância |
 | Rosto órfão em terminal após exclusão | `tickFantasmas` remove biometria órfã (Dahua e Intelbras) e registra `FANTASMAS_REMOVIDOS` |
 | Prompt injection no assistente IA | O assistente tem ferramentas que criam reserva, ocorrência, visitante, comunicado etc., mas só **propõe**: a ação fica pendente e só executa após confirmação do usuário no app (`chat-ia/acao-pendente.store.ts`, `chat-ia/chat-ia.service.ts`); consultas filtradas por `id_condominio`. Lacuna: as ações pendentes ficam em memória. Revisar a cada mudança de prompt ou de ferramenta |
 
 ## 5. Riscos aceitos / pendentes
 
-1. **Bucket de fotos público em outra conta** (`storage-click-dev`, conta 952520388262): objetos `public-read`, sem controle de acesso por condomínio. Aceito até existir bucket próprio, privado, com URL assinada.
-2. **Chave estática do `click_user`** em quarentena da AWS e presente no ambiente do EB. O caminho é usar o role da instância (`common/aws-credenciais.util.ts`); a troca ainda não foi concluída.
-3. **Senha SMTP a rotacionar**; segredos ficam em variáveis do EB (limite de 4096 caracteres), sem Secrets Manager/SSM.
-4. **Single-AZ / single-instance** (RDS e EB): afeta disponibilidade, não confidencialidade.
-5. **Conta AWS compartilhada** com recursos de outro projeto (Volti) e sem IAM Identity Center.
+Resolvidos em 2026-11-04 (registro): bucket de fotos público em outra conta (migrado para bucket privado com URL assinada); chave estática `click_user` (removida do EB, a API usa só o role da instância); segredos só em variáveis do EB (agora no SSM); single-instance/single-AZ (ALB + ASG 2-4 em duas zonas, RDS Multi-AZ); banco acessível pela internet (agora privado); ausência de IAM Identity Center (ativo); chave estática de deploy (desativada).
+
+Abertos:
+
+1. **Cargas não separadas em contas AWS distintas**: a conta também hospeda o projeto Volti. Decisão do fundador pendente.
+2. **Cadastro sem verificação de e-mail**: raiz do achado P-01 do pentest ([pentest/2026-11-04-pentest-interno.md](pentest/2026-11-04-pentest-interno.md)); o código foi corrigido, mas qualquer lógica que trate `Users.email` como prova de identidade segue frágil até existir verificação.
+3. **Bucket antigo `storage-click-dev`** (conta 952520388262) continua público e com chave em quarentena, intocado; desativar após confirmar que nada o referencia. Instância `database-1-antigo` parada, a excluir.
+4. **Senha SMTP**: agora no SSM; confirmar se a senha anterior já foi trocada no provedor.
+5. **Sem cópia entre regiões** de banco e arquivos.
 6. **JWT do app dura 365 dias** (`auth/auth.module.ts`); mitigado pela invalidação na troca de senha, mas não existe revogação individual de sessão.
 7. **MFA só para síndico no console web**; porteiro e admin do CRM dependem de senha + throttle.
-8. **Desafios de MFA pendentes ficam em memória** (`mfaPendentes` em `auth.service.ts`): reinício da instância faz o usuário refazer o login.
+8. **Desafios de MFA pendentes ficam em memória** (`mfaPendentes` em `auth.service.ts`): com várias instâncias, o desafio vale na instância que o criou. A stickiness do ALB reduz o problema, mas uma troca de instância obriga a refazer o login.
 
-Revisão dos itens 1–3: a cada trimestre pelo fundador e, obrigatoriamente, antes de entrar o primeiro cliente com dados reais.
+Revisão: a cada trimestre pelo fundador e, obrigatoriamente, antes de entrar o primeiro cliente com dados reais.

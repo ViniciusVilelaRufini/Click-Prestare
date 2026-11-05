@@ -51,12 +51,12 @@ async function bootstrap() {
   // requisição inteira. Sem daemon, os segmentos se perdem sem erro.
   instalarXRay(app);
 
-  // Habilita trust proxy para 2 saltos (CloudFront + AWS ALB).
-  // Salto 1: AWS ALB (conexão direta na EC2/Beanstalk)
-  // Salto 2: CloudFront (CDN de borda)
-  // O Express avalia os 2 saltos confiáveis e extrai o IP real do cliente final,
-  // impedindo qualquer compartilhamento indevido de IP e ignorando X-Forwarded-For falso.
-  app.set('trust proxy', 2);
+  // trust proxy = 3 saltos: nginx da instância -> ALB -> CloudFront. Medido em
+  // 04/11/2026 no access.log do nginx: XFF "cliente, <borda CloudFront>" vindo do
+  // ALB; com 2 o req.ip virava o IP da borda do CloudFront e o throttle por IP
+  // juntava clientes diferentes. Os SGs só deixam o CloudFront chegar no ALB e o
+  // ALB nas instâncias, então o XFF à esquerda desses 3 saltos não é forjável.
+  app.set('trust proxy', 3);
 
   // Armazena o IP da máquina do cliente no AsyncLocalStorage para logs de auditoria automáticos
   app.use((req: any, _res: any, next: any) => {

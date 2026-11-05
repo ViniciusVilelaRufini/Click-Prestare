@@ -29,7 +29,7 @@ export function extractClientIp(req: any): string {
   if (!req) return '';
 
   // 1. Express req.ip: calculado confiavelmente pelo Express com base na configuração
-  // de 'trust proxy' (2 saltos: CloudFront + AWS ALB).
+  // de 'trust proxy' (3 saltos: nginx + ALB + CloudFront; ver main.ts).
   // O Express ignora cabeçalhos X-Forwarded-For forjados pelo cliente e extrai o IP real.
   if (req.ip && typeof req.ip === 'string') {
     const norm = normalizeIp(req.ip);
