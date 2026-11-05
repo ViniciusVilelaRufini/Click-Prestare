@@ -444,3 +444,20 @@ Comece por um checklist de aceite assinado pelo dono:
     Total extra estimado: < US$ 50 no período. O budget da conta nova deve ser da conta inteira, não por tag.
 11. **Conta de gerenciamento.** Se a 850401152034 for a conta de gerenciamento da Organization (verificado no passo 1), o Prestare continua rodando nela. O Well-Architected também recomenda não ter cargas na conta de gerenciamento. Registre isso como pendência separada; não faz parte deste plano.
 12. **Deriva do `platform.yaml`.** A conta nova recebe o template do `main` (SES e CSP), que nunca foi aplicado em produção. Teste o envio de e-mail e o painel (CSP) antes do corte.
+
+---
+
+## Status de execução (05/11/2026, ~03:30 UTC)
+
+Decisões do dono: D1 = Voltz na mesma conta 117153693161; D2 = migrar usuários; D3 = `voltz.prestarecondominios.com.br`.
+
+**Feito (sem afetar produção):**
+- Provedor OIDC da `voltz-platform` antiga com `DeletionPolicy/UpdateReplacePolicy: Retain` (change set só com essa mudança).
+- Subzonas na conta nova: `api-volti-dev.prestarecondominios.com.br` (ainda **não** delegada) e `voltz.prestarecondominios.com.br` (**delegada**, DKIM/MAIL FROM antigos copiados; a identidade SES antiga segue verificada).
+- SES na conta nova: identidade de domínio verificada (DKIM + MAIL FROM), supressão de bounce/complaint ligada, alarmes de reputação no tópico `volti-alertas`. **Produção pendente** (caso 179384080500972 respondido).
+- Volti: `volti-cdk-toolkit` + `volti-dev-admin-web`, `volti-dev-auth` (prefixos `-v2`) e `volti-dev-single` na conta nova; `FRAUD_HASH_SECRET`, `PICKUP_CODE_SECRET`, `STATION_QR_SECRET` e a deploy key copiados da instância antiga (via Run Command, sem exposição). Segredos `volti/dev/idp-*` copiados.
+- Voltz: snapshot → CMK compartilhável → cópia local com `alias/voltz-rds` → `voltz-postgres` restaurado (privado, backup 7 dias); `/voltz/prod/*` copiados com `DATABASE_URL`, `ORIGIN_VERIFY_SECRET`, `URL_PUBLICA_API` e `CORS_ORIGINS` ajustados; stack `voltz-platform` criada com o template do branch `infra/conta-propria` (domínio próprio + plataforma Node 24 atual); versão da API em produção, painel e mídia copiados; `https://voltz.prestarecondominios.com.br` respondendo (dados = cópia de ~01:55 UTC).
+
+**Falta — virada (só depois da aprovação do SES):** Fase 2 (Volti) e passo 24 (Voltz) deste plano.
+
+**Falta — dono:** Google/Apple com as URLs `-v2`; variáveis do GitHub (`Aluguel-moto`: `CLIENTE_COGNITO_*`; `voltz-app`: `AWS_DEPLOY_ROLE_ARN`, buckets, distribuição); merge do PR `infra/conta-propria`; builds novos; webhook do Asaas em `https://voltz.prestarecondominios.com.br/api/pagamentos/webhook`.
