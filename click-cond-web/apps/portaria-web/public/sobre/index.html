@@ -237,9 +237,9 @@
   .ps-hdr { display: flex; align-items: center; gap: 28px; padding-top: 16px; padding-bottom: 16px; }
   .ps-logo { display: inline-flex; align-items: center; gap: 10px; flex: none; }
   .ps-logo-txt { font: var(--weight-extrabold) 18px/1 var(--font-display); letter-spacing: .04em; color: #fff; white-space: nowrap; }
-  .ps-aws-mark { display: inline-flex; align-items: center; flex: none; margin-left: 20px; padding-left: 20px; border-left: 1px solid rgba(255,255,255,.18); line-height: 0; }
-  .ps-aws-mark img { display: block; height: 26px; width: auto; }
-  @media (min-width: 961px) and (max-width: 1365px), (max-width: 400px) { .ps-hdr .ps-aws-mark { display: none; } }
+  .ps-aws-mark { display: inline-flex; align-items: center; flex: none; margin-left: 14px; padding-left: 14px; border-left: 1px solid rgba(255,255,255,.18); line-height: 0; }
+  .ps-aws-mark img { display: block; height: 22px; width: auto; }
+  @media (min-width: 961px) and (max-width: 1439px), (max-width: 460px) { .ps-hdr .ps-aws-mark { display: none; } }
   .ps-logo-txt span { font-weight: 400; color: rgba(255,255,255,.7); }
   .ps-nav { flex: 1; display: flex; justify-content: center; align-items: center; gap: 30px; font: var(--weight-semibold) 15px/1 var(--font-ui); flex-wrap: wrap; }
   .ps-nav a { color: rgba(255,255,255,.82); }
@@ -525,7 +525,7 @@
         <img src="/sobre/assets/prestare-icon.png" alt="Prestare Gestão" width="38" height="38" style="display: block; border-radius: 9px;">
         <span class="ps-logo-txt">PRESTARE <span>GESTÃO</span></span>
       </a>
-      <a href="#aws" class="ps-aws-mark" aria-label="A Prestare roda na AWS"><img src="/sobre/assets/powered-by-aws-white.png" alt="Powered by AWS" width="72" height="26"></a>
+      <a href="#aws" class="ps-aws-mark" aria-label="A Prestare roda na AWS"><img src="/sobre/assets/powered-by-aws-horizontal-white.png" alt="Powered by AWS" width="124" height="22"></a>
       <nav class="ps-nav">
         <a href="#app">Para o morador</a>
         <a href="/sindico/">Para o síndico</a>
@@ -1181,11 +1181,13 @@
   <footer class="ps-footer">
     <div class="ps-wrap ps-foot">
       <div style="flex: 1 1 320px; min-width: 0; max-width: 44ch;">
+        <div style="display: flex; align-items: center; flex-wrap: wrap; row-gap: 12px;">
         <span class="ps-logo">
           <img src="/sobre/assets/prestare-icon.png" alt="" width="36" height="36" style="display: block; border-radius: 9px;">
           <span class="ps-logo-txt" style="font-size: 17px;">PRESTARE <span>GESTÃO</span></span>
         </span>
-        <a href="#aws" class="ps-aws-mark" aria-label="A Prestare roda na AWS" style="vertical-align: middle;"><img src="/sobre/assets/powered-by-aws-white.png" alt="Powered by AWS" width="72" height="26"></a>
+        <a href="#aws" class="ps-aws-mark" aria-label="A Prestare roda na AWS"><img src="/sobre/assets/powered-by-aws-horizontal-white.png" alt="Powered by AWS" width="124" height="22"></a>
+        </div>
         <p style="margin: 18px 0 0; font: 400 15px/1.6 var(--font-ui); color: var(--ps-text-3); text-wrap: pretty;">Controle de acesso, encomendas, áreas sociais e a conta do condomínio — no celular do morador e no console da portaria.</p>
         <div style="margin-top: 20px; display: grid; gap: 10px; justify-items: start;">
           <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; font: 400 15px/1.4 var(--font-ui);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="phone" size="16" color="#7FA4F5" hint-size="16px,16px"></x-import>Falar no WhatsApp</a>
