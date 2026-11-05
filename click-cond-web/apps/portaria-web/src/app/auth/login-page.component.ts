@@ -81,6 +81,10 @@ import { ThemeService } from '../shared/theme.service';
                 Web Console
               </span>
             </div>
+            <!-- Powered by AWS: separado da marca por divisória (regra de marca da AWS: não formar logo combinado) -->
+            <div class="ml-1.5 pl-3.5 border-l shrink-0" [ngClass]="isLight() ? 'border-slate-300' : 'border-white/20'">
+              <img [src]="isLight() ? '/powered-by-aws-black.png' : '/powered-by-aws-white.png'" alt="Powered by AWS" width="124" height="22" class="block h-[22px] w-auto" />
+            </div>
           </div>
 
           <!-- Hero Message -->
@@ -181,7 +185,8 @@ import { ThemeService } from '../shared/theme.service';
               <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5 block">
                 Web Console
               </span>
-              <p 
+              <img [src]="isLight() ? '/powered-by-aws-black.png' : '/powered-by-aws-white.png'" alt="Powered by AWS" width="113" height="20" class="block h-5 w-auto mx-auto mt-3" />
+              <p
                 class="text-xs mt-2 transition-colors duration-300"
                 [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'"
               >
