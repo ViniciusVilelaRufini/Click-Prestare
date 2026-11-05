@@ -108,7 +108,7 @@ Plano, papéis e playbooks em [plano-resposta-incidentes.md](plano-resposta-inci
 
 ## Riscos aceitos / pendentes
 
-- **Cargas não separadas em contas AWS distintas**: a conta também hospeda o projeto Volti; um comprometimento ou erro afeta os dois. Decisão do fundador pendente (a Organizations já existe, o que facilita criar contas-membro).
+- **Separação de contas (resolvido em 2026-11-05)**: o Volti (aluguel de motos) e o Voltz (marketplace) foram migrados para a conta-membro própria 117153693161 (Organization o-4u23300she); um erro ou comprometimento de um lado não atinge mais o outro. Ponto de melhoria restante: o Prestare continua na 850401152034, que também é a conta de gerenciamento da Organization (mover a carga para uma conta-membro é evolução, não risco alto). Sobras aposentadas do Volti/Voltz na 850401152034 aguardam exclusão (ver `prioridades-e-governanca.md`).
 - **Cadastro (signup) sem verificação de e-mail**: causa raiz do achado P-01 do pentest (corrigido no código, causa raiz aberta). Ver [pentest/2026-11-04-pentest-interno.md](pentest/2026-11-04-pentest-interno.md).
 - Bucket antigo `storage-click-dev` (outra conta) ainda existe, público e intocado: desativar após confirmar que nada o referencia; `database-1-antigo` parado a excluir.
 - Sem cópia entre regiões (falha regional sem cobertura automática; RTO/RPO em [plano-recuperacao-desastre.md](plano-recuperacao-desastre.md)).

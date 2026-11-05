@@ -41,7 +41,7 @@ O Multi-AZ protege contra falha de infraestrutura de uma zona, não contra erro 
 
 ## Riscos que afetam o DR
 
-Sem cópia de snapshot nem de arquivos em outra região (falha regional não tem cobertura); conta AWS compartilhada com o projeto Volti (cargas não separadas em contas distintas: um erro ou comprometimento na conta afeta tudo; decisão do fundador pendente); instância `database-1-antigo` parada e a excluir. Cópia entre regiões fica como evolução condicionada a custo e à entrada de clientes reais (`prioridades-e-governanca.md`).
+Sem cópia de snapshot nem de arquivos em outra região (falha regional não tem cobertura); Volti/Voltz já migrados para a conta própria 117153693161 em 2026-11-05 (o Prestare fica na 850401152034, que também é a conta de gerenciamento da Organization; ponto de melhoria, não risco alto); instância `database-1-antigo` parada e a excluir. Cópia entre regiões fica como evolução condicionada a custo e à entrada de clientes reais (`prioridades-e-governanca.md`).
 
 ## Comunicação durante o desastre
 

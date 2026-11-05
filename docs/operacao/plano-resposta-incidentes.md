@@ -100,7 +100,7 @@ Situação atual do risco: desde 2026-11-04 as fotos ficam em bucket privado e s
 
 - Pessoa única: sem substituto operacional, sem plantão 24x7. Mitigação: alarmes por e-mail e runbooks escritos; a decisão de contratar apoio é revisada a cada trimestre.
 - Logs da aplicação retidos por 30 dias; incidente descoberto depois disso fica sem evidência de aplicação (CloudTrail e auditoria no banco permanecem).
-- Bucket antigo `storage-click-dev` e chave `click_user` em quarentena (conta 952520388262) ainda existem; um incidente relacionado a eles depende de acesso àquela conta. Conta AWS compartilhada com o projeto Volti.
+- Bucket antigo `storage-click-dev` e chave `click_user` em quarentena (conta 952520388262) ainda existem; um incidente relacionado a eles depende de acesso àquela conta. Desde 2026-11-05 o Volti/Voltz roda na conta própria 117153693161; na 850401152034 restam só sobras aposentadas e paradas, e a conta também é a de gerenciamento da Organization.
 - Revogação individual de sessão do app não existe (JWT de 365 dias); a mitigação é a troca de senha.
 - Sem cópia entre regiões: falha regional exige recuperação manual.
 - O plano nunca foi exercitado ponta a ponta; o primeiro tabletop está previsto para o próximo trimestre.

@@ -18,7 +18,7 @@ Dono: o fundador. Revisão mensal junto com os KPIs. Valores marcados "confirmar
 | Logs do EB | Retenção de 30 dias no CloudWatch Logs | Histórico mais antigo é descartado | Configuração do grupo de logs |
 | E-mail (SMTP) | Limite diário do provedor (confirmar) | Código MFA e avisos não chegam | Erros de envio no filtro ERROR |
 | Bucket de arquivos `prestare-arquivos-850401152034` | URLs assinadas valem até 1 h; versões antigas expiram em 90 dias; upload máximo de 25 MB | Link expirado exige nova URL; histórico de versões limitado | Revisão mensal do custo/tamanho do bucket |
-| Conta AWS compartilhada | Cotas de serviço divididas com recursos do projeto Volti | Consumo de um afeta o outro | Service Quotas na revisão mensal |
+| Conta AWS (Prestare + restos do Volti/Voltz) | Desde 2026-11-05 o Volti/Voltz roda na conta própria 117153693161; na 850401152034 restam só sobras aposentadas e paradas (pendentes de exclusão) | Cotas praticamente exclusivas do Prestare; as sobras não consomem cota relevante | Service Quotas na revisão mensal |
 
 ## Quando revisar
 

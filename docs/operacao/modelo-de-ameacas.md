@@ -109,7 +109,7 @@ Resolvidos em 2026-11-04 (registro): bucket de fotos público em outra conta (mi
 
 Abertos:
 
-1. **Cargas não separadas em contas AWS distintas**: a conta também hospeda o projeto Volti. Decisão do fundador pendente.
+1. **Ponto de melhoria: conta de gerenciamento da Organization hospeda a carga**: o risco de conta compartilhada com o Volti/Voltz foi resolvido em 2026-11-05 (migrados para a conta-membro própria 117153693161 na Organization o-4u23300she). O Prestare segue na 850401152034, que também é a conta de gerenciamento da Organization; mover a carga para uma conta-membro é melhoria futura, não risco alto. Restam na 850401152034 só sobras aposentadas do Volti/Voltz, paradas e com backup final, a excluir após a janela de verificação (ver `prioridades-e-governanca.md`).
 2. **Cadastro sem verificação de e-mail**: raiz do achado P-01 do pentest ([pentest/2026-11-04-pentest-interno.md](pentest/2026-11-04-pentest-interno.md)); o código foi corrigido, mas qualquer lógica que trate `Users.email` como prova de identidade segue frágil até existir verificação.
 3. **Bucket antigo `storage-click-dev`** (conta 952520388262) continua público e com chave em quarentena, intocado; desativar após confirmar que nada o referencia. Instância `database-1-antigo` parada, a excluir.
 4. **Senha SMTP**: agora no SSM; confirmar se a senha anterior já foi trocada no provedor.

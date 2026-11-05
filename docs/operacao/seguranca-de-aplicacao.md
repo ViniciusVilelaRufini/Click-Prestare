@@ -87,4 +87,4 @@ Antes de fazer merge de mudanças em autenticação, autorização, upload, expu
 - `npm audit` é informativo; vulnerabilidade `high` pode chegar ao `main`. O Dependabot e a revisão trimestral são a rede de segurança.
 - O CI do `master` convive com testes antigos; os dois caminhos publicam, então conferir a verificação de versão a cada deploy.
 - Pessoa única executa, revisa e aprova: não há revisão por segundo par de olhos. Mitigação: checklist e testes automatizados; contratar revisão externa anual.
-- Conta AWS compartilhada com o projeto Volti (cargas não separadas em contas distintas), bucket antigo `storage-click-dev` ainda público em outra conta e demais pendências: ver [modelo-de-ameacas.md](modelo-de-ameacas.md), seção 5.
+- Separação de contas resolvida em 2026-11-05 (Volti/Voltz na conta 117153693161; o Prestare segue na conta de gerenciamento da Organization, ponto de melhoria), bucket antigo `storage-click-dev` ainda público em outra conta e demais pendências: ver [modelo-de-ameacas.md](modelo-de-ameacas.md), seção 5.
