@@ -586,6 +586,16 @@ html.light {
   .ps-brand-wm span {
     font-weight: 300;
   }
+  /* Logo monocromática: branca no escuro, preta no claro */
+  .ps-logo-light {
+    display: none;
+  }
+  html.light .ps-logo-dark {
+    display: none;
+  }
+  html.light .ps-logo-light {
+    display: block;
+  }
 }
 
 @keyframes ps-pulse {

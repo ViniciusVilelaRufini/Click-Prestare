@@ -6,14 +6,15 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-graphite-200 border border-white/10 min-w-[140px]">
-      <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-           [class]="iconBg">
-        <span [innerHTML]="icon" [class]="iconColor"></span>
-      </div>
-      <div>
-        <p class="text-xl font-semibold text-white tabular-nums leading-none">{{ value }}</p>
-        <p class="text-[11px] text-slate-400 mt-1">{{ label }}</p>
+    <div class="ps-kpi border border-[var(--line-100)] min-w-[140px]">
+      @if (icon) {
+        <div class="ps-kpi-row1">
+          <span class="[&_svg]:w-[17px] [&_svg]:h-[17px]" [innerHTML]="icon"></span>
+        </div>
+      }
+      <div class="flex flex-col gap-1.5">
+        <span class="ps-num">{{ valorExibido }}</span>
+        <span class="ps-cap">{{ label }}</span>
       </div>
     </div>
   `,
@@ -22,6 +23,15 @@ export class StatPillComponent {
   @Input() label = '';
   @Input() value: string | number = 0;
   @Input() icon = '';
-  @Input() iconColor = 'text-accent';
-  @Input() iconBg = 'bg-accent/10 border border-accent/20';
+  /** Aceitos por compatibilidade; o ícone é sempre monocromático e sem fundo. */
+  @Input() iconColor = '';
+  @Input() iconBg = '';
+
+  /** Zero à esquerda só na apresentação (5 vira 05); o valor recebido não muda. */
+  get valorExibido(): string {
+    const v = this.value;
+    if (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < 10) return `0${v}`;
+    if (typeof v === 'string' && /^[0-9]$/.test(v)) return `0${v}`;
+    return String(v);
+  }
 }

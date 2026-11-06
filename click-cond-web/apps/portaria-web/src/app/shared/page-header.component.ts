@@ -6,19 +6,14 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
-      <div class="flex items-start gap-4">
-        @if (icon) {
-          <div class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
-            <span class="text-accent" [innerHTML]="icon"></span>
-          </div>
+    <div class="ps-phead mb-6">
+      <div class="ps-phead-t">
+        <h1 class="ps-h1">{{ title }}</h1>
+        @if (subtitle) {
+          <p class="text-sm">{{ subtitle }}</p>
         }
-        <div>
-          <h1 class="text-2xl font-semibold text-white tracking-tight">{{ title }}</h1>
-          <p class="text-sm text-slate-400 mt-0.5">{{ subtitle }}</p>
-        </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <ng-content></ng-content>
       </div>
     </div>
@@ -27,5 +22,6 @@ import { CommonModule } from '@angular/common';
 export class PageHeaderComponent {
   @Input() title = '';
   @Input() subtitle = '';
+  /** Aceito por compatibilidade; o cabeçalho do tema Prestare Dark não desenha ícone. */
   @Input() icon = '';
 }

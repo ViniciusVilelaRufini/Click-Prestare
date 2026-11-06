@@ -4,6 +4,7 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { ehPorteiro } from '../auth/papel';
 import { ThemeService } from '../shared/theme.service';
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 interface NavItem {
   label: string;
@@ -19,8 +20,50 @@ interface NavGroup {
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [CommonModule, RouterLink, RouterLinkActive],
+  imports: [CommonModule, RouterLink, RouterLinkActive, SlideIndicatorDirective],
   templateUrl: './sidebar.component.html',
+  styles: [`
+    .ps-nav-grp {
+      margin: 14px 0 6px;
+      padding: 0 12px;
+    }
+    .ps-nav-grp:first-of-type {
+      margin-top: 4px;
+    }
+    .ps-nav-item {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 34px;
+      padding: 0 12px;
+      font-size: 14px;
+      color: var(--ink-muted);
+      transition: color 0.2s;
+    }
+    .ps-nav-item:hover {
+      color: var(--ink);
+    }
+    .ps-nav-item.on {
+      color: var(--on-accent);
+    }
+    .ps-nav-svg {
+      width: 17px;
+      height: 17px;
+    }
+    .ps-slide-ind {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 34px;
+      opacity: 0;
+      background: var(--accent);
+      z-index: 0;
+      transition: top 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s;
+    }
+  `],
 })
 export class SidebarComponent {
   readonly auth = inject(AuthService);
