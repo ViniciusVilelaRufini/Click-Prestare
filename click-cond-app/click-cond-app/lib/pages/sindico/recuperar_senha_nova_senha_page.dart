@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/pages/shared/aceite_privacidade.dart';
@@ -9,7 +10,6 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
-import 'package:click/widgets/app/grid_background.dart';
 
 class RecuperarSenhaNovaSenhaPage extends StatefulWidget {
   final String resetToken;
@@ -139,26 +139,10 @@ class _RecuperarSenhaNovaSenhaPageState extends State<RecuperarSenhaNovaSenhaPag
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF04060A) : const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.bg(context),
       body: Stack(
         children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: isDark
-                      ? [const Color(0xFF0A1628), const Color(0xFF04060A)]
-                      : [const Color(0xFFFFFFFF), const Color(0xFFEEF4FD)],
-                ),
-              ),
-            ),
-          ),
-          const Positioned.fill(child: GridBackground()),
           Positioned.fill(
             child: SafeArea(
               child: LayoutBuilder(
@@ -209,78 +193,53 @@ class _RecuperarSenhaNovaSenhaPageState extends State<RecuperarSenhaNovaSenhaPag
   }
 
   Widget _buildBackButton(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.full),
-      child: Material(
-        color: AppColors.surfaceElevated(context),
-        child: InkWell(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border(context), width: 1.2),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              PhosphorIcons.caretLeft,
-              color: AppColors.textPrimary(context),
-              size: 20,
-            ),
-          ),
+    // `.iconbtn`: quadrado de 40px com contorno line-100.
+    return InkWell(
+      onTap: () => Navigator.pop(context),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border(context)),
+        ),
+        child: Icon(
+          PhosphorIcons.caretLeft,
+          color: AppColors.textPrimary(context),
+          size: 18,
         ),
       ),
     );
   }
 
   Widget _buildBrand(BuildContext context) {
-    final marca = AppTypography.title(context).copyWith(
-      fontSize: 20,
-      fontWeight: FontWeight.w800,
-      letterSpacing: 0.8,
-    );
-
+    final tinta = AppColors.textPrimary(context);
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.08),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.16),
-                blurRadius: 22,
-                spreadRadius: -4,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            child: Image.asset(
-              'assets/images/logo_prestare_gestao.png',
-              width: 68,
-              height: 68,
-              fit: BoxFit.cover,
-            ),
-          ),
+        Image.asset(
+          'assets/images/logo_prestare_mono.png',
+          height: 48,
+          color: tinta,
+          colorBlendMode: BlendMode.srcIn,
+          fit: BoxFit.contain,
         ),
-        const SizedBox(width: AppSpacing.md),
+        const SizedBox(width: AppSpacing.lg),
         Flexible(
           child: Text.rich(
             TextSpan(
               children: [
-                TextSpan(text: 'PRESTARE ', style: marca),
+                const TextSpan(text: 'PRESTARE\n'),
                 TextSpan(
                   text: 'GESTÃO',
-                  style: marca.copyWith(color: AppColors.primary),
+                  style: TextStyle(fontWeight: FontWeight.w300, color: tinta),
                 ),
               ],
+            ),
+            style: GoogleFonts.barlowCondensed(
+              fontSize: 28,
+              height: 1,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 28 * 0.06,
+              color: tinta,
             ),
           ),
         ),
@@ -294,15 +253,7 @@ class _RecuperarSenhaNovaSenhaPageState extends State<RecuperarSenhaNovaSenhaPag
       decoration: BoxDecoration(
         color: AppColors.surfaceElevated(context),
         borderRadius: BorderRadius.circular(AppRadius.xxl),
-        border: Border.all(color: AppColors.border(context), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 24,
-            spreadRadius: -6,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        border: Border.all(color: AppColors.border(context), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -310,24 +261,25 @@ class _RecuperarSenhaNovaSenhaPageState extends State<RecuperarSenhaNovaSenhaPag
           Align(
             alignment: Alignment.centerLeft,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
+              height: 22,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppRadius.full),
+                border: Border.all(color: AppColors.borderStrong(context)),
+                borderRadius: BorderRadius.circular(AppRadius.tag),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(_typeIcon(), size: 15, color: AppColors.primary),
+                  Icon(_typeIcon(),
+                      size: 13, color: AppColors.textSecondary(context)),
                   const SizedBox(width: 6),
                   Text(
-                    _typeLabel(),
-                    style: AppTypography.tiny(context).copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
+                    _typeLabel().toUpperCase(),
+                    style: GoogleFonts.barlowCondensed(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 10 * 0.18,
+                      color: AppColors.textSecondary(context),
                     ),
                   ),
                 ],
@@ -336,7 +288,7 @@ class _RecuperarSenhaNovaSenhaPageState extends State<RecuperarSenhaNovaSenhaPag
           ),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'Criar Nova Senha',
+            'Criar Nova Senha'.toUpperCase(),
             style: AppTypography.title(context),
           ),
           const SizedBox(height: AppSpacing.xs),

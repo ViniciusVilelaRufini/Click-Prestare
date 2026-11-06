@@ -10,7 +10,6 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
-import 'package:click/widgets/app/grid_background.dart';
 
 class MfaVerificationPage extends StatefulWidget {
   final String mfaToken;
@@ -253,26 +252,10 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       body: Stack(
         children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: isDark
-                      ? [const Color(0xFF0A1628), const Color(0xFF04060A)]
-                      : [const Color(0xFFFFFFFF), const Color(0xFFEEF4FD)],
-                ),
-              ),
-            ),
-          ),
-          const Positioned.fill(child: GridBackground()),
           Positioned.fill(
             child: SafeArea(
               child: GestureDetector(
@@ -348,25 +331,19 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
   }
 
   Widget _buildBackButton(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.full),
-      child: Material(
-        color: AppColors.surfaceElevated(context),
-        child: InkWell(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border(context), width: 1.2),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              PhosphorIcons.caretLeft,
-              color: AppColors.textPrimary(context),
-              size: 20,
-            ),
-          ),
+    // `.iconbtn`: quadrado de 40px com contorno line-100.
+    return InkWell(
+      onTap: () => Navigator.pop(context),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border(context)),
+        ),
+        child: Icon(
+          PhosphorIcons.caretLeft,
+          color: AppColors.textPrimary(context),
+          size: 18,
         ),
       ),
     );
@@ -376,37 +353,21 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
     return Column(
       children: [
         Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.25),
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.18),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
+          width: 56,
+          height: 56,
+          color: AppColors.accentGhost(context),
           child: Center(
             child: Icon(
               PhosphorIcons.shieldCheckBold,
-              color: AppColors.primary,
-              size: 36,
+              color: AppColors.textPrimary(context),
+              size: 32,
             ),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'Autenticação em 2 Etapas',
-          style: AppTypography.title(context).copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+          'Autenticação em 2 Etapas'.toUpperCase(),
+          style: AppTypography.title(context),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -444,15 +405,7 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
       decoration: BoxDecoration(
         color: AppColors.surfaceElevated(context),
         borderRadius: BorderRadius.circular(AppRadius.xxl),
-        border: Border.all(color: AppColors.border(context), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 24,
-            spreadRadius: -6,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        border: Border.all(color: AppColors.border(context), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -463,12 +416,10 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
             children: [
               Expanded(
                 child: Text(
-                  'Digite o código recebido',
+                  'Digite o código recebido'.toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.headline(context).copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: AppTypography.section(context),
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
@@ -484,7 +435,7 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
                     visualDensity: VisualDensity.compact,
                     backgroundColor: AppColors.surface(context),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.full),
+                      borderRadius: BorderRadius.circular(AppRadius.tag),
                       side: BorderSide(color: AppColors.border(context)),
                     ),
                   ),
@@ -504,7 +455,7 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
               decoration: BoxDecoration(
                 color: (isExpired ? AppColors.error : AppColors.primary)
                     .withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(AppRadius.full),
+                borderRadius: BorderRadius.circular(AppRadius.tag),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -683,15 +634,6 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
                               : AppColors.border(context)),
                       width: isCurrentSlot ? 2.2 : (hasChar ? 1.5 : 1.2),
                     ),
-                    boxShadow: isCurrentSlot
-                        ? [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ]
-                        : null,
                   ),
                   child: Center(
                     child: Text(
