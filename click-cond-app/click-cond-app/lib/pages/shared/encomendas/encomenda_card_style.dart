@@ -126,7 +126,7 @@ String? encomendaDoneDate(EncomendaModel e, {DateTime? now}) {
   return _dataHora(data, ref);
 }
 
-/// Cor da linha de status; mais escura no tema claro para ter contraste.
+/// Cor da linha de status: o token de sinal já traz o contraste de cada tema.
 Color encomendaTierColor(BuildContext context, EncomendaTier tier) {
   final base = switch (tier) {
     EncomendaTier.normal => AppColors.warning,
@@ -135,9 +135,7 @@ Color encomendaTierColor(BuildContext context, EncomendaTier tier) {
     EncomendaTier.entregue => AppColors.success,
     EncomendaTier.cancelada => AppColors.error,
   };
-  return Theme.of(context).brightness == Brightness.dark
-      ? Color.lerp(base, Colors.white, 0.12)!
-      : Color.lerp(base, Colors.black, 0.28)!;
+  return base;
 }
 
 /// Linha discreta do card que aguarda: 'Correios · chegou 28/09 às 18:38'

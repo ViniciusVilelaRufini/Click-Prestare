@@ -278,7 +278,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Icon(PhosphorIcons.buildings, color: AppColors.primary, size: 20),
               ),
@@ -355,13 +355,13 @@ class _NewEncomendaState extends State<NewEncomenda> {
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
+                color: AppColors.accentGhost(context),
+                borderRadius: BorderRadius.zero,
+                border: Border.all(color: AppColors.success.withValues(alpha: 0.25)),
               ),
               child: Row(
                 children: [
-                  const Icon(PhosphorIcons.users, color: Colors.green, size: 20),
+                  Icon(PhosphorIcons.users, color: AppColors.success, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -370,7 +370,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                         Text(
                           'Moradores cadastrados:',
                           style: AppTypography.tiny(context).copyWith(
-                            color: Colors.green,
+                            color: AppColors.success,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -413,7 +413,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Icon(PhosphorIcons.camera, color: AppColors.primary, size: 20),
               ),
@@ -438,7 +438,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
           const SizedBox(height: AppSpacing.md),
           if (hasBytes) ...[
             ClipRRect(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.zero,
               child: Image.memory(
                 fotoBytes!,
                 height: 180,
@@ -457,14 +457,14 @@ class _NewEncomendaState extends State<NewEncomenda> {
                 ),
                 TextButton.icon(
                   onPressed: () => setState(() => fotoBytes = null),
-                  icon: const Icon(PhosphorIcons.trash, size: 16, color: Colors.redAccent),
-                  label: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
+                  icon: Icon(PhosphorIcons.trash, size: 16, color: AppColors.error),
+                  label: Text('Remover', style: TextStyle(color: AppColors.error)),
                 ),
               ],
             ),
           ] else if (hasUrl) ...[
             ClipRRect(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.zero,
               child: Image.network(
                 existingPhotoUrl!,
                 height: 180,
@@ -486,20 +486,20 @@ class _NewEncomendaState extends State<NewEncomenda> {
                 ),
                 TextButton.icon(
                   onPressed: () => setState(() => existingPhotoUrl = null),
-                  icon: const Icon(PhosphorIcons.trash, size: 16, color: Colors.redAccent),
-                  label: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
+                  icon: Icon(PhosphorIcons.trash, size: 16, color: AppColors.error),
+                  label: Text('Remover', style: TextStyle(color: AppColors.error)),
                 ),
               ],
             ),
           ] else ...[
             InkWell(
               onTap: _tirarFoto,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.zero,
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.04),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.zero,
                   border: Border.all(
                     color: AppColors.primary.withValues(alpha: 0.3),
                     style: BorderStyle.solid,
@@ -567,7 +567,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Icon(PhosphorIcons.package, color: AppColors.primary, size: 20),
               ),
@@ -621,14 +621,14 @@ class _NewEncomendaState extends State<NewEncomenda> {
 
   Widget _buildCardTransportadora() {
     final carriers = [
-      {'name': 'Correios', 'icon': PhosphorIcons.envelopeSimple, 'color': const Color(0xFF005DA5)},
-      {'name': 'Mercado Livre', 'icon': PhosphorIcons.handshake, 'color': const Color(0xFFF2C200)},
-      {'name': 'Amazon', 'icon': PhosphorIcons.shoppingCart, 'color': const Color(0xFFFF9900)},
-      {'name': 'Shopee', 'icon': PhosphorIcons.shoppingBag, 'color': const Color(0xFFEE4D2D)},
-      {'name': 'Loggi', 'icon': PhosphorIcons.truck, 'color': const Color(0xFF00A3E0)},
-      {'name': 'Sedex', 'icon': PhosphorIcons.envelopeSimple, 'color': const Color(0xFF005DA5)},
-      {'name': 'iFood', 'icon': PhosphorIcons.hamburger, 'color': const Color(0xFFEA1D2C)},
-      {'name': 'Jadlog', 'icon': PhosphorIcons.truck, 'color': const Color(0xFFE30613)},
+      {'name': 'Correios', 'icon': PhosphorIcons.envelopeSimple, 'color': AppColors.textSecondary(context)},
+      {'name': 'Mercado Livre', 'icon': PhosphorIcons.handshake, 'color': AppColors.warning},
+      {'name': 'Amazon', 'icon': PhosphorIcons.shoppingCart, 'color': AppColors.textSecondary(context)},
+      {'name': 'Shopee', 'icon': PhosphorIcons.shoppingBag, 'color': AppColors.textSecondary(context)},
+      {'name': 'Loggi', 'icon': PhosphorIcons.truck, 'color': AppColors.textSecondary(context)},
+      {'name': 'Sedex', 'icon': PhosphorIcons.envelopeSimple, 'color': AppColors.textSecondary(context)},
+      {'name': 'iFood', 'icon': PhosphorIcons.hamburger, 'color': AppColors.textSecondary(context)},
+      {'name': 'Jadlog', 'icon': PhosphorIcons.truck, 'color': AppColors.textSecondary(context)},
       {'name': 'Outro', 'icon': PhosphorIcons.package, 'color': AppColors.primary},
     ];
 
@@ -648,7 +648,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Icon(PhosphorIcons.truck, color: AppColors.primary, size: 20),
               ),
@@ -682,13 +682,13 @@ class _NewEncomendaState extends State<NewEncomenda> {
 
               return InkWell(
                 onTap: () => setState(() => selectedCarrier = name),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.zero,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: isSelected ? color.withValues(alpha: 0.15) : AppColors.surfaceElevated(context),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.zero,
                     border: Border.all(
                       color: isSelected ? color : AppColors.border(context),
                       width: isSelected ? 1.8 : 1.0,
@@ -704,7 +704,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                          color: isSelected ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) : AppColors.textSecondary(context),
+                          color: isSelected ? AppColors.textPrimary(context) : AppColors.textSecondary(context),
                         ),
                       ),
                     ],
@@ -735,7 +735,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Icon(PhosphorIcons.barcode, color: AppColors.primary, size: 20),
               ),
@@ -772,7 +772,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: IconButton(
                   icon: Icon(PhosphorIcons.barcode, color: AppColors.primary),
@@ -842,7 +842,7 @@ class __BarcodeScannerPageState extends State<_BarcodeScannerPage> {
               height: 260,
               decoration: BoxDecoration(
                 border: Border.all(color: AppColors.primary, width: 3),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.zero,
               ),
             ),
           ),

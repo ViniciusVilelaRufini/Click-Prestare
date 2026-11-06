@@ -175,25 +175,12 @@ class ListEncomendasState extends State<ListEncomendas> {
                 // Barra de Busca
                 Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? AppColors.darkSurface
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+                    color: AppColors.surface(context),
+                    borderRadius: BorderRadius.zero,
                     border: Border.all(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? AppColors.darkBorder
-                          : const Color(0xFFE2E8F0),
+                      color: AppColors.border(context),
                       width: 1.1,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.black.withValues(alpha: 0.15)
-                            : const Color(0xFF64748B).withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
                   ),
                   child: TextField(
                     controller: _searchController,
@@ -343,7 +330,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.onPrimary,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                   ),
                 ),
               ],
@@ -359,7 +346,7 @@ class ListEncomendasState extends State<ListEncomendas> {
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: AppColors.surface(ctx),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
           child: Column(
@@ -368,7 +355,7 @@ class ListEncomendasState extends State<ListEncomendas> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
+                  color: AppColors.accentGhost(context),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(PhosphorIcons.trash, color: AppColors.error, size: 32),
@@ -392,7 +379,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         side: BorderSide(color: AppColors.border(ctx)),
                       ),
                       onPressed: () => Navigator.pop(ctx, false),
@@ -406,7 +393,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                         backgroundColor: AppColors.error,
                         foregroundColor: AppColors.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         elevation: 0,
                       ),
                       onPressed: () => Navigator.pop(ctx, true),
@@ -449,7 +436,7 @@ class ListEncomendasState extends State<ListEncomendas> {
           builder: (context, setState) {
             return AlertDialog(
               backgroundColor: AppColors.surface(context),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
               title: Text(
                 'Aviso de Encomenda',
                 style: AppTypography.body(context).copyWith(fontWeight: FontWeight.bold),
@@ -470,7 +457,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                         decoration: InputDecoration(
                           labelText: 'Descrição (Ex: Livro, Roupa)',
                           labelStyle: AppTypography.caption(context),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.zero),
                         ),
                         validator: (value) => value == null || value.isEmpty ? 'Campo obrigatório' : null,
                       ),
@@ -481,7 +468,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                         decoration: InputDecoration(
                           labelText: 'Transportadora',
                           labelStyle: AppTypography.caption(context),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.zero),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         ),
                         dropdownColor: AppColors.surface(context),
@@ -502,7 +489,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                             labelText: 'Código de validação (opcional)',
                             hintText: 'Ex.: código que o iFood pede na entrega',
                             labelStyle: AppTypography.caption(context),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.zero),
                           ),
                         )
                       else
@@ -511,7 +498,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                           decoration: InputDecoration(
                             labelText: 'Código de Rastreio (opcional)',
                             labelStyle: AppTypography.caption(context),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.zero),
                           ),
                         ),
                     ],
@@ -525,7 +512,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
                       child: Text('Cancelar', style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context))),
@@ -535,7 +522,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: AppColors.onPrimary,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         elevation: 0,
                       ),
@@ -608,13 +595,13 @@ class _EncomendaCard extends StatelessWidget {
     final isRetirado = statusLower == 'retirado' || statusLower == 'retirada' || statusLower == 'entregue';
     Color statusColor;
     if (isRetirado) {
-      statusColor = Colors.green;
+      statusColor = AppColors.success;
     } else if (statusLower == 'cancelado' || statusLower == 'recusado') {
-      statusColor = Colors.red;
+      statusColor = AppColors.error;
     } else if (statusLower == 'esperando') {
-      statusColor = Colors.blue;
+      statusColor = AppColors.primary;
     } else {
-      statusColor = Colors.orange;
+      statusColor = AppColors.warning;
     }
 
     String dataFormatada = '';
@@ -693,16 +680,14 @@ class _EncomendaCard extends StatelessWidget {
                   content: Text(ok
                       ? 'Entrega / Retirada confirmada com sucesso!'
                       : 'Não foi possível confirmar a retirada. Tente novamente.'),
-                  backgroundColor: ok ? Colors.green : AppColors.error,
+                  backgroundColor: ok ? AppColors.success : AppColors.error,
                 ),
               );
             }
 
             return Container(
               decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? AppColors.darkSurface
-                    : Colors.white,
+                color: AppColors.surface(context),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
               ),
               padding: EdgeInsets.fromLTRB(
@@ -722,14 +707,14 @@ class _EncomendaCard extends StatelessWidget {
                         height: 4,
                         decoration: BoxDecoration(
                           color: AppColors.textTertiary(context).withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(2),
+                          borderRadius: BorderRadius.circular(AppRadius.tag),
                         ),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     Row(
                       children: [
-                        const Icon(PhosphorIcons.checkCircle, color: Colors.green, size: 24),
+                        Icon(PhosphorIcons.checkCircle, color: AppColors.success, size: 24),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
@@ -755,7 +740,7 @@ class _EncomendaCard extends StatelessWidget {
                           labelText: 'Nome de quem está retirando *',
                           hintText: 'Ex.: Morador, Cônjuge, Filho...',
                           labelStyle: AppTypography.caption(context),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.zero),
                           prefixIcon: const Icon(PhosphorIcons.user, size: 20),
                         ),
                       ),
@@ -765,7 +750,7 @@ class _EncomendaCard extends StatelessWidget {
                         decoration: InputDecoration(
                           labelText: 'Documento / RG (opcional)',
                           labelStyle: AppTypography.caption(context),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.zero),
                           prefixIcon: const Icon(PhosphorIcons.identificationCard, size: 20),
                         ),
                       ),
@@ -782,13 +767,13 @@ class _EncomendaCard extends StatelessWidget {
                           side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.zero,
                           ),
                         ),
                       )
                     else ...[
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                         child: Image.memory(
                           fotoBytes!,
                           height: 160,
@@ -809,8 +794,8 @@ class _EncomendaCard extends StatelessWidget {
                           Expanded(
                             child: TextButton.icon(
                               onPressed: enviando ? null : () => setSheetState(() => fotoBytes = null),
-                              icon: const Icon(PhosphorIcons.trash, size: 16, color: Colors.redAccent),
-                              label: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
+                              icon: Icon(PhosphorIcons.trash, size: 16, color: AppColors.error),
+                              label: Text('Remover', style: TextStyle(color: AppColors.error)),
                             ),
                           ),
                         ],
@@ -819,21 +804,21 @@ class _EncomendaCard extends StatelessWidget {
                     const SizedBox(height: AppSpacing.lg),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.zero,
                         ),
                       ),
                       onPressed: enviando ? null : confirmar,
                       child: enviando
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: AppColors.onPrimary,
                               ),
                             )
                           : Text(
@@ -860,36 +845,36 @@ class _EncomendaCard extends StatelessWidget {
 
     if (recebidoDe.contains('ifood') || recebidoDe.contains('food') || recebidoDe.contains('delivery') || recebidoDe.contains('pizza') || recebidoDe.contains('lanche')) {
       iconData = PhosphorIcons.hamburger;
-      iconColor = const Color(0xFFEA1D2C);
-      bgColor = const Color(0xFFEA1D2C).withValues(alpha: 0.12);
+      iconColor = AppColors.textSecondary(context);
+      bgColor = AppColors.textSecondary(context).withValues(alpha: 0.12);
     } else if (recebidoDe.contains('mercado livre') || recebidoDe.contains('mercado') || recebidoDe.contains('ml')) {
       iconData = PhosphorIcons.handshake;
-      iconColor = const Color(0xFFE5B800);
-      bgColor = const Color(0xFFF2C200).withValues(alpha: 0.15);
+      iconColor = AppColors.warning;
+      bgColor = AppColors.warning.withValues(alpha: 0.15);
     } else if (recebidoDe.contains('amazon')) {
       iconData = PhosphorIcons.shoppingCart;
-      iconColor = const Color(0xFFFF9900);
-      bgColor = const Color(0xFFFF9900).withValues(alpha: 0.12);
+      iconColor = AppColors.textSecondary(context);
+      bgColor = AppColors.textSecondary(context).withValues(alpha: 0.12);
     } else if (recebidoDe.contains('correios') || recebidoDe.contains('sedex') || recebidoDe.contains('pac')) {
       iconData = PhosphorIcons.envelopeSimple;
-      iconColor = const Color(0xFF005DA5);
-      bgColor = const Color(0xFF005DA5).withValues(alpha: 0.12);
+      iconColor = AppColors.textSecondary(context);
+      bgColor = AppColors.textSecondary(context).withValues(alpha: 0.12);
     } else if (recebidoDe.contains('shopee')) {
       iconData = PhosphorIcons.shoppingBag;
-      iconColor = const Color(0xFFEE4D2D);
-      bgColor = const Color(0xFFEE4D2D).withValues(alpha: 0.12);
+      iconColor = AppColors.textSecondary(context);
+      bgColor = AppColors.textSecondary(context).withValues(alpha: 0.12);
     } else if (recebidoDe.contains('dhl') || recebidoDe.contains('jadlog')) {
       iconData = PhosphorIcons.truck;
-      iconColor = const Color(0xFFE30613);
-      bgColor = const Color(0xFFE30613).withValues(alpha: 0.12);
+      iconColor = AppColors.textSecondary(context);
+      bgColor = AppColors.textSecondary(context).withValues(alpha: 0.12);
     } else if (recebidoDe.contains('fedex')) {
       iconData = PhosphorIcons.truck;
-      iconColor = const Color(0xFF4D148C);
-      bgColor = const Color(0xFF4D148C).withValues(alpha: 0.12);
+      iconColor = AppColors.textSecondary(context);
+      bgColor = AppColors.textSecondary(context).withValues(alpha: 0.12);
     } else if (recebidoDe.contains('loggi')) {
       iconData = PhosphorIcons.truck;
-      iconColor = const Color(0xFF00A3E0);
-      bgColor = const Color(0xFF00A3E0).withValues(alpha: 0.12);
+      iconColor = AppColors.textSecondary(context);
+      bgColor = AppColors.textSecondary(context).withValues(alpha: 0.12);
     }
 
     return Container(
@@ -897,7 +882,7 @@ class _EncomendaCard extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.zero,
       ),
       child: Icon(iconData, color: iconColor, size: 24),
     );
@@ -909,13 +894,13 @@ class _EncomendaCard extends StatelessWidget {
     final isRetirado = statusLower == 'retirado' || statusLower == 'retirada' || statusLower == 'entregue';
     Color statusColor;
     if (isRetirado) {
-      statusColor = Colors.green;
+      statusColor = AppColors.success;
     } else if (statusLower == 'cancelado' || statusLower == 'recusado') {
-      statusColor = Colors.red;
+      statusColor = AppColors.error;
     } else if (statusLower == 'esperando') {
-      statusColor = Colors.blue;
+      statusColor = AppColors.primary;
     } else {
-      statusColor = Colors.orange;
+      statusColor = AppColors.warning;
     }
 
     String dataFormatada = '';
@@ -977,7 +962,7 @@ class _EncomendaCard extends StatelessWidget {
       leading = Container(
         width: 44,
         height: 44,
-        decoration: BoxDecoration(color: cor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: cor.withValues(alpha: 0.12), borderRadius: BorderRadius.zero),
         child: Icon(isRetirado ? PhosphorIcons.checkCircle : PhosphorIcons.xCircle, color: linhaColor, size: 22),
       );
     } else {
@@ -1050,10 +1035,7 @@ class _EncomendaCard extends StatelessWidget {
                 : (isDark ? AppColors.surface(context) : AppColors.surfaceElevated(context)),
             borderRadius: AppRadius.rlg,
             border: Border.all(color: AppColors.border(context)),
-            boxShadow: encerrada || isDark
-                ? null
-                : [BoxShadow(color: const Color(0xFF64748B).withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
-          ),
+                      ),
           child: Material(
             color: Colors.transparent,
             borderRadius: AppRadius.rlg,
@@ -1076,13 +1058,13 @@ class _EncomendaCard extends StatelessWidget {
                         children: [
                           InkWell(
                             onTap: () => onDelete?.call(encomenda),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.zero,
                             child: Container(
                               constraints: const BoxConstraints(minHeight: 44),
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               decoration: BoxDecoration(
-                                color: AppColors.error.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(10),
+                                color: AppColors.accentGhost(context),
+                                borderRadius: BorderRadius.zero,
                                 border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
                               ),
                               child: Row(
@@ -1114,7 +1096,7 @@ class _EncomendaCard extends StatelessWidget {
                             style: OutlinedButton.styleFrom(
                               minimumSize: const Size(0, 44),
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                               side: BorderSide(color: AppColors.border(context)),
                             ),
                           ),
@@ -1125,10 +1107,10 @@ class _EncomendaCard extends StatelessWidget {
                               label: const Text('Dar Baixa'),
                               style: ElevatedButton.styleFrom(
                                 minimumSize: const Size(0, 44),
-                                backgroundColor: Colors.green,
-                                foregroundColor: Colors.white,
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: AppColors.onPrimary,
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                                 elevation: 0,
                               ),
                             ),
@@ -1161,17 +1143,8 @@ class _EncomendaCard extends StatelessWidget {
             maxHeight: MediaQuery.of(context).size.height * 0.85,
           ),
           decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? AppColors.darkSurface
-                : Colors.white,
+            color: AppColors.surface(context),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 15,
-                offset: const Offset(0, -5),
-              ),
-            ],
           ),
           padding: EdgeInsets.fromLTRB(
             AppSpacing.xl,
@@ -1190,7 +1163,7 @@ class _EncomendaCard extends StatelessWidget {
                     height: 4,
                     decoration: BoxDecoration(
                       color: AppColors.textTertiary(context).withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(AppRadius.tag),
                     ),
                   ),
                 ),
@@ -1203,7 +1176,7 @@ class _EncomendaCard extends StatelessWidget {
                 const SizedBox(height: AppSpacing.lg),
                 if (hasFoto) ...[
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.zero,
                     child: Container(
                       height: 220,
                       width: double.infinity,
@@ -1241,8 +1214,8 @@ class _EncomendaCard extends StatelessWidget {
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceElevated(context),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+                    borderRadius: BorderRadius.zero,
+                    border: Border.all(color: AppColors.border(context)),
                   ),
                   child: Column(
                     children: [
@@ -1323,10 +1296,10 @@ class _EncomendaCard extends StatelessWidget {
                 if (!_jaRetirada) ...[
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.onPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                     ),
                     onPressed: () => _abrirRetirada(context),
                     icon: const Icon(PhosphorIcons.checkCircle, size: 20),
@@ -1350,7 +1323,7 @@ class _EncomendaCard extends StatelessWidget {
                           label: const Text('Editar'),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                           ),
                         ),
                       ),
@@ -1361,13 +1334,13 @@ class _EncomendaCard extends StatelessWidget {
                             Navigator.pop(context);
                             onDelete?.call(encomenda);
                           },
-                          icon: const Icon(PhosphorIcons.trash, size: 16, color: Colors.redAccent),
-                          label: const Text('Excluir', style: TextStyle(color: Colors.redAccent)),
+                          icon: Icon(PhosphorIcons.trash, size: 16, color: AppColors.error),
+                          label: Text('Excluir', style: TextStyle(color: AppColors.error)),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.redAccent,
-                            side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.5)),
+                            foregroundColor: AppColors.error,
+                            side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                           ),
                         ),
                       ),
@@ -1380,7 +1353,7 @@ class _EncomendaCard extends StatelessWidget {
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.onPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                   ),
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Voltar', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1462,7 +1435,7 @@ class _UnitBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
           color: AppColors.primary.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
