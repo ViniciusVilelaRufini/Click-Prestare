@@ -17,6 +17,8 @@ Referências locais (fora do repo), em
 
 Havendo conflito: `tokens.json` > README > `mock.css` > PNGs.
 
+Para a tipografia de tela grande do console, os tamanhos do `mock.css` prevalecem sobre `tokens.json` (`ps-h1` 30/32, ou 24/26 abaixo de 900px; `ps-num` 44/44).
+
 ## Fora de escopo
 
 - `apps/crm-web`, `click-cond-app`, `click-cond-api`, pacotes em `packages/`.

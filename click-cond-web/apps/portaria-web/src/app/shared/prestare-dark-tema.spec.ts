@@ -221,6 +221,91 @@ describe('tema Prestare Dark: styles.css', () => {
     expect(camada).toMatch(new RegExp(`\\.${classe}(?![\\w-])`));
   });
 
+  describe('tipografia de tela grande do console (valores de mock.css)', () => {
+    const regra = (seletor: string, css = CSS) => {
+      const inicio = css.indexOf(`${seletor} {`);
+      if (inicio < 0) throw new Error(`styles.css sem a regra ${seletor}`);
+      return css.slice(inicio, css.indexOf('}', inicio));
+    };
+
+    it('ps-h1 é 30/32 com .08em em maiúsculas', () => {
+      const h1 = regra('.ps-h1');
+      expect(h1).toContain('font-size: 30px');
+      expect(h1).toContain('line-height: 32px');
+      expect(h1).toContain('letter-spacing: 0.08em');
+      expect(h1).toContain('font-weight: 600');
+      expect(h1).toContain('text-transform: uppercase');
+    });
+
+    it('ps-num é peso 300 em 44/44', () => {
+      const num = regra('.ps-num');
+      expect(num).toContain('font-size: 44px');
+      expect(num).toContain('line-height: 44px');
+      expect(num).toContain('font-weight: 300');
+    });
+
+    it('abaixo de 900px ps-h1 e o h1 do shell ficam em 24/26', () => {
+      const blocos = [...CSS.matchAll(/@media \(max-width: 899\.98px\) \{([\s\S]*?)\n\s*\}\r?\n/g)].map((m) => m[1]);
+      for (const seletor of ['.ps-h1', 'app-shell main h1']) {
+        const bloco = blocos.find((b) => b.includes(`${seletor} {`));
+        expect(bloco).toBeDefined();
+        expect(regra(seletor, bloco)).toMatch(/font-size: 24px/);
+        expect(regra(seletor, bloco)).toMatch(/line-height: 26px/);
+      }
+    });
+
+    it('h1 só recebe o estilo dentro do shell', () => {
+      const h1 = regra('app-shell main h1');
+      expect(h1).toContain('var(--font-display)');
+      expect(h1).toContain('font-size: 30px');
+      expect(h1).toContain('line-height: 32px');
+      expect(h1).toContain('letter-spacing: 0.08em');
+      expect(h1).toContain('text-transform: uppercase');
+      expect(CSS).not.toMatch(/(^|\n|,\s*)h1\s*(,|\{)/);
+    });
+  });
+
+  describe('caixa alta central em botões de texto', () => {
+    const inicio = () => CSS.indexOf('/* Botões de texto');
+    const secao = () => CSS.slice(inicio(), CSS.indexOf('{', CSS.indexOf(':is(button, a)', inicio())));
+    const regraDosBotoes = () => {
+      const abre = CSS.indexOf('{', CSS.indexOf(':is(button, a)', inicio()));
+      return CSS.slice(abre, CSS.indexOf('}', abre));
+    };
+
+    it('usa Barlow Condensed 600, maiúsculas, .16em e 12px', () => {
+      expect(regraDosBotoes()).toContain('font-family: var(--font-display)');
+      expect(regraDosBotoes()).toContain('font-weight: 600');
+      expect(regraDosBotoes()).toContain('text-transform: uppercase');
+      expect(regraDosBotoes()).toContain('letter-spacing: 0.16em');
+      expect(regraDosBotoes()).toMatch(/font-size: var\(--ps-btn-texto, 12px\)/);
+    });
+
+    it.each(['bg-accent', 'bg-emerald-500', 'bg-rose-600', 'bg-amber-500', 'bg-red-500', 'border'])(
+      'cobre [class~="%s"]',
+      (classe) => expect(secao()).toContain(`[class~="${classe}"]`),
+    );
+
+    it.each(['text-left', 'justify-between', 'flex-col', 'p-2', 'w-8', 'border-transparent'])(
+      'exclui [class~="%s"]',
+      (classe) => expect(secao()).toContain(`[class~="${classe}"]`),
+    );
+
+    it('não alcança a sidebar, as classes ps-* nem cards com bloco de texto', () => {
+      expect(secao()).toContain('app-sidebar *');
+      expect(secao()).toContain('[class*="ps-"]');
+      expect(secao()).toContain(':has(> [class~="text-left"])');
+    });
+
+    it('não cita classes com ponto, que gerariam variantes no Tailwind', () => {
+      expect(secao()).not.toMatch(/\.(bg|border|text|flex|justify)-/);
+    });
+
+    it.each(['9', '10', '11'])('botão compacto de %spx mantém o tamanho', (px) => {
+      expect(CSS.replace(/\s+/g, ' ')).toContain(`:is(button, a)[class~="text-[${px}px]"] { --ps-btn-texto: ${px}px;`);
+    });
+  });
+
   it('não porta seletores globais de elemento do protótipo', () => {
     expect(CSS).not.toMatch(/(^|\n)table\s*\{/);
     expect(CSS).not.toMatch(/(^|\n)td\s*\{/);

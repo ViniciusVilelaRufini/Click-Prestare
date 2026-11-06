@@ -109,11 +109,17 @@ html.light {
   .ps-h1 {
     font-family: var(--font-display);
     font-weight: 600;
-    font-size: 22px;
-    line-height: 26px;
-    letter-spacing: 0.1em;
+    font-size: 30px;
+    line-height: 32px;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     margin: 0;
+  }
+  @media (max-width: 899.98px) {
+    .ps-h1 {
+      font-size: 24px;
+      line-height: 26px;
+    }
   }
   .ps-h2 {
     font-family: var(--font-display);
@@ -127,9 +133,8 @@ html.light {
   .ps-num {
     font-family: var(--font-display);
     font-weight: 300;
-    font-size: 34px;
-    line-height: 36px;
-    letter-spacing: 0.02em;
+    font-size: 44px;
+    line-height: 44px;
     font-variant-numeric: tabular-nums;
   }
   .ps-cap {
@@ -729,6 +734,22 @@ html, body {
   border-radius: 2px;
 }
 
+/* Título dos módulos com cabeçalho inline. Fora do shell (login, telas públicas) há hero próprio. */
+app-shell main h1 {
+  font-family: var(--font-display) !important;
+  font-weight: 600 !important;
+  font-size: 30px !important;
+  line-height: 32px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+@media (max-width: 899.98px) {
+  app-shell main h1 {
+    font-size: 24px !important;
+    line-height: 26px !important;
+  }
+}
+
 /* ==========================================================================
    Controles
    ========================================================================== */
@@ -761,6 +782,41 @@ textarea:focus {
   outline: none !important;
   border-color: var(--ink) !important;
   box-shadow: none !important;
+}
+
+/* Botões de texto: sólidos e secundários com borda. Ficam de fora linhas e cards clicáveis
+   (text-left, justify-between, flex-col, bloco interno text-left), botões só de ícone (p-*, w-* quadrados), a sidebar
+   e quem já usa ps-*. Atributo em vez de classe, para o Tailwind não gerar variantes. */
+:is(button, a):is(
+  [class~="bg-accent"], [class~="bg-accent-600"], [class~="bg-blue-600"], [class~="bg-emerald-400"],
+  [class~="bg-emerald-500"], [class~="bg-emerald-600"], [class~="bg-green-400"], [class~="bg-green-500"],
+  [class~="bg-green-600"], [class~="bg-teal-400"], [class~="bg-teal-500"], [class~="bg-teal-600"],
+  [class~="bg-lime-400"], [class~="bg-lime-500"], [class~="bg-lime-600"], [class~="bg-amber-400"],
+  [class~="bg-amber-500"], [class~="bg-amber-600"], [class~="bg-yellow-400"], [class~="bg-yellow-500"],
+  [class~="bg-yellow-600"], [class~="bg-orange-400"], [class~="bg-orange-500"], [class~="bg-orange-600"],
+  [class~="bg-rose-400"], [class~="bg-rose-500"], [class~="bg-rose-600"], [class~="bg-red-400"],
+  [class~="bg-red-500"], [class~="bg-red-600"], [class~="bg-pink-400"], [class~="bg-pink-500"],
+  [class~="bg-pink-600"], [class~="border"]
+):not(
+  [class~="text-left"], [class~="justify-between"], [class~="flex-col"], [class~="border-transparent"],
+  [class~="p-1"], [class~="p-1.5"], [class~="p-2"], [class~="p-2.5"],
+  [class~="w-8"], [class~="w-9"], [class~="w-10"], [class~="w-14"],
+  [class*="ps-"], app-sidebar *, :has(> [class~="text-left"])
+) {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--ps-btn-texto, 12px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+:is(button, a)[class~="text-[9px]"] {
+  --ps-btn-texto: 9px;
+}
+:is(button, a)[class~="text-[10px]"] {
+  --ps-btn-texto: 10px;
+}
+:is(button, a)[class~="text-[11px]"] {
+  --ps-btn-texto: 11px;
 }
 
 button {
