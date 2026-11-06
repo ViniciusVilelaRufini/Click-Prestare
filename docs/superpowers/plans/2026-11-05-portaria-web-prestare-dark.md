@@ -73,7 +73,9 @@ Referência: `REF/web-login-dark.png` e `-light.png`, seção `.login` de `REF/m
 
 Login em duas colunas iguais: esquerda com grade `--grid` e máscara em degradê, marca, tag, título grande em Barlow Condensed com a segunda parte em peso 300 e `ink-muted`, recursos com ícone de check, rodapé; direita com formulário de até 420px, botão de tema no canto, campos `ps-field`, primário `lg`, separador e botão secundário. Abaixo de 900px empilha. Mantenha **todos** os estados do login atual (MFA, erros, carregamento, QR, Powered by AWS, redefinição) e seus textos; remova glows e grade antiga. Use os textos atuais do componente, nunca os do protótipo. O rodapé só traz o que já existe. As demais telas usam a mesma linguagem: painel `ps-panel` centrado, sem glow.
 
-**Verificação:** `login-mfa.spec`, `redefinir-senha-page.component.spec`, `convite-page.component.spec` e demais; screenshots nos dois temas em 1440 e 390, inclusive o estado de erro e de MFA.
+**Selo AWS (pedido explícito do usuário):** o login mantém o "powered by aws" ao lado da marca, no topo da coluna esquerda, separado por um divisor vertical de 1px `line-100`, como hoje. Use `powered-by-aws-white.png` no escuro e `powered-by-aws-black.png` no claro. O protótipo não traz o selo, mas ele é obrigatório, inclusive abaixo de 900px e em todos os estados do login.
+
+**Verificação:** selo AWS visível e legível nos dois temas, em 1440 e 390; `login-mfa.spec`, `redefinir-senha-page.component.spec`, `convite-page.component.spec` e demais; screenshots nos dois temas em 1440 e 390, inclusive o estado de erro e de MFA.
 
 ## Task 5: Dashboard
 
