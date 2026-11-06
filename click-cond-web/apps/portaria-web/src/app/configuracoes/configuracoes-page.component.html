@@ -1,46 +1,43 @@
 <div class="min-h-screen p-6 lg:p-8 space-y-6">
 
   <!-- Header Principal -->
-  <div class="flex items-start gap-4">
-    <div class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
-      <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <div class="ps-phead !justify-start gap-4">
+    <div class="w-11 h-11 border border-line-200 flex items-center justify-center shrink-0">
+      <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
       </svg>
     </div>
-    <div>
-      <h1 class="text-2xl font-semibold text-white tracking-tight">Configurações do Console</h1>
-      <p class="text-sm text-slate-400 mt-0.5">Gerencie suas preferências de segurança e dados cadastrais</p>
+    <div class="ps-phead-t">
+      <h1 class="ps-h1">Configurações do Console</h1>
+      <p class="text-sm">Gerencie suas preferências de segurança e dados cadastrais</p>
     </div>
   </div>
 
   <!-- Abas (Tabs) -->
-  <div class="flex gap-2 border-b border-white/5 pb-px">
+  <div class="ps-seg max-w-full overflow-x-auto [scrollbar-width:none]" [psSlideIndicator]="'x'">
+    <span class="ps-seg-pill ps-slide-ind"></span>
     <button
       (click)="currentTab.set('conta')"
-      [class]="'px-4 pb-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all duration-200 ' + 
-        (currentTab() === 'conta' ? 'border-accent text-accent' : 'border-transparent text-slate-400 hover:text-white')"
+      [class.on]="currentTab() === 'conta'"
     >
       Segurança e Perfil
     </button>
     <button
       (click)="currentTab.set('terminais')"
-      [class]="'px-4 pb-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all duration-200 ' + 
-        (currentTab() === 'terminais' ? 'border-accent text-accent' : 'border-transparent text-slate-400 hover:text-white')"
+      [class.on]="currentTab() === 'terminais'"
     >
       Terminais de Dispositivos
     </button>
     <button
       (click)="currentTab.set('regras')"
-      [class]="'px-4 pb-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all duration-200 ' + 
-        (currentTab() === 'regras' ? 'border-accent text-accent' : 'border-transparent text-slate-400 hover:text-white')"
+      [class.on]="currentTab() === 'regras'"
     >
       Regras de Acesso
     </button>
     <button
       (click)="currentTab.set('caminho')"
-      [class]="'px-4 pb-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all duration-200 ' +
-        (currentTab() === 'caminho' ? 'border-accent text-accent' : 'border-transparent text-slate-400 hover:text-white')"
+      [class.on]="currentTab() === 'caminho'"
     >
       Caminho de Leitores
     </button>
@@ -173,15 +170,15 @@
 
     </div>
   } @else if (currentTab() === 'terminais') {
-    <div class="p-6 rounded-2xl bg-graphite-200 border border-white/5 animate-fadeIn">
+    <div class="ps-panel p-6 animate-fadeIn">
       <app-terminais-faciais-page [embedded]="true" />
     </div>
   } @else if (currentTab() === 'regras') {
-    <div class="p-6 rounded-2xl bg-graphite-200 border border-white/5 animate-fadeIn">
+    <div class="ps-panel p-6 animate-fadeIn">
       <app-regras-acesso />
     </div>
   } @else if (currentTab() === 'caminho') {
-    <app-caminho-leitores />
+    <app-caminho-leitores class="block" />
   }
 
 </div>

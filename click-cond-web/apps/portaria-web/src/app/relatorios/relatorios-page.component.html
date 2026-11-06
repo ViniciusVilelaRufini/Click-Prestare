@@ -1,37 +1,26 @@
-<div class="p-6 max-w-7xl mx-auto space-y-6">
+<div class="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
   <!-- Cabeçalho -->
-  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-    <div>
-      <h1 class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Central de Relatórios e Auditoria</h1>
-      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Busque dados consolidados, exporte relatórios premium e monitore a auditoria de segurança.</p>
+  <div class="ps-phead">
+    <div class="ps-phead-t">
+      <h1 class="ps-h1">Central de Relatórios e Auditoria</h1>
+      <p class="text-sm">Busque dados consolidados, exporte relatórios premium e monitore a auditoria de segurança.</p>
     </div>
   </div>
 
   <!-- Navegação de Abas -->
-  <div class="flex gap-2 border-b border-slate-200 dark:border-white/10 pb-px">
+  <div class="ps-seg max-w-full overflow-x-auto [scrollbar-width:none]" [psSlideIndicator]="'x'">
+    <span class="ps-seg-pill ps-slide-ind"></span>
     <button
       (click)="setSubTab('gerador')"
-      [class.text-emerald-600]="activeSubTab() === 'gerador'"
-      [class.dark:text-emerald-400]="activeSubTab() === 'gerador'"
-      [class.border-emerald-600]="activeSubTab() === 'gerador'"
-      [class.dark:border-emerald-400]="activeSubTab() === 'gerador'"
-      [class.text-slate-500]="activeSubTab() !== 'gerador'"
-      [class.dark:text-slate-400]="activeSubTab() !== 'gerador'"
-      [class.border-transparent]="activeSubTab() !== 'gerador'"
-      class="px-4 py-2 border-b-2 font-semibold text-sm transition-all focus:outline-none cursor-pointer"
+      [class.on]="activeSubTab() === 'gerador'"
+      class=""
     >
       Relatórios Gerais
     </button>
     <button
       (click)="setSubTab('auditoria')"
-      [class.text-emerald-600]="activeSubTab() === 'auditoria'"
-      [class.dark:text-emerald-400]="activeSubTab() === 'auditoria'"
-      [class.border-emerald-600]="activeSubTab() === 'auditoria'"
-      [class.dark:border-emerald-400]="activeSubTab() === 'auditoria'"
-      [class.text-slate-500]="activeSubTab() !== 'auditoria'"
-      [class.dark:text-slate-400]="activeSubTab() !== 'auditoria'"
-      [class.border-transparent]="activeSubTab() !== 'auditoria'"
-      class="px-4 py-2 border-b-2 font-semibold text-sm transition-all focus:outline-none flex items-center gap-1.5 cursor-pointer"
+      [class.on]="activeSubTab() === 'auditoria'"
+      class="flex items-center gap-1.5"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
@@ -40,14 +29,8 @@
     </button>
     <button
       (click)="setSubTab('eventos')"
-      [class.text-emerald-600]="activeSubTab() === 'eventos'"
-      [class.dark:text-emerald-400]="activeSubTab() === 'eventos'"
-      [class.border-emerald-600]="activeSubTab() === 'eventos'"
-      [class.dark:border-emerald-400]="activeSubTab() === 'eventos'"
-      [class.text-slate-500]="activeSubTab() !== 'eventos'"
-      [class.dark:text-slate-400]="activeSubTab() !== 'eventos'"
-      [class.border-transparent]="activeSubTab() !== 'eventos'"
-      class="px-4 py-2 border-b-2 font-semibold text-sm transition-all focus:outline-none flex items-center gap-1.5 cursor-pointer"
+      [class.on]="activeSubTab() === 'eventos'"
+      class="flex items-center gap-1.5"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>

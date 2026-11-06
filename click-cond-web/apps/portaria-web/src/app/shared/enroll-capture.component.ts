@@ -38,7 +38,7 @@ interface EnrollSession {
   imports: [CommonModule, FormsModule],
   template: `
     <button type="button"
-            class="text-xs px-2.5 py-1.5 rounded-md bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 transition"
+            class="ps-btn ps-btn-sec ps-btn-sm"
             (click)="openModal()">
       📡 Capturar via leitor
     </button>
@@ -46,7 +46,7 @@ interface EnrollSession {
     @if (modalOpen()) {
       <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
            (click)="closeModal()">
-        <div class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 p-6 shadow-2xl"
+        <div class="ps-panel w-full max-w-md p-6"
              (click)="$event.stopPropagation()">
 
           <h3 class="text-lg font-semibold text-white mb-1">
@@ -66,7 +66,7 @@ interface EnrollSession {
               </p>
             } @else {
               <select [(ngModel)]="selectedDeviceId" (change)="onDeviceChange($event)"
-                      class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white mb-4">
+                      class="w-full px-3 py-2.5 text-sm bg-graphite border border-white/10 text-white mb-4">
                 <option [ngValue]="null">— escolher —</option>
                 @for (d of devices(); track d.id) {
                   <option [ngValue]="d.id">{{ d.nome }}</option>
@@ -75,17 +75,17 @@ interface EnrollSession {
 
               <div class="flex gap-2">
                 <button type="button"
-                        class="flex-1 px-3 py-2.5 rounded-lg bg-white/5 text-slate-300 text-sm hover:bg-white/10"
+                        class="ps-btn ps-btn-sec flex-1"
                         (click)="closeModal()">Cancelar</button>
                 <button type="button"
                         [disabled]="!selectedDeviceId"
-                        class="flex-1 px-3 py-2.5 rounded-lg bg-accent text-graphite font-semibold text-sm hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed"
+                        class="ps-btn flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
                         (click)="startCapture()">Iniciar captura</button>
               </div>
             }
           } @else if (session()!.status === 'waiting') {
             <div class="py-8 text-center">
-              <div class="inline-flex w-16 h-16 rounded-full bg-accent/10 items-center justify-center mb-4">
+              <div class="inline-flex w-16 h-16 rounded-full border border-line-200 items-center justify-center mb-4">
                 <div class="w-12 h-12 rounded-full border-4 border-accent border-t-transparent animate-spin"></div>
               </div>
               <p class="text-white font-medium mb-1">Aguardando leitura…</p>
@@ -94,19 +94,19 @@ interface EnrollSession {
             </div>
 
             <button type="button"
-                    class="w-full px-3 py-2.5 rounded-lg bg-white/5 text-slate-300 text-sm hover:bg-white/10"
+                    class="ps-btn ps-btn-sec w-full"
                     (click)="cancelCapture()">Cancelar captura</button>
           } @else {
             <div class="py-6 text-center">
-              <div class="inline-flex w-16 h-16 rounded-full bg-emerald-500/10 items-center justify-center mb-4">
+              <div class="inline-flex w-16 h-16 rounded-full border border-line-200 items-center justify-center mb-4">
                 <span class="text-3xl">✓</span>
               </div>
               <p class="text-white font-medium mb-2">Capturado!</p>
-              <code class="block text-sm font-mono text-emerald-400 bg-black/30 rounded-lg px-3 py-2 break-all mb-4">
+              <code class="block text-sm font-mono text-emerald-400 border border-line-200 px-3 py-2 break-all mb-4">
                 {{ session()!.capturedValue }}
               </code>
               <button type="button"
-                      class="w-full px-3 py-2.5 rounded-lg bg-accent text-graphite font-semibold text-sm hover:bg-accent/90"
+                      class="ps-btn w-full"
                       (click)="confirmCapture()">Usar este valor</button>
             </div>
           }

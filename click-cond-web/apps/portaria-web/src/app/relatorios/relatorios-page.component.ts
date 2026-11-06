@@ -4,10 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { RelatoriosApi } from './relatorios.service';
 import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
 
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 @Component({
   selector: 'app-relatorios-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
   templateUrl: './relatorios-page.component.html',
 })
 export class RelatoriosPageComponent {

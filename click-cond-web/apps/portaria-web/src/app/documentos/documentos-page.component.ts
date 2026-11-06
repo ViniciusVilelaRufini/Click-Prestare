@@ -3,10 +3,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DocumentosApi, DocumentoItem } from './documentos.service';
 
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 @Component({
   selector: 'app-documentos-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
   templateUrl: './documentos-page.component.html',
 })
 export class DocumentosPageComponent implements OnInit {

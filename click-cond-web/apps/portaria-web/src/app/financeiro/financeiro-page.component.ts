@@ -4,10 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { FinanceiroApi, Lancamento } from './financeiro.service';
 import { ToastService } from '../shared/toast.service';
 
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 @Component({
   selector: 'app-financeiro-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
   templateUrl: './financeiro-page.component.html',
 })
 export class FinanceiroPageComponent implements OnInit {

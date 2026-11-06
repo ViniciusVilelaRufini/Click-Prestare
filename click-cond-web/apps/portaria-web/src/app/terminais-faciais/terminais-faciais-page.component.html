@@ -1,13 +1,13 @@
 <div [class]="embedded ? 'space-y-6' : 'min-h-screen p-6 lg:p-8 space-y-6'">
   <!-- Header -->
   @if (!embedded) {
-    <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div class="ps-phead">
       <div class="flex items-start gap-4">
         <div
-          class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0"
+          class="w-11 h-11 border border-line-200 flex items-center justify-center shrink-0"
         >
           <svg
-            class="w-5 h-5 text-accent"
+            class="w-5 h-5 text-slate-400"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -20,11 +20,11 @@
             />
           </svg>
         </div>
-        <div>
-          <h1 class="text-2xl font-semibold text-white tracking-tight">
+        <div class="ps-phead-t">
+          <h1 class="ps-h1">
             Terminais de Dispositivos
           </h1>
-          <p class="text-sm text-slate-400 mt-0.5">
+          <p class="text-sm">
             Gerencie botoeiras, leitoras de tags, catracas, leitores de QR Code
             e reconhecimento facial
           </p>
@@ -33,7 +33,7 @@
 
       <button
         (click)="openCreate()"
-        class="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-accent/5"
+        class="ps-btn"
       >
         <svg
           class="w-3.5 h-3.5"
@@ -52,7 +52,7 @@
       </button>
     </div>
   } @else {
-    <div class="flex justify-between items-center pb-4 border-b border-white/5">
+    <div class="flex flex-wrap justify-between items-center gap-3 pb-4 border-b border-white/5">
       <div class="space-y-0.5">
         <h2 class="text-lg font-bold text-white">Terminais de Dispositivos</h2>
         <p class="text-xs text-slate-400 font-medium">
@@ -61,7 +61,7 @@
       </div>
       <button
         (click)="openCreate()"
-        class="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-accent/5"
+        class="ps-btn"
       >
         <svg
           class="w-3.5 h-3.5"
@@ -413,7 +413,9 @@
                 100% { transform: translateX(250%); }
               }
               .progress-sheen {
-                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+                background: var(--on-accent);
+                opacity: 0.18;
+                width: 30%;
                 animation: progress-sheen 1.4s ease-in-out infinite;
               }
               .progress-bar-fluid {
@@ -443,11 +445,7 @@
             <div class="relative w-full bg-slate-200 dark:bg-slate-900 rounded-full h-2.5 overflow-hidden">
               <div
                 class="progress-bar-fluid relative h-full rounded-full overflow-hidden shadow-sm"
-                [class.bg-gradient-to-r]="!progressDone()"
-                [class.from-accent]="!progressDone()"
-                [class.via-accent-400]="!progressDone()"
-                [class.to-accent-600]="!progressDone()"
-                [class.shadow-accent/20]="!progressDone()"
+                [class.bg-accent]="!progressDone()"
                 [class.bg-emerald-500]="progressDone()"
                 [style.width.%]="displayPercent()"
               >
@@ -1011,11 +1009,11 @@
   <!-- Modal -->
   @if (showModal()) {
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+      class="ps-scrim on"
       (click)="closeModal()"
     >
       <div
-        class="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/5 space-y-5 shadow-xl"
+        class="ps-modal on !block !p-6 space-y-5 overflow-y-auto max-h-[90vh] !w-[min(512px,calc(100%-32px))]"
         (click)="$event.stopPropagation()"
       >
         <div class="flex items-start justify-between">
@@ -1332,7 +1330,7 @@
   <!-- Modal de Preview da Câmera -->
   @if (viewingCameraTerminal(); as device) {
     <div
-      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-modal-fade"
+      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 animate-modal-fade"
       (click)="closeCameraPreview()"
     >
       <style>
@@ -1401,7 +1399,7 @@
 
           <!-- Blinking live indicator -->
           @if ((cameraLiveUrl() || cameraPreviewUrl()) && !cameraLoading() && !cameraError()) {
-            <div class="absolute top-3 left-3 bg-black/55 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-full text-[9px] font-bold text-emerald-400 tracking-wider flex items-center gap-1.5 shadow-md">
+            <div class="absolute top-3 left-3 bg-black/55 border border-white/10 px-2.5 py-1 rounded-full text-[9px] font-bold text-emerald-400 tracking-wider flex items-center gap-1.5 shadow-md">
               <span class="relative flex h-1.5 w-1.5">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400"></span>

@@ -6,6 +6,7 @@ import { TerminaisFaciaisPageComponent } from '../terminais-faciais/terminais-fa
 import { RegrasAcessoComponent } from './regras-acesso/regras-acesso.component';
 import { CaminhoLeitoresComponent } from './caminho-leitores/caminho-leitores.component';
 
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 @Component({
   selector: 'app-configuracoes-page',
   standalone: true,
@@ -15,6 +16,7 @@ import { CaminhoLeitoresComponent } from './caminho-leitores/caminho-leitores.co
     TerminaisFaciaisPageComponent,
     RegrasAcessoComponent,
     CaminhoLeitoresComponent,
+    SlideIndicatorDirective,
   ],
   templateUrl: './configuracoes-page.component.html',
 })

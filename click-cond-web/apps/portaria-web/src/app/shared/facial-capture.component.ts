@@ -30,11 +30,11 @@ import { AuthService } from '../auth/auth.service';
   template: `
     @if (open) {
       <div
-        class="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+        class="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
         (click)="cancelar()"
       >
         <div
-          class="bg-graphite rounded-2xl border border-white/10 p-4 w-full max-w-md shadow-2xl"
+          class="ps-panel p-4 w-full max-w-md"
           (click)="$event.stopPropagation()"
         >
           <div class="text-sm font-semibold text-white mb-3">
@@ -42,7 +42,7 @@ import { AuthService } from '../auth/auth.service';
           </div>
 
           <div
-            class="relative aspect-[3/4] rounded-xl overflow-hidden bg-black flex items-center justify-center"
+            class="relative aspect-[3/4] overflow-hidden bg-black flex items-center justify-center"
           >
             @if (liveUrl()) {
               <img
@@ -57,7 +57,7 @@ import { AuthService } from '../auth/auth.service';
             } @else {
               <div class="flex flex-col items-center gap-2 text-slate-400 text-xs">
                 <div
-                  class="w-6 h-6 border-2 border-white/20 border-t-emerald-400 rounded-full animate-spin"
+                  class="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"
                 ></div>
                 Conectando à câmera…
               </div>
@@ -68,7 +68,7 @@ import { AuthService } from '../auth/auth.service';
                 class="pointer-events-none absolute inset-0 flex items-center justify-center"
               >
                 <div
-                  class="w-40 h-52 border-2 border-emerald-400/80 rounded-[50%]"
+                  class="w-40 h-52 border-2 border-white/80 rounded-[50%]"
                   style="box-shadow: 0 0 0 9999px rgba(0,0,0,0.35)"
                 ></div>
               </div>
@@ -93,7 +93,7 @@ import { AuthService } from '../auth/auth.service';
             <button
               type="button"
               (click)="cancelar()"
-              class="flex-1 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 transition"
+              class="ps-btn ps-btn-sec flex-1"
             >
               Cancelar
             </button>
@@ -101,7 +101,7 @@ import { AuthService } from '../auth/auth.service';
               type="button"
               (click)="capturar()"
               [disabled]="capturando() || (!liveUrl() && !previewUrl())"
-              class="flex-1 px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition disabled:opacity-50"
+              class="ps-btn flex-1 disabled:opacity-50"
             >
               {{ capturando() ? 'Capturando…' : 'Capturar foto' }}
             </button>
