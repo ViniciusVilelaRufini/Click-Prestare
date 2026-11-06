@@ -33,11 +33,9 @@ void main() {
       ])));
       // Primeiro teste do arquivo: deixa o GoogleFonts drenar seu timer de 0ms.
       await tester.pumpAndSettle();
-      expect(find.text('Agendado'), findsOneWidget);
-      expect(find.text('Em andamento'), findsOneWidget);
-      expect(find.text('Finalizado'), findsOneWidget);
-      expect(find.byIcon(PhosphorIcons.playCircle), findsOneWidget);
-      expect(find.byIcon(PhosphorIcons.lockSimple), findsOneWidget);
+      expect(find.text('AGENDADO'), findsOneWidget);
+      expect(find.text('EM ANDAMENTO'), findsOneWidget);
+      expect(find.text('FINALIZADO'), findsOneWidget);
     });
 
     testWidgets('semântica "Status: ..." e tema escuro', (tester) async {
@@ -62,7 +60,7 @@ void main() {
     testWidgets('fromItem mostra título, selo, prazo e total de votos', (tester) async {
       await tester.pumpWidget(app(VotacaoCard.fromItem(item, agora: agora, onTap: () {})));
       expect(find.text('Melhoria da Academia'), findsOneWidget);
-      expect(find.text('Em andamento'), findsOneWidget);
+      expect(find.text('EM ANDAMENTO'), findsOneWidget);
       expect(find.text('Encerra em 3 dias'), findsOneWidget);
       expect(find.text('8 votos'), findsOneWidget);
     });
@@ -75,7 +73,7 @@ void main() {
       expect(find.text('Pintar a fachada?'), findsOneWidget);
       expect(find.text('Assembleia de outubro'), findsOneWidget);
       // Finalizada: só o selo "Finalizado", sem chip de prazo duplicado.
-      expect(find.text('Finalizado'), findsOneWidget);
+      expect(find.text('FINALIZADO'), findsOneWidget);
       expect(find.text('Encerrada'), findsNothing);
       expect(find.byIcon(PhosphorIcons.clock), findsNothing);
       expect(find.text('0 votos'), findsOneWidget);

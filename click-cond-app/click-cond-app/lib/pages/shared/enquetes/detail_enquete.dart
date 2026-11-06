@@ -205,7 +205,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
+        color: AppColors.surface(context),
         borderRadius: AppRadius.rlg,
         border: Border.all(color: AppColors.border(context)),
       ),
@@ -333,7 +333,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fg = isDark ? Color.lerp(cor, Colors.white, 0.3)! : Color.lerp(cor, Colors.black, 0.4)!;
+    final fg = cor;
 
     return Semantics(
       container: true,
@@ -387,7 +387,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          escolhendo ? getText('escolha_opcao_desejada') : 'Resultado',
+          (escolhendo ? getText('escolha_opcao_desejada') : 'Resultado').toUpperCase(),
           style: AppTypography.title(context).copyWith(
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary(context),
@@ -545,7 +545,7 @@ class _ChipMeta extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(AppRadius.full),
+        borderRadius: BorderRadius.circular(AppRadius.tag),
         border: Border.all(color: AppColors.border(context)),
       ),
       child: Row(

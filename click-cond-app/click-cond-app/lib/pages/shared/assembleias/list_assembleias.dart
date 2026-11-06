@@ -142,7 +142,7 @@ class AssembleiaCard extends StatelessWidget {
       onTap: onTap,
       excludeSemantics: true,
       child: Material(
-        color: AppColors.surfaceElevated(context),
+        color: AppColors.surface(context),
         shape: RoundedRectangleBorder(
           borderRadius: AppRadius.rlg,
           side: BorderSide(color: AppColors.border(context)),
@@ -263,7 +263,7 @@ class _CardSkeleton extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
+        color: AppColors.surface(context),
         borderRadius: AppRadius.rlg,
         border: Border.all(color: AppColors.border(context)),
       ),

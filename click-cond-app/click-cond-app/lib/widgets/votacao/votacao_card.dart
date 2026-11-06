@@ -126,7 +126,7 @@ class VotacaoCard extends StatelessWidget {
       onTap: onTap,
       excludeSemantics: true,
       child: Material(
-        color: AppColors.surfaceElevated(context),
+        color: AppColors.surface(context),
         shape: RoundedRectangleBorder(
           borderRadius: AppRadius.rlg,
           side: BorderSide(color: AppColors.border(context)),

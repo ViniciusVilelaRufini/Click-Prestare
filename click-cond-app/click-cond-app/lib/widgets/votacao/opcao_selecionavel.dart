@@ -64,7 +64,7 @@ class OpcaoSelecionavel extends StatelessWidget {
           decoration: BoxDecoration(
             color: selecionado
                 ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.06)
-                : AppColors.surfaceElevated(context),
+                : AppColors.surface(context),
             borderRadius: AppRadius.rlg,
             border: Border.all(
               color: selecionado ? destaque : AppColors.border(context),

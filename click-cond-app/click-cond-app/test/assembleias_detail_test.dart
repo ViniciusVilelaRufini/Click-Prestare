@@ -133,7 +133,7 @@ void main() {
 
     expect(find.byType(CellVotacao), findsOneWidget);
     expect(find.byType(VotacaoStatusBadge), findsOneWidget);
-    expect(find.text('Em andamento'), findsOneWidget);
+    expect(find.text('EM ANDAMENTO'), findsOneWidget);
     expect(find.text('01/10/2026 a 30/10/2026'), findsOneWidget);
     expect(find.text('3 votos'), findsOneWidget);
     expect(find.byType(OpcaoSelecionavel), findsNWidgets(3));

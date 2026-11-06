@@ -156,7 +156,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
+        color: AppColors.surface(context),
         borderRadius: AppRadius.rlg,
         border: Border.all(color: AppColors.border(context)),
       ),
@@ -285,7 +285,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
-                getText('lb_votacoes'),
+                (getText('lb_votacoes')).toUpperCase(),
                 style: AppTypography.title(context).copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary(context),
@@ -296,7 +296,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
                   decoration: BoxDecoration(
                     color: AppColors.surface(context),
-                    borderRadius: BorderRadius.circular(AppRadius.full),
+                    borderRadius: BorderRadius.circular(AppRadius.tag),
                     border: Border.all(color: AppColors.border(context)),
                   ),
                   child: Text(

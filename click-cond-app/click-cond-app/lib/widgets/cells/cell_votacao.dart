@@ -100,7 +100,7 @@ class _CellVotacaoState extends State<CellVotacao> {
     final status = _status;
     // Mesmo vermelho no ícone e no rótulo do "Excluir", ajustado ao tema.
     final corExcluir =
-        Theme.of(context).brightness == Brightness.dark ? const Color(0xFFF87171) : const Color(0xFFDC2626);
+        Theme.of(context).brightness == Brightness.dark ? AppColors.error : AppColors.error;
     final titulo = textoLimpo(_item['titulo']).isNotEmpty ? textoLimpo(_item['titulo']) : textoLimpo(_item['pergunta']);
     final descricao = textoLimpo(_item['descricao']);
     final inicio = textoLimpo(_item['data_inicio']);
@@ -392,8 +392,8 @@ class _ChipPrazo extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
-        borderRadius: BorderRadius.circular(AppRadius.full),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(AppRadius.tag),
         border: Border.all(color: AppColors.border(context)),
       ),
       child: Row(

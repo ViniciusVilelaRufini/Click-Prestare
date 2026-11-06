@@ -183,13 +183,13 @@ String textoLimpo(dynamic v) {
 /// Rótulo, cor semântica e ícone de um status de votação.
 class StatusVotacaoInfo {
   /// Âmbar — agendada (mesma cor de "Pendente" das Áreas Sociais).
-  static const Color corAgendada = StatusReservaInfo.corPendente;
+  static Color get corAgendada => StatusReservaInfo.corPendente;
 
   /// Verde — em andamento, dá para votar.
-  static const Color corAndamento = StatusReservaInfo.corAprovada;
+  static Color get corAndamento => StatusReservaInfo.corAprovada;
 
   /// Cinza — finalizada (ou status desconhecido).
-  static const Color corFinalizada = StatusReservaInfo.corNeutra;
+  static Color get corFinalizada => StatusReservaInfo.corNeutra;
 
   final String rotulo;
   final Color cor;
@@ -200,9 +200,7 @@ class StatusVotacaoInfo {
   /// Cor para texto/ícone sobre o fundo tingido com [cor]: escurece no tema
   /// claro e clareia um pouco no escuro (mesma regra de
   /// `StatusReservaInfo.corTexto`).
-  Color corTextoPara(Brightness brilho) => brilho == Brightness.dark
-      ? Color.lerp(cor, Colors.white, 0.18)!
-      : Color.lerp(cor, Colors.black, 0.4)!;
+  Color corTextoPara(Brightness brilho) => cor;
 
   /// [corTextoPara] com o brilho do tema atual.
   Color corTexto(BuildContext context) => corTextoPara(Theme.of(context).brightness);
@@ -223,11 +221,11 @@ StatusVotacaoInfo statusVotacaoInfo(dynamic status) {
       return StatusVotacaoInfo(
           getText('votacao_finalizado'), StatusVotacaoInfo.corFinalizada, PhosphorIcons.lockSimple);
     default:
-      return const StatusVotacaoInfo('Sem status', StatusVotacaoInfo.corFinalizada, PhosphorIcons.question);
+      return StatusVotacaoInfo('Sem status', StatusVotacaoInfo.corFinalizada, PhosphorIcons.question);
   }
 }
 
 /// Cor de destaque (primária) legível nos dois temas: no escuro usa o azul
 /// claro `0xFF93B4F8`, o mesmo das telas de Áreas Sociais.
 Color corDestaqueVotacao(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark ? const Color(0xFF93B4F8) : AppColors.primary;
+    Theme.of(context).brightness == Brightness.dark ? AppColors.primary : AppColors.primary;

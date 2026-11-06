@@ -201,10 +201,10 @@ void main() {
       expect(i.cor, StatusVotacaoInfo.corFinalizada);
     });
 
-    test('corTexto contrasta nos dois temas', () {
+    test('corTexto usa a cor do sinal, que já muda por tema', () {
       final i = statusVotacaoInfo(1);
-      expect(i.corTextoPara(Brightness.light), isNot(i.cor));
-      expect(i.corTextoPara(Brightness.dark), isNot(i.cor));
+      expect(i.corTextoPara(Brightness.light), i.cor);
+      expect(i.corTextoPara(Brightness.dark), i.cor);
     });
   });
 

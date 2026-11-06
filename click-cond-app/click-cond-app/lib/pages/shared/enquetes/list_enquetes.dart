@@ -251,7 +251,7 @@ class _MonthStrip extends StatelessWidget {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () => onMonthSelected(dt),
-                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  borderRadius: BorderRadius.circular(AppRadius.tag),
                   child: AnimatedContainer(
                     duration: reduzir ? Duration.zero : const Duration(milliseconds: 200),
                     curve: Curves.easeOut,
@@ -259,7 +259,7 @@ class _MonthStrip extends StatelessWidget {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: bg,
-                      borderRadius: BorderRadius.circular(AppRadius.full),
+                      borderRadius: BorderRadius.circular(AppRadius.tag),
                       border: Border.all(color: borda, width: isCurrentMonth && !isSelected ? 1.5 : 1),
                     ),
                     child: Column(
@@ -309,7 +309,7 @@ class _CardSkeleton extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
+        color: AppColors.surface(context),
         borderRadius: AppRadius.rlg,
         border: Border.all(color: AppColors.border(context)),
       ),

@@ -65,7 +65,7 @@ class _DetailComunicadoPageState extends State<DetailComunicado> {
                         width: 52, height: 52,
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.zero,
                         ),
                         child: Icon(PhosphorIcons.megaphone, color: AppColors.primary, size: 26),
                       ),
@@ -85,7 +85,7 @@ class _DetailComunicadoPageState extends State<DetailComunicado> {
                         padding: const EdgeInsets.all(AppSpacing.lg),
                         decoration: BoxDecoration(
                           color: AppColors.surface(context),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.zero,
                         ),
                         child: Text(obj['descricao'] ?? '', style: AppTypography.body(context)),
                       ),

@@ -170,7 +170,7 @@ class _NewAssembleiaPageState extends State<NewAssembleia> {
                   AppInput(label: getText('assembleia_link_online'), controller: txtLink, prefixIcon: PhosphorIcons.link, keyboard: TextInputType.url),
                   const SizedBox(height: AppSpacing.md),
                   Container(
-                    decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
                     padding: const EdgeInsets.all(AppSpacing.md),
                     child: uploadFile(
                       title: getText('assembleia_arquivos'),

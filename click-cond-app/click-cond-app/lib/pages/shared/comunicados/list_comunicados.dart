@@ -93,7 +93,7 @@ class _ComunicadoCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(
           children: [
@@ -101,7 +101,7 @@ class _ComunicadoCard extends StatelessWidget {
               width: 44, height: 44,
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.zero,
               ),
               child: Icon(PhosphorIcons.megaphone, color: AppColors.primary, size: 22),
             ),

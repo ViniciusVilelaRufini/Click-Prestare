@@ -46,7 +46,7 @@ class OpcaoResultadoBar extends StatelessWidget {
     final reduzir = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
     final corBarra = meuVoto ? destaque : destaque.withValues(alpha: isDark ? 0.55 : 0.45);
-    final corTrilho = isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.primary.withValues(alpha: 0.08);
+    final corTrilho = AppColors.accentGhost(context);
 
     return Semantics(
       container: true,
@@ -96,7 +96,7 @@ class OpcaoResultadoBar extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.full),
+              borderRadius: BorderRadius.circular(AppRadius.tag),
               child: Container(
                 height: 8,
                 color: corTrilho,
@@ -112,7 +112,7 @@ class OpcaoResultadoBar extends StatelessWidget {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: corBarra,
-                        borderRadius: BorderRadius.circular(AppRadius.full),
+                        borderRadius: BorderRadius.circular(AppRadius.tag),
                       ),
                     ),
                   ),
@@ -131,7 +131,7 @@ class OpcaoResultadoBar extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
                     decoration: BoxDecoration(
                       color: destaque.withValues(alpha: isDark ? 0.2 : 0.1),
-                      borderRadius: BorderRadius.circular(AppRadius.full),
+                      borderRadius: BorderRadius.circular(AppRadius.tag),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
