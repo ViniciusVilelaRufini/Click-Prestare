@@ -623,10 +623,9 @@ class _MyCondominiumState extends State<MyCondominium> {
               Center(
                 child: Container(
                   width: 40,
-                  height: 4,
+                  height: 3,
                   decoration: BoxDecoration(
-                    color: AppColors.textTertiary(context),
-                    borderRadius: BorderRadius.circular(2),
+                    color: AppColors.textTertiary(context)
                   ),
                 ),
               ),
@@ -1295,7 +1294,6 @@ class _MyCondominiumState extends State<MyCondominium> {
                             padding: const EdgeInsets.all(2),
                             decoration: BoxDecoration(
                               color: AppColors.primary,
-                              shape: BoxShape.circle,
                             ),
                             child: Icon(
                               PhosphorIcons.camera,

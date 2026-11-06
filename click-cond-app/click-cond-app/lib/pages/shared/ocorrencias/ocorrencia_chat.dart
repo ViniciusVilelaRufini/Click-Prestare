@@ -157,7 +157,6 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AppScaffold(
       title: 'Chat: ${widget.titulo}',
@@ -167,7 +166,7 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-            color: isDark ? AppColors.darkSurface.withValues(alpha: 0.5) : AppColors.surface(context),
+            color: AppColors.surface(context),
             child: Row(
               children: [
                 Icon(PhosphorIcons.info, size: 18, color: AppColors.primary),
@@ -241,7 +240,7 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
                                       decoration: BoxDecoration(
                                         color: isMe
                                             ? AppColors.primary
-                                            : (isDark ? AppColors.surface(context) : AppColors.surface(context)),
+                                            : AppColors.surface(context),
                                         borderRadius: BorderRadius.zero,
                                       ),
                                       child: Text(
@@ -305,7 +304,7 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
                         borderRadius: BorderRadius.zero,
                         borderSide: BorderSide.none,
                       ),
-                      fillColor: isDark ? AppColors.darkSurface : AppColors.surface(context),
+                      fillColor: AppColors.surface(context),
                       filled: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),

@@ -421,8 +421,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: v.cor.withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
+                            color: AppColors.accentGhost(context),
                           ),
                           child: Icon(v.icon, color: v.cor, size: 22),
                         ),

@@ -368,8 +368,7 @@ class CellAgendamento extends StatelessWidget {
                                   ),
                                 ),
                                 icon: const Icon(PhosphorIcons.xBold, size: 14),
-                                label: const Text(
-                                  'Recusar',
+                                label: Text('Recusar'.toUpperCase(),
                                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                 ),
                               ),

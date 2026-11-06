@@ -314,7 +314,6 @@ class _EstadoVazio extends StatelessWidget {
             height: 56,
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.08),
-              shape: BoxShape.circle,
             ),
             child: Icon(PhosphorIcons.usersThree, size: 26, color: corDestaqueVotacao(context)),
           ),

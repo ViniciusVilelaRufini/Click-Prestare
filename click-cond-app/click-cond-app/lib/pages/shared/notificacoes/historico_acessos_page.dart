@@ -164,11 +164,10 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
               Center(
                 child: Container(
                   width: 40,
-                  height: 4,
+                  height: 3,
                   margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                   decoration: BoxDecoration(
-                    color: AppColors.textTertiary(ctx).withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
+                    color: AppColors.textTertiary(ctx).withValues(alpha: 0.4)
                   ),
                 ),
               ),
@@ -179,8 +178,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: cor.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
+                      color: AppColors.accentGhost(context),
                     ),
                     child: Icon(icon, color: cor, size: 28),
                   ),
@@ -276,8 +274,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                     ),
                   ),
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    'Fechar',
+                  child: Text('Fechar'.toUpperCase(),
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                   ),
                 ),

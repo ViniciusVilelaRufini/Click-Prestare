@@ -34,7 +34,7 @@ class OcorrenciaSlaBadge extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: compact ? 2 : 3),
       decoration: BoxDecoration(
-        color: data.color.withValues(alpha: 0.12),
+        color: AppColors.accentGhost(context),
         borderRadius: BorderRadius.circular(2),
       ),
       child: Row(

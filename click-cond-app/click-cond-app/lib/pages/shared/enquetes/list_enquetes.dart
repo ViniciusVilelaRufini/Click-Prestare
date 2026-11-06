@@ -327,7 +327,7 @@ class _CardSkeleton extends StatelessWidget {
                   const SizedBox(height: AppSpacing.sm),
                   AppSkeleton(width: c.maxWidth * 0.55, height: 12),
                   const SizedBox(height: AppSpacing.md),
-                  const AppSkeleton(width: 96, height: 22, borderRadius: AppRadius.full),
+                  const AppSkeleton(width: 96, height: 22, borderRadius: 0),
                 ],
               ),
             ),
@@ -361,7 +361,6 @@ class _EstadoVazio extends StatelessWidget {
             height: 56,
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.08),
-              shape: BoxShape.circle,
             ),
             child: Icon(PhosphorIcons.chartBar, size: 26, color: corDestaqueVotacao(context)),
           ),

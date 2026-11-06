@@ -78,7 +78,7 @@ showConfirmDialog(BuildContext context, {String? text}) async {
     context: context,
     builder: (c) => Dialog(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.zero,
       ),
       backgroundColor: AppColors.surface(c),
       child: Padding(
@@ -92,8 +92,7 @@ showConfirmDialog(BuildContext context, {String? text}) async {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
+                    color: AppColors.accentGhost(context),
                   ),
                   child: Icon(
                     PhosphorIcons.question,
@@ -127,7 +126,7 @@ showConfirmDialog(BuildContext context, {String? text}) async {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       side: BorderSide(color: AppColors.border(c)),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
                     onPressed: () => Navigator.pop(c, false),
@@ -147,7 +146,7 @@ showConfirmDialog(BuildContext context, {String? text}) async {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       backgroundColor: Colors.red,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
                     onPressed: () => Navigator.pop(c, true),
@@ -304,7 +303,7 @@ getPhoto(BuildContext context) async {
     context: context,
     builder: (c) => Dialog(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.zero,
       ),
       backgroundColor: AppColors.surface(c),
       child: Padding(
@@ -318,8 +317,7 @@ getPhoto(BuildContext context) async {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
+                    color: AppColors.accentGhost(context),
                   ),
                   child: Icon(
                     PhosphorIcons.camera,
@@ -350,7 +348,7 @@ getPhoto(BuildContext context) async {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       side: BorderSide(color: AppColors.border(c)),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
                     onPressed: () => Navigator.pop(c, "camera"),
@@ -377,7 +375,7 @@ getPhoto(BuildContext context) async {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
                     onPressed: () => Navigator.pop(c, "galeria"),

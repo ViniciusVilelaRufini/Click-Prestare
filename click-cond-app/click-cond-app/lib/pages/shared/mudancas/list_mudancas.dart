@@ -190,7 +190,7 @@ class _MudancaCard extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Recusar'),
+            child: Text('Recusar'.toUpperCase()),
           ),
         ],
       ),
@@ -260,7 +260,7 @@ class _MudancaCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.12),
+                              color: AppColors.accentGhost(context),
                               borderRadius: BorderRadius.zero,
                             ),
                             child: Icon(PhosphorIcons.truck, color: color, size: 20),
@@ -286,9 +286,9 @@ class _MudancaCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                             decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.12),
+                              color: AppColors.accentGhost(context),
                               borderRadius: BorderRadius.zero,
-                              border: Border.all(color: color.withValues(alpha: 0.3)),
+                              border: Border.all(color: AppColors.border(context)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -363,7 +363,7 @@ class _MudancaCard extends StatelessWidget {
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                                 ),
                                 icon: const Icon(PhosphorIcons.x, size: 16),
-                                label: const Text('Recusar', style: TextStyle(fontWeight: FontWeight.bold)),
+                                label: Text('Recusar'.toUpperCase(), style: TextStyle(fontWeight: FontWeight.bold)),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -378,7 +378,7 @@ class _MudancaCard extends StatelessWidget {
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                                 ),
                                 icon: const Icon(PhosphorIcons.check, size: 16),
-                                label: const Text('Aceitar', style: TextStyle(fontWeight: FontWeight.bold)),
+                                label: Text('Aceitar'.toUpperCase(), style: TextStyle(fontWeight: FontWeight.bold)),
                               ),
                             ),
                           ],

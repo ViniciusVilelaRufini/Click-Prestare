@@ -580,7 +580,7 @@ class _PickChip extends StatelessWidget {
         color: selected ? AppColors.primary : AppColors.border(context),
         width: selected ? 1.4 : 1,
       ),
-      shape: const StadiumBorder(),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.tag)),
       labelStyle: AppTypography.captionMedium(context).copyWith(
         color: fg,
         fontWeight: selected ? FontWeight.w600 : FontWeight.w500,

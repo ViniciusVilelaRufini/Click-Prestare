@@ -49,7 +49,7 @@ class _ModalAgendaReservaState extends State<ModalAgendaReserva> {
           padding: const EdgeInsets.all(AppSpacing.lg),
           decoration: BoxDecoration(
             color: AppColors.surfaceElevated(context),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.zero,
             border: Border.all(color: AppColors.border(context)),
             boxShadow: [
               BoxShadow(
@@ -177,7 +177,7 @@ class _ModalAgendaReservaState extends State<ModalAgendaReserva> {
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.zero,
         border: isToday && !isSelected
             ? Border.all(color: AppColors.primary, width: 1.5)
             : border,

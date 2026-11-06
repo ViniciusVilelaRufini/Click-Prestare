@@ -455,9 +455,9 @@ class DeliveryStatusBadge extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: style.color.withValues(alpha: 0.12),
+          color: AppColors.accentGhost(context),
           borderRadius: BorderRadius.circular(AppRadius.tag),
-          border: Border.all(color: style.color.withValues(alpha: 0.28)),
+          border: Border.all(color: AppColors.border(context)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (showIcon)

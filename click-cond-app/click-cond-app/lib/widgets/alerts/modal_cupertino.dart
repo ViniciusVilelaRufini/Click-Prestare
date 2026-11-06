@@ -52,8 +52,7 @@ class _ModalCupertinoState extends State<ModalCupertino> {
       child: Container(
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border(top: BorderSide(color: AppColors.border(context))),
+          border: Border(top: BorderSide(color: AppColors.borderStrong(context))),
         ),
         padding: const EdgeInsets.only(top: AppSpacing.sm),
         child: Column(
@@ -61,11 +60,10 @@ class _ModalCupertinoState extends State<ModalCupertino> {
           children: [
             Container(
               width: 40,
-              height: 4,
+              height: 3,
               margin: const EdgeInsets.only(bottom: AppSpacing.sm),
               decoration: BoxDecoration(
-                color: AppColors.textTertiary(context),
-                borderRadius: BorderRadius.circular(2),
+                color: AppColors.textTertiary(context)
               ),
             ),
             Padding(

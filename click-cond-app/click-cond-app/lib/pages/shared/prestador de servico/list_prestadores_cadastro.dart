@@ -131,8 +131,7 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
+                    color: AppColors.accentGhost(context),
                   ),
                   child: Icon(PhosphorIcons.identificationCard, color: AppColors.primary, size: 20),
                 ),

@@ -39,7 +39,6 @@ class CellMoradorAgendamento extends StatelessWidget {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: (canEdit ? AppColors.primary : AppColors.textSecondary(context)).withValues(alpha: 0.1),
-                shape: BoxShape.circle,
               ),
               child: Icon(
                 PhosphorIcons.house,
@@ -90,8 +89,7 @@ class CellMoradorAgendamento extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+                  color: AppColors.accentGhost(context),
                 ),
                 child: Icon(
                   PhosphorIcons.pencil,

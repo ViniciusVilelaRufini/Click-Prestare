@@ -17,8 +17,8 @@ Future<Map<String, dynamic>?> showLinkSelfMoradorSheet(BuildContext context) {
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.bg(context),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    shape: RoundedRectangleBorder(
+      side: BorderSide(color: AppColors.borderStrong(context)),
     ),
     builder: (_) => const _LinkSelfMoradorSheet(),
   );

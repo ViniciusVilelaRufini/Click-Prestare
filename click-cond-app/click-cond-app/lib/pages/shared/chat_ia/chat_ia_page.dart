@@ -375,11 +375,10 @@ class _ChatIaPageState extends State<ChatIaPage> {
               children: [
                 Container(
                   width: 40,
-                  height: 4,
+                  height: 3,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(2),
+                    color: AppColors.border(context)
                   ),
                 ),
                 Text(
@@ -400,8 +399,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
+                      color: AppColors.accentGhost(context),
                     ),
                     child: Icon(PhosphorIcons.camera, color: AppColors.primary),
                   ),
@@ -747,8 +745,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.onPrimary.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
+              color: AppColors.accentGhost(context),
             ),
             child: Icon(icon, color: AppColors.onPrimary, size: 18),
           ),
@@ -962,8 +959,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+              color: AppColors.accentGhost(context),
             ),
             child: Icon(PhosphorIcons.sparkle,
                 color: AppColors.primary, size: 40),
@@ -1349,7 +1345,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
   /// e visual elegante com destaque suave de foco.
   Widget _buildInput(BuildContext context) {
     final isFocused = _campoFoco.hasFocus;
-    const raio = 30.0;
+    const raio = 0.0;
 
     final Color bgColor = AppColors.surface(context);
 
@@ -1448,7 +1444,6 @@ class _ChatIaPageState extends State<ChatIaPage> {
                             color: _ouvindo
                                 ? AppColors.error.withValues(alpha: 0.15)
                                 : Colors.transparent,
-                            shape: BoxShape.circle,
                           ),
                           child: Icon(
                             _ouvindo ? PhosphorIcons.microphoneFill : PhosphorIcons.microphone,

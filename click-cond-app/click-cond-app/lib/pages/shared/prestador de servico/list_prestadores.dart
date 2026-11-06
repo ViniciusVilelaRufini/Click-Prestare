@@ -122,10 +122,9 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
               Center(
                 child: Container(
                   width: 40,
-                  height: 4,
+                  height: 3,
                   decoration: BoxDecoration(
-                    color: AppColors.textTertiary(context).withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
+                    color: AppColors.textTertiary(context).withValues(alpha: 0.3)
                   ),
                 ),
               ),
@@ -446,7 +445,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                         side: BorderSide(color: AppColors.textTertiary(context).withValues(alpha: 0.3)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                       ),
-                      child: Text('Fechar', style: AppTypography.body(context)),
+                      child: Text('Fechar'.toUpperCase(), style: AppTypography.body(context)),
                     ),
                   ),
                   if (canAdd) ...[

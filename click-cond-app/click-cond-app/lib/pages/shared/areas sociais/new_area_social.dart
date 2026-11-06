@@ -596,11 +596,10 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                 children: [
                   Center(
                     child: Container(
-                      width: 38,
-                      height: 4,
+                      width: 40,
+                      height: 3,
                       decoration: BoxDecoration(
-                        color: AppColors.textTertiary(context),
-                        borderRadius: BorderRadius.circular(2),
+                        color: AppColors.textTertiary(context)
                       ),
                     ),
                   ),
@@ -1098,11 +1097,10 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                 children: [
                   Center(
                     child: Container(
-                      width: 38,
-                      height: 4,
+                      width: 40,
+                      height: 3,
                       decoration: BoxDecoration(
-                        color: AppColors.textTertiary(context),
-                        borderRadius: BorderRadius.circular(2),
+                        color: AppColors.textTertiary(context)
                       ),
                     ),
                   ),
@@ -1240,11 +1238,10 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                 children: [
                   Center(
                     child: Container(
-                      width: 38,
-                      height: 4,
+                      width: 40,
+                      height: 3,
                       decoration: BoxDecoration(
-                        color: AppColors.textTertiary(context),
-                        borderRadius: BorderRadius.circular(2),
+                        color: AppColors.textTertiary(context)
                       ),
                     ),
                   ),

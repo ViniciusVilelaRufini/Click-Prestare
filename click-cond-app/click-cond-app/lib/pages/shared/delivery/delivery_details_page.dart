@@ -243,7 +243,7 @@ class _TrackingHero extends StatelessWidget {
             key: const ValueKey('celebrate'),
             width: 64,
             height: 64,
-            decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: AppColors.success),
             child: Icon(PhosphorIcons.check, size: 32, color: AppColors.onPrimary),
           )
         : _PulsingIcon(
@@ -258,8 +258,8 @@ class _TrackingHero extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         borderRadius: AppRadius.rxxl,
-        color: style.color.withValues(alpha: dark ? 0.10 : 0.06),
-        border: Border.all(color: style.color.withValues(alpha: 0.25)),
+        color: AppColors.accentGhost(context),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -380,7 +380,7 @@ class _PulsingIconState extends State<_PulsingIcon> with SingleTickerProviderSta
         Container(
           width: 64,
           height: 64,
-          decoration: BoxDecoration(color: widget.color.withValues(alpha: 0.20), shape: BoxShape.circle),
+          decoration: BoxDecoration(color: AppColors.accentGhost(context), shape: BoxShape.circle),
           child: Icon(widget.icon, color: widget.foreground, size: 30),
         ),
       ]),
@@ -520,7 +520,7 @@ class _StepDot extends StatelessWidget {
         return Container(
           width: 32,
           height: 32,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          decoration: BoxDecoration(color: color),
           child: Icon(icon, size: 16, color: onColor),
         );
       case _StepState.current:
@@ -528,12 +528,12 @@ class _StepDot extends StatelessWidget {
         return Container(
           width: 44,
           height: 44,
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.28), shape: BoxShape.circle),
+          decoration: BoxDecoration(color: AppColors.accentGhost(context), shape: BoxShape.circle),
           child: Center(
             child: Container(
               width: 36,
               height: 36,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: color),
               child: Icon(icon, size: 19, color: onColor),
             ),
           ),
@@ -604,7 +604,7 @@ class _NextStepCard extends StatelessWidget {
         Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(color: style.color.withValues(alpha: 0.14), borderRadius: AppRadius.rmd),
+          decoration: BoxDecoration(color: AppColors.accentGhost(context), borderRadius: AppRadius.rmd),
           child: Icon(next.icon, size: 20, color: style.foreground(context)),
         ),
         const SizedBox(width: AppSpacing.md),

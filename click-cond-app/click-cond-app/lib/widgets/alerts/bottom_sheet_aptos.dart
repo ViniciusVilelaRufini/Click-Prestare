@@ -33,10 +33,7 @@ void bottomSheetAptos(BuildContext context, List<dynamic> list, String selected,
           return Container(
             decoration: BoxDecoration(
               color: AppColors.surface(bc),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
+              border: Border(top: BorderSide(color: AppColors.borderStrong(context))),
             ),
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
             constraints: BoxConstraints(
@@ -50,11 +47,10 @@ void bottomSheetAptos(BuildContext context, List<dynamic> list, String selected,
                 Center(
                   child: Container(
                     width: 40,
-                    height: 4,
+                    height: 3,
                     margin: const EdgeInsets.only(bottom: AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: AppColors.border(bc),
-                      borderRadius: BorderRadius.circular(2),
+                      color: AppColors.border(bc)
                     ),
                   ),
                 ),
@@ -74,7 +70,7 @@ void bottomSheetAptos(BuildContext context, List<dynamic> list, String selected,
                     filled: true,
                     fillColor: AppColors.surfaceElevated(bc),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.zero,
                       borderSide: BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: AppSpacing.md),
@@ -114,11 +110,11 @@ void bottomSheetAptos(BuildContext context, List<dynamic> list, String selected,
                               onTap: () {
                                 onSelect(item);
                               },
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.zero,
                               child: Container(
                                 decoration: BoxDecoration(
                                   color: isSelected ? AppColors.primary : AppColors.surfaceElevated(bc),
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.zero,
                                   border: Border.all(
                                     color: isSelected ? AppColors.primary : AppColors.border(bc),
                                     width: 1,

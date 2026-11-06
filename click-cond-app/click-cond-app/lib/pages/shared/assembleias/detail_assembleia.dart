@@ -371,7 +371,10 @@ class _ChipAnexo extends StatelessWidget {
       excludeSemantics: true,
       child: Material(
         color: AppColors.surface(context),
-        shape: StadiumBorder(side: BorderSide(color: AppColors.border(context))),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.tag),
+          side: BorderSide(color: AppColors.border(context)),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,

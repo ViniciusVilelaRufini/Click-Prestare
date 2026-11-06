@@ -54,7 +54,7 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
       constraints: BoxConstraints(maxHeight: maxSheetHeight),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: AppColors.borderStrong(context))),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.18),
@@ -91,8 +91,7 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
+                      color: AppColors.accentGhost(context),
                     ),
                     child: Icon(
                       PhosphorIcons.shieldCheck,
@@ -146,7 +145,7 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: AppColors.surface(context),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.zero,
                         border: Border.all(
                           color: AppColors.border(context).withValues(alpha: 0.5),
                         ),
@@ -237,7 +236,7 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () => setState(() => _aceitouTermos = !_aceitouTermos),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.zero,
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.all(12),
@@ -245,7 +244,7 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
                             color: _aceitouTermos
                                 ? AppColors.primary.withValues(alpha: 0.08)
                                 : AppColors.surface(context),
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.zero,
                             border: Border.all(
                               color: _aceitouTermos
                                   ? AppColors.primary
@@ -374,8 +373,7 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
           height: 20,
           margin: const EdgeInsets.only(top: 2),
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
+            color: AppColors.accentGhost(context),
           ),
           alignment: Alignment.center,
           child: Text(

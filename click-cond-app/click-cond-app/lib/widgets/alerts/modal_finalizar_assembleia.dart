@@ -66,7 +66,7 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.zero,
       ),
       elevation: 0,
       backgroundColor: Colors.transparent,
@@ -82,7 +82,7 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
           decoration: BoxDecoration(
             shape: BoxShape.rectangle,
             color: AppColors.surface(context),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.zero,
             boxShadow: [
               BoxShadow(color: Colors.black,offset: Offset(0,5),
               blurRadius: 15

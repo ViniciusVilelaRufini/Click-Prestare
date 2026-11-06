@@ -260,7 +260,6 @@ class _NewPrestadorPageState extends State<NewPrestador> {
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
-                  shape: BoxShape.circle,
                 ),
                 child: Icon(PhosphorIcons.camera, size: 14, color: AppColors.onPrimary),
               ),

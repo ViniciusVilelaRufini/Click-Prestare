@@ -572,10 +572,9 @@ class _OptionSheet extends StatelessWidget {
           children: [
             Center(
               child: Container(
-                width: 40, height: 4,
+                width: 40, height: 3,
                 decoration: BoxDecoration(
-                  color: AppColors.border(context),
-                  borderRadius: BorderRadius.circular(2),
+                  color: AppColors.border(context)
                 ),
               ),
             ),

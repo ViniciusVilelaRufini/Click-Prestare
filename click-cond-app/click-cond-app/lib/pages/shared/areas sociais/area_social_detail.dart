@@ -353,7 +353,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
   /// (falha, timeout, cidade vazia) o chip some.
   Widget? _buildWeatherWidget() {
     if (_weatherLoading) {
-      return AppSkeleton(width: 108, height: 30, borderRadius: AppRadius.full);
+      return AppSkeleton(width: 108, height: 30, borderRadius: 0);
     }
 
     if (_temp == null) return null;
@@ -580,7 +580,6 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
             height: 56,
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.08),
-              shape: BoxShape.circle,
             ),
             child: Icon(PhosphorIcons.calendarBlank, size: 26, color: _destaque()),
           ),

@@ -343,9 +343,9 @@ class _RespondBanner extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         // Mesmo tratamento da faixa de rastreio dos detalhes.
-        color: style.color.withValues(alpha: dark ? 0.10 : 0.06),
+        color: AppColors.accentGhost(context),
         borderRadius: AppRadius.rxxl,
-        border: Border.all(color: style.color.withValues(alpha: 0.40), width: 1.2),
+        border: Border.all(color: AppColors.border(context), width: 1.2),
       ),
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
@@ -366,7 +366,7 @@ class _RespondBanner extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: style.color.withValues(alpha: 0.18),
+                      color: AppColors.accentGhost(context),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(style.icon, color: style.foreground(context), size: 22),
@@ -466,7 +466,7 @@ class _DeliveryCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: style.color.withValues(alpha: 0.12),
+                  color: AppColors.accentGhost(context),
                   borderRadius: AppRadius.rmd,
                 ),
                 child: Icon(style.icon, color: style.foreground(context), size: 22),
@@ -562,7 +562,7 @@ class _HistoryCard extends StatelessWidget {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: style.color.withValues(alpha: 0.12),
+                        color: AppColors.accentGhost(context),
                         borderRadius: AppRadius.rmd,
                       ),
                       child: Icon(style.icon, color: style.foreground(context), size: 22),
@@ -661,8 +661,7 @@ class _TabEmpty extends StatelessWidget {
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.10),
-                        shape: BoxShape.circle,
+                        color: AppColors.accentGhost(context),
                       ),
                       child: Icon(icon, size: 36, color: AppColors.primary),
                     ),
@@ -702,7 +701,7 @@ class _DeliveryError extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.10), shape: BoxShape.circle),
+              decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.10)),
               child: Icon(PhosphorIcons.warningCircle, size: 36, color: AppColors.error),
             ),
             const SizedBox(height: AppSpacing.lg),

@@ -238,7 +238,7 @@ class VagaCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: t.color.withValues(alpha: 0.12),
+              color: AppColors.accentGhost(context),
               borderRadius: BorderRadius.zero,
             ),
             child: Icon(t.icon, color: t.color, size: 22),
@@ -259,7 +259,7 @@ class VagaCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: t.color.withValues(alpha: 0.12),
+                        color: AppColors.accentGhost(context),
                         borderRadius: BorderRadius.circular(2),
                       ),
                       child: Text(t.label,
