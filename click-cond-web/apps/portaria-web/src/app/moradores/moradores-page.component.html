@@ -38,19 +38,19 @@
   <div class="ps-kpis">
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Total</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().total }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().total < 10 ? '0' + stats().total : stats().total }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Proprietários</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().proprietarios }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().proprietarios < 10 ? '0' + stats().proprietarios : stats().proprietarios }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Inquilinos</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().inquilinos }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().inquilinos < 10 ? '0' + stats().inquilinos : stats().inquilinos }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Dependentes</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().dependentes }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().dependentes < 10 ? '0' + stats().dependentes : stats().dependentes }}</p></div>
     </div>
   </div>
 
@@ -344,8 +344,8 @@
                 @if (fotoPessoaBase64()) {
                   <img [src]="fotoPessoaBase64()" alt="Foto do morador" class="w-full h-full object-cover" />
                   @if (isMenorDeIdade(novo.data_nascimento)) {
-                    <div class="absolute inset-0 backdrop-blur-[1px] flex items-center justify-center p-1 text-center">
-                      <span class="text-[9px] font-bold text-amber-300 leading-tight">Menor (Bloqueado)</span>
+                    <div class="absolute inset-0 bg-black/70 flex items-center justify-center p-1 text-center">
+                      <span class="text-[9px] font-bold text-white keep-white leading-tight">Menor (Bloqueado)</span>
                     </div>
                   }
                 } @else {
@@ -1403,7 +1403,7 @@
                     <div class="flex items-center gap-2 mt-0.5">
                       @if (v.data_entrada && !v.data_saida) {
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
-                          <span class="w-1.5 h-1.5 rounded-full animate-pulse"></span>No local
+                          <span class="ps-dot ps-dot-ok ps-dot-pulse"></span>No local
                         </span>
                       } @else if (v.data_saida) {
                         <span class="text-[10px] text-slate-500 dark:text-slate-400">Saiu</span>

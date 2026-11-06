@@ -28,19 +28,19 @@
   <div class="ps-kpis">
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Total de unidades</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ apartamentos().length }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ apartamentos().length < 10 ? '0' + apartamentos().length : apartamentos().length }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Ocupados</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ aptosOcupados() }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ aptosOcupados() < 10 ? '0' + aptosOcupados() : aptosOcupados() }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Vagos</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ aptosVazios() }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ aptosVazios() < 10 ? '0' + aptosVazios() : aptosVazios() }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Total moradores</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ totalMoradores() }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ totalMoradores() < 10 ? '0' + totalMoradores() : totalMoradores() }}</p></div>
     </div>
   </div>
 
