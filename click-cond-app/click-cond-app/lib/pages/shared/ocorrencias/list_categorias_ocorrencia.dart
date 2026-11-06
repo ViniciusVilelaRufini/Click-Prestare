@@ -53,7 +53,7 @@ class _ListCategoriasOcorrenciaState extends State<ListCategoriasOcorrencia> {
       isScrollControlled: true,
       backgroundColor: AppColors.surface(context),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.zero),
       ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
@@ -128,11 +128,11 @@ class _ListCategoriasOcorrenciaState extends State<ListCategoriasOcorrencia> {
         content: Text('Remover "${categoria['nome']}"? Ocorrências existentes não são apagadas.',
             style: AppTypography.body(ctx)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancelar'.toUpperCase())),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: AppColors.onPrimary),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remover'),
+            child: Text('Remover'.toUpperCase()),
           ),
         ],
       ),
@@ -186,7 +186,7 @@ class _ListCategoriasOcorrenciaState extends State<ListCategoriasOcorrencia> {
                           padding: const EdgeInsets.all(AppSpacing.md),
                           decoration: BoxDecoration(
                             color: AppColors.surface(context),
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.zero,
                           ),
                           child: Row(
                             children: [
@@ -194,7 +194,7 @@ class _ListCategoriasOcorrenciaState extends State<ListCategoriasOcorrencia> {
                                 width: 44, height: 44,
                                 decoration: BoxDecoration(
                                   color: AppColors.primary.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.zero,
                                 ),
                                 child: Icon(PhosphorIcons.tag, color: AppColors.primary, size: 22),
                               ),

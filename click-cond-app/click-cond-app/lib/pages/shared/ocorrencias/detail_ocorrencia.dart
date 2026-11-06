@@ -110,7 +110,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
       context: context,
       backgroundColor: AppColors.surface(context),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.zero),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -167,8 +167,8 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'solucionado': return const Color(0xFF22C55E);
-      case 'ciente': return const Color(0xFFF59E0B);
+      case 'solucionado': return AppColors.success;
+      case 'ciente': return AppColors.warning;
       default: return AppColors.error;
     }
   }
@@ -212,7 +212,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: _statusColor(obj['status'] ?? '').withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.zero,
                                 ),
                                 child: Text(obj['status'] ?? '',
                                     style: AppTypography.captionMedium(context)
@@ -230,15 +230,15 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: (obj['publica'] == true) 
-                                      ? const Color(0xFF22C55E).withValues(alpha: 0.12) 
+                                      ? AppColors.success.withValues(alpha: 0.12) 
                                       : AppColors.textTertiary(context).withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.zero,
                                 ),
                                 child: Text(
                                   (obj['publica'] == true) ? 'Pública' : 'Privada',
                                   style: AppTypography.captionMedium(context).copyWith(
                                     color: (obj['publica'] == true) 
-                                        ? const Color(0xFF22C55E) 
+                                        ? AppColors.success 
                                         : AppColors.textSecondary(context),
                                   ),
                                 ),
@@ -301,7 +301,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                   onPressed: _isSaving ? null : _abrirAtribuir,
                                   icon: Icon(PhosphorIcons.userPlus, size: 15, color: AppColors.primary),
                                   label: Text(
-                                    (obj['id_responsavel'] != null) ? 'Trocar' : 'Atribuir',
+                                    ((obj['id_responsavel'] != null) ? 'Trocar' : 'Atribuir').toUpperCase(),
                                     style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary),
                                   ),
                                   style: TextButton.styleFrom(
@@ -329,7 +329,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                   GestureDetector(
                                     onTap: () => openFile(f.path),
                                     child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.zero,
                                       child: f.path.contains('.pdf')
                                           ? Container(
                                               width: 72, height: 72,
@@ -350,7 +350,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                             decoration: BoxDecoration(
                               border: Border(
                                 left: BorderSide(
-                                  color: const Color(0xFF3B82F6),
+                                  color: AppColors.primary,
                                   width: 3.0,
                                 ),
                               ),
@@ -361,7 +361,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                 Text(
                                   'RESPOSTA DA ADMINISTRAÇÃO',
                                   style: AppTypography.captionMedium(context).copyWith(
-                                    color: const Color(0xFF3B82F6),
+                                    color: AppColors.primary,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 0.8,
                                     fontSize: 10,
@@ -409,14 +409,14 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                               _StatusChip(
                                 label: getText('ciente'),
                                 selected: currentStatus == 'ciente',
-                                color: const Color(0xFFF59E0B),
+                                color: AppColors.warning,
                                 onTap: () => setState(() => currentStatus = 'ciente'),
                               ),
                               const SizedBox(width: AppSpacing.md),
                               _StatusChip(
                                 label: getText('solucionado'),
                                 selected: currentStatus == 'solucionado',
-                                color: const Color(0xFF22C55E),
+                                color: AppColors.success,
                                 onTap: () => setState(() => currentStatus = 'solucionado'),
                               ),
                             ],
@@ -482,7 +482,7 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
       );
 }
@@ -525,7 +525,7 @@ class _StatusChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           color: selected ? color.withValues(alpha: 0.12) : AppColors.surface(context),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.zero,
           border: Border.all(color: selected ? color : AppColors.border(context)),
         ),
         child: Text(label,

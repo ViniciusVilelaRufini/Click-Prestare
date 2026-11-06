@@ -1,3 +1,4 @@
+import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -34,7 +35,7 @@ class OcorrenciaSlaBadge extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: compact ? 2 : 3),
       decoration: BoxDecoration(
         color: data.color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(2),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -56,15 +57,15 @@ class OcorrenciaSlaBadge extends StatelessWidget {
 
   _SlaData? _resolve() {
     if (_isSolucionado(item is Map ? item['status'] : null)) {
-      return _SlaData(const Color(0xFF6B7280), PhosphorIcons.checkCircle, 'Concluída');
+      return _SlaData(AppColors.info, PhosphorIcons.checkCircle, 'Concluída');
     }
     final prazo = parsePrazoOcorrencia(item);
     if (prazo == null) {
-      return _SlaData(const Color(0xFF6B7280), PhosphorIcons.minusCircle, 'Sem prazo');
+      return _SlaData(AppColors.info, PhosphorIcons.minusCircle, 'Sem prazo');
     }
     final now = DateTime.now();
     if (now.isAfter(prazo)) {
-      return _SlaData(const Color(0xFFEF4444), PhosphorIcons.warningCircle, 'Atrasada');
+      return _SlaData(AppColors.error, PhosphorIcons.warningCircle, 'Atrasada');
     }
     final diff = prazo.difference(now);
     final String txt;
@@ -76,7 +77,7 @@ class OcorrenciaSlaBadge extends StatelessWidget {
       txt = 'Vence em ${diff.inMinutes}min';
     }
     // Verde se folgado (>24h), âmbar se apertado.
-    final color = diff.inHours >= 24 ? const Color(0xFF22C55E) : const Color(0xFFF59E0B);
+    final color = diff.inHours >= 24 ? AppColors.success : AppColors.warning;
     return _SlaData(color, PhosphorIcons.clock, txt);
   }
 }

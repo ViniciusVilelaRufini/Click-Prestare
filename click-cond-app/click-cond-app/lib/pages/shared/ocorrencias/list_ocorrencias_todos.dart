@@ -137,7 +137,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                         ? AppColors.primary 
                         : AppColors.textTertiary(context).withValues(alpha: 0.15),
                   ),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                 ),
               ),
               ...months.map((m) {
@@ -165,7 +165,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                           ? AppColors.primary 
                           : AppColors.textTertiary(context).withValues(alpha: 0.15),
                     ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                   ),
                 );
               }),
@@ -195,7 +195,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                             : PhosphorIcons.warning,
                         size: 48,
                         color: widget.statusFilter == 'Solucionado'
-                            ? const Color(0xFF22C55E)
+                            ? AppColors.success
                             : AppColors.textTertiary(context),
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -248,12 +248,12 @@ class _OcorrenciaCard extends StatelessWidget {
   Color _statusColor(dynamic status) {
     final s = (status?.toString() ?? '').toLowerCase();
     if (s == 'solucionado' || s == 'resolvida') {
-      return const Color(0xFF22C55E); // Green
+      return AppColors.success; // Green
     }
     if (s == 'ciente' || s == 'em andamento' || s == 'em_andamento') {
-      return const Color(0xFF3B82F6); // Blue
+      return AppColors.primary; // Blue
     }
-    return const Color(0xFFF59E0B); // Amber / Yellow
+    return AppColors.warning; // Amber / Yellow
   }
 
   IconData _statusIcon(dynamic status) {
@@ -285,14 +285,14 @@ class _OcorrenciaCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
         child: Row(
           children: [
             Container(
               width: 44, height: 44,
               decoration: BoxDecoration(
                 color: _statusColor(statusVal).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.zero,
               ),
               child: Icon(_statusIcon(statusVal), color: _statusColor(statusVal), size: 22),
             ),
@@ -311,7 +311,7 @@ class _OcorrenciaCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: _statusColor(statusVal).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                         child: Text(
                           _statusLabel(statusVal),
@@ -326,15 +326,15 @@ class _OcorrenciaCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: (item['publica'] == true) 
-                              ? const Color(0xFF22C55E).withValues(alpha: 0.12) 
+                              ? AppColors.success.withValues(alpha: 0.12) 
                               : AppColors.textTertiary(context).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                         child: Text(
                           (item['publica'] == true) ? 'Pública' : 'Privada',
                           style: AppTypography.captionMedium(context).copyWith(
                             color: (item['publica'] == true)
-                                ? const Color(0xFF22C55E)
+                                ? AppColors.success
                                 : AppColors.textSecondary(context),
                             fontSize: 9,
                             fontWeight: FontWeight.w600,

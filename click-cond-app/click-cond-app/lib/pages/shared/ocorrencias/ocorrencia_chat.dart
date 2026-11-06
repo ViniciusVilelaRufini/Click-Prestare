@@ -167,7 +167,7 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-            color: isDark ? AppColors.darkSurface.withValues(alpha: 0.5) : Colors.grey.shade100,
+            color: isDark ? AppColors.darkSurface.withValues(alpha: 0.5) : AppColors.surface(context),
             child: Row(
               children: [
                 Icon(PhosphorIcons.info, size: 18, color: AppColors.primary),
@@ -241,20 +241,15 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
                                       decoration: BoxDecoration(
                                         color: isMe
                                             ? AppColors.primary
-                                            : (isDark ? AppColors.surface(context) : Colors.grey.shade200),
-                                        borderRadius: BorderRadius.only(
-                                          topLeft: const Radius.circular(16),
-                                          topRight: const Radius.circular(16),
-                                          bottomLeft: Radius.circular(isMe ? 16 : 0),
-                                          bottomRight: Radius.circular(isMe ? 0 : 16),
-                                        ),
+                                            : (isDark ? AppColors.surface(context) : AppColors.surface(context)),
+                                        borderRadius: BorderRadius.zero,
                                       ),
                                       child: Text(
                                         msg['mensagem'] ?? '',
                                         style: AppTypography.body(context).copyWith(
                                           color: isMe
                                               ? AppColors.onPrimary
-                                              : (isDark ? Colors.white : Colors.black87),
+                                              : (AppColors.textPrimary(context)),
                                         ),
                                       ),
                                     ),
@@ -307,10 +302,10 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
                         color: AppColors.textTertiary(context),
                       ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.zero,
                         borderSide: BorderSide.none,
                       ),
-                      fillColor: isDark ? AppColors.darkSurface : Colors.grey.shade100,
+                      fillColor: isDark ? AppColors.darkSurface : AppColors.surface(context),
                       filled: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),

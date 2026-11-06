@@ -136,7 +136,7 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
                 children: [
                   _section(getText('lb_anexos')),
                   Container(
-                    decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
                     padding: const EdgeInsets.all(AppSpacing.md),
                     child: uploadFile(
                       title: getText('lb_insira_fotos'),
@@ -167,7 +167,7 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
                               color: currentTipo == categ["id"].toString()
                                   ? AppColors.primary.withValues(alpha: 0.08)
                                   : AppColors.surface(context),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
                                 color: currentTipo == categ["id"].toString()
                                     ? AppColors.primary
@@ -198,7 +198,7 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
                       color: AppColors.surface(context),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -222,7 +222,6 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
                         Switch(
                           value: _publica,
                           onChanged: (val) => setState(() => _publica = val),
-                          activeColor: AppColors.primary,
                         ),
                       ],
                     ),
