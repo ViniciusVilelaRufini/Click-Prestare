@@ -306,6 +306,13 @@ describe('tema Prestare Dark: styles.css', () => {
     });
   });
 
+  it('overlays fixos não herdam a margem de space-y-*', () => {
+    const compacto = CSS.replace(/\s+/g, ' ');
+    expect(compacto).toContain(
+      '[class~="fixed"], [class~="ps-scrim"], [class~="ps-drawer"], [class~="ps-modal"], [class~="ps-toast"] { margin-block: 0 !important; }',
+    );
+  });
+
   it('não porta seletores globais de elemento do protótipo', () => {
     expect(CSS).not.toMatch(/(^|\n)table\s*\{/);
     expect(CSS).not.toMatch(/(^|\n)td\s*\{/);

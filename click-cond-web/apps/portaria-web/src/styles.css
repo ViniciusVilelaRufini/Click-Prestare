@@ -729,6 +729,16 @@ html, body {
   display: none;
 }
 
+/* space-y-* dá margem aos irmãos, inclusive fixed, e o overlay desceria junto.
+   Atributo em vez de classe, para o Tailwind não gerar variantes. */
+[class~="fixed"],
+[class~="ps-scrim"],
+[class~="ps-drawer"],
+[class~="ps-modal"],
+[class~="ps-toast"] {
+  margin-block: 0 !important;
+}
+
 /* Pílulas viram tag; avatares e pontos seguem redondos */
 .rounded-full[class*="px-"] {
   border-radius: 2px;
