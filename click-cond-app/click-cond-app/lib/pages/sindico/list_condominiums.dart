@@ -1,9 +1,7 @@
 import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/utils/log.dart';
-import 'package:click/widgets/app/grid_background.dart';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:ui';
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
 import 'package:click/controllers/controller_moradores.dart';
@@ -27,7 +25,6 @@ import 'package:click/pages/sindico/edit_sindico.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
-import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/cond_cache.dart';
 import 'package:click/utils/datas.dart';
 import 'package:click/utils/eventos_utils.dart';
@@ -36,6 +33,7 @@ import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListCondomiums extends StatefulWidget {
@@ -269,19 +267,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final bg = AppColors.surfaceElevated(context);
-        final textColor = AppColors.textPrimary(context);
-        final textSecondary = AppColors.textSecondary(context);
-
         return Container(
           decoration: BoxDecoration(
-            color: bg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border(top: BorderSide(color: AppColors.border(context))),
+            color: AppColors.bg100(context),
+            border: Border(top: BorderSide(color: AppColors.borderStrong(context))),
           ),
-          padding: const EdgeInsets.symmetric(
-              vertical: AppSpacing.md, horizontal: AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,63 +280,48 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               Center(
                 child: Container(
                   width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: AppColors.textTertiary(context),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+                  height: 3,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  color: AppColors.borderStrong(context),
                 ),
               ),
               Text(
-                'Selecione o Condomínio',
-                style: AppTypography.headline(context).copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
+                'SELECIONE O CONDOMÍNIO',
+                style: _dTxt(context, 15, lh: 20, ls: 0.16),
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'Escolha um condomínio para ver os detalhes.',
-                style: AppTypography.caption(context).copyWith(
-                  color: textSecondary,
-                ),
+                style: _bTxt(context, 14, lh: 20),
               ),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.lg),
               Flexible(
-                child: ListView.builder(
+                child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: _list.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                   itemBuilder: (context, index) {
                     final cond = _list[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    return Material(
+                      color: AppColors.surface(context),
+                      shape: Border.all(color: AppColors.border(context)),
                       child: InkWell(
                         onTap: () {
                           Navigator.pop(context);
                           _goToNext(cond, directPage: targetPage);
                         },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
+                        child: Padding(
                           padding: const EdgeInsets.all(AppSpacing.md),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border:
-                                Border.all(color: AppColors.border(context)),
-                            color: AppColors.surface(context),
-                          ),
                           child: Row(
                             children: [
                               Container(
                                 width: 40,
                                 height: 40,
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
+                                color: AppColors.accentGhost(context),
                                 child: Icon(
-                                  Icons.business,
-                                  color: AppColors.primary,
+                                  PhosphorIcons.buildings,
+                                  size: 20,
+                                  color: AppColors.textPrimary(context),
                                 ),
                               ),
                               const SizedBox(width: AppSpacing.md),
@@ -355,28 +331,25 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                                   children: [
                                     Text(
                                       cond['nome'] ?? '',
-                                      style:
-                                          AppTypography.body(context).copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        color: textColor,
-                                      ),
+                                      style: _bTxt(context, 16,
+                                          lh: 22,
+                                          w: FontWeight.w500,
+                                          color: AppColors.textPrimary(context)),
                                     ),
-                                    if (cond['apto'] != null) ...[
-                                      const SizedBox(height: 2),
+                                    if (cond['apto'] != null)
                                       Text(
                                         '${cond['apto_bloco'] != null ? "${cond['apto_bloco']} / " : ""}${cond['apto']}',
-                                        style: AppTypography.caption(context)
-                                            .copyWith(
-                                          color: textSecondary,
-                                        ),
+                                        style: _bTxt(context, 12,
+                                            lh: 16,
+                                            color: AppColors.textTertiary(context)),
                                       ),
-                                    ],
                                   ],
                                 ),
                               ),
                               Icon(
-                                Icons.chevron_right,
-                                color: textSecondary,
+                                PhosphorIcons.caretRight,
+                                size: 16,
+                                color: AppColors.textTertiary(context),
                               ),
                             ],
                           ),
@@ -386,7 +359,6 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   },
                 ),
               ),
-              const SizedBox(height: AppSpacing.md),
             ],
           ),
         );
@@ -411,20 +383,19 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
   @override
   Widget build(BuildContext context) {
-    final navBarSpace = 68.0 + 8.0 + 12.0;
+    // Barra de navegação: 58px de conteúdo + área do gesto do sistema.
+    const navBarSpace = 58.0;
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A1628) : const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.bg(context),
       body: Stack(
         children: [
-          // Textura quadriculada de fundo, a mesma da tela de entrada.
-          const Positioned.fill(child: GridBackground()),
           SafeArea(
             bottom: false,
             child: RefreshIndicator(
-              color: AppColors.primary,
+              color: AppColors.textPrimary(context),
+              backgroundColor: AppColors.surface(context),
               onRefresh: _loadList,
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -432,7 +403,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   SliverToBoxAdapter(child: _buildHeader(context)),
                   if (_isLoading)
                     SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                       sliver: SliverList.separated(
                         itemCount: 5,
                         separatorBuilder: (_, __) =>
@@ -447,29 +418,19 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   else
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.lg),
-                      sliver: SliverList.separated(
-                        itemCount: _list.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: AppSpacing.md),
-                        itemBuilder: (_, i) => _CondominioCard(
-                          item: _list[i],
-                          onTap: () => _goToNext(_list[i]),
-                          summary: _summary,
-                          isFirst: i == 0,
-                        ),
-                      ),
+                          AppSpacing.lg, 12, AppSpacing.lg, AppSpacing.lg),
+                      sliver: SliverToBoxAdapter(child: _buildCondominioList(context)),
                     ),
                   if (!_isLoading && _errorMessage == null && _eventos.isNotEmpty)
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.lg),
+                            AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
                         child: _buildMeusEventos(context),
                       ),
                     ),
                   SliverToBoxAdapter(
-                    child: SizedBox(height: navBarSpace + bottomInset + 16.0),
+                    child: SizedBox(height: navBarSpace + bottomInset + 24.0),
                   ),
                 ],
               ),
@@ -486,90 +447,76 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
-  /// Ilha Flutuante FIXA (Travada) - Translúcida com efeito Vidro Fosco (Glassmorphism)
-  Widget _buildFixedBottomNavigationBar(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  /// `.list`: itens colados, separados por 1px de line-100 e com contorno.
+  Widget _buildCondominioList(BuildContext context) {
+    final linha = AppColors.border(context);
+    return Container(
+      decoration: BoxDecoration(color: linha, border: Border.all(color: linha)),
+      child: Column(
+        children: [
+          for (var i = 0; i < _list.length; i++) ...[
+            if (i > 0)
+              SizedBox(height: 1, width: double.infinity, child: ColoredBox(color: linha)),
+            _CondominioCard(
+              item: _list[i],
+              onTap: () => _goToNext(_list[i]),
+              summary: _summary,
+              isFirst: i == 0,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.only(
-          left: 18.0,
-          right: 18.0,
-          bottom: 12.0,
-          top: 8.0,
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.07),
-                blurRadius: 20,
-                spreadRadius: 0,
-                offset: const Offset(0, 6),
+  /// `.nav`: faixa bg-100 com filete line-100 no topo, sem vidro nem sombra.
+  Widget _buildFixedBottomNavigationBar(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bg100(context),
+        border: Border(top: BorderSide(color: AppColors.border(context))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 58,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildFixedNavItem(
+                key: const ValueKey('nav_home_fixed'),
+                isSelected: true,
+                icon: PhosphorIcons.house,
+                activeIcon: PhosphorIcons.houseFill,
+                label: 'Início',
+                onTap: () => _loadList(),
+              ),
+              _buildFixedNavItem(
+                key: const ValueKey('nav_encomendas_fixed'),
+                isSelected: false,
+                icon: PhosphorIcons.package,
+                activeIcon: PhosphorIcons.packageFill,
+                label: 'Encomendas',
+                onTap: () => _onDashboardTap('packages'),
+              ),
+              _buildAiNavButton(context),
+              _buildFixedNavItem(
+                key: const ValueKey('nav_visitantes_fixed'),
+                isSelected: false,
+                icon: PhosphorIcons.userList,
+                activeIcon: PhosphorIcons.userListFill,
+                label: 'Visitantes',
+                onTap: () => _onDashboardTap('visits'),
+              ),
+              _buildFixedNavItem(
+                key: const ValueKey('nav_financeiro_fixed'),
+                isSelected: false,
+                icon: PhosphorIcons.wallet,
+                activeIcon: PhosphorIcons.walletFill,
+                label: 'Financeiro',
+                onTap: () => _onDashboardTap('debts'),
               ),
             ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            clipBehavior: Clip.antiAlias,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                height: 68.0,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.black.withValues(alpha: 0.35)
-                      : Colors.white.withValues(alpha: 0.65),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.15)
-                        : Colors.white.withValues(alpha: 0.65),
-                    width: 1,
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildFixedNavItem(
-                      key: const ValueKey('nav_home_fixed'),
-                      isSelected: true,
-                      icon: PhosphorIcons.house,
-                      activeIcon: PhosphorIcons.houseFill,
-                      label: 'Início',
-                      onTap: () => _loadList(),
-                    ),
-                    _buildFixedNavItem(
-                      key: const ValueKey('nav_encomendas_fixed'),
-                      isSelected: false,
-                      icon: PhosphorIcons.package,
-                      activeIcon: PhosphorIcons.packageFill,
-                      label: 'Encomendas',
-                      onTap: () => _onDashboardTap('packages'),
-                    ),
-                    _buildAiNavButton(context),
-                    _buildFixedNavItem(
-                      key: const ValueKey('nav_visitantes_fixed'),
-                      isSelected: false,
-                      icon: PhosphorIcons.userList,
-                      activeIcon: PhosphorIcons.userListFill,
-                      label: 'Visitantes',
-                      onTap: () => _onDashboardTap('visits'),
-                    ),
-                    _buildFixedNavItem(
-                      key: const ValueKey('nav_financeiro_fixed'),
-                      isSelected: false,
-                      icon: PhosphorIcons.wallet,
-                      activeIcon: PhosphorIcons.walletFill,
-                      label: 'Financeiro',
-                      onTap: () => _onDashboardTap('debts'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
         ),
       ),
@@ -600,31 +547,23 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     ).then((_) => _loadList());
   }
 
+  /// Botão central da barra: quadrado sólido `accent` com ícone `on-accent`.
   Widget _buildAiNavButton(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: InkWell(
-        onTap: _abrirAssistente,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [AppColors.primary, AppColors.primaryDark],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return Expanded(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: InkWell(
+            onTap: _abrirAssistente,
+            child: Container(
+              width: 48,
+              height: 48,
+              color: AppColors.primary,
+              child: Icon(PhosphorIcons.buildings,
+                  color: AppColors.onPrimary, size: 22),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.45),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
-          child: Icon(PhosphorIcons.buildingsFill, color: AppColors.onPrimary, size: 24),
         ),
       ),
     );
@@ -638,43 +577,32 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     required String label,
     required VoidCallback onTap,
   }) {
-    final activeColor = AppColors.primary;
-    final inactiveColor = AppColors.textSecondary(context);
+    final cor = isSelected
+        ? AppColors.textPrimary(context)
+        : AppColors.textTertiary(context);
 
     return Expanded(
       child: InkWell(
         key: key,
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Filete de 2px sobre o item ativo, colado ao topo da barra.
             AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.primary.withValues(alpha: 0.12)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(
-                isSelected ? activeIcon : icon,
-                color: isSelected ? activeColor : inactiveColor,
-                size: 22,
-              ),
+              duration: const Duration(milliseconds: 300),
+              width: isSelected ? 24 : 0,
+              height: 2,
+              color: AppColors.primary,
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 10),
+            Icon(isSelected ? activeIcon : icon, color: cor, size: 20),
+            const SizedBox(height: 6),
             Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? activeColor : inactiveColor,
-              ),
+              label.toUpperCase(),
+              style: _dTxt(context, 10, ls: 0.16, color: cor),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -698,14 +626,43 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     return '$diaSemana, ${now.day} de $mes';
   }
 
+  /// `.avatar`: círculo bg-300 com contorno line-200; sem foto, as iniciais.
+  Widget _buildAvatar(BuildContext context, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.surfaceElevated(context),
+        border: Border.all(color: AppColors.borderStrong(context)),
+      ),
+      child: ClipOval(child: _buildAvatarImage(size / 2)),
+    );
+  }
+
+  Widget _avatarIniciais(double avatarRadius) {
+    final partes = getUsername()
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    String ini = '';
+    if (partes.isNotEmpty) {
+      ini = partes.first[0];
+      if (partes.length > 1) ini += partes.last[0];
+    }
+    return Center(
+      child: Text(
+        ini.toUpperCase(),
+        style: _dTxt(context, 14, ls: 0.08),
+      ),
+    );
+  }
+
   Widget _buildAvatarImage(double avatarRadius) {
     final photo = getUserPhoto().trim();
     if (photo.isEmpty || photo == 'null' || photo == 'undefined') {
-      return Icon(
-        PhosphorIcons.user,
-        color: AppColors.onPrimary,
-        size: avatarRadius,
-      );
+      return _avatarIniciais(avatarRadius);
     }
 
     if (photo.startsWith('data:image') ||
@@ -725,19 +682,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           height: avatarRadius * 2,
           fit: BoxFit.cover,
           gaplessPlayback: true,
-          errorBuilder: (context, error, stackTrace) => Icon(
-            PhosphorIcons.user,
-            color: AppColors.onPrimary,
-            size: avatarRadius,
-          ),
+          errorBuilder: (context, error, stackTrace) =>
+              _avatarIniciais(avatarRadius),
         );
       } catch (e) {
         logDebug("[ListCondomiums] Base64 decode error: $e");
-        return Icon(
-          PhosphorIcons.user,
-          color: AppColors.onPrimary,
-          size: avatarRadius,
-        );
+        return _avatarIniciais(avatarRadius);
       }
     }
 
@@ -749,200 +699,94 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       gaplessPlayback: true,
       errorBuilder: (context, error, stackTrace) {
         logDebug("[ListCondomiums] Error loading photo: $error");
-        return Icon(
-          PhosphorIcons.user,
-          color: AppColors.onPrimary,
-          size: avatarRadius,
-        );
+        return _avatarIniciais(avatarRadius);
       },
     );
   }
 
   Widget _buildHeader(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final sw = MediaQuery.of(context).size.width;
-    final avatarRadius = sw < 360 ? 22.0 : 26.0;
-    final iconSize = sw < 360 ? 18.0 : 20.0;
+    final saudacao = '${getText('ola')} ${getUsername()}'.toUpperCase();
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primaryGradientStart,
-                  AppColors.primaryGradientEnd,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.35),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.onPrimary.withValues(alpha: 0.4),
-                      width: 2,
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(avatarRadius),
-                    child: Container(
-                      width: avatarRadius * 2,
-                      height: avatarRadius * 2,
-                      color: AppColors.onPrimary.withValues(alpha: 0.2),
-                      child: _buildAvatarImage(avatarRadius),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(
-                                text: "${getText('ola')} ",
-                                style: TextStyle(
-                                  color: AppColors.onPrimary.withValues(alpha: 0.9),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              TextSpan(
-                                text: getUsername(),
-                                style: TextStyle(
-                                  color: AppColors.onPrimary,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                            ],
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.onPrimary.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              PhosphorIcons.calendarBlank,
-                              size: 11,
-                              color: AppColors.onPrimary.withValues(alpha: 0.9),
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  _getFormattedHeaderDate(),
-                                  style: TextStyle(
-                                    color: AppColors.onPrimary.withValues(alpha: 0.95),
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.2,
-                                  ),
-                                  maxLines: 1,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 6),
-                _buildHeaderActions(context, iconSize),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _buildDashboard(context),
-          const SizedBox(height: 22),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'Meus condomínios',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  letterSpacing: -0.3,
+              _buildAvatar(context, sw < 360 ? 40 : 44),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _getFormattedHeaderDate().toUpperCase(),
+                      style: _dTxt(context, 11,
+                          lh: 14, ls: 0.2, color: AppColors.textTertiary(context)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        saudacao,
+                        style: _dTxt(context, 22, lh: 26, ls: 0.1),
+                        maxLines: 1,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
+              _buildHeaderActions(context, sw < 360 ? 36 : 40),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildDashboard(context),
+          SizedBox(height: (_summary == null && _pendentesCount == 0) ? 0 : 24),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'MEUS CONDOMÍNIOS',
+                style: _dTxt(context, 15, lh: 20, ls: 0.16),
+              ),
               Text(
                 '${_list.length}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                ),
+                style: _bTxt(context, 12,
+                    lh: 16, color: AppColors.textTertiary(context)),
               ),
             ],
           ),
-          const SizedBox(height: 14),
         ],
       ),
     );
   }
 
-  /// Ações do topo estilizadas para o card azul do perfil.
-  Widget _buildHeaderActions(BuildContext context, double iconSize) {
+  /// `.iconbtn`: quadrado de 1px em line-100, ícone fino em ink.
+  Widget _buildHeaderActions(BuildContext context, double lado) {
     Widget acao({
       required IconData icon,
       required VoidCallback onPressed,
       required String tooltip,
       Widget? badge,
     }) {
-      final botao = Material(
-        color: Colors.transparent,
+      final botao = Tooltip(
+        message: tooltip,
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.full),
           onTap: onPressed,
-          child: Tooltip(
-            message: tooltip,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.onPrimary.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: AppColors.onPrimary, size: iconSize),
+          child: Container(
+            width: lado,
+            height: lado,
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.border(context)),
             ),
+            child: Icon(icon, color: AppColors.textPrimary(context), size: 18),
           ),
         ),
       );
@@ -958,7 +802,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           onPressed: _editProfile,
           tooltip: getText('editar_infos'),
         ),
-        const SizedBox(width: AppSpacing.xs),
+        const SizedBox(width: 6),
         acao(
           icon: PhosphorIcons.bell,
           tooltip: 'Notificações',
@@ -973,32 +817,27 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           badge: _naoLidas == 0
               ? null
               : Positioned(
-                  right: -2,
-                  top: -2,
+                  right: -6,
+                  top: -6,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    constraints: const BoxConstraints(minWidth: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    constraints:
+                        const BoxConstraints(minWidth: 18, minHeight: 18),
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: AppColors.error,
                       borderRadius: BorderRadius.circular(AppRadius.full),
-                      border:
-                          Border.all(color: AppColors.primary, width: 1.5),
                     ),
                     child: Text(
                       _naoLidas > 9 ? '9+' : '$_naoLidas',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppColors.onPrimary,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        height: 1.3,
-                      ),
+                      style: _bTxt(context, 10,
+                          w: FontWeight.w600, color: AppColors.onPrimary),
                     ),
                   ),
                 ),
         ),
-        const SizedBox(width: AppSpacing.xs),
+        const SizedBox(width: 6),
         acao(
           icon: PhosphorIcons.signOut,
           tooltip: getText('lb_logout'),
@@ -1013,6 +852,35 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
+  /// `.kpis`: grade de duas colunas, células separadas por 1px de line-100.
+  Widget _kpiGrid(BuildContext context, List<Widget> cells) {
+    final linha = AppColors.border(context);
+    final rows = <Widget>[];
+    for (var i = 0; i < cells.length; i += 2) {
+      if (rows.isNotEmpty) {
+        rows.add(SizedBox(height: 1, width: double.infinity, child: ColoredBox(color: linha)));
+      }
+      rows.add(
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: cells[i]),
+              SizedBox(width: 1, child: ColoredBox(color: linha)),
+              Expanded(
+                child: i + 1 < cells.length ? cells[i + 1] : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(color: linha, border: Border.all(color: linha)),
+      child: Column(children: rows),
+    );
+  }
+
   Widget _buildDashboard(BuildContext context) {
     if (_summary == null && _pendentesCount == 0) return const SizedBox.shrink();
     final type = getUserType();
@@ -1022,128 +890,96 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       children: [
         if (_pendentesCount > 0) ...[
           _buildPendentesBanner(context),
-          if (_summary != null) const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: 24),
         ],
         if (_summary != null) ...[
-          Text('Resumo Geral',
-              style: AppTypography.bodyMedium(context)
-                  .copyWith(fontWeight: FontWeight.w600)),
-          const SizedBox(height: AppSpacing.md),
-          if (type == 'funcionario') ...[
-            Row(
-              children: [
-                Expanded(
-                  child: _DashboardCard(
-                    title: 'Encomendas',
-                    value: (_summary?['packages'] ?? 0).toString(),
-                    subtitle: 'Aguardando retirada',
-                    icon: PhosphorIcons.package,
-                    color: AppColors.warning,
-                    onTap: () => _onDashboardTap('packages'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _DashboardCard(
-                    title: 'Visitantes Hoje',
-                    value: (_summary?['visits_today'] ?? _summary?['visits'] ?? 0).toString(),
-                    subtitle: 'Liberados hoje',
-                    icon: PhosphorIcons.userList,
-                    color: AppColors.primary,
-                    onTap: () => _onDashboardTap('visits'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: _DashboardCard(
-                    title: 'No Condomínio',
-                    value: (_summary?['inside_condo'] ?? 0).toString(),
-                    subtitle: 'Presentes agora',
-                    icon: PhosphorIcons.door,
-                    color: AppColors.success,
-                    onTap: () => _onDashboardTap('inside_condo'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _DashboardCard(
-                    title: 'Ocorrências',
-                    value: (_summary?['occurrences'] ?? 0).toString(),
-                    subtitle: 'Abertas / Ativas',
-                    icon: PhosphorIcons.warningCircle,
-                    color: AppColors.error,
-                    onTap: () => _onDashboardTap('occurrences'),
-                  ),
-                ),
-              ],
-            ),
-          ] else ...[
-            Row(
-              children: [
-                if (type == 'sindico') ...[
-                  Expanded(
-                    child: _DashboardCard(
-                      title: 'Inadimplência',
-                      value: 'R\$ ${formatMoeda(_summary?['debts']?['total'])}',
-                      subtitle: '${_summary?['debts']?['count'] ?? 0} pendências',
-                      icon: PhosphorIcons.money,
-                      color: AppColors.error,
-                      onTap: () => _onDashboardTap('debts'),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: _DashboardCard(
-                      title: 'Ocorrências',
-                      value: (_summary?['occurrences'] ?? 0).toString(),
-                      subtitle: 'Aguardando resposta',
-                      icon: PhosphorIcons.warningCircle,
-                      color: AppColors.warning,
-                      onTap: () => _onDashboardTap('occurrences'),
-                    ),
-                  ),
-                ] else if (type == 'morador') ...[
-                  Expanded(
-                    child: _DashboardCard(
-                      title: 'Visitas Hoje',
-                      value: (_summary?['visits'] ?? 0).toString(),
-                      subtitle: 'Agendadas para hoje',
-                      icon: PhosphorIcons.userList,
-                      color: AppColors.primary,
-                      onTap: () => _onDashboardTap('visits'),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: _DashboardCard(
-                      title: 'Encomendas',
-                      value: (_summary?['packages'] ?? 0).toString(),
-                      subtitle: 'Aguardando retirada',
-                      icon: PhosphorIcons.package,
-                      color: AppColors.success,
-                      onTap: () => _onDashboardTap('packages'),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
+          Text('RESUMO GERAL', style: _dTxt(context, 15, lh: 20, ls: 0.16)),
+          const SizedBox(height: 12),
+          if (type == 'funcionario')
+            _kpiGrid(context, [
+              _DashboardCard(
+                title: 'Encomendas',
+                value: (_summary?['packages'] ?? 0).toString(),
+                subtitle: 'Aguardando retirada',
+                icon: PhosphorIcons.package,
+                color: AppColors.warning,
+                onTap: () => _onDashboardTap('packages'),
+              ),
+              _DashboardCard(
+                title: 'Visitantes Hoje',
+                value: (_summary?['visits_today'] ?? _summary?['visits'] ?? 0).toString(),
+                subtitle: 'Liberados hoje',
+                icon: PhosphorIcons.userList,
+                color: AppColors.primary,
+                onTap: () => _onDashboardTap('visits'),
+              ),
+              _DashboardCard(
+                title: 'No Condomínio',
+                value: (_summary?['inside_condo'] ?? 0).toString(),
+                subtitle: 'Presentes agora',
+                icon: PhosphorIcons.door,
+                color: AppColors.success,
+                onTap: () => _onDashboardTap('inside_condo'),
+              ),
+              _DashboardCard(
+                title: 'Ocorrências',
+                value: (_summary?['occurrences'] ?? 0).toString(),
+                subtitle: 'Abertas / Ativas',
+                icon: PhosphorIcons.warningCircle,
+                color: AppColors.error,
+                onTap: () => _onDashboardTap('occurrences'),
+              ),
+            ])
+          else if (type == 'sindico')
+            _kpiGrid(context, [
+              _DashboardCard(
+                title: 'Inadimplência',
+                value: 'R\$ ${formatMoeda(_summary?['debts']?['total'])}',
+                subtitle: '${_summary?['debts']?['count'] ?? 0} pendências',
+                icon: PhosphorIcons.money,
+                color: AppColors.error,
+                onTap: () => _onDashboardTap('debts'),
+              ),
+              _DashboardCard(
+                title: 'Ocorrências',
+                value: (_summary?['occurrences'] ?? 0).toString(),
+                subtitle: 'Aguardando resposta',
+                icon: PhosphorIcons.warningCircle,
+                color: AppColors.warning,
+                onTap: () => _onDashboardTap('occurrences'),
+              ),
+            ])
+          else if (type == 'morador')
+            _kpiGrid(context, [
+              _DashboardCard(
+                title: 'Visitas Hoje',
+                value: (_summary?['visits'] ?? 0).toString(),
+                subtitle: 'Agendadas para hoje',
+                icon: PhosphorIcons.userList,
+                color: AppColors.primary,
+                onTap: () => _onDashboardTap('visits'),
+              ),
+              _DashboardCard(
+                title: 'Encomendas',
+                value: (_summary?['packages'] ?? 0).toString(),
+                subtitle: 'Aguardando retirada',
+                icon: PhosphorIcons.package,
+                color: AppColors.primary,
+                onTap: () => _onDashboardTap('packages'),
+              ),
+            ]),
         ],
       ],
     );
   }
 
+  /// Aviso de visita na portaria: `.card` com contorno line-200 e ponto de
+  /// alerta. Antes era um bloco laranja com gradiente.
   Widget _buildPendentesBanner(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Material(
-      color: Colors.transparent,
+      color: AppColors.surface(context),
+      shape: Border.all(color: AppColors.borderStrong(context)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
         onTap: () {
           Navigator.push(
             context,
@@ -1152,62 +988,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             if (mounted) _carregarPendentes();
           });
         },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDark
-                  ? [
-                      const Color(0xFF261909),
-                      const Color(0xFF1A1104),
-                    ]
-                  : [
-                      const Color(0xFFFFF7ED),
-                      const Color(0xFFFFEDD5),
-                    ],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: const Color(0xFFF97316).withValues(alpha: 0.35),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFEA580C).withValues(alpha: 0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFEA580C).withValues(alpha: 0.32),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  PhosphorIcons.bellRingingFill,
-                  color: Colors.white,
-                  size: 23,
-                ),
-              ),
-              const SizedBox(width: 14),
+              _sinal(AppColors.warning),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1216,76 +1002,29 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       children: [
                         Expanded(
                           child: Text(
-                            '$_pendentesCount ${_pendentesCount == 1 ? "Visita na Portaria" : "Visitas na Portaria"}',
-                            style: TextStyle(
-                              color: isDark ? Colors.white : const Color(0xFF7C2D12),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              letterSpacing: -0.2,
-                            ),
+                            '$_pendentesCount ${_pendentesCount == 1 ? "Visita na Portaria" : "Visitas na Portaria"}'
+                                .toUpperCase(),
+                            style: _dTxt(context, 11, lh: 14, ls: 0.2),
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFDC2626).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: const Color(0xFFDC2626).withValues(alpha: 0.3),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 5.5,
-                                height: 5.5,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFDC2626),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 4.5),
-                              const Text(
-                                'Aguardando',
-                                style: TextStyle(
-                                  color: Color(0xFFB91C1C),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        const SizedBox(width: 8),
+                        _tag(context, label: 'Aguardando'),
                       ],
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
                       'Toque para aprovar ou negar a entrada',
-                      style: TextStyle(
-                        color: isDark ? Colors.white70 : const Color(0xFF9A3412),
-                        fontSize: 12.5,
-                        height: 1.2,
-                      ),
+                      style: _bTxt(context, 12,
+                          lh: 16, color: AppColors.textTertiary(context)),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEA580C).withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  PhosphorIcons.caretRightBold,
-                  color: Color(0xFFEA580C),
-                  size: 15,
-                ),
+              const SizedBox(width: 8),
+              Icon(
+                PhosphorIcons.caretRight,
+                color: AppColors.textTertiary(context),
+                size: 16,
               ),
             ],
           ),
@@ -1305,145 +1044,101 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
   Widget _buildMeusEventos(BuildContext context) {
     if (_eventos.isEmpty) return const SizedBox.shrink();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     const maxLinhas = 4;
     final mostrar = _eventos.take(maxLinhas).toList();
     final restantes = _eventos.length - mostrar.length;
+    final linha = AppColors.border(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 20),
+        const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              tituloSecaoEventos(getUserType()),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
-                letterSpacing: -0.2,
+            Expanded(
+              child: Text(
+                tituloSecaoEventos(getUserType()).toUpperCase(),
+                style: _dTxt(context, 15, lh: 20, ls: 0.16),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _abrirHistoricoAcessos(),
-                borderRadius: BorderRadius.circular(20),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Ver todos',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      Icon(
-                        PhosphorIcons.caretRightBold,
-                        color: AppColors.primary,
-                        size: 12,
-                      ),
-                    ],
-                  ),
+            InkWell(
+              onTap: () => _abrirHistoricoAcessos(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'VER TODOS',
+                      style: _dTxt(context, 11, lh: 14, ls: 0.2),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      PhosphorIcons.caretRight,
+                      color: AppColors.textPrimary(context),
+                      size: 12,
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
         Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 10),
+          padding: const EdgeInsets.only(top: 4, bottom: 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'HOJE',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                ),
+                style: _dTxt(context, 11,
+                    lh: 14, ls: 0.2, color: AppColors.textTertiary(context)),
               ),
               Text(
                 _formatDateToday(),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                ),
+                style: _bTxt(context, 12,
+                    lh: 16, color: AppColors.textTertiary(context)),
               ),
             ],
           ),
         ),
         Container(
           decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isDark ? AppColors.darkBorder : const Color(0xFFF1F5F9),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? Colors.black.withValues(alpha: 0.20)
-                    : const Color(0xFF64748B).withValues(alpha: 0.06),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            color: linha,
+            border: Border.all(color: linha),
           ),
-          clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
               for (var i = 0; i < mostrar.length; i++) ...[
-                if (i > 0)
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: isDark ? AppColors.darkBorder : const Color(0xFFF1F5F9),
-                  ),
+                if (i > 0) SizedBox(height: 1, width: double.infinity, child: ColoredBox(color: linha)),
                 _buildEventoRow(context, mostrar[i]),
               ],
               if (restantes > 0) ...[
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: isDark ? AppColors.darkBorder : const Color(0xFFF1F5F9),
-                ),
+                SizedBox(height: 1, width: double.infinity, child: ColoredBox(color: linha)),
                 Material(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.02)
-                      : const Color(0xFFF8FAFC),
+                  color: AppColors.bg100(context),
                   child: InkWell(
                     onTap: () => _abrirHistoricoAcessos(),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       child: Center(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              '+ $restantes ${restantes == 1 ? 'evento recente' : 'eventos recentes'}',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              '+ $restantes ${restantes == 1 ? 'evento recente' : 'eventos recentes'}'
+                                  .toUpperCase(),
+                              style: _dTxt(context, 11, lh: 14, ls: 0.2),
                             ),
                             const SizedBox(width: 6),
                             Icon(
-                              PhosphorIcons.arrowRightBold,
+                              PhosphorIcons.arrowRight,
                               size: 13,
-                              color: AppColors.primary,
+                              color: AppColors.textPrimary(context),
                             ),
                           ],
                         ),
@@ -1460,30 +1155,16 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   Widget _buildEventoRow(BuildContext context, dynamic e) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final id = int.tryParse(e['id']?.toString() ?? '');
     final isEntrada = (e['evento'] ?? '').toString() == 'entrada';
     final isVoce = (e['categoria'] ?? '').toString() == 'voce';
     final tipoPessoa = (e['tipo_pessoa'] ?? '').toString();
     final nome = (e['nome'] ?? '').toString();
 
-    final Color arrowBg = isDark
-        ? (isEntrada
-            ? const Color(0xFF1E3A8A).withValues(alpha: 0.35)
-            : const Color(0xFF581C87).withValues(alpha: 0.35))
-        : (isEntrada
-            ? const Color(0xFFDBEAFE).withValues(alpha: 0.6)
-            : const Color(0xFFF3E8FF));
-
-    final Color arrowColor = isDark
-        ? (isEntrada ? const Color(0xFF60A5FA) : const Color(0xFFC084FC))
-        : (isEntrada ? AppColors.primary : const Color(0xFF9333EA));
-
-    final IconData icon = isEntrada
-        ? PhosphorIcons.arrowDownLeftBold
-        : PhosphorIcons.arrowUpRightBold;
-
     final String statusLabel = isEntrada ? 'Entrou' : 'Saiu';
+    // Cor só sinaliza: entrada em verde, saída no cinza do texto.
+    final Color statusColor =
+        isEntrada ? AppColors.success : AppColors.textSecondary(context);
 
     final String tag;
     if (isVoce) {
@@ -1501,42 +1182,21 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     final horaStr = _formatHora(e['timestamp']);
 
     return Material(
-      color: Colors.transparent,
+      color: AppColors.surface(context),
       child: InkWell(
         onTap: () => _abrirHistoricoAcessos(destacarId: id),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
               SizedBox(
-                width: 44,
+                width: 54,
                 child: Text(
                   horaStr,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
-                  ),
+                  style: _dTxt(context, 20, ls: 0.02, w: FontWeight.w300)
+                      .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
                 ),
               ),
-              const SizedBox(width: 8),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: arrowBg,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  color: arrowColor,
-                  size: 15,
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1544,23 +1204,25 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   children: [
                     Text(
                       displayName,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        letterSpacing: -0.1,
-                      ),
+                      style: _bTxt(context, 16,
+                          lh: 22,
+                          w: FontWeight.w500,
+                          color: AppColors.textPrimary(context)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '$statusLabel · $tag',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: arrowColor,
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: statusLabel,
+                            style: TextStyle(color: statusColor),
+                          ),
+                          TextSpan(text: ' · $tag'),
+                        ],
                       ),
+                      style: _bTxt(context, 12,
+                          lh: 16, color: AppColors.textTertiary(context)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1570,7 +1232,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               const SizedBox(width: 8),
               Icon(
                 PhosphorIcons.caretRight,
-                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                color: AppColors.textTertiary(context),
                 size: 16,
               ),
             ],
@@ -1606,10 +1268,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       padding: const EdgeInsets.all(AppSpacing.xxl),
       child: Column(
         children: [
-          Icon(PhosphorIcons.warningCircle, size: 56, color: AppColors.error),
+          Icon(PhosphorIcons.warningCircle, size: 48, color: AppColors.error),
           AppSpacing.gapLg,
           Text(_errorMessage!,
-              style: AppTypography.body(context), textAlign: TextAlign.center),
+              style: _bTxt(context, 16,
+                  lh: 22, w: FontWeight.w500, color: AppColors.textPrimary(context)),
+              textAlign: TextAlign.center),
           AppSpacing.gapXl,
           AppButton(
             label: 'Tentar novamente',
@@ -1631,22 +1295,21 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         children: [
           AppSpacing.gapXxxl,
           Container(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              shape: BoxShape.circle,
-            ),
+            width: 52,
+            height: 52,
+            color: AppColors.accentGhost(context),
             child: Icon(PhosphorIcons.buildings,
-                size: 48, color: AppColors.primary),
+                size: 24, color: AppColors.textPrimary(context)),
           ),
           AppSpacing.gapLg,
-          Text('Nenhum condomínio', style: AppTypography.headline(context)),
+          Text('NENHUM CONDOMÍNIO',
+              style: _dTxt(context, 15, lh: 20, ls: 0.16)),
           AppSpacing.gapSm,
           Text(
             isSindico
                 ? 'Toque em "Novo" para cadastrar seu primeiro condomínio'
                 : 'Você ainda não possui condomínios vinculados',
-            style: AppTypography.bodySecondary(context),
+            style: _bTxt(context, 14, lh: 20),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1655,6 +1318,60 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 }
 
+/// Estilos locais do tema Prestare Dark: Barlow Condensed em maiúsculas para a
+/// estrutura, Barlow para o conteúdo. `lh` é a altura de linha em px.
+TextStyle _dTxt(BuildContext c, double size,
+    {double lh = 0, double ls = 0.1, FontWeight w = FontWeight.w600, Color? color}) {
+  return GoogleFonts.barlowCondensed(
+    fontSize: size,
+    fontWeight: w,
+    letterSpacing: size * ls,
+    height: lh == 0 ? null : lh / size,
+    color: color ?? AppColors.textPrimary(c),
+  );
+}
+
+TextStyle _bTxt(BuildContext c, double size,
+    {double lh = 0, FontWeight w = FontWeight.w400, Color? color}) {
+  return GoogleFonts.barlow(
+    fontSize: size,
+    fontWeight: w,
+    height: lh == 0 ? null : lh / size,
+    color: color ?? AppColors.textSecondary(c),
+  );
+}
+
+/// Ponto de 6px: a única cor decorativa permitida, só para sinalizar.
+Widget _sinal(Color color) => Container(
+      width: 6,
+      height: 6,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+
+/// `.tag`: contorno line-200, canto de 2px, texto curto em maiúsculas.
+Widget _tag(BuildContext context, {Widget? leading, required String label}) {
+  return Container(
+    height: 22,
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    decoration: BoxDecoration(
+      border: Border.all(color: AppColors.borderStrong(context)),
+      borderRadius: BorderRadius.circular(2),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (leading != null) ...[leading, const SizedBox(width: 6)],
+        Text(
+          label.toUpperCase(),
+          style: _dTxt(context, 10, ls: 0.18, color: AppColors.textSecondary(context)),
+          maxLines: 1,
+        ),
+      ],
+    ),
+  );
+}
+
+/// `.kpi`: rótulo, numeral leve e legenda. O [sinal] só pinta o ponto.
 class _DashboardCard extends StatelessWidget {
   final String title;
   final String value;
@@ -1674,94 +1391,59 @@ class _DashboardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : const Color(0xFFF1F5F9),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.20)
-                : const Color(0xFF64748B).withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(icon, color: color, size: 20),
+    // Cor só sinaliza: o primário (preto/branco) não ganha ponto.
+    final sinal = color == AppColors.primary ? null : color;
+    return Material(
+      color: AppColors.surface(context),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title.toUpperCase(),
+                      style: _dTxt(context, 11,
+                          lh: 14, ls: 0.2, color: AppColors.textTertiary(context)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          value,
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ),
+                  ),
+                  Icon(icon, size: 16, color: AppColors.textTertiary(context)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: _dTxt(context, 34, lh: 36, ls: 0.02, w: FontWeight.w300)
+                      .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                  maxLines: 1,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  if (sinal != null) ...[_sinal(sinal), const SizedBox(width: 6)],
+                  Expanded(
+                    child: Text(
+                      subtitle,
+                      style: _bTxt(context, 12,
+                          lh: 16, color: AppColors.textTertiary(context)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    letterSpacing: -0.1,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -1769,6 +1451,7 @@ class _DashboardCard extends StatelessWidget {
   }
 }
 
+/// `.item` de condomínio dentro da `.list`.
 class _CondominioCard extends StatelessWidget {
   final dynamic item;
   final VoidCallback onTap;
@@ -1784,7 +1467,6 @@ class _CondominioCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMorador = getUserType() == 'morador';
     final String subtitleText;
 
@@ -1804,91 +1486,59 @@ class _CondominioCard extends StatelessWidget {
       subtitleText = '$numBlocos $blocoText · $numAptos $aptoText';
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : const Color(0xFFF1F5F9),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.20)
-                : const Color(0xFF64748B).withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(
-                    width: 56,
-                    height: 56,
-                    child: item['photo'] != null &&
-                            item['photo'].toString().trim().isNotEmpty &&
-                            item['photo'].toString() != 'null'
-                        ? Image.network(
-                            item['photo'].toString().trim(),
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _placeholder(context),
-                          )
-                        : _placeholder(context),
-                  ),
+    return Material(
+      color: AppColors.surface(context),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: item['photo'] != null &&
+                        item['photo'].toString().trim().isNotEmpty &&
+                        item['photo'].toString() != 'null'
+                    ? Image.network(
+                        item['photo'].toString().trim(),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _placeholder(context),
+                      )
+                    : _placeholder(context),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      item['nome'] ?? '',
+                      style: _bTxt(context, 16,
+                          lh: 22, w: FontWeight.w500, color: AppColors.textPrimary(context)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      subtitleText,
+                      style: _bTxt(context, 12,
+                          lh: 16, color: AppColors.textTertiary(context)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildBadges(context),
+                  ],
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        item['nome'] ?? '',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          letterSpacing: -0.2,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitleText,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          color: Color(0xFF64748B),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 8),
-                      _buildBadges(context),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  PhosphorIcons.caretRight,
-                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                  size: 18,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                PhosphorIcons.caretRight,
+                color: AppColors.textTertiary(context),
+                size: 18,
+              ),
+            ],
           ),
         ),
       ),
@@ -1896,8 +1546,6 @@ class _CondominioCard extends StatelessWidget {
   }
 
   Widget _buildBadges(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     int noLocalCount = 0;
     if (item['no_local'] != null) {
       noLocalCount = int.tryParse(item['no_local'].toString()) ?? 0;
@@ -1926,134 +1574,41 @@ class _CondominioCard extends StatelessWidget {
     final hasBadges = noLocalCount > 0 || packageCount > 0;
 
     if (!hasBadges) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
-            width: 1,
-          ),
-        ),
-        child: Text(
-          'Sem novidades',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-          ),
-        ),
-      );
+      return _tag(context, label: 'Sem novidades');
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
       children: [
-        if (noLocalCount > 0) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF064E3B).withValues(alpha: 0.45)
-                  : const Color(0xFFDCFCE7),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isDark
-                    ? const Color(0xFF059669).withValues(alpha: 0.4)
-                    : const Color(0xFFBBF7D0),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF16A34A),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  '$noLocalCount no local',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isDark
-                        ? const Color(0xFF4ADE80)
-                        : const Color(0xFF16A34A),
-                  ),
-                ),
-              ],
-            ),
+        if (noLocalCount > 0)
+          _tag(
+            context,
+            leading: _sinal(AppColors.success),
+            label: '$noLocalCount no local',
           ),
-          const SizedBox(width: 6),
-        ],
-        if (packageCount > 0) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1E1B4B).withValues(alpha: 0.45)
-                  : const Color(0xFFEEF2FF),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isDark
-                    ? const Color(0xFF4338CA).withValues(alpha: 0.4)
-                    : const Color(0xFFE0E7FF),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  PhosphorIcons.package,
-                  size: 14,
-                  color: isDark
-                      ? const Color(0xFF818CF8)
-                      : const Color(0xFF4F46E5),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '$packageCount',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isDark
-                        ? const Color(0xFF818CF8)
-                        : const Color(0xFF4F46E5),
-                  ),
-                ),
-              ],
-            ),
+        if (packageCount > 0)
+          _tag(
+            context,
+            leading: Icon(PhosphorIcons.package,
+                size: 13, color: AppColors.textSecondary(context)),
+            label: '$packageCount',
           ),
-        ],
       ],
     );
   }
 
+  /// `.ico`: quadrado accent-ghost com o ícone em ink.
   Widget _placeholder(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : const Color(0xFFDBEAFE),
-          width: 1.2,
-        ),
-      ),
+      width: 48,
+      height: 48,
+      color: AppColors.accentGhost(context),
       child: Center(
         child: Icon(
-          PhosphorIcons.buildingsBold,
-          color: AppColors.primary,
-          size: 28,
+          PhosphorIcons.buildings,
+          color: AppColors.textPrimary(context),
+          size: 22,
         ),
       ),
     );
