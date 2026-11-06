@@ -10,11 +10,12 @@ import { Visitante } from '../visitantes/visitante.model';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { compressImage } from '../shared/image-compress.util';
 import { ConsentimentosApi } from '../core/consentimentos.service';
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 @Component({
   selector: 'app-prestadores-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink],
+  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink, SlideIndicatorDirective],
   templateUrl: './prestadores-page.component.html',
 })
 export class PrestadoresPageComponent implements OnInit {
