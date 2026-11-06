@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Assembleia, AssembleiasApi, Votacao } from './assembleias.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 @Component({
   selector: 'app-assembleias-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
   templateUrl: './assembleias-page.component.html',
 })
 export class AssembleiasPageComponent implements OnInit {
