@@ -26,319 +26,346 @@
   <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','AW-18476913499');</script>
   <script>!function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");oaiq("init",{pixelId:"17H2XPR4dY5HHBNUs9L5ha"});</script>
   <script>(function(){try{var q=new URLSearchParams(location.search);var chaves=['gclid','oppref','utm_source','utm_medium','utm_campaign','campaign_id','ad_group_id','ad_id'];var salvo=JSON.parse(sessionStorage.getItem('psOrigem')||'{}');chaves.forEach(function(k){if(q.get(k))salvo[k]=q.get(k)});sessionStorage.setItem('psOrigem',JSON.stringify(salvo))}catch(e){}})();</script>
-  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/fonts.css">
-  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/colors.css">
-  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/typography.css">
-  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/spacing.css">
-  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/radius.css">
-  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/elevation.css">
-  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/base.css">
-  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/interactions.css">
-  <link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/styles.css">
+  <script>
+    /* Tema escolhido pela pessoa; sem escolha, segue o sistema (CSS). */
+    try { var psTema = localStorage.getItem('ps-theme'); if (psTema) document.documentElement.dataset.theme = psTema; } catch (e) {}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600&family=Barlow:wght@400;500;600&display=swap">
   <style>
-    /* Tema corporativo escuro — mesma linguagem da /sobre/ (Claude Design v2):
-       azul-marinho profundo, títulos grandes de peso leve, divisórias finas e
-       cartões com brilho azul no topo. */
-    :root {
-      --ps-bg: #050B22; --ps-bg-2: #070F2E; --ps-bg-3: #0B1A47;
-      --ps-line: rgba(255,255,255,.14); --ps-line-soft: rgba(255,255,255,.09);
-      --ps-text-2: rgba(255,255,255,.80); --ps-text-3: rgba(255,255,255,.70); --ps-text-4: rgba(255,255,255,.52);
-      --ps-brand: #2560E8; --ps-brand-hover: #1E4FD8; --ps-link: #7FA4F5;
-      --ps-ease: cubic-bezier(.2,.8,.28,1);
-      --ps-gutter: clamp(18px, 4.5vw, 88px);
+    /* Prestare Dark: mesma linguagem da /sobre/ (tokens, .wrap, topo, botões, rodapé).
+       Sem overflow-x em html/body: viraria scroll container e quebraria o sticky do topo. */
+    :root{
+      --bg-000:#000000;--bg-100:#0b0b0b;--bg-200:#141414;--bg-300:#1f1f1f;--line-100:#242424;--line-200:#666666;
+      --ink:#ffffff;--ink-muted:#a3a3a3;--ink-subtle:#8a8a8a;--accent:#ffffff;--on-accent:#000000;--accent-ghost:rgba(255,255,255,.08);
+      --signal-ok:#5ec28a;
+      --show-dark:block;--show-light:none;
+      --font-display:"Barlow Condensed","Arial Narrow",sans-serif;--font-sans:"Barlow",system-ui,sans-serif;
+      --gutter:clamp(16px,4vw,64px);
+      color-scheme:dark;
     }
-    html { scroll-behavior: smooth; background: var(--ps-bg); }
-    body { margin: 0; background: var(--ps-bg); color: #fff; font: var(--type-body); -webkit-font-smoothing: antialiased; }
-    a { color: var(--ps-link); }
-    a:hover { color: #fff; }
-    a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--ps-link); outline-offset: 3px; }
-    .ps-site-header *, .ps-site-header *::before, .ps-site-header *::after, .ps-footer *, .ps-footer *::before, .ps-footer *::after { box-sizing: border-box; }
+    @media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+      --bg-000:#ffffff;--bg-100:#fafafa;--bg-200:#f4f4f4;--bg-300:#e9e9e9;--line-100:#e2e2e2;--line-200:#888888;
+      --ink:#000000;--ink-muted:#555555;--ink-subtle:#6b6b6b;--accent:#000000;--on-accent:#ffffff;--accent-ghost:rgba(0,0,0,.05);
+      --signal-ok:#1a7a48;
+      --show-dark:none;--show-light:block;color-scheme:light}}
+    :root[data-theme="light"]{
+      --bg-000:#ffffff;--bg-100:#fafafa;--bg-200:#f4f4f4;--bg-300:#e9e9e9;--line-100:#e2e2e2;--line-200:#888888;
+      --ink:#000000;--ink-muted:#555555;--ink-subtle:#6b6b6b;--accent:#000000;--on-accent:#ffffff;--accent-ghost:rgba(0,0,0,.05);
+      --signal-ok:#1a7a48;
+      --show-dark:none;--show-light:block;color-scheme:light}
+    html{scroll-behavior:smooth;scroll-padding-top:72px;background:var(--bg-000)}
+    body{margin:0;background:var(--bg-000);color:var(--ink);font-family:var(--font-sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;transition:background .4s,color .4s}
+    *{box-sizing:border-box}
+    a{color:inherit;text-decoration:none}
+    button,input{font:inherit;color:inherit}
+    button{background:none;border:0;padding:0;cursor:pointer}
+    :focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+    img{max-width:100%;display:block;height:auto}
+    ::placeholder{color:var(--ink-subtle);opacity:1}
+    h1,h2,h3,p,li,summary{overflow-wrap:break-word}
+    .img-dark{display:var(--show-dark)}.img-light{display:var(--show-light)}
+    svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+    .wrap,.sindico-shell,.sindico-stats-inner{max-width:1560px;margin:0 auto;padding-left:max(var(--gutter),env(safe-area-inset-left,0px));padding-right:max(var(--gutter),env(safe-area-inset-right,0px))}
+    section{padding-block:120px;border-top:1px solid var(--line-100);position:relative}
+    .dot{width:7px;height:7px;border-radius:999px;background:var(--ink-subtle);display:inline-block;flex:none}
+    .dot.ok{background:var(--signal-ok)}
+    .pulse{animation:pulse 1.8s ease-in-out infinite}@keyframes pulse{50%{opacity:.3}}
+    @keyframes fade{from{opacity:0;transform:translateY(12px)}}
+    @keyframes float1{from{opacity:0;transform:translateY(40px)}}
 
-    /* Header */
-    .ps-site-header { position: sticky; top: 0; z-index: 30; background: rgba(5,11,34,.82); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,.08); }
-    .ps-header-inner { max-width: 1760px; margin: auto; min-height: 72px; padding: 14px var(--ps-gutter); display: flex; align-items: center; gap: 28px; }
-    .ps-brand { display: inline-flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
-    .ps-brand img { width: 38px; height: 38px; border-radius: 9px; }
-    .ps-logo-txt { font: var(--weight-extrabold) 18px/1 var(--font-display); letter-spacing: .04em; color: #fff; white-space: nowrap; }
-    .ps-logo-txt span { font-weight: 400; color: rgba(255,255,255,.7); }
-    .ps-nav { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 28px; }
-    .ps-nav a { color: rgba(255,255,255,.82); text-decoration: none; font: var(--weight-semibold) 15px/1 var(--font-ui); }
-    .ps-nav a:hover, .ps-nav a[aria-current="page"] { color: #fff; }
-    .ps-nav a[aria-current="page"] { box-shadow: inset 0 -2px 0 var(--ps-brand); padding-bottom: 6px; margin-bottom: -8px; }
-    .ps-nav .sindico-nav-cta { margin-left: 6px; padding: 13px 22px; border-radius: 8px; background: var(--ps-brand); color: #fff; font: var(--weight-bold) 14px/1 var(--font-ui); transition: background 150ms var(--ps-ease); }
-    .ps-nav .sindico-nav-cta:hover { background: var(--ps-brand-hover); }
-    .ps-mobile-menu { display: none; margin-left: auto; }
-    .ps-mobile-menu summary { list-style: none; cursor: pointer; width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--ps-line); background: rgba(255,255,255,.04); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
-    .ps-mobile-menu summary::-webkit-details-marker { display: none; }
-    .ps-mobile-menu summary i { display: block; width: 17px; height: 2px; border-radius: 2px; background: #fff; }
-    .ps-mobile-nav { position: absolute; left: 12px; right: 12px; top: 68px; display: grid; gap: 2px; padding: 10px; background: var(--ps-bg-2); border: 1px solid rgba(255,255,255,.12); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
-    .ps-mobile-nav a { padding: 14px 12px; border-radius: 10px; color: #fff; text-decoration: none; font: var(--weight-semibold) 16px/1.3 var(--font-ui); }
-    .ps-mobile-nav a:hover { background: rgba(255,255,255,.06); }
-    .ps-mobile-nav a:last-child { margin-top: 8px; text-align: center; border-radius: 999px; background: var(--ps-brand); }
+    /* Tipografia */
+    .sindico-kicker,.sindico-contact-eyebrow,.sindico-eyebrow-pill{font-family:var(--font-display);font-weight:600;font-size:12px;line-height:1.55;letter-spacing:.28em;text-transform:uppercase;color:var(--ink-subtle);display:flex;align-items:center;gap:12px;margin:0}
+    .sindico-page p.sindico-kicker,.sindico-page p.sindico-contact-eyebrow{color:var(--ink-subtle)}
+    .sindico-kicker::before,.sindico-contact-eyebrow::before,.sindico-eyebrow-pill::before{content:"";width:24px;height:1px;background:currentColor;flex:none}
+    .sindico-page h1{font-family:var(--font-display);font-weight:600;font-size:clamp(46px,5.6vw,104px);line-height:.92;letter-spacing:.01em;text-transform:uppercase;margin:24px 0 0;text-wrap:balance}
+    .sindico-page h2{font-family:var(--font-display);font-weight:600;font-size:clamp(36px,5vw,64px);line-height:.98;letter-spacing:.03em;text-transform:uppercase;margin:20px 0 0;text-wrap:balance;max-width:20ch}
+    .sindico-page h3{font-family:var(--font-display);font-weight:600;font-size:20px;line-height:24px;letter-spacing:.1em;text-transform:uppercase;margin:0}
+    .sindico-page p{margin:0;color:var(--ink-muted)}
+    .sindico-page .sindico-section-lead{font-size:18px;line-height:28px;max-width:60ch;margin:24px 0 0}
 
-    /* Rodapé */
-    .ps-footer { border-top: 1px solid rgba(255,255,255,.08); background: #030817; }
-    .ps-foot { max-width: 1760px; margin: 0 auto; padding: 64px var(--ps-gutter) 40px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 44px; }
-    .ps-foot-brand { flex: 1 1 320px; min-width: 0; max-width: 44ch; }
-    .ps-foot-brand .ps-brand-name { font: var(--weight-extrabold) 17px/1 var(--font-display); letter-spacing: .04em; color: #fff; }
-    .ps-foot-brand .ps-brand-name span { font-weight: 400; color: rgba(255,255,255,.7); }
-    .ps-foot-brand p { margin: 18px 0 0; font: 400 15px/1.6 var(--font-ui); color: var(--ps-text-3); }
-    .ps-foot-link { display: flex; width: fit-content; align-items: center; gap: 8px; margin-top: 12px; font: 400 15px/1.4 var(--font-ui); color: var(--ps-link); text-decoration: none; }
-    .ps-foot-link svg { stroke: var(--ps-link); }
-    .ps-foot-link:hover { color: #fff; }
-    .ps-foot nav { flex: 0 1 170px; min-width: 0; display: grid; gap: 12px; align-content: start; }
-    .ps-foot nav a { font: 400 15px/1.4 var(--font-ui); color: var(--ps-text-3); text-decoration: none; }
-    .ps-foot nav a:hover { color: #fff; }
-    .ps-foot-title { font: var(--weight-semibold) 12px/1.2 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: #fff; }
-    .ps-foot-bottom { max-width: 1760px; margin: 0 auto; padding: 0 var(--ps-gutter) 32px; }
-    .ps-foot-bottom div { padding-top: 22px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; border-top: 1px solid rgba(255,255,255,.08); font: 400 13px/1.4 var(--font-ui); color: var(--ps-text-4); }
+    /* Botões */
+    .btn{min-height:52px;padding:12px 26px;display:inline-flex;align-items:center;justify-content:center;gap:12px;font-family:var(--font-display);font-weight:600;font-size:14px;line-height:1.3;letter-spacing:.22em;text-transform:uppercase;text-align:center;border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);transition:background .25s,color .25s,transform .1s}
+    .btn:hover{background:transparent;color:var(--ink)}
+    .btn:active{transform:scale(.98)}
+    .btn.sec{background:transparent;color:var(--ink);border-color:var(--line-200)}
+    .btn.sec:hover{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+    .btn.sm{min-height:44px;padding:0 18px;font-size:12px;white-space:nowrap}
+    .ibtn{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line-100);transition:background .2s;flex:none}
+    .ibtn:hover{background:var(--accent-ghost)}.ibtn svg.i{width:18px;height:18px}
 
-    /* Base da página */
-    .sindico-page *, .sindico-page *::before, .sindico-page *::after { box-sizing: border-box; }
-    .sindico-page { overflow: hidden; }
-    .sindico-page section { scroll-margin-top: 80px; }
-    .sindico-page .sindico-shell { width: min(1760px, 100%); margin-inline: auto; padding: 96px var(--ps-gutter); }
-    .sindico-page h1, .sindico-page h2, .sindico-page h3, .sindico-page p { margin-top: 0; }
-    .sindico-page h1 { max-width: 13ch; margin: 0; color: #fff; font: 400 clamp(44px,5.8vw,84px)/1.03 var(--font-ui); letter-spacing: -.03em; text-wrap: balance; }
-    .sindico-page h2 { max-width: 22ch; margin: 18px 0 0; color: #fff; font: 400 clamp(34px,4vw,58px)/1.08 var(--font-ui); letter-spacing: -.025em; text-wrap: balance; }
-    .sindico-page h3 { margin: 0 0 8px; color: #fff; font: var(--weight-semibold) 19px/1.3 var(--font-ui); }
-    .sindico-page p { color: var(--ps-text-3); line-height: 1.65; }
-    .sindico-page .sindico-kicker { margin: 0; color: var(--ps-link); font: var(--weight-semibold) 12px/1 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
-    .sindico-page .sindico-eyebrow-pill { display: inline-flex; align-items: center; gap: 9px; width: fit-content; padding: 8px 14px; border: 1px solid rgba(127,164,245,.32); border-radius: 999px; background: rgba(37,96,232,.12); color: #cfdcff; letter-spacing: .1em; }
-    .sindico-page .sindico-eyebrow-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
-    .sindico-page .sindico-section-lead { max-width: 58ch; margin: 24px 0 48px; font: 400 18px/1.65 var(--font-ui); color: var(--ps-text-2); }
-    .sindico-page .sindico-button { margin-top: 40px; display: inline-flex; justify-content: center; align-items: center; gap: 10px; min-height: 52px; padding: 0 26px; border: 0; border-radius: 999px; background: var(--ps-brand); color: #fff; font: var(--weight-bold) 15px/1.2 var(--font-ui); text-decoration: none; cursor: pointer; box-shadow: 0 10px 28px rgba(37,96,232,.32); transition: background 150ms var(--ps-ease), transform 150ms var(--ps-ease); }
-    .sindico-page .sindico-button:hover { background: var(--ps-brand-hover); color: #fff; transform: translateY(-1px); }
+    /* Topo */
+    .ps-site-header{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg-000) 82%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line-100);transition:background .4s}
+    .ps-header-inner{height:72px;display:flex;align-items:center;gap:24px}
+    .logo{display:flex;align-items:center;gap:12px;flex:none}
+    .logo .mark{height:32px;width:auto;color:var(--ink);display:block}
+    .logo b{font-family:var(--font-display);font-weight:600;font-size:18px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+    .logo b span{font-weight:300}
+    .aws-mark{display:inline-flex;align-items:center;flex:none;padding-left:16px;border-left:1px solid var(--line-100);line-height:0}
+    .aws-mark img{height:40px;width:auto}
+    /* display:contents: links, tema, CTA e menu ficam na mesma linha flex do topo, na ordem da /sobre/. */
+    .ps-nav{display:contents}
+    .ps-nav a:not(.sindico-nav-cta){font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-muted);position:relative;padding:6px 0;white-space:nowrap;transition:color .2s}
+    .ps-nav a:first-child{margin-left:auto}
+    .ps-nav a:not(.sindico-nav-cta)::after{content:"";position:absolute;left:0;right:100%;bottom:0;height:1px;background:var(--ink);transition:right .3s}
+    .ps-nav a:not(.sindico-nav-cta):hover,.ps-nav a[aria-current="page"]{color:var(--ink)}
+    .ps-nav a:not(.sindico-nav-cta):hover::after,.ps-nav a[aria-current="page"]::after{right:0}
+    .ps-tema{order:1}
+    .sindico-nav-cta{order:2;margin-left:-14px}
+    .ps-mobile-menu{display:none;order:3;margin-left:-14px}
+    .ps-mobile-menu summary{list-style:none;cursor:pointer}
+    .ps-mobile-menu summary::-webkit-details-marker{display:none}
+    .ps-mobile-menu .fechar{display:none}
+    .ps-mobile-menu[open] .fechar{display:block}
+    .ps-mobile-menu[open] .abrir{display:none}
+    .ps-mobile-nav{position:absolute;left:0;right:0;top:100%;height:calc(100vh - 72px);height:calc(100dvh - 72px);background:var(--bg-000);padding:12px max(var(--gutter),env(safe-area-inset-left,0px)) 24px;display:flex;flex-direction:column;overflow:auto;animation:fade .25s both}
+    .ps-mobile-nav a{font-family:var(--font-display);font-weight:600;font-size:26px;line-height:1.15;letter-spacing:.08em;text-transform:uppercase;padding:13px 0;border-bottom:1px solid var(--line-100)}
+    .ps-mobile-nav a:last-child{margin-top:20px;flex:none;padding:0 26px;min-height:52px;display:flex;align-items:center;justify-content:center;border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);font-size:14px;letter-spacing:.22em}
 
     /* Hero */
-    .sindico-page .sindico-hero-wrap { position: relative; background: radial-gradient(55% 75% at 82% 35%, rgba(37,96,232,.38), rgba(37,96,232,.08) 60%, transparent 80%); }
-    .sindico-page .sindico-hero-wrap::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(to right, rgba(255,255,255,.055) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.055) 1px, transparent 1px); background-size: 72px 72px; mask-image: radial-gradient(90% 90% at 75% 40%, #000 20%, transparent 80%); -webkit-mask-image: radial-gradient(90% 90% at 75% 40%, #000 20%, transparent 80%); pointer-events: none; }
-    .sindico-page .sindico-hero { position: relative; display: grid; grid-template-columns: minmax(0,.95fr) minmax(520px,1.05fr); gap: clamp(56px,6vw,96px); align-items: center; min-height: calc(88vh - 72px); padding-top: 72px; padding-bottom: 104px; }
-    .sindico-page .sindico-lead { max-width: 34ch; margin: 28px 0 0; color: var(--ps-text-2); font: 400 clamp(18px,1.6vw,22px)/1.45 var(--font-ui); }
-    .sindico-page .sindico-feature-list { margin: 28px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 22px; max-width: 560px; list-style: none; }
-    .sindico-page .sindico-feature-list li { display: flex; align-items: center; gap: 8px; color: var(--ps-text-2); font: 400 15px/1.3 var(--font-ui); }
-    .sindico-page .sindico-feature-list li::before { content: '✓'; color: var(--ps-link); font-weight: 800; }
+    .sindico-hero-wrap{padding-block:88px 104px;border-top:0;overflow:hidden}
+    .sindico-hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:48px;align-items:center}
+    .sindico-hero>div:first-child>*{animation:fade .9s both}
+    .sindico-page .sindico-lead{font-size:20px;line-height:30px;max-width:44ch;margin:28px 0 0}
+    .sindico-feature-list{display:flex;flex-wrap:wrap;gap:8px 20px;margin:28px 0 0;padding:0;list-style:none}
+    .sindico-feature-list li{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.18em;text-transform:uppercase}
+    .sindico-feature-list li::before{content:"";width:7px;height:7px;border-radius:999px;background:var(--ink-subtle);flex:none}
+    .sindico-hero .sindico-button{margin-top:36px}
 
-    /* Mockup do hero: as telas continuam claras (como o sistema real) sobre o fundo escuro. */
-    .sindico-page .sindico-hero-visual { position: relative; min-height: 500px; isolation: isolate; }
-    .sindico-page .sindico-device { position: absolute; overflow: hidden; border: 1px solid var(--ps-line); background: #fff; box-shadow: 0 36px 80px rgba(0,0,0,.55); }
-    .sindico-page .sindico-device-web { left: 0; top: 48px; width: 89%; height: 370px; border-radius: 18px; transform: perspective(1200px) rotateY(-3deg); }
-    .sindico-page .sindico-device-mobile { right: 0; bottom: 6px; width: 190px; height: 350px; padding: 13px; border: 1px solid var(--ps-line); border-radius: 30px; background: #f7f9fd; }
-    .sindico-page .sindico-device-bar { height: 38px; padding: 0 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-row); background: #fff; color: var(--text-muted); font-size: 11px; }
-    .sindico-page .sindico-device-dots { display: flex; gap: 5px; }
-    .sindico-page .sindico-device-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--prestare-blue-200); }
-    .sindico-page .sindico-web-ui { height: calc(100% - 38px); display: grid; grid-template-columns: 108px 1fr; }
-    .sindico-page .sindico-web-nav { padding: 18px 14px; display: grid; align-content: start; gap: 13px; background: #f7f9fd; border-right: 1px solid var(--border-row); }
-    .sindico-page .sindico-web-nav strong { margin-bottom: 8px; color: var(--prestare-blue-900); font-size: 12px; }
-    .sindico-page .sindico-web-nav span { width: 76%; height: 6px; border-radius: 99px; background: #dce6fa; }
-    .sindico-page .sindico-web-nav span:first-of-type { width: 100%; height: 24px; background: var(--prestare-blue-100); }
-    .sindico-page .sindico-web-main { padding: 22px; }
-    .sindico-page .sindico-web-heading { margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; color: var(--prestare-blue-900); font-weight: 800; }
-    .sindico-page .sindico-live-pill { padding: 5px 9px; border-radius: 99px; background: var(--green-100); color: var(--green-700); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
-    .sindico-page .sindico-web-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
-    .sindico-page .sindico-web-metric { padding: 13px; border: 1px solid var(--border-row); border-radius: 12px; }
-    .sindico-page .sindico-web-metric b { display: block; color: var(--prestare-blue-800); font-size: 22px; }
-    .sindico-page .sindico-web-metric small { color: var(--text-muted); }
-    .sindico-page .sindico-web-chart { height: 92px; margin-top: 16px; padding: 14px; display: flex; align-items: end; gap: 9px; border-radius: 12px; background: #f7f9fd; }
-    .sindico-page .sindico-web-chart i { flex: 1; height: var(--bar); border-radius: 5px 5px 2px 2px; background: linear-gradient(180deg,var(--prestare-blue-400),var(--prestare-blue-100)); }
-    .sindico-page .sindico-mobile-top { display: flex; justify-content: space-between; color: var(--text-strong); font-size: 9px; font-weight: 800; }
-    .sindico-page .sindico-mobile-profile { margin-top: 16px; padding: 14px; border-radius: 15px; background: linear-gradient(135deg,var(--prestare-blue-700),var(--prestare-blue-500)); color: #fff; }
-    .sindico-page .sindico-mobile-profile small { display: block; margin-top: 5px; color: rgba(255,255,255,.72); }
-    .sindico-page .sindico-mobile-summary { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .sindico-page .sindico-mobile-summary span { padding: 12px 8px; border: 1px solid var(--border-row); border-radius: 12px; background: #fff; color: var(--prestare-blue-800); font-size: 9px; font-weight: 700; }
-    .sindico-page .sindico-mobile-feed { margin-top: 14px; display: grid; gap: 9px; }
-    .sindico-page .sindico-mobile-feed span { height: 34px; border-radius: 10px; background: #fff; box-shadow: inset 0 0 0 1px var(--border-row); }
-    .sindico-page .sindico-sync-badge { position: absolute; left: 39%; bottom: 24px; z-index: 3; padding: 11px 15px; display: inline-flex; align-items: center; gap: 9px; border: 1px solid rgba(127,164,245,.35); border-radius: 99px; background: var(--ps-bg-3); color: #fff; font-size: 12px; font-weight: 700; box-shadow: 0 14px 30px rgba(0,0,0,.45); }
-    .sindico-page .sindico-sync-badge::before { content: '✓'; width: 21px; height: 21px; display: grid; place-items: center; border-radius: 50%; background: rgba(34,197,94,.18); color: #4ade80; }
+    /* Ilustração do hero: desenho monocromático em código, sem dado de exemplo. */
+    .sindico-hero-visual{position:relative;min-height:540px;isolation:isolate}
+    .sindico-device{position:absolute;overflow:hidden;border:1px solid var(--line-200);background:var(--bg-000);animation:float1 1.2s .3s cubic-bezier(.2,.8,.2,1) both}
+    .sindico-device-web{left:0;top:0;width:88%;height:430px;background:var(--bg-100)}
+    .sindico-device-mobile{right:0;bottom:0;width:190px;height:326px;padding:14px;animation-delay:.5s}
+    .sindico-device-bar{height:36px;display:flex;align-items:center;padding:0 14px;border-bottom:1px solid var(--line-100)}
+    .sindico-device-dots{display:flex;gap:8px}
+    .sindico-device-dots i{width:9px;height:9px;border:1px solid var(--line-200);border-radius:999px}
+    .sindico-web-ui{height:calc(100% - 36px);display:grid;grid-template-columns:minmax(84px,22%) minmax(0,1fr)}
+    .sindico-web-nav{padding:18px 14px;display:grid;align-content:start;gap:14px;border-right:1px solid var(--line-100)}
+    .sindico-web-nav strong{margin-bottom:6px;font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase}
+    .sindico-web-nav span{height:5px;width:76%;background:var(--bg-300)}
+    .sindico-web-nav span:first-of-type{width:100%;height:22px}
+    .sindico-web-main{padding:20px;min-width:0;display:flex;flex-direction:column}
+    .sindico-web-heading{margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:.1em;text-transform:uppercase}
+    .sindico-live-pill{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.16em;color:var(--signal-ok);white-space:nowrap}
+    .sindico-web-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line-100);border:1px solid var(--line-100)}
+    .sindico-web-metric{padding:14px 12px;background:var(--bg-100);min-width:0}
+    .sindico-web-metric b{display:block;height:22px;width:58%;background:var(--ink)}
+    .sindico-web-metric small{display:block;margin-top:10px;font-size:11px;line-height:1.25;color:var(--ink-muted)}
+    .sindico-web-chart{flex:1;min-height:80px;margin-top:16px;padding:14px;display:flex;align-items:flex-end;gap:10px;border:1px solid var(--line-100)}
+    .sindico-web-chart i{flex:1;height:var(--bar);background:var(--ink-muted)}
+    .sindico-web-chart i:nth-child(6){background:var(--ink)}
+    .sindico-mobile-top{display:flex;justify-content:space-between;align-items:center}
+    .sindico-mobile-top span{height:5px;width:30px;background:var(--bg-300)}
+    .sindico-mobile-profile{margin-top:16px;padding:14px;border:1px solid var(--line-200)}
+    .sindico-mobile-profile strong{display:block;font-family:var(--font-display);font-weight:600;font-size:15px;line-height:1.2;letter-spacing:.08em;text-transform:uppercase}
+    .sindico-mobile-profile small{display:block;margin-top:9px;height:5px;width:70%;background:var(--bg-300)}
+    .sindico-mobile-summary{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line-100);border:1px solid var(--line-100)}
+    .sindico-mobile-summary span{height:52px;background:var(--bg-000);position:relative}
+    .sindico-mobile-summary span::after{content:"";position:absolute;left:10px;top:12px;width:20px;height:10px;background:var(--ink)}
+    .sindico-mobile-feed{margin-top:12px;display:grid;gap:8px}
+    .sindico-mobile-feed span{height:36px;border:1px solid var(--line-100)}
+    .sindico-sync-badge{position:absolute;left:0;bottom:24px;z-index:3;display:inline-flex;align-items:center;gap:10px;padding:10px 14px;font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-muted);background:var(--bg-000);border:1px solid var(--line-200);animation:fade .9s 1s both}
 
-    /* Números: régua com traço azul à esquerda (padrão do v2) */
-    .sindico-page .sindico-stats { background: transparent; }
-    .sindico-page .sindico-stats-inner { width: min(1760px, 100%); margin: auto; padding: 8px var(--ps-gutter) 32px; display: grid; grid-template-columns: repeat(3,1fr); gap: 32px; }
-    .sindico-page .sindico-stats article { min-width: 0; padding-left: 22px; border-left: 2px solid var(--ps-brand); }
-    .sindico-page .sindico-stats strong { display: block; color: #fff; font: 400 clamp(28px,2.8vw,40px)/1.05 var(--font-ui); letter-spacing: -.02em; }
-    .sindico-page .sindico-stats span { display: block; margin-top: 12px; color: var(--ps-text-3); font: 400 15px/1.4 var(--font-ui); }
+    /* Números */
+    .sindico-stats{padding-block:0}
+    .sindico-stats-inner{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+    .sindico-stats article{padding:40px 28px;border-right:1px solid var(--line-100);min-width:0}
+    .sindico-stats article:first-child{padding-left:0}.sindico-stats article:last-child{border-right:0}
+    .sindico-stats strong{display:block;font-family:var(--font-display);font-weight:300;font-size:clamp(32px,3.4vw,48px);line-height:1.1;letter-spacing:.02em;text-transform:uppercase}
+    .sindico-stats span{display:block;margin-top:12px;color:var(--ink-muted);font-size:15px}
 
-    /* Processos: lista com divisórias em 3 colunas */
-    .sindico-page .sindico-card-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0 48px; border-top: 1px solid var(--ps-line); }
-    .sindico-page .sindico-card { padding: 30px 0 32px; border-bottom: 1px solid var(--ps-line); }
-    .sindico-page .sindico-card p { margin: 0; font-size: 16px; line-height: 1.6; }
-    .sindico-page .sindico-card-icon { display: block; margin-bottom: 18px; color: var(--ps-link); font: 400 15px/1 var(--font-ui); letter-spacing: .04em; }
+    /* Processos */
+    .sindico-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line-100);border:1px solid var(--line-100);margin-top:64px}
+    .sindico-card{background:var(--bg-000);padding:36px 32px;display:flex;flex-direction:column;gap:16px;min-width:0}
+    .sindico-card-icon{font-family:var(--font-display);font-weight:300;font-size:14px;letter-spacing:.2em;color:var(--ink-subtle)}
 
     /* Da demanda à decisão */
-    .sindico-page .sindico-alt { background: transparent; }
-    .sindico-page .sindico-story-layout { display: grid; grid-template-columns: minmax(300px,.68fr) minmax(650px,1.32fr); gap: clamp(64px,7vw,108px); align-items: center; }
-    .sindico-page .sindico-story-copy > p:not(.sindico-kicker) { max-width: 52ch; margin-top: 24px; font-size: 18px; color: var(--ps-text-2); }
-    .sindico-page .sindico-outcomes { margin: 36px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--ps-line); }
-    .sindico-page .sindico-outcomes li { position: relative; padding: 22px 0 22px 30px; border-bottom: 1px solid var(--ps-line); }
-    .sindico-page .sindico-outcomes li::before { content: '✓'; position: absolute; left: 0; top: 22px; color: var(--ps-link); font-weight: 800; }
-    .sindico-page .sindico-outcomes strong { display: block; margin-bottom: 4px; color: #fff; font: var(--weight-semibold) 17px/1.3 var(--font-ui); }
-    .sindico-page .sindico-outcomes span { color: var(--ps-text-3); font: 400 15px/1.5 var(--font-ui); }
-    .sindico-page .sindico-story-visual { position: relative; padding: 32px; border: 1px solid var(--ps-line-soft); border-radius: 22px; background: radial-gradient(70% 70% at 50% 0%, rgba(37,96,232,.24), transparent 70%), var(--ps-bg-2); overflow: hidden; }
-    .sindico-page .sindico-ops-heading { position: relative; z-index: 1; padding-bottom: 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--ps-line-soft); }
-    .sindico-page .sindico-ops-heading strong { color: #fff; font-size: 15px; }
-    .sindico-page .sindico-ops-status { padding: 6px 10px; border-radius: 99px; background: rgba(34,197,94,.14); color: #4ade80; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-    .sindico-page .sindico-operations-map { position: relative; z-index: 1; padding: 40px 0 30px; display: grid; grid-template-columns: minmax(170px,1fr) minmax(190px,.9fr) minmax(180px,1fr); gap: 46px; align-items: center; }
-    .sindico-page .sindico-ops-column { min-width: 0; }
-    .sindico-page .sindico-ops-label { display: block; margin-bottom: 17px; color: var(--ps-link); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-    .sindico-page .sindico-flow-sources { margin: 0; padding: 0; display: grid; list-style: none; }
-    .sindico-page .sindico-flow-sources li { padding: 12px 0; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--ps-line-soft); color: #fff; font-size: 14px; font-weight: 600; }
-    .sindico-page .sindico-flow-sources li::before { content: ''; width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--ps-link); box-shadow: 0 0 0 5px rgba(37,96,232,.18); }
-    .sindico-page .sindico-ops-core { position: relative; min-height: 230px; display: grid; place-items: center; }
-    .sindico-page .sindico-ops-core::before, .sindico-page .sindico-ops-core::after { content: ''; position: absolute; top: 50%; width: 46px; height: 1px; background: linear-gradient(90deg,rgba(127,164,245,.15),var(--ps-link)); }
-    .sindico-page .sindico-ops-core::before { right: 100%; }
-    .sindico-page .sindico-ops-core::after { left: 100%; transform: rotate(180deg); }
-    .sindico-page .sindico-core-rings { width: 174px; aspect-ratio: 1; display: grid; place-items: center; border: 1px solid rgba(127,164,245,.3); border-radius: 50%; background: rgba(37,96,232,.10); box-shadow: 0 0 0 18px rgba(37,96,232,.06),0 0 0 36px rgba(37,96,232,.03); }
-    .sindico-page .sindico-core-mark { width: 116px; aspect-ratio: 1; padding: 18px; display: grid; place-items: center; text-align: center; border-radius: 30px; background: linear-gradient(145deg,#2560E8,#14328f); color: #fff; font-size: 14px; font-weight: 800; line-height: 1.25; box-shadow: 0 18px 40px rgba(37,96,232,.35); }
-    .sindico-page .sindico-core-mark small { color: #cfdcff; font-size: 9px; font-weight: 600; }
-    .sindico-page .sindico-ops-insight { padding: 22px; border: 1px solid var(--ps-line); border-radius: 16px; background: rgba(255,255,255,.03); }
-    .sindico-page .sindico-ops-insight small { color: var(--ps-text-4); }
-    .sindico-page .sindico-ops-insight strong { display: block; margin: 7px 0 20px; color: #fff; font: 400 22px/1.2 var(--font-ui); }
-    .sindico-page .sindico-insight-row { padding: 10px 0; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--ps-line-soft); color: var(--ps-text-3); font-size: 12px; }
-    .sindico-page .sindico-insight-row b { color: #4ade80; font-size: 12px; }
-    .sindico-page .sindico-flow-caption { position: relative; z-index: 1; margin: 0; padding-top: 20px; border-top: 1px solid var(--ps-line-soft); text-align: center; font-size: 14px; color: var(--ps-text-3); }
+    .sindico-story-layout{display:grid;grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);gap:64px;align-items:start}
+    .sindico-page .sindico-story-copy>p:not(.sindico-kicker){font-size:18px;line-height:28px;max-width:60ch;margin-top:24px}
+    .sindico-outcomes{margin:36px 0 0;padding:0;list-style:none;border-top:1px solid var(--line-100)}
+    .sindico-outcomes li{padding:20px 0;border-bottom:1px solid var(--line-100)}
+    .sindico-outcomes strong{display:block;margin-bottom:6px;font-family:var(--font-display);font-weight:600;font-size:18px;line-height:22px;letter-spacing:.1em;text-transform:uppercase}
+    .sindico-outcomes span{color:var(--ink-muted);font-size:15px}
+    .sindico-story-visual{border:1px solid var(--line-200);background:var(--bg-100);padding:32px;min-width:0}
+    .sindico-ops-heading{padding-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line-100)}
+    .sindico-ops-heading strong{font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:.1em;text-transform:uppercase}
+    .sindico-ops-status{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--signal-ok)}
+    .sindico-ops-status::before{content:"";width:7px;height:7px;border-radius:999px;background:currentColor;flex:none}
+    .sindico-operations-map{padding:36px 0 30px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.86fr) minmax(0,1fr);gap:40px;align-items:center}
+    .sindico-ops-column{min-width:0}
+    .sindico-ops-label{display:block;margin-bottom:14px;font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-subtle)}
+    .sindico-flow-sources{margin:0;padding:0;display:grid;list-style:none}
+    .sindico-flow-sources li{padding:11px 0;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line-100);font-size:14px;font-weight:500}
+    .sindico-flow-sources li::before{content:"";width:7px;height:7px;flex:none;border-radius:999px;background:var(--ink-subtle)}
+    .sindico-ops-core{position:relative;min-height:190px;display:grid;place-items:center}
+    .sindico-ops-core::before,.sindico-ops-core::after{content:"";position:absolute;top:50%;width:40px;height:1px;background:var(--line-200)}
+    .sindico-ops-core::before{right:100%}.sindico-ops-core::after{left:100%}
+    .sindico-core-rings{width:100%;max-width:176px;aspect-ratio:1;display:grid;place-items:center;padding:14px;border:1px solid var(--line-200)}
+    .sindico-core-mark{width:100%;height:100%;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;background:var(--accent);color:var(--on-accent);font-family:var(--font-display);font-weight:600;font-size:16px;line-height:1.1;letter-spacing:.08em;text-transform:uppercase}
+    .sindico-core-mark small{display:block;font-family:var(--font-sans);font-weight:500;font-size:11px;line-height:1.25;letter-spacing:0;text-transform:none}
+    .sindico-ops-insight{padding:20px;border:1px solid var(--line-200);background:var(--bg-000)}
+    .sindico-ops-insight small{font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-subtle)}
+    .sindico-ops-insight strong{display:block;margin:8px 0 16px;font-family:var(--font-display);font-weight:300;font-size:24px;line-height:1.1;letter-spacing:.04em;text-transform:uppercase}
+    .sindico-insight-row{padding:10px 0;display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line-100);color:var(--ink-muted);font-size:13px}
+    .sindico-insight-row b{color:var(--signal-ok);font-weight:600;font-size:13px}
+    .sindico-page .sindico-flow-caption{padding-top:20px;border-top:1px solid var(--line-100);font-size:14px;color:var(--ink-muted)}
 
     /* Antes e depois */
-    .sindico-page .sindico-compare-grid { margin-top: 48px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
-    .sindico-page .sindico-compare-col { padding: clamp(24px,3vw,40px); border: 1px solid var(--ps-line-soft); border-radius: 22px; background: var(--ps-bg-2); }
-    .sindico-page .sindico-compare-col h3 { margin-bottom: 20px; font: 400 26px/1.15 var(--font-ui); letter-spacing: -.015em; }
-    .sindico-page .sindico-compare-col ul { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--ps-line); }
-    .sindico-page .sindico-compare-col li { position: relative; padding: 15px 0 15px 28px; border-bottom: 1px solid var(--ps-line); color: var(--ps-text-3); font: 400 16px/1.5 var(--font-ui); }
-    .sindico-page .sindico-compare-col li::before { content: ''; position: absolute; left: 4px; top: 24px; width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.3); }
-    .sindico-page .sindico-compare-after { border-color: rgba(127,164,245,.3); background: radial-gradient(80% 70% at 0% 0%, rgba(37,96,232,.28), transparent 70%), var(--ps-bg-2); }
-    .sindico-page .sindico-compare-after li { color: #fff; }
-    .sindico-page .sindico-compare-after li::before { content: '✓'; top: 15px; left: 0; width: auto; height: auto; background: none; color: var(--ps-link); font-weight: 800; }
+    .sindico-compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line-100);border:1px solid var(--line-100);margin-top:56px}
+    .sindico-compare-col{background:var(--bg-000);padding:40px;min-width:0}
+    .sindico-compare-after{background:var(--bg-200)}
+    .sindico-compare-col ul{margin:20px 0 0;padding:0;list-style:none;border-top:1px solid var(--line-200)}
+    .sindico-compare-col li{display:flex;align-items:baseline;gap:12px;padding:15px 0;border-bottom:1px solid var(--line-100);color:var(--ink-muted)}
+    .sindico-compare-col li::before{content:"";width:7px;height:7px;flex:none;border:1px solid var(--line-200);border-radius:999px}
+    .sindico-compare-after ul{border-top-color:var(--ink)}
+    .sindico-compare-after li{color:var(--ink);border-bottom-color:var(--line-200)}
+    .sindico-compare-after li::before{background:var(--ink);border-color:var(--ink)}
 
     /* Console web */
-    .sindico-page .sindico-benefits { margin: 0 0 48px; padding: 0; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0 40px; list-style: none; }
-    .sindico-page .sindico-benefits li { padding-top: 22px; border-top: 1px solid var(--ps-line); }
-    .sindico-page .sindico-benefits strong { display: block; margin-bottom: 6px; color: #fff; font: var(--weight-semibold) 17px/1.3 var(--font-ui); }
-    .sindico-page .sindico-benefits span { color: var(--ps-text-3); font: 400 15px/1.55 var(--font-ui); }
-    .sindico-page .sindico-console-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 18px; }
-    .sindico-page figure { margin: 0; border: 1px solid var(--ps-line-soft); border-radius: 18px; background: var(--ps-bg-3); transition: border-color .2s, transform .2s; }
-    .sindico-page figure:hover { border-color: rgba(127,164,245,.45); transform: translateY(-4px); }
-    .sindico-page .sindico-shot { width: 100%; padding: 12px; display: block; border: 0; border-radius: inherit; background: none; font: inherit; text-align: left; cursor: zoom-in; color: inherit; }
-    .sindico-page figure img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; border-radius: 10px; background: #fff; }
-    .sindico-page figcaption { padding: 14px 4px 0; color: #fff; font: var(--weight-semibold) 15px/1.35 var(--font-ui); }
-    .sindico-page .sindico-shot-hint { padding: 4px 4px 4px; display: block; color: var(--ps-link); font-size: 13px; font-weight: 600; }
-    @media (prefers-reduced-motion: reduce) { .sindico-page figure, .sindico-page .sindico-button { transition: none; } .sindico-page figure:hover { transform: none; } }
-    .sindico-lightbox { width: min(1100px,calc(100% - 32px)); max-height: calc(100% - 32px); padding: 20px; border: 1px solid rgba(255,255,255,.12); border-radius: 22px; background: var(--ps-bg-2); color: #fff; box-shadow: 0 30px 80px rgba(0,0,0,.5); overflow: auto; box-sizing: border-box; }
-    .sindico-lightbox::backdrop { background: rgba(2,6,20,.72); backdrop-filter: blur(8px); }
-    .sindico-lightbox img { display: block; width: 100%; height: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; }
-    .sindico-lightbox-text { padding: 22px 6px 6px; }
-    .sindico-lightbox-text h3 { margin: 0 0 10px; color: #fff; font: 400 clamp(20px,2vw,26px)/1.15 var(--font-ui); }
-    .sindico-lightbox-text p { max-width: 760px; margin: 0; color: var(--ps-text-2); line-height: 1.65; }
-    .sindico-lightbox-close { position: absolute; top: 12px; right: 12px; z-index: 2; width: 44px; height: 44px; border: 1px solid rgba(255,255,255,.22); border-radius: 50%; background: rgba(5,11,34,.85); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; }
+    .sindico-benefits{margin:56px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:40px 48px;list-style:none}
+    .sindico-benefits li{padding-top:20px;border-top:1px solid var(--line-200);min-width:0}
+    .sindico-benefits strong{display:block;font-family:var(--font-display);font-weight:600;font-size:20px;line-height:24px;letter-spacing:.1em;text-transform:uppercase}
+    .sindico-benefits span{display:block;margin-top:10px;color:var(--ink-muted)}
+    .sindico-console-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line-100);border:1px solid var(--line-100);margin-top:56px}
+    .sindico-page figure{margin:0;background:var(--bg-000);min-width:0;transition:background .3s}
+    .sindico-page figure:hover{background:var(--bg-200)}
+    .sindico-shot{width:100%;height:100%;padding:16px;display:block;text-align:left;cursor:zoom-in}
+    .sindico-shot:focus-visible{outline-offset:-4px}
+    /* Telas do console antigo: em cinza, como a /sobre/ faz com elas. */
+    .sindico-page figure img{width:100%;aspect-ratio: 16 / 10;object-fit:cover;object-position:top left;background:#fff;border:1px solid var(--line-100);filter:grayscale(1)}
+    .sindico-page figcaption{padding-top:14px;font-family:var(--font-display);font-weight:600;font-size:16px;line-height:1.25;letter-spacing:.1em;text-transform:uppercase}
+    .sindico-shot-hint{display:block;margin-top:6px;font-size:14px;color:var(--ink-subtle)}
+    .sindico-lightbox{width:min(1100px,calc(100% - 32px));max-height:calc(100% - 32px);padding:0;border:1px solid var(--line-200);background:var(--bg-000);color:var(--ink);overflow:auto}
+    .sindico-lightbox::backdrop{background:rgba(0,0,0,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+    .sindico-lightbox img{width:100%;height:auto;border-bottom:1px solid var(--line-100);filter:grayscale(1)}
+    .sindico-lightbox-text{padding:24px}
+    .sindico-page .sindico-lightbox-text h3{font-size:clamp(20px,2vw,26px);line-height:1.15;letter-spacing:.06em}
+    .sindico-page .sindico-lightbox-text p{margin-top:12px;max-width:72ch}
+    .sindico-lightbox-close{position:absolute;top:12px;right:12px;z-index:2;width:44px;height:44px;border-color:var(--line-200);background:var(--bg-000);color:var(--ink);font-size:26px;line-height:1}
 
     /* Orçamento */
-    .sindico-page .sindico-closing { background: transparent; }
-    .sindico-page .sindico-contact-shell { padding-block: 48px 112px; }
-    .sindico-page .sindico-contact-panel { padding: clamp(24px,4vw,56px); display: grid; grid-template-columns: repeat(auto-fit,minmax(min(340px,100%),1fr)); gap: 48px 80px; align-items: stretch; border: 1px solid var(--ps-line-soft); border-radius: 22px; background: radial-gradient(70% 70% at 0% 0%, rgba(37,96,232,.22), transparent 70%), var(--ps-bg-2); }
-    .sindico-page .sindico-contact-copy { min-width: 0; }
-    .sindico-page .sindico-contact-eyebrow { margin: 0; color: var(--ps-link); font: var(--weight-semibold) 12px/1 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
-    .sindico-page .sindico-contact-panel h2 { max-width: 20ch; margin: 18px 0 0; font-size: clamp(30px,3.4vw,46px); }
-    .sindico-page .sindico-contact-lead { max-width: 46ch; margin: 22px 0 0; color: var(--ps-text-2); font-size: 17px; }
-    .sindico-page .sindico-contact-steps { margin: 30px 0 0; padding: 0; display: grid; gap: 14px; list-style: none; }
-    .sindico-page .sindico-contact-steps li { display: flex; align-items: center; gap: 12px; color: var(--ps-text-2); font: 400 16px/1.45 var(--font-ui); }
-    .sindico-page .sindico-contact-steps li span { width: 30px; height: 30px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(37,96,232,.18); border: 1px solid rgba(127,164,245,.3); }
-    .sindico-page .sindico-contact-actions { margin-top: 36px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
-    .sindico-page .sindico-contact-actions .sindico-button { margin-top: 0; }
-    .sindico-page .sindico-contact-wpp { min-height: 52px; padding: 0 24px; display: inline-flex; align-items: center; gap: 10px; border: 1px solid rgba(255,255,255,.28); border-radius: 999px; background: transparent; color: #fff; font: var(--weight-semibold) 15px/1.2 var(--font-ui); text-decoration: none; transition: background 150ms var(--ps-ease), border-color 150ms var(--ps-ease); }
-    .sindico-page .sindico-contact-wpp:hover { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.5); color: #fff; }
-    .sindico-page .sindico-contact-link, .sindico-page .sindico-email summary { display: inline-flex; align-items: center; gap: 8px; color: rgba(255,255,255,.85); font: 400 15px/1.4 var(--font-ui); text-decoration: none; border-bottom: 1px solid rgba(255,255,255,.35); padding-bottom: 3px; cursor: pointer; }
-    .sindico-page .sindico-email summary { list-style: none; }
-    .sindico-page .sindico-email summary::-webkit-details-marker { display: none; }
-    .sindico-page .sindico-email summary::after { content: '▾'; font-size: 12px; }
-    .sindico-page .sindico-contact-link:hover, .sindico-page .sindico-email summary:hover { color: #fff; border-color: #fff; }
-    .sindico-page .sindico-email { max-width: 100%; }
-    .sindico-page .sindico-email-menu { width: min(100%,330px); margin-top: 12px; padding: 7px; display: grid; gap: 2px; border: 1px solid var(--ps-line); border-radius: 14px; background: var(--ps-bg-3); box-shadow: 0 18px 40px rgba(0,0,0,.4); }
-    .sindico-page .sindico-email-menu button { padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 0; border-radius: 8px; background: none; color: var(--ps-text-2); font: 400 15px/1.3 var(--font-ui); text-align: left; cursor: pointer; }
-    .sindico-page .sindico-email-menu button:hover { background: rgba(255,255,255,.07); color: #fff; }
-    .sindico-page .sindico-email-menu button[data-email="copiar"] { border-top: 1px solid var(--ps-line-soft); border-radius: 0 0 8px 8px; }
-    .sindico-page .sindico-email-menu small { padding: 4px 12px 8px; color: var(--ps-text-4); overflow-wrap: anywhere; }
-    .sindico-page .sindico-contact-form { min-width: 0; margin: 0; padding: clamp(20px,3vw,32px); display: flex; flex-direction: column; justify-content: center; gap: 16px; border: 1px solid var(--ps-line); border-radius: 16px; background: rgba(255,255,255,.03); }
-    .sindico-page .sindico-form-head h3 { margin: 0; color: #fff; font: 400 28px/1.15 var(--font-ui); letter-spacing: -.015em; }
-    .sindico-page .sindico-form-head p { margin: 6px 0 0; color: var(--ps-text-3); font: 400 15px/1.5 var(--font-ui); }
-    .sindico-page label, .sindico-page .sindico-contact-form label { display: grid; gap: 8px; color: rgba(255,255,255,.85); font: var(--weight-semibold) 13px/1.2 var(--font-ui); }
-    .sindico-page input, .sindico-page .sindico-contact-form input { width: 100%; padding: 13px 14px; border: 1px solid var(--ps-line); border-radius: 10px; background: rgba(255,255,255,.04); color: #fff; font: var(--type-body); outline: none; transition: border-color 150ms var(--ps-ease), box-shadow 150ms var(--ps-ease), background 150ms var(--ps-ease); }
-    .sindico-page .sindico-contact-form input:focus { border-color: var(--ps-brand); background: rgba(255,255,255,.06); box-shadow: 0 0 0 3px rgba(37,96,232,.35); outline: 0; }
-    .sindico-page input:-webkit-autofill { -webkit-text-fill-color: #fff; -webkit-box-shadow: 0 0 0 1000px #0d1a45 inset; caret-color: #fff; }
-    .sindico-page input::placeholder { color: rgba(255,255,255,.4); }
-    .sindico-page .sindico-contact-form .sindico-button { width: 100%; margin-top: 4px; }
-    .sindico-page .sindico-honeypot { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
-    .sindico-page .sindico-form-notes { margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; list-style: none; color: var(--ps-text-4); font: 400 13px/1.4 var(--font-ui); }
-    .sindico-page .sindico-success { display: none; padding: 12px 0; }
-    .sindico-page .sindico-success strong { color: #fff; font: 400 28px/1.2 var(--font-ui); }
-    .sindico-page .sindico-success p { margin: 10px 0 0; }
-    .sindico-page .sindico-contact-form.is-sent > :not(.sindico-success) { display: none; }
-    .sindico-page .sindico-contact-form.is-sent .sindico-success { display: block; }
-    @media (min-width: 640px) {
-      .sindico-page .sindico-contact-form { display: grid; grid-template-columns: 1fr 1fr; align-content: center; }
-      .sindico-page .sindico-contact-form > .sindico-form-head, .sindico-page .sindico-contact-form > .sindico-button, .sindico-page .sindico-contact-form > .sindico-form-notes, .sindico-page .sindico-contact-form > .sindico-success { grid-column: 1 / -1; }
-    }
+    .sindico-contact-panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line-100);border:1px solid var(--line-100)}
+    .sindico-contact-copy{background:var(--bg-000);padding:40px;min-width:0}
+    .sindico-page .sindico-contact-panel h2{font-size:clamp(30px,3.6vw,48px);max-width:22ch}
+    .sindico-page .sindico-contact-lead{font-size:18px;line-height:28px;max-width:60ch;margin-top:24px}
+    .sindico-contact-steps{margin:28px 0 0;padding:0;display:flex;flex-direction:column;gap:14px;list-style:none}
+    .sindico-contact-steps li{display:flex;align-items:center;gap:12px}
+    .sindico-contact-steps li span{width:30px;height:30px;flex:none;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line-200)}
+    .sindico-contact-actions{margin-top:36px;display:flex;flex-direction:column;align-items:flex-start;gap:16px}
+    .sindico-contact-link,.sindico-email summary{display:inline-flex;align-items:center;gap:8px;font-size:15px;line-height:1.4;color:var(--ink);border-bottom:1px solid var(--line-200);padding-bottom:3px;text-align:left;cursor:pointer;max-width:100%}
+    .sindico-contact-link:hover,.sindico-email summary:hover{border-bottom-color:var(--ink)}
+    .sindico-contact-link svg{flex:none}
+    .sindico-email{max-width:100%}
+    .sindico-email summary{list-style:none}
+    .sindico-email summary::-webkit-details-marker{display:none}
+    .sindico-email summary::after{content:"▾";font-size:12px}
+    .sindico-email-menu{margin-top:12px;width:min(100%,330px);background:var(--bg-200);border:1px solid var(--line-200);padding:6px;display:grid;gap:2px}
+    .sindico-email-menu button{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;font-size:15px;line-height:1.3;color:var(--ink-muted);text-align:left}
+    .sindico-email-menu button:hover{background:var(--accent-ghost);color:var(--ink)}
+    .sindico-email-menu button:focus-visible{outline-offset:-2px}
+    .sindico-email-menu small{padding:4px 12px 8px;font-size:12px;line-height:1.4;color:var(--ink-muted);overflow-wrap:anywhere}
+    .sindico-contact-form{position:relative;margin:0;background:var(--bg-000);padding:40px;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 14px;align-content:center;align-items:end}
+    .sindico-form-head,.sindico-contact-form>.sindico-button,.sindico-form-notes,.sindico-success{grid-column:1/-1}
+    .sindico-page .sindico-form-head p{margin-top:8px}
+    .sindico-contact-form label{display:flex;flex-direction:column;gap:8px;min-width:0;font-family:var(--font-display);font-weight:600;font-size:11px;line-height:1.3;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-subtle)}
+    .sindico-contact-form input{height:52px;width:100%;background:var(--bg-200);border:1px solid var(--line-200);border-radius:0;padding:0 16px;color:var(--ink);font-family:var(--font-sans);font-weight:400;font-size:16px;letter-spacing:0;text-transform:none;transition:border-color .2s}
+    .sindico-contact-form input:focus{border-color:var(--ink)}
+    .sindico-contact-form input:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+    .sindico-contact-form input:-webkit-autofill{-webkit-text-fill-color:var(--ink);-webkit-box-shadow:0 0 0 1000px var(--bg-200) inset;caret-color:var(--ink)}
+    .sindico-contact-form .sindico-button{width:100%;margin-top:4px}
+    .sindico-contact-form .sindico-honeypot{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;padding:0;border:0}
+    .sindico-form-notes{display:flex;flex-wrap:wrap;gap:8px 18px;margin:0;padding:0;list-style:none;font-size:13px;line-height:1.4;color:var(--ink-muted)}
+    .sindico-form-notes li{display:inline-flex;align-items:center;gap:7px}
+    .sindico-form-notes li::before{content:"";width:5px;height:5px;border-radius:999px;background:var(--ink-subtle);flex:none}
+    .sindico-success{display:none}
+    .sindico-success strong{display:block;font-family:var(--font-display);font-weight:600;font-size:24px;line-height:1.2;letter-spacing:.06em;text-transform:uppercase}
+    .sindico-page .sindico-success p{margin-top:12px}
+    .sindico-contact-form.is-sent>:not(.sindico-success){display:none}
+    .sindico-contact-form.is-sent .sindico-success{display:block;animation:fade .5s both}
 
-    /* ─── Responsivo ─────────────────────────────────────────────────── */
-    @media (max-width: 1100px) {
-      .ps-nav { gap: 20px; }
-      .ps-nav a { font-size: 14px; }
+    /* Rodapé */
+    .ps-footer{border-top:1px solid var(--line-100);padding-block:72px 40px}
+    .ps-foot{display:grid;grid-template-columns:minmax(0,1.6fr) repeat(3,minmax(0,1fr));gap:40px}
+    .ps-foot nav{display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-width:0}
+    .ps-foot nav a{color:var(--ink-muted);transition:color .2s}
+    .ps-foot nav a:hover,.ps-foot nav a[aria-current="page"]{color:var(--ink)}
+    .ps-foot-title{display:block;margin-bottom:6px;font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-subtle)}
+    .foot-marca{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px}
+    .foot-sobre{max-width:40ch;margin:20px 0 0;color:var(--ink-muted)}
+    .foot-canais{margin-top:20px;display:grid;gap:10px;justify-items:start}
+    .foot-canais a{display:inline-flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)}
+    .foot-canais svg{width:16px;height:16px}
+    .bigword{font-family:var(--font-display);font-weight:600;font-size:clamp(64px,15vw,300px);line-height:.8;letter-spacing:.01em;text-transform:uppercase;margin-top:72px;color:var(--bg-300);white-space:nowrap;overflow:hidden;user-select:none}
+    .ps-foot-bottom{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink-subtle);margin-top:24px;padding-top:24px;border-top:1px solid var(--line-100)}
+
+    /* Responsivo */
+    @media (max-width:1300px){
+      .ps-nav a:not(.sindico-nav-cta){display:none}
+      .ps-mobile-menu{display:block}
+      .ps-tema{margin-left:auto}
+      .sindico-story-layout{grid-template-columns:minmax(0,1fr)}
     }
-    @media (max-width: 980px) {
-      .ps-nav { display: none; }
-      .ps-mobile-menu { display: block; }
+    @media (max-width:1100px){
+      .sindico-console-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
-    @media (max-width: 980px) and (min-width: 681px) {
-      .sindico-page .sindico-card-grid, .sindico-page .sindico-console-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
-      .sindico-page .sindico-hero { grid-template-columns: 1fr; gap: 56px; min-height: 0; }
-      .sindico-page .sindico-hero-visual { width: min(760px,100%); margin-inline: auto; }
-      .sindico-page .sindico-story-layout { grid-template-columns: 1fr; }
+    @media (max-width:900px){
+      section{padding-block:80px}
+      .sindico-hero-wrap{padding-block:48px 72px}
+      .sindico-stats{padding-block:0}
+      .sindico-hero,.sindico-card-grid,.sindico-compare-grid,.sindico-contact-panel,.sindico-benefits{grid-template-columns:minmax(0,1fr)}
+      .sindico-hero-visual{width:100%;max-width:640px;margin:0 auto}
+      .sindico-stats-inner{grid-template-columns:minmax(0,1fr)}
+      .sindico-stats article,.sindico-stats article:first-child{padding:28px 0;border-right:0;border-bottom:1px solid var(--line-100)}
+      .sindico-stats article:last-child{border-bottom:0}
+      .sindico-compare-col,.sindico-contact-copy,.sindico-contact-form{padding:28px 20px}
+      .ps-foot{grid-template-columns:1fr 1fr}
+      .ps-foot-brand{grid-column:1/-1}
+      .sindico-operations-map{grid-template-columns:minmax(0,1fr);gap:48px}
+      .sindico-ops-core{min-height:170px}
+      .sindico-ops-core::before,.sindico-ops-core::after{left:50%;right:auto;width:1px;height:32px}
+      .sindico-ops-core::before{top:-32px}.sindico-ops-core::after{top:auto;bottom:-32px}
     }
-    @media (max-width: 680px) {
-      .ps-header-inner { min-height: 64px; padding-block: 10px; }
-      .ps-mobile-nav { top: 62px; }
-      .ps-logo-txt { font-size: 16px; }
-      .ps-foot { gap: 32px; }
-      .ps-foot nav { flex: 1 1 100%; }
-      .sindico-page .sindico-hero,
-      .sindico-page .sindico-story-layout,
-      .sindico-page .sindico-console-grid,
-      .sindico-page .sindico-contact-panel { grid-template-columns: 1fr; }
-      .sindico-page .sindico-shell { padding-block: 56px; }
-      .sindico-page .sindico-hero { gap: 48px; min-height: auto; padding-top: 36px; padding-bottom: 56px; }
-      .sindico-page .sindico-section-lead { font-size: 17px; margin-bottom: 36px; }
-      .sindico-page .sindico-stats-inner, .sindico-page .sindico-card-grid, .sindico-page .sindico-compare-grid, .sindico-page .sindico-benefits { grid-template-columns: 1fr; }
-      .sindico-page .sindico-stats-inner { gap: 24px; }
-      .sindico-page .sindico-hero-visual { min-height: 420px; }
-      .sindico-page .sindico-device-web { top: 0; width: 100%; height: 275px; border-radius: 14px; transform: none; }
-      .sindico-page .sindico-device-mobile { width: 138px; height: 248px; right: 5px; bottom: 0; padding: 9px; border-radius: 24px; }
-      .sindico-page .sindico-web-ui { grid-template-columns: 76px 1fr; }
-      .sindico-page .sindico-web-nav { padding: 13px 10px; gap: 10px; }
-      .sindico-page .sindico-web-main { padding: 14px; }
-      .sindico-page .sindico-web-heading { margin-bottom: 12px; font-size: 11px; }
-      .sindico-page .sindico-web-metric { padding: 8px; }
-      .sindico-page .sindico-web-metric b { font-size: 16px; }
-      .sindico-page .sindico-web-metric small { display: none; }
-      .sindico-page .sindico-web-chart { height: 68px; margin-top: 12px; padding: 10px; }
-      .sindico-page .sindico-mobile-profile { margin-top: 11px; padding: 10px; font-size: 10px; }
-      .sindico-page .sindico-mobile-summary { margin-top: 10px; gap: 5px; }
-      .sindico-page .sindico-mobile-summary span { padding: 8px 5px; font-size: 7px; }
-      .sindico-page .sindico-mobile-feed { margin-top: 10px; gap: 6px; }
-      .sindico-page .sindico-mobile-feed span { height: 24px; }
-      .sindico-page .sindico-sync-badge { left: 12px; bottom: 54px; padding: 9px 11px; font-size: 10px; }
-      .sindico-page .sindico-story-visual { padding: 22px 16px; }
-      .sindico-page .sindico-operations-map { padding-block: 28px; grid-template-columns: 1fr; gap: 34px; }
-      .sindico-page .sindico-flow-sources { grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 18px; }
-      .sindico-page .sindico-ops-core { min-height: 190px; }
-      .sindico-page .sindico-ops-core::before, .sindico-page .sindico-ops-core::after { left: 50%; right: auto; top: auto; width: 1px; height: 34px; background: linear-gradient(rgba(127,164,245,.15),var(--ps-link)); }
-      .sindico-page .sindico-ops-core::before { bottom: 100%; }
-      .sindico-page .sindico-ops-core::after { top: 100%; transform: rotate(180deg); }
-      .sindico-page .sindico-button { width: 100%; }
-      .sindico-page .sindico-contact-actions .sindico-button { width: 100%; }
+    @media (max-width:560px){
+      .sindico-console-grid,.sindico-contact-form,.ps-foot{grid-template-columns:minmax(0,1fr)}
+      .logo{gap:8px}.logo .mark{height:26px}.logo b{font-size:15px;letter-spacing:.08em}
+      .ps-header-inner{gap:10px}
+      .aws-mark{padding-left:10px}.aws-mark img{height:32px}
+      .sindico-nav-cta{display:none}
+      .ps-mobile-menu{margin-left:0}
+      .sindico-page .sindico-button,.sindico-contact-wpp{width:100%;padding:14px 20px;letter-spacing:.16em}
+      .sindico-hero-visual{min-height:430px}
+      .sindico-device-web{width:100%;height:290px}
+      .sindico-web-ui{grid-template-columns:72px minmax(0,1fr)}
+      .sindico-web-nav{padding:12px 10px;gap:10px}
+      .sindico-web-nav strong{font-size:10px;letter-spacing:.06em}
+      .sindico-web-main{padding:12px}
+      .sindico-web-heading{margin-bottom:10px;font-size:12px;letter-spacing:.06em}
+      .sindico-live-pill{font-size:9px;letter-spacing:.08em}
+      .sindico-web-metric{padding:9px 8px}
+      .sindico-web-metric b{height:14px}
+      .sindico-web-metric small{font-size:10px;margin-top:6px}
+      .sindico-web-chart{min-height:40px;margin-top:10px;padding:8px;gap:6px}
+      .sindico-device-mobile{width:138px;height:250px;padding:9px}
+      .sindico-mobile-profile{margin-top:10px;padding:9px}
+      .sindico-mobile-profile strong{font-size:12px}
+      .sindico-mobile-summary{margin-top:8px}
+      .sindico-mobile-summary span{height:34px}
+      .sindico-mobile-summary span::after{left:7px;top:8px;width:16px;height:8px}
+      .sindico-mobile-feed{margin-top:8px;gap:6px}
+      .sindico-mobile-feed span{height:22px}
+      .sindico-sync-badge{bottom:16px;padding:9px 10px;font-size:10px;letter-spacing:.14em}
+      .sindico-story-visual{padding:20px 16px}
+      .sindico-card{padding:28px 20px}
     }
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
   </style>
 </head>
 <body>
   <header class="ps-site-header">
-    <div class="ps-header-inner">
-      <a class="ps-brand" href="/sobre/"><img src="/sobre/assets/prestare-icon.png" alt="Prestare Gestão"><span class="ps-logo-txt">PRESTARE <span>GESTÃO</span></span></a>
+    <div class="wrap ps-header-inner">
+      <a class="logo ps-brand" href="/sobre/" aria-label="Prestare Gestão"><svg class="mark" aria-hidden="true" viewBox="0 0 108 146" fill="none"><defs><mask id="pa1" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="146"><rect width="108" height="146" fill="#fff"/><rect x="-2" y="43" width="65" height="78" rx="11" fill="#000"/><polygon points="61.0,96.0 100.1,109.8 85.2,117.8 102.4,135.1 95.5,142.0 78.2,124.8 70.2,139.7" fill="#000" stroke="#000" stroke-width="12" stroke-linejoin="round"/></mask><mask id="pb1" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="146"><rect width="108" height="146" fill="#fff"/><polygon points="61.0,96.0 100.1,109.8 85.2,117.8 102.4,135.1 95.5,142.0 78.2,124.8 70.2,139.7" fill="#000" stroke="#000" stroke-width="12" stroke-linejoin="round"/></mask></defs><g mask="url(#pa1)"><rect x="33" y="5" width="51" height="83" rx="8" stroke="currentColor" stroke-width="5.5"/><g fill="currentColor"><rect x="43" y="16" width="7.5" height="7.5" rx="1"/><rect x="54.5" y="16" width="7.5" height="7.5" rx="1"/><rect x="66" y="16" width="7.5" height="7.5" rx="1"/><rect x="43" y="28" width="7.5" height="7.5" rx="1"/><rect x="54.5" y="28" width="7.5" height="7.5" rx="1"/><rect x="66" y="28" width="7.5" height="7.5" rx="1"/><rect x="66" y="40" width="7.5" height="7.5" rx="1"/><rect x="66" y="52" width="7.5" height="7.5" rx="1"/><rect x="66" y="64" width="7.5" height="7.5" rx="1"/></g></g><g mask="url(#pb1)"><rect x="5" y="49" width="53" height="68" rx="8" stroke="currentColor" stroke-width="5.5"/><g fill="currentColor"><rect x="15" y="60" width="7.5" height="7.5" rx="1"/><rect x="36" y="60" width="7.5" height="7.5" rx="1"/><rect x="15" y="73" width="7.5" height="7.5" rx="1"/><rect x="36" y="73" width="7.5" height="7.5" rx="1"/><rect x="15" y="86" width="7.5" height="7.5" rx="1"/><rect x="36" y="86" width="7.5" height="7.5" rx="1"/><rect x="15" y="99" width="7.5" height="7.5" rx="1"/><rect x="36" y="99" width="7.5" height="7.5" rx="1"/></g></g><polygon points="61.0,96.0 100.1,109.8 85.2,117.8 102.4,135.1 95.5,142.0 78.2,124.8 70.2,139.7" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><b class="ps-logo-txt">PRESTARE <span>GESTÃO</span></b></a>
+      <a href="/sobre/#aws" class="aws-mark" aria-label="A Prestare roda na AWS"><img class="img-dark" src="/sobre/assets/powered-by-aws-vert-white.svg" alt="Powered by AWS" width="541" height="387"><img class="img-light" src="/sobre/assets/powered-by-aws-vert-gray.svg" alt="Powered by AWS" width="541" height="387"></a>
       <nav class="ps-nav" aria-label="Navegação principal">
         <a href="/sobre/#app">Para o morador</a>
         <a href="/sindico/" aria-current="page">Para o síndico</a>
@@ -346,10 +373,11 @@
         <a href="/sobre/#modulos">Módulos</a>
         <a href="/sobre/#baixar-app">Baixar app</a>
         <a href="/sobre/#duvidas">Dúvidas</a>
-        <a class="sindico-nav-cta" href="#orcamento">Pedir orçamento</a>
+        <a class="btn sm sindico-nav-cta" href="#orcamento">Pedir orçamento</a>
       </nav>
+      <button class="ibtn ps-tema" type="button" data-trocar-tema aria-label="Trocar tema"><svg class="i img-dark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg><svg class="i img-light" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></button>
       <details class="ps-mobile-menu">
-        <summary aria-label="Abrir o menu"><i></i><i></i><i></i></summary>
+        <summary class="ibtn" aria-label="Abrir o menu"><svg class="i abrir" viewBox="0 0 24 24" aria-hidden="true"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg><svg class="i fechar" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></summary>
         <nav class="ps-mobile-nav" aria-label="Navegação mobile">
           <a href="/sobre/#app">Para o morador</a><a href="/sindico/">Para o síndico</a><a href="/sobre/#portaria-app">App do porteiro</a><a href="/sobre/#modulos">Módulos</a><a href="/sobre/#baixar-app">Baixar app</a><a href="/sobre/#duvidas">Dúvidas</a><a href="#orcamento">Pedir orçamento</a>
         </nav>
@@ -361,6 +389,7 @@
       <div class="sindico-shell sindico-hero">
         <div>
           <span id="sindico-title" hidden>Prestare Gestão para síndicos</span>
+          <span class="sindico-eyebrow-pill">Para síndicos</span>
           <h1>Gestão do condomínio sem consumir o seu dia.</h1>
           <p class="sindico-lead">Acompanhe tudo pelo app e pelo sistema web, reduza tarefas repetitivas e tome decisões com informação em tempo real.</p>
           <ul class="sindico-feature-list">
@@ -369,31 +398,31 @@
             <li>Histórico rastreável</li>
             <li>Acesso de onde estiver</li>
           </ul>
-          <a class="sindico-button" href="#orcamento">Pedir orçamento para meu condomínio <span aria-hidden="true">→</span></a>
+          <a class="btn sindico-button" href="#orcamento">Pedir orçamento para meu condomínio <span aria-hidden="true">→</span></a>
         </div>
         <div class="sindico-hero-visual" role="img" aria-label="Aplicativo do síndico e sistema web da Prestare compartilhando informações em tempo real">
           <div class="sindico-device sindico-device-web" aria-hidden="true">
-            <div class="sindico-device-bar"><span class="sindico-device-dots"><i></i><i></i><i></i></span><span>gestao.prestare.app</span></div>
+            <div class="sindico-device-bar"><span class="sindico-device-dots"><i></i><i></i><i></i></span></div>
             <div class="sindico-web-ui">
               <div class="sindico-web-nav"><strong>Prestare</strong><span></span><span></span><span></span><span></span><span></span></div>
               <div class="sindico-web-main">
-                <div class="sindico-web-heading"><span>Visão do condomínio</span><span class="sindico-live-pill">tempo real</span></div>
+                <div class="sindico-web-heading"><span>Visão do condomínio</span><span class="sindico-live-pill"><i class="dot ok pulse"></i>tempo real</span></div>
                 <div class="sindico-web-metrics">
-                  <div class="sindico-web-metric"><b>12</b><small>processos ativos</small></div>
-                  <div class="sindico-web-metric"><b>08</b><small>resolvidos hoje</small></div>
-                  <div class="sindico-web-metric"><b>96%</b><small>rotina em dia</small></div>
+                  <div class="sindico-web-metric"><b></b><small>processos ativos</small></div>
+                  <div class="sindico-web-metric"><b></b><small>resolvidos hoje</small></div>
+                  <div class="sindico-web-metric"><b></b><small>rotina em dia</small></div>
                 </div>
                 <div class="sindico-web-chart"><i style="--bar:38%"></i><i style="--bar:62%"></i><i style="--bar:48%"></i><i style="--bar:78%"></i><i style="--bar:58%"></i><i style="--bar:88%"></i><i style="--bar:70%"></i></div>
               </div>
             </div>
           </div>
           <div class="sindico-device sindico-device-mobile" aria-hidden="true">
-            <div class="sindico-mobile-top"><span>09:41</span><span>●●●</span></div>
-            <div class="sindico-mobile-profile"><strong>Olá, síndico</strong><small>Residencial Alameda</small></div>
-            <div class="sindico-mobile-summary"><span>3 visitantes</span><span>1 encomenda</span></div>
+            <div class="sindico-mobile-top"><span></span><span></span></div>
+            <div class="sindico-mobile-profile"><strong>Olá, síndico</strong><small></small></div>
+            <div class="sindico-mobile-summary"><span></span><span></span></div>
             <div class="sindico-mobile-feed"><span></span><span></span><span></span></div>
           </div>
-          <span class="sindico-sync-badge" aria-hidden="true">Dados sincronizados</span>
+          <span class="sindico-sync-badge" aria-hidden="true"><i class="dot ok"></i>Dados sincronizados</span>
         </div>
       </div>
     </section>
@@ -497,13 +526,13 @@
           <li><strong>Relatórios</strong><span>Informações organizadas para prestar contas e embasar decisões.</span></li>
         </ul>
         <div class="sindico-console-grid">
-          <figure><button type="button" class="sindico-shot" data-titulo="Visão geral da operação" data-texto="A tela inicial mostra, de uma vez, quantos visitantes estão no condomínio, as encomendas aguardando retirada, as ocorrências pendentes e os prestadores cadastrados. Logo abaixo, a lista de últimos eventos registra entradas, saídas e encomendas, e o acesso rápido leva às tarefas mais comuns." data-src="/sobre/assets/web-dashboard.png" data-alt="Dashboard da Prestare Gestão"><img src="/sobre/assets/web-dashboard.png" alt="Dashboard da Prestare Gestão"><figcaption>Visão geral da operação</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
-          <figure><button type="button" class="sindico-shot" data-titulo="Visitantes e autorizações" data-texto="Consulte quem entrou, quem saiu e quem está autorizado, tudo em uma lista com histórico. Quando precisar saber o que aconteceu na portaria, você encontra o registro sem ligar para ninguém." data-src="/sobre/assets/web-visitantes.png" data-alt="Tela de visitantes"><img src="/sobre/assets/web-visitantes.png" alt="Tela de visitantes"><figcaption>Visitantes e autorizações</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
-          <figure><button type="button" class="sindico-shot" data-titulo="Financeiro do condomínio" data-texto="Acompanhe a situação financeira do condomínio em um só lugar, com as informações organizadas para consulta e para prestação de contas aos moradores." data-src="/sobre/assets/web-financeiro.png" data-alt="Tela financeira"><img src="/sobre/assets/web-financeiro.png" alt="Tela financeira"><figcaption>Financeiro do condomínio</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
-          <figure><button type="button" class="sindico-shot" data-titulo="Autorizações em poucos cliques" data-texto="Libere ou negue acessos em poucos cliques. Cada decisão fica registrada no histórico, para consulta futura." data-src="/sobre/assets/web-autorizacao.png" data-alt="Tela de autorização"><img src="/sobre/assets/web-autorizacao.png" alt="Tela de autorização"><figcaption>Autorizações em poucos cliques</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
+          <figure><button type="button" class="sindico-shot" data-titulo="Visão geral da operação" data-texto="A tela inicial mostra, de uma vez, quantos visitantes estão no condomínio, as encomendas aguardando retirada, as ocorrências pendentes e os prestadores cadastrados. Logo abaixo, a lista de últimos eventos registra entradas, saídas e encomendas, e o acesso rápido leva às tarefas mais comuns." data-src="/sobre/assets/web-dashboard.png" data-alt="Dashboard da Prestare Gestão"><img src="/sobre/assets/web-dashboard.png" alt="Dashboard da Prestare Gestão" width="1919" height="941" loading="lazy"><figcaption>Visão geral da operação</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
+          <figure><button type="button" class="sindico-shot" data-titulo="Visitantes e autorizações" data-texto="Consulte quem entrou, quem saiu e quem está autorizado, tudo em uma lista com histórico. Quando precisar saber o que aconteceu na portaria, você encontra o registro sem ligar para ninguém." data-src="/sobre/assets/web-visitantes.png" data-alt="Tela de visitantes"><img src="/sobre/assets/web-visitantes.png" alt="Tela de visitantes" width="1919" height="940" loading="lazy"><figcaption>Visitantes e autorizações</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
+          <figure><button type="button" class="sindico-shot" data-titulo="Financeiro do condomínio" data-texto="Acompanhe a situação financeira do condomínio em um só lugar, com as informações organizadas para consulta e para prestação de contas aos moradores." data-src="/sobre/assets/web-financeiro.png" data-alt="Tela financeira"><img src="/sobre/assets/web-financeiro.png" alt="Tela financeira" width="1919" height="944" loading="lazy"><figcaption>Financeiro do condomínio</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
+          <figure><button type="button" class="sindico-shot" data-titulo="Autorizações em poucos cliques" data-texto="Libere ou negue acessos em poucos cliques. Cada decisão fica registrada no histórico, para consulta futura." data-src="/sobre/assets/web-autorizacao.png" data-alt="Tela de autorização"><img src="/sobre/assets/web-autorizacao.png" alt="Tela de autorização" width="1919" height="943" loading="lazy"><figcaption>Autorizações em poucos cliques</figcaption><span class="sindico-shot-hint">Clique para ampliar e entender</span></button></figure>
         </div>
         <dialog class="sindico-lightbox" aria-labelledby="lightbox-title">
-          <form method="dialog"><button class="sindico-lightbox-close" aria-label="Fechar">×</button></form>
+          <form method="dialog"><button class="ibtn sindico-lightbox-close" aria-label="Fechar">×</button></form>
           <img src="" alt="">
           <div class="sindico-lightbox-text"><h3 id="lightbox-title"></h3><p></p></div>
         </dialog>
@@ -517,13 +546,13 @@
             <h2 id="orcamento-title">Seu tempo deve ir para decisões — não para tarefas repetitivas.</h2>
             <p class="sindico-contact-lead">O valor acompanha o tamanho do condomínio. Diga quantas unidades e eu respondo com o orçamento e os módulos que fazem sentido para vocês.</p>
             <ul class="sindico-contact-steps">
-              <li><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>Conte o nome do condomínio e quantas unidades</li>
-              <li><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>Resposta na hora pelo WhatsApp</li>
-              <li><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.5 8 9 4.6-.5 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/></svg></span>Sem compromisso, seus dados ficam protegidos</li>
+              <li><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>Conte o nome do condomínio e quantas unidades</li>
+              <li><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>Resposta na hora pelo WhatsApp</li>
+              <li><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.5 8 9 4.6-.5 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/></svg></span>Sem compromisso, seus dados ficam protegidos</li>
             </ul>
             <div class="sindico-contact-actions">
-              <a class="sindico-button" href="#orcamento-form">Pedir orçamento para meu condomínio <span aria-hidden="true">→</span></a>
-              <a class="sindico-contact-wpp" href="https://wa.me/5517996608148" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Falar no WhatsApp agora</a>
+              <a class="btn sindico-button" href="#orcamento-form">Pedir orçamento para meu condomínio <span aria-hidden="true">→</span></a>
+              <a class="btn sec sindico-contact-wpp" href="https://wa.me/5517996608148" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Falar no WhatsApp agora</a>
               <a class="sindico-contact-link" href="https://ig.me/m/prestare.gestao" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>Mandar mensagem no Instagram · @prestare.gestao</a>
               <details class="sindico-email">
                 <summary>Prefiro escrever um e-mail</summary>
@@ -547,7 +576,7 @@
             <label>Condomínio<input name="condominio" required placeholder="Ex: Edifício Demo"></label>
             <label>Quantas unidades · define o valor<input name="unidades" required inputmode="numeric" placeholder="Ex: 59 apartamentos"></label>
             <input name="site" tabindex="-1" autocomplete="off" aria-hidden="true" class="sindico-honeypot">
-            <button class="sindico-button" type="submit">Enviar e abrir o WhatsApp <span aria-hidden="true">→</span></button>
+            <button class="btn sindico-button" type="submit">Enviar e abrir o WhatsApp <span aria-hidden="true">→</span></button>
             <ul class="sindico-form-notes">
               <li>Resposta na hora pelo WhatsApp</li>
               <li>Seus dados sob a LGPD, sem spam</li>
@@ -563,36 +592,44 @@
     </section>
   </main>
   <footer class="ps-footer">
-    <div class="ps-foot">
-      <div class="ps-foot-brand">
-        <span style="display:inline-flex;align-items:center;gap:10px"><img src="/sobre/assets/prestare-icon.png" alt="" width="32" height="32" style="display:block;border-radius:8px"><span class="ps-brand-name">PRESTARE <span>GESTÃO</span></span></span>
-        <p>Controle de acesso, encomendas, áreas sociais e a conta do condomínio — no celular do morador e no console da portaria.</p>
-        <a class="ps-foot-link" href="https://wa.me/5517996608148" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--prestare-blue-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>Falar no WhatsApp</a>
-        <a class="ps-foot-link" href="https://www.instagram.com/prestare.gestao/" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--prestare-blue-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1" fill="var(--prestare-blue-500)" stroke="none"></circle></svg>@prestare.gestao no Instagram</a>
+    <div class="wrap">
+      <div class="ps-foot">
+        <div class="ps-foot-brand">
+          <div class="foot-marca">
+            <a class="logo" href="/sobre/" aria-label="Prestare Gestão"><svg class="mark" aria-hidden="true" viewBox="0 0 108 146" fill="none"><defs><mask id="pa2" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="146"><rect width="108" height="146" fill="#fff"/><rect x="-2" y="43" width="65" height="78" rx="11" fill="#000"/><polygon points="61.0,96.0 100.1,109.8 85.2,117.8 102.4,135.1 95.5,142.0 78.2,124.8 70.2,139.7" fill="#000" stroke="#000" stroke-width="12" stroke-linejoin="round"/></mask><mask id="pb2" maskUnits="userSpaceOnUse" x="0" y="0" width="108" height="146"><rect width="108" height="146" fill="#fff"/><polygon points="61.0,96.0 100.1,109.8 85.2,117.8 102.4,135.1 95.5,142.0 78.2,124.8 70.2,139.7" fill="#000" stroke="#000" stroke-width="12" stroke-linejoin="round"/></mask></defs><g mask="url(#pa2)"><rect x="33" y="5" width="51" height="83" rx="8" stroke="currentColor" stroke-width="5.5"/><g fill="currentColor"><rect x="43" y="16" width="7.5" height="7.5" rx="1"/><rect x="54.5" y="16" width="7.5" height="7.5" rx="1"/><rect x="66" y="16" width="7.5" height="7.5" rx="1"/><rect x="43" y="28" width="7.5" height="7.5" rx="1"/><rect x="54.5" y="28" width="7.5" height="7.5" rx="1"/><rect x="66" y="28" width="7.5" height="7.5" rx="1"/><rect x="66" y="40" width="7.5" height="7.5" rx="1"/><rect x="66" y="52" width="7.5" height="7.5" rx="1"/><rect x="66" y="64" width="7.5" height="7.5" rx="1"/></g></g><g mask="url(#pb2)"><rect x="5" y="49" width="53" height="68" rx="8" stroke="currentColor" stroke-width="5.5"/><g fill="currentColor"><rect x="15" y="60" width="7.5" height="7.5" rx="1"/><rect x="36" y="60" width="7.5" height="7.5" rx="1"/><rect x="15" y="73" width="7.5" height="7.5" rx="1"/><rect x="36" y="73" width="7.5" height="7.5" rx="1"/><rect x="15" y="86" width="7.5" height="7.5" rx="1"/><rect x="36" y="86" width="7.5" height="7.5" rx="1"/><rect x="15" y="99" width="7.5" height="7.5" rx="1"/><rect x="36" y="99" width="7.5" height="7.5" rx="1"/></g></g><polygon points="61.0,96.0 100.1,109.8 85.2,117.8 102.4,135.1 95.5,142.0 78.2,124.8 70.2,139.7" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><b class="ps-brand-name">PRESTARE <span>GESTÃO</span></b></a>
+            <a href="/sobre/#aws" class="aws-mark" aria-label="A Prestare roda na AWS"><img class="img-dark" src="/sobre/assets/powered-by-aws-vert-white.svg" alt="Powered by AWS" width="541" height="387"><img class="img-light" src="/sobre/assets/powered-by-aws-vert-gray.svg" alt="Powered by AWS" width="541" height="387"></a>
+          </div>
+          <p class="foot-sobre">Controle de acesso, encomendas, áreas sociais e a conta do condomínio — no celular do morador e no console da portaria.</p>
+          <div class="foot-canais">
+            <a class="ps-foot-link" href="https://wa.me/5517996608148" target="_blank" rel="noopener"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>Falar no WhatsApp</a>
+            <a class="ps-foot-link" href="https://www.instagram.com/prestare.gestao/" target="_blank" rel="noopener"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="20" x="2" y="2" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"></circle></svg>@prestare.gestao no Instagram</a>
+          </div>
+        </div>
+        <nav aria-label="Produto">
+          <span class="ps-foot-title">Produto</span>
+          <a href="/sobre/#app">Para o morador</a>
+          <a href="/sindico/" aria-current="page">Para o síndico</a>
+          <a href="/sobre/#portaria-app">App do porteiro</a>
+          <a href="/sobre/#modulos">Módulos</a>
+          <a href="/sobre/#baixar-app">Baixar app</a>
+          <a href="/sobre/#duvidas">Dúvidas frequentes</a>
+        </nav>
+        <nav aria-label="Acesso">
+          <span class="ps-foot-title">Acesso</span>
+          <a href="/login">Console da portaria</a>
+          <a href="#orcamento">Pedir orçamento</a>
+          <a href="mailto:suporte@clickprestarecondominios.com.br">Suporte</a>
+          <a href="https://ig.me/m/prestare.gestao" target="_blank" rel="noopener">Instagram (mensagem)</a>
+        </nav>
+        <nav aria-label="Legal">
+          <span class="ps-foot-title">Legal</span>
+          <a href="/politica-de-privacidade.html">Política de privacidade</a>
+          <a href="/termos-de-uso.html">Termos de uso</a>
+        </nav>
       </div>
-      <nav aria-label="Produto">
-        <span class="ps-foot-title">Produto</span>
-        <a href="/sobre/#app">Para o morador</a>
-        <a href="/sindico/" aria-current="page">Para o síndico</a>
-        <a href="/sobre/#portaria-app">App do porteiro</a>
-        <a href="/sobre/#modulos">Módulos</a>
-        <a href="/sobre/#baixar-app">Baixar app</a>
-        <a href="/sobre/#duvidas">Dúvidas frequentes</a>
-      </nav>
-      <nav aria-label="Acesso">
-        <span class="ps-foot-title">Acesso</span>
-        <a href="/login">Console da portaria</a>
-        <a href="#orcamento">Pedir orçamento</a>
-        <a href="mailto:suporte@clickprestarecondominios.com.br">Suporte</a>
-        <a href="https://ig.me/m/prestare.gestao" target="_blank" rel="noopener">Instagram (mensagem)</a>
-      </nav>
-      <nav aria-label="Legal">
-        <span class="ps-foot-title">Legal</span>
-        <a href="/politica-de-privacidade.html">Política de privacidade</a>
-        <a href="/termos-de-uso.html">Termos de uso</a>
-      </nav>
+      <div class="bigword" aria-hidden="true">Prestare</div>
+      <div class="ps-foot-bottom"><span>© <span id="ano-rodape">2026</span> Prestare Gestão · Todos os direitos reservados</span><span>prestarecondominios.com.br</span></div>
     </div>
-    <div class="ps-foot-bottom"><div><span>© <span id="ano-rodape">2026</span> Prestare Gestão · Todos os direitos reservados</span><span>prestarecondominios.com.br</span></div></div>
   </footer>
   <script>
     window.psEnviarPedido = function (pedido) {
@@ -688,6 +725,23 @@
           if (ok) { form.classList.add('is-sent'); form.querySelector('.sindico-success').classList.add('is-visible'); }
         });
     });
+  </script>
+<script>
+    (function () {
+      var botao = document.querySelector('[data-trocar-tema]');
+      if (botao) botao.addEventListener('click', function () {
+        var raiz = document.documentElement;
+        var atual = raiz.dataset.theme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        var novo = atual === 'light' ? 'dark' : 'light';
+        raiz.dataset.theme = novo;
+        try { localStorage.setItem('ps-theme', novo); } catch (e) {}
+      });
+      // O menu cobre a tela: ao escolher um destino (ou com Esc), ele precisa fechar.
+      var menu = document.querySelector('.ps-mobile-menu');
+      if (!menu) return;
+      menu.addEventListener('click', function (e) { if (e.target.closest('.ps-mobile-nav a')) menu.removeAttribute('open'); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && menu.hasAttribute('open')) { menu.removeAttribute('open'); menu.querySelector('summary').focus(); } });
+    })();
   </script>
 </body>
 </html>
