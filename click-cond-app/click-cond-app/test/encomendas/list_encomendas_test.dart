@@ -95,7 +95,7 @@ void main() {
     comoMorador();
     await abrir(tester);
 
-    expect(find.text('Aguardando retirada (2)'), findsOneWidget);
+    expect(find.text('AGUARDANDO RETIRADA'), findsOneWidget);
     expect(find.text('Na portaria há 2 dias'), findsOneWidget);
     expect(find.text('Na portaria há 3 h'), findsOneWidget);
     expect(find.textContaining('Amazon · chegou'), findsOneWidget);
@@ -111,10 +111,10 @@ void main() {
     // Nome e data em linhas separadas (o nome não é cortado pela data).
     expect(find.text('Retirada por Maria'), findsOneWidget);
     expect(find.textContaining('ontem às '), findsOneWidget);
-    expect(find.text('Entregues (1)'), findsOneWidget);
-    expect(find.text('Ontem'), findsOneWidget);
-    expect(tester.getTopLeft(find.text('Entregues (1)')).dy,
-        lessThan(tester.getTopLeft(find.text('Ontem')).dy));
+    expect(find.text('ENTREGUES'), findsOneWidget);
+    expect(find.text('ONTEM'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('ENTREGUES')).dy,
+        lessThan(tester.getTopLeft(find.text('ONTEM')).dy));
   });
 
   testWidgets('morador com uma unidade não vê o selo da unidade',
@@ -133,9 +133,9 @@ void main() {
     comoFuncionario();
     await abrir(tester);
 
-    expect(find.text('Bloco A • Apto 106'), findsWidgets);
-    expect(find.text('Dar Baixa'), findsNWidgets(2));
-    expect(find.text('Editar'), findsNWidgets(3));
+    expect(find.text('BLOCO A • APTO 106'), findsWidgets);
+    expect(find.text('DAR BAIXA'), findsNWidgets(2));
+    expect(find.text('EDITAR'), findsNWidgets(3));
   });
 
   testWidgets('tocar no card abre os detalhes e tem rótulo acessível',

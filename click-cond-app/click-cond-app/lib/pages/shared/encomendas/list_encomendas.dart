@@ -12,6 +12,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/widgets/app/app_card.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_segmented_control.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
@@ -157,11 +158,12 @@ class ListEncomendasState extends State<ListEncomendas> {
               heroTag: 'register_tracking_fab',
               backgroundColor: AppColors.primary,
               foregroundColor: AppColors.onPrimary,
+              shape: const RoundedRectangleBorder(),
               onPressed: () => openAddEncomenda(context),
               icon: Icon(PhosphorIcons.plus, color: AppColors.onPrimary, size: 20),
               label: Text(
-                _isStaff ? 'Nova Encomenda' : 'Avisar Encomenda',
-                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.onPrimary),
+                (_isStaff ? 'Nova Encomenda' : 'Avisar Encomenda').toUpperCase(),
+                style: AppTypography.button(context),
               ),
             )
           : null,
@@ -174,13 +176,10 @@ class ListEncomendasState extends State<ListEncomendas> {
               children: [
                 // Barra de Busca
                 Container(
+                  height: 44,
                   decoration: BoxDecoration(
                     color: AppColors.surface(context),
-                    borderRadius: BorderRadius.zero,
-                    border: Border.all(
-                      color: AppColors.border(context),
-                      width: 1.1,
-                    ),
+                    border: Border.all(color: AppColors.border(context)),
                   ),
                   child: TextField(
                     controller: _searchController,
@@ -200,6 +199,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                           : null,
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      isDense: true,
                     ),
                   ),
                 ),
@@ -262,6 +262,8 @@ class ListEncomendasState extends State<ListEncomendas> {
       children: [
         for (final section in sections) ...[
           if (section.title != null) _SectionHeader(section.title!, major: section.major),
+          if (section.items.isNotEmpty)
+            Container(height: 1, color: AppColors.border(context)),
           for (final enc in section.items)
             _EncomendaCard(
               key: ValueKey(enc.id),
@@ -286,14 +288,7 @@ class ListEncomendasState extends State<ListEncomendas> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.xxl),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(PhosphorIcons.package, size: 56, color: AppColors.primary),
-              ),
+              AppIconBox(icon: PhosphorIcons.package, size: 56, iconSize: 24),
               const SizedBox(height: AppSpacing.lg),
               Text(
                 _searchQuery.isNotEmpty
@@ -304,8 +299,9 @@ class ListEncomendasState extends State<ListEncomendas> {
                             ? 'Nenhuma encomenda entregue ainda'
                             : (_isStaff
                                 ? 'Nenhuma encomenda registrada no condomínio'
-                                : 'Nenhuma encomenda encontrada'),
-                style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
+                                : 'Nenhuma encomenda encontrada')
+                    .toUpperCase(),
+                style: AppTypography.section(context),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -877,15 +873,7 @@ class _EncomendaCard extends StatelessWidget {
       bgColor = AppColors.textSecondary(context).withValues(alpha: 0.12);
     }
 
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.zero,
-      ),
-      child: Icon(iconData, color: iconColor, size: 24),
-    );
+    return AppIconBox(icon: iconData);
   }
 
   /// Mesmos valores que os detalhes sempre receberam.
@@ -918,7 +906,7 @@ class _EncomendaCard extends StatelessWidget {
   }
 
   Widget _thumb(BuildContext context, double size) => ClipRRect(
-        borderRadius: BorderRadius.circular(size >= 52 ? 14 : 12),
+        borderRadius: BorderRadius.zero,
         child: Container(
           width: size,
           height: size,
@@ -945,8 +933,6 @@ class _EncomendaCard extends StatelessWidget {
     final unidade = showUnit ? encomendaUnitLabel(encomenda) : null;
     final titulo = (encomenda.descricao ?? '').trim().isEmpty ? 'Encomenda sem descrição' : encomenda.descricao!.trim();
     final hasPhoto = encomenda.fotoVolume != null && encomenda.fotoVolume!.isNotEmpty;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     void abrirDetalhes() {
       final (data, cor) = _detailsArgs();
       _showEncomendaDetails(context, data, cor);
@@ -956,15 +942,9 @@ class _EncomendaCard extends StatelessWidget {
     // check verde ou X vermelho; nas que aguardam, o ícone da transportadora.
     final Widget leading;
     if (hasPhoto) {
-      leading = _thumb(context, encerrada ? 44 : 52);
+      leading = _thumb(context, 40);
     } else if (encerrada) {
-      final cor = isRetirado ? AppColors.success : AppColors.error;
-      leading = Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(color: cor.withValues(alpha: 0.12), borderRadius: BorderRadius.zero),
-        child: Icon(isRetirado ? PhosphorIcons.checkCircle : PhosphorIcons.xCircle, color: linhaColor, size: 22),
-      );
+      leading = AppIconBox(icon: isRetirado ? PhosphorIcons.check : PhosphorIcons.x);
     } else {
       leading = _buildBrandIcon(context);
     }
@@ -991,9 +971,7 @@ class _EncomendaCard extends StatelessWidget {
                   ],
                   Text(
                     titulo,
-                    style: AppTypography.bodyMedium(context).copyWith(
-                      fontWeight: encerrada ? FontWeight.w600 : FontWeight.w700,
-                      height: 1.3,
+                    style: AppTypography.strong(context).copyWith(
                       color: encerrada ? AppColors.textSecondary(context) : AppColors.textPrimary(context),
                     ),
                     maxLines: encerrada ? 1 : 2,
@@ -1004,11 +982,7 @@ class _EncomendaCard extends StatelessWidget {
                     linha.text,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTypography.caption(context).copyWith(
-                      fontSize: 13,
-                      color: linhaColor,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AppTypography.tiny(context).copyWith(color: linhaColor),
                   ),
                   if (meta != null) ...[
                     const SizedBox(height: 2),
@@ -1025,17 +999,17 @@ class _EncomendaCard extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: EdgeInsets.zero,
       child: _PressScale(
         child: Container(
           decoration: BoxDecoration(
-            // Encerradas: peso visual menor (fundo de superfície, sem sombra).
-            color: encerrada
-                ? AppColors.surface(context)
-                : (isDark ? AppColors.surface(context) : AppColors.surfaceElevated(context)),
-            borderRadius: AppRadius.rlg,
-            border: Border.all(color: AppColors.border(context)),
-                      ),
+            color: AppColors.surface(context),
+            border: Border(
+              left: BorderSide(color: AppColors.border(context)),
+              right: BorderSide(color: AppColors.border(context)),
+              bottom: BorderSide(color: AppColors.border(context)),
+            ),
+          ),
           child: Material(
             color: Colors.transparent,
             borderRadius: AppRadius.rlg,
@@ -1063,18 +1037,16 @@ class _EncomendaCard extends StatelessWidget {
                               constraints: const BoxConstraints(minHeight: 44),
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               decoration: BoxDecoration(
-                                color: AppColors.accentGhost(context),
-                                borderRadius: BorderRadius.zero,
-                                border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+                                border: Border.all(color: AppColors.borderStrong(context)),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(PhosphorIcons.trash, size: 15, color: AppColors.error),
-                                  SizedBox(width: 4),
+                                  const SizedBox(width: 6),
                                   Text(
-                                    'Excluir',
-                                    style: TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.w600),
+                                    'Excluir'.toUpperCase(),
+                                    style: AppTypography.label(context).copyWith(color: AppColors.error),
                                   ),
                                 ],
                               ),
@@ -1092,21 +1064,21 @@ class _EncomendaCard extends StatelessWidget {
                           OutlinedButton.icon(
                             onPressed: () => onEdit?.call(encomenda),
                             icon: const Icon(PhosphorIcons.pencilSimple, size: 14),
-                            label: const Text('Editar'),
+                            label: Text('Editar'.toUpperCase()),
                             style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 44),
+                              minimumSize: const Size(0, 48),
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                              side: BorderSide(color: AppColors.border(context)),
+                              side: BorderSide(color: AppColors.borderStrong(context)),
                             ),
                           ),
                           if (!isRetirado) ...[
                             ElevatedButton.icon(
                               onPressed: () => _abrirRetirada(context),
                               icon: const Icon(PhosphorIcons.checkCircle, size: 16),
-                              label: const Text('Dar Baixa'),
+                              label: Text('Dar Baixa'.toUpperCase()),
                               style: ElevatedButton.styleFrom(
-                                minimumSize: const Size(0, 44),
+                                minimumSize: const Size(0, 48),
                                 backgroundColor: AppColors.primary,
                                 foregroundColor: AppColors.onPrimary,
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1180,7 +1152,7 @@ class _EncomendaCard extends StatelessWidget {
                     child: Container(
                       height: 220,
                       width: double.infinity,
-                      color: AppColors.surfaceElevated(context),
+                      color: AppColors.surface(context),
                       child: Image.network(
                         encomenda.fotoVolume!,
                         fit: BoxFit.cover,
@@ -1213,7 +1185,7 @@ class _EncomendaCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceElevated(context),
+                    color: AppColors.surface(context),
                     borderRadius: BorderRadius.zero,
                     border: Border.all(color: AppColors.border(context)),
                   ),
@@ -1408,22 +1380,34 @@ class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.text, {this.major = true});
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: major
-            ? const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.md)
-            : const EdgeInsets.only(top: AppSpacing.xs, bottom: AppSpacing.sm, left: AppSpacing.xs),
-        child: Semantics(
-          header: true,
-          child: Text(
-            text,
-            style: major
-                ? AppTypography.captionMedium(context)
-                    .copyWith(color: AppColors.textPrimary(context), fontWeight: FontWeight.w700)
-                : AppTypography.tiny(context)
-                    .copyWith(color: AppColors.textTertiary(context), fontWeight: FontWeight.w600),
-          ),
+  Widget build(BuildContext context) {
+    // 'Aguardando retirada (3)' vira título + contador com zero à esquerda.
+    final m = RegExp(r'^(.*) \((\d+)\)$').firstMatch(text);
+    final titulo = (m != null ? m.group(1)! : text).toUpperCase();
+    final contador = m != null ? m.group(2)!.padLeft(2, '0') : null;
+    return Padding(
+      padding: major
+          ? const EdgeInsets.only(top: AppSpacing.xl, bottom: AppSpacing.md)
+          : const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.sm),
+      child: Semantics(
+        header: true,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                titulo,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: major ? AppTypography.section(context) : AppTypography.label(context),
+              ),
+            ),
+            if (contador != null) Text(contador, style: AppTypography.label(context)),
+          ],
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _UnitBadge extends StatelessWidget {
@@ -1434,20 +1418,20 @@ class _UnitBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.zero,
+          border: Border.all(color: AppColors.borderStrong(context)),
+          borderRadius: BorderRadius.circular(AppRadius.tag),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(PhosphorIcons.buildings, size: 12, color: AppColors.primary),
+            Icon(PhosphorIcons.buildings, size: 12, color: AppColors.textSecondary(context)),
             const SizedBox(width: 4),
             Flexible(
               child: Text(
-                label,
+                label.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
+                style: AppTypography.label(context).copyWith(fontSize: 10, color: AppColors.textSecondary(context)),
               ),
             ),
           ],

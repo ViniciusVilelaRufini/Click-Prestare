@@ -603,7 +603,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
             children: sugestoes.map((sug) {
               return ActionChip(
                 label: Text(sug, style: const TextStyle(fontSize: 11)),
-                backgroundColor: AppColors.surfaceElevated(context),
+                backgroundColor: AppColors.surface(context),
                 side: BorderSide(color: AppColors.border(context)),
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                 onPressed: () {
@@ -687,7 +687,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                   duration: const Duration(milliseconds: 180),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isSelected ? color.withValues(alpha: 0.15) : AppColors.surfaceElevated(context),
+                    color: isSelected ? color.withValues(alpha: 0.15) : AppColors.surface(context),
                     borderRadius: BorderRadius.zero,
                     border: Border.all(
                       color: isSelected ? color : AppColors.border(context),
