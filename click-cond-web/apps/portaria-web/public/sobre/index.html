@@ -168,7 +168,7 @@
     --signal-ok:#5ec28a;--signal-warn:#e3b04b;--signal-danger:#ff6b6b;--grid:rgba(255,255,255,.05);--glow:rgba(255,255,255,.35);
     --show-dark:block;--show-light:none;
     --font-display:"Barlow Condensed","Arial Narrow",sans-serif;--font-sans:"Barlow",system-ui,sans-serif;
-    --gutter:clamp(16px,4vw,64px);--fone:clamp(290px,20vw,340px);
+    --gutter:clamp(16px,4vw,64px);--fone:clamp(230px,15vw,270px);
     color-scheme:dark;
   }
   @media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
@@ -259,17 +259,17 @@
   .mnav .btn{margin-top:20px;flex:none}
 
   /* Hero */
-  .ps-hero{padding-block:88px 104px;border-top:0;overflow:hidden}
+  .ps-hero{padding-block:56px 72px;border-top:0;overflow:hidden}
   .ps-hero::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse 80% 70% at 70% 40%,#000 20%,transparent 75%);-webkit-mask-image:radial-gradient(ellipse 80% 70% at 70% 40%,#000 20%,transparent 75%);pointer-events:none}
   .scan{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--glow),transparent);top:12%;animation:scan 9s ease-in-out infinite;pointer-events:none}
   @keyframes scan{0%,100%{top:12%;opacity:0}10%{opacity:1}50%{top:88%;opacity:1}60%{opacity:0}}
   .ps-hero .wrap{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:48px;align-items:center;position:relative}
-  .ps-hero h1{font-family:var(--font-display);font-weight:600;font-size:clamp(56px,8.4vw,148px);line-height:.88;letter-spacing:.01em;text-transform:uppercase;margin:24px 0 0}
+  .ps-hero h1{font-family:var(--font-display);font-weight:600;font-size:clamp(56px,6.2vw,112px);line-height:.9;letter-spacing:.01em;text-transform:uppercase;margin:24px 0 0}
   .ps-hero h1 .l{display:block;overflow:hidden}
   .ps-hero h1 .l>span{display:block;animation:up 1s cubic-bezier(.2,.8,.2,1) both}
   .ps-hero h1 .l:nth-child(2)>span{animation-delay:.1s}.ps-hero h1 .l:nth-child(3)>span{animation-delay:.2s;font-weight:300;color:var(--ink-muted)}
   @keyframes up{from{transform:translateY(105%)}}
-  .ps-hero .sub{font-size:20px;line-height:30px;color:var(--ink-muted);max-width:34ch;margin:28px 0 0;animation:fade .9s .45s both}
+  .ps-hero .sub{font-size:18px;line-height:27px;color:var(--ink-muted);max-width:40ch;margin:22px 0 0;animation:fade .9s .45s both}
   .chips{display:flex;flex-wrap:wrap;gap:8px 20px;margin:28px 0 0;padding:0;list-style:none;animation:fade .9s .55s both}
   .chips li{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.18em;text-transform:uppercase}
   .chips svg.i{width:16px;height:16px;color:var(--ink-subtle)}
@@ -522,11 +522,11 @@
   .ps-barra{display:none}
 
   @media (max-width:1300px){nav.main{display:none}.menu-btn{display:inline-flex}.hbtns{margin-left:auto}}
-  @media (min-width:901px) and (max-width:1100px){:root{--fone:240px}}
+  @media (min-width:901px) and (max-width:1100px){:root{--fone:210px}}
   @media (max-width:1080px){.sec4{grid-template-columns:1fr 1fr}.more-mods{grid-template-columns:1fr 1fr}}
   @media (max-width:900px){
     section{padding-block:80px}
-    .ps-hero{padding-block:48px 72px}
+    :root{--fone:290px}.ps-hero{padding-block:48px 72px}
     .ps-hero .wrap,.split,.sim,.contact,.aws,.insta{grid-template-columns:minmax(0,1fr)}
     .phones{height:520px;max-width:460px;width:100%;margin:0 auto}
     .phones .p1{right:auto;left:0;width:240px}.phones .p2{width:240px;top:72px}
