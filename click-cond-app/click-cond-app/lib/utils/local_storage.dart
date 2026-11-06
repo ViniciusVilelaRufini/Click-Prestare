@@ -7,17 +7,50 @@ import 'package:localstorage/localstorage.dart';
 // Instância única — inicializada via ensureReady() no main antes de usar
 final _storage = LocalStorage('user_data');
 
-/// Deve ser chamado uma vez no startup (já feito em LocalStorageConfig.initializeLocalStorage)
-Future<void> ensureStorageReady() async {
+Future<void>? _prontoUmaVez;
+
+/// Pode ser chamado de qualquer lugar e quantas vezes for: o startup e o
+/// FirebaseService, a cada registro de push. A carga só roda uma vez; depois
+/// dela o cache em memória é quem manda.
+Future<void> ensureStorageReady() => _prontoUmaVez ??= _prepararStorage();
+
+Future<void> _prepararStorage() async {
   await _storage.ready;
   // Token e dispositivo confiável vivem no armazenamento seguro (fora do
   // JSON em texto puro e do backup). O legado serve para migrar e de reserva.
   SegredosSessao.legado = LegadoSessao(
     ler: (k) => _storage.getItem(k),
-    gravar: (k, v) => _storage.setItem(k, v),
-    apagar: (k) => _storage.deleteItem(k),
+    gravar: (k, v) => _persistir(_storage.setItem(k, v)),
+    apagar: (k) => _persistir(_storage.deleteItem(k)),
   );
   await SegredosSessao.carregar();
+}
+
+bool _regravacaoAgendada = false;
+
+/// Acompanha uma gravação no arquivo do `localstorage`.
+///
+/// O pacote muda o mapa em memória na hora e grava o JSON inteiro num único
+/// RandomAccessFile, que lança "An async operation is currently pending" se
+/// outra gravação estiver em curso. Sem tratar, cada login soltava exceções não
+/// capturadas, e a chave da gravação recusada podia não chegar ao disco. Na
+/// recusa, grava de novo o estado atual em vez de repetir a chave: um logout no
+/// meio do caminho não pode ver o dado apagado ressuscitar.
+Future<void> _persistir(Future<void> gravacao) async {
+  try {
+    await gravacao;
+  } catch (_) {
+    if (_regravacaoAgendada) return;
+    _regravacaoAgendada = true;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    _regravacaoAgendada = false;
+    // Remover uma chave que não existe só faz o pacote gravar o mapa atual.
+    await _persistir(_storage.deleteItem('__regravar__'));
+  }
+}
+
+void _guardar(String chave, dynamic valor) {
+  _persistir(_storage.setItem(chave, valor));
 }
 
 /// Token de uma resposta de autenticação.
@@ -45,41 +78,41 @@ void atualizarTokenSessao(Map<String, dynamic> parsed) {
 
 storageLogin(Map<String, dynamic> parsed) {
   SegredosSessao.gravar('token', parsed["token"]?.toString());
-  _storage.setItem('id', parsed["user"]["id"]);
-  _storage.setItem('name', parsed["user"]["name"]);
+  _guardar('id', parsed["user"]["id"]);
+  _guardar('name', parsed["user"]["name"]);
   final photo = parsed["user"]["photo"]?.toString().trim() ?? '';
-  _storage.setItem('photo', photo);
+  _guardar('photo', photo);
   _inMemoryPhoto = photo;
-  _storage.setItem('loginType', 'sindico');
+  _guardar('loginType', 'sindico');
 }
 
 storageMorador(Map<String, dynamic> parsed) {
   SegredosSessao.gravar('token', parsed["token"]?.toString());
-  _storage.setItem('id', parsed["user"]["id"]);
-  _storage.setItem('name', parsed["user"]["nome"]);
+  _guardar('id', parsed["user"]["id"]);
+  _guardar('name', parsed["user"]["nome"]);
   final photo = parsed["user"]["photo"]?.toString().trim() ?? '';
-  _storage.setItem('photo', photo);
+  _guardar('photo', photo);
   _inMemoryPhoto = photo;
-  _storage.setItem('loginType', 'morador');
+  _guardar('loginType', 'morador');
 }
 
 storageFuncionario(Map<String, dynamic> parsed) {
   SegredosSessao.gravar('token', parsed["token"]?.toString());
-  _storage.setItem('id', parsed["user"]["id"]);
-  _storage.setItem('name', parsed["user"]["nome"]);
+  _guardar('id', parsed["user"]["id"]);
+  _guardar('name', parsed["user"]["nome"]);
   final photo = parsed["user"]["photo"]?.toString().trim() ?? '';
-  _storage.setItem('photo', photo);
+  _guardar('photo', photo);
   _inMemoryPhoto = photo;
-  _storage.setItem('loginType', 'funcionario');
+  _guardar('loginType', 'funcionario');
 
-  _storage.setItem('areas_sociais', parsed["user"]["areas_sociais"] ?? 0);
-  _storage.setItem('comunicados', parsed["user"]["comunicados"] ?? 0);
-  _storage.setItem('ocorrencias', parsed["user"]["ocorrencias"] ?? 0);
-  _storage.setItem('manutencoes_programadas', parsed["user"]["manutencoes_programadas"] ?? 0);
-  _storage.setItem('prestadores_servico', parsed["user"]["prestadores_servico"] ?? 0);
-  _storage.setItem('agendar_mudanca', parsed["user"]["agendar_mudanca"] ?? 0);
-  _storage.setItem('cadastrar_visitante', parsed["user"]["cadastrar_visitante"] ?? 0);
-  _storage.setItem('apartamentos', parsed["user"]["apartamentos"] ?? 0);
+  _guardar('areas_sociais', parsed["user"]["areas_sociais"] ?? 0);
+  _guardar('comunicados', parsed["user"]["comunicados"] ?? 0);
+  _guardar('ocorrencias', parsed["user"]["ocorrencias"] ?? 0);
+  _guardar('manutencoes_programadas', parsed["user"]["manutencoes_programadas"] ?? 0);
+  _guardar('prestadores_servico', parsed["user"]["prestadores_servico"] ?? 0);
+  _guardar('agendar_mudanca', parsed["user"]["agendar_mudanca"] ?? 0);
+  _guardar('cadastrar_visitante', parsed["user"]["cadastrar_visitante"] ?? 0);
+  _guardar('apartamentos', parsed["user"]["apartamentos"] ?? 0);
 }
 
 void storageAutoLogin(Map<String, dynamic> parsed, String loginType) {
@@ -100,16 +133,22 @@ Future<void> storageLogout() async {
   CondCache.clear();
   Singleton.instance.reset();
   final deviceToken = getSindicoDeviceToken();
-  try {
-    await FirebaseService.instance.desregistrarNoServidor();
-  } catch (_) {}
-  await SegredosSessao.apagar('token');
-  _storage.clear();
+  final jwt = getToken();
+  // A sessão local acaba agora, antes de qualquer espera. Quando isto vinha
+  // depois do desregistro de push (rede, sem limite de tempo no deleteToken), a
+  // HomePage aberta pelo 401 ainda via o token e entrava sozinha, e um login
+  // feito nesse meio-tempo era apagado quando a espera terminava.
+  final apagando = SegredosSessao.apagar('token');
+  _persistir(_storage.clear());
   // O dispositivo confiável do MFA sobrevive ao logout (fica no armazenamento
   // seguro, que o clear acima não toca); regrava para garantir o cache.
   if (deviceToken.isNotEmpty) {
     setSindicoDeviceToken(deviceToken);
   }
+  await apagando;
+  try {
+    await FirebaseService.instance.desregistrarNoServidor(jwt: jwt);
+  } catch (_) {}
 }
 
 String getSindicoDeviceToken() {
@@ -152,7 +191,7 @@ void setUserPhoto(String url) {
   final clean = url.trim();
   if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
     _inMemoryPhoto = clean;
-    _storage.setItem('photo', clean);
+    _guardar('photo', clean);
   }
 }
 
@@ -180,7 +219,7 @@ void saveCondCachePersistent(int id, Map<String, dynamic> json) {
       final key = _pendingCondCache.keys.first;
       final val = _pendingCondCache.remove(key);
       try {
-        await _storage.setItem('cond_cache_$key', val);
+        await _persistir(_storage.setItem('cond_cache_$key', val));
       } catch (_) {}
     }
     _isSavingCondCache = false;

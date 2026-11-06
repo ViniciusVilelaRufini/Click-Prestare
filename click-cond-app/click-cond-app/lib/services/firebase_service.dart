@@ -184,7 +184,15 @@ class FirebaseService {
 
   /// Envia o token do aparelho para o servidor, se houver sessão.
   Future<void> registrarNoServidor([String? tokenFcm]) async {
-    final token = tokenFcm ?? await FirebaseMessaging.instance.getToken();
+    // Push é acessório: sem rede ou sem Google Play o getToken lança, e o login
+    // espera por este método antes de navegar.
+    String? token = tokenFcm;
+    try {
+      token ??= await FirebaseMessaging.instance.getToken();
+    } catch (e) {
+      logDebug('Sem token de push: $e');
+      return;
+    }
     await _registrarNoServidor(token);
   }
 
@@ -210,21 +218,26 @@ class FirebaseService {
 
   /// Remove o token do servidor e invalida o token local no Firebase (logout).
   /// Garante que nenhuma notificação seja recebida enquanto o app estiver deslogado.
-  Future<void> desregistrarNoServidor() async {
-    final jwt = getToken();
+  ///
+  /// [jwt] é o token da sessão que está saindo: o logout já o apagou do cache
+  /// quando esta chamada chega ao servidor.
+  Future<void> desregistrarNoServidor({String? jwt}) async {
+    final sessao = jwt ?? getToken();
     String? token;
     try {
       token = await FirebaseMessaging.instance.getToken();
     } catch (_) {}
 
-    if (jwt.isNotEmpty) {
+    if (sessao.isNotEmpty) {
       try {
         await ApiClient.post(
           ApiConfig.buildUri('/users/remove-fcm-token'),
-          headers: {'Content-Type': 'application/json', 'Authorization': jwt},
+          headers: {'Content-Type': 'application/json', 'Authorization': sessao},
           body: jsonEncode({
             if (token != null && token.isNotEmpty) 'fcm_token': token,
           }),
+          // Já é um logout: 401 aqui não tem o que encerrar.
+          skip401Handling: true,
         );
       } catch (e) {
         logDebug('Erro ao desregistrar FCM token no backend: $e');

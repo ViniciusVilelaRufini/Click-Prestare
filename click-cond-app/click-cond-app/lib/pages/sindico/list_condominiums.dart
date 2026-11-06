@@ -82,7 +82,13 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     if (!mounted) return;
     final token = getToken();
     if (token.isEmpty) {
-      Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+      // Esta função roda dentro do initState: navegar aqui mexe no Overlay no
+      // meio do build, a asserção deixa o Navigator travado e nenhuma navegação
+      // seguinte funciona. Depois do frame, é seguro.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+      });
+      WidgetsBinding.instance.ensureVisualUpdate();
       return;
     }
     // Stale-while-revalidate: só mostra o skeleton no PRIMEIRO carregamento

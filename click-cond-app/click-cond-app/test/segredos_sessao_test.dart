@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:click/services/biometric_auth_service.dart';
 import 'package:click/utils/segredos_sessao.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +12,8 @@ import 'package:flutter_test/flutter_test.dart';
 class _SeguroFalso implements SecureStorageInterface {
   final Map<String, String> dados = {};
   bool falharEscrita = false;
+  bool falharLeitura = false;
+  Completer<void>? portao;
 
   @override
   Future<void> write({required String key, required String? value}) async {
@@ -22,7 +26,12 @@ class _SeguroFalso implements SecureStorageInterface {
   }
 
   @override
-  Future<String?> read({required String key}) async => dados[key];
+  Future<String?> read({required String key}) async {
+    final p = portao;
+    if (p != null) await p.future;
+    if (falharLeitura) throw Exception('keystore indisponível');
+    return dados[key];
+  }
 
   @override
   Future<void> delete({required String key}) async => dados.remove(key);
@@ -101,5 +110,54 @@ void main() {
     legado['token'] = 'null';
     await SegredosSessao.carregar();
     expect(SegredosSessao.ler('token'), '');
+  });
+
+  group('recarga com a sessão em uso', () {
+    setUp(() async {
+      await SegredosSessao.gravar('token', 't1');
+      seguro.portao = Completer<void>();
+    });
+
+    test('o token continua disponível durante a leitura', () async {
+      final recarga = SegredosSessao.carregar();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(SegredosSessao.ler('token'), 't1');
+
+      seguro.portao!.complete();
+      await recarga;
+      expect(SegredosSessao.ler('token'), 't1');
+    });
+
+    test('login durante a leitura não é desfeito pelo valor antigo', () async {
+      final recarga = SegredosSessao.carregar();
+      await Future<void>.delayed(Duration.zero);
+
+      await SegredosSessao.gravar('token', 't2');
+      seguro.portao!.complete();
+      await recarga;
+
+      expect(SegredosSessao.ler('token'), 't2');
+    });
+
+    test('logout durante a leitura não traz o token de volta', () async {
+      final recarga = SegredosSessao.carregar();
+      await Future<void>.delayed(Duration.zero);
+
+      await SegredosSessao.apagar('token');
+      seguro.portao!.complete();
+      await recarga;
+
+      expect(SegredosSessao.ler('token'), '');
+    });
+
+    test('falha de leitura não derruba a sessão em memória', () async {
+      seguro.falharLeitura = true;
+      seguro.portao!.complete();
+
+      await SegredosSessao.carregar();
+
+      expect(SegredosSessao.ler('token'), 't1');
+    });
   });
 }

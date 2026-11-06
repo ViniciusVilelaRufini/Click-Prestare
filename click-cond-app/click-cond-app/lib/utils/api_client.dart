@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/utils/log.dart';
 import 'package:click/utils/navigation_service.dart';
 
 /// Wrapper sobre `http` que centraliza tratamento de 401.
@@ -100,8 +101,9 @@ class ApiClient {
     Map<String, String>? headers,
     bool skip401Handling = false,
   }) async {
-    final res = await client.get(url, headers: _headers(headers)).timeout(timeout);
-    if (!skip401Handling) _checkAuth(res);
+    final enviados = _headers(headers);
+    final res = await client.get(url, headers: enviados).timeout(timeout);
+    if (!skip401Handling) _checkAuth(res, enviados['Authorization']);
     return res;
   }
 
@@ -112,10 +114,11 @@ class ApiClient {
     Encoding? encoding,
     bool skip401Handling = false,
   }) async {
+    final enviados = _headers(headers, comCorpo: body != null);
     final res = await client
-        .post(url, headers: _headers(headers, comCorpo: body != null), body: body, encoding: encoding)
+        .post(url, headers: enviados, body: body, encoding: encoding)
         .timeout(timeout);
-    if (!skip401Handling) _checkAuth(res);
+    if (!skip401Handling) _checkAuth(res, enviados['Authorization']);
     return res;
   }
 
@@ -126,10 +129,11 @@ class ApiClient {
     Encoding? encoding,
     bool skip401Handling = false,
   }) async {
+    final enviados = _headers(headers, comCorpo: body != null);
     final res = await client
-        .put(url, headers: _headers(headers, comCorpo: body != null), body: body, encoding: encoding)
+        .put(url, headers: enviados, body: body, encoding: encoding)
         .timeout(timeout);
-    if (!skip401Handling) _checkAuth(res);
+    if (!skip401Handling) _checkAuth(res, enviados['Authorization']);
     return res;
   }
 
@@ -140,10 +144,11 @@ class ApiClient {
     Encoding? encoding,
     bool skip401Handling = false,
   }) async {
+    final enviados = _headers(headers, comCorpo: body != null);
     final res = await client
-        .patch(url, headers: _headers(headers, comCorpo: body != null), body: body, encoding: encoding)
+        .patch(url, headers: enviados, body: body, encoding: encoding)
         .timeout(timeout);
-    if (!skip401Handling) _checkAuth(res);
+    if (!skip401Handling) _checkAuth(res, enviados['Authorization']);
     return res;
   }
 
@@ -154,10 +159,11 @@ class ApiClient {
     Encoding? encoding,
     bool skip401Handling = false,
   }) async {
+    final enviados = _headers(headers, comCorpo: body != null);
     final res = await client
-        .delete(url, headers: _headers(headers, comCorpo: body != null), body: body, encoding: encoding)
+        .delete(url, headers: enviados, body: body, encoding: encoding)
         .timeout(timeout);
-    if (!skip401Handling) _checkAuth(res);
+    if (!skip401Handling) _checkAuth(res, enviados['Authorization']);
     return res;
   }
 
@@ -169,8 +175,18 @@ class ApiClient {
   /// quando chamado durante uma operação síncrona — se algo aqui jogar,
   /// queremos que o request original prossiga e mostre o erro normal,
   /// não que vire um TypeError JS confuso na tela ("super constructor...").
-  static void _checkAuth(http.Response res) {
+  ///
+  /// Só encerra a sessão que recebeu o 401. Resposta de um request feito com
+  /// outro token (ou sem nenhum) e que chega depois de um login novo não diz
+  /// nada sobre a sessão atual, e tratá-la apagaria o token recém-recebido.
+  static void _checkAuth(http.Response res, String? tokenEnviado) {
     if (res.statusCode != 401) return;
+    final enviado = tokenEnviado ?? '';
+    final sessaoAtual = enviado == tokenProvider();
+    logDebug('[ApiClient] status 401 em ${res.request?.url.path}: '
+        'Authorization ${enviado.isEmpty ? "ausente" : "enviado"}, '
+        '${sessaoAtual ? "sessão atual" : "ignorado, não é a sessão atual"}');
+    if (!sessaoAtual) return;
     if (_handlingExpiration) return;
     _handlingExpiration = true;
 
