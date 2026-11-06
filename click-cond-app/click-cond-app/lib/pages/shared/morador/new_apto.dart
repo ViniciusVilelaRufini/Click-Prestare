@@ -142,7 +142,7 @@ class _NewAptoPageState extends State<NewApto> {
                         color: AppColors.primaryLight,
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
-                          color: AppColors.primaryLight,
+                          color: AppColors.border(context),
                         ),
                       ),
                       child: Row(

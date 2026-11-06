@@ -501,7 +501,7 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
                     value: _rememberDevice,
                     activeColor: AppColors.primary,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                     onChanged: (val) => setState(() => _rememberDevice = val ?? false),
                   ),

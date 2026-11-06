@@ -911,7 +911,7 @@ class _MyCondominiumState extends State<MyCondominium> {
       child: Align(
         alignment: Alignment.topCenter,
         child: Padding(
-          padding: const EdgeInsets.only(top: 6),
+          padding: EdgeInsets.only(top: _isNavBarVisible ? 6 : 4),
           child: InkWell(
             onTap: () {
               Navigator.push(
@@ -930,8 +930,9 @@ class _MyCondominiumState extends State<MyCondominium> {
             },
             // Botão central: quadrado sólido `accent` com ícone `on-accent`.
             child: Container(
-              width: 48,
-              height: 48,
+              // Cabe na barra nos dois estados (58 e 44): 6+48 e 4+36.
+              width: _isNavBarVisible ? 48 : 36,
+              height: _isNavBarVisible ? 48 : 36,
               color: AppColors.primary,
               child: Icon(PhosphorIcons.buildings,
                   color: AppColors.onPrimary, size: 22),
@@ -1141,7 +1142,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                       count > 99 ? '99+' : '$count',
                       textAlign: TextAlign.center,
                       style: AppTypography.tiny(context).copyWith(
-                        color: AppColors.textPrimary(context),
+                        color: AppColors.onPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 9,
                         height: 1.1,
@@ -1299,7 +1300,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                             child: Icon(
                               PhosphorIcons.camera,
                               size: 12,
-                              color: AppColors.textPrimary(context),
+                              color: AppColors.onPrimary,
                             ),
                           ),
                         ),
