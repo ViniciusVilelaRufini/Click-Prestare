@@ -1,39 +1,15 @@
 <div class="min-h-screen p-6 lg:p-8 space-y-6">
   <!-- Header -->
-  <div class="flex flex-wrap items-start justify-between gap-4">
-    <div class="flex items-start gap-4">
-      <div
-        class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0"
-      >
-        <svg
-          class="w-5 h-5 text-accent"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
-          />
-        </svg>
-      </div>
-      <div>
-        <h1 class="text-2xl font-semibold text-white tracking-tight">
-          {{ isPrestadorModo() ? 'Prestadores' : 'Visitantes' }}
-        </h1>
-        <p class="text-sm text-slate-400 mt-0.5">
-          Controle de acesso · entrada e saída do condomínio
-        </p>
-      </div>
+  <div class="ps-phead">
+    <div class="ps-phead-t">
+      <h1 class="ps-h1">
+        {{ isPrestadorModo() ? 'Prestadores' : 'Visitantes' }}
+      </h1>
+      <p class="text-sm">Controle de acesso · entrada e saída do condomínio</p>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       @if (isPrestadorModo()) {
-        <a
-          routerLink="/prestadores/cadastro"
-          class="px-4 py-2.5 rounded-xl font-medium text-sm text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 transition flex items-center gap-2"
-        >
+        <a routerLink="/prestadores/cadastro" class="ps-btn ps-btn-sec">
           <svg
             class="w-4 h-4"
             fill="none"
@@ -43,19 +19,16 @@
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
-              stroke-width="2"
+              stroke-width="1.5"
               d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z"
             />
           </svg>
           Cadastro de Funcionários
         </a>
       }
-      <button
-        (click)="abrirValidador()"
-        class="px-4 py-2.5 rounded-xl font-medium text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition flex items-center gap-2"
-      >
+      <button (click)="abrirValidador()" class="ps-btn ps-btn-sec">
         <svg
-          class="w-4 h-4 text-emerald-400"
+          class="w-4 h-4"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -63,17 +36,14 @@
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
-            stroke-width="2"
+            stroke-width="1.5"
             d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
           />
         </svg>
         Validar PIN
       </button>
 
-      <button
-        (click)="showForm ? cancelarForm() : abrirNovo()"
-        class="px-4 py-2.5 rounded-xl font-medium text-sm text-white bg-accent hover:bg-accent-600 transition flex items-center gap-2"
-      >
+      <button (click)="showForm ? cancelarForm() : abrirNovo()" class="ps-btn">
         @if (showForm) {
           <svg
             class="w-4 h-4"
@@ -84,7 +54,7 @@
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
-              stroke-width="2"
+              stroke-width="1.5"
               d="M6 18L18 6M6 6l12 12"
             />
           </svg>
@@ -99,7 +69,7 @@
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
-              stroke-width="2"
+              stroke-width="1.5"
               d="M12 4v16m8-8H4"
             />
           </svg>
@@ -112,65 +82,52 @@
   </div>
 
   <!-- Stats -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-    <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">
-        Ativos no local
-      </p>
-      <div class="flex items-end gap-2 mt-1">
-        <p
-          class="text-2xl font-bold text-emerald-400 tabular-nums leading-none"
-        >
-          {{ visitantesAtivos().length }}
-        </p>
+  <div class="ps-kpis">
+    <div class="ps-kpi">
+      <div class="ps-kpi-row1">
+        <p class="ps-label">Ativos no local</p>
         @if (visitantesAtivos().length > 0) {
-          <span
-            class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mb-1.5"
-          ></span>
+          <span class="ps-dot ps-dot-ok ps-dot-pulse"></span>
         }
       </div>
+      <div class="ps-kpi-row2">
+        <p class="ps-num">{{ visitantesAtivos().length }}</p>
+      </div>
     </div>
-    <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">
-        Liberados (Aguardando)
-      </p>
-      <div class="flex items-end gap-2 mt-1">
-        <p class="text-2xl font-bold text-cyan-400 tabular-nums leading-none">
-          {{ visitantesLiberados().length }}
-        </p>
+    <div class="ps-kpi">
+      <div class="ps-kpi-row1">
+        <p class="ps-label">Liberados (Aguardando)</p>
         @if (visitantesLiberados().length > 0) {
-          <span
-            class="w-1.5 h-1.5 rounded-full bg-cyan-400 mb-1.5 animate-pulse"
-          ></span>
+          <span class="ps-dot ps-dot-warn ps-dot-pulse"></span>
         }
       </div>
+      <div class="ps-kpi-row2">
+        <p class="ps-num">{{ visitantesLiberados().length }}</p>
+      </div>
     </div>
-    <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">
-        Inativos / Saíram
-      </p>
-      <p
-        class="text-2xl font-bold text-slate-300 tabular-nums mt-1 leading-none"
-      >
-        {{ visitantesHistorico().length }}
-      </p>
+    <div class="ps-kpi">
+      <div class="ps-kpi-row1">
+        <p class="ps-label">Inativos / Saíram</p>
+      </div>
+      <div class="ps-kpi-row2">
+        <p class="ps-num">{{ visitantesHistorico().length }}</p>
+      </div>
     </div>
-    <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">
-        Total registrado
-      </p>
-      <p class="text-2xl font-bold text-white tabular-nums mt-1 leading-none">
-        {{ totalPessoas() }}
-      </p>
+    <div class="ps-kpi">
+      <div class="ps-kpi-row1">
+        <p class="ps-label">Total registrado</p>
+      </div>
+      <div class="ps-kpi-row2">
+        <p class="ps-num">{{ totalPessoas() }}</p>
+      </div>
     </div>
   </div>
 
   <!-- Filtros + busca -->
   <div class="flex flex-wrap items-center gap-3">
     <!-- Status Filter -->
-    <div
-      class="flex items-center gap-1 p-1 rounded-xl bg-graphite-200 border border-white/10"
-    >
+    <div class="ps-seg" [psSlideIndicator]="'x'">
+      <span class="ps-seg-pill ps-slide-ind"></span>
       @for (
         f of [
           { key: 'todos', label: 'Todos' },
@@ -182,11 +139,7 @@
       ) {
         <button
           (click)="$any(viewFilter).set(f.key)"
-          class="px-3 py-1.5 text-xs rounded-lg transition"
-          [class.bg-accent]="viewFilter() === f.key"
-          [class.text-white]="viewFilter() === f.key"
-          [class.text-slate-400]="viewFilter() !== f.key"
-          [class.hover:text-slate-200]="viewFilter() !== f.key"
+          [class.on]="viewFilter() === f.key"
         >
           {{ f.label }}
         </button>
@@ -194,9 +147,9 @@
     </div>
 
     <div class="flex-1 flex gap-2 min-w-[260px]">
-      <div class="flex-1 relative">
+      <label class="ps-field flex-1">
         <svg
-          class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"
+          class="w-4 h-4 shrink-0"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -204,7 +157,7 @@
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
-            stroke-width="2"
+            stroke-width="1.5"
             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
           />
         </svg>
@@ -214,20 +167,19 @@
           placeholder="Buscar por nome, documento ou apartamento..."
           [value]="search()"
           (input)="search.set(searchInput.value)"
-          class="w-full pl-9 pr-3 py-2 rounded-lg bg-graphite-200 border border-white/10 text-sm placeholder-slate-500 focus:outline-none focus:border-accent/60 transition"
         />
-      </div>
+      </label>
       @if (search()) {
         <button
           (click)="search.set(''); searchInput.value = ''"
-          class="px-4 py-2 text-sm rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition text-red-400"
+          class="ps-btn ps-btn-danger"
         >
           Limpar
         </button>
       }
       <button
         (click)="carregar()"
-        class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-graphite-200 hover:bg-white/5 transition text-white flex items-center gap-1.5"
+        class="ps-btn ps-btn-sec"
         title="Recarregar dados do servidor"
       >
         <svg
@@ -239,7 +191,7 @@
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
-            stroke-width="2"
+            stroke-width="1.5"
             d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.23"
           />
         </svg>
