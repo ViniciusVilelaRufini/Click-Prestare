@@ -1,6 +1,8 @@
-<aside class="side w-full [scrollbar-width:none] shrink-0 h-screen overflow-y-auto bg-[var(--bg-100)] border-r border-[var(--line-100)] px-[14px] py-5 flex flex-col gap-[14px] select-none">
+<aside class="side w-full shrink-0 h-screen [height:100dvh] overflow-hidden bg-[var(--bg-100)] border-r border-[var(--line-100)] px-[14px] py-5 flex flex-col gap-[14px] select-none">
+  <!-- Só esta área rola: o rodapé com perfil e ações fica sempre visível -->
+  <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] flex flex-col gap-[14px]">
   <!-- Marca -->
-  <div class="ps-brand px-1.5">
+  <div class="ps-brand shrink-0 px-1.5">
     <img src="/prestare-marca-branca.svg" alt="Prestare Gestão" class="ps-logo-dark" />
     <img src="/prestare-marca-preta.svg" alt="Prestare Gestão" class="ps-logo-light" />
     <div class="min-w-0 flex flex-col gap-1.5">
@@ -15,7 +17,7 @@
     tabindex="0"
     (keydown.enter)="auth.temMultiplosCondominios() && trocarCondominio()"
     (keydown.space)="$event.preventDefault(); auth.temMultiplosCondominios() && trocarCondominio()"
-    class="px-3 py-2.5 border border-[var(--line-100)] flex items-center justify-between gap-2"
+    class="shrink-0 px-3 py-2.5 border border-[var(--line-100)] flex items-center justify-between gap-2"
     [class.cursor-pointer]="auth.temMultiplosCondominios()"
     [attr.role]="auth.temMultiplosCondominios() ? 'button' : null"
     [attr.title]="auth.temMultiplosCondominios() ? 'Trocar de condomínio' : null"
@@ -33,7 +35,7 @@
   </div>
 
   <!-- Navegação por grupos; o bloco sólido desliza até o item ativo -->
-  <nav class="flex-1 relative flex flex-col" [psSlideIndicator]="'y'">
+  <nav class="shrink-0 relative flex flex-col" [psSlideIndicator]="'y'">
     <span class="ps-slide-ind" aria-hidden="true"></span>
     @for (group of menu; track group.category) {
       <p class="ps-label ps-nav-grp">{{ group.category }}</p>
@@ -146,9 +148,10 @@
       }
     }
   </nav>
+  </div>
 
   <!-- Rodapé: perfil e ações -->
-  <div class="mt-auto pt-3.5 border-t border-[var(--line-100)] flex flex-col gap-2.5 shrink-0">
+  <div class="pt-3.5 border-t border-[var(--line-100)] flex flex-col gap-2.5 shrink-0">
     @if (auth.porteiroInfo(); as info) {
       <div class="ps-person">
         <span class="ps-avatar">{{ info.nome.charAt(0).toUpperCase() }}</span>
