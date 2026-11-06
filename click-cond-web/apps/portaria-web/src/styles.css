@@ -698,8 +698,9 @@ html, body {
 .keep-white[class*="bg-slate-950/"] {
   background-color: rgba(0, 0, 0, 0.8);
 }
-:is(.bg-black, [class^="bg-black/"], [class*=" bg-black/"]):not(.fixed),
-:is(.bg-black, [class^="bg-black/"], [class*=" bg-black/"]):not(.fixed) * {
+/* So alfa alto (camada sobre foto/video): com alfa baixo a superficie segue clara no tema claro */
+:is(.bg-black, [class^="bg-black/5"], [class*=" bg-black/5"], [class^="bg-black/6"], [class*=" bg-black/6"], [class^="bg-black/7"], [class*=" bg-black/7"], [class^="bg-black/8"], [class*=" bg-black/8"], [class^="bg-black/9"], [class*=" bg-black/9"], [class^="bg-black/100"], [class*=" bg-black/100"]):not(.fixed),
+:is(.bg-black, [class^="bg-black/5"], [class*=" bg-black/5"], [class^="bg-black/6"], [class*=" bg-black/6"], [class^="bg-black/7"], [class*=" bg-black/7"], [class^="bg-black/8"], [class*=" bg-black/8"], [class^="bg-black/9"], [class*=" bg-black/9"], [class^="bg-black/100"], [class*=" bg-black/100"]):not(.fixed) * {
   color: #fff;
 }
 
@@ -768,6 +769,14 @@ app-shell main h1 {
 :is(input:not([type="checkbox"], [type="radio"]), select, textarea):not([class*="border-rose"], [class*="border-red"], .border-transparent),
 button.border:not([class*="border-rose"], [class*="border-red"], [class*="border-emerald"], [class*="border-amber"], .border-accent, .border-transparent) {
   border-color: var(--line-200);
+}
+
+/* Cor só sinaliza em ponto ou texto curto: card, bloco ou selo com borda de sinal (inclusive a trocada por [class.x]) usa a borda neutra.
+   Ficam de fora campos (borda de erro), rótulos de escolha e o spinner. */
+:is(
+  [class*="border-emerald-"], [class*="border-green-"], [class*="border-teal-"], [class*="border-lime-"], [class*="border-amber-"], [class*="border-yellow-"], [class*="border-orange-"], [class*="border-rose-"], [class*="border-red-"], [class*="border-pink-"]
+):not(input, select, textarea, label, .animate-spin) {
+  border-color: var(--line-200) !important;
 }
 
 input[type="checkbox"],

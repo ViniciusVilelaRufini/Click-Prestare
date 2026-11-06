@@ -29,11 +29,11 @@
     <span class="ps-seg-pill ps-slide-ind"></span>
     <button (click)="tab.set('veiculos')" [class.on]="tab() === 'veiculos'">
       Veículos
-      <span class="ml-1.5 opacity-70">{{ veiculos().length }}</span>
+      <span class="ml-1.5">{{ veiculos().length }}</span>
     </button>
     <button (click)="tab.set('tags')" [class.on]="tab() === 'tags'">
       Tags RFID
-      <span class="ml-1.5 opacity-70">{{ tags().length }}</span>
+      <span class="ml-1.5">{{ tags().length }}</span>
     </button>
   </div>
 

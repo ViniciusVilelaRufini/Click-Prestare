@@ -316,7 +316,7 @@
                   <p class="text-xs text-slate-700 dark:text-slate-300 font-medium truncate mt-0.5">
                     {{ p.nome }} · {{ p.totalVisitasAnteriores }} visita(s) anterior(es)
                   </p>
-                  <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                  <p class="text-[11px] text-slate-400">
                     A foto e o reconhecimento facial serão reutilizados automaticamente.
                   </p>
                 </div>
@@ -570,7 +570,7 @@
                   <span class="ps-label !text-[var(--ink)] block">
                     Foto do Rosto (Biometria Facial)
                   </span>
-                  <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                  <p class="text-[11px] text-slate-400">
                     Necessária para sincronização com os terminais faciais.
                   </p>
                 </div>
@@ -626,7 +626,7 @@
                       </span>
                     </label>
                     @if (!consentimentoBiometria()) {
-                      <p class="text-[10px] text-amber-600 dark:text-amber-400 mt-1 pl-5">
+                      <p class="text-[10px] text-slate-400 mt-1 pl-5">
                         * Sem esta autorização, a foto será mantida apenas para identificação na portaria e <strong>não será sincronizada com os terminais faciais</strong>.
                       </p>
                     }
@@ -652,7 +652,7 @@
                   <span class="ps-label !text-[var(--ink)] block">
                     Foto do Documento (RG / CPF)
                   </span>
-                  <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                  <p class="text-[11px] text-slate-400">
                     Cópia digital para conferência e arquivo de segurança.
                   </p>
                 </div>
@@ -975,7 +975,7 @@
                 </div>
                 @if (v.categorias || v.dias_semana) {
                   <div
-                    class="mt-1.5 text-[10px] text-amber-700 dark:text-amber-400/85 font-medium flex flex-wrap gap-1 items-center"
+                    class="mt-1.5 text-[10px] text-amber-700 dark:text-amber-400 font-medium flex flex-wrap gap-1 items-center"
                   >
                     @if (v.categorias) {
                       <span
@@ -1566,7 +1566,7 @@
               }
             </select>
           </label>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+          <p class="text-[11px] text-slate-400">
             O morador desse apartamento receberá a notificação e poderá Autorizar ou Negar no app.
           </p>
           <div class="flex justify-end gap-2 pt-2">
@@ -1775,7 +1775,7 @@
               <h3 class="text-sm font-semibold text-slate-900 dark:text-white leading-tight">
                 Autorização de Acesso
               </h3>
-              <p class="text-[11px] text-slate-500 dark:text-slate-400">Portaria em tempo real</p>
+              <p class="text-[11px] text-slate-400">Portaria em tempo real</p>
             </div>
           </div>
           <button (click)="fecharAuthModal()" aria-label="Fechar modal de autorização"
@@ -1916,7 +1916,7 @@
               </div>
               <div class="flex-1 min-w-0">
                 <div class="text-sm font-bold text-amber-900 dark:text-amber-300">Tempo limite esgotado</div>
-                <p class="text-xs text-amber-800/90 dark:text-amber-400/90 mt-0.5 leading-relaxed">
+                <p class="text-xs text-amber-800 dark:text-amber-400 mt-0.5 leading-relaxed">
                   O morador não respondeu dentro do tempo hábil. Você pode registrar a entrada ou liberar o acesso manualmente.
                 </p>
               </div>
@@ -1970,7 +1970,7 @@
           @if (ap.auth_status === 'autorizado' && !autorizacaoExpirada(ap)) {
             <!-- Banner de Sucesso Elegante -->
             <div class="p-3.5 rounded-xl bg-emerald-500/[0.08] dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3 animate-fade-in">
-              <div class="w-8 h-8 rounded-lg bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <div class="w-8 h-8 rounded-lg border border-[var(--line-200)] text-[var(--ink-muted)] flex items-center justify-center shrink-0">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
                 </svg>
@@ -2052,7 +2052,7 @@
           <!-- ESTADO: NEGADO -->
           @if (ap.auth_status === 'negado') {
             <div class="p-5 rounded-xl bg-rose-500/10 border border-rose-500/20 flex flex-col items-center text-center gap-3 animate-fade-in">
-              <div class="w-12 h-12 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400">
+              <div class="w-12 h-12 rounded-full border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)]">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -2681,7 +2681,7 @@
                       />
                     </svg>
                     <span
-                      class="text-emerald-600/60 dark:text-emerald-400/70 font-sans font-semibold uppercase"
+                      class="text-emerald-600 dark:text-emerald-400 font-sans font-semibold uppercase"
                       >PIN:</span
                     >
                     <span class="font-bold">Ativo (Protegido)</span>

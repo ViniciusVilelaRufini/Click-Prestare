@@ -218,14 +218,14 @@
         @if (!instalacaoAberta()) {
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20">
             <div class="flex items-center gap-3">
-              <span class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shrink-0">
+              <span class="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--line-200)] text-[var(--ink)] shrink-0">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
               <div>
                 <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 flex-wrap">
                   Agente conectado
                   @if (agentTelemetria()?.versao) {
-                    <span class="text-[10px] font-mono font-medium text-emerald-600/80 dark:text-emerald-400/70">v{{ agentTelemetria()!.versao }}</span>
+                    <span class="text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400">v{{ agentTelemetria()!.versao }}</span>
                   }
                   @if (atualizacaoDisponivel()) {
                     <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">Atualização disponível</span>
@@ -545,7 +545,7 @@
                   <div class="mt-3 ml-11 rounded-xl border border-rose-200/80 dark:border-rose-400/20 bg-rose-50/70 dark:bg-rose-500/10 px-3 py-2.5 text-xs text-rose-800 dark:text-rose-200">
                     <p class="font-semibold">Detalhe do erro no envio</p>
                     <p class="mt-1 leading-relaxed break-words">{{ p.motivo_detalhado || p.motivo }}</p>
-                    <p class="mt-2 text-[11px] text-rose-700/80 dark:text-rose-200/80">Atualize a foto caso o terminal informe que o rosto nÃ£o foi detectado e use Reenviar para tentar novamente.</p>
+                    <p class="mt-2 text-[11px] text-rose-700 dark:text-rose-200">Atualize a foto caso o terminal informe que o rosto nÃ£o foi detectado e use Reenviar para tentar novamente.</p>
                   </div>
                 }
               </div>
@@ -1429,7 +1429,7 @@
           <!-- Error Alert -->
           @if (cameraError(); as err) {
             <div class="absolute inset-0 bg-black/90 p-6 flex flex-col items-center justify-center text-center gap-3">
-              <div class="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 shadow-sm">
+              <div class="w-10 h-10 rounded-2xl border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)]">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
