@@ -10,11 +10,12 @@ import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.servi
 import { ServerClockService } from '../core/server-clock.service';
 import { NetworkStatusService } from '../core/network-status.service';
 import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe],
+  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe, SlideIndicatorDirective],
   templateUrl: './dashboard-page.component.html',
   host: {
     '(window:keydown.escape)': 'onEscapePressed()'
@@ -475,25 +476,23 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Classe do ponto de sinal (ps-dot-*) da tag do evento; '' = ponto neutro. */
   tipoColor(evento: any): string {
     const direcao = evento?.direcao;
     const tipo = typeof evento === 'string' ? evento : (evento?.tipo ?? '');
 
     if (direcao === 'entrada' || direcao === 'online') {
-      return 'text-emerald-550 bg-emerald-500/10 border-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-400/10 dark:border-emerald-400/20';
+      return 'ps-dot-ok';
     } else if (direcao === 'saida') {
-      return 'text-rose-550 bg-rose-500/10 border-rose-500/20 dark:text-rose-400 dark:bg-rose-400/10 dark:border-rose-400/20';
+      return '';
     } else if (direcao === 'negado' || direcao === 'bloqueado' || direcao === 'offline') {
-      return 'text-rose-600 bg-rose-500/10 border-rose-500/20 dark:text-rose-400 dark:bg-rose-500/10 dark:border-rose-500/20';
+      return 'ps-dot-danger';
     }
 
-    if (tipo === 'Visitante' || tipo === 'Prestador') {
-      return tipo === 'Prestador'
-        ? 'text-amber-400 bg-amber-400/10 border-amber-400/20'
-        : 'text-accent bg-accent/10 border-accent/20';
+    if (tipo === 'Visitante' || tipo === 'Prestador' || tipo === 'Encomenda') {
+      return '';
     }
-    return tipo === 'Encomenda' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
-      : 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+    return 'ps-dot-warn';
   }
 
   /**

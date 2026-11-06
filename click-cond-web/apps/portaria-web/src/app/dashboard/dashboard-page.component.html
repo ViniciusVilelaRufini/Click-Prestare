@@ -1,96 +1,93 @@
-<div class="min-h-screen p-6 lg:p-8 space-y-6">
+<div class="min-h-screen p-4 min-[900px]:p-8 space-y-5">
 
-  <!-- Header -->
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/50 dark:border-white/5 pb-5">
-    <div>
-      <div class="flex items-center gap-2">
-        <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white font-display">Dashboard</h1>
-        <span class="px-2 py-0.5 text-[10px] font-bold text-accent bg-accent/10 border border-accent/20 rounded-full tracking-wider uppercase">
+  <!-- Cabeçalho -->
+  <div class="ps-phead">
+    <div class="ps-phead-t">
+      <div class="flex items-center gap-3 flex-wrap">
+        <h1 class="ps-h1">Dashboard</h1>
+        <span class="ps-tag">
+          <span class="ps-dot ps-dot-ok"></span>
           Operação Ativa
         </span>
       </div>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+      <p class="text-sm">
         Visão geral das atividades e controle operacional do condomínio em tempo real
       </p>
     </div>
-    
-    <div class="flex items-center gap-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5 rounded-xl px-4 py-2.5 self-start sm:self-auto">
-      <div class="text-left sm:text-right border-r border-slate-200 dark:border-white/10 pr-4">
-        <p class="text-lg font-mono font-bold text-slate-800 dark:text-white tabular-nums leading-none">
+
+    <div class="flex items-center gap-5 border border-[var(--line-100)] px-4 py-2.5 max-[520px]:hidden">
+      <div class="text-right">
+        <p class="font-display font-medium text-2xl tracking-[0.08em] tabular-nums leading-none">
           {{ agora() | date:'HH:mm:ss' }}
         </p>
-        <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 capitalize leading-none font-medium">
+        <p class="ps-cap mt-1.5">
           {{ agora() | date:"EEEE, d 'de' MMMM":'':'pt' }}
         </p>
       </div>
-      <div class="flex flex-col justify-center">
+      <div class="flex flex-col justify-center gap-1.5 border-l border-[var(--line-100)] pl-5">
         @if (auth.porteiroInfo(); as info) {
-          <span class="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-none">
+          <span class="text-sm font-medium leading-none">
             {{ info.nome }}
           </span>
-          <span class="text-[10px] text-accent font-bold uppercase tracking-wider mt-1 leading-none">
+          <span class="ps-label !text-[9px] leading-none">
             {{ info.turno ?? 'Sem turno' }}
           </span>
         } @else {
-          <span class="text-xs font-medium text-slate-400">Sem operador</span>
+          <span class="text-sm text-[var(--ink-muted)]">Sem operador</span>
         }
       </div>
     </div>
   </div>
 
   @if (loading()) {
-    <!-- Premium Full Page Skeleton Loader -->
-    <div class="space-y-6 animate-pulse">
-      <!-- KPI Cards Skeleton -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- Esqueleto de carregamento -->
+    <div class="space-y-5 animate-pulse">
+      <div class="ps-kpis">
         @for (_ of [1,2,3,4]; track $index) {
-          <div class="p-5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5 h-[135px] flex flex-col justify-between animate-pulse">
-            <div class="flex items-start justify-between">
-              <div class="w-9 h-9 rounded-xl bg-slate-200 dark:bg-white/10"></div>
-              <div class="w-12 h-4 rounded bg-slate-200 dark:bg-white/10"></div>
-            </div>
+          <div class="ps-kpi h-[150px] justify-between">
+            <div class="w-4 h-4 bg-[var(--bg-300)]"></div>
             <div class="space-y-2">
-              <div class="h-8 w-16 bg-slate-200 dark:bg-white/10 rounded"></div>
-              <div class="h-3 w-28 bg-slate-200 dark:bg-white/10 rounded"></div>
+              <div class="h-8 w-16 bg-[var(--bg-300)]"></div>
+              <div class="h-3 w-28 bg-[var(--bg-300)]"></div>
             </div>
           </div>
         }
       </div>
 
-      <!-- Bottom Layout Skeleton -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Últimos Eventos Skeleton -->
-        <div class="lg:col-span-2 rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 p-5 space-y-4">
-          <div class="h-4 w-32 bg-slate-200 dark:bg-white/5 rounded"></div>
-          <div class="space-y-3 pt-2">
-            @for (_ of [1,2,3,4,5]; track $index) {
-              <div class="flex items-center gap-3 p-3 rounded-xl border border-transparent">
-                <div class="w-16 h-5 rounded bg-slate-200 dark:bg-white/5"></div>
-                <div class="h-4 bg-slate-200 dark:bg-white/5 rounded flex-1"></div>
-                <div class="w-10 h-4 rounded bg-slate-200 dark:bg-white/5"></div>
+      <div class="grid grid-cols-1 min-[1181px]:grid-cols-[minmax(0,1fr)_380px] gap-5 items-start">
+        <div class="ps-panel">
+          <div class="ps-panel-head">
+            <div class="h-4 w-32 bg-[var(--bg-300)]"></div>
+          </div>
+          @for (_ of [1,2,3,4,5]; track $index) {
+            <div class="flex items-center gap-3.5 px-5 py-3 border-b border-[var(--line-100)] last:border-b-0">
+              <div class="w-16 h-5 bg-[var(--bg-300)]"></div>
+              <div class="h-4 bg-[var(--bg-300)] flex-1"></div>
+              <div class="w-10 h-4 bg-[var(--bg-300)]"></div>
+            </div>
+          }
+        </div>
+
+        <div class="space-y-5">
+          <div class="ps-panel">
+            <div class="ps-panel-head">
+              <div class="h-4 w-32 bg-[var(--bg-300)]"></div>
+            </div>
+            @for (_ of [1,2,3]; track $index) {
+              <div class="flex justify-between items-center px-5 py-3.5 border-b border-[var(--line-100)] last:border-b-0">
+                <div class="h-4 w-24 bg-[var(--bg-300)]"></div>
+                <div class="h-5 w-8 bg-[var(--bg-300)]"></div>
               </div>
             }
           </div>
-        </div>
 
-        <!-- Right Side Panel Skeleton -->
-        <div class="space-y-6">
-          <div class="rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 p-5 space-y-4">
-            <div class="h-4 w-32 bg-slate-200 dark:bg-white/5 rounded"></div>
-            <div class="space-y-3 pt-2">
-              <div class="flex justify-between items-center"><div class="h-4 w-24 bg-slate-200 dark:bg-white/5 rounded"></div><div class="h-5 w-8 bg-slate-200 dark:bg-white/5 rounded"></div></div>
-              <div class="h-px bg-slate-200/50 dark:bg-white/5"></div>
-              <div class="flex justify-between items-center"><div class="h-4 w-24 bg-slate-200 dark:bg-white/5 rounded"></div><div class="h-5 w-8 bg-slate-200 dark:bg-white/5 rounded"></div></div>
-              <div class="h-px bg-slate-200/50 dark:bg-white/5"></div>
-              <div class="flex justify-between items-center"><div class="h-4 w-24 bg-slate-200 dark:bg-white/5 rounded"></div><div class="h-5 w-8 bg-slate-200 dark:bg-white/5 rounded"></div></div>
+          <div class="ps-panel">
+            <div class="ps-panel-head">
+              <div class="h-4 w-32 bg-[var(--bg-300)]"></div>
             </div>
-          </div>
-
-          <div class="rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 p-5 space-y-4">
-            <div class="h-4 w-32 bg-slate-200 dark:bg-white/5 rounded"></div>
-            <div class="grid grid-cols-2 gap-3 pt-2">
+            <div class="grid grid-cols-2 gap-px bg-[var(--line-100)]">
               @for (_ of [1,2,3,4]; track $index) {
-                <div class="h-16 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-transparent"></div>
+                <div class="h-[92px] bg-[var(--bg-200)]"></div>
               }
             </div>
           </div>
@@ -99,236 +96,145 @@
     </div>
   } @else if (data(); as d) {
 
-    <!-- KPI Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- KPIs -->
+    <div class="ps-kpis">
 
       <!-- Visitantes -->
-      <a routerLink="/visitantes"
-         class="group p-5 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5
-                hover:border-accent/40 dark:hover:border-accent/40 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-205 cursor-pointer flex flex-col justify-between min-h-[135px]">
-        <div class="flex items-start justify-between">
-          <div class="w-9 h-9 rounded-xl bg-accent/10 border border-accent/25 flex items-center justify-center shrink-0">
-            <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-          </div>
-          <div class="flex items-center gap-1.5 text-slate-400 group-hover:text-accent dark:group-hover:text-accent transition-colors">
-            <span class="text-[10px] font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity duration-200">Acessar</span>
-            <svg class="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
-          </div>
+      <a routerLink="/visitantes" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
+        <div class="ps-kpi-row1">
+          <svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7"/>
+          </svg>
         </div>
-        <div class="mt-4">
-          <p class="text-3xl font-bold text-slate-800 dark:text-white tabular-nums tracking-tight font-display">{{ d.visitantesAtivos }}</p>
-          <div class="flex items-center justify-between mt-1">
-            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Visitantes no condomínio</p>
-            @if (d.visitantesAtivos > 0) {
-              <div class="flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span class="text-[9px] text-emerald-500 dark:text-emerald-400 font-bold uppercase tracking-wider">presentes</span>
-              </div>
-            }
-          </div>
+        <div class="flex flex-col gap-2.5 items-start">
+          <p class="ps-num">{{ d.visitantesAtivos < 10 ? '0' + d.visitantesAtivos : d.visitantesAtivos }}</p>
+          <p class="ps-cap !text-sm">Visitantes no condomínio</p>
+          @if (d.visitantesAtivos > 0) {
+            <span class="ps-tag"><span class="ps-dot ps-dot-ok ps-dot-pulse"></span>presentes</span>
+          }
         </div>
       </a>
 
       <!-- Encomendas -->
-      <a routerLink="/encomendas"
-         class="group p-5 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5
-                hover:border-emerald-500/40 dark:hover:border-emerald-500/40 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-205 cursor-pointer flex flex-col justify-between min-h-[135px]">
-        <div class="flex items-start justify-between">
-          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center shrink-0">
-            <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-            </svg>
-          </div>
-          <div class="flex items-center gap-1.5 text-slate-400 group-hover:text-emerald-400 dark:group-hover:text-emerald-450 transition-colors">
-            <span class="text-[10px] font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity duration-200">Acessar</span>
-            <svg class="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
-          </div>
+      <a routerLink="/encomendas" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
+        <div class="ps-kpi-row1">
+          <svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+          </svg>
+          <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7"/>
+          </svg>
         </div>
-        <div class="mt-4">
-          <p class="text-3xl font-bold text-slate-800 dark:text-white tabular-nums tracking-tight font-display">{{ d.encomendasAguardando }}</p>
-          <div class="flex items-center justify-between mt-1">
-            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Encomendas aguardando</p>
-            @if (d.encomendasAguardando > 0) {
-              <div class="flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                <span class="text-[9px] text-amber-650 dark:text-amber-400 font-bold uppercase tracking-wider">pendente</span>
-              </div>
-            }
-          </div>
+        <div class="flex flex-col gap-2.5 items-start">
+          <p class="ps-num">{{ d.encomendasAguardando < 10 ? '0' + d.encomendasAguardando : d.encomendasAguardando }}</p>
+          <p class="ps-cap !text-sm">Encomendas aguardando</p>
+          @if (d.encomendasAguardando > 0) {
+            <span class="ps-tag"><span class="ps-dot ps-dot-warn"></span>pendente</span>
+          }
         </div>
       </a>
 
       <!-- Ocorrências -->
-      <a routerLink="/ocorrencias"
-         class="group p-5 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5
-                hover:border-amber-500/40 dark:hover:border-amber-500/40 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-205 cursor-pointer flex flex-col justify-between min-h-[135px]"
-         [class.border-amber-500/30]="d.ocorrenciasPendentes > 0">
-        <div class="flex items-start justify-between">
-          <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-               [class.bg-amber-500/10]="d.ocorrenciasPendentes > 0"
-               [class.border-amber-500/25]="d.ocorrenciasPendentes > 0"
-               [class.border]="d.ocorrenciasPendentes > 0"
-               [class.bg-slate-100]="d.ocorrenciasPendentes === 0"
-               [class.dark:bg-white/5]="d.ocorrenciasPendentes === 0"
-               [class.border-transparent]="d.ocorrenciasPendentes === 0">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                 [class.text-amber-500]="d.ocorrenciasPendentes > 0"
-                 [class.text-slate-500]="d.ocorrenciasPendentes === 0"
-                 [class.dark:text-slate-400]="d.ocorrenciasPendentes === 0">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
-          </div>
-          <div class="flex items-center gap-1.5 text-slate-400 group-hover:text-amber-500 dark:group-hover:text-amber-500 transition-colors">
-            <span class="text-[10px] font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity duration-200">Acessar</span>
-            <svg class="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
-          </div>
+      <a routerLink="/ocorrencias" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
+        <div class="ps-kpi-row1">
+          <svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7"/>
+          </svg>
         </div>
-        <div class="mt-4">
-          <p class="text-3xl font-bold tabular-nums tracking-tight font-display"
-             [class.text-amber-500]="d.ocorrenciasPendentes > 0"
-             [class.text-slate-800]="d.ocorrenciasPendentes === 0"
-             [class.dark:text-white]="d.ocorrenciasPendentes === 0">{{ d.ocorrenciasPendentes }}</p>
-          <div class="flex items-center justify-between mt-1">
-            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Ocorrências pendentes</p>
-            @if (d.ocorrenciasPendentes > 0) {
-              <div class="flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                <span class="text-[9px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">urgente</span>
-              </div>
-            }
-          </div>
+        <div class="flex flex-col gap-2.5 items-start">
+          <p class="ps-num">{{ d.ocorrenciasPendentes < 10 ? '0' + d.ocorrenciasPendentes : d.ocorrenciasPendentes }}</p>
+          <p class="ps-cap !text-sm">Ocorrências pendentes</p>
+          @if (d.ocorrenciasPendentes > 0) {
+            <span class="ps-tag"><span class="ps-dot ps-dot-danger ps-dot-pulse"></span>urgente</span>
+          }
         </div>
       </a>
 
       <!-- Prestadores -->
-      <a routerLink="/prestadores/cadastro"
-         class="group p-5 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5
-                hover:border-slate-400/40 dark:hover:border-white/20 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-205 cursor-pointer flex flex-col justify-between min-h-[135px]">
-        <div class="flex items-start justify-between">
-          <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-250 dark:border-white/10 flex items-center justify-center shrink-0">
-            <svg class="w-5 h-5 text-slate-600 dark:text-slate-350" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-            </svg>
-          </div>
-          <div class="flex items-center gap-1.5 text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors">
-            <span class="text-[10px] font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity duration-200">Acessar</span>
-            <svg class="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
-          </div>
+      <a routerLink="/prestadores/cadastro" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
+        <div class="ps-kpi-row1">
+          <svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+          <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7"/>
+          </svg>
         </div>
-        <div class="mt-4">
-          <p class="text-3xl font-bold text-slate-800 dark:text-white tabular-nums tracking-tight font-display">{{ d.prestadoresAtivos }}</p>
-          <div class="flex items-center justify-between mt-1">
-            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Funcionários cadastrados</p>
-            @if (d.prestadoresAtivos > 0) {
-              <div class="flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                <span class="text-[9px] text-amber-500 dark:text-amber-400 font-bold uppercase tracking-wider">ativos</span>
-              </div>
-            }
-          </div>
+        <div class="flex flex-col gap-2.5 items-start">
+          <p class="ps-num">{{ d.prestadoresAtivos < 10 ? '0' + d.prestadoresAtivos : d.prestadoresAtivos }}</p>
+          <p class="ps-cap !text-sm">Funcionários cadastrados</p>
+          @if (d.prestadoresAtivos > 0) {
+            <span class="ps-tag"><span class="ps-dot"></span>ativos</span>
+          }
         </div>
       </a>
 
     </div>
 
-    <!-- Segunda linha -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Eventos e painéis -->
+    <div class="grid grid-cols-1 min-[1181px]:grid-cols-[minmax(0,1fr)_380px] gap-5 items-start">
 
       <!-- Últimos eventos -->
-      <div [class]="eventosMaximizados() 
-                    ? 'fixed inset-0 z-40 bg-white dark:bg-slate-900 md:p-8 p-4 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200'
-                    : 'lg:col-span-2 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm flex flex-col'">
-        
-        <!-- Cabeçalho do Painel -->
-        <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/[0.3] dark:bg-white/[0.01] shrink-0">
-          <!-- Esquerda: Título -->
-          <div class="flex items-center gap-2">
-            <span class="w-1.5 h-3.5 bg-accent rounded-full"></span>
-            <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+      <div [class]="eventosMaximizados()
+                    ? 'ps-panel fixed inset-0 z-40 flex flex-col overflow-hidden'
+                    : 'ps-panel flex flex-col min-w-0'">
+
+        <!-- Cabeçalho do painel -->
+        <div class="ps-panel-head shrink-0">
+          <div class="flex items-center gap-3">
+            <h2 class="ps-h2">
               {{ eventosMaximizados() ? 'Painel de Eventos da Portaria' : 'Últimos eventos' }}
             </h2>
             @if (eventosMaximizados()) {
-              <span class="px-2 py-0.5 text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 rounded-full tracking-wider uppercase animate-pulse">
-                Monitoramento Expandido
-              </span>
+              <span class="ps-tag"><span class="ps-dot ps-dot-ok ps-dot-pulse"></span>Monitoramento Expandido</span>
             }
           </div>
 
-          <!-- Direita: Filtros + Ações + Botão de Expandir (mesma linha) -->
-          <div class="flex flex-nowrap items-center gap-2 self-start md:self-auto overflow-x-auto max-w-full scrollbar-none">
-            <!-- Filtro de Eventos -->
-            <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shrink-0 border border-slate-200/30 dark:border-white/5">
-              <button (click)="filtroEvento.set('Todos')"
-                      [class]="filtroEvento() === 'Todos'
-                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-850 dark:text-white shadow-sm transition-all duration-150 shrink-0'
-                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
-                Todos
-              </button>
-              <button (click)="filtroEvento.set('Visitante')"
-                      [class]="filtroEvento() === 'Visitante'
-                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-accent text-white shadow-sm transition-all duration-150 shrink-0'
-                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
-                Visitantes
-              </button>
-              <button (click)="filtroEvento.set('Encomenda')"
-                      [class]="filtroEvento() === 'Encomenda'
-                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white shadow-sm transition-all duration-150 shrink-0'
-                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
-                Encomendas
-              </button>
-              <button (click)="filtroEvento.set('Ocorrência')"
-                      [class]="filtroEvento() === 'Ocorrência'
-                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white shadow-sm transition-all duration-150 shrink-0'
-                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
-                Ocorrências
-              </button>
+          <div class="flex flex-wrap items-center gap-2 max-w-full">
+            <!-- Filtro de eventos -->
+            <div class="ps-seg max-w-full max-[520px]:w-full max-[520px]:[&>button]:flex-1 max-[520px]:[&>button]:!px-1.5" [psSlideIndicator]="'x'" psSlideInd=".ps-seg-pill">
+              <span class="ps-seg-pill" aria-hidden="true"></span>
+              <button type="button" (click)="filtroEvento.set('Todos')" [class.on]="filtroEvento() === 'Todos'">Todos</button>
+              <button type="button" (click)="filtroEvento.set('Visitante')" [class.on]="filtroEvento() === 'Visitante'">Visitantes</button>
+              <button type="button" (click)="filtroEvento.set('Encomenda')" [class.on]="filtroEvento() === 'Encomenda'">Encomendas</button>
+              <button type="button" (click)="filtroEvento.set('Ocorrência')" [class.on]="filtroEvento() === 'Ocorrência'">Ocorrências</button>
             </div>
 
             @if (eventosMaximizados()) {
-              <div class="flex items-center gap-2 shrink-0">
-                <button (click)="modoCompacto.update(v => !v)"
-                        [class]="modoCompacto()
-                                 ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-850 dark:text-white border border-slate-300 dark:border-slate-600 shadow-sm active:scale-95 transition-all'
-                                 : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-200/50 dark:border-transparent active:scale-95 transition-all'"
-                        title="Alternar densidade da lista">
-                  {{ modoCompacto() ? 'Modo Detalhado' : 'Modo Compacto' }}
-                </button>
-                
-                <button *ngIf="buscaTexto() || filtroDirecao() !== 'todos' || filtroEvento() !== 'Todos'"
-                        (click)="limparFiltros()"
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 active:scale-95 transition-all">
-                  Limpar Filtros
-                </button>
-              </div>
+              <button (click)="modoCompacto.update(v => !v)"
+                      class="ps-btn ps-btn-sec ps-btn-sm"
+                      title="Alternar densidade da lista">
+                {{ modoCompacto() ? 'Modo Detalhado' : 'Modo Compacto' }}
+              </button>
+
+              <button *ngIf="buscaTexto() || filtroDirecao() !== 'todos' || filtroEvento() !== 'Todos'"
+                      (click)="limparFiltros()"
+                      class="ps-btn ps-btn-danger ps-btn-sm">
+                Limpar Filtros
+              </button>
             }
 
-            <!-- Botão Maximizar/Minimizar — somente ícone -->
+            <!-- Maximizar/Minimizar: somente ícone -->
             <button (click)="toggleMaximizacao()"
                     [title]="eventosMaximizados() ? 'Minimizar Painel' : 'Expandir Painel'"
                     [attr.aria-label]="eventosMaximizados() ? 'Minimizar Painel' : 'Expandir Painel'"
-                    class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 dark:bg-white/10 dark:hover:bg-white/20 dark:text-slate-100 dark:hover:text-white transition-all border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 duration-150 flex items-center justify-center shrink-0">
+                    class="ps-ibtn border border-[var(--line-200)] shrink-0">
               @if (eventosMaximizados()) {
-                <!-- Ícone Minimizar -->
-                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3 3m12 6V4.5M15 9h4.5M15 9l6-6M9 15v4.5M9 15H4.5M9 15l-6 6m12-6v4.5M15 15h4.5M15 15l6 6" />
                 </svg>
               } @else {
-                <!-- Ícone Maximizar -->
-                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0l-6-6" />
                 </svg>
               }
@@ -336,73 +242,52 @@
           </div>
         </div>
 
-        <!-- Barra de Pesquisa e Direção Condicional -->
+        <!-- Busca e direção (somente maximizado) -->
         @if (eventosMaximizados()) {
-          <div class="px-5 py-3 grid grid-cols-1 md:grid-cols-3 gap-3 border-b border-slate-200/60 dark:border-white/5 bg-slate-50/[0.1] dark:bg-white/[0.005] animate-in slide-in-from-top-2 duration-200">
-            <div class="relative md:col-span-2">
-              <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <svg class="w-4 h-4 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </span>
-              <input [value]="buscaTexto()" 
+          <div class="px-5 py-3 grid grid-cols-1 md:grid-cols-3 gap-3 border-b border-[var(--line-100)] shrink-0">
+            <label class="ps-field md:col-span-2">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input [value]="buscaTexto()"
                      (input)="buscaTexto.set($any($event.target).value)"
-                     type="text" 
-                     placeholder="Pesquise por nome, apartamento, bloco ou descrição..." 
-                     class="w-full pl-9 pr-4 py-2 text-xs font-semibold rounded-xl bg-white hover:bg-slate-50 focus:bg-white dark:bg-slate-800 dark:hover:bg-slate-750 dark:focus:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-white/5 focus:border-accent dark:focus:border-accent focus:ring-1 focus:ring-accent transition-all duration-150 outline-none">
-            </div>
+                     type="text"
+                     placeholder="Pesquise por nome, apartamento, bloco ou descrição..." />
+            </label>
 
-            <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full border border-slate-200/30 dark:border-white/5">
-              <button (click)="filtroDirecao.set('todos')"
-                      [class]="filtroDirecao() === 'todos'
-                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-850 dark:text-white shadow-sm flex-1 text-center transition-all duration-150'
-                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] flex-1 text-center transition-all duration-150'">
-                Ambos
-              </button>
-              <button (click)="filtroDirecao.set('entrada')"
-                      [class]="filtroDirecao() === 'entrada'
-                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white shadow-sm flex-1 text-center transition-all duration-150'
-                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] flex-1 text-center transition-all duration-150'">
-                Entrada
-              </button>
-              <button (click)="filtroDirecao.set('saida')"
-                      [class]="filtroDirecao() === 'saida'
-                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-rose-500 text-white shadow-sm flex-1 text-center transition-all duration-150'
-                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] flex-1 text-center transition-all duration-150'">
-                Saída
-              </button>
+            <div class="ps-seg w-full" [psSlideIndicator]="'x'" psSlideInd=".ps-seg-pill">
+              <span class="ps-seg-pill" aria-hidden="true"></span>
+              <button type="button" (click)="filtroDirecao.set('todos')" [class.on]="filtroDirecao() === 'todos'" class="flex-1 !px-2">Ambos</button>
+              <button type="button" (click)="filtroDirecao.set('entrada')" [class.on]="filtroDirecao() === 'entrada'" class="flex-1 !px-2">Entrada</button>
+              <button type="button" (click)="filtroDirecao.set('saida')" [class.on]="filtroDirecao() === 'saida'" class="flex-1 !px-2">Saída</button>
             </div>
           </div>
         }
 
-        <!-- Lista de Eventos -->
-        <div [class]="eventosMaximizados() 
-                      ? 'p-6 flex-1 overflow-y-auto custom-scrollbar bg-slate-50/30 dark:bg-slate-900/10' 
-                      : 'p-4 flex-1 max-h-[580px] overflow-y-auto custom-scrollbar'">
+        <!-- Lista de eventos -->
+        <div [class]="eventosMaximizados()
+                      ? 'flex-1 overflow-y-auto custom-scrollbar'
+                      : 'flex-1 max-h-[580px] overflow-y-auto custom-scrollbar'">
           @if (d.ultimosEventos.length === 0) {
-            <div class="flex flex-col items-center justify-center py-16 text-center">
-              <div class="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/5 flex items-center justify-center mb-3 border border-slate-100 dark:border-white/5">
-                <svg class="w-6 h-6 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                </svg>
-              </div>
-              <p class="text-sm font-medium text-slate-700 dark:text-slate-400">Nenhum evento registrado</p>
-              <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">As movimentações da portaria aparecerão aqui</p>
+            <div class="ps-empty">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+              <p class="text-sm font-medium">Nenhum evento registrado</p>
+              <p class="ps-cap">As movimentações da portaria aparecerão aqui</p>
             </div>
           } @else if (eventosFiltrados().length === 0) {
-            <div class="flex flex-col items-center justify-center py-16 text-center">
-              <div class="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/5 flex items-center justify-center mb-3 border border-slate-100 dark:border-white/5">
-                <svg class="w-6 h-6 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
-                </svg>
-              </div>
-              <p class="text-sm font-medium text-slate-700 dark:text-slate-400">Nenhum evento deste tipo encontrado</p>
-              <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">Altere os filtros ou pesquisa para encontrar outros registros</p>
+            <div class="ps-empty">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+              </svg>
+              <p class="text-sm font-medium">Nenhum evento deste tipo encontrado</p>
+              <p class="ps-cap">Altere os filtros ou pesquisa para encontrar outros registros</p>
             </div>
           } @else {
-            <ul class="space-y-0">
+            <ul>
               @for (e of eventosFiltrados(); track $index) {
                 <li
                      role="button"
@@ -411,197 +296,167 @@
                      (keydown.space)="$event.preventDefault(); abrirDetalhes(e)" (click)="abrirDetalhes(e)"
                     [title]="e.descricao + ' - Clique para ver detalhes'"
                     [class]="modoCompacto() && eventosMaximizados()
-                             ? 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-1.5 rounded-lg border-b border-slate-200/40 dark:border-white/5 last:border-b-0 group'
-                             : 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-3 rounded-xl border-b border-slate-200/40 dark:border-white/5 last:border-b-0 group'">
-                  
-                  <!-- Ícone / Miniatura do Evento -->
+                             ? 'flex items-center gap-3.5 cursor-pointer px-5 py-1.5 border-b border-[var(--line-100)] last:border-b-0 hover:bg-[var(--accent-ghost)] transition-colors max-[520px]:flex-wrap max-[520px]:gap-x-3 max-[520px]:gap-y-2'
+                             : 'flex items-center gap-3.5 cursor-pointer px-5 py-3 border-b border-[var(--line-100)] last:border-b-0 hover:bg-[var(--accent-ghost)] transition-colors max-[520px]:flex-wrap max-[520px]:gap-x-3 max-[520px]:gap-y-2'">
+
+                  <!-- Avatar / miniatura do evento -->
                   @if (e.tipo === 'Visitante' || e.tipo === 'Prestador' || e.tipo === 'Acesso Facial') {
                     @if (e.detalhes.fotoPessoa) {
                       <img [src]="e.detalhes.fotoPessoa"
                            [alt]="'Foto de ' + (e.detalhes.nome || 'pessoa')"
-                           class="w-7 h-7 rounded-full object-cover border border-slate-200 dark:border-white/10 shrink-0 shadow-sm transition-transform duration-200 group-hover:scale-105" />
+                           class="w-8 h-8 rounded-full object-cover border border-[var(--line-200)] shrink-0" />
                     } @else {
-                      <div class="w-7 h-7 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent font-bold text-xs shrink-0 transition-transform duration-200 group-hover:scale-105">
+                      <div class="ps-avatar !w-8 !h-8 !text-xs">
                         {{ (e.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}
                       </div>
                     }
                   } @else if (e.tipo === 'Encomenda') {
-                    <div class="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
+                    <div class="w-8 h-8 border border-[var(--line-100)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                       </svg>
                     </div>
                   } @else {
-                    <div class="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                    <div class="w-8 h-8 border border-[var(--line-100)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                       </svg>
                     </div>
                   }
 
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase shrink-0 {{ tipoColor(e) }}">
+                  <span class="ps-tag shrink-0">
+                    <span class="ps-dot {{ tipoColor(e) }}"></span>
                     {{ direcaoLabel(e.direcao, e.tipo) }}
                   </span>
                   @if (e.detalhes.tipoPessoa) {
-                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider uppercase shrink-0"
-                          [ngClass]="{
-                            'bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-400/10 dark:text-blue-450 dark:border-blue-400/20': e.detalhes.tipoPessoa === 'morador',
-                            'bg-accent/10 text-accent border-accent/20 dark:bg-accent/10 dark:text-accent dark:border-accent/20': e.detalhes.tipoPessoa === 'visitante',
-                            'bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-400/10 dark:text-amber-450 dark:border-amber-400/20': e.detalhes.tipoPessoa === 'prestador',
-                            'bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-400/10 dark:text-purple-450 dark:border-purple-400/20': e.detalhes.tipoPessoa === 'funcionario'
-                          }">
+                    <span class="ps-tag shrink-0">
                       {{ e.detalhes.tipoPessoa === 'morador' ? 'Morador' :
                          e.detalhes.tipoPessoa === 'visitante' ? 'Visitante' :
                          e.detalhes.tipoPessoa === 'prestador' ? 'Prestador' :
                          e.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : e.detalhes.tipoPessoa }}
                     </span>
                   }
-                  <span class="flex-1 text-sm text-slate-750 dark:text-slate-250 truncate font-semibold">{{ e.descricao }}</span>
-                  <div class="flex items-center gap-2 font-medium">
-                    <span class="text-xs text-slate-500 dark:text-slate-400 shrink-0 font-mono">
-                      {{ formatarDataEvento(e.quando) }}
-                    </span>
-                    <svg class="w-4 h-4 text-slate-350 dark:text-slate-350 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                    </svg>
-                  </div>
+                  <span class="flex-1 min-w-0 text-sm truncate max-[520px]:basis-full max-[520px]:order-3 max-[520px]:whitespace-normal">{{ e.descricao }}</span>
+                  <span class="text-xs text-[var(--ink-subtle)] shrink-0 tabular-nums max-[520px]:ml-auto">
+                    {{ formatarDataEvento(e.quando) }}
+                  </span>
                 </li>
               }
             </ul>
           }
         </div>
 
-        <!-- Rodapé de Informações Adicionais (Apenas Maximizado) -->
+        <!-- Rodapé de informações adicionais (somente maximizado) -->
         @if (eventosMaximizados()) {
-          <div class="px-6 py-3 border-t border-slate-200/60 dark:border-white/5 bg-slate-50 dark:bg-white/[0.01] flex items-center justify-between shrink-0 text-slate-500 dark:text-slate-400 text-[10px] font-semibold">
+          <div class="px-5 py-3 border-t border-[var(--line-100)] flex items-center justify-between shrink-0 ps-cap">
             <div>
-              Exibindo <span class="font-bold text-slate-800 dark:text-white">{{ eventosFiltrados().length }}</span> de <span class="font-bold">{{ d.ultimosEventos.length }}</span> registros de movimentação
+              Exibindo <span class="font-semibold text-[var(--ink)]">{{ eventosFiltrados().length }}</span> de <span class="font-semibold">{{ d.ultimosEventos.length }}</span> registros de movimentação
             </div>
             <div class="hidden sm:block">
-              Pressione <kbd class="px-1.5 py-0.5 bg-slate-200 dark:bg-white/10 rounded font-mono text-[9px] font-bold">Esc</kbd> ou clique no botão de fechar para reduzir
+              Pressione <kbd class="ps-tag !h-[18px] !px-1.5">Esc</kbd> ou clique no botão de fechar para reduzir
             </div>
           </div>
         }
       </div>
 
       <!-- Painel direito -->
-      <div class="flex flex-col space-y-6">
+      <div class="flex flex-col gap-5 min-w-0">
 
         <!-- Totais do condomínio -->
-        <div class="shrink-0 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm">
-          <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 bg-slate-50/[0.3] dark:bg-white/[0.01]">
-            <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Informações Gerais</h2>
+        <div class="ps-panel">
+          <div class="ps-panel-head">
+            <h2 class="ps-h2">Informações Gerais</h2>
           </div>
-          <div class="p-5 space-y-5">
-            <!-- Apartamentos -->
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div class="w-[38px] h-[38px] rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-550 dark:text-indigo-400 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
-                  <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
-                  </svg>
-                </div>
-                <span class="text-sm font-semibold text-slate-700 dark:text-slate-350">Apartamentos</span>
+          <!-- Apartamentos -->
+          <div class="flex items-center justify-between gap-3.5 px-5 py-3.5 border-b border-[var(--line-100)]">
+            <div class="flex items-center gap-3.5">
+              <div class="ps-ico !bg-[var(--bg-300)] text-[var(--ink-muted)]">
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
+                </svg>
               </div>
-              <span class="text-xl font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.totalApartamentos }}</span>
+              <span class="text-sm">Apartamentos</span>
             </div>
-            
-            <div class="h-px bg-slate-200/50 dark:bg-white/5"></div>
-            
-            <!-- Moradores -->
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div class="w-[38px] h-[38px] rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
-                  <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                  </svg>
-                </div>
-                <span class="text-sm font-semibold text-slate-700 dark:text-slate-350">Moradores</span>
+            <span class="ps-num !text-[28px] !leading-8">{{ d.totalApartamentos }}</span>
+          </div>
+
+          <!-- Moradores -->
+          <div class="flex items-center justify-between gap-3.5 px-5 py-3.5 border-b border-[var(--line-100)]">
+            <div class="flex items-center gap-3.5">
+              <div class="ps-ico !bg-[var(--bg-300)] text-[var(--ink-muted)]">
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
               </div>
-              <span class="text-xl font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.totalMoradores }}</span>
+              <span class="text-sm">Moradores</span>
             </div>
-            
-            <div class="h-px bg-slate-200/50 dark:bg-white/5"></div>
-            
-            <!-- Comunicados -->
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div class="w-[38px] h-[38px] rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-600 dark:text-amber-500 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
-                  <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.68.34-1.44.52-2.22.52H5a1 1 0 01-1-1v-4a1 1 0 011-1h3.12c.78 0 1.54.18 2.22.52l5.77-2.88A1 1 0 0118 8.87v6.26a1 1 0 01-1.89.47l-5.77-2.88zM18 9.5a3.5 3.5 0 010 5M21 8a6 6 0 010 8" />
-                  </svg>
-                </div>
-                <span class="text-sm font-semibold text-slate-700 dark:text-slate-350">Comunicados</span>
+            <span class="ps-num !text-[28px] !leading-8">{{ d.totalMoradores }}</span>
+          </div>
+
+          <!-- Comunicados -->
+          <div class="flex items-center justify-between gap-3.5 px-5 py-3.5">
+            <div class="flex items-center gap-3.5">
+              <div class="ps-ico !bg-[var(--bg-300)] text-[var(--ink-muted)]">
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.68.34-1.44.52-2.22.52H5a1 1 0 01-1-1v-4a1 1 0 011-1h3.12c.78 0 1.54.18 2.22.52l5.77-2.88A1 1 0 0118 8.87v6.26a1 1 0 01-1.89.47l-5.77-2.88zM18 9.5a3.5 3.5 0 010 5M21 8a6 6 0 010 8" />
+                </svg>
               </div>
-              <div class="text-right">
-                @if (d.comunicadosRecentes === 0) {
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-lg">
-                    Nenhum nos últimos 7 dias
-                  </span>
-                } @else {
-                  <span class="text-xl font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.comunicadosRecentes }}</span>
-                }
-              </div>
+              <span class="text-sm">Comunicados</span>
+            </div>
+            <div class="text-right">
+              @if (d.comunicadosRecentes === 0) {
+                <span class="ps-tag">Nenhum nos últimos 7 dias</span>
+              } @else {
+                <span class="ps-num !text-[28px] !leading-8">{{ d.comunicadosRecentes }}</span>
+              }
             </div>
           </div>
         </div>
 
         <!-- Acesso rápido -->
-        <div class="flex-1 flex flex-col rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm">
-          <div class="shrink-0 px-5 py-4 border-b border-slate-200/60 dark:border-white/5 bg-slate-50/[0.3] dark:bg-white/[0.01]">
-            <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Acesso Rápido</h2>
+        <div class="ps-panel">
+          <div class="ps-panel-head">
+            <h2 class="ps-h2">Acesso Rápido</h2>
           </div>
-          <div class="flex-1 p-4 grid grid-cols-2 gap-3.5 content-center">
+          <div class="grid grid-cols-2 gap-px bg-[var(--line-100)]">
             <button (click)="abrirModalLiberar()"
-               class="flex flex-col items-center justify-center gap-3 py-6 px-3 rounded-xl h-full
-                      bg-slate-50 hover:bg-accent/5 dark:bg-white/5 dark:hover:bg-accent/10 
-                      border border-slate-200/60 hover:border-accent/30 dark:border-transparent dark:hover:border-accent/20 
-                      transition-all text-center group active:scale-95 duration-150"
+               class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
                title="Liberar entrada de visitante já cadastrado">
-              <svg class="w-[26px] h-[26px] text-accent group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+              <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
               </svg>
-              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Liberar Visitante</span>
+              <span>Liberar Visitante</span>
             </button>
-            
+
             <button (click)="abrirValidador()"
-               class="flex flex-col items-center justify-center gap-3 py-6 px-3 rounded-xl h-full
-                      bg-slate-50 hover:bg-emerald-500/5 dark:bg-white/5 dark:hover:bg-emerald-500/10
-                      border border-slate-200/60 hover:border-emerald-500/30 dark:border-transparent dark:hover:border-emerald-500/20
-                      transition-all text-center group active:scale-95 duration-150"
+               class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
                title="Validar PIN de acesso">
-              <svg class="w-[26px] h-[26px] text-emerald-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+              <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
-              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Validar PIN</span>
+              <span>Validar PIN</span>
             </button>
 
             <a routerLink="/visitantes" [queryParams]="{novo: 'true'}"
-               class="flex flex-col items-center justify-center gap-3 py-6 px-3 rounded-xl h-full
-                      bg-slate-50 hover:bg-accent/5 dark:bg-white/5 dark:hover:bg-accent/10
-                      border border-slate-200/60 hover:border-accent/30 dark:border-transparent dark:hover:border-accent/20
-                      transition-all text-center group active:scale-95 duration-150"
+               class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
                title="Cadastrar um novo visitante">
-              <svg class="w-[26px] h-[26px] text-accent group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+              <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
               </svg>
-              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Cadastrar Visitante</span>
+              <span>Cadastrar Visitante</span>
             </a>
 
             <button (click)="abrirModalBaixa()"
-               class="flex flex-col items-center justify-center gap-3 py-6 px-3 rounded-xl h-full
-                      bg-slate-50 hover:bg-rose-500/5 dark:bg-white/5 dark:hover:bg-rose-500/10
-                      border border-slate-200/60 hover:border-rose-500/30 dark:border-transparent dark:hover:border-rose-500/20
-                      transition-all text-center group active:scale-95 duration-150"
+               class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
                title="Registrar saída de visitante ou prestador">
-              <svg class="w-[26px] h-[26px] text-rose-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+              <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
               </svg>
-              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Dar Baixa</span>
+              <span>Dar Baixa</span>
             </button>
           </div>
         </div>
@@ -611,120 +466,116 @@
 
   }
 
+
   <!-- Modal de Detalhes do Evento -->
   @if (eventoSelecionado(); as ev) {
-    <div class="fixed inset-0 bg-transparent z-50 flex items-center justify-center p-4"
+    <div class="ps-scrim on z-[90]"
          (click)="fecharDetalhes()">
       
-      <div class="relative w-full max-w-lg rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/80 dark:border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+      <div class="ps-drawer on !w-[min(520px,100%)]"
            (click)="$event.stopPropagation()">
         
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-slate-200/60 dark:border-white/5 flex flex-col gap-1 bg-slate-50/[0.3] dark:bg-white/[0.01]">
+        <div class="ps-drawer-head !items-start !flex-col gap-1">
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase {{ tipoColor(ev) }}">
+              <span class="ps-tag">
+                <span class="ps-dot {{ tipoColor(ev) }}"></span>
                 {{ direcaoLabel(ev.direcao, ev.tipo) }}
               </span>
               @if (ev.detalhes.tipoPessoa) {
-                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider uppercase"
-                      [ngClass]="{
-                        'bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-400/10 dark:text-blue-450 dark:border-blue-400/20': ev.detalhes.tipoPessoa === 'morador',
-                        'bg-accent/10 text-accent border-accent/20 dark:bg-accent/10 dark:text-accent dark:border-accent/20': ev.detalhes.tipoPessoa === 'visitante',
-                        'bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-400/10 dark:text-amber-450 dark:border-amber-400/20': ev.detalhes.tipoPessoa === 'prestador',
-                        'bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-400/10 dark:text-purple-450 dark:border-purple-400/20': ev.detalhes.tipoPessoa === 'funcionario'
-                      }">
+                <span class="ps-tag">
                   {{ ev.detalhes.tipoPessoa === 'morador' ? 'Morador' :
                      ev.detalhes.tipoPessoa === 'visitante' ? 'Visitante' :
                      ev.detalhes.tipoPessoa === 'prestador' ? 'Prestador' :
                      ev.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : ev.detalhes.tipoPessoa }}
                 </span>
               }
-              <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Detalhes do Evento</h3>
+              <h3 class="ps-h2">Detalhes do Evento</h3>
             </div>
-            <button (click)="fecharDetalhes()" class="p-1.5 rounded-lg text-slate-450 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
+            <button (click)="fecharDetalhes()" class="ps-ibtn shrink-0">
               <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
               </svg>
             </button>
           </div>
-          <p class="text-xs text-slate-550 dark:text-slate-400 font-semibold leading-relaxed mt-1 block max-w-md">
+          <p class="text-sm text-[var(--ink-muted)] leading-relaxed mt-1 block max-w-md">
             {{ ev.descricao }}
           </p>
         </div>
 
         <!-- Conteúdo -->
-        <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
+        <div class="ps-drawer-body custom-scrollbar">
           
           <!-- Evento tipo: Visitante ou Prestador -->
           @if (ev.tipo === 'Visitante' || ev.tipo === 'Prestador') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/40 dark:border-white/5">
+              <div class="flex items-center gap-3 bg-[var(--bg-200)] p-4 border border-[var(--line-100)]">
                 @if (ev.detalhes.fotoPessoa) {
                   <img [src]="ev.detalhes.fotoPessoa" 
                        [alt]="'Foto de ' + (ev.detalhes.nome || 'pessoa')"
                        (click)="abrirAmpliarFoto(ev.detalhes.fotoPessoa, 'Foto de ' + ev.detalhes.nome)"
-                       class="w-10 h-10 rounded-full object-cover border border-slate-250 dark:border-white/10 shadow-sm cursor-pointer hover:scale-105 transition-all" 
+                       class="w-10 h-10 rounded-full object-cover border border-slate-250 dark:border-white/10 cursor-pointer hover:scale-105 transition-all" 
                        title="Clique para ampliar a foto" />
                 } @else {
-                  <div class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent font-bold text-base shadow-sm">
+                  <div class="w-10 h-10 rounded-full bg-[var(--bg-300)] border border-[var(--line-200)] flex items-center justify-center text-[var(--ink)] font-bold text-base">
                     {{ (ev.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}
                   </div>
                 }
                 <div>
                   <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
-                  <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">
+                  <p class="ps-label mt-0.5">
                     {{ ev.tipo === 'Prestador' ? 'Prestador de Serviço' : 'Visitante Cadastrado' }}
                   </p>
                 </div>
               </div>
 
               <div class="grid grid-cols-2 gap-3">
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Apartamento</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Apartamento</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.blocoApto }}</span>
                 </div>
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5 flex flex-col justify-between">
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)] flex flex-col justify-between">
                   <div>
-                    <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Documento</span>
+                    <span class="ps-label block mb-1">Documento</span>
                     <span class="text-sm font-mono font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.documento || '—' }}</span>
                   </div>
                   @if (ev.detalhes.fotoDocumento) {
                     <button (click)="abrirAmpliarFoto(ev.detalhes.fotoDocumento, 'Documento (RG) de ' + ev.detalhes.nome)"
-                      class="mt-1.5 self-start text-[10px] font-bold text-accent hover:underline flex items-center gap-1">
+                      class="mt-1.5 self-start text-[10px] font-semibold hover:underline flex items-center gap-1">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                       Ver Foto do RG
                     </button>
                   }
                 </div>
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Data/Hora Entrada</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Data/Hora Entrada</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
                     {{ ev.detalhes.dataEntrada ? (ev.detalhes.dataEntrada | date:'dd/MM/yyyy HH:mm') : 'Pendente' }}
                   </span>
                 </div>
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Data/Hora Saída</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Data/Hora Saída</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
                     {{ ev.detalhes.dataSaida ? (ev.detalhes.dataSaida | date:'dd/MM/yyyy HH:mm') : 'No local' }}
                   </span>
                 </div>
               </div>
 
-              <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Autorizado Por</span>
+              <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                <span class="ps-label block mb-1">Autorizado Por</span>
                 <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.autorizadoPor || 'Não informado' }}</span>
               </div>
 
               <!-- Método de liberação atual -->
               @if (ev.detalhes.metodoLiberacao) {
                 <div [class]="ev.detalhes.metodoLiberacao === 'facial'
-                              ? 'p-3 rounded-xl border bg-accent/5 border-accent/20'
-                              : 'p-3 rounded-xl border bg-slate-50 dark:bg-white/5 border-slate-200/40 dark:border-white/5'">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Método de Liberação</span>
+                              ? 'p-3 border bg-[var(--accent-ghost)] border-[var(--line-200)]'
+                              : 'p-3 border bg-[var(--bg-200)] border-[var(--line-100)]'">
+                  <span class="ps-label block mb-1.5">Método de Liberação</span>
                   <div class="flex items-center gap-2 flex-wrap">
                     @if (ev.detalhes.metodoLiberacao === 'facial') {
-                      <span class="inline-flex items-center gap-1.5 text-xs font-bold text-accent">
+                      <span class="inline-flex items-center gap-1.5 text-xs font-semibold">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
@@ -732,7 +583,7 @@
                         Reconhecimento Facial
                       </span>
                     } @else {
-                      <span class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <span class="inline-flex items-center gap-1.5 text-xs font-semibold">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
                         </svg>
@@ -743,7 +594,7 @@
                       <span class="text-[10px] font-mono text-slate-500 dark:text-slate-450">·  {{ ev.detalhes.terminalNome }}</span>
                     }
                     @if (ev.detalhes.confianca != null) {
-                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">
+                      <span class="ps-tag">
                         {{ (ev.detalhes.confianca * 100).toFixed(0) }}% confiança
                       </span>
                     }
@@ -753,8 +604,8 @@
 
               <!-- Linha do tempo de acessos -->
               @if (ev.detalhes.historicoAcessos && ev.detalhes.historicoAcessos.length > 0) {
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-2.5 uppercase tracking-wider flex items-center gap-1.5">
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-2.5 flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
@@ -764,19 +615,19 @@
                     @for (h of ev.detalhes.historicoAcessos; track $index) {
                       <li class="flex items-center gap-2.5 text-xs">
                         @if (h.evento === 'entrada') {
-                          <span class="w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 shrink-0">
+                          <span class="w-6 h-6 rounded-full border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
                             </svg>
                           </span>
                         } @else if (h.evento === 'saida') {
-                          <span class="w-6 h-6 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shrink-0">
+                          <span class="w-6 h-6 rounded-full border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                             </svg>
                           </span>
                         } @else {
-                          <span class="w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
+                          <span class="w-6 h-6 rounded-full border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01"/>
                             </svg>
@@ -792,9 +643,7 @@
                             <span class="text-[10px] font-mono text-slate-500 dark:text-slate-450">{{ h.timestamp | date:'dd/MM HH:mm:ss' }}</span>
                           </div>
                           <div class="flex items-center gap-1.5 mt-0.5 text-[10px]">
-                            <span [class]="h.metodo === 'facial'
-                                            ? 'inline-flex items-center px-1.5 py-0.5 rounded font-bold bg-accent/10 text-accent border border-accent/20'
-                                            : 'inline-flex items-center px-1.5 py-0.5 rounded font-bold bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-300'">
+                            <span class="ps-tag !h-[18px]">
                               {{ h.metodoLabel }}
                             </span>
                             @if (h.terminalNome) {
@@ -816,39 +665,39 @@
           <!-- Evento tipo: Encomenda -->
           @if (ev.tipo === 'Encomenda') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/40 dark:border-white/5">
-                <div class="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-500 shadow-sm">
+              <div class="flex items-center gap-3 bg-[var(--bg-200)] p-4 border border-[var(--line-100)]">
+                <div class="w-10 h-10 border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)]">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
                   <h4 class="font-bold text-slate-800 dark:text-white text-base truncate leading-tight">{{ ev.detalhes.nome }}</h4>
-                  <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">Encomenda / Correspondência</p>
+                  <p class="ps-label mt-0.5">Encomenda / Correspondência</p>
                 </div>
               </div>
 
               <div class="grid grid-cols-2 gap-3">
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Destinatário</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Destinatário</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.blocoApto }}</span>
                 </div>
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Recebido de</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Recebido de</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.recebidoDe }}</span>
                 </div>
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Recebido em</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Recebido em</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
                     {{ ev.detalhes.dataEntrada ? (ev.detalhes.dataEntrada | date:'dd/MM/yyyy HH:mm') : 'A chegar' }}
                   </span>
                 </div>
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Status</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Status</span>
                   <div>
                     <span [class]="ev.detalhes.status === 'Entregue'
-                                    ? 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-450 border border-emerald-500/20'
-                                    : 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-450 border border-amber-500/20'">
+                                    ? 'ps-tag'
+                                    : 'ps-tag'">
                       {{ ev.detalhes.status }}
                     </span>
                   </div>
@@ -856,13 +705,13 @@
               </div>
 
               <div class="grid grid-cols-2 gap-3">
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Recebido Por</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Recebido Por</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.recebidoPor }}</span>
                 </div>
                 @if (ev.detalhes.status === 'Entregue') {
-                  <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                    <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Retirado Por</span>
+                  <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                    <span class="ps-label block mb-1">Retirado Por</span>
                     <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.retiradoPor || 'Não informado' }}</span>
                   </div>
                 }
@@ -873,36 +722,36 @@
           <!-- Evento tipo: Ocorrência -->
           @if (ev.tipo === 'Ocorrência') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/40 dark:border-white/5">
-                <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-500 shadow-sm">
+              <div class="flex items-center gap-3 bg-[var(--bg-200)] p-4 border border-[var(--line-100)]">
+                <div class="w-10 h-10 border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)]">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                   </svg>
                 </div>
                 <div>
                   <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
-                  <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">Registro de Ocorrência</p>
+                  <p class="ps-label mt-0.5">Registro de Ocorrência</p>
                 </div>
               </div>
 
-              <div class="bg-slate-50 dark:bg-white/5 p-3.5 rounded-xl border border-slate-200/40 dark:border-white/5">
-                <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Descrição da Ocorrência</span>
+              <div class="bg-[var(--bg-200)] p-3.5 border border-[var(--line-100)]">
+                <span class="ps-label block mb-1.5">Descrição da Ocorrência</span>
                 <span class="text-sm text-slate-700 dark:text-slate-200 block whitespace-pre-line leading-relaxed">{{ ev.detalhes.descricao }}</span>
               </div>
 
               <div class="grid grid-cols-2 gap-3">
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Criado em</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Criado em</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
                     {{ ev.detalhes.dataEntrada | date:'dd/MM/yyyy HH:mm' }}
                   </span>
                 </div>
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Status</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Status</span>
                   <div>
                     <span [class]="ev.detalhes.status === 'Resolvido'
-                                    ? 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-450 border border-emerald-500/20'
-                                    : 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-450 border border-amber-500/20'">
+                                    ? 'ps-tag'
+                                    : 'ps-tag'">
                       {{ ev.detalhes.status }}
                     </span>
                   </div>
@@ -910,8 +759,8 @@
               </div>
 
               @if (ev.detalhes.resposta) {
-                <div class="bg-slate-50 dark:bg-white/5 p-3.5 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Resposta da Administração</span>
+                <div class="bg-[var(--bg-200)] p-3.5 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Resposta da Administração</span>
                   <span class="text-sm text-slate-700 dark:text-slate-200 block whitespace-pre-line leading-relaxed">{{ ev.detalhes.resposta }}</span>
                   @if (ev.detalhes.dataSaida) {
                     <span class="text-[9px] text-slate-450 dark:text-slate-500 mt-2 block font-medium">Respondido em: {{ ev.detalhes.dataSaida | date:'dd/MM/yyyy HH:mm' }}</span>
@@ -924,15 +773,15 @@
           <!-- Evento tipo: Acesso Facial -->
           @if (ev.tipo === 'Acesso Facial') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/40 dark:border-white/5">
+              <div class="flex items-center gap-3 bg-[var(--bg-200)] p-4 border border-[var(--line-100)]">
                 @if (ev.detalhes.fotoPessoa) {
                   <img [src]="ev.detalhes.fotoPessoa"
                        [alt]="'Foto de identificação facial de ' + (ev.detalhes.nome || 'pessoa')"
                        (click)="abrirAmpliarFoto(ev.detalhes.fotoPessoa, 'Foto de ' + ev.detalhes.nome)"
-                       class="w-12 h-12 rounded-full object-cover border-2 border-accent/40 shadow-sm cursor-pointer hover:scale-105 transition-all"
+                       class="w-12 h-12 rounded-full object-cover border border-[var(--line-200)] cursor-pointer hover:scale-105 transition-all"
                        title="Clique para ampliar a foto" />
                 } @else {
-                  <div class="w-12 h-12 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent font-bold text-base shadow-sm">
+                  <div class="w-12 h-12 rounded-full bg-[var(--bg-300)] border border-[var(--line-200)] flex items-center justify-center text-[var(--ink)] font-bold text-base">
                     {{ (ev.detalhes.nome || 'P').substring(0, 1).toUpperCase() }}
                   </div>
                 }
@@ -940,13 +789,7 @@
                   <div class="flex items-center gap-2">
                     <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
                     @if (ev.detalhes.tipoPessoa) {
-                      <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider uppercase"
-                            [ngClass]="{
-                              'bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-400/10 dark:text-blue-450 dark:border-blue-400/20': ev.detalhes.tipoPessoa === 'morador',
-                              'bg-accent/10 text-accent border-accent/20 dark:bg-accent/10 dark:text-accent dark:border-accent/20': ev.detalhes.tipoPessoa === 'visitante',
-                              'bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-400/10 dark:text-amber-450 dark:border-amber-400/20': ev.detalhes.tipoPessoa === 'prestador',
-                              'bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-400/10 dark:text-purple-450 dark:border-purple-400/20': ev.detalhes.tipoPessoa === 'funcionario'
-                            }">
+                      <span class="ps-tag">
                         {{ ev.detalhes.tipoPessoa === 'morador' ? 'Morador' :
                            ev.detalhes.tipoPessoa === 'visitante' ? 'Visitante' :
                            ev.detalhes.tipoPessoa === 'prestador' ? 'Prestador' :
@@ -954,7 +797,7 @@
                       </span>
                     }
                   </div>
-                  <p class="text-[11px] font-semibold text-accent uppercase tracking-wider mt-0.5 flex items-center gap-1">
+                  <p class="ps-label mt-0.5 flex items-center gap-1">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
@@ -966,40 +809,40 @@
 
               <div class="grid grid-cols-2 gap-3">
                 @if (ev.detalhes.blocoApto) {
-                  <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                    <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Apartamento</span>
+                  <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                    <span class="ps-label block mb-1">Apartamento</span>
                     <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.blocoApto }}</span>
                   </div>
                 }
                 @if (ev.detalhes.documento) {
-                  <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                    <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Documento</span>
+                  <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                    <span class="ps-label block mb-1">Documento</span>
                     <span class="text-sm font-mono font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.documento }}</span>
                   </div>
                 }
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Data/Hora</span>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Data/Hora</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
                     {{ (ev.detalhes.dataEntrada || ev.detalhes.dataSaida) | date:'dd/MM/yyyy HH:mm:ss' }}
                   </span>
                 </div>
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Status</span>
-                  <span class="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Status</span>
+                  <span class="ps-tag">
                     {{ ev.detalhes.status }}
                   </span>
                 </div>
               </div>
 
               @if (ev.detalhes.descricao) {
-                <div class="bg-accent/5 p-3.5 rounded-xl border border-accent/20">
-                  <span class="text-[10px] font-bold text-accent block mb-1.5 uppercase tracking-wider">{{ (ev.detalhes.tipoDispositivo === 'facial' || !ev.detalhes.tipoDispositivo) ? 'Reconhecimento Biométrico' : 'Detalhe da Leitura' }}</span>
+                <div class="bg-[var(--accent-ghost)] p-3.5 border border-[var(--line-200)]">
+                  <span class="ps-label block mb-1.5">{{ (ev.detalhes.tipoDispositivo === 'facial' || !ev.detalhes.tipoDispositivo) ? 'Reconhecimento Biométrico' : 'Detalhe da Leitura' }}</span>
                   <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ ev.detalhes.descricao }}</span>
                 </div>
               }
 
-              <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Liberado Por</span>
+              <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                <span class="ps-label block mb-1">Liberado Por</span>
                 <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.autorizadoPor }}</span>
               </div>
             </div>
@@ -1008,32 +851,32 @@
         </div>
 
         <!-- Footer Actions -->
-        <div class="px-6 py-4 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-end gap-2 bg-slate-50/[0.3] dark:bg-white/[0.01]">
+        <div class="ps-drawer-foot">
           <button (click)="fecharDetalhes()"
-                  class="px-4 py-2 text-xs font-bold text-slate-650 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors">
+                  class="ps-btn ps-btn-sec ps-btn-sm">
             Fechar
           </button>
           
           @if (ev.tipo === 'Visitante') {
             <a routerLink="/visitantes" (click)="fecharDetalhes()"
-               class="px-4 py-2 text-xs font-bold text-white bg-accent hover:bg-accent/90 rounded-xl shadow-md shadow-accent/15 transition-all active:scale-95 flex items-center">
+               class="ps-btn ps-btn-sm">
               Ver Visitantes
             </a>
           } @else if (ev.tipo === 'Encomenda') {
             <a routerLink="/encomendas" (click)="fecharDetalhes()"
-               class="px-4 py-2 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-md shadow-emerald-500/15 transition-all active:scale-95 flex items-center">
+               class="ps-btn ps-btn-sm">
               Ver Encomendas
             </a>
           } @else if (ev.tipo === 'Acesso Facial') {
             @if (obterRotaCadastro(ev.detalhes?.tipoPessoa)) {
               <a [routerLink]="obterRotaCadastro(ev.detalhes?.tipoPessoa)" [queryParams]="{ search: ev.detalhes?.nome }" (click)="fecharDetalhes()"
-                 class="px-4 py-2 text-xs font-bold text-white bg-accent hover:bg-accent/90 rounded-xl shadow-md shadow-accent/15 transition-all active:scale-95 flex items-center">
+                 class="ps-btn ps-btn-sm">
                 Ver cadastro da pessoa
               </a>
             }
           } @else if (ev.tipo === 'Ocorrência') {
             <a routerLink="/ocorrencias" (click)="fecharDetalhes()"
-               class="px-4 py-2 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow-md shadow-amber-500/15 transition-all active:scale-95 flex items-center">
+               class="ps-btn ps-btn-sm">
               Ver Ocorrências
             </a>
           }
@@ -1045,16 +888,16 @@
 
   <!-- Modal de Foto Ampliada -->
   @if (fotoAmpliadaUrl()) {
-    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4" (click)="fecharAmpliarFoto()">
-      <div class="relative max-w-3xl max-h-[85vh] rounded-2xl border border-white/10 bg-graphite overflow-hidden shadow-2xl animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
-        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-white">{{ fotoAmpliadaTitulo() }}</h3>
-          <button (click)="fecharAmpliarFoto()" aria-label="Fechar foto ampliada" class="text-slate-400 hover:text-white transition">
+    <div class="ps-scrim on z-[100]" (click)="fecharAmpliarFoto()">
+      <div class="ps-modal on !w-[min(760px,calc(100%-32px))] !p-0 !gap-0 max-h-[85vh] overflow-hidden" (click)="$event.stopPropagation()">
+        <div class="ps-drawer-head">
+          <h3 class="ps-h2">{{ fotoAmpliadaTitulo() }}</h3>
+          <button (click)="fecharAmpliarFoto()" aria-label="Fechar foto ampliada" class="ps-ibtn">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-        <div class="p-2 flex-1 overflow-auto flex items-center justify-center bg-slate-950">
-          <img [src]="fotoAmpliadaUrl()" [alt]="fotoAmpliadaTitulo() || 'Foto ampliada em alta resolução'" class="max-w-full max-h-[70vh] rounded-lg object-contain shadow-lg" />
+        <div class="p-2 flex-1 overflow-auto flex items-center justify-center bg-[var(--bg-000)]">
+          <img [src]="fotoAmpliadaUrl()" [alt]="fotoAmpliadaTitulo() || 'Foto ampliada em alta resolução'" class="max-w-full max-h-[70vh] object-contain" />
         </div>
       </div>
     </div>
@@ -1062,28 +905,28 @@
 
   <!-- Modal de Liberação Rápida de Visitante -->
   @if (showLiberarModal()) {
-    <div class="fixed inset-0 z-[90] flex items-center justify-center bg-transparent p-4" (click)="fecharModalLiberar()">
-      <div class="w-full max-w-lg bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
+    <div class="ps-scrim on z-[90]" (click)="fecharModalLiberar()">
+      <div class="ps-drawer on" (click)="$event.stopPropagation()">
         
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-slate-200/60 dark:border-white/5 flex items-center justify-between bg-slate-50/[0.3] dark:bg-white/[0.01]">
+        <div class="ps-drawer-head">
           <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
             </svg>
-            <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Liberar Acesso de Visitante</h3>
+            <h3 class="ps-h2">Liberar Acesso de Visitante</h3>
           </div>
-          <button (click)="fecharModalLiberar()" class="text-slate-400 hover:text-slate-650 dark:hover:text-white transition">
+          <button (click)="fecharModalLiberar()" aria-label="Fechar" class="ps-ibtn">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
         <!-- Body -->
-        <div class="p-6 overflow-y-auto max-h-[70vh] flex-1">
+        <div class="ps-drawer-body">
           
           <!-- Alerts -->
           @if (erroLiberar()) {
-            <div class="mb-4 p-3.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200/40 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold rounded-xl flex items-start justify-between gap-2 animate-shake">
+            <div class="p-3.5 border border-[var(--line-200)] text-[var(--signal-danger)] text-xs font-medium flex items-start justify-between gap-2 animate-shake">
               <div class="flex items-start gap-2 min-w-0">
                 <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <span>{{ erroLiberar() }}</span>
@@ -1093,7 +936,7 @@
                   type="button"
                   (click)="carregarApartamentos()"
                   [disabled]="carregandoApartamentos()"
-                  class="shrink-0 px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  class="ps-btn ps-btn-sec ps-btn-sm shrink-0 cursor-pointer disabled:opacity-50"
                   title="Tentar carregar apartamentos novamente"
                 >
                   @if (carregandoApartamentos()) {
@@ -1108,7 +951,7 @@
             </div>
           }
           @if (sucessoLiberar()) {
-            <div class="mb-4 p-3.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/40 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-xl flex items-start gap-2">
+            <div class="p-3.5 border border-[var(--line-200)] text-[var(--signal-ok)] text-xs font-medium flex items-start gap-2">
               <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <span>{{ sucessoLiberar() }}</span>
             </div>
@@ -1117,13 +960,13 @@
           <!-- ETAPA 1: Pesquisa de Visitante -->
           @if (!pessoaSelecionada()) {
             <div>
-              <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Buscar Visitante Cadastrado</span>
+              <span class="ps-label block mb-1.5">Buscar Visitante Cadastrado</span>
               <div class="relative">
                 <input type="text" 
                        [(ngModel)]="buscaPessoa" 
                        (input)="onPesquisarPessoa()"
                        placeholder="Digite o nome ou CPF/RG do visitante..."
-                       class="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-slate-800 dark:text-white" />
+                       class="w-full h-10 pl-10 pr-4 text-sm bg-[var(--bg-200)] border border-[var(--line-200)] focus:outline-none focus:border-[var(--ink)] text-[var(--ink)]" />
                 <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
@@ -1143,10 +986,10 @@
                          tabindex="0"
                          (keydown.enter)="selecionarPessoa(p)"
                          (keydown.space)="$event.preventDefault(); selecionarPessoa(p)" (click)="selecionarPessoa(p)"
-                         class="flex items-center justify-between p-3 rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-50 hover:bg-accent/5 dark:bg-white/5 dark:hover:bg-accent/10 cursor-pointer transition-all active:scale-98">
+                         class="flex items-center justify-between p-3 border border-[var(--line-100)] bg-[var(--bg-200)] hover:bg-[var(--bg-300)] cursor-pointer transition-colors">
                       <div class="flex items-center gap-3">
                         <!-- Avatar -->
-                        <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-200 dark:bg-white/5 flex items-center justify-center flex-shrink-0 border border-slate-300 dark:border-white/10">
+                        <div class="w-10 h-10 rounded-full overflow-hidden bg-[var(--bg-300)] flex items-center justify-center flex-shrink-0 border border-[var(--line-200)]">
                           @if (p.foto_pessoa) {
                             <img [src]="p.foto_pessoa" [alt]="'Foto de ' + p.nome" class="w-full h-full object-cover" />
                           } @else {
@@ -1162,13 +1005,13 @@
                           </span>
                         </div>
                       </div>
-                      <div class="text-accent">
+                      <div class="text-[var(--ink-muted)]">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                       </div>
                     </div>
                   }
                 } @else if (buscaPessoa().trim().length >= 2) {
-                  <div class="py-8 text-center bg-slate-50/50 dark:bg-white/[0.02] rounded-xl border border-dashed border-slate-200 dark:border-white/5">
+                  <div class="py-8 text-center border border-dashed border-[var(--line-200)]">
                     <span class="text-xs text-slate-500 block mb-1">Nenhum visitante cadastrado com este termo</span>
                     <a routerLink="/visitantes" [queryParams]="{novo: 'true'}" (click)="fecharModalLiberar()"
                        class="text-xs text-accent hover:underline font-bold inline-flex items-center gap-1">
@@ -1189,9 +1032,9 @@
           @if (pessoaSelecionada()) {
             <div class="space-y-4">
               <!-- Card do Visitante Selecionado -->
-              <div class="flex items-center justify-between p-3.5 rounded-xl bg-accent/5 dark:bg-accent/10 border border-accent/15">
+              <div class="flex items-center justify-between p-3.5 bg-[var(--bg-200)] border border-[var(--line-100)]">
                 <div class="flex items-center gap-3">
-                  <div class="w-11 h-11 rounded-full overflow-hidden bg-slate-200 dark:bg-white/5 flex items-center justify-center border border-accent/25 flex-shrink-0">
+                  <div class="w-11 h-11 rounded-full overflow-hidden bg-[var(--bg-300)] flex items-center justify-center border border-[var(--line-200)] flex-shrink-0">
                     @if (pessoaSelecionada()?.foto_pessoa) {
                       <img [src]="pessoaSelecionada()?.foto_pessoa" [alt]="'Foto de ' + (pessoaSelecionada()?.nome || 'visitante')" class="w-full h-full object-cover" />
                     } @else {
@@ -1201,23 +1044,23 @@
                     }
                   </div>
                   <div class="text-left">
-                    <span class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Visitante</span>
+                    <span class="ps-label block">Visitante</span>
                     <span class="text-sm font-bold text-slate-800 dark:text-white block">{{ pessoaSelecionada()?.nome }}</span>
                     <span class="text-[10px] text-slate-500 dark:text-slate-400">{{ pessoaSelecionada()?.doc_identificacao }}</span>
                   </div>
                 </div>
                 <button (click)="pessoaSelecionada.set(null)"
-                        class="text-xs text-accent hover:text-accent-dark font-bold">
+                        class="ps-btn ps-btn-ghost ps-btn-sm">
                   Alterar
                 </button>
               </div>
 
               <!-- Seleção do Apartamento -->
               <div>
-                <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider" for="dashboard-page-apartamento-de-destino">Apartamento de Destino</label>
+                <label class="ps-label block mb-1.5" for="dashboard-page-apartamento-de-destino">Apartamento de Destino</label>
                 <select id="dashboard-page-apartamento-de-destino" [(ngModel)]="idApartamentoSelecionado"
                         aria-label="Apartamento de destino"
-                        class="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none focus:border-accent text-slate-800 dark:text-white">
+                        class="w-full h-10 px-3 text-sm bg-[var(--bg-200)] border border-[var(--line-200)] focus:outline-none focus:border-[var(--ink)] text-[var(--ink)]">
                   <option [value]="null" disabled selected>-- Selecione o Apartamento --</option>
                   @for (apt of apartamentos(); track apt.id) {
                     <option [value]="apt.id">
@@ -1230,18 +1073,18 @@
               <!-- Janela de validade -->
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider" for="dashboard-page-liberado-a-partir-de">Liberado a partir de</label>
+                  <label class="ps-label block mb-1.5" for="dashboard-page-liberado-a-partir-de">Liberado a partir de</label>
                   <input id="dashboard-page-liberado-a-partir-de" type="datetime-local" [(ngModel)]="liberarInicio"
-                    class="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none focus:border-accent text-slate-800 dark:text-white" />
+                    class="w-full h-10 px-3 text-sm bg-[var(--bg-200)] border border-[var(--line-200)] focus:outline-none focus:border-[var(--ink)] text-[var(--ink)]" />
                 </div>
                 <div>
-                  <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider" for="dashboard-page-liberado-ate">Liberado até</label>
+                  <label class="ps-label block mb-1.5" for="dashboard-page-liberado-ate">Liberado até</label>
                   <input id="dashboard-page-liberado-ate" type="datetime-local" [(ngModel)]="liberarTermino"
-                    class="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none focus:border-accent text-slate-800 dark:text-white" />
+                    class="w-full h-10 px-3 text-sm bg-[var(--bg-200)] border border-[var(--line-200)] focus:outline-none focus:border-[var(--ink)] text-[var(--ink)]" />
                 </div>
               </div>
 
-              <div class="pt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-white/5 p-3.5 rounded-xl border border-slate-200/40 dark:border-white/5">
+              <div class="pt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed bg-[var(--bg-200)] p-3.5 border border-[var(--line-100)]">
                 💡 **Ação de Liberação Rápida:** o visitante fica **pré-autorizado (Liberado)** na janela acima. A entrada real só é registrada quando ele passar no leitor facial; após o término, o aparelho nega sozinho.
               </div>
             </div>
@@ -1250,18 +1093,18 @@
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-end gap-2 bg-slate-50/[0.3] dark:bg-white/[0.01]">
+        <div class="ps-drawer-foot">
           <button (click)="fecharModalLiberar()"
                   [disabled]="liberandoVisitante()"
-                  class="px-4 py-2 text-xs font-bold text-slate-650 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors disabled:opacity-50">
+                  class="ps-btn ps-btn-sec ps-btn-sm">
             Cancelar
           </button>
           @if (pessoaSelecionada()) {
             <button (click)="confirmarLiberacao()"
                     [disabled]="liberandoVisitante() || !idApartamentoSelecionado()"
-                    class="px-5 py-2 text-xs font-bold text-white bg-accent hover:bg-accent/90 rounded-xl shadow-md shadow-accent/15 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center gap-1.5">
+                    class="ps-btn ps-btn-sm disabled:opacity-50 disabled:pointer-events-none">
               @if (liberandoVisitante()) {
-                <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <div class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
                 Liberando...
               } @else {
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -1277,35 +1120,35 @@
 
   <!-- Modal de Validação de PIN -->
   @if (showValidationModal()) {
-    <div class="fixed inset-0 z-[90] flex items-center justify-center bg-transparent p-4" (click)="fecharValidador()">
-      <div class="w-full max-w-md bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-fade-in flex flex-col relative" (click)="$event.stopPropagation()">
+    <div class="ps-scrim on z-[90]" (click)="fecharValidador()">
+      <div class="ps-drawer on" (click)="$event.stopPropagation()">
         
         @if (copiaSucessoTexto()) {
-          <div class="absolute top-16 left-1/2 -translate-x-1/2 px-3.5 py-1.5 bg-emerald-500 text-white text-[11px] font-bold rounded-full shadow-lg z-[100] animate-bounce flex items-center gap-1.5">
+          <div class="absolute top-16 left-1/2 -translate-x-1/2 px-3.5 py-1.5 bg-[var(--accent)] text-[var(--on-accent)] text-[11px] font-semibold z-[100] flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
             {{ copiaSucessoTexto() }}
           </div>
         }
 
         <!-- Header do Modal -->
-        <div class="px-6 py-4 border-b border-slate-200/60 dark:border-white/5 flex items-center justify-between bg-slate-50/[0.3] dark:bg-white/[0.01]">
+        <div class="ps-drawer-head">
           <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
             </svg>
-            <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Validar Acesso por PIN</h3>
+            <h3 class="ps-h2">Validar Acesso por PIN</h3>
           </div>
-          <button (click)="fecharValidador()" aria-label="Fechar validador PIN" class="text-slate-400 hover:text-slate-650 dark:hover:text-white transition">
+          <button (click)="fecharValidador()" aria-label="Fechar validador PIN" class="ps-ibtn">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
-        <div class="p-6 space-y-4">
+        <div class="ps-drawer-body">
           <!-- Input do PIN -->
           @if (!validationResult()) {
             <div>
               <label class="block mb-2">
-                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1.5 uppercase tracking-wider">Digite o código PIN (6 dígitos)</span>
+                <span class="ps-label block mb-1.5">Digite o código PIN (6 dígitos)</span>
                 <div class="flex gap-2">
                   <input
                     type="text"
@@ -1313,13 +1156,13 @@
                     [ngModel]="pinCode()"
                     (ngModelChange)="pinCode.set($event)"
                     (keyup.enter)="validarPIN()"
-                    class="flex-1 px-4 py-2.5 text-lg font-mono text-center tracking-widest rounded-xl bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-white/10 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition" />
+                    class="flex-1 min-w-0 h-12 px-4 text-lg font-mono text-center tracking-widest bg-[var(--bg-200)] border border-[var(--line-200)] text-[var(--ink)] focus:outline-none focus:border-[var(--ink)]" />
                   <button
                     (click)="validarPIN()"
                     [disabled]="validating() || !pinCode()"
-                    class="px-5 rounded-xl font-bold text-xs uppercase text-white bg-emerald-500 hover:bg-emerald-600 active:scale-95 transition disabled:opacity-55 flex items-center justify-center gap-2">
+                    class="ps-btn !h-12 disabled:opacity-50">
                     @if (validating()) {
-                      <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <div class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
                     } @else {
                       Buscar
                     }
@@ -1331,7 +1174,7 @@
 
           <!-- Erro de Validação -->
           @if (validationError()) {
-            <div class="p-3.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200/40 dark:border-rose-500/20 text-rose-600 dark:text-rose-450 text-xs font-semibold rounded-xl flex items-start gap-2 animate-shake">
+            <div class="p-3.5 border border-[var(--line-200)] text-[var(--signal-danger)] text-xs font-medium flex items-start gap-2 animate-shake">
               <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <span>{{ validationError() }}</span>
             </div>
@@ -1340,34 +1183,23 @@
           <!-- Resultado da Validação -->
           @if (validationResult()) {
             <div class="space-y-4 animate-fade-in">
-              <div class="p-4 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/10 space-y-3">
+              <div class="p-4 bg-[var(--bg-200)] border border-[var(--line-100)] space-y-3">
                 <div class="flex items-center justify-between">
-                  <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Acesso Autorizado</span>
+                  <span class="ps-label">Acesso Autorizado</span>
                   
                   <!-- Tag de Vigência -->
-                  <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider"
-                        [class.bg-emerald-500/10]="validationResult().status_vigencia === 'ATIVO'"
-                        [class.text-emerald-500]="validationResult().status_vigencia === 'ATIVO'"
-                        [class.border]="validationResult().status_vigencia === 'ATIVO'"
-                        [class.border-emerald-550/20]="validationResult().status_vigencia === 'ATIVO'"
-                        [class.bg-amber-500/10]="validationResult().status_vigencia === 'FUTURO'"
-                        [class.text-amber-500]="validationResult().status_vigencia === 'FUTURO'"
-                        [class.border]="validationResult().status_vigencia === 'FUTURO'"
-                        [class.border-amber-500/20]="validationResult().status_vigencia === 'FUTURO'"
-                        [class.bg-red-500/10]="validationResult().status_vigencia === 'EXPIRADO'"
-                        [class.text-red-500]="validationResult().status_vigencia === 'EXPIRADO'"
-                        [class.border]="validationResult().status_vigencia === 'EXPIRADO'"
-                        [class.border-red-500/20]="validationResult().status_vigencia === 'EXPIRADO'">
+                  <span class="ps-tag">
+                    <span class="ps-dot" [class.ps-dot-ok]="validationResult().status_vigencia === 'ATIVO'" [class.ps-dot-warn]="validationResult().status_vigencia === 'FUTURO'" [class.ps-dot-danger]="validationResult().status_vigencia === 'EXPIRADO'"></span>
                     {{ validationResult().status_vigencia }}
                   </span>
                 </div>
                 
                 <div class="flex items-center gap-3">
-                  <div class="w-11 h-11 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden">
+                  <div class="w-11 h-11 rounded-full bg-[var(--bg-300)] border border-[var(--line-200)] flex items-center justify-center shrink-0 overflow-hidden">
                     @if (validationResult().foto_pessoa) {
                       <img [src]="validationResult().foto_pessoa" [alt]="'Foto de ' + validationResult().nome" class="w-full h-full object-cover" />
                     } @else {
-                      <span class="text-xs font-bold text-accent">{{ iniciais(validationResult().nome) }}</span>
+                      <span class="text-xs font-semibold">{{ iniciais(validationResult().nome) }}</span>
                     }
                   </div>
                   <div class="flex-1 min-w-0">
@@ -1375,7 +1207,7 @@
                          role="button"
                          tabindex="0"
                          (keydown.enter)="copiarTexto(validationResult().nome, 'Nome')"
-                         (keydown.space)="$event.preventDefault(); copiarTexto(validationResult().nome, 'Nome')" class="flex items-center gap-1.5 group cursor-pointer hover:bg-slate-200/50 dark:hover:bg-white/5 px-2 py-1 -mx-2 rounded-lg transition"
+                         (keydown.space)="$event.preventDefault(); copiarTexto(validationResult().nome, 'Nome')" class="flex items-center gap-1.5 group cursor-pointer hover:bg-[var(--accent-ghost)] px-2 py-1 -mx-2 transition"
                          (click)="copiarTexto(validationResult().nome, 'Nome')"
                          title="Clique para copiar o Nome">
                       <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight truncate">{{ validationResult().nome }}</h4>
@@ -1386,7 +1218,7 @@
                     <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
                       @if (validationResult().doc_identificacao) {
                         <button (click)="copiarTexto(validationResult().doc_identificacao, 'Documento')"
-                                class="flex items-center gap-1 text-xs font-mono font-semibold text-slate-550 dark:text-slate-400 hover:text-accent transition hover:bg-slate-200/50 dark:hover:bg-white/5 px-1.5 py-0.5 -mx-1.5 rounded-md"
+                                class="flex items-center gap-1 text-xs font-mono font-semibold text-slate-550 dark:text-slate-400 hover:text-[var(--ink)] transition hover:bg-[var(--accent-ghost)] px-1.5 py-0.5 -mx-1.5"
                                 title="Clique para copiar o Documento">
                           <span class="text-[10px] text-slate-400 dark:text-slate-500 font-sans font-normal uppercase">Doc:</span>
                           <span>{{ validationResult().doc_identificacao }}</span>
@@ -1398,13 +1230,7 @@
                         <span class="text-xs font-mono font-semibold text-slate-550 dark:text-slate-400">Sem documento</span>
                       }
                       <span class="text-slate-400">·</span>
-                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider uppercase"
-                            [class.text-accent]="validationResult().is_visitante === 1"
-                            [class.bg-accent/10]="validationResult().is_visitante === 1"
-                            [class.border-accent/20]="validationResult().is_visitante === 1"
-                            [class.text-amber-500]="validationResult().is_prestador === 1"
-                            [class.bg-amber-500/10]="validationResult().is_prestador === 1"
-                            [class.border-amber-500/20]="validationResult().is_prestador === 1">
+                      <span class="ps-tag">
                         {{ validationResult().is_prestador === 1 ? 'Prestador' : 'Visitante' }}
                       </span>
                     </div>
@@ -1431,16 +1257,16 @@
               <div class="flex gap-2">
                 <button
                   (click)="fecharValidador()"
-                  class="flex-1 py-2 rounded-xl font-bold text-xs uppercase text-slate-650 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-50 hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-transparent active:scale-95 transition-all">
+                  class="ps-btn ps-btn-sec flex-1">
                   Cancelar
                 </button>
                 <button
                   (click)="confirmarEntradaPIN()"
                   [disabled]="checkingIn() || validationResult().status_vigencia === 'EXPIRADO'"
-                  [ngClass]="validationResult().data_entrada ? 'bg-rose-500 hover:bg-rose-600 shadow-lg shadow-rose-500/10' : 'bg-emerald-500 hover:bg-emerald-600'"
-                  class="flex-1 py-2 rounded-xl font-bold text-xs uppercase text-white active:scale-95 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                  [ngClass]="validationResult().data_entrada ? 'ps-btn-danger' : ''"
+                  class="ps-btn flex-1 disabled:opacity-50">
                   @if (checkingIn()) {
-                    <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <div class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
                     Registrando...
                   } @else {
                     {{ validationResult().data_entrada ? 'Confirmar Saída' : 'Confirmar Entrada' }}
@@ -1457,17 +1283,17 @@
 
   <!-- Modal de Dar Baixa Rápida -->
   @if (showBaixaModal()) {
-    <div class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/30 dark:bg-black/50 backdrop-blur-[2px] p-4" (click)="fecharModalBaixa()">
-      <div class="w-full max-w-lg bg-white dark:bg-graphite-200 border border-slate-200/70 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[85vh]" (click)="$event.stopPropagation()">
+    <div class="ps-scrim on z-[90]" (click)="fecharModalBaixa()">
+      <div class="ps-drawer on" (click)="$event.stopPropagation()">
 
-        <header class="px-6 py-4 border-b border-slate-200/70 dark:border-white/10 flex items-start justify-between gap-4">
+        <header class="ps-drawer-head !items-start gap-4">
           <div class="flex items-start gap-3">
-            <div class="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 shrink-0">
+            <div class="w-9 h-9 border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
             </div>
             <div>
-              <h3 class="text-base font-semibold text-slate-800 dark:text-white">Registrar saída</h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400">
+              <h3 class="ps-h2">Registrar saída</h3>
+              <p class="text-sm text-[var(--ink-muted)] mt-1">
                 @if (carregandoBaixa()) {
                   Carregando quem está no condomínio…
                 } @else {
@@ -1476,26 +1302,26 @@
               </p>
             </div>
           </div>
-          <button (click)="fecharModalBaixa()" aria-label="Fechar" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
+          <button (click)="fecharModalBaixa()" aria-label="Fechar" class="ps-ibtn shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </header>
 
-        <div class="p-6 space-y-4 overflow-y-auto">
+        <div class="ps-drawer-body">
           @if (pessoasNoLocal().length > 0) {
             <div class="relative">
               <input type="text" placeholder="Buscar por nome ou documento"
                 [ngModel]="buscaPessoaBaixa()" (ngModelChange)="buscaPessoaBaixa.set($event)"
-                class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-white/10 text-slate-800 dark:text-white placeholder:text-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-accent/25 focus:border-accent transition" />
+                class="w-full h-10 pl-10 pr-4 bg-[var(--bg-200)] border border-[var(--line-200)] text-[var(--ink)] placeholder:text-[var(--ink-subtle)] text-sm focus:outline-none focus:border-[var(--ink)]" />
               <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
           }
 
           @if (erroBaixa()) {
-            <div class="p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 text-rose-700 dark:text-rose-300 text-sm rounded-xl">{{ erroBaixa() }}</div>
+            <div class="p-3 border border-[var(--line-200)] text-[var(--signal-danger)] text-sm">{{ erroBaixa() }}</div>
           }
           @if (sucessoBaixa()) {
-            <div class="p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/60 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-sm rounded-xl">{{ sucessoBaixa() }}</div>
+            <div class="p-3 border border-[var(--line-200)] text-[var(--signal-ok)] text-sm">{{ sucessoBaixa() }}</div>
           }
 
           @if (carregandoBaixa()) {
@@ -1504,7 +1330,7 @@
             </div>
           } @else if (filtradasBaixa().length === 0) {
             <div class="flex flex-col items-center text-center py-10 gap-2">
-              <div class="w-11 h-11 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400">
+              <div class="w-11 h-11 rounded-full border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)]">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
               </div>
               <p class="text-sm font-medium text-slate-600 dark:text-slate-300">{{ mensagemVaziaBaixa() }}</p>
@@ -1515,9 +1341,9 @@
           } @else {
             <ul class="space-y-2">
               @for (p of filtradasBaixa(); track p.id) {
-                <li class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200/70 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 transition">
+                <li class="flex items-center justify-between gap-3 p-3 border border-[var(--line-100)] bg-[var(--bg-200)] transition-colors">
                   <div class="flex items-center gap-3 min-w-0">
-                    <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                    <div class="w-10 h-10 rounded-full bg-[var(--bg-300)] border border-[var(--line-200)] flex items-center justify-center overflow-hidden shrink-0">
                       @if (p.foto_pessoa) {
                         <img [src]="p.foto_pessoa" [alt]="'Foto de ' + p.nome" class="w-full h-full object-cover" />
                       } @else {
@@ -1534,7 +1360,7 @@
                     </div>
                   </div>
                   <button (click)="confirmarBaixa(p)" [disabled]="registrandoSaida()"
-                    class="px-3.5 py-2 text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 rounded-lg transition active:scale-95 disabled:opacity-50 shrink-0">
+                    class="ps-btn ps-btn-danger ps-btn-sm shrink-0 disabled:opacity-50">
                     Dar baixa
                   </button>
                 </li>
@@ -1543,8 +1369,8 @@
           }
         </div>
 
-        <footer class="px-6 py-3.5 border-t border-slate-200/70 dark:border-white/10 flex justify-end">
-          <button (click)="fecharModalBaixa()" class="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition">Fechar</button>
+        <footer class="ps-drawer-foot">
+          <button (click)="fecharModalBaixa()" class="ps-btn ps-btn-sec">Fechar</button>
         </footer>
       </div>
     </div>
