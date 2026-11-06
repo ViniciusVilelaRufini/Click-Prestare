@@ -67,10 +67,14 @@ dev_dependencies:
 flutter_native_splash:
   color: "#000000"
   color_dark: "#000000"
-  image: assets/images/splash_logo.png
+  # Sem imagem: a nativa é só preto e passa direto para a abertura animada
+  # (PrestareSplashAnimation). O Android 12+ exige ícone, daí o PNG todo preto.
+  web: false
   android_12:
-    image: assets/images/splash_android12.png
+    image: assets/images/splash_android12_preto.png
+    image_dark: assets/images/splash_android12_preto.png
     icon_background_color: "#000000"
+    icon_background_color_dark: "#000000"
     color: "#000000"
     color_dark: "#000000"
 

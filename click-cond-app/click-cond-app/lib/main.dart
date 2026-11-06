@@ -8,6 +8,7 @@ import 'package:click/theme/theme_controller.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/localstorage_config.dart';
 import 'package:click/utils/navigation_service.dart';
+import 'package:click/widgets/app/prestare_splash_animation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -135,15 +136,10 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (!_ready) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(),
-        darkTheme: AppTheme.dark(),
-        home: const Scaffold(body: Center(child: CircularProgressIndicator())),
-      );
-    }
+    return PrestareSplashGate(appPronto: _ready, builder: _construirApp);
+  }
 
+  Widget _construirApp(BuildContext context) {
     return MaterialApp(
       navigatorKey: NavigationService.navigatorKey,
       localizationsDelegates: const [
