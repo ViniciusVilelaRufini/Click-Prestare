@@ -4,14 +4,13 @@ import 'package:click/pages/sindico/forgot_password.dart';
 import 'package:click/pages/sindico/mfa_verification_page.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
-import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
-import 'package:click/widgets/app/grid_background.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:click/services/firebase_service.dart';
@@ -245,8 +244,8 @@ class _LoginSindicoPageState extends State<LoginSindico> {
 
   IconData _typeIcon() {
     switch (widget.loginType) {
-      case 'sindico': return PhosphorIcons.shieldCheckBold;
-      case 'morador': return PhosphorIcons.houseFill;
+      case 'sindico': return PhosphorIcons.shieldCheck;
+      case 'morador': return PhosphorIcons.house;
       default: return PhosphorIcons.identificationCard;
     }
   }
@@ -263,153 +262,117 @@ class _LoginSindicoPageState extends State<LoginSindico> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: isDark
-                      ? [const Color(0xFF0A1628), const Color(0xFF04060A)]
-                      : [const Color(0xFFFFFFFF), const Color(0xFFEEF4FD)],
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: ConstrainedBox(
+                // Altura mínima de tela cheia para o Spacer ter o que
+                // distribuir: gruda o copyright na base quando sobra espaço,
+                // sem quebrar o scroll com o teclado aberto.
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 24,
                 ),
-              ),
-            ),
-          ),
-          const Positioned.fill(child: GridBackground()),
-          Positioned.fill(
-            child: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xxl,
-                      vertical: AppSpacing.sm,
-                    ),
-                    child: ConstrainedBox(
-                      // Garante altura mínima de tela cheia para o Spacer ter o
-                      // que distribuir — é o que gruda o copyright na base
-                      // quando sobra espaço, sem quebrar o scroll com teclado.
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight - AppSpacing.sm * 2,
-                      ),
-                      child: IntrinsicHeight(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: _buildBackButton(context),
-                            ),
-                            const SizedBox(height: AppSpacing.xxl),
-                            _buildBrand(context),
-                            const SizedBox(height: AppSpacing.xxl),
-                            _buildFormCard(context),
-                            const Spacer(),
-                            const SizedBox(height: AppSpacing.xl),
-                            Text(
-                              '© 2026 Prestare Gestão e Tecnologia.',
-                              style: AppTypography.tiny(context).copyWith(
-                                color: AppColors.textTertiary(context),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                          ],
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        height: 56,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _buildBackButton(context),
                         ),
                       ),
-                    ),
-                  );
-                },
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildBrand(context),
+                      const SizedBox(height: 32),
+                      _buildFormCard(context),
+                      const Spacer(),
+                      const SizedBox(height: AppSpacing.xl),
+                      Text(
+                        '© 2026 Prestare Gestão e Tecnologia.',
+                        style: GoogleFonts.barlow(
+                          fontSize: 12,
+                          height: 16 / 12,
+                          color: AppColors.textTertiary(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ),
     );
   }
 
+  /// `.label`: Barlow Condensed 11/14, +0.2em, maiúsculas.
+  TextStyle _rotulo(BuildContext context, {Color? color}) {
+    return GoogleFonts.barlowCondensed(
+      fontSize: 11,
+      height: 14 / 11,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 11 * 0.2,
+      color: color ?? AppColors.textTertiary(context),
+    );
+  }
+
+  /// `.iconbtn`: quadrado de 40px com contorno line-100.
   Widget _buildBackButton(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.full),
-      child: Material(
-        color: AppColors.surfaceElevated(context),
-        child: InkWell(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border(context), width: 1.2),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              PhosphorIcons.caretLeft,
-              color: AppColors.textPrimary(context),
-              size: 20,
-            ),
-          ),
+    return InkWell(
+      onTap: () => Navigator.pop(context),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border(context)),
+        ),
+        child: Icon(
+          PhosphorIcons.caretLeft,
+          color: AppColors.textPrimary(context),
+          size: 18,
         ),
       ),
     );
   }
 
-  /// Marca compacta: a mesma logo em cartão branco da tela de entrada, menor,
-  /// para o usuário não perder a referência de onde está.
+  /// Marca compacta: logo monocromática e o nome em Barlow Condensed, para o
+  /// usuário não perder a referência de onde está.
   Widget _buildBrand(BuildContext context) {
-    final marca = AppTypography.title(context).copyWith(
-      fontSize: 20,
-      fontWeight: FontWeight.w800,
-      letterSpacing: 0.8,
-    );
-
+    final tinta = AppColors.textPrimary(context);
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.08),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.16),
-                blurRadius: 22,
-                spreadRadius: -4,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            child: Image.asset(
-              'assets/images/logo_prestare_gestao.png',
-              width: 68,
-              height: 68,
-              fit: BoxFit.cover,
-            ),
-          ),
+        Image.asset(
+          'assets/images/logo_prestare_mono.png',
+          height: 48,
+          color: tinta,
+          colorBlendMode: BlendMode.srcIn,
+          fit: BoxFit.contain,
         ),
-        const SizedBox(width: AppSpacing.md),
+        const SizedBox(width: AppSpacing.lg),
         Flexible(
           child: Text.rich(
             TextSpan(
               children: [
-                TextSpan(text: 'PRESTARE ', style: marca),
+                const TextSpan(text: 'PRESTARE\n'),
                 TextSpan(
                   text: 'GESTÃO',
-                  style: marca.copyWith(color: AppColors.primary),
+                  style: TextStyle(fontWeight: FontWeight.w300, color: tinta),
                 ),
               ],
+            ),
+            style: GoogleFonts.barlowCondensed(
+              fontSize: 28,
+              height: 28 / 28,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 28 * 0.06,
+              color: tinta,
             ),
           ),
         ),
@@ -418,171 +381,174 @@ class _LoginSindicoPageState extends State<LoginSindico> {
   }
 
   Widget _buildFormCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-        border: Border.all(color: AppColors.border(context), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 24,
-            spreadRadius: -6,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Selo do perfil: repete ícone e texto do cartão que trouxe o
-          // usuário até aqui, para a navegação não parecer um salto.
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppRadius.full),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(_typeIcon(), size: 15, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  Text(
-                    _typeLabel(),
-                    style: AppTypography.tiny(context).copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
+    final cinza = AppColors.textTertiary(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Selo do perfil (`.tag`): repete ícone e texto do item que trouxe o
+        // usuário até aqui, para a navegação não parecer um salto.
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            height: 22,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.borderStrong(context)),
+              borderRadius: BorderRadius.circular(2),
             ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text('Entrar', style: AppTypography.title(context)),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            _typeSubtitle(),
-            style: AppTypography.caption(context),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          if (_hasSavedCredentials) ...[
-            AppButton(
-              label: 'Entrar com $_biometricLabel',
-              icon: PhosphorIcons.scan,
-              loading: _isBiometricAuthenticating,
-              variant: AppButtonVariant.primary,
-              onPressed: () => _loginWithBiometrics(),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Row(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(child: Divider(color: AppColors.border(context))),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  child: Text(
-                    'ou acesse com sua senha',
-                    style: AppTypography.tiny(context).copyWith(
-                      color: AppColors.textTertiary(context),
-                    ),
+                Icon(_typeIcon(),
+                    size: 13, color: AppColors.textSecondary(context)),
+                const SizedBox(width: 6),
+                Text(
+                  _typeLabel().toUpperCase(),
+                  style: GoogleFonts.barlowCondensed(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 10 * 0.18,
+                    color: AppColors.textSecondary(context),
                   ),
                 ),
-                Expanded(child: Divider(color: AppColors.border(context))),
               ],
             ),
-            const SizedBox(height: AppSpacing.md),
-          ],
-          AppInput(
-            label: widget.loginType == 'morador'
-                ? 'CPF ou E-mail'
-                : widget.loginType == 'funcionario'
-                    ? 'Usuário ou E-mail'
-                    : getText('email'),
-            controller: _txtLogin,
-            keyboard: widget.loginType == 'morador'
-                ? TextInputType.text
-                : TextInputType.emailAddress,
-            prefixIcon: widget.loginType == 'morador'
-                ? PhosphorIcons.identificationCard
-                : PhosphorIcons.envelope,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text(
+          'ENTRAR',
+          style: GoogleFonts.barlowCondensed(
+            fontSize: 22,
+            height: 26 / 22,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 22 * 0.1,
+            color: AppColors.textPrimary(context),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          _typeSubtitle(),
+          style: GoogleFonts.barlow(
+            fontSize: 14,
+            height: 20 / 14,
+            color: AppColors.textSecondary(context),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xxl),
+        if (_hasSavedCredentials) ...[
+          AppButton(
+            label: 'Entrar com $_biometricLabel',
+            icon: PhosphorIcons.scan,
+            loading: _isBiometricAuthenticating,
+            variant: AppButtonVariant.primary,
+            onPressed: () => _loginWithBiometrics(),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(child: Divider(color: AppColors.border(context))),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: Text(
+                  'ou acesse com sua senha'.toUpperCase(),
+                  style: _rotulo(context, color: cinza),
+                ),
+              ),
+              Expanded(child: Divider(color: AppColors.border(context))),
+            ],
           ),
           const SizedBox(height: AppSpacing.md),
-          AppInput(
-            label: getText('senha'),
-            controller: _txtSenha,
-            isPassword: true,
-            prefixIcon: PhosphorIcons.lock,
+        ],
+        AppInput(
+          label: widget.loginType == 'morador'
+              ? 'CPF ou E-mail'
+              : widget.loginType == 'funcionario'
+                  ? 'Usuário ou E-mail'
+                  : getText('email'),
+          controller: _txtLogin,
+          keyboard: widget.loginType == 'morador'
+              ? TextInputType.text
+              : TextInputType.emailAddress,
+          prefixIcon: widget.loginType == 'morador'
+              ? PhosphorIcons.identificationCard
+              : PhosphorIcons.envelope,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        AppInput(
+          label: getText('senha'),
+          controller: _txtSenha,
+          isPassword: true,
+          prefixIcon: PhosphorIcons.lock,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.textPrimary(context),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.sm,
+              ),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ForgotPassword(loginType: widget.loginType),
+                ),
+              );
+            },
+            child: Text(
+              getText('login_btn_esqueci_senha'),
+              style: GoogleFonts.barlow(
+                fontSize: 12,
+                height: 16 / 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary(context),
+                decoration: TextDecoration.underline,
+                decorationColor: AppColors.borderStrong(context),
+              ),
+            ),
           ),
-          const SizedBox(height: AppSpacing.xs),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AppButton(
+          label: getText('login_btn_entrar'),
+          loading: _isLoading,
+          trailingIcon: PhosphorIcons.arrowRight,
+          onPressed: _doLogin,
+        ),
+        if (_hasSavedCredentials) ...[
+          const SizedBox(height: AppSpacing.md),
+          Center(
+            child: TextButton.icon(
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
+                foregroundColor: cinza,
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
                 ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ForgotPassword(loginType: widget.loginType),
-                  ),
-                );
-              },
-              child: Text(
-                getText('login_btn_esqueci_senha'),
-                style: AppTypography.tiny(context).copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w600,
+              icon: const Icon(PhosphorIcons.trash, size: 14),
+              label: Text(
+                'Desvincular $_biometricLabel deste aparelho',
+                style: GoogleFonts.barlow(
+                  fontSize: 12,
+                  height: 16 / 12,
+                  color: cinza,
                 ),
               ),
+              onPressed: _forgetBiometrics,
             ),
           ),
-          const SizedBox(height: AppSpacing.lg),
-          AppButton(
-            label: getText('login_btn_entrar'),
-            loading: _isLoading,
-            trailingIcon: PhosphorIcons.arrowRight,
-            onPressed: _doLogin,
-          ),
-          if (_hasSavedCredentials) ...[
-            const SizedBox(height: AppSpacing.md),
-            Center(
-              child: TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.textTertiary(context),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                icon: const Icon(PhosphorIcons.trash, size: 14),
-                label: Text(
-                  'Desvincular $_biometricLabel deste aparelho',
-                  style: AppTypography.tiny(context).copyWith(
-                    color: AppColors.textTertiary(context),
-                  ),
-                ),
-                onPressed: _forgetBiometrics,
-              ),
-            ),
-          ],
         ],
-      ),
+      ],
     );
   }
 }
