@@ -151,22 +151,8 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                         vertical: 18,
                       ),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppColors.primaryGradientStart,
-                            AppColors.primaryGradientEnd,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.28),
-                            blurRadius: 14,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: Row(
                         children: [
@@ -175,7 +161,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                             height: 44,
                             decoration: BoxDecoration(
                               color: AppColors.onPrimary.withValues(alpha: 0.20),
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
                                 color: AppColors.onPrimary.withValues(alpha: 0.25),
                               ),
@@ -192,7 +178,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Sua privacidade',
+                                  'Sua privacidade'.toUpperCase(),
                                   style: AppTypography.headline(context).copyWith(
                                     color: AppColors.onPrimary,
                                     fontWeight: FontWeight.bold,
@@ -299,8 +285,8 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                   border: Border(
                     top: BorderSide(
                       color: isDark
-                          ? Colors.white10
-                          : const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+                          ? AppColors.border(context)
+                          : AppColors.border(context).withValues(alpha: 0.6),
                     ),
                   ),
                 ),
@@ -346,7 +332,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                         elevation: 0,
                         minimumSize: const Size(double.infinity, 50),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.zero,
                         ),
                       ),
                       child: _enviando
@@ -372,7 +358,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                     TextButton(
                       onPressed: _enviando ? null : _recusar,
                       child: Text(
-                        'Recusar e sair',
+                        'Recusar e sair'.toUpperCase(),
                         style: AppTypography.body(context).copyWith(
                           color: AppColors.textSecondary(context),
                           fontSize: 13.5,
@@ -401,10 +387,10 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF131D2E) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
-          color: isDark ? Colors.white10 : const Color(0xFFEDF2F7),
+          color: isDark ? AppColors.border(context) : AppColors.border(context),
         ),
       ),
       child: Row(
@@ -415,10 +401,8 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
             height: 36,
             margin: const EdgeInsets.only(top: 2),
             decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1E3A8A).withValues(alpha: 0.4)
-                  : const Color(0xFFEFF6FF),
-              borderRadius: BorderRadius.circular(10),
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.zero,
             ),
             child: Icon(
               icone,
@@ -472,12 +456,12 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF131D2E) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: valor
                 ? AppColors.primary
-                : (isDark ? Colors.white24 : const Color(0xFFCBD5E1)),
+                : (isDark ? AppColors.borderStrong(context) : AppColors.borderStrong(context)),
             width: valor ? 1.5 : 1,
           ),
         ),
@@ -503,8 +487,8 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                     obrigatorio ? 'Obrigatório' : 'Opcional',
                     style: TextStyle(
                       color: obrigatorio
-                          ? const Color(0xFFEF4444)
-                          : const Color(0xFF64748B),
+                          ? AppColors.error
+                          : AppColors.textTertiary(context),
                       fontWeight: FontWeight.bold,
                       fontSize: 11.5,
                       letterSpacing: 0.4,

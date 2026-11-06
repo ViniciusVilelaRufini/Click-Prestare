@@ -131,7 +131,7 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
       isScrollControlled: true,
       backgroundColor: AppColors.bg(context),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.zero),
       ),
       builder: (c) => _OptionSheet(
         title: 'Aparência',
@@ -168,7 +168,7 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
       isScrollControlled: true,
       backgroundColor: AppColors.bg(context),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.zero),
       ),
       builder: (c) {
         final cur = LocalStorageConfig.instance.getPreferenceLanguage();
@@ -202,7 +202,7 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
       isScrollControlled: true,
       backgroundColor: AppColors.bg(context),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.zero),
       ),
       builder: (c) {
         _OptionItem opt(String symbol, String label) => _OptionItem(
@@ -580,7 +580,7 @@ class _OptionSheet extends StatelessWidget {
               ),
             ),
             AppSpacing.gapLg,
-            Text(title, style: AppTypography.title(context)),
+            Text(title.toUpperCase(), style: AppTypography.title(context)),
             AppSpacing.gapLg,
             ...items.map((it) => Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),

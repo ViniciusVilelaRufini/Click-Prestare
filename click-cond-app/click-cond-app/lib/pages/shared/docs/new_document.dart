@@ -66,7 +66,7 @@ class _NewDocumentPageState extends State<NewDocument> {
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.surface(context),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.zero,
                 border: Border.all(color: AppColors.border(context)),
               ),
               child: uploadFile(

@@ -145,7 +145,7 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceElevated(context),
+                        color: AppColors.surface(context),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: AppColors.border(context).withValues(alpha: 0.5),
@@ -244,7 +244,7 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
                           decoration: BoxDecoration(
                             color: _aceitouTermos
                                 ? AppColors.primary.withValues(alpha: 0.08)
-                                : AppColors.surfaceElevated(context),
+                                : AppColors.surface(context),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
                               color: _aceitouTermos
@@ -259,7 +259,6 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
                               Checkbox(
                                 value: _aceitouTermos,
                                 onChanged: (v) => setState(() => _aceitouTermos = v ?? false),
-                                activeColor: AppColors.primary,
                                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               const SizedBox(width: 8),

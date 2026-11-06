@@ -80,6 +80,6 @@ void main() {
 
   testWidgets('oferece sair sem aceitar', (tester) async {
     await tester.pumpWidget(montar());
-    expect(find.text('Recusar e sair'), findsOneWidget);
+    expect(find.text('RECUSAR E SAIR'), findsOneWidget);
   });
 }

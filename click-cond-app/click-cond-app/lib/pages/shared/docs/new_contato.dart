@@ -135,7 +135,7 @@ class _NewContatoPageState extends State<NewContato> {
                       color: selecionada
                           ? AppColors.primary
                           : AppColors.surface(context),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.zero,
                       border: Border.all(
                         color: selecionada
                             ? AppColors.primary

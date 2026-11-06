@@ -148,7 +148,7 @@ class _ListDocsPageState extends State<ListDocs> {
                                 ? AppColors.primary 
                                 : AppColors.textTertiary(context).withValues(alpha: 0.15),
                           ),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         ),
                       ),
                       ...months.map((m) {
@@ -176,7 +176,7 @@ class _ListDocsPageState extends State<ListDocs> {
                                   ? AppColors.primary 
                                   : AppColors.textTertiary(context).withValues(alpha: 0.15),
                             ),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                           ),
                         );
                       }),
@@ -263,12 +263,12 @@ class _DocCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
         child: Row(
           children: [
             Container(
               width: 44, height: 44,
-              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.zero),
               child: Icon(icon ?? PhosphorIcons.filePdf, color: AppColors.primary, size: 22),
             ),
             const SizedBox(width: AppSpacing.md),

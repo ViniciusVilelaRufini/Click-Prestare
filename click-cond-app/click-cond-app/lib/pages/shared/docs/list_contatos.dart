@@ -130,7 +130,7 @@ class _ListContatosPageState extends State<ListContatos> {
                       contentPadding:
                           const EdgeInsets.symmetric(vertical: 12),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -230,7 +230,7 @@ class _ContatoCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(
           children: [
@@ -239,7 +239,7 @@ class _ContatoCard extends StatelessWidget {
               height: 44,
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.zero,
               ),
               alignment: Alignment.center,
               child: Text(

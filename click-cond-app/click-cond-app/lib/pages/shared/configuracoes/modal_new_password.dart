@@ -73,7 +73,7 @@ class _ModalNewPasswordState extends State<ModalNewPassword> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       backgroundColor: AppColors.bg(context),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -84,7 +84,7 @@ class _ModalNewPasswordState extends State<ModalNewPassword> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(getText('config_nova_senha'),
+                Text((getText('config_nova_senha')).toUpperCase(),
                     style: AppTypography.title(context)),
                 IconButton(
                   onPressed: () => Navigator.pop(context),

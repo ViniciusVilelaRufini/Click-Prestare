@@ -167,7 +167,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         Switch.adaptive(
           value: value,
           onChanged: onChanged,
-          activeColor: AppColors.primary,
         ),
       ],
     );
