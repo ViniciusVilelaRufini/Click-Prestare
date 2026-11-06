@@ -9,6 +9,7 @@ import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
+import 'package:click/widgets/app/powered_by_aws.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -376,6 +377,8 @@ class _LoginSindicoPageState extends State<LoginSindico> {
             ),
           ),
         ),
+        const SizedBox(width: AppSpacing.md),
+        const Flexible(child: PoweredByAws(height: 18)),
       ],
     );
   }

@@ -4,6 +4,7 @@ import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/theme_controller.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/widgets/app/powered_by_aws.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -164,12 +165,18 @@ class _HomePageState extends State<HomePage> {
       children: [
         // O PNG é branco sobre transparente; `srcIn` pinta com a cor do texto,
         // então no tema claro vira preto.
-        Image.asset(
-          'assets/images/logo_prestare_mono.png',
-          height: 72,
-          color: tinta,
-          colorBlendMode: BlendMode.srcIn,
-          fit: BoxFit.contain,
+        Row(
+          children: [
+            Image.asset(
+              'assets/images/logo_prestare_mono.png',
+              height: 72,
+              color: tinta,
+              colorBlendMode: BlendMode.srcIn,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(width: 18),
+            const Flexible(child: PoweredByAws(height: 26)),
+          ],
         ),
         const SizedBox(height: 24),
         Text.rich(
