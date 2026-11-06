@@ -18,19 +18,23 @@ import { ThemeService } from '../shared/theme.service';
   template: `
     <div
       class="min-h-screen app-bg flex items-center justify-center p-6 font-sans transition-colors duration-500"
-      [ngClass]="isLight() ? 'light' : ''"
     >
-      <div class="w-full max-w-md">
-        <div class="flex items-center gap-3 mb-8">
+      <div class="ps-panel w-full max-w-md p-6 sm:p-8">
+        <div class="ps-brand mb-6">
+          <img [src]="isLight() ? '/prestare-icone-preto.png' : '/prestare-icone-branco.png'" alt="Prestare Gestão" />
+          <div class="ps-brand-wm">PRESTARE <span>GESTÃO</span></div>
+        </div>
+        <div class="flex items-center gap-3 mb-6">
           <div
-            class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center"
+            class="w-11 h-11 border flex items-center justify-center shrink-0"
+            style="border-color: var(--line-200)"
           >
             <svg
-              class="w-6 h-6 text-accent"
+              class="w-6 h-6 text-slate-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
-              stroke-width="2"
+              stroke-width="1.5"
             >
               <path
                 stroke-linecap="round"
@@ -40,16 +44,10 @@ import { ThemeService } from '../shared/theme.service';
             </svg>
           </div>
           <div>
-            <h1
-              class="text-xl font-bold"
-              [ngClass]="isLight() ? 'text-slate-900' : 'text-white'"
-            >
+            <h1 class="ps-h1">
               Escolha o condomínio
             </h1>
-            <p
-              class="text-sm"
-              [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'"
-            >
+            <p class="text-sm text-slate-400 mt-1">
               Você administra mais de um. Selecione em qual deseja entrar.
             </p>
           </div>
@@ -57,7 +55,7 @@ import { ThemeService } from '../shared/theme.service';
 
         @if (erro()) {
           <div
-            class="mb-4 px-4 py-3 rounded-xl text-sm bg-red-500/10 border border-red-500/30 text-red-500"
+            class="mb-4 px-4 py-3 text-sm border text-red-500" style="border-color: var(--line-200)" role="alert"
           >
             {{ erro() }}
           </div>
@@ -69,22 +67,17 @@ import { ThemeService } from '../shared/theme.service';
               type="button"
               (click)="escolher(cond.id)"
               [disabled]="carregandoId() !== null"
-              class="w-full text-left px-4 py-4 rounded-xl border flex items-center justify-between gap-3 transition-all active:scale-[0.99] disabled:opacity-60"
-              [ngClass]="
-                isLight()
-                  ? 'bg-white border-slate-200 hover:border-accent/50 hover:bg-slate-50'
-                  : 'bg-white/[0.03] border-white/10 hover:border-accent/40 hover:bg-white/[0.06]'
-              "
+              class="w-full text-left px-4 py-4 border flex items-center justify-between gap-3 transition-colors hover:bg-white/5 disabled:opacity-60"
+              style="border-color: var(--line-200)"
             >
               <div class="flex items-center gap-3 min-w-0">
                 <span
-                  class="w-9 h-9 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0 text-sm font-bold"
+                  class="ps-avatar w-9 h-9 flex items-center justify-center shrink-0 text-sm font-bold"
                 >
                   {{ cond.nome.charAt(0).toUpperCase() }}
                 </span>
                 <span
-                  class="font-semibold truncate"
-                  [ngClass]="isLight() ? 'text-slate-800' : 'text-slate-100'"
+                  class="font-semibold truncate text-white"
                 >
                   {{ cond.nome }}
                 </span>
@@ -92,16 +85,15 @@ import { ThemeService } from '../shared/theme.service';
 
               @if (carregandoId() === cond.id) {
                 <span
-                  class="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin shrink-0"
+                  class="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin shrink-0"
                 ></span>
               } @else {
                 <svg
-                  class="w-4 h-4 shrink-0"
-                  [ngClass]="isLight() ? 'text-slate-400' : 'text-slate-500'"
+                  class="w-4 h-4 shrink-0 text-slate-500"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
-                  stroke-width="2"
+                  stroke-width="1.5"
                 >
                   <path
                     stroke-linecap="round"
@@ -117,12 +109,7 @@ import { ThemeService } from '../shared/theme.service';
         <button
           type="button"
           (click)="sair()"
-          class="mt-6 w-full text-center text-sm transition-colors"
-          [ngClass]="
-            isLight()
-              ? 'text-slate-500 hover:text-slate-700'
-              : 'text-slate-500 hover:text-slate-300'
-          "
+          class="ps-label mt-6 w-full text-center hover:text-[var(--ink)] transition-colors"
         >
           Sair da conta
         </button>

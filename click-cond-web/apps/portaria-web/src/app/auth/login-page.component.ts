@@ -11,337 +11,206 @@ import { ThemeService } from '../shared/theme.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div 
-      class="min-h-screen app-bg flex relative overflow-hidden font-sans transition-colors duration-500"
-      [ngClass]="isLight() ? 'light' : ''"
-    >
-      
-      <!-- Botão de Alternar Tema (Light/Dark Mode) -->
-      <button
-        type="button"
-        (click)="toggleTheme()"
-        class="absolute top-6 right-6 z-50 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 shadow-md active:scale-95 border"
-        [ngClass]="isLight() 
-          ? 'bg-white/80 border-slate-200 text-slate-700 hover:bg-slate-50' 
-          : 'bg-slate-900/60 border-white/10 text-slate-400 hover:text-white hover:border-accent/40'"
-        title="Alternar Tema"
-      >
-        @if (isLight()) {
-          <!-- Ícone de Sol / Modo Claro Ativo (Mostra opção de mudar para Escuro) -->
-          <svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464-4.95a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 1.414l-.707.707zm-9.9 9.9a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 1.414l-.707.707zm0-9.9a1 1 0 011.414 0l.707.707a1 1 0 11-1.414 1.414l-.707-.707a1 1 0 010-1.414zm9.9 9.9a1 1 0 010 1.414l-.707.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-12 0a1 1 0 100-2H4a1 1 0 100 2h1z" clip-rule="evenodd" />
-          </svg>
-        } @else {
-          <!-- Ícone de Lua / Modo Escuro Ativo (Mostra opção de mudar para Claro) -->
-          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-          </svg>
-        }
-      </button>
+    <div class="login fixed inset-0 grid grid-cols-2 max-[899px]:grid-cols-1 max-[899px]:auto-rows-min max-[899px]:overflow-y-auto app-bg font-sans">
 
-      <!-- Círculos de Brilho de Fundo (Glow Effects) -->
-      <div 
-        class="absolute -top-40 -left-40 w-96 h-96 rounded-full blur-[120px] pointer-events-none transition-opacity duration-500"
-        [ngClass]="isLight() ? 'bg-blue-500/5 opacity-80' : 'bg-blue-600/10'"
-      ></div>
-      <div 
-        class="absolute -bottom-40 -right-40 w-96 h-96 rounded-full blur-[120px] pointer-events-none transition-opacity duration-500"
-        [ngClass]="isLight() ? 'bg-accent/5 opacity-80' : 'bg-accent/15'"
-      ></div>
-      
-      <!-- Grid Decorativo -->
-      <div 
-        class="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-30 pointer-events-none transition-opacity duration-500"
-        [ngClass]="isLight() ? 'opacity-[0.07]' : 'opacity-30'"
-      ></div>
+      <!-- Painel esquerdo: apresentação -->
+      <div class="login-left relative flex flex-col justify-between gap-6 overflow-hidden border-r max-[899px]:border-r-0 max-[899px]:border-b px-16 py-14 max-[899px]:px-4 max-[899px]:py-8" style="border-color: var(--line-100)">
 
-      <!-- Container Principal -->
-      <div class="w-full flex">
-        
-        <!-- Painel Esquerdo (Apresentação Corporativa - Visível apenas em telas grandes) -->
-        <div 
-          class="hidden lg:flex lg:w-[55%] border-r relative p-16 flex-col justify-between overflow-hidden transition-all duration-300"
-          [ngClass]="isLight() ? 'bg-slate-50/40 border-slate-200' : 'bg-slate-900/40 border-white/5'"
-        >
-          <div class="absolute inset-0 bg-gradient-to-br from-accent/5 via-blue-500/0 to-transparent pointer-events-none"></div>
-          
-          <!-- Logo Prestare Gestão -->
-          <div class="relative flex items-center gap-2.5">
-            <div class="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center ring-1 ring-accent/10 shadow-md shadow-accent/15 shrink-0">
-              <img src="/logo-prestare-gestao.png" alt="Prestare Gestão" class="w-full h-full object-cover rounded-lg" />
-            </div>
-            <div class="min-w-0 leading-none">
-              <span 
-                class="text-lg font-extrabold tracking-tight uppercase transition-colors duration-300 block"
-                [ngClass]="isLight() ? 'text-slate-900' : 'text-slate-100'"
-              >
-                PRESTARE<span class="text-accent"> GESTÃO</span>
-              </span>
-              <span class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 block">
-                Web Console
-              </span>
-            </div>
-            <!-- Powered by AWS: separado da marca por divisória (regra de marca da AWS: não formar logo combinado) -->
-            <div class="ml-1.5 pl-3.5 border-l shrink-0" [ngClass]="isLight() ? 'border-slate-300' : 'border-white/20'">
-              <img [src]="isLight() ? '/powered-by-aws-black.png' : '/powered-by-aws-white.png'" alt="Powered by AWS" width="124" height="22" class="block h-[22px] w-auto" />
+        <!-- Marca + Powered by AWS: separado da marca por divisória (regra de marca da AWS: não formar logo combinado) -->
+        <div class="flex flex-wrap items-center gap-y-3">
+          <div class="ps-brand">
+            <img [src]="isLight() ? '/prestare-icone-preto.png' : '/prestare-icone-branco.png'" alt="Prestare Gestão" />
+            <div>
+              <div class="ps-brand-wm">PRESTARE <span>GESTÃO</span></div>
+              <div class="ps-label mt-1" style="font-size: 9px; line-height: 10px;">Web Console</div>
             </div>
           </div>
-
-          <!-- Hero Message -->
-          <div class="relative space-y-6 max-w-lg my-auto">
-            <span class="px-3 py-1 rounded-full bg-accent/10 border border-accent/25 text-[10px] text-accent font-semibold tracking-wider uppercase inline-block">
-              Console Portaria Inteligente
-            </span>
-            <h2 
-              class="text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.15] transition-colors duration-300"
-              [ngClass]="isLight() ? 'text-slate-800' : 'text-white'"
-            >
-              A inteligência operacional que <span class="bg-gradient-to-r from-accent to-blue-500 bg-clip-text text-transparent">conecta seu condomínio</span>
-            </h2>
-            <p 
-              class="text-sm leading-relaxed font-light transition-colors duration-300"
-              [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'"
-            >
-              Acesse a plataforma corporativa oficial da Prestare Portaria e gerencie fluxos de correspondências, visitantes, prestadores de serviços e ocorrências com rastreabilidade absoluta e conformidade corporativa.
-            </p>
-
-            <div class="grid grid-cols-2 gap-4 pt-4">
-              <div class="flex items-center gap-2.5">
-                <div class="w-5 h-5 rounded-md bg-accent/10 flex items-center justify-center shrink-0">
-                  <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                  </svg>
-                </div>
-                <span 
-                  class="text-xs font-medium transition-colors duration-300"
-                  [ngClass]="isLight() ? 'text-slate-700' : 'text-slate-300'"
-                >Controle de Acesso</span>
-              </div>
-              <div class="flex items-center gap-2.5">
-                <div class="w-5 h-5 rounded-md bg-accent/10 flex items-center justify-center shrink-0">
-                  <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                  </svg>
-                </div>
-                <span 
-                  class="text-xs font-medium transition-colors duration-300"
-                  [ngClass]="isLight() ? 'text-slate-700' : 'text-slate-300'"
-                >Gestão de Encomendas</span>
-              </div>
-              <div class="flex items-center gap-2.5">
-                <div class="w-5 h-5 rounded-md bg-accent/10 flex items-center justify-center shrink-0">
-                  <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                  </svg>
-                </div>
-                <span 
-                  class="text-xs font-medium transition-colors duration-300"
-                  [ngClass]="isLight() ? 'text-slate-700' : 'text-slate-300'"
-                >Ocorrências Ativas</span>
-              </div>
-              <div class="flex items-center gap-2.5">
-                <div class="w-5 h-5 rounded-md bg-accent/10 flex items-center justify-center shrink-0">
-                  <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                  </svg>
-                </div>
-                <span 
-                  class="text-xs font-medium transition-colors duration-300"
-                  [ngClass]="isLight() ? 'text-slate-700' : 'text-slate-300'"
-                >Relatórios Gerenciais</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Footer Corporativo -->
-          <div 
-            class="relative text-xs flex justify-between items-center transition-colors duration-300"
-            [ngClass]="isLight() ? 'text-slate-400' : 'text-slate-500'"
-          >
-            <span>© 2026 Prestare Gestão e Tecnologia. Todos os direitos reservados.</span>
-            <a href="https://prestaregestao.com.br/novo/" target="_blank" class="hover:text-accent transition font-medium">prestaregestao.com.br</a>
+          <div class="ml-5 pl-5 border-l shrink-0 flex items-center" style="border-color: var(--line-100)">
+            <img [src]="isLight() ? '/powered-by-aws-black.png' : '/powered-by-aws-white.png'" alt="Powered by AWS" width="124" height="22" class="block h-[22px] w-auto" />
           </div>
         </div>
 
-        <!-- Painel Direito (Formulário ou QR Code) -->
-        <div 
-          class="w-full lg:w-[45%] flex flex-col justify-center items-center px-6 md:px-16 py-12 transition-colors duration-500"
-          [ngClass]="isLight() ? 'bg-white/75' : 'bg-slate-950/70'"
+        <!-- Mensagem principal -->
+        <div class="max-w-xl my-auto py-8">
+          <span class="ps-tag">Console Portaria Inteligente</span>
+          <h2 class="login-hero">
+            A inteligência operacional que <span>conecta seu condomínio</span>
+          </h2>
+          <p class="text-sm leading-relaxed max-w-md" style="color: var(--ink-muted)">
+            Acesse a plataforma corporativa oficial da Prestare Portaria e gerencie fluxos de correspondências, visitantes, prestadores de serviços e ocorrências com rastreabilidade absoluta e conformidade corporativa.
+          </p>
+
+          <div class="login-feats">
+            <div>
+              <svg class="w-4 h-4 shrink-0" style="color: var(--ink-muted)" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span>Controle de Acesso</span>
+            </div>
+            <div>
+              <svg class="w-4 h-4 shrink-0" style="color: var(--ink-muted)" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span>Gestão de Encomendas</span>
+            </div>
+            <div>
+              <svg class="w-4 h-4 shrink-0" style="color: var(--ink-muted)" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span>Ocorrências Ativas</span>
+            </div>
+            <div>
+              <svg class="w-4 h-4 shrink-0" style="color: var(--ink-muted)" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span>Relatórios Gerenciais</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rodapé corporativo -->
+        <div class="text-xs flex flex-wrap justify-between items-center gap-x-6 gap-y-1" style="color: var(--ink-subtle)">
+          <span>© 2026 Prestare Gestão e Tecnologia. Todos os direitos reservados.</span>
+          <a href="https://prestaregestao.com.br/novo/" target="_blank" class="hover:text-[var(--ink)] transition">prestaregestao.com.br</a>
+        </div>
+      </div>
+
+      <!-- Painel direito: formulário ou QR Code -->
+      <div class="relative flex items-center justify-center px-12 py-12 max-[899px]:px-4 max-[899px]:pt-8 max-[899px]:pb-12">
+
+        <!-- Botão de Alternar Tema -->
+        <button
+          type="button"
+          (click)="toggleTheme()"
+          class="ps-ibtn absolute top-6 right-6 border"
+          style="border-color: var(--line-200)"
+          title="Alternar Tema"
+          aria-label="Alternar Tema"
         >
-          
-          <div class="w-full max-w-md space-y-8">
-            
-            <!-- Header de Mobile (Visível apenas em telas pequenas) -->
-            <div class="text-center lg:hidden">
-              <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white p-1 mb-3 ring-1 ring-accent/10 shadow-md shadow-accent/15">
-                <img src="/logo-prestare-gestao.png" alt="Prestare Gestão" class="w-full h-full object-cover rounded-lg" />
-              </div>
-              <h1 
-                class="text-2xl font-extrabold tracking-tight uppercase transition-colors duration-300"
-                [ngClass]="isLight() ? 'text-slate-900' : 'text-white'"
-              >
-                PRESTARE<span class="text-accent"> GESTÃO</span>
-              </h1>
-              <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5 block">
-                Web Console
-              </span>
-              <img [src]="isLight() ? '/powered-by-aws-black.png' : '/powered-by-aws-white.png'" alt="Powered by AWS" width="113" height="20" class="block h-5 w-auto mx-auto mt-3" />
-              <p
-                class="text-xs mt-2 transition-colors duration-300"
-                [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'"
-              >
-                Acesso restrito ao console de portaria
+          @if (isLight()) {
+            <!-- Modo claro ativo: mostra a lua (mudar para escuro) -->
+            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
+            </svg>
+          } @else {
+            <!-- Modo escuro ativo: mostra o sol (mudar para claro) -->
+            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="4" />
+              <path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
+            </svg>
+          }
+        </button>
+
+        <div class="w-full max-w-[420px] flex flex-col gap-5">
+
+          <p class="min-[900px]:hidden text-xs" style="color: var(--ink-muted)">
+            Acesso restrito ao console de portaria
+          </p>
+
+          <!-- MODO CONVENCIONAL DE LOGIN -->
+          @if (!isQrMode() && !mfaToken()) {
+            <div class="space-y-2">
+              <h2 class="login-title">Painel de Acesso</h2>
+              <p class="text-sm" style="color: var(--ink-muted)">
+                Entre com as suas credenciais para iniciar o turno.
               </p>
             </div>
 
-            <!-- MODO CONVENCIONAL DE LOGIN -->
-            @if (!isQrMode() && !mfaToken()) {
-              <div class="hidden lg:block space-y-2">
-                <h2 
-                  class="text-3xl font-extrabold tracking-tight transition-colors duration-300"
-                  [ngClass]="isLight() ? 'text-slate-800' : 'text-white'"
-                >
-                  Painel de Acesso
-                </h2>
-                <p 
-                  class="text-sm font-light transition-colors duration-300"
-                  [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'"
-                >
-                  Entre com as suas credenciais para iniciar o turno.
+            <form (ngSubmit)="onSubmit()" class="flex flex-col gap-5">
+
+              <div class="space-y-2">
+                <label class="ps-label block">Identificador / Usuário</label>
+                <div class="ps-field">
+                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                  </svg>
+                  <input
+                    type="text"
+                    [(ngModel)]="loginValue"
+                    name="login"
+                    autocomplete="username"
+                    placeholder="Ex: portaria_centro"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="ps-label block">Senha de Segurança</label>
+                <div class="ps-field">
+                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                  <input
+                    type="password"
+                    [(ngModel)]="senhaValue"
+                    name="senha"
+                    autocomplete="current-password"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+              </div>
+
+              <!-- Erro de Login -->
+              @if (erro()) {
+                <div class="flex items-center gap-2.5 text-xs text-rose-400 border px-4 py-3 animate-fadeIn" style="border-color: var(--line-200)" role="alert">
+                  <span class="ps-dot ps-dot-danger"></span>
+                  <span>{{ erro() }}</span>
+                </div>
+              }
+
+              <!-- Botão Entrar -->
+              <button
+                type="submit"
+                [disabled]="carregando()"
+                class="ps-btn ps-btn-lg w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                @if (carregando()) {
+                  <span class="flex items-center justify-center gap-2">
+                    <div class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                    <span>Processando Acesso...</span>
+                  </span>
+                } @else {
+                  <span>Entrar no Sistema</span>
+                  <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6l6 6-6 6"/>
+                  </svg>
+                }
+              </button>
+
+              <!-- Divisor Visual para Opção QR Code -->
+              <div class="flex items-center gap-3">
+                <div class="flex-1 h-px" style="background: var(--line-100)"></div>
+                <span class="ps-label">Ou acesse pelo celular</span>
+                <div class="flex-1 h-px" style="background: var(--line-100)"></div>
+              </div>
+
+              <!-- Botão Entrar via QR Code -->
+              <button
+                type="button"
+                (click)="toggleQrMode(true)"
+                class="ps-btn ps-btn-sec ps-btn-lg w-full"
+              >
+                <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" class="w-4 h-4">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M4 8h4m-4 4h.01M4 16h4m-4 4h.01M6 4h.01M6 16h.01M6 20h.01" />
+                </svg>
+                <span>Acessar via QR Code (App)</span>
+              </button>
+            </form>
+          }
+
+          <!-- SEGUNDA ETAPA DO SÍNDICO: CÓDIGO ENVIADO POR E-MAIL -->
+          @if (mfaToken()) {
+            <form (ngSubmit)="onSubmitMfa()" class="flex flex-col gap-5 animate-fadeIn">
+              <div class="space-y-2">
+                <h2 class="login-title">Verificação em duas etapas</h2>
+                <p class="text-sm" style="color: var(--ink-muted)">
+                  Enviamos um código de 6 dígitos para {{ mfaEmail() }}.
                 </p>
               </div>
 
-              <form (ngSubmit)="onSubmit()" class="space-y-5">
-                
-                <div class="space-y-2">
-                  <label 
-                    class="block text-xs font-semibold uppercase tracking-wider transition-colors duration-300"
-                    [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'"
-                  >Identificador / Usuário</label>
-                  <div class="relative group">
-                    <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none group-focus-within:text-accent transition">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                      </svg>
-                    </span>
-                    <input
-                      type="text"
-                      [(ngModel)]="loginValue"
-                      name="login"
-                      autocomplete="username"
-                      class="w-full border rounded-xl pl-10 pr-4 py-3.5 text-xs transition shadow-inner focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
-                      [ngClass]="isLight() 
-                        ? 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400' 
-                        : 'bg-slate-900/60 border-white/10 text-white placeholder-slate-600'"
-                      placeholder="Ex: portaria_centro"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between">
-                    <label 
-                      class="block text-xs font-semibold uppercase tracking-wider transition-colors duration-300"
-                      [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'"
-                    >Senha de Segurança</label>
-                  </div>
-                  <div class="relative group">
-                    <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none group-focus-within:text-accent transition">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                      </svg>
-                    </span>
-                    <input
-                      type="password"
-                      [(ngModel)]="senhaValue"
-                      name="senha"
-                      autocomplete="current-password"
-                      class="w-full border rounded-xl pl-10 pr-4 py-3.5 text-xs transition shadow-inner focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
-                      [ngClass]="isLight() 
-                        ? 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400' 
-                        : 'bg-slate-900/60 border-white/10 text-white placeholder-slate-600'"
-                      placeholder="••••••••"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <!-- Erro de Login -->
-                @if (erro()) {
-                  <div class="flex items-center gap-2.5 text-xs text-rose-400 bg-rose-400/10 border border-rose-400/20 rounded-xl px-4 py-3 animate-fadeIn">
-                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
-                        d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                    </svg>
-                    <span>{{ erro() }}</span>
-                  </div>
-                }
-
-                <!-- Botão Entrar -->
-                <button
-                  type="submit"
-                  [disabled]="carregando()"
-                  class="w-full bg-accent hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed
-                         text-white font-semibold text-sm rounded-xl px-4 py-3.5 transition shadow-lg shadow-accent/15
-                         active:scale-[0.98]"
-                >
-                  @if (carregando()) {
-                    <span class="flex items-center justify-center gap-2">
-                      <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      <span>Processando Acesso...</span>
-                    </span>
-                  } @else {
-                    <span>Entrar no Sistema</span>
-                  }
-                </button>
-
-                <!-- Divisor Visual para Opção QR Code -->
-                <div class="relative flex py-2 items-center">
-                  <div 
-                    class="flex-grow border-t transition-colors duration-300"
-                    [ngClass]="isLight() ? 'border-slate-200' : 'border-white/5'"
-                  ></div>
-                  <span 
-                    class="flex-shrink mx-4 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-300"
-                    [ngClass]="isLight() ? 'text-slate-400' : 'text-slate-600'"
-                  >Ou acesse pelo celular</span>
-                  <div 
-                    class="flex-grow border-t transition-colors duration-300"
-                    [ngClass]="isLight() ? 'border-slate-200' : 'border-white/5'"
-                  ></div>
-                </div>
-
-                <!-- Botão Entrar via QR Code -->
-                <button
-                  type="button"
-                  (click)="toggleQrMode(true)"
-                  class="w-full border font-semibold text-xs rounded-xl px-4 py-3.5 transition flex items-center justify-center gap-2 active:scale-[0.98]"
-                  [ngClass]="isLight() 
-                    ? 'bg-slate-50 border-slate-200 hover:border-accent/40 text-slate-700' 
-                    : 'bg-slate-900/60 border-white/10 hover:border-accent/40 text-slate-300'"
-                >
-                  <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M4 8h4m-4 4h.01M4 16h4m-4 4h.01M6 4h.01M6 16h.01M6 20h.01" />
-                  </svg>
-                  <span>Acessar via QR Code (App)</span>
-                </button>
-              </form>
-            }
-
-            <!-- SEGUNDA ETAPA DO SÍNDICO: CÓDIGO ENVIADO POR E-MAIL -->
-            @if (mfaToken()) {
-              <form (ngSubmit)="onSubmitMfa()" class="space-y-5 animate-fadeIn">
-                <div class="space-y-2">
-                  <h2
-                    class="text-2xl font-extrabold tracking-tight"
-                    [ngClass]="isLight() ? 'text-slate-800' : 'text-white'"
-                  >Verificação em duas etapas</h2>
-                  <p class="text-sm font-light" [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'">
-                    Enviamos um código de 6 dígitos para {{ mfaEmail() }}.
-                  </p>
-                </div>
-
+              <div class="ps-field" style="height: 48px">
                 <input
                   type="text"
                   inputmode="numeric"
@@ -350,163 +219,169 @@ import { ThemeService } from '../shared/theme.service';
                   [(ngModel)]="codigoMfa"
                   name="codigoMfa"
                   required
-                  class="w-full border rounded-xl px-4 py-3.5 text-center text-lg tracking-[0.5em] transition shadow-inner focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
-                  [ngClass]="isLight()
-                    ? 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
-                    : 'bg-slate-900/60 border-white/10 text-white placeholder-slate-600'"
+                  class="text-center text-lg tracking-[0.5em]"
                   placeholder="000000"
                 />
+              </div>
 
-                <label class="flex items-center gap-2 text-xs" [ngClass]="isLight() ? 'text-slate-600' : 'text-slate-400'">
-                  <input type="checkbox" [(ngModel)]="lembrarDispositivo" name="lembrarDispositivo" />
-                  Confiar neste computador por 30 dias
-                </label>
+              <label class="flex items-center gap-2 text-xs" style="color: var(--ink-muted)">
+                <input type="checkbox" [(ngModel)]="lembrarDispositivo" name="lembrarDispositivo" />
+                Confiar neste computador por 30 dias
+              </label>
 
-                @if (erro()) {
-                  <div class="flex items-center gap-2.5 text-xs text-rose-400 bg-rose-400/10 border border-rose-400/20 rounded-xl px-4 py-3">
-                    <span>{{ erro() }}</span>
-                  </div>
-                }
-
-                <button
-                  type="submit"
-                  [disabled]="carregando()"
-                  class="w-full bg-accent hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl px-4 py-3.5 transition shadow-lg shadow-accent/15 active:scale-[0.98]"
-                >
-                  {{ carregando() ? 'Verificando...' : 'Confirmar código' }}
-                </button>
-
-                <div class="flex justify-between text-xs">
-                  <button type="button" (click)="cancelarMfa()" class="text-slate-500 hover:text-accent transition">Voltar</button>
-                  <button type="button" (click)="reenviarCodigo()" class="text-slate-500 hover:text-accent transition">Reenviar código</button>
+              @if (erro()) {
+                <div class="flex items-center gap-2.5 text-xs text-rose-400 border px-4 py-3" style="border-color: var(--line-200)" role="alert">
+                  <span class="ps-dot ps-dot-danger"></span>
+                  <span>{{ erro() }}</span>
                 </div>
-              </form>
-            }
+              }
 
-            <!-- MODO QR CODE DE LOGIN -->
-            @if (isQrMode()) {
-              <div class="space-y-6 text-center animate-fadeIn">
-                <div class="space-y-2 text-left">
-                  <h2 
-                    class="text-3xl font-extrabold tracking-tight transition-colors duration-300"
-                    [ngClass]="isLight() ? 'text-slate-800' : 'text-white'"
-                  >
-                    Entrar com QR Code
-                  </h2>
-                  <p 
-                    class="text-xs font-light leading-relaxed transition-colors duration-300"
-                    [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'"
-                  >
-                    Escaneie o código abaixo com a câmera do seu celular através do aplicativo <strong>Click Condomínio</strong> para se conectar automaticamente.
-                  </p>
-                </div>
+              <button
+                type="submit"
+                [disabled]="carregando()"
+                class="ps-btn ps-btn-lg w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {{ carregando() ? 'Verificando...' : 'Confirmar código' }}
+              </button>
 
-                <!-- Container do QR Code com Glow -->
-                <div 
-                  class="relative w-64 h-64 mx-auto border rounded-2xl flex items-center justify-center overflow-hidden group shadow-lg transition-all duration-300"
-                  [ngClass]="isLight() 
-                    ? 'bg-white border-slate-200 shadow-slate-200/50' 
-                    : 'bg-slate-900 border-white/10 shadow-blue-500/10'"
-                >
-                  @if (qrToken()) {
-                    @if (qrExpired()) {
-                      <div class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center gap-3">
-                        <span class="text-xs font-semibold text-slate-400">QR Code Expirado</span>
-                        <button
-                          type="button"
-                          (click)="gerarNovoQr()"
-                          class="bg-accent hover:bg-accent-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-lg shadow-accent/25 active:scale-[0.96]"
-                        >
-                          Recarregar
-                        </button>
-                      </div>
-                    }
-                    <img
-                      [src]="'https://api.qrserver.com/v1/create-qr-code/?size=250x250&color=' + (isLight() ? '0a1628' : 'ffffff') + '&bgcolor=' + (isLight() ? 'ffffff' : '0f172a') + '&data=' + qrToken()"
-                      alt="QR Code de Acesso"
-                      class="w-52 h-52 transition-transform duration-500 group-hover:scale-105"
-                    />
-                  } @else {
-                    <div class="flex flex-col items-center gap-2.5">
-                      <div class="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
-                      <span class="text-[10px] text-slate-500 uppercase tracking-wider">Gerando código seguro...</span>
+              <div class="flex justify-between">
+                <button type="button" (click)="cancelarMfa()" class="ps-label hover:text-[var(--ink)] transition">Voltar</button>
+                <button type="button" (click)="reenviarCodigo()" class="ps-label hover:text-[var(--ink)] transition">Reenviar código</button>
+              </div>
+            </form>
+          }
+
+          <!-- MODO QR CODE DE LOGIN -->
+          @if (isQrMode()) {
+            <div class="flex flex-col gap-6 text-center animate-fadeIn">
+              <div class="space-y-2 text-left">
+                <h2 class="login-title">Entrar com QR Code</h2>
+                <p class="text-sm leading-relaxed" style="color: var(--ink-muted)">
+                  Escaneie o código abaixo com a câmera do seu celular através do aplicativo <strong>Click Condomínio</strong> para se conectar automaticamente.
+                </p>
+              </div>
+
+              <!-- Container do QR Code: papel branco nos dois temas -->
+              <div class="qr-paper relative w-64 h-64 mx-auto border flex items-center justify-center overflow-hidden" style="border-color: var(--line-200)">
+                @if (qrToken()) {
+                  @if (qrExpired()) {
+                    <div class="absolute inset-0 flex flex-col items-center justify-center gap-3" style="background: color-mix(in srgb, var(--bg-000) 92%, transparent)">
+                      <span class="ps-label" style="color: var(--ink)">QR Code Expirado</span>
+                      <button type="button" (click)="gerarNovoQr()" class="ps-btn ps-btn-sm">Recarregar</button>
                     </div>
                   }
-                </div>
-
-                <!-- Status do Polling -->
-                <div class="flex items-center justify-center gap-2.5 text-xs text-slate-400">
-                  @if (!qrExpired()) {
-                    <span class="relative flex h-2 w-2">
-                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                      <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                    </span>
-                    <span [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'">Aguardando leitura do celular...</span>
-                  } @else {
-                    <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-                    <span [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'">Código expirado. Por favor, recarregue.</span>
-                  }
-                </div>
-
-                <!-- Instruções Detalhadas (Passo a Passo) -->
-                <div 
-                  class="border rounded-xl p-4 text-left space-y-2.5 max-w-sm mx-auto transition-all duration-300"
-                  [ngClass]="isLight() 
-                    ? 'bg-slate-50/80 border-slate-200/80' 
-                    : 'bg-slate-900/40 border-white/5'"
-                >
-                  <div class="flex items-start gap-2.5">
-                    <span class="w-4 h-4 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
-                    <p 
-                      class="text-[11px] font-light transition-colors duration-300"
-                      [ngClass]="isLight() ? 'text-slate-600' : 'text-slate-300'"
-                    >Abra o app no celular como <strong>Síndico</strong> ou <strong>Porteiro</strong>.</p>
+                  <img
+                    [src]="'https://api.qrserver.com/v1/create-qr-code/?size=250x250&color=000000&bgcolor=ffffff&data=' + qrToken()"
+                    alt="QR Code de Acesso"
+                    class="w-52 h-52"
+                  />
+                } @else {
+                  <div class="flex flex-col items-center gap-2.5" style="color: #000">
+                    <div class="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                    <span class="ps-label" style="color: #000">Gerando código seguro...</span>
                   </div>
-                  <div class="flex items-start gap-2.5">
-                    <span class="w-4 h-4 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-                    <p 
-                      class="text-[11px] font-light transition-colors duration-300"
-                      [ngClass]="isLight() ? 'text-slate-600' : 'text-slate-300'"
-                    >Acesse o menu <strong>Configurações</strong> e toque em <strong>Acesso Web por QR Code</strong>.</p>
-                  </div>
-                  <div class="flex items-start gap-2.5">
-                    <span class="w-4 h-4 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
-                    <p 
-                      class="text-[11px] font-light transition-colors duration-300"
-                      [ngClass]="isLight() ? 'text-slate-600' : 'text-slate-300'"
-                    >Aponte a câmera para o QR Code acima e confirme no celular.</p>
-                  </div>
-                </div>
-
-                <!-- Botão Voltar -->
-                <button
-                  type="button"
-                  (click)="toggleQrMode(false)"
-                  class="text-xs font-semibold transition"
-                  [ngClass]="isLight() ? 'text-slate-500 hover:text-accent' : 'text-slate-500 hover:text-accent'"
-                >
-                  Voltar para Login convencional
-                </button>
+                }
               </div>
-            }
 
-            <!-- Footer Corporativo para Mobile -->
-            <div 
-              class="text-center lg:hidden pt-8 border-t space-y-1 transition-colors duration-300"
-              [ngClass]="isLight() ? 'border-slate-200' : 'border-white/5'"
-            >
-              <p class="text-[10px] text-slate-600">© 2026 Prestare Gestão e Tecnologia</p>
-              <a href="https://prestaregestao.com.br/novo/" target="_blank" class="text-[10px] text-slate-500 hover:text-accent transition">prestaregestao.com.br</a>
+              <!-- Status do Polling -->
+              <div class="flex items-center justify-center gap-2.5 text-xs" style="color: var(--ink-muted)">
+                @if (!qrExpired()) {
+                  <span class="ps-dot ps-dot-ink ps-dot-pulse"></span>
+                  <span>Aguardando leitura do celular...</span>
+                } @else {
+                  <span class="ps-dot ps-dot-danger"></span>
+                  <span>Código expirado. Por favor, recarregue.</span>
+                }
+              </div>
+
+              <!-- Instruções (Passo a Passo) -->
+              <div class="ps-panel p-4 text-left space-y-3">
+                <div class="flex items-start gap-2.5">
+                  <span class="login-step">1</span>
+                  <p class="text-xs" style="color: var(--ink-muted)">Abra o app no celular como <strong>Síndico</strong> ou <strong>Porteiro</strong>.</p>
+                </div>
+                <div class="flex items-start gap-2.5">
+                  <span class="login-step">2</span>
+                  <p class="text-xs" style="color: var(--ink-muted)">Acesse o menu <strong>Configurações</strong> e toque em <strong>Acesso Web por QR Code</strong>.</p>
+                </div>
+                <div class="flex items-start gap-2.5">
+                  <span class="login-step">3</span>
+                  <p class="text-xs" style="color: var(--ink-muted)">Aponte a câmera para o QR Code acima e confirme no celular.</p>
+                </div>
+              </div>
+
+              <!-- Botão Voltar -->
+              <button type="button" (click)="toggleQrMode(false)" class="ps-label hover:text-[var(--ink)] transition">
+                Voltar para Login convencional
+              </button>
             </div>
-
-          </div>
+          }
 
         </div>
-
       </div>
-
     </div>
   `,
+  styles: [`
+    .login-left::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 64px 64px;
+      -webkit-mask-image: linear-gradient(180deg, #000, transparent 85%);
+      mask-image: linear-gradient(180deg, #000, transparent 85%);
+      pointer-events: none;
+    }
+    .login-left > * { position: relative; }
+    .login-hero {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: clamp(44px, 5.4vw, 84px);
+      line-height: 0.92;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      margin: 20px 0 24px;
+      text-wrap: balance;
+    }
+    .login-hero span { font-weight: 300; color: var(--ink-muted); }
+    .login-feats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 220px));
+      gap: 14px 32px;
+      margin-top: 32px;
+    }
+    .login-feats div { display: flex; gap: 10px; align-items: center; font-size: 14px; }
+    .login-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 30px;
+      line-height: 34px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    .login-step {
+      width: 16px;
+      height: 16px;
+      margin-top: 2px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line-200);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    @media (max-width: 899px) {
+      .login-feats { grid-template-columns: 1fr 1fr; gap: 12px; }
+    }
+    @media (max-width: 520px) {
+      .login-feats { grid-template-columns: 1fr; }
+    }
+  `],
 })
 export class LoginPageComponent implements OnDestroy {
   private readonly auth = inject(AuthService);
