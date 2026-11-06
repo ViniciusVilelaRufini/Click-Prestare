@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { AgendamentoArea, AreaSocial, AreasSociaisApi } from './areas-sociais.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 @Component({
   selector: 'app-areas-sociais-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
   templateUrl: './areas-sociais-page.component.html',
 })
 export class AreasSociaisPageComponent implements OnInit {
