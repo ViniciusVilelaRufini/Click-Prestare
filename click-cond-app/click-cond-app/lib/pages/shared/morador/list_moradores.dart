@@ -139,7 +139,7 @@ class _ListMoradoresPageState extends State<ListMoradores> {
                                   ),
                                   Text(
                                     selectedBlock!.isEmpty ? 'Sem Bloco' : 'Bloco $selectedBlock',
-                                    style: AppTypography.caption(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.w600),
+                                    style: AppTypography.caption(context).copyWith(color: AppColors.textPrimary(context), fontWeight: FontWeight.w600),
                                   ),
                                 ],
                               ),
@@ -182,14 +182,14 @@ class _BlockCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.surface(context), border: Border.all(color: AppColors.border(context))),
         child: Row(
           children: [
             Container(
               width: 44,
               height: 44,
-              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-              child: Icon(PhosphorIcons.buildings, color: AppColors.primary, size: 22),
+              decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(AppRadius.md)),
+              child: Icon(PhosphorIcons.buildings, color: AppColors.textPrimary(context), size: 22),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -226,13 +226,13 @@ class _AptoCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.surface(context), border: Border.all(color: AppColors.border(context))),
         child: Row(
           children: [
             Container(
               width: 44, height: 44,
-              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-              child: Icon(PhosphorIcons.door, color: AppColors.primary, size: 22),
+              decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(AppRadius.md)),
+              child: Icon(PhosphorIcons.door, color: AppColors.textPrimary(context), size: 22),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

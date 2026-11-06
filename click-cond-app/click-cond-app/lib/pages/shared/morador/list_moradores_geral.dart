@@ -207,8 +207,8 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(
         children: [
@@ -217,17 +217,17 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
-                child: Icon(PhosphorIcons.usersFill, color: AppColors.primary, size: 24),
+                child: Icon(PhosphorIcons.usersFill, color: AppColors.textPrimary(context), size: 24),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Total de Moradores', style: AppTypography.caption(context)),
+                    Text('Total de Moradores'.toUpperCase(), style: AppTypography.label(context)),
                     Text('${stats['total']}', style: AppTypography.title(context)),
                   ],
                 ),
@@ -241,9 +241,9 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStatItem('Proprietários', stats['proprietarios'] ?? 0, AppColors.primary),
-              _buildStatItem('Inquilinos', stats['inquilinos'] ?? 0, Colors.amber),
-              _buildStatItem('Dependentes', stats['dependentes'] ?? 0, Colors.grey),
+              _buildStatItem('Proprietários', stats['proprietarios'] ?? 0),
+              _buildStatItem('Inquilinos', stats['inquilinos'] ?? 0),
+              _buildStatItem('Dependentes', stats['dependentes'] ?? 0),
             ],
           ),
         ],
@@ -251,12 +251,12 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
     );
   }
 
-  Widget _buildStatItem(String label, int count, Color color) {
+  Widget _buildStatItem(String label, int count) {
     return Column(
       children: [
-        Text('$count', style: AppTypography.bodyMedium(context).copyWith(color: color, fontWeight: FontWeight.bold)),
+        Text('$count', style: AppTypography.numeral(context).copyWith(fontSize: 22, height: 1)),
         const SizedBox(height: 2),
-        Text(label, style: AppTypography.tiny(context).copyWith(fontSize: 10)),
+        Text(label.toUpperCase(), style: AppTypography.label(context)),
       ],
     );
   }
@@ -266,8 +266,8 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
       height: 44,
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: TextField(
         onChanged: (val) => setState(() => _searchQuery = val),
@@ -303,9 +303,9 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: isSelected ? AppColors.primary : AppColors.surface(context),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(
-                  color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.08),
+                  color: isSelected ? AppColors.primary : AppColors.border(context),
                 ),
               ),
               child: Text(
@@ -330,21 +330,22 @@ class _MoradorGeralCard extends StatelessWidget {
 
   const _MoradorGeralCard({required this.item, required this.onTap, this.onSendCredentials});
 
-  Color _getTipoColor(String tipo) {
+  /// Só o tipo diferencia o morador, sem cor: tons de tinta do tema.
+  Color _getTipoColor(BuildContext context, String tipo) {
     final t = tipo.toLowerCase();
-    if (t == 'proprietario') return AppColors.primary;
-    if (t == 'inquilino') return Colors.amber;
-    return Colors.grey;
+    if (t == 'proprietario') return AppColors.textPrimary(context);
+    if (t == 'inquilino') return AppColors.textSecondary(context);
+    return AppColors.textTertiary(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final tipo = (item['tipo'] ?? 'Proprietario').toString();
-    final tipoColor = _getTipoColor(tipo);
+    final tipoColor = _getTipoColor(context, tipo);
     final photoUrl = (item['foto_pessoa'] ?? item['photo'])?.toString() ?? '';
 
     return SwipeableActionCard(
-      borderRadius: 16,
+      borderRadius: 0,
       actionWidth: 72,
       onTap: onTap,
       actions: [
@@ -368,14 +369,14 @@ class _MoradorGeralCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.border(context)),
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 22,
-              backgroundColor: tipoColor.withValues(alpha: 0.15),
+              backgroundColor: AppColors.surfaceElevated(context),
               backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
               child: photoUrl.isEmpty
                   ? Text(
@@ -413,13 +414,12 @@ class _MoradorGeralCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: tipoColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: tipoColor.withValues(alpha: 0.2)),
+                borderRadius: BorderRadius.circular(AppRadius.tag),
+                border: Border.all(color: AppColors.borderStrong(context)),
               ),
               child: Text(
-                tipo,
-                style: AppTypography.tiny(context).copyWith(color: tipoColor, fontWeight: FontWeight.bold, fontSize: 9),
+                tipo.toUpperCase(),
+                style: AppTypography.label(context).copyWith(color: tipoColor, fontSize: 10),
               ),
             ),
           ],
