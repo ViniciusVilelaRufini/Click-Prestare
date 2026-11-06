@@ -1,40 +1,602 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600&family=Barlow:wght@400;500;600&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   Tokens do design system Prestare Dark. Os canais --c-* alimentam o Tailwind
+   (ver tailwind.config.js) e permitem o modificador de alfa nas classes.
+   ========================================================================== */
 :root {
-  /* Cores padronizadas para o Dark Mode (Design Corporativo Moderno) */
-  --bg-base: #090D16;
-  --bg-surface: #111827;
-  --bg-elevated: #1F2937;
-  --border-color: rgba(255, 255, 255, 0.06);
-  --text-main: #F9FAFB;
-  --text-sub: #9CA3AF;
-  --text-muted: #6B7280;
-  --scrollbar-track: #090D16;
-  --scrollbar-thumb: rgba(255, 255, 255, 0.05);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.12);
+  --bg-000: #000000;
+  --bg-100: #0b0b0b;
+  --bg-200: #141414;
+  --bg-300: #1f1f1f;
+  --line-100: #242424;
+  --line-200: #666666;
+  --ink: #ffffff;
+  --ink-muted: #a3a3a3;
+  --ink-subtle: #8a8a8a;
+  --accent: #ffffff;
+  --on-accent: #000000;
+  --accent-ghost: rgba(255, 255, 255, 0.08);
+  --accent-press: #d4d4d4;
+  --signal-ok: #5ec28a;
+  --signal-warn: #e3b04b;
+  --signal-danger: #ff6b6b;
+  --qr-ink: #000000;
+  --qr-paper: #ffffff;
+  --scrim: rgba(0, 0, 0, 0.65);
+  --grid: rgba(255, 255, 255, 0.045);
+  --font-display: "Barlow Condensed", "D-DIN Condensed", "Arial Narrow", sans-serif;
+  --font-sans: "Barlow", "D-DIN", system-ui, sans-serif;
+
+  --c-bg-000: 0 0 0;
+  --c-bg-100: 11 11 11;
+  --c-bg-200: 20 20 20;
+  --c-bg-300: 31 31 31;
+  --c-line-100: 36 36 36;
+  --c-line-200: 102 102 102;
+  --c-ink: 255 255 255;
+  --c-ink-muted: 163 163 163;
+  --c-ink-subtle: 138 138 138;
+  --c-accent: 255 255 255;
+  --c-on-accent: 0 0 0;
+  --c-accent-press: 212 212 212;
+  --c-signal-ok: 94 194 138;
+  --c-signal-warn: 227 176 75;
+  --c-signal-danger: 255 107 107;
+
   color-scheme: dark;
 }
 
-/* Quando a classe light estiver ativa no html ou body */
-html.light, body.light, .light {
-  /* Cores do modo Claro sutil e avançado */
-  --bg-base: #F8FAFC;
-  --bg-surface: #FFFFFF;
-  --bg-elevated: #FFFFFF;
-  --border-color: #E2E8F0;
-  --text-main: #0F172A;
-  --text-sub: #475569;
-  --text-muted: #94A3B8;
-  --scrollbar-track: #F8FAFC;
-  --scrollbar-thumb: rgba(15, 23, 42, 0.08);
-  --scrollbar-thumb-hover: rgba(15, 23, 42, 0.15);
+html.light {
+  --bg-000: #ffffff;
+  --bg-100: #fafafa;
+  --bg-200: #f4f4f4;
+  --bg-300: #e9e9e9;
+  --line-100: #e2e2e2;
+  --line-200: #888888;
+  --ink: #000000;
+  --ink-muted: #555555;
+  --ink-subtle: #6b6b6b;
+  --accent: #000000;
+  --on-accent: #ffffff;
+  --accent-ghost: rgba(0, 0, 0, 0.05);
+  --accent-press: #262626;
+  --signal-ok: #1a7a48;
+  --signal-warn: #946000;
+  --signal-danger: #c42d33;
+  --qr-ink: #000000;
+  --qr-paper: #ffffff;
+  --scrim: rgba(0, 0, 0, 0.35);
+  --grid: rgba(0, 0, 0, 0.05);
+
+  --c-bg-000: 255 255 255;
+  --c-bg-100: 250 250 250;
+  --c-bg-200: 244 244 244;
+  --c-bg-300: 233 233 233;
+  --c-line-100: 226 226 226;
+  --c-line-200: 136 136 136;
+  --c-ink: 0 0 0;
+  --c-ink-muted: 85 85 85;
+  --c-ink-subtle: 107 107 107;
+  --c-accent: 0 0 0;
+  --c-on-accent: 255 255 255;
+  --c-accent-press: 38 38 38;
+  --c-signal-ok: 26 122 72;
+  --c-signal-warn: 148 96 0;
+  --c-signal-danger: 196 45 51;
+
   color-scheme: light;
 }
 
+/* ==========================================================================
+   Classes de componente, portadas do protótipo do console
+   ========================================================================== */
+@layer components {
+  /* Tipografia */
+  .ps-label {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 14px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-subtle);
+  }
+  .ps-h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 22px;
+    line-height: 26px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .ps-h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 20px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .ps-num {
+    font-family: var(--font-display);
+    font-weight: 300;
+    font-size: 34px;
+    line-height: 36px;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .ps-cap {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--ink-subtle);
+  }
+
+  /* Botões */
+  .ps-btn {
+    height: 40px;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--on-accent);
+    white-space: nowrap;
+    transition: opacity 0.2s, transform 0.1s, background 0.2s;
+  }
+  .ps-btn:hover {
+    opacity: 0.86;
+  }
+  .ps-btn:active {
+    transform: scale(0.97);
+  }
+  .ps-btn-sec {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line-200);
+  }
+  .ps-btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border-color: transparent;
+  }
+  .ps-btn-sec:hover,
+  .ps-btn-ghost:hover {
+    background: var(--accent-ghost);
+    opacity: 1;
+  }
+  .ps-btn-danger {
+    background: transparent;
+    color: var(--signal-danger);
+    border-color: var(--signal-danger);
+  }
+  .ps-btn-sm {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 10px;
+    gap: 6px;
+  }
+  .ps-btn-sm svg {
+    width: 14px;
+    height: 14px;
+  }
+  .ps-btn-lg {
+    height: 48px;
+    font-size: 13px;
+  }
+  .ps-ibtn {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-subtle);
+    transition: color 0.15s, background 0.15s;
+  }
+  .ps-ibtn:hover {
+    color: var(--ink);
+    background: var(--accent-ghost);
+  }
+  .ps-ibtn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Tags e pontos */
+  .ps-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid var(--line-200);
+    border-radius: 2px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    white-space: nowrap;
+  }
+  .ps-tag-solid {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+  }
+  .ps-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--ink-subtle);
+    flex: none;
+  }
+  .ps-dot-ok {
+    background: var(--signal-ok);
+  }
+  .ps-dot-warn {
+    background: var(--signal-warn);
+  }
+  .ps-dot-danger {
+    background: var(--signal-danger);
+  }
+  .ps-dot-ink {
+    background: var(--ink);
+  }
+  .ps-dot-pulse {
+    animation: ps-pulse 1.6s ease-in-out infinite;
+  }
+
+  /* Controle segmentado */
+  .ps-seg {
+    display: inline-flex;
+    border: 1px solid var(--line-100);
+    position: relative;
+  }
+  .ps-seg button {
+    position: relative;
+    z-index: 1;
+    padding: 0 14px;
+    height: 34px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-subtle);
+    transition: color 0.25s;
+    white-space: nowrap;
+  }
+  .ps-seg button.on {
+    color: var(--on-accent);
+  }
+  .ps-seg-pill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--accent);
+    transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* Campo */
+  .ps-field {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    background: var(--bg-200);
+    border: 1px solid var(--line-200);
+    color: var(--ink-subtle);
+    transition: border-color 0.2s;
+  }
+  .ps-field:focus-within {
+    border-color: var(--ink);
+  }
+  .ps-field input,
+  .ps-field select {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: 0;
+    outline: 0;
+    color: var(--ink);
+    font-size: 14px;
+  }
+  .ps-field select {
+    appearance: none;
+    cursor: pointer;
+  }
+  .ps-field input::placeholder {
+    color: var(--ink-subtle);
+  }
+
+  /* KPIs */
+  .ps-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--line-100);
+    border: 1px solid var(--line-100);
+  }
+  .ps-kpi {
+    background: var(--bg-200);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: background 0.2s;
+  }
+  button.ps-kpi:hover {
+    background: var(--bg-300);
+  }
+  .ps-kpi-row1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--ink-subtle);
+  }
+  .ps-kpi-row2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  @media (max-width: 1180px) {
+    .ps-kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* Painéis e cabeçalho de página */
+  .ps-panel {
+    background: var(--bg-200);
+    border: 1px solid var(--line-100);
+  }
+  .ps-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-100);
+    flex-wrap: wrap;
+    min-height: 62px;
+  }
+  .ps-phead {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line-100);
+  }
+  .ps-phead-t {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .ps-phead-t p {
+    margin: 0;
+    color: var(--ink-muted);
+  }
+
+  /* Tabela: rola na horizontal dentro do próprio quadro */
+  .ps-tablewrap {
+    border: 1px solid var(--line-100);
+    background: var(--bg-200);
+    overflow-x: auto;
+  }
+  .ps-tablewrap table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 980px;
+  }
+  .ps-tablewrap th {
+    text-align: left;
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--line-100);
+    white-space: nowrap;
+  }
+  .ps-tablewrap td {
+    padding: 12px;
+    border-bottom: 1px solid var(--line-100);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .ps-tablewrap tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .ps-person {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ps-person-name {
+    font-weight: 500;
+    font-size: 15px;
+  }
+  .ps-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid var(--line-200);
+    background: var(--bg-300);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    flex: none;
+  }
+  .ps-ico {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-ghost);
+    flex: none;
+  }
+  .ps-empty {
+    padding: 48px 16px;
+    text-align: center;
+    color: var(--ink-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Gaveta, modal e toast: a classe `on` mostra o elemento */
+  .ps-scrim {
+    position: fixed;
+    inset: 0;
+    background: var(--scrim);
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .ps-scrim.on {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .ps-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(440px, 100%);
+    background: var(--bg-100);
+    border-left: 1px solid var(--line-200);
+    z-index: 51;
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+  }
+  .ps-drawer.on {
+    transform: none;
+  }
+  .ps-drawer-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--line-100);
+  }
+  .ps-drawer-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .ps-drawer-foot {
+    padding: 16px 24px;
+    border-top: 1px solid var(--line-100);
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .ps-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: min(420px, calc(100% - 32px));
+    background: var(--bg-100);
+    border: 1px solid var(--line-200);
+    z-index: 52;
+    transform: translate(-50%, -46%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .ps-modal.on {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .ps-toast {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 60;
+    background: var(--accent);
+    color: var(--on-accent);
+    padding: 14px 18px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-weight: 500;
+    transform: translateY(16px);
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s;
+    pointer-events: none;
+    max-width: calc(100% - 48px);
+  }
+  .ps-toast.on {
+    transform: none;
+    opacity: 1;
+  }
+
+  /* Marca */
+  .ps-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ps-brand img {
+    height: 36px;
+    width: auto;
+  }
+  .ps-brand-wm {
+    white-space: nowrap;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    line-height: 18px;
+  }
+  .ps-brand-wm span {
+    font-weight: 300;
+  }
+}
+
+@keyframes ps-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* ==========================================================================
+   Estrutura
+   ========================================================================== */
 app-root,
 app-shell,
 app-confirm-host,
@@ -54,225 +616,200 @@ router-outlet {
 
 html, body {
   height: 100%;
-  background: var(--bg-base);
-  color: var(--text-main);
-  font-family: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
+  background: var(--bg-000);
+  color: var(--ink);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.4s, color 0.4s;
 }
 
 .app-bg {
-  background: var(--bg-base) !important;
-  transition: background-color 0.3s ease;
+  background: var(--bg-000) !important;
+  transition: background-color 0.4s;
 }
 
-/* Mapeamento dinâmico e inteligente para os utilitários fixos de UI no modo Claro */
-.light .bg-graphite-200 {
-  background-color: var(--bg-surface) !important;
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
-.light .bg-graphite,
-.light .bg-graphite-100 {
-  background-color: var(--bg-elevated) !important;
+.font-mono {
+  font-variant-numeric: tabular-nums;
 }
 
-.light .text-white {
-  color: var(--text-main) !important;
+/* ==========================================================================
+   Fundos: exceções à paleta de tailwind.config.js. As regras por família de
+   sinal (emerald, rose, blue...) ficam no plugin desse arquivo.
+   ========================================================================== */
+
+/* `white` é o canal de ink para o alfa baixo (`bg-white/5`); sólido ou quase
+   sólido é superfície, senão a tinta sumiria sobre ele. */
+.bg-white,
+.bg-white\/40,
+.bg-white\/50,
+.bg-white\/70,
+.bg-white\/75,
+.bg-white\/80,
+.bg-white\/95 {
+  background-color: var(--bg-200);
+}
+.hover\:bg-white:hover,
+.focus\:bg-white:focus {
+  background-color: var(--bg-300);
+}
+.hover\:bg-white\/50:hover {
+  background-color: var(--accent-ghost);
 }
 
-/* Proteção de contraste para textos sobre imagens */
-.light .keep-white,
+/* QR e fotos que precisam de papel branco nos dois temas */
+.qr-paper {
+  background-color: #fff !important;
+}
+
+/* Interruptor ligado: a bolinha contrasta com o trilho accent */
+.peer:checked ~ .peer-checked\:after\:bg-white::after {
+  background-color: var(--on-accent);
+  border-color: var(--on-accent);
+}
+
+.finance-date-header {
+  background-color: var(--bg-000);
+}
+
+/* Sobre foto o texto é sempre branco, nos dois temas */
 .keep-white {
-  color: #FFFFFF !important;
+  color: #fff !important;
+}
+.keep-white[class*="bg-slate-950/"] {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+:is(.bg-black, [class^="bg-black/"], [class*=" bg-black/"]):not(.fixed),
+:is(.bg-black, [class^="bg-black/"], [class*=" bg-black/"]):not(.fixed) * {
+  color: #fff;
 }
 
-/* Ajuste do cabeçalho de data do financeiro no Light Mode */
-.light .finance-date-header {
-  background-color: rgba(255, 255, 255, 0.8) !important;
-  color: var(--text-sub) !important;
+/* Sobre accent o texto é on-accent, inclusive descendentes text-white e keep-white */
+:is(.bg-accent, .bg-accent-500, .bg-accent-600, .bg-accent-700),
+:is(.bg-accent, .bg-accent-500, .bg-accent-600, .bg-accent-700) *,
+.hover\:bg-accent:hover,
+.hover\:bg-accent:hover * {
+  color: var(--on-accent) !important;
 }
 
-/* Proteção de contraste para garantir que botões/badges com fundo primário preservem texto branco */
-.light button.bg-accent .text-white,
-.light button.bg-accent,
-.light .bg-accent .text-white,
-.light .bg-accent,
-.light .keep-white,
-.keep-white,
-.light .hover\:text-white:hover,
-.light .hover\:\!text-white:hover {
-  color: #FFFFFF !important;
+/* Escurecimento atrás de modais e lightbox */
+.fixed.inset-0:is([class*="bg-black/"], [class*="bg-slate-950/"], [class*="bg-slate-900/"]) {
+  background-color: var(--scrim) !important;
 }
 
-.light .text-slate-100,
-.light .hover\:text-slate-100:hover {
-  color: var(--text-main) !important;
+/* Sem sombra colorida, glow nem blur decorativo */
+[class*="shadow-["] {
+  box-shadow: none !important;
+}
+[class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.blur-3xl,
+.blur-\[120px\] {
+  display: none;
 }
 
-.light .text-slate-400,
-.light .text-slate-300,
-.light .text-slate-200 {
-  color: var(--text-sub) !important;
+/* Pílulas viram tag; avatares e pontos seguem redondos */
+.rounded-full[class*="px-"] {
+  border-radius: 2px;
 }
 
-.light .text-slate-500 {
-  color: var(--text-muted) !important;
+/* ==========================================================================
+   Controles
+   ========================================================================== */
+
+/* Borda de controle: 3:1 nos dois temas. Borda de erro continua com a cor de sinal. */
+:is(input:not([type="checkbox"], [type="radio"]), select, textarea):not([class*="border-rose"], [class*="border-red"], .border-transparent),
+button.border:not([class*="border-rose"], [class*="border-red"], [class*="border-emerald"], [class*="border-amber"], .border-accent, .border-transparent) {
+  border-color: var(--line-200);
 }
 
-.light .border-white\/10,
-.light .border-white\/5,
-.light .border-white\/20,
-.light .border-r {
-  border-color: var(--border-color) !important;
-}
-
-/* Ajustes finos de hover e backgrounds em tabelas/listas no modo Claro */
-.light thead.bg-white\/\[0\.02\] {
-  background-color: rgba(10, 22, 40, 0.03) !important;
-  border-bottom-color: var(--border-color) !important;
-}
-
-.light tr.border-t.border-white\/5 {
-  border-top-color: var(--border-color) !important;
-}
-
-.light tr:hover.hover\:bg-white\/\[0\.02\] {
-  background-color: rgba(10, 22, 40, 0.02) !important;
-}
-
-/* Suporte a formulários e dropdowns nativos (select, option, optgroup) */
-select {
-  color-scheme: dark;
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
 }
 
 select option,
 select optgroup {
-  background-color: var(--bg-surface) !important;
-  color: var(--text-main) !important;
+  background-color: var(--bg-200) !important;
+  color: var(--ink) !important;
 }
 
-.light input, .light select, .light textarea {
-  background-color: var(--bg-elevated) !important;
-  color: var(--text-main) !important;
-  border-color: var(--border-color) !important;
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
-.light select {
-  color-scheme: light;
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none !important;
+  border-color: var(--ink) !important;
+  box-shadow: none !important;
 }
 
-.light select option,
-.light select optgroup {
-  background-color: #FFFFFF !important;
-  color: #0F172A !important;
+button {
+  transition: background-color 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+}
+button:active:not(:disabled) {
+  transform: scale(0.985);
 }
 
-.light input::placeholder, .light textarea::placeholder {
-  color: var(--text-muted) !important;
+/* Ícones de traço 1.5px; os templates costumam marcar stroke-width no <path> */
+svg[fill="none"],
+svg[fill="none"] * {
+  stroke-width: 1.5;
 }
 
-.light .bg-slate-900 {
-  background-color: var(--bg-elevated) !important;
+/* ==========================================================================
+   Tabelas
+   ========================================================================== */
+table th {
+  font-family: var(--font-display) !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+  letter-spacing: 0.2em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-subtle) !important;
+}
+table tr {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+tbody tr:hover {
+  background-color: var(--accent-ghost);
 }
 
-.light .bg-slate-900\/50 {
-  background-color: rgba(10, 22, 40, 0.04) !important;
+/* ==========================================================================
+   Barras de rolagem e chips de inadimplência
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-
-.light .bg-slate-900\/40 {
-  background-color: rgba(10, 22, 40, 0.02) !important;
+::-webkit-scrollbar-track {
+  background: var(--bg-000);
 }
-
-.light .bg-slate-900\/60 {
-  background-color: rgba(10, 22, 40, 0.03) !important;
-}
-
-.light .bg-slate-950 {
-  background-color: var(--bg-elevated) !important;
-}
-
-.light .bg-slate-950\/60 {
-  background-color: var(--bg-elevated) !important;
-}
-
-.light .bg-slate-950\/30,
-.light .bg-slate-950\/5 {
-  background-color: rgba(10, 22, 40, 0.03) !important;
-}
-
-.light .hover\:border-white\/10:hover {
-  border-color: rgba(10, 22, 40, 0.15) !important;
-}
-
-.light .bg-slate-900\/80 {
-  background-color: var(--bg-surface) !important;
-}
-
-.light .bg-slate-950\/50 {
-  background-color: rgba(10, 22, 40, 0.04) !important;
-}
-
-.light .bg-graphite-300 {
-  background-color: #F1F5F9 !important;
-}
-
-.light .keep-white,
-.light .keep-white * {
-  color: #FFFFFF !important;
-}
-
-.light .text-rose-400 {
-  color: #DC2626 !important;
-}
-
-/* Proteção de contraste e adaptação de elementos do Light Mode */
-.light .bg-slate-800 {
-  background-color: #F1F5F9 !important;
-}
-
-.light .border-slate-700 {
-  border-color: #CBD5E1 !important;
-}
-
-.light .text-slate-350 {
-  color: var(--text-sub) !important;
-}
-
-.light .bg-slate-900 label:hover {
-  background-color: rgba(10, 22, 40, 0.04) !important;
-}
-
-/* Botão Cancelar/Secundário no Light Mode */
-.light button.bg-slate-800 {
-  background-color: #F1F5F9 !important;
-  color: var(--text-sub) !important;
-  border-color: #E2E8F0 !important;
-}
-
-.light button.bg-slate-800:hover {
-  background-color: #E2E8F0 !important;
-  color: var(--text-main) !important;
-}
-
-/* Scrollbar com cores dinâmicas */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: var(--scrollbar-track); }
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 6px;
+  background: var(--line-100);
 }
-::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+::-webkit-scrollbar-thumb:hover {
+  background: var(--line-200);
+}
 
-/* Chips de inadimplência (grade densa por bloco) */
 .inadimplente-chip {
   transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 .inadimplente-chip:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.45);
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
-/* Scrollbar discreta dentro de cada bloco de inadimplência */
 .inadimplencia-scroll::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -281,97 +818,14 @@ select optgroup {
   background: transparent;
 }
 .inadimplencia-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-}
-.inadimplencia-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
-.light .inadimplencia-scroll::-webkit-scrollbar-thumb {
-  background: rgba(10, 22, 40, 0.15);
+  background: var(--line-200);
 }
 
-/* ==========================================================================
-   Diretrizes do Redesign Corporativo (Soft Rounding & Visual Hierarchy)
-   ========================================================================== */
-
-/* 1. Suavização de Cantos Arredondados (Soft Cornering) */
-.rounded-xl {
-  border-radius: 8px !important; /* Perfeito para botões, badges, inputs e mini-menus */
-}
-.rounded-2xl {
-  border-radius: 12px !important; /* Ideal para painéis, cards e modais */
-}
-.rounded-3xl {
-  border-radius: 16px !important;
-}
-
-/* 2. Hierarquia e Estilização de Tabelas Corporativas */
-table th {
-  letter-spacing: 0.05em;
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
-  font-weight: 600 !important;
-  text-transform: uppercase;
-}
-table tr {
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-/* 3. Micro-interações seguras e suaves */
-button {
-  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-}
-button:active:not(:disabled) {
-  transform: scale(0.985);
-}
-
-/* 4. Foco de Inputs Corporativo e Sutil */
-input:focus, select:focus, textarea:focus {
-  outline: none !important;
-  border-color: #2563EB !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
-}
-.light input:focus, .light select:focus, .light textarea:focus {
-  border-color: #2563EB !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08) !important;
-}
-
-/* 5. Scrollbar minimalista */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-/* ==========================================================================
-   6. Remoção de Background Acinzentado / Escurecido dos Modais em Todas as Áreas
-   ========================================================================== */
-.fixed.inset-0.bg-black\/60,
-.fixed.inset-0.bg-black\/70,
-.fixed.inset-0.bg-black\/80,
-.fixed.inset-0.bg-black\/85,
-.fixed.inset-0.bg-slate-950\/80,
-.fixed.inset-0.bg-slate-900\/50,
-.fixed.inset-0.bg-slate-900\/60,
-.fixed.inset-0.bg-black\/25,
-[class*="fixed"][class*="inset-0"][class*="bg-black/"]:not(.sidebar-drawer):not(.keep-dark-overlay),
-[class*="fixed"][class*="inset-0"][class*="bg-slate-950/"]:not(.sidebar-drawer):not(.keep-dark-overlay),
-[class*="fixed"][class*="inset-0"][class*="bg-slate-900/"]:not(.sidebar-drawer):not(.keep-dark-overlay) {
-  background-color: transparent !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* Realce suave e profundidade nítida para o card do modal sem escurecer a tela */
-[class*="fixed"][class*="inset-0"]:not(.sidebar-drawer):not(.keep-dark-overlay) > div[class*="rounded"] {
-  box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.08) !important;
-}
-.dark [class*="fixed"][class*="inset-0"]:not(.sidebar-drawer):not(.keep-dark-overlay) > div[class*="rounded"] {
-  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
-}
-
-/* Proteção para visualização de fotos ampliadas (lightbox) e drawer mobile */
-.sidebar-drawer,
-.keep-dark-overlay,
-div[class*="fecharAmpliarFoto"] {
-  background-color: rgba(0, 0, 0, 0.85) !important;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

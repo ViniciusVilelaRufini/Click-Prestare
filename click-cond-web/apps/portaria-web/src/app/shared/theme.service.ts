@@ -1,51 +1,21 @@
 import { Injectable, signal } from '@angular/core';
 
+const CHAVE_TEMA = 'prestare_theme';
+
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   readonly isLight = signal<boolean>(false);
 
   constructor() {
-    this.initializeTheme();
-    // Verifica transições automáticas a cada 10 segundos
-    setInterval(() => this.checkTimeTransition(), 10000);
+    this.setTheme(this.temaInicialClaro());
   }
 
-  private initializeTheme() {
-    const hour = new Date().getHours();
-    const currentPhase = (hour >= 18 || hour < 5) ? 'night' : 'day';
-    const savedPhase = localStorage.getItem('theme_phase');
-    const savedMode = localStorage.getItem('theme_mode');
-
-    if (savedPhase !== currentPhase) {
-      // Transição de fase de horário: força o padrão da nova fase
-      const shouldBeLight = currentPhase === 'day';
-      this.setTheme(shouldBeLight);
-      localStorage.setItem('theme_phase', currentPhase);
-      localStorage.setItem('theme_mode', shouldBeLight ? 'light' : 'dark');
-    } else if (savedMode) {
-      // Mesma fase: respeita a escolha manual do usuário
-      this.setTheme(savedMode === 'light');
-    } else {
-      // Padrão inicial
-      const shouldBeLight = currentPhase === 'day';
-      this.setTheme(shouldBeLight);
-      localStorage.setItem('theme_phase', currentPhase);
-      localStorage.setItem('theme_mode', shouldBeLight ? 'light' : 'dark');
-    }
-  }
-
-  private checkTimeTransition() {
-    const hour = new Date().getHours();
-    const currentPhase = (hour >= 18 || hour < 5) ? 'night' : 'day';
-    const savedPhase = localStorage.getItem('theme_phase');
-
-    if (savedPhase !== currentPhase) {
-      // Transição automática de fase enquanto o app está aberto
-      const shouldBeLight = currentPhase === 'day';
-      this.setTheme(shouldBeLight);
-      localStorage.setItem('theme_phase', currentPhase);
-      localStorage.setItem('theme_mode', shouldBeLight ? 'light' : 'dark');
-    }
+  // Mesma regra do script inline de index.html: a escolha salva vence; sem ela, segue o
+  // sistema, e o escuro é o padrão.
+  private temaInicialClaro(): boolean {
+    const salvo = localStorage.getItem(CHAVE_TEMA);
+    if (salvo === 'light' || salvo === 'dark') return salvo === 'light';
+    return window.matchMedia?.('(prefers-color-scheme: light)').matches ?? false;
   }
 
   setTheme(light: boolean) {
@@ -66,6 +36,6 @@ export class ThemeService {
   toggleTheme() {
     const nextLight = !this.isLight();
     this.setTheme(nextLight);
-    localStorage.setItem('theme_mode', nextLight ? 'light' : 'dark');
+    localStorage.setItem(CHAVE_TEMA, nextLight ? 'light' : 'dark');
   }
 }
