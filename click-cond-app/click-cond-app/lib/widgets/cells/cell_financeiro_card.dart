@@ -238,8 +238,10 @@ class FinanceiroCard extends StatelessWidget {
                             ),
                           ],
                         ),
+                        const SizedBox(width: 12),
                         // Coluna de Valor
-                        Column(
+                        Flexible(
+                          child: Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
@@ -247,11 +249,18 @@ class FinanceiroCard extends StatelessWidget {
                               style: AppTypography.label(context),
                             ),
                             const SizedBox(height: 2),
-                            Text(
-                              valorFormatado,
-                              style: AppTypography.numeral(context).copyWith(fontSize: 22, height: 1.1),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                valorFormatado,
+                                maxLines: 1,
+                                softWrap: false,
+                                style: AppTypography.numeral(context).copyWith(fontSize: 22, height: 1.1),
+                              ),
                             ),
                           ],
+                        ),
                         ),
                       ],
                     ),
@@ -610,8 +619,8 @@ class FinanceiroCard extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderStrong(context)),
       ),
       builder: (sheetContext) {
         return Padding(
@@ -621,10 +630,9 @@ class FinanceiroCard extends StatelessWidget {
             children: [
               Container(
                 width: 40,
-                height: 4,
+                height: 3,
                 decoration: BoxDecoration(
-                  color: AppColors.border(context),
-                  borderRadius: BorderRadius.circular(AppRadius.tag),
+                          color: AppColors.borderStrong(context),
                 ),
               ),
               const SizedBox(height: 18),
@@ -701,8 +709,8 @@ class FinanceiroCard extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderStrong(context)),
       ),
       builder: (sheetContext) {
         return Padding(
@@ -712,10 +720,9 @@ class FinanceiroCard extends StatelessWidget {
             children: [
               Container(
                 width: 40,
-                height: 4,
+                height: 3,
                 decoration: BoxDecoration(
-                  color: AppColors.border(context),
-                  borderRadius: BorderRadius.circular(AppRadius.tag),
+                          color: AppColors.borderStrong(context),
                 ),
               ),
               const SizedBox(height: 18),

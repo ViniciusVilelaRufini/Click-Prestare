@@ -329,7 +329,6 @@ class _NewVisitantePageState extends State<NewVisitante> {
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
                     color: AppColors.accentGhost(context),
-                    shape: BoxShape.circle,
                   ),
                   child: Icon(
                     PhosphorIcons.circleWavyCheck,

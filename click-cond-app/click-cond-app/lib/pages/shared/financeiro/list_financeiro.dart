@@ -455,6 +455,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                               children: [
                                 Text(data.toUpperCase(), style: AppTypography.section(context)),
                                 const SizedBox(height: AppSpacing.sm),
+                                Container(height: 1, color: AppColors.border(context)),
                                 for (var item in _filteredLancamentos[data])
                                   _LancamentoCard(item: item),
                               ],
@@ -624,8 +625,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderStrong(context)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -636,10 +637,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               children: [
                 Container(
                   width: 40,
-                  height: 4,
+                  height: 3,
                   decoration: BoxDecoration(
-                    color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(AppRadius.tag),
+                          color: AppColors.borderStrong(context),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -738,8 +738,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderStrong(context)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -750,10 +750,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               children: [
                 Container(
                   width: 40,
-                  height: 4,
+                  height: 3,
                   decoration: BoxDecoration(
-                    color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(AppRadius.tag),
+                          color: AppColors.borderStrong(context),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -849,8 +848,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderStrong(context)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -863,10 +862,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                 Center(
                   child: Container(
                     width: 40,
-                    height: 4,
+                    height: 3,
                     decoration: BoxDecoration(
-                      color: AppColors.border(context),
-                      borderRadius: BorderRadius.circular(AppRadius.tag),
+                          color: AppColors.borderStrong(context),
                     ),
                   ),
                 ),
@@ -1512,11 +1510,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               ),
               decoration: BoxDecoration(
                 color: AppColors.bg(context),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-                border: Border(top: BorderSide(color: AppColors.border(context))),
+                border: Border(top: BorderSide(color: AppColors.borderStrong(context))),
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -2046,11 +2040,14 @@ class _LancamentoCard extends StatelessWidget {
     String valorFormatted = (item['valorString'] ?? '').toString().replaceAll('BRL', 'R\$').trim();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 1),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        border: Border.all(color: AppColors.border(context)),
+        border: Border(
+          left: BorderSide(color: AppColors.border(context)),
+          right: BorderSide(color: AppColors.border(context)),
+          bottom: BorderSide(color: AppColors.border(context)),
+        ),
       ),
       child: Row(
         children: [
@@ -2344,7 +2341,7 @@ class _InadKpiCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surface(context),
             borderRadius: BorderRadius.zero,
-            border: Border.all(color: color.withValues(alpha: 0.15)),
+            border: Border.all(color: AppColors.border(context)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2353,7 +2350,7 @@ class _InadKpiCard extends StatelessWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.zero),
+                    decoration: BoxDecoration(color: AppColors.accentGhost(context), borderRadius: BorderRadius.zero),
                     child: Icon(icon, color: color, size: 18),
                   ),
                   const Spacer(),

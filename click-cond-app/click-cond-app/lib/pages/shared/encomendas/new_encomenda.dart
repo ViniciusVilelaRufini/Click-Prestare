@@ -512,8 +512,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                        color: AppColors.accentGhost(context),
                       ),
                       child: Icon(PhosphorIcons.camera, color: AppColors.primary, size: 28),
                     ),
@@ -687,7 +686,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                   duration: const Duration(milliseconds: 180),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isSelected ? color.withValues(alpha: 0.15) : AppColors.surface(context),
+                    color: isSelected ? AppColors.accentGhost(context) : AppColors.surface(context),
                     borderRadius: BorderRadius.zero,
                     border: Border.all(
                       color: isSelected ? color : AppColors.border(context),

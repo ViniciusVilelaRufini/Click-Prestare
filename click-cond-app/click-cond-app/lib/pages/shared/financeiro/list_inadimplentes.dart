@@ -117,7 +117,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                   for (final apto in bloco['aptos'])
                                     Column(
                                       children: [
-                                        const Divider(height: 1, color: Colors.white10, indent: AppSpacing.md, endIndent: AppSpacing.md),
+                                        Divider(height: 1, color: AppColors.border(context), indent: AppSpacing.md, endIndent: AppSpacing.md),
                                         InkWell(
                                           onTap: () => Navigator.push(
                                             context,

@@ -58,7 +58,7 @@ class _ScanBoletoPageState extends State<ScanBoletoPage> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: AppColors.bg(sheetCtx),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(top: BorderSide(color: AppColors.borderStrong(context))),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,

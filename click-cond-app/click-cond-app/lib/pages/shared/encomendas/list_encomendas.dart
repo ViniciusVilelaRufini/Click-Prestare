@@ -291,7 +291,7 @@ class ListEncomendasState extends State<ListEncomendas> {
               AppIconBox(icon: PhosphorIcons.package, size: 56, iconSize: 24),
               const SizedBox(height: AppSpacing.lg),
               Text(
-                _searchQuery.isNotEmpty
+                (_searchQuery.isNotEmpty
                     ? 'Nenhuma encomenda corresponde à busca'
                     : _filtro == EncomendaFiltro.aguardando
                         ? 'Nada aguardando retirada'
@@ -299,7 +299,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                             ? 'Nenhuma encomenda entregue ainda'
                             : (_isStaff
                                 ? 'Nenhuma encomenda registrada no condomínio'
-                                : 'Nenhuma encomenda encontrada')
+                                : 'Nenhuma encomenda encontrada'))
                     .toUpperCase(),
                 style: AppTypography.section(context),
                 textAlign: TextAlign.center,
@@ -352,7 +352,6 @@ class ListEncomendasState extends State<ListEncomendas> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.accentGhost(context),
-                  shape: BoxShape.circle,
                 ),
                 child: Icon(PhosphorIcons.trash, color: AppColors.error, size: 32),
               ),
@@ -684,7 +683,7 @@ class _EncomendaCard extends StatelessWidget {
             return Container(
               decoration: BoxDecoration(
                 color: AppColors.surface(context),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border(top: BorderSide(color: AppColors.borderStrong(context))),
               ),
               padding: EdgeInsets.fromLTRB(
                 AppSpacing.xl,
@@ -699,11 +698,10 @@ class _EncomendaCard extends StatelessWidget {
                   children: [
                     Center(
                       child: Container(
-                        width: 38,
-                        height: 4,
+                        width: 40,
+                        height: 3,
                         decoration: BoxDecoration(
-                          color: AppColors.textTertiary(context).withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(AppRadius.tag),
+                          color: AppColors.borderStrong(context),
                         ),
                       ),
                     ),
@@ -1116,7 +1114,7 @@ class _EncomendaCard extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: AppColors.surface(context),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(top: BorderSide(color: AppColors.borderStrong(context))),
           ),
           padding: EdgeInsets.fromLTRB(
             AppSpacing.xl,
@@ -1131,11 +1129,10 @@ class _EncomendaCard extends StatelessWidget {
               children: [
                 Center(
                   child: Container(
-                    width: 38,
-                    height: 4,
+                    width: 40,
+                    height: 3,
                     decoration: BoxDecoration(
-                      color: AppColors.textTertiary(context).withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(AppRadius.tag),
+                          color: AppColors.borderStrong(context),
                     ),
                   ),
                 ),

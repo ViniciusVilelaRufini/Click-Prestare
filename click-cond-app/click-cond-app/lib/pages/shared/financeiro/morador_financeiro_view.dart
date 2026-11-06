@@ -416,8 +416,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderStrong(context)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -428,10 +428,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               children: [
                 Container(
                   width: 40,
-                  height: 4,
+                  height: 3,
                   decoration: BoxDecoration(
-                    color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(AppRadius.tag),
+                          color: AppColors.borderStrong(context),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -530,8 +529,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderStrong(context)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -542,10 +541,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               children: [
                 Container(
                   width: 40,
-                  height: 4,
+                  height: 3,
                   decoration: BoxDecoration(
-                    color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(AppRadius.tag),
+                          color: AppColors.borderStrong(context),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -641,8 +639,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderStrong(context)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -655,10 +653,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 Center(
                   child: Container(
                     width: 40,
-                    height: 4,
+                    height: 3,
                     decoration: BoxDecoration(
-                      color: AppColors.border(context),
-                      borderRadius: BorderRadius.circular(AppRadius.tag),
+                          color: AppColors.borderStrong(context),
                     ),
                   ),
                 ),
@@ -1184,11 +1181,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               ),
               decoration: BoxDecoration(
                 color: AppColors.bg(context),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-                border: Border(top: BorderSide(color: AppColors.border(context))),
+                border: Border(top: BorderSide(color: AppColors.borderStrong(context))),
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -1867,8 +1860,7 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.onPrimary.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
+                      color: AppColors.accentGhost(context),
                     ),
                     child: Icon(widget.icon, color: AppColors.onPrimary, size: 28),
                   ),

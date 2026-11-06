@@ -253,9 +253,15 @@ class AppKpi extends StatelessWidget {
         children: [
           Text(label.toUpperCase(), style: AppTypography.label(context)),
           const SizedBox(height: 6),
-          Text(
-            value,
-            style: AppTypography.numeral(context).copyWith(color: valueColor),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              softWrap: false,
+              style: AppTypography.numeral(context).copyWith(color: valueColor),
+            ),
           ),
         ],
       ),

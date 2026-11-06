@@ -244,7 +244,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
               decoration: BoxDecoration(
                 color: AppColors.bg(context),
                 borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(24)),
+                    BorderRadius.zero,
               ),
               child: Column(
                 children: [
@@ -254,11 +254,9 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                     child: Center(
                         child: Container(
                       width: 40,
-                      height: 4,
+                      height: 3,
                       decoration: BoxDecoration(
-                        color: AppColors.textTertiary(context)
-                            .withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(AppRadius.tag),
+                        color: AppColors.borderStrong(context),
                       ),
                     )),
                   ),
@@ -879,7 +877,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                             borderRadius:
                                                 BorderRadius.zero),
                                       ),
-                                      child: Text('Fechar',
+                                      child: Text('Fechar'.toUpperCase(),
                                           style: AppTypography.body(context)),
                                     ),
                                   ),
@@ -1217,23 +1215,28 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               children: [
                                 Icon(PhosphorIcons.userPlus,
                                     color: AppColors.onPrimary, size: 20),
-                                AnimatedSize(
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOutCubic,
-                                  child: Row(
-                                    children: [
-                                      if (_isFabExpanded) ...[
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Cadastrar visitante ou prestador',
-                                          style: TextStyle(
-                                            color: AppColors.onPrimary,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
+                                Flexible(
+                                  child: AnimatedSize(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOutCubic,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (_isFabExpanded) ...[
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              'Cadastrar visitante ou prestador'
+                                                  .toUpperCase(),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style:
+                                                  AppTypography.button(context),
+                                            ),
                                           ),
-                                        ),
+                                        ],
                                       ],
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1335,19 +1338,19 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                     animation: tc.animation!,
                     builder: (_, __) => Row(
                       children: [
-                        _TipoChip(
+                        Expanded(child: _TipoChip(
                           icon: PhosphorIcons.houseLine,
                           label: 'No local (${listInside.length})',
                           selected: tc.index == 0,
                           onTap: () => tc.animateTo(0),
-                        ),
+                        )),
                         const SizedBox(width: 8),
-                        _TipoChip(
+                        Expanded(child: _TipoChip(
                           icon: PhosphorIcons.identificationCard,
                           label: 'Cadastrados (${listCadastrados.length})',
                           selected: tc.index == 1,
                           onTap: () => tc.animateTo(1),
-                        ),
+                        )),
                       ],
                     ),
                   );
@@ -1580,7 +1583,11 @@ class _VisitanteCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             // Linha Inferior: Horário + PIN + Ação
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
               children: [
                 // Esquerda: Horário de entrada
                 Row(
@@ -1592,19 +1599,16 @@ class _VisitanteCard extends StatelessWidget {
                       color: AppColors.textTertiary(context),
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      isInside
-                          ? 'Entrou '
-                          : (item['data_saida'] != null ? 'Saiu ' : ''),
-                      style: AppTypography.tiny(context),
-                    ),
-                    Text(
-                      tempoDecorrido,
-                      style: AppTypography.tiny(context),
+                    Flexible(
+                      child: Text(
+                        '${isInside ? 'Entrou ' : (item['data_saida'] != null ? 'Saiu ' : '')}$tempoDecorrido',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.tiny(context),
+                      ),
                     ),
                   ],
                 ),
-                const Spacer(),
                 // Centro: PIN ou Sem PIN
                 if (hasPin)
                   GestureDetector(
@@ -1645,7 +1649,6 @@ class _VisitanteCard extends StatelessWidget {
                     'Sem PIN',
                     style: AppTypography.tiny(context),
                   ),
-                const Spacer(),
                 // Direita: Botão Encerrar ou Liberar
                 if (isInside && onEncerrar != null)
                   InkWell(
@@ -1708,8 +1711,6 @@ class _VisitanteCard extends StatelessWidget {
                       ),
                     ),
                   )
-                else
-                  const SizedBox(width: 24),
               ],
             ),
           ],
@@ -1795,18 +1796,21 @@ class _TipoChip extends StatelessWidget {
           height: 34,
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 14, color: cor),
-                const SizedBox(width: 6),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 14, color: cor),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  label.toUpperCase(),
+                  style: AppTypography.label(context).copyWith(color: cor),
+                ),
               ],
-              Text(
-                label.toUpperCase(),
-                style: AppTypography.label(context).copyWith(color: cor),
-              ),
-            ],
+            ),
           ),
         ),
       ),

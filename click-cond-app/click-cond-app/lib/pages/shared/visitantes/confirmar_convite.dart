@@ -144,7 +144,7 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
                 side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
               ),
-              child: Text('Recusar', style: TextStyle(color: AppColors.error)),
+              child: Text('Recusar'.toUpperCase(), style: TextStyle(color: AppColors.error)),
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
