@@ -21,7 +21,7 @@ import { ThemeService } from '../shared/theme.service';
     >
       <div class="ps-panel w-full max-w-md p-6 sm:p-8">
         <div class="ps-brand mb-6">
-          <img [src]="isLight() ? '/prestare-icone-preto.png' : '/prestare-icone-branco.png'" alt="Prestare Gestão" />
+          <img [src]="isLight() ? '/prestare-marca-preta.svg' : '/prestare-marca-branca.svg'" alt="Prestare Gestão" />
           <div class="ps-brand-wm">PRESTARE <span>GESTÃO</span></div>
         </div>
         <div class="flex items-center gap-3 mb-6">

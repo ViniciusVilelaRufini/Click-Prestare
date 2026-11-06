@@ -38,7 +38,7 @@ import { ThemeService } from '../shared/theme.service';
 
         <!-- Marca, no mesmo formato da tela de login -->
         <div class="ps-brand justify-center">
-          <img [src]="isLight() ? '/prestare-icone-preto.png' : '/prestare-icone-branco.png'" alt="Prestare Gestão" />
+          <img [src]="isLight() ? '/prestare-marca-preta.svg' : '/prestare-marca-branca.svg'" alt="Prestare Gestão" />
           <div>
             <div class="ps-brand-wm">PRESTARE <span>GESTÃO</span></div>
             <div class="ps-label mt-1" style="font-size: 9px; line-height: 10px;">Web Console</div>

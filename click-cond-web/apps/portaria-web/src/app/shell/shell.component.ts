@@ -12,8 +12,8 @@ import { CommonModule } from '@angular/common';
       <!-- Topbar mobile -->
       <header class="min-[900px]:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-[var(--bg-000)] border-b border-[var(--line-100)] select-none">
         <div class="ps-brand !gap-2.5">
-          <img src="/prestare-icone-branco.png" alt="Prestare Gestão" class="ps-logo-dark !h-7" />
-          <img src="/prestare-icone-preto.png" alt="Prestare Gestão" class="ps-logo-light !h-7" />
+          <img src="/prestare-marca-branca.svg" alt="Prestare Gestão" class="ps-logo-dark !h-7" />
+          <img src="/prestare-marca-preta.svg" alt="Prestare Gestão" class="ps-logo-light !h-7" />
           <span class="ps-brand-wm !text-[15px]">Prestare<span> Gestão</span></span>
         </div>
         <button
