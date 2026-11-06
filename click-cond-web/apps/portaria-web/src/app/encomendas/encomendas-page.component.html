@@ -24,7 +24,7 @@
         <p class="ps-label">A chegar</p>
       </div>
       <div class="ps-kpi-row2">
-        <p class="ps-num">{{ esperando() }}</p>
+        <p class="ps-num">{{ esperando() < 10 ? '0' + esperando() : esperando() }}</p>
         @if (esperando() > 0) {
           <span class="ps-cap mb-1">aguardando entrega</span>
         }
@@ -38,7 +38,7 @@
         }
       </div>
       <div class="ps-kpi-row2">
-        <p class="ps-num">{{ aguardando() }}</p>
+        <p class="ps-num">{{ aguardando() < 10 ? '0' + aguardando() : aguardando() }}</p>
         @if (aguardando() > 0) {
           <span class="ps-cap mb-1">pendentes</span>
         }
@@ -50,7 +50,7 @@
         <span class="ps-dot ps-dot-ok"></span>
       </div>
       <div class="ps-kpi-row2">
-        <p class="ps-num">{{ retiradas() }}</p>
+        <p class="ps-num">{{ retiradas() < 10 ? '0' + retiradas() : retiradas() }}</p>
       </div>
     </div>
     <div class="ps-kpi">
@@ -58,7 +58,7 @@
         <p class="ps-label">Total registrado</p>
       </div>
       <div class="ps-kpi-row2">
-        <p class="ps-num">{{ encomendas().length }}</p>
+        <p class="ps-num">{{ encomendas().length < 10 ? '0' + encomendas().length : encomendas().length }}</p>
       </div>
     </div>
   </div>
@@ -66,7 +66,7 @@
   <!-- Legenda de Armazenamento -->
   <div class="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 px-4 py-3 border border-[var(--line-100)] text-[13px] text-[var(--ink-muted)]">
     <div class="flex items-center gap-x-5 gap-y-2 flex-wrap">
-      <span class="ps-label !text-[var(--ink)]">Tempo de Armazenamento</span>
+      <span class="ps-label !text-[var(--ink)]">Tempo de Armazenamento:</span>
       <span class="inline-flex items-center gap-2"><span class="ps-dot"></span> Recente (&lt; 3 dias)</span>
       <span class="inline-flex items-center gap-2"><span class="ps-dot ps-dot-warn"></span> Atenção (3 a 6 dias)</span>
       <span class="inline-flex items-center gap-2"><span class="ps-dot ps-dot-danger"></span> Crítico (7+ dias)</span>
