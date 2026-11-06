@@ -126,8 +126,6 @@ class _NewAptoPageState extends State<NewApto> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return AppScaffold(
       title: getText('lb_apartamento'),
       body: _isLoading
@@ -141,10 +139,10 @@ class _NewAptoPageState extends State<NewApto> {
                     Container(
                       padding: const EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(16),
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.15),
+                          color: AppColors.primaryLight,
                         ),
                       ),
                       child: Row(
@@ -167,37 +165,24 @@ class _NewAptoPageState extends State<NewApto> {
                   ] else ...[
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isDark 
-                              ? [AppColors.primary, AppColors.primary.withValues(alpha: 0.7)]
-                              : [AppColors.primary, AppColors.primary.withValues(alpha: 0.85)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.25),
-                            blurRadius: 16,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
+                        color: AppColors.surface(context),
+                        border: Border.all(color: AppColors.borderStrong(context)),
                       ),
                       child: Row(
                         children: [
                           Container(
-                            width: 56,
-                            height: 56,
+                            width: 52,
+                            height: 52,
                             decoration: BoxDecoration(
-                              color: AppColors.onPrimary.withValues(alpha: 0.2),
-                              shape: BoxShape.circle,
+                              color: AppColors.accentGhost(context),
+                              border: Border.all(color: AppColors.border(context)),
                             ),
                             child: Icon(
                               PhosphorIcons.door,
-                              color: AppColors.onPrimary,
-                              size: 28,
+                              color: AppColors.textPrimary(context),
+                              size: 24,
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -206,21 +191,13 @@ class _NewAptoPageState extends State<NewApto> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Apartamento ${txtApto.text}',
-                                  style: TextStyle(
-                                    color: AppColors.onPrimary,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  'Apartamento ${txtApto.text}'.toUpperCase(),
+                                  style: AppTypography.title(context),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   'Bloco ${txtBloco.text}',
-                                  style: TextStyle(
-                                    color: AppColors.onPrimary.withValues(alpha: 0.9),
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                  style: AppTypography.bodySecondary(context),
                                 ),
                               ],
                             ),
@@ -234,10 +211,10 @@ class _NewAptoPageState extends State<NewApto> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.01),
-                      borderRadius: BorderRadius.circular(16),
+                      color: AppColors.surface(context),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                       border: Border.all(
-                        color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
+                        color: AppColors.border(context),
                       ),
                     ),
                     child: Column(
@@ -253,11 +230,7 @@ class _NewAptoPageState extends State<NewApto> {
                             const SizedBox(width: 8),
                             Text(
                               getText('lb_infos_apto').toUpperCase(),
-                              style: AppTypography.captionMedium(context).copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.8,
-                              ),
+                              style: AppTypography.label(context),
                             ),
                           ],
                         ),
@@ -418,8 +391,6 @@ class _MoradorSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -427,24 +398,19 @@ class _MoradorSection extends StatelessWidget {
           children: [
             Text(
               title.toUpperCase(),
-              style: AppTypography.captionMedium(context).copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.8,
-              ),
+              style: AppTypography.label(context),
             ),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderStrong(context)),
+                borderRadius: BorderRadius.circular(AppRadius.tag),
               ),
               child: Text(
                 list.length.toString(),
-                style: AppTypography.tiny(context).copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
+                style: AppTypography.label(context).copyWith(
+                  color: AppColors.textSecondary(context),
                 ),
               ),
             ),
@@ -454,16 +420,15 @@ class _MoradorSection extends StatelessWidget {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: onAdd,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.08),
-                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.borderStrong(context)),
                     ),
                     child: Icon(
                       PhosphorIcons.plus,
-                      color: AppColors.primary,
+                      color: AppColors.textPrimary(context),
                       size: 16,
                     ),
                   ),
@@ -477,10 +442,10 @@ class _MoradorSection extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.005),
-              borderRadius: BorderRadius.circular(16),
+              color: AppColors.surface(context),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
+                color: AppColors.border(context),
               ),
             ),
             child: Column(
@@ -488,7 +453,7 @@ class _MoradorSection extends StatelessWidget {
                 Icon(
                   PhosphorIcons.users,
                   size: 28,
-                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.25),
+                  color: AppColors.textTertiary(context),
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -507,9 +472,9 @@ class _MoradorSection extends StatelessWidget {
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.08),
+                      backgroundColor: AppColors.primaryLight,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
                     ),
                   ),
@@ -526,14 +491,14 @@ class _MoradorSection extends StatelessWidget {
             return Container(
               margin: const EdgeInsets.only(bottom: AppSpacing.sm),
               decoration: BoxDecoration(
-                color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.015),
-                borderRadius: BorderRadius.circular(16),
+                color: AppColors.surface(context),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(
-                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                  color: AppColors.border(context),
                 ),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -547,7 +512,7 @@ class _MoradorSection extends StatelessWidget {
                             height: 44,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: AppColors.primary.withValues(alpha: 0.1),
+                              color: AppColors.surfaceElevated(context),
                               image: (photoUrl != null && photoUrl.isNotEmpty)
                                   ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
                                   : null,
@@ -574,7 +539,7 @@ class _MoradorSection extends StatelessWidget {
                                   name,
                                   style: AppTypography.body(context).copyWith(
                                     fontWeight: FontWeight.bold,
-                                    color: isDark ? Colors.white : Colors.black87,
+                                    color: AppColors.textPrimary(context),
                                   ),
                                 ),
                                 if (telefone.isNotEmpty) ...[
@@ -582,7 +547,7 @@ class _MoradorSection extends StatelessWidget {
                                   Text(
                                     telefone,
                                     style: AppTypography.caption(context).copyWith(
-                                      color: isDark ? Colors.white60 : Colors.black54,
+                                      color: AppColors.textSecondary(context),
                                     ),
                                   ),
                                 ],
@@ -592,7 +557,7 @@ class _MoradorSection extends StatelessWidget {
                           if (canEdit)
                             Icon(
                               PhosphorIcons.caretRight,
-                              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3),
+                              color: AppColors.textTertiary(context),
                               size: 18,
                             ),
                         ],
