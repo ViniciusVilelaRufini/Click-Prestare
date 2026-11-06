@@ -158,7 +158,6 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
         ),
         Builder(
           builder: (context) {
-            final isDark = Theme.of(context).brightness == Brightness.dark;
             final exibidos = _acessos.take(widget.limit).toList();
 
             return Container(

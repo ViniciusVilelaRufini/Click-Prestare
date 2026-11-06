@@ -8,7 +8,9 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/navigation_service.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/widgets/app/app_card.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/app_tag.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -227,11 +229,25 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
             ? const Center(child: CircularProgressIndicator())
             : _list.isEmpty
                 ? _empty(context)
-                : ListView.separated(
+                : ListView(
                     padding: const EdgeInsets.all(AppSpacing.lg),
-                    itemCount: _list.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
-                    itemBuilder: (_, i) => _card(context, _list[i]),
+                    children: [
+                      Row(
+                        children: [
+                          Text('Pendentes'.toUpperCase(), style: AppTypography.label(context)),
+                          const SizedBox(width: 8),
+                          Text(
+                            _list.length.toString().padLeft(2, '0'),
+                            style: AppTypography.label(context).copyWith(color: AppColors.textPrimary(context)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      for (var i = 0; i < _list.length; i++) ...[
+                        if (i > 0) const SizedBox(height: AppSpacing.md),
+                        _card(context, _list[i]),
+                      ],
+                    ],
                   ),
       ),
     );
@@ -241,22 +257,12 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
     return ListView(
       children: [
         const SizedBox(height: 120),
-        Center(
-          child: Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(PhosphorIcons.bellSlash, size: 36, color: AppColors.primary),
-          ),
-        ),
+        Center(child: AppIconBox(icon: PhosphorIcons.bellSlash, size: 56, iconSize: 24)),
         const SizedBox(height: AppSpacing.lg),
         Center(
           child: Text(
-            'Nenhuma solicitação pendente',
-            style: AppTypography.title(context).copyWith(fontSize: 17),
+            'Nenhuma solicitação pendente'.toUpperCase(),
+            style: AppTypography.section(context),
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
@@ -264,7 +270,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
           child: Text(
             'Quando um visitante chegar na portaria, o pedido aparecerá aqui.',
             textAlign: TextAlign.center,
-            style: AppTypography.caption(context),
+            style: AppTypography.bodySecondary(context),
           ),
         ),
       ],
@@ -272,7 +278,6 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
   }
 
   Widget _card(BuildContext context, dynamic item) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final nome = (item['nome'] ?? 'Visitante').toString();
     final apto = (item['apto'] ?? '').toString();
     final bloco = (item['apto_bloco'] ?? '').toString();
@@ -314,36 +319,11 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                         Expanded(
                           child: Text(
                             nome,
-                            style: AppTypography.title(context).copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
+                            style: AppTypography.strong(context),
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface(context),
-                            borderRadius: BorderRadius.zero,
-                            border: Border.all(
-                              color: AppColors.border(context),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Aguardando',
-                                style: TextStyle(
-                                  color: AppColors.error,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        const SizedBox(width: 8),
+                        const AppTag(label: 'Aguardando', signal: AppSignal.warn),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -358,10 +338,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                         Expanded(
                           child: Text(
                             '${isPrestador ? "Prestador de serviço" : "Visitante na portaria"} • $aptoLabel',
-                            style: AppTypography.caption(context).copyWith(
-                              color: AppColors.textSecondary(context),
-                              fontSize: 12.5,
-                            ),
+                            style: AppTypography.tiny(context),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -392,32 +369,22 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                   children: [
                     Expanded(
                       child: Material(
-                        color: AppColors.surface(context),
-                        borderRadius: BorderRadius.zero,
+                        color: Colors.transparent,
                         child: InkWell(
-                          borderRadius: BorderRadius.zero,
                           onTap: () => _responder(item, false),
                           child: Container(
-                            height: 44,
+                            height: 48,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.zero,
-                              border: Border.all(
-                                color: AppColors.border(context),
-                                width: 1,
-                              ),
+                              border: Border.all(color: AppColors.borderStrong(context)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(PhosphorIcons.x, size: 16, color: AppColors.error),
-                                SizedBox(width: 6),
+                                Icon(PhosphorIcons.x, size: 16, color: AppColors.textPrimary(context)),
+                                const SizedBox(width: 6),
                                 Text(
-                                  'Negar',
-                                  style: TextStyle(
-                                    color: AppColors.error,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
+                                  'Negar'.toUpperCase(),
+                                  style: AppTypography.label(context).copyWith(color: AppColors.textPrimary(context)),
                                 ),
                               ],
                             ),
@@ -428,32 +395,22 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                     const SizedBox(width: 10),
                     Expanded(
                       child: Material(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.zero,
+                        color: Colors.transparent,
                         child: InkWell(
-                          borderRadius: BorderRadius.zero,
                           onTap: () => _responder(item, true, darEntrada: false),
                           child: Container(
-                            height: 44,
+                            height: 48,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.zero,
-                              border: Border.all(
-                                color: AppColors.primary.withValues(alpha: 0.35),
-                                width: 1,
-                              ),
+                              border: Border.all(color: AppColors.borderStrong(context)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(PhosphorIcons.check, size: 17, color: AppColors.primary),
+                                Icon(PhosphorIcons.check, size: 16, color: AppColors.textPrimary(context)),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'Autorizar',
-                                  style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
+                                  'Autorizar'.toUpperCase(),
+                                  style: AppTypography.label(context).copyWith(color: AppColors.textPrimary(context)),
                                 ),
                               ],
                             ),
@@ -471,7 +428,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                     borderRadius: BorderRadius.zero,
                     onTap: () => _responder(item, true, darEntrada: true),
                     child: Container(
-                      height: 44,
+                      height: 48,
                       width: double.infinity,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.zero,
@@ -482,12 +439,8 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                           Icon(PhosphorIcons.signIn, size: 18, color: AppColors.onPrimary),
                           SizedBox(width: 8),
                           Text(
-                            'Autorizar e Dar Entrada',
-                            style: TextStyle(
-                              color: AppColors.onPrimary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
+                            'Autorizar e Dar Entrada'.toUpperCase(),
+                            style: AppTypography.button(context),
                           ),
                         ],
                       ),
@@ -716,7 +669,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                 borderRadius: BorderRadius.zero,
                 onTap: () => Navigator.pop(c, DecisaoAutorizacao.autorizarEntrada),
                 child: Container(
-                  height: 44,
+                  height: 48,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.zero,
@@ -727,13 +680,9 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                       Icon(PhosphorIcons.signIn, size: 18, color: AppColors.onPrimary),
                       SizedBox(width: 8),
                       Text(
-                        'Autorizar e Dar Entrada',
-                        style: TextStyle(
-                          color: AppColors.onPrimary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
+                            'Autorizar e Dar Entrada'.toUpperCase(),
+                            style: AppTypography.button(c),
+                          ),
                     ],
                   ),
                 ),

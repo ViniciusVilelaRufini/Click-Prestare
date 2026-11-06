@@ -15,7 +15,10 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/widgets/app/app_card.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/app_segmented_control.dart';
+import 'package:click/widgets/app/app_tag.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:click/utils/datas.dart';
 import 'package:flutter/material.dart';
@@ -543,9 +546,6 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                 SnackBar(
                                                   content: const Text(
                                                       'Texto de compartilhamento copiado!'),
-                                                  backgroundColor: AppColors
-                                                      .primary
-                                                      .withValues(alpha: 0.9),
                                                   duration: const Duration(
                                                       seconds: 2),
                                                 ),
@@ -576,11 +576,9 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                             Container(
                               width: double.infinity,
                               decoration: BoxDecoration(
-                                color: AppColors.accentGhost(context),
-                                borderRadius: BorderRadius.zero,
+                                color: AppColors.surface(context),
                                 border: Border.all(
-                                    color: AppColors.primary
-                                        .withValues(alpha: 0.3)),
+                                    color: AppColors.border(context)),
                               ),
                               child: Column(
                                 children: [
@@ -593,20 +591,17 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                     child: Row(
                                       children: [
                                         Icon(PhosphorIcons.shieldCheck,
-                                            color: AppColors.primary, size: 18),
+                                            color: AppColors.textSecondary(context),
+                                            size: 18),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: FittedBox(
                                             fit: BoxFit.scaleDown,
                                             alignment: Alignment.centerLeft,
                                             child: Text(
-                                              'Código de Acesso para Portaria',
-                                              style: AppTypography.tiny(context)
-                                                  .copyWith(
-                                                color: AppColors.primary,
-                                                fontWeight: FontWeight.bold,
-                                                letterSpacing: 0.5,
-                                              ),
+                                              'Código de Acesso para Portaria'
+                                                  .toUpperCase(),
+                                              style: AppTypography.label(context),
                                             ),
                                           ),
                                         ),
@@ -620,24 +615,22 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                           horizontal: AppSpacing.md),
                                       padding:
                                           const EdgeInsets.all(AppSpacing.sm),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.zero,
-                                      ),
+                                      color: AppColors.qrPaper,
                                       child: QrImageView(
                                         data: item['codigo_acesso'].toString(),
                                         version: QrVersions.auto,
                                         size: _qrSize,
-                                        backgroundColor: Colors.white,
-                                        eyeStyle: QrEyeStyle(
+                                        padding: const EdgeInsets.all(12),
+                                        backgroundColor: AppColors.qrPaper,
+                                        eyeStyle: const QrEyeStyle(
                                           eyeShape: QrEyeShape.square,
-                                          color: AppColors.textPrimary(context),
+                                          color: AppColors.qrInk,
                                         ),
                                         dataModuleStyle:
-                                            QrDataModuleStyle(
+                                            const QrDataModuleStyle(
                                           dataModuleShape:
                                               QrDataModuleShape.square,
-                                          color: AppColors.textPrimary(context),
+                                          color: AppColors.qrInk,
                                         ),
                                       ),
                                     ),
@@ -645,11 +638,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                     // PIN numérico
                                     Text(
                                       'PIN',
-                                      style:
-                                          AppTypography.tiny(context).copyWith(
-                                        color: AppColors.textTertiary(context),
-                                        letterSpacing: 1,
-                                      ),
+                                      style: AppTypography.label(context),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
@@ -658,11 +647,13 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                           ? "${item['codigo_acesso'].toString().substring(0, 3)}-${item['codigo_acesso'].toString().substring(3, 6)}"
                                           : item['codigo_acesso'].toString(),
                                       style:
-                                          AppTypography.title(context).copyWith(
-                                        color: AppColors.primary,
-                                        letterSpacing: 6,
-                                        fontWeight: FontWeight.w900,
+                                          AppTypography.display(context).copyWith(
+                                        letterSpacing: _pinSize * 0.14,
+                                        fontWeight: FontWeight.w500,
                                         fontSize: _pinSize,
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures()
+                                        ],
                                       ),
                                     ),
                                     const SizedBox(height: 12),
@@ -675,22 +666,14 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                           SizedBox(
                                             width: double.infinity,
                                             child: ElevatedButton.icon(
-                                              icon: const Icon(PhosphorIcons.whatsappLogo, size: 20),
-                                              label: const Text(
-                                                'Enviar QR code completo',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
-                                                ),
-                                              ),
+                                              icon: const Icon(PhosphorIcons.whatsappLogo, size: 18),
+                                              label: Text('Enviar QR code completo'.toUpperCase()),
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: AppColors.textSecondary(context),
+                                                backgroundColor: AppColors.primary,
                                                 foregroundColor: AppColors.onPrimary,
+                                                minimumSize: const Size(0, 48),
                                                 elevation: 0,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.zero,
-                                                ),
-                                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                                shape: const RoundedRectangleBorder(),
                                               ),
                                               onPressed: () => _enviarQrCodeCompleto(item),
                                             ),
@@ -700,7 +683,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                             width: double.infinity,
                                             child: OutlinedButton.icon(
                                               icon: const Icon(PhosphorIcons.copy, size: 16),
-                                              label: const Text('Copiar código'),
+                                              label: Text('Copiar código'.toUpperCase()),
                                               onPressed: () {
                                                 Clipboard.setData(ClipboardData(
                                                         text: item['codigo_acesso']
@@ -712,9 +695,6 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                       SnackBar(
                                                         content: const Text(
                                                             'Código PIN copiado!'),
-                                                        backgroundColor: AppColors
-                                                            .primary
-                                                            .withValues(alpha: 0.9),
                                                         duration: const Duration(
                                                             seconds: 2),
                                                       ),
@@ -723,15 +703,11 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                 });
                                               },
                                               style: OutlinedButton.styleFrom(
-                                                foregroundColor: AppColors.primary,
+                                                foregroundColor: AppColors.textPrimary(context),
+                                                minimumSize: const Size(0, 48),
                                                 side: BorderSide(
-                                                    color: AppColors.primary
-                                                        .withValues(alpha: 0.4)),
-                                                shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.zero),
-                                                padding: const EdgeInsets.symmetric(
-                                                    vertical: 10),
+                                                    color: AppColors.borderStrong(context)),
+                                                shape: const RoundedRectangleBorder(),
                                               ),
                                             ),
                                           ),
@@ -1301,7 +1277,9 @@ class ListVisitantesPageState extends State<ListVisitantes> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                     AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
-                child: TextField(
+                child: SizedBox(
+                  height: 44,
+                  child: TextField(
                   controller: txtSearch,
                   onChanged: (v) {
                     _timerSearch?.cancel();
@@ -1320,97 +1298,60 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                     fillColor: AppColors.surface(context),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.zero,
-                        borderSide: BorderSide.none),
+                        borderSide:
+                            BorderSide(color: AppColors.border(context))),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.zero,
+                        borderSide:
+                            BorderSide(color: AppColors.border(context))),
+                    isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md, vertical: 14),
+                        horizontal: AppSpacing.md, vertical: 12),
+                  ),
                   ),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg, vertical: 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _TipoChip(
-                        label: 'Todos ($todosCount)',
-                        selected: _tipoFiltro == 'todos',
-                        onTap: () => setState(() => _tipoFiltro = 'todos'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _TipoChip(
-                        label: 'Visitantes ($visitantesCount)',
-                        selected: _tipoFiltro == 'visitantes',
-                        onTap: () => setState(() => _tipoFiltro = 'visitantes'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _TipoChip(
-                        label: 'Prestadores ($prestadoresCount)',
-                        selected: _tipoFiltro == 'prestadores',
-                        onTap: () =>
-                            setState(() => _tipoFiltro = 'prestadores'),
-                      ),
-                    ),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                child: AppSegmentedControl(
+                  selectedIndex: _tipoFiltro == 'todos'
+                      ? 0
+                      : (_tipoFiltro == 'visitantes' ? 1 : 2),
+                  onChanged: (i) => setState(() => _tipoFiltro =
+                      const ['todos', 'visitantes', 'prestadores'][i]),
+                  segments: [
+                    AppSegment(label: 'Todos', count: todosCount),
+                    AppSegment(label: 'Visitantes', count: visitantesCount),
+                    AppSegment(label: 'Prestadores', count: prestadoresCount),
                   ],
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-                child: Container(
-                  height: 48,
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface(context),
-                    borderRadius: BorderRadius.zero,
-                  ),
-                  child: TabBar(
-                    dividerColor: Colors.transparent,
-                    unselectedLabelColor: AppColors.textSecondary(context),
-                    labelColor: AppColors.onPrimary,
-                    labelStyle: AppTypography.caption(context)
-                        .copyWith(fontWeight: FontWeight.bold),
-                    unselectedLabelStyle: AppTypography.caption(context),
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    indicator: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.zero,
+                child: Builder(builder: (ctx) {
+                  final tc = DefaultTabController.of(ctx);
+                  return AnimatedBuilder(
+                    animation: tc.animation!,
+                    builder: (_, __) => Row(
+                      children: [
+                        _TipoChip(
+                          icon: PhosphorIcons.houseLine,
+                          label: 'No local (${listInside.length})',
+                          selected: tc.index == 0,
+                          onTap: () => tc.animateTo(0),
+                        ),
+                        const SizedBox(width: 8),
+                        _TipoChip(
+                          icon: PhosphorIcons.identificationCard,
+                          label: 'Cadastrados (${listCadastrados.length})',
+                          selected: tc.index == 1,
+                          onTap: () => tc.animateTo(1),
+                        ),
+                      ],
                     ),
-                    tabs: [
-                      Tab(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(PhosphorIcons.houseLine, size: 16),
-                              const SizedBox(width: 6),
-                              Text('No local (${listInside.length})'),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Tab(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(PhosphorIcons.identificationCard,
-                                  size: 16),
-                              const SizedBox(width: 6),
-                              Text('Cadastrados (${listCadastrados.length})'),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                  );
+                }),
               ),
               Expanded(
                 child: _isLoading
@@ -1530,7 +1471,6 @@ class _VisitanteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
 
     bool isExpired = false;
@@ -1605,23 +1545,6 @@ class _VisitanteCard extends StatelessWidget {
                   clipBehavior: Clip.none,
                   children: [
                     _buildVisitanteAvatar(context, item, radius: 24),
-                    if (isInside)
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: AppColors.success,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.surface(context),
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
                   ],
                 ),
                 const SizedBox(width: 12),
@@ -1631,25 +1554,14 @@ class _VisitanteCard extends StatelessWidget {
                     children: [
                       Text(
                         item['nome'] ?? '',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color:
-                              AppColors.textPrimary(context),
-                        ),
+                        style: AppTypography.strong(context),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 3),
                       Text(
                         subtitle,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          color: isDark
-                              ? AppColors.textTertiary(context)
-                              : AppColors.textSecondary(context),
-                        ),
+                        style: AppTypography.tiny(context),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1664,7 +1576,7 @@ class _VisitanteCard extends StatelessWidget {
             Divider(
               height: 1,
               thickness: 1,
-              color: AppColors.surfaceElevated(context),
+              color: AppColors.border(context),
             ),
             const SizedBox(height: 12),
             // Linha Inferior: Horário + PIN + Ação
@@ -1677,30 +1589,18 @@ class _VisitanteCard extends StatelessWidget {
                     Icon(
                       PhosphorIcons.clock,
                       size: 16,
-                      color: isDark
-                          ? AppColors.textSecondary(context)
-                          : AppColors.textTertiary(context),
+                      color: AppColors.textTertiary(context),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       isInside
                           ? 'Entrou '
                           : (item['data_saida'] != null ? 'Saiu ' : ''),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark
-                            ? AppColors.textTertiary(context)
-                            : AppColors.textSecondary(context),
-                      ),
+                      style: AppTypography.tiny(context),
                     ),
                     Text(
                       tempoDecorrido,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark
-                            ? AppColors.textTertiary(context)
-                            : AppColors.textSecondary(context),
-                      ),
+                      style: AppTypography.tiny(context),
                     ),
                   ],
                 ),
@@ -1722,22 +1622,19 @@ class _VisitanteCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: AppColors.surface(context),
-                        borderRadius: BorderRadius.zero,
+                        border:
+                            Border.all(color: AppColors.borderStrong(context)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(PhosphorIcons.key,
-                              size: 14, color: AppColors.primary),
+                              size: 14, color: AppColors.textSecondary(context)),
                           const SizedBox(width: 5),
                           Text(
                             formattedPin,
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
+                            style: AppTypography.label(context).copyWith(
+                                color: AppColors.textPrimary(context)),
                           ),
                         ],
                       ),
@@ -1746,12 +1643,7 @@ class _VisitanteCard extends StatelessWidget {
                 else
                   Text(
                     'Sem PIN',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark
-                          ? AppColors.textSecondary(context)
-                          : AppColors.textTertiary(context),
-                    ),
+                    style: AppTypography.tiny(context),
                   ),
                 const Spacer(),
                 // Direita: Botão Encerrar ou Liberar
@@ -1760,17 +1652,12 @@ class _VisitanteCard extends StatelessWidget {
                     onTap: onEncerrar,
                     borderRadius: BorderRadius.zero,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                      constraints: const BoxConstraints(minHeight: 36),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        color: AppColors.surface(context),
-                        borderRadius: BorderRadius.zero,
-                        border: Border.all(
-                          color: isDark
-                              ? AppColors.textSecondary(context)
-                              : AppColors.border(context),
-                          width: 1,
-                        ),
+                        border:
+                            Border.all(color: AppColors.borderStrong(context)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1783,12 +1670,9 @@ class _VisitanteCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'Encerrar',
-                            style: TextStyle(
-                              color: AppColors.textPrimary(context),
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            'Encerrar'.toUpperCase(),
+                            style: AppTypography.label(context).copyWith(
+                                color: AppColors.textPrimary(context)),
                           ),
                         ],
                       ),
@@ -1799,15 +1683,12 @@ class _VisitanteCard extends StatelessWidget {
                     onTap: onQuickRelease,
                     borderRadius: BorderRadius.zero,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                      constraints: const BoxConstraints(minHeight: 36),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        color: AppColors.surface(context),
-                        borderRadius: BorderRadius.zero,
-                        border: Border.all(
-                          color: AppColors.surface(context),
-                          width: 1,
-                        ),
+                        border:
+                            Border.all(color: AppColors.borderStrong(context)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1815,16 +1696,13 @@ class _VisitanteCard extends StatelessWidget {
                           Icon(
                             PhosphorIcons.paperPlaneTilt,
                             size: 13,
-                            color: AppColors.primary,
+                            color: AppColors.textPrimary(context),
                           ),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(
-                            'Liberar',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            'Liberar'.toUpperCase(),
+                            style: AppTypography.label(context).copyWith(
+                                color: AppColors.textPrimary(context)),
                           ),
                         ],
                       ),
@@ -1841,62 +1719,14 @@ class _VisitanteCard extends StatelessWidget {
   }
 
   Widget _buildStatusBadge(BuildContext context, bool isInside, bool isAuthorized, bool isExpired) {
-    Color bgColor;
-    Color textColor;
-    String text;
-    bool showDot = true;
-
     if (isInside) {
-      bgColor = AppColors.surface(context);
-      textColor = AppColors.success;
-      text = 'NO LOCAL';
+      return const AppTag(label: 'NO LOCAL', signal: AppSignal.ok);
     } else if (isAuthorized) {
-      bgColor = AppColors.surface(context);
-      textColor = AppColors.primary;
-      text = 'AUTORIZADO';
+      return const AppTag(label: 'AUTORIZADO', signal: AppSignal.ok);
     } else if (isExpired) {
-      bgColor = AppColors.surface(context);
-      textColor = AppColors.textSecondary(context);
-      text = 'FINALIZADO';
-      showDot = false;
-    } else {
-      bgColor = AppColors.surface(context);
-      textColor = AppColors.warning;
-      text = 'AGENDADO';
+      return const AppTag(label: 'FINALIZADO');
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.zero,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showDot) ...[
-            Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                color: textColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 5),
-          ],
-          Text(
-            text,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const AppTag(label: 'AGENDADO', signal: AppSignal.warn);
   }
 
   String _formatTempoDecorrido(dynamic dataEntradaRaw, dynamic horaEntradaRaw) {
@@ -1939,44 +1769,44 @@ class _VisitanteCard extends StatelessWidget {
 
 class _TipoChip extends StatelessWidget {
   final String label;
+  final IconData? icon;
   final bool selected;
   final VoidCallback onTap;
   const _TipoChip(
-      {required this.label, required this.selected, required this.onTap});
+      {required this.label,
+      required this.selected,
+      required this.onTap,
+      this.icon});
 
   @override
   Widget build(BuildContext context) {
+    final cor =
+        selected ? AppColors.onPrimary : AppColors.textSecondary(context);
     return Material(
-      color: Colors.transparent,
+      color: selected ? AppColors.primary : Colors.transparent,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: selected ? AppColors.primary : AppColors.borderStrong(context),
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.zero,
         child: Container(
           height: 34,
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppColors.primary.withValues(alpha: 0.12)
-                : AppColors.surface(context),
-            borderRadius: BorderRadius.zero,
-            border: Border.all(
-              color: selected
-                  ? AppColors.primary.withValues(alpha: 0.5)
-                  : Colors.transparent,
-            ),
-          ),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              label,
-              style: AppTypography.tiny(context).copyWith(
-                color: selected
-                    ? AppColors.primary
-                    : AppColors.textSecondary(context),
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: cor),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label.toUpperCase(),
+                style: AppTypography.label(context).copyWith(color: cor),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -1994,10 +1824,10 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 56, color: AppColors.textTertiary(context)),
+          AppIconBox(icon: icon, size: 56, iconSize: 24),
           const SizedBox(height: AppSpacing.md),
           Text(message,
-              style: AppTypography.caption(context),
+              style: AppTypography.bodySecondary(context),
               textAlign: TextAlign.center),
         ],
       ),

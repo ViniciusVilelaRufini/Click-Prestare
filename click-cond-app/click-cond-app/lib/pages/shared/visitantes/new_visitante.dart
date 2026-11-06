@@ -357,7 +357,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.lg, vertical: AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceElevated(context),
+                    color: AppColors.surface(context),
                     borderRadius: BorderRadius.zero,
                     border: Border.all(
                         color: AppColors.primary.withValues(alpha: 0.2)),
