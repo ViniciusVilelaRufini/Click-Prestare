@@ -1,12 +1,12 @@
 import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
-import 'package:click/theme/app_typography.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class RedefinirSenhaPage extends StatefulWidget {
@@ -110,31 +110,38 @@ class _RedefinirSenhaPageState extends State<RedefinirSenhaPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: AppSpacing.xl),
-            Center(
+            Align(
+              alignment: Alignment.centerLeft,
               child: Container(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                ),
+                width: 52,
+                height: 52,
+                color: AppColors.accentGhost(context),
                 child: Icon(
                   PhosphorIcons.key,
-                  size: 36,
-                  color: AppColors.primary,
+                  size: 24,
+                  color: AppColors.textPrimary(context),
                 ),
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
             Text(
-              'Crie sua Nova Senha',
-              style: AppTypography.display(context),
-              textAlign: TextAlign.center,
+              'CRIE SUA NOVA SENHA',
+              style: GoogleFonts.barlowCondensed(
+                fontSize: 22,
+                height: 26 / 22,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 22 * 0.1,
+                color: AppColors.textPrimary(context),
+              ),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Digite e confirme sua nova senha de acesso. O link é de uso único e expira em 30 minutos.',
-              style: AppTypography.bodySecondary(context),
-              textAlign: TextAlign.center,
+              style: GoogleFonts.barlow(
+                fontSize: 14,
+                height: 20 / 14,
+                color: AppColors.textSecondary(context),
+              ),
             ),
             const SizedBox(height: AppSpacing.xxxl),
             AppInput(
