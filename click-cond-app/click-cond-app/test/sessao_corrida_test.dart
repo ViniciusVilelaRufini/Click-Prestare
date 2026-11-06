@@ -4,10 +4,12 @@ import 'dart:convert';
 import 'package:click/pages/perfil_choice.dart';
 import 'package:click/pages/shared/aceite_privacidade.dart';
 import 'package:click/pages/sindico/list_condominiums.dart';
+import 'package:click/pages/shared/my_condominium.dart';
 import 'package:click/router.dart';
 import 'package:click/services/biometric_auth_service.dart';
 import 'package:click/services/firebase_service.dart';
 import 'package:click/utils/api_client.dart';
+import 'package:click/utils/cond_cache.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/navigation_service.dart';
 import 'package:click/utils/segredos_sessao.dart';
@@ -44,9 +46,11 @@ class _SeguroLento implements SecureStorageInterface {
   @override
   Future<String?> read({required String key}) async {
     leituras++;
+    // O valor sai do cofre antes da espera, como numa leitura real em curso.
+    final lido = dados[key];
     final p = portao;
     if (p != null) await p.future;
-    return dados[key];
+    return lido;
   }
 
   @override
@@ -67,6 +71,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late _SeguroLento seguro;
+  final obterOriginal = FirebaseService.instance.obterTokenFcm;
+  final apagarOriginal = FirebaseService.instance.apagarTokenFcm;
 
   setUp(() async {
     PackageInfo.setMockInitialValues(
@@ -90,6 +96,10 @@ void main() {
     seguro.portao = null;
     ApiClient.restaurarPadroes();
     await storageLogout();
+    FirebaseService.instance
+      ..limiteFcm = const Duration(seconds: 15)
+      ..obterTokenFcm = obterOriginal
+      ..apagarTokenFcm = apagarOriginal;
   });
 
   Future<void> abrirAte(WidgetTester tester, Type tela) async {
@@ -273,5 +283,217 @@ void main() {
     expect(find.text(_msgExpirou), findsOneWidget);
     await tester.pump(const Duration(seconds: 7));
     expect(getToken(), '');
+  });
+
+  group('401 sem credencial', () {
+    testWidgets('sem sessão, não navega nem avisa de expiração', (tester) async {
+      var raizes = 0;
+      ApiClient.client = MockClient((_) async => http.Response('{}', 401));
+      await tester.pumpWidget(MaterialApp(
+        navigatorKey: NavigationService.navigatorKey,
+        onGenerateRoute: (s) {
+          raizes++;
+          return MaterialPageRoute(settings: s, builder: (_) => const Scaffold(body: Text('raiz')));
+        },
+      ));
+      final antes = raizes;
+
+      await ApiClient.get(Uri.parse('https://exemplo.test/x'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(raizes, antes);
+      expect(find.text(_msgExpirou), findsNothing);
+    });
+
+    testWidgets('request sem header não derruba a sessão que existe', (tester) async {
+      final resposta = Completer<http.Response>();
+      ApiClient.client = MockClient((_) => resposta.future);
+      storageMorador(_loginDe('token-bom'));
+      await tester.pumpWidget(MaterialApp(
+        navigatorKey: NavigationService.navigatorKey,
+        home: const Scaffold(body: Text('tela')),
+      ));
+
+      ApiClient.tokenProvider = () => '';
+      final emVoo = ApiClient.get(Uri.parse('https://exemplo.test/x'));
+      await tester.pump();
+      ApiClient.tokenProvider = getToken;
+      resposta.complete(http.Response('{}', 401));
+      await emVoo;
+      await tester.pump();
+
+      expect(getToken(), 'token-bom');
+      expect(find.text(_msgExpirou), findsNothing);
+    });
+  });
+
+  testWidgets('vários 401 juntos navegam e avisam uma vez só', (tester) async {
+    var raizes = 0;
+    ApiClient.client = MockClient((_) async => http.Response('{}', 401));
+    storageMorador(_loginDe('token-atual'));
+    await tester.pumpWidget(MaterialApp(
+      navigatorKey: NavigationService.navigatorKey,
+      onGenerateRoute: (s) {
+        raizes++;
+        return MaterialPageRoute(settings: s, builder: (_) => const Scaffold(body: Text('raiz')));
+      },
+    ));
+    final antes = raizes;
+
+    await Future.wait([
+      ApiClient.get(Uri.parse('https://exemplo.test/a')),
+      ApiClient.get(Uri.parse('https://exemplo.test/b')),
+      ApiClient.get(Uri.parse('https://exemplo.test/c')),
+    ]);
+    await tester.pump();
+    await tester.pump();
+
+    expect(raizes, antes + 1);
+    expect(find.text(_msgExpirou), findsOneWidget);
+    await tester.pump(const Duration(seconds: 7));
+  });
+
+  testWidgets('401 com o app parado agenda o frame que leva ao login', (tester) async {
+    ApiClient.client = MockClient((_) async => http.Response('{}', 401));
+    storageMorador(_loginDe('token-atual'));
+    await tester.pumpWidget(MaterialApp(
+      navigatorKey: NavigationService.navigatorKey,
+      home: const Scaffold(body: Text('tela')),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.binding.hasScheduledFrame, isFalse);
+
+    await ApiClient.get(Uri.parse('https://exemplo.test/a'));
+
+    expect(tester.binding.hasScheduledFrame, isTrue);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 7));
+  });
+
+  group('logout e o token de push', () {
+    late List<String> chamadas;
+
+    setUp(() {
+      chamadas = [];
+      FirebaseService.instance
+        ..obterTokenFcm = (() async => 'fcm')
+        ..apagarTokenFcm = (() async => chamadas.add('deleteToken'));
+      ApiClient.client = MockClient((req) async {
+        chamadas.add(req.url.path.split('/').last);
+        return http.Response('{}', 200);
+      });
+    });
+
+    test('logout normal remove no servidor e no aparelho', () async {
+      storageMorador(_loginDe('token-velho'));
+      await storageLogout();
+      expect(chamadas, ['remove-fcm-token', 'deleteToken']);
+    });
+
+    test('login durante o logout mantém o push da sessão nova', () async {
+      storageMorador(_loginDe('token-velho'));
+      final saindo = storageLogout();
+      storageMorador(_loginDe('token-novo'));
+      await saindo;
+      expect(chamadas, isEmpty);
+      expect(getToken(), 'token-novo');
+    });
+
+    test('login enquanto o aviso ao servidor está no ar não apaga o token do aparelho', () async {
+      final aviso = Completer<void>();
+      ApiClient.client = MockClient((_) async {
+        await aviso.future;
+        return http.Response('{}', 200);
+      });
+      storageMorador(_loginDe('token-velho'));
+      final saindo = storageLogout();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      storageMorador(_loginDe('token-novo'));
+      aviso.complete();
+      await saindo;
+      expect(chamadas, isEmpty);
+    });
+  });
+
+  group('FCM sem resposta', () {
+    setUp(() {
+      FirebaseService.instance
+        ..limiteFcm = const Duration(milliseconds: 10)
+        ..obterTokenFcm = (() => Completer<String?>().future)
+        ..apagarTokenFcm = (() => Completer<void>().future);
+      ApiClient.client = MockClient((_) async => http.Response('{}', 200));
+    });
+
+    test('não segura o login', () async {
+      storageMorador(_loginDe('t'));
+      await FirebaseService.instance
+          .registrarNoServidor()
+          .timeout(const Duration(seconds: 2));
+    });
+
+    test('não segura o Sair', () async {
+      storageMorador(_loginDe('t'));
+      await storageLogout().timeout(const Duration(seconds: 2));
+      expect(getToken(), '');
+    });
+  });
+
+  group('resposta atrasada de uma sessão que saiu', () {
+    Map<String, dynamic> condominio() => {
+          'id': 5,
+          'nome': 'Da sessão velha',
+          'saldo': '1',
+        };
+
+    testWidgets('a lista não preenche o cache da sessão nova', (tester) async {
+      final lista = Completer<void>();
+      ApiClient.client = MockClient((req) async {
+        if (req.url.path.endsWith('/moradores/list-condominios')) {
+          await lista.future;
+          return http.Response(jsonEncode([condominio()]), 200);
+        }
+        if (req.url.path.contains('dashboard/summary') || req.url.path.contains('moradores/get')) {
+          return http.Response('{}', 200);
+        }
+        return http.Response('[]', 200);
+      });
+      storageMorador(_loginDe('token-velho'));
+      await tester.pumpWidget(const MaterialApp(home: ListCondomiums()));
+      await tester.pump();
+
+      await storageLogout();
+      storageMorador(_loginDe('token-novo'));
+      lista.complete();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(CondCache.get(5), isNull);
+      expect(find.text('Da sessão velha'), findsNothing);
+    });
+
+    testWidgets('a tela do condomínio não preenche o cache da sessão nova', (tester) async {
+      final cond = Completer<void>();
+      ApiClient.client = MockClient((req) async {
+        if (req.url.path.contains('dashboard/summary')) return http.Response('{}', 200);
+        if (req.url.path.contains('pendentes')) return http.Response('[]', 200);
+        if (req.url.path.contains('fcm-token')) return http.Response('{}', 200);
+        await cond.future;
+        return http.Response(jsonEncode(condominio()), 200);
+      });
+      storageMorador(_loginDe('token-velho'));
+      await tester.pumpWidget(const MaterialApp(home: MyCondominium(id: 5)));
+      await tester.pump();
+
+      await storageLogout();
+      storageMorador(_loginDe('token-novo'));
+      cond.complete();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(CondCache.get(5), isNull);
+    });
   });
 }

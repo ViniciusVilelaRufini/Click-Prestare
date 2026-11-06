@@ -225,6 +225,7 @@ class _MyCondominiumState extends State<MyCondominium> {
     setState(() {
       if (_cond == null) _isLoading = true;
     });
+    final sessao = getToken();
     try {
       final results = await Future.wait<dynamic>([
         getCondominio(widget.id),
@@ -235,6 +236,8 @@ class _MyCondominiumState extends State<MyCondominium> {
       ]);
 
       if (!mounted) return;
+      // Resposta de uma sessão que já saiu não vai para o cache nem para a tela.
+      if (getToken() != sessao) return;
 
       if (results[0] is Map<String, dynamic>) {
         final cond = results[0] as Map<String, dynamic>;

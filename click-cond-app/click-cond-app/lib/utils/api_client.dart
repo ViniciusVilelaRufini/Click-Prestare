@@ -177,12 +177,13 @@ class ApiClient {
   /// não que vire um TypeError JS confuso na tela ("super constructor...").
   ///
   /// Só encerra a sessão que recebeu o 401. Resposta de um request feito com
-  /// outro token (ou sem nenhum) e que chega depois de um login novo não diz
-  /// nada sobre a sessão atual, e tratá-la apagaria o token recém-recebido.
+  /// outro token e que chega depois de um login novo não diz nada sobre a sessão
+  /// atual, e tratá-la apagaria o token recém-recebido. Sem token no request o
+  /// 401 também não prova nada: é falta de credencial, não credencial vencida.
   static void _checkAuth(http.Response res, String? tokenEnviado) {
     if (res.statusCode != 401) return;
     final enviado = tokenEnviado ?? '';
-    final sessaoAtual = enviado == tokenProvider();
+    final sessaoAtual = enviado.isNotEmpty && enviado == tokenProvider();
     logDebug('[ApiClient] status 401 em ${res.request?.url.path}: '
         'Authorization ${enviado.isEmpty ? "ausente" : "enviado"}, '
         '${sessaoAtual ? "sessão atual" : "ignorado, não é a sessão atual"}');
@@ -220,6 +221,8 @@ class ApiClient {
           });
         }
       });
+      // O callback acima só roda se houver frame, e o app pode estar parado.
+      WidgetsBinding.instance.ensureVisualUpdate();
     } catch (_) {
       // WidgetsBinding pode falhar se chamado fora do contexto Flutter.
       _handlingExpiration = false;

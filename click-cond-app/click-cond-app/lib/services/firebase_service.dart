@@ -19,6 +19,17 @@ class FirebaseService {
   static final FirebaseService instance = FirebaseService._();
   FirebaseService._();
 
+  /// Teto de espera das chamadas ao FCM. Login e logout esperam por elas, e o
+  /// plugin não tem limite próprio.
+  @visibleForTesting
+  Duration limiteFcm = const Duration(seconds: 15);
+
+  @visibleForTesting
+  Future<String?> Function() obterTokenFcm = () => FirebaseMessaging.instance.getToken();
+
+  @visibleForTesting
+  Future<void> Function() apagarTokenFcm = () => FirebaseMessaging.instance.deleteToken();
+
   /// Nunca lança: quem chama não espera o resultado, e uma falha aqui não
   /// pode derrubar nem travar o app — no máximo o aparelho fica sem push.
   Future<void> init() async {
@@ -188,7 +199,7 @@ class FirebaseService {
     // espera por este método antes de navegar.
     String? token = tokenFcm;
     try {
-      token ??= await FirebaseMessaging.instance.getToken();
+      token ??= await obterTokenFcm().timeout(limiteFcm);
     } catch (e) {
       logDebug('Sem token de push: $e');
       return;
@@ -198,7 +209,11 @@ class FirebaseService {
 
   Future<void> _registrarNoServidor(String? tokenFcm) async {
     if (tokenFcm == null || tokenFcm.isEmpty) return;
-    await ensureStorageReady();
+    try {
+      await ensureStorageReady().timeout(limiteFcm);
+    } catch (e) {
+      logDebug('Armazenamento sem resposta ao registrar push: ${e.runtimeType}');
+    }
     final jwt = getToken();
     if (jwt.isEmpty) return;
 
@@ -220,14 +235,20 @@ class FirebaseService {
   /// Garante que nenhuma notificação seja recebida enquanto o app estiver deslogado.
   ///
   /// [jwt] é o token da sessão que está saindo: o logout já o apagou do cache
-  /// quando esta chamada chega ao servidor.
+  /// quando esta chamada chega ao servidor. Se outra sessão começar nesse
+  /// intervalo, para por aqui: o token do aparelho é um só, e removê-lo deixaria
+  /// o login novo sem push (a rota do servidor não filtra por usuário).
   Future<void> desregistrarNoServidor({String? jwt}) async {
     final sessao = jwt ?? getToken();
+    bool outraSessao() => jwt != null && getToken().isNotEmpty;
+
+    if (outraSessao()) return;
     String? token;
     try {
-      token = await FirebaseMessaging.instance.getToken();
+      token = await obterTokenFcm().timeout(limiteFcm);
     } catch (_) {}
 
+    if (outraSessao()) return;
     if (sessao.isNotEmpty) {
       try {
         await ApiClient.post(
@@ -244,8 +265,9 @@ class FirebaseService {
       }
     }
 
+    if (outraSessao()) return;
     try {
-      await FirebaseMessaging.instance.deleteToken();
+      await apagarTokenFcm().timeout(limiteFcm);
     } catch (e) {
       logDebug('Erro ao deletar FCM token local: $e');
     }

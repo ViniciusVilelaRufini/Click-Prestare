@@ -14,9 +14,14 @@ class _SeguroFalso implements SecureStorageInterface {
   bool falharEscrita = false;
   bool falharLeitura = false;
   Completer<void>? portao;
+  Completer<void>? portaoEscrita;
+  final escritas = <String?>[];
 
   @override
   Future<void> write({required String key, required String? value}) async {
+    escritas.add(value);
+    final p = portaoEscrita;
+    if (p != null) await p.future;
     if (falharEscrita) throw Exception('keystore indisponível');
     if (value == null) {
       dados.remove(key);
@@ -27,10 +32,13 @@ class _SeguroFalso implements SecureStorageInterface {
 
   @override
   Future<String?> read({required String key}) async {
+    // O valor sai do cofre antes da espera: é o que uma leitura em curso já
+    // pegou quando o login ou o logout acontecem.
+    final lido = dados[key];
     final p = portao;
     if (p != null) await p.future;
     if (falharLeitura) throw Exception('keystore indisponível');
-    return dados[key];
+    return lido;
   }
 
   @override
@@ -159,5 +167,66 @@ void main() {
 
       expect(SegredosSessao.ler('token'), 't1');
     });
+
+    test('carregar avisa quando alguma leitura falhou', () async {
+      seguro.falharLeitura = true;
+      seguro.portao!.complete();
+
+      expect(await SegredosSessao.carregar(), isFalse);
+
+      seguro.falharLeitura = false;
+      expect(await SegredosSessao.carregar(), isTrue);
+    });
+  });
+
+  group('migração do armazenamento antigo com a sessão mudando', () {
+    test('login durante a leitura não é sobrescrito pelo token antigo', () async {
+      await SegredosSessao.apagar('token');
+      legado['token'] = 'antigo';
+      seguro.portao = Completer<void>();
+      seguro.portaoEscrita = Completer<void>();
+
+      final recarga = SegredosSessao.carregar();
+      await Future<void>.delayed(Duration.zero);
+      final login = SegredosSessao.gravar('token', 't2');
+      seguro.portao!.complete();
+      await Future<void>.delayed(Duration.zero);
+      seguro.portaoEscrita!.complete();
+      await Future.wait([recarga, login]);
+
+      expect(SegredosSessao.ler('token'), 't2');
+      expect(seguro.dados['token'], 't2');
+      expect(seguro.escritas, isNot(contains('antigo')));
+    });
+
+    test('logout durante a escrita da migração não deixa token no cofre', () async {
+      await SegredosSessao.apagar('token');
+      legado['token'] = 'antigo';
+      seguro.portaoEscrita = Completer<void>();
+
+      final recarga = SegredosSessao.carregar();
+      await Future<void>.delayed(Duration.zero);
+      await SegredosSessao.apagar('token');
+      seguro.portaoEscrita!.complete();
+      await recarga;
+
+      expect(SegredosSessao.ler('token'), '');
+      expect(seguro.dados.containsKey('token'), isFalse);
+      expect(legado.containsKey('token'), isFalse);
+    });
+  });
+
+  test('escrita que falha depois do logout não grava o token em texto puro', () async {
+    seguro.portaoEscrita = Completer<void>();
+    seguro.falharEscrita = true;
+
+    final login = SegredosSessao.gravar('token', 't1');
+    await Future<void>.delayed(Duration.zero);
+    await SegredosSessao.apagar('token');
+    seguro.portaoEscrita!.complete();
+    await login;
+
+    expect(legado.containsKey('token'), isFalse);
+    expect(SegredosSessao.ler('token'), '');
   });
 }

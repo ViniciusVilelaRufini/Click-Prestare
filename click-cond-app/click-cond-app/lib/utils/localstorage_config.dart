@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/utils/log.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:localstorage/localstorage.dart';
@@ -17,7 +18,11 @@ class LocalStorageConfig {
   /// Aguarda ambos os storages estarem prontos antes de usar qualquer dado
   Future<void> initializeLocalStorage() async {
     await Future.wait([
-      _configStorage.ready,
+      // Preferências ilegíveis não impedem a sessão de carregar.
+      _configStorage.ready.catchError((Object e) {
+        logDebug('[LocalStorage] user_config ilegível: ${e.runtimeType}');
+        return false;
+      }),
       ensureStorageReady(), // aguarda o storage de user_data (local_storage.dart)
     ]);
   }

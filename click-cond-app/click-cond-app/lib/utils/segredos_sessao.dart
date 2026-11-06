@@ -35,7 +35,9 @@ class SegredosSessao {
   /// O cache só é tocado no fim, de uma vez. Limpá-lo antes de ler deixava
   /// getToken() vazio durante a leitura: o request dessa janela saía sem
   /// Authorization, tomava 401 e o ApiClient encerrava uma sessão válida.
-  static Future<void> carregar() async {
+  ///
+  /// Devolve false se alguma leitura falhou: vale tentar de novo depois.
+  static Future<bool> carregar() async {
     final versoes = Map.of(_versoes);
     bool mudou(String chave) => _versoes[chave] != versoes[chave];
 
@@ -57,7 +59,18 @@ class SegredosSessao {
           valor = antigo;
           try {
             await armazenamento.write(key: chave, value: antigo);
-            await legado?.apagar(chave);
+            if (mudou(chave)) {
+              // Login ou logout durante a migração: não deixa o valor antigo no
+              // cofre por cima do que aconteceu depois.
+              final atual = _cache[chave];
+              if (atual == null) {
+                await armazenamento.delete(key: chave);
+              } else {
+                await armazenamento.write(key: chave, value: atual);
+              }
+            } else {
+              await legado?.apagar(chave);
+            }
           } catch (_) {
             // Keystore indisponível: o valor continua no legado e a migração
             // é tentada de novo no próximo boot. Melhor que deslogar.
@@ -84,6 +97,7 @@ class SegredosSessao {
         _cache.remove(chave);
       }
     }
+    return semLeitura.isEmpty;
   }
 
   static String ler(String chave) => _cache[chave] ?? '';
@@ -92,13 +106,16 @@ class SegredosSessao {
   /// `null` (ou vazio) apaga.
   static Future<void> gravar(String chave, String? valor) async {
     if (!_valido(valor)) return apagar(chave);
-    _versoes[chave] = (_versoes[chave] ?? 0) + 1;
+    final versao = (_versoes[chave] ?? 0) + 1;
+    _versoes[chave] = versao;
     _cache[chave] = valor!;
     try {
       await armazenamento.write(key: chave, value: valor);
       await legado?.apagar(chave);
     } catch (_) {
-      await legado?.gravar(chave, valor);
+      // Só cai no texto puro se este valor ainda for o da sessão: depois de um
+      // logout, gravá-lo ali ressuscitaria o token no próximo boot.
+      if (_versoes[chave] == versao) await legado?.gravar(chave, valor);
     }
   }
 

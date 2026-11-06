@@ -6,6 +6,7 @@ import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/segredos_sessao.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:localstorage/localstorage.dart';
 
 class _SeguroMemoria implements SecureStorageInterface {
   final Map<String, String> dados = {};
@@ -81,5 +82,64 @@ void main() {
 
     expect(noDisco().containsKey('name'), isFalse);
     expect(getUsername(), '');
+  });
+
+  test('cache pendente não vai para o disco depois do logout', () async {
+    storageMorador({
+      'token': 't',
+      'user': {'id': 7, 'nome': 'Vinicius'},
+    });
+    saveCondCachePersistent(1, {'nome': 'pendente'});
+    await storageLogout();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    expect(noDisco().containsKey('cond_cache_1'), isFalse);
+  });
+
+  test('resposta que chega sem sessão não grava cache', () async {
+    await storageLogout();
+    saveCondCachePersistent(2, {'nome': 'em voo'});
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    expect(noDisco().containsKey('cond_cache_2'), isFalse);
+    expect(getCondCachePersistent(2), isNull);
+  });
+
+  // Fica por último: fecha o arquivo que os testes acima usam.
+  group('disco com falha persistente', () {
+    setUpAll(() => LocalStorage('user_data').dispose());
+
+    test('logout termina e a regravação para no limite', () async {
+      debugRegravacoes = 0;
+      storageMorador({
+        'token': 't',
+        'user': {'id': 7, 'nome': 'Vinicius'},
+      });
+
+      await storageLogout().timeout(const Duration(seconds: 2));
+      await Future<void>.delayed(const Duration(seconds: 3));
+      final tentativas = debugRegravacoes;
+
+      expect(tentativas, greaterThan(0));
+      expect(tentativas, lessThanOrEqualTo(5));
+
+      await Future<void>.delayed(const Duration(seconds: 2));
+      expect(debugRegravacoes, tentativas, reason: 'o laço precisa ter parado');
+    });
+
+    test('cache volta a aceitar gravação depois da falha', () async {
+      storageMorador({
+        'token': 't',
+        'user': {'id': 7, 'nome': 'Vinicius'},
+      });
+      saveCondCachePersistent(3, {'nome': 'a'});
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      debugRegravacoes = 0;
+      saveCondCachePersistent(4, {'nome': 'b'});
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+
+      expect(debugRegravacoes, greaterThan(0), reason: 'a segunda gravação não ficou presa na primeira');
+      await Future<void>.delayed(const Duration(seconds: 2));
+    });
   });
 }

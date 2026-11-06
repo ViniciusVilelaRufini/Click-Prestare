@@ -7,6 +7,7 @@ import 'package:click/theme/app_theme.dart';
 import 'package:click/theme/theme_controller.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/localstorage_config.dart';
+import 'package:click/utils/log.dart';
 import 'package:click/utils/navigation_service.dart';
 import 'package:click/widgets/app/prestare_splash_animation.dart';
 import 'package:flutter/material.dart';
@@ -50,6 +51,22 @@ void reconstruirArvore(BuildContext context) {
   (context as Element).visitChildren(marcar);
 }
 
+/// Prepara o armazenamento e o tema. Nunca lança nem fica preso: sem isto, um
+/// arquivo corrompido ou o Keystore sem responder deixavam o app na abertura
+/// para sempre. Se algo falhar, o app abre pedindo login, com o tema do sistema.
+Future<void> prepararAbertura({Duration limite = const Duration(seconds: 10)}) async {
+  try {
+    await LocalStorageConfig.instance.initializeLocalStorage().timeout(limite);
+  } catch (e) {
+    logDebug('[Abertura] armazenamento: ${e.runtimeType}');
+  }
+  try {
+    await ThemeController.instance.init().timeout(limite);
+  } catch (e) {
+    logDebug('[Abertura] tema: ${e.runtimeType}');
+  }
+}
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -72,8 +89,7 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _init() async {
-    await LocalStorageConfig.instance.initializeLocalStorage();
-    await ThemeController.instance.init();
+    await prepararAbertura();
     ThemeController.instance.addListener(_trocouTema);
     if (mounted) setState(() => _ready = true);
   }

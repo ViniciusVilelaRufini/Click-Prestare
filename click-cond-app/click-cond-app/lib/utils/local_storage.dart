@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:io' show FileSystemException;
+
 import 'package:click/pages/singleton.dart';
 import 'package:click/services/firebase_service.dart';
 import 'package:click/utils/cond_cache.dart';
+import 'package:click/utils/log.dart';
 import 'package:click/utils/segredos_sessao.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:localstorage/localstorage.dart';
 
 // Instância única — inicializada via ensureReady() no main antes de usar
@@ -11,11 +16,21 @@ Future<void>? _prontoUmaVez;
 
 /// Pode ser chamado de qualquer lugar e quantas vezes for: o startup e o
 /// FirebaseService, a cada registro de push. A carga só roda uma vez; depois
-/// dela o cache em memória é quem manda.
+/// dela o cache em memória é quem manda. A exceção é a leitura do Keystore que
+/// falhou: aí a próxima chamada tenta de novo, senão a sessão salva só voltaria
+/// reabrindo o app.
 Future<void> ensureStorageReady() => _prontoUmaVez ??= _prepararStorage();
 
 Future<void> _prepararStorage() async {
-  await _storage.ready;
+  var arquivoLido = true;
+  try {
+    await _storage.ready;
+  } catch (e) {
+    // JSON corrompido: o pacote segue com o mapa vazio e o próximo flush
+    // reescreve o arquivo. O boot não pode depender deste arquivo.
+    arquivoLido = false;
+    logDebug('[LocalStorage] user_data ilegível: ${e.runtimeType}');
+  }
   // Token e dispositivo confiável vivem no armazenamento seguro (fora do
   // JSON em texto puro e do backup). O legado serve para migrar e de reserva.
   SegredosSessao.legado = LegadoSessao(
@@ -23,10 +38,22 @@ Future<void> _prepararStorage() async {
     gravar: (k, v) => _persistir(_storage.setItem(k, v)),
     apagar: (k) => _persistir(_storage.deleteItem(k)),
   );
-  await SegredosSessao.carregar();
+  final leuTudo = await SegredosSessao.carregar();
+  // Token sem nome e sem tipo de login é meia sessão: as telas escolheriam as
+  // rotas erradas. Melhor pedir login, que grava tudo de novo.
+  if (!arquivoLido && getToken().isNotEmpty && getUserType().isEmpty) {
+    await SegredosSessao.apagar('token');
+  }
+  if (!leuTudo) _prontoUmaVez = null;
 }
 
-bool _regravacaoAgendada = false;
+const _maxRegravacoes = 5;
+bool _regravando = false;
+bool _regravacaoPendente = false;
+
+/// Quantas vezes o laço de regravação tentou gravar. Para testes.
+@visibleForTesting
+int debugRegravacoes = 0;
 
 /// Acompanha uma gravação no arquivo do `localstorage`.
 ///
@@ -36,17 +63,47 @@ bool _regravacaoAgendada = false;
 /// capturadas, e a chave da gravação recusada podia não chegar ao disco. Na
 /// recusa, grava de novo o estado atual em vez de repetir a chave: um logout no
 /// meio do caminho não pode ver o dado apagado ressuscitar.
+///
+/// Termina assim que a gravação original termina: a regravação corre à parte,
+/// com tentativas limitadas. Boot, logout e cache esperam por este Future, e um
+/// disco com problema não pode prender nenhum deles.
 Future<void> _persistir(Future<void> gravacao) async {
   try {
     await gravacao;
-  } catch (_) {
-    if (_regravacaoAgendada) return;
-    _regravacaoAgendada = true;
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    _regravacaoAgendada = false;
-    // Remover uma chave que não existe só faz o pacote gravar o mapa atual.
-    await _persistir(_storage.deleteItem('__regravar__'));
+  } on FileSystemException catch (e) {
+    logDebug('[LocalStorage] gravação recusada: ${e.message}');
+    _regravacaoPendente = true;
+    if (!_regravando) {
+      _regravando = true;
+      unawaited(_regravar());
+    }
+  } catch (e) {
+    logDebug('[LocalStorage] falha ao gravar: ${e.runtimeType}');
   }
+}
+
+Future<void> _regravar() async {
+  var tentativa = 0;
+  while (_regravacaoPendente && tentativa < _maxRegravacoes) {
+    _regravacaoPendente = false;
+    await Future<void>.delayed(Duration(milliseconds: 50 << tentativa));
+    tentativa++;
+    debugRegravacoes++;
+    try {
+      // Remover uma chave que não existe só faz o pacote gravar o mapa atual.
+      await _storage.deleteItem('__regravar__');
+    } on FileSystemException catch (e) {
+      logDebug('[LocalStorage] regravação recusada: ${e.message}');
+      _regravacaoPendente = true;
+    } catch (e) {
+      logDebug('[LocalStorage] falha ao regravar: ${e.runtimeType}');
+    }
+  }
+  if (_regravacaoPendente) {
+    logDebug('[LocalStorage] desistindo de regravar depois de $tentativa tentativas');
+    _regravacaoPendente = false;
+  }
+  _regravando = false;
 }
 
 void _guardar(String chave, dynamic valor) {
@@ -131,6 +188,7 @@ Future<void> storageLogout() async {
   // Cache de exibição do condomínio vive no processo, não no storage: sem isto
   // o próximo login veria o saldo/resumo do usuário anterior antes do refresh.
   CondCache.clear();
+  _pendingCondCache.clear();
   Singleton.instance.reset();
   final deviceToken = getSindicoDeviceToken();
   final jwt = getToken();
@@ -211,18 +269,21 @@ bool _isSavingCondCache = false;
 final Map<int, Map<String, dynamic>> _pendingCondCache = {};
 
 void saveCondCachePersistent(int id, Map<String, dynamic> json) {
+  // Resposta que chegou depois do logout: os dados não têm mais dono no aparelho.
+  if (getToken().isEmpty) return;
   _pendingCondCache[id] = json;
   if (_isSavingCondCache) return;
   _isSavingCondCache = true;
   Future.delayed(const Duration(milliseconds: 100), () async {
-    while (_pendingCondCache.isNotEmpty) {
-      final key = _pendingCondCache.keys.first;
-      final val = _pendingCondCache.remove(key);
-      try {
+    try {
+      while (_pendingCondCache.isNotEmpty) {
+        final key = _pendingCondCache.keys.first;
+        final val = _pendingCondCache.remove(key);
         await _persistir(_storage.setItem('cond_cache_$key', val));
-      } catch (_) {}
+      }
+    } finally {
+      _isSavingCondCache = false;
     }
-    _isSavingCondCache = false;
   });
 }
 

@@ -116,6 +116,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       ]);
 
       if (!mounted) return;
+      // Resposta de uma sessão que já saiu não vai para o cache nem para a tela.
+      if (getToken() != token) return;
       if (results[0] is List) {
         if (results.length > 2 && results[2] is Map) {
           final userDetails = results[2] as Map<String, dynamic>;
