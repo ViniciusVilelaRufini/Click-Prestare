@@ -176,11 +176,11 @@ class _ChatIaPageState extends State<ChatIaPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
+            child: Text('Cancelar'.toUpperCase()),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Apagar', style: TextStyle(color: AppColors.error)),
+            child: Text('Apagar'.toUpperCase(), style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -364,7 +364,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
       context: context,
       backgroundColor: AppColors.surface(context),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.zero),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -383,7 +383,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   ),
                 ),
                 Text(
-                  'Anexar Conta / Fatura',
+                  'Anexar Conta / Fatura'.toUpperCase(),
                   style: AppTypography.headline(context).copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 6),
@@ -416,10 +416,10 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.teal.withValues(alpha: 0.12),
+                      color: AppColors.info.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(PhosphorIcons.image, color: Colors.teal),
+                    child: Icon(PhosphorIcons.image, color: AppColors.info),
                   ),
                   title: Text('Escolher da galeria', style: AppTypography.body(context)),
                   subtitle: Text('Selecione uma foto da sua galeria', style: AppTypography.tiny(context)),
@@ -432,10 +432,10 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.deepOrange.withValues(alpha: 0.12),
+                      color: AppColors.warning.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(PhosphorIcons.filePdf, color: Colors.deepOrange),
+                    child: Icon(PhosphorIcons.filePdf, color: AppColors.warning),
                   ),
                   title: Text('Selecionar documento / PDF', style: AppTypography.body(context)),
                   subtitle: Text('Arquivo PDF ou imagem da fatura', style: AppTypography.tiny(context)),
@@ -676,22 +676,8 @@ class _ChatIaPageState extends State<ChatIaPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primaryGradientStart,
-              AppColors.primaryGradientEnd
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          color: AppColors.primary,
+          borderRadius: BorderRadius.zero,
         ),
         // Stack, não Row: são dois botões à esquerda e um à direita, então o
         // vão entre eles não tem o mesmo meio que a barra. Num Expanded o
@@ -754,7 +740,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.full),
+        borderRadius: BorderRadius.circular(AppRadius.tag),
         onTap: onTap,
         child: Tooltip(
           message: tooltip,
@@ -788,7 +774,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       color: AppColors.primary, size: 20),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
-                    child: Text('Conversas',
+                    child: Text('Conversas'.toUpperCase(),
                         style: AppTypography.headline(context)),
                   ),
                 ],
@@ -802,13 +788,13 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   _novaConversa();
                 },
                 icon: const Icon(PhosphorIcons.notePencil, size: 18),
-                label: const Text('Nova conversa'),
+                label: Text('Nova conversa'.toUpperCase()),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
                   minimumSize: const Size.fromHeight(44),
                   side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.zero),
                 ),
               ),
             ),
@@ -845,7 +831,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
             const SizedBox(height: AppSpacing.md),
             TextButton(
               onPressed: _carregarConversas,
-              child: const Text('Tentar de novo'),
+              child: Text('Tentar de novo'.toUpperCase()),
             ),
           ],
         ),
@@ -878,18 +864,18 @@ class _ChatIaPageState extends State<ChatIaPage> {
           color: aberta
               ? AppColors.primary.withValues(alpha: 0.10)
               : AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.zero,
           child: InkWell(
             onTap: () {
               Navigator.pop(context);
               if (!aberta) _abrirConversa(c);
             },
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.zero,
             child: Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.md, vertical: AppSpacing.md),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.zero,
                 border: Border.all(
                   color: aberta
                       ? AppColors.primary.withValues(alpha: 0.35)
@@ -903,7 +889,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                     height: 40,
                     decoration: BoxDecoration(
                       color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Icon(PhosphorIcons.chatCircleText,
                         color: AppColors.primary, size: 20),
@@ -985,7 +971,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'Olá! Sou o PRESTARE IA.',
+          'Olá! Sou o PRESTARE IA.'.toUpperCase(),
           textAlign: TextAlign.center,
           style: AppTypography.headline(context),
         ),
@@ -1040,12 +1026,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                     horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: isMe ? AppColors.primary : AppColors.surface(context),
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isMe ? 16 : 4),
-                    bottomRight: Radius.circular(isMe ? 4 : 16),
-                  ),
+                  borderRadius: BorderRadius.zero,
                   border: isMe
                       ? null
                       : Border.all(color: AppColors.border(context)),
@@ -1055,7 +1036,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   children: [
                     if (isMe && msg.anexo != null) ...[
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.zero,
                         child: msg.anexo!['is_image'] == true && msg.anexo!['path'] != null
                             ? Image.file(
                                 io.File(msg.anexo!['path']),
@@ -1067,7 +1048,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   color: AppColors.onPrimary.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.zero,
                                 ),
                                 child: Row(
                                   children: [
@@ -1129,7 +1110,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.bg(context),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
           color: resolvido
               ? (msg.resolvidaComSucesso
@@ -1211,7 +1192,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   child: OutlinedButton(
                     onPressed:
                         msg.confirmando ? null : () => _cancelarAcao(msg),
-                    child: Text('Cancelar',
+                    child: Text('Cancelar'.toUpperCase(),
                         style: AppTypography.caption(context)),
                   ),
                 ),
@@ -1247,7 +1228,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   child: ElevatedButton.icon(
                     onPressed: () => _acionarBotao(b),
                     icon: Icon(_iconeBotao(b.efeito), size: 16, color: AppColors.onPrimary),
-                    label: Text(b.rotulo,
+                    label: Text(b.rotulo.toUpperCase(),
                         style: AppTypography.caption(context)
                             .copyWith(color: AppColors.onPrimary)),
                     style: ElevatedButton.styleFrom(
@@ -1272,7 +1253,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.zero,
           border: Border.all(color: AppColors.border(context)),
         ),
         child: Row(
@@ -1306,21 +1287,14 @@ class _ChatIaPageState extends State<ChatIaPage> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.35), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.zero,
             child: isImage && path != null
                 ? Image.file(
                     io.File(path),
@@ -1331,8 +1305,8 @@ class _ChatIaPageState extends State<ChatIaPage> {
                 : Container(
                     width: 38,
                     height: 38,
-                    color: Colors.deepOrange.withValues(alpha: 0.15),
-                    child: const Icon(PhosphorIcons.filePdf, color: Colors.deepOrange, size: 22),
+                    color: AppColors.warning.withValues(alpha: 0.15),
+                    child: Icon(PhosphorIcons.filePdf, color: AppColors.warning, size: 22),
                   ),
           ),
           const SizedBox(width: 10),
@@ -1374,19 +1348,14 @@ class _ChatIaPageState extends State<ChatIaPage> {
   /// Campo flutuante moderno — borda nítida de alto contraste no light mode
   /// e visual elegante com destaque suave de foco.
   Widget _buildInput(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isFocused = _campoFoco.hasFocus;
     const raio = 30.0;
 
-    final Color bgColor = isDark
-        ? const Color(0xFF131D2E).withValues(alpha: 0.92)
-        : Colors.white;
+    final Color bgColor = AppColors.surface(context);
 
     final Color borderColor = isFocused
         ? AppColors.primary
-        : (isDark
-            ? const Color(0xFF2E3D52)
-            : const Color(0xFFD0D5DD)); // Borda perfeitamente visível e nítida no light mode
+        : (AppColors.border(context)); // Borda perfeitamente visível e nítida no light mode
 
     final double borderWidth = isFocused ? 1.5 : 1.2;
 
@@ -1405,26 +1374,6 @@ class _ChatIaPageState extends State<ChatIaPage> {
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(raio),
-              boxShadow: [
-                if (!isDark) ...[
-                  BoxShadow(
-                    color: const Color(0xFF101828).withValues(alpha: 0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF101828).withValues(alpha: 0.04),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ] else ...[
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    blurRadius: 20,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ],
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(raio),

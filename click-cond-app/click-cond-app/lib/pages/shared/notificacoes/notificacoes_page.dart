@@ -68,32 +68,32 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
       case 'comunicado':
         return (
           icon: PhosphorIcons.megaphone,
-          cor: const Color(0xFFF97316),
+          cor: AppColors.warning,
           tag: 'Comunicado'
         );
       case 'ocorrencia':
         return (
           icon: PhosphorIcons.warningCircle,
-          cor: const Color(0xFFEF4444),
+          cor: AppColors.error,
           tag: 'Ocorrência'
         );
       case 'financeiro':
         return (
           icon: PhosphorIcons.currencyCircleDollar,
-          cor: const Color(0xFF059669),
+          cor: AppColors.success,
           tag: 'Financeiro'
         );
       case 'reserva':
         return (
           icon: PhosphorIcons.calendarCheck,
-          cor: const Color(0xFF8B5CF6),
+          cor: AppColors.primary,
           tag: 'Reserva'
         );
       case 'solicitacao':
       case 'autorizacao_visitante':
         return (
           icon: PhosphorIcons.bellRinging,
-          cor: const Color(0xFFF59E0B),
+          cor: AppColors.warning,
           tag: 'Solicitação'
         );
       case 'acesso':
@@ -101,13 +101,13 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
         if (isSaida) {
           return (
             icon: PhosphorIcons.signOut,
-            cor: const Color(0xFF0EA5E9),
+            cor: AppColors.primary,
             tag: 'Saída'
           );
         }
         return (
           icon: PhosphorIcons.signIn,
-          cor: const Color(0xFF10B981),
+          cor: AppColors.success,
           tag: 'Entrada'
         );
       default:
@@ -275,7 +275,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.zero,
                 onTap: () {
                   setState(() {
                     _filtroSelecionado = key;
@@ -291,22 +291,13 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                     color: isSelected
                         ? AppColors.primary
                         : AppColors.surface(context),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.zero,
                     border: Border.all(
                       color: isSelected
                           ? AppColors.primary
                           : AppColors.border(context),
                       width: 1,
                     ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.25),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            )
-                          ]
-                        : null,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -333,7 +324,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                             color: isSelected
                                 ? AppColors.onPrimary.withValues(alpha: 0.25)
                                 : AppColors.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.zero,
                           ),
                           child: Text(
                             '$count',
@@ -400,21 +391,14 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
           color: nova ? v.cor.withValues(alpha: 0.4) : AppColors.border(context),
           width: nova ? 1.2 : 1.0,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         child: IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -473,7 +457,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: v.cor,
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.zero,
                                       ),
                                       child: Text(
                                         'NOVA',

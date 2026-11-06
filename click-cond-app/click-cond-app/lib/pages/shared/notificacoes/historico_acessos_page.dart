@@ -141,7 +141,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
     final String tag = isVoce
         ? 'Morador (Você)'
         : (tipoPessoa == 'prestador' ? 'Prestador de Serviço' : 'Visitante');
-    final Color tagColor = isVoce ? AppColors.primary : Colors.orange;
+    final Color tagColor = isVoce ? AppColors.primary : AppColors.warning;
     final metodo = _styleForMetodo(tipoDispositivo);
 
     showModalBottomSheet(
@@ -151,8 +151,8 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
       builder: (ctx) {
         return Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceElevated(ctx),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            color: AppColors.surface(ctx),
+            borderRadius: const BorderRadius.vertical(top: Radius.zero),
             border: Border(top: BorderSide(color: AppColors.border(ctx))),
           ),
           padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.md, AppSpacing.xl, AppSpacing.xxl),
@@ -190,7 +190,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isEntrada ? 'Entrada Registrada' : 'Saída Registrada',
+                          (isEntrada ? 'Entrada Registrada' : 'Saída Registrada').toUpperCase(),
                           style: AppTypography.headline(ctx).copyWith(
                             fontWeight: FontWeight.bold,
                             color: cor,
@@ -223,7 +223,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: tagColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                   child: Text(
                     tag,
@@ -272,7 +272,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                     foregroundColor: AppColors.onPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.zero,
                     ),
                   ),
                   onPressed: () => Navigator.pop(ctx),
@@ -301,7 +301,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border(context)),
       ),
       child: Row(
@@ -389,15 +389,15 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                   vertical: AppSpacing.sm,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(color: AppColors.border(context)),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(color: AppColors.border(context)),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(color: AppColors.primary, width: 1.5),
                 ),
               ),
@@ -465,7 +465,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
     final isSelected = _filtroSelecionado == valor;
     return InkWell(
       onTap: () => setState(() => _filtroSelecionado = valor),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.zero,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
@@ -473,7 +473,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
           color: isSelected
               ? AppColors.primary
               : AppColors.surface(context),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected
                 ? AppColors.primary
@@ -540,13 +540,13 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
         isEntrada ? PhosphorIcons.signIn : PhosphorIcons.signOut;
     final String tag =
         isVoce ? 'Você' : (tipoPessoa == 'prestador' ? 'Prestador' : 'Visitante');
-    final Color tagColor = isVoce ? AppColors.primary : Colors.orange;
+    final Color tagColor = isVoce ? AppColors.primary : AppColors.warning;
     final metodo = _styleForMetodo(tipoDispositivo);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         onTap: () => _showDetalhesEvento(e),
         child: Container(
           key: key,
@@ -555,7 +555,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
             color: destacado
                 ? cor.withValues(alpha: 0.08)
                 : AppColors.surface(context),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.zero,
             border: destacado
                 ? Border.all(color: cor.withValues(alpha: 0.4), width: 1.5)
                 : Border.all(color: AppColors.border(context)),
@@ -603,7 +603,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: tagColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(5),
+                            borderRadius: BorderRadius.circular(2),
                           ),
                           child: Text(
                             tag,
@@ -631,7 +631,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                             decoration: BoxDecoration(
                               color: AppColors.textSecondary(context)
                                   .withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(2),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
