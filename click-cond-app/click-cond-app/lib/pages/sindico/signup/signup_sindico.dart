@@ -104,7 +104,7 @@ class _SignupSindicoPageState extends State<SignupSindico> {
                 children: [
                   CircleAvatar(
                     radius: 52,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                    backgroundColor: AppColors.surfaceElevated(context),
                     backgroundImage: _getAvatarImage(),
                   ),
                   Positioned(

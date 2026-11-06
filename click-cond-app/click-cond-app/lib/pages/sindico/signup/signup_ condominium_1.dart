@@ -100,7 +100,7 @@ class _SignupCondominuim1PageState extends State<SignupCondominuim1> {
                   children: [
                     CircleAvatar(
                       radius: 52,
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                      backgroundColor: AppColors.surfaceElevated(context),
                       backgroundImage: _getAvatarImage(),
                     ),
                     Positioned(
@@ -187,7 +187,7 @@ class _StepIndicator extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           child: LinearProgressIndicator(
             value: step / total,
             minHeight: 6,

@@ -89,11 +89,11 @@ class _LinkSelfMoradorSheetState extends State<_LinkSelfMoradorSheet> {
         children: [
           Row(
             children: [
-              Icon(PhosphorIcons.house, color: AppColors.primary),
+              Icon(PhosphorIcons.house, color: AppColors.textPrimary(context)),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: Text('Vincular-me como morador',
-                    style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold)),
+                child: Text('Vincular-me como morador'.toUpperCase(),
+                    style: AppTypography.title(context)),
               ),
             ],
           ),
@@ -116,15 +116,14 @@ class _LinkSelfMoradorSheetState extends State<_LinkSelfMoradorSheet> {
             )
           else ...[
             Text('APARTAMENTO',
-                style: AppTypography.tiny(context)
-                    .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+                style: AppTypography.label(context)),
             const SizedBox(height: AppSpacing.sm),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.surface(context),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.textSecondary(context).withValues(alpha: 0.1)),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: AppColors.border(context)),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<dynamic>(
@@ -140,8 +139,7 @@ class _LinkSelfMoradorSheetState extends State<_LinkSelfMoradorSheet> {
             ),
             const SizedBox(height: AppSpacing.lg),
             Text('VÍNCULO',
-                style: AppTypography.tiny(context)
-                    .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+                style: AppTypography.label(context)),
             const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
@@ -174,9 +172,9 @@ class _LinkSelfMoradorSheetState extends State<_LinkSelfMoradorSheet> {
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: selected ? AppColors.primary : AppColors.surface(context),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(
-              color: selected ? AppColors.primary : AppColors.textSecondary(context).withValues(alpha: 0.15),
+              color: selected ? AppColors.primary : AppColors.border(context),
             ),
           ),
           child: Center(

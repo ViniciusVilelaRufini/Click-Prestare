@@ -30,13 +30,13 @@ class Hello extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(PhosphorIcons.userCircleFill,
-                      size: 32, color: AppColors.primary),
+                      size: 32, color: AppColors.textPrimary(context)),
                   AppSpacing.gapMd,
                   Expanded(
                     child: Text(
                       getText('sindico'),
                       style: AppTypography.bodyMedium(context).copyWith(
-                        color: AppColors.primaryDark,
+                        color: AppColors.textPrimary(context),
                       ),
                     ),
                   ),
@@ -45,7 +45,7 @@ class Hello extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xxxl),
             Text(
-              '${getText('ola')}, ${getText('sindico')}',
+              '${getText('ola')}, ${getText('sindico')}'.toUpperCase(),
               style: AppTypography.display(context),
             ),
             const SizedBox(height: AppSpacing.md),
