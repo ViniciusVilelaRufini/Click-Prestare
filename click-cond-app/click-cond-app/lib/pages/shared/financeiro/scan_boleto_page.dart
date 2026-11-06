@@ -93,7 +93,7 @@ class _ScanBoletoPageState extends State<ScanBoletoPage> {
                     fillColor: AppColors.surface(sheetCtx),
                     filled: true,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                       borderSide: BorderSide(color: AppColors.border(sheetCtx)),
                     ),
                   ),
@@ -114,7 +114,7 @@ class _ScanBoletoPageState extends State<ScanBoletoPage> {
                       backgroundColor: AppColors.primary,
                       foregroundColor: AppColors.onPrimary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
                     child: const Text(
@@ -163,14 +163,7 @@ class _ScanBoletoPageState extends State<ScanBoletoPage> {
               height: 200,
               decoration: BoxDecoration(
                 border: Border.all(color: AppColors.primary, width: 3),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    spreadRadius: 2,
-                  ),
-                ],
+                borderRadius: BorderRadius.zero,
               ),
             ),
           ),
@@ -191,7 +184,7 @@ class _ScanBoletoPageState extends State<ScanBoletoPage> {
                     ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -223,9 +216,9 @@ class _ScanBoletoPageState extends State<ScanBoletoPage> {
                         backgroundColor: AppColors.surface(context),
                         foregroundColor: AppColors.textPrimary(context),
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        elevation: 2,
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.zero,
                           side: BorderSide(color: AppColors.border(context)),
                         ),
                       ),

@@ -137,7 +137,7 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                                 color: selected 
                                     ? AppColors.primary 
                                     : AppColors.surface(context),
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.zero,
                                 border: Border.all(
                                   color: selected 
                                       ? AppColors.primary 
@@ -182,7 +182,7 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                             label: Text('Exportar CSV', style: TextStyle(color: AppColors.primary)),
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(color: AppColors.primary),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                             ),
                           ),
                         ),
@@ -194,7 +194,7 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                         padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
                         decoration: BoxDecoration(
                           color: AppColors.surface(context), 
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.zero,
                         ),
                         child: SfCircularChart(
                           margin: EdgeInsets.zero,
@@ -222,7 +222,7 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                                     style: AppTypography.bodyMedium(context).copyWith(
                                       color: resultObj != null && (resultObj['saldoReal'] ?? '').toString().contains('-') 
                                           ? AppColors.error 
-                                          : const Color(0xFF22C55E),
+                                          : AppColors.success,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 15,
                                     ),
@@ -242,14 +242,14 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                               strokeColor: AppColors.surface(context),
                               pointColorMapper: (d, i) {
                                 final colors = [
-                                  const Color(0xFF3B82F6), // Blue
-                                  const Color(0xFF10B981), // Emerald Green
-                                  const Color(0xFFF59E0B), // Amber
-                                  const Color(0xFFEF4444), // Red
-                                  const Color(0xFF8B5CF6), // Purple
-                                  const Color(0xFFEC4899), // Pink
-                                  const Color(0xFF14B8A6), // Teal
-                                  const Color(0xFF6366F1), // Indigo
+                                  AppColors.textSecondary(context), // Blue
+                                  AppColors.success, // Emerald Green
+                                  AppColors.warning, // Amber
+                                  AppColors.error, // Red
+                                  AppColors.textSecondary(context), // Purple
+                                  AppColors.textSecondary(context), // Pink
+                                  AppColors.textSecondary(context), // Teal
+                                  AppColors.textSecondary(context), // Indigo
                                 ];
                                 return colors[i % colors.length];
                               },
@@ -277,12 +277,12 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                           child: Container(
                             padding: const EdgeInsets.all(AppSpacing.md),
-                            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(14)),
+                            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
                             child: Row(
                               children: [
                                 Icon(
                                   categ['tipo'] == 'D' ? PhosphorIcons.arrowUp : PhosphorIcons.arrowDown,
-                                  color: categ['tipo'] == 'D' ? AppColors.error : const Color(0xFF22C55E),
+                                  color: categ['tipo'] == 'D' ? AppColors.error : AppColors.success,
                                   size: 18,
                                 ),
                                 const SizedBox(width: AppSpacing.md),

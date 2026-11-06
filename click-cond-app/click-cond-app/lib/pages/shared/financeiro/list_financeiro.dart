@@ -299,7 +299,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             ),
                             child: _isChangingMonth
                                 ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(2),
+                                    borderRadius: BorderRadius.circular(AppRadius.tag),
                                     child: LinearProgressIndicator(
                                       backgroundColor: Colors.transparent,
                                       valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
@@ -322,7 +322,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                           label: getText('financeiro_nav_relatorio'),
                                           icon: PhosphorIcons.filePdf,
                                           color: AppColors.primary,
-                                          iconBg: const Color(0xFFEFF6FF),
+                                          iconBg: AppColors.surface(context),
                                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FinanceiroRelatorio())),
                                         ),
                                       ),
@@ -331,8 +331,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                         child: _ActionCardButton(
                                           label: getText('financeiro_inadimplentes'),
                                           icon: PhosphorIcons.userList,
-                                          color: const Color(0xFFEF4444),
-                                          iconBg: const Color(0xFFFEE2E2),
+                                          color: AppColors.error,
+                                          iconBg: AppColors.surface(context),
                                           onTap: () => Navigator.push(context, MaterialPageRoute(
                                             builder: (_) => InadimplenciaDashboardPage(mes: mes, ano: ano),
                                           )).then((_) => loadList()),
@@ -357,21 +357,12 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                   const SizedBox(height: AppSpacing.lg),
                                   Container(
                                     decoration: BoxDecoration(
-                                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
+                                      color: AppColors.surface(context),
+                                      borderRadius: BorderRadius.zero,
                                       border: Border.all(
-                                        color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                        color: AppColors.border(context),
                                         width: 1,
                                       ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Theme.of(context).brightness == Brightness.dark
-                                              ? Colors.black.withValues(alpha: 0.15)
-                                              : const Color(0xFF64748B).withValues(alpha: 0.04),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
                                     ),
                                     child: TextField(
                                       controller: _searchController,
@@ -381,18 +372,18 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                       },
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF0F172A),
+                                        color: AppColors.textPrimary(context),
                                       ),
                                       decoration: InputDecoration(
                                         hintText: 'Pesquisar lançamentos...',
                                         hintStyle: TextStyle(
                                           fontSize: 14,
-                                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                          color: Theme.of(context).brightness == Brightness.dark ? AppColors.textSecondary(context) : AppColors.textTertiary(context),
                                         ),
                                         prefixIcon: Icon(
                                           PhosphorIcons.magnifyingGlass,
                                           size: 18,
-                                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                          color: Theme.of(context).brightness == Brightness.dark ? AppColors.textSecondary(context) : AppColors.textTertiary(context),
                                         ),
                                         border: InputBorder.none,
                                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
@@ -404,17 +395,17 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                     children: [
                                       _CountChip(
                                         icon: PhosphorIcons.checkCircle,
-                                        color: const Color(0xFF16A34A),
-                                        bgColor: const Color(0xFFDCFCE7),
-                                        borderColor: const Color(0xFFBBF7D0),
+                                        color: AppColors.success,
+                                        bgColor: AppColors.surface(context),
+                                        borderColor: AppColors.border(context),
                                         label: '${getCountStatus(1)} ${getText('pagos')}',
                                       ),
                                       const SizedBox(width: AppSpacing.sm),
                                       _CountChip(
                                         icon: PhosphorIcons.clock,
-                                        color: const Color(0xFFD97706),
-                                        bgColor: const Color(0xFFFEF3C7),
-                                        borderColor: const Color(0xFFFDE68A),
+                                        color: AppColors.warning,
+                                        bgColor: AppColors.surface(context),
+                                        borderColor: AppColors.border(context),
                                         label: '${getCountStatus(0)} ${getText('lb_pendentes')}',
                                       ),
                                     ],
@@ -437,7 +428,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                           child: Container(
                             margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                             padding: const EdgeInsets.all(AppSpacing.xl),
-                            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+                            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
                             child: Column(
                               children: [
                                 Icon(PhosphorIcons.magnifyingGlass, size: 48, color: AppColors.textTertiary(context)),
@@ -464,7 +455,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                               children: [
                                 Text(data.toUpperCase(), 
                                   style: TextStyle(
-                                    color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                    color: Theme.of(context).brightness == Brightness.dark ? AppColors.textSecondary(context) : AppColors.textTertiary(context),
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 1.1,
                                     fontSize: 11,
@@ -552,8 +543,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       onPressed: loadList,
       backgroundColor: AppColors.primary,
       foregroundColor: AppColors.onPrimary,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      elevation: 0,
       child: const Icon(PhosphorIcons.arrowsClockwise, size: 22),
     );
   }
@@ -567,21 +558,12 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     return Container(
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          color: AppColors.border(context),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark 
-                ? Colors.black.withValues(alpha: 0.2) 
-                : const Color(0xFF64748B).withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -692,7 +674,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   height: 4,
                   decoration: BoxDecoration(
                     color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(AppRadius.tag),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -727,17 +709,11 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    border: Border.all(color: Colors.grey.shade200),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                      ),
-                    ],
+                    border: Border.all(color: AppColors.border(context)),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.zero,
                     child: QrImageView(
                       data: payload,
                       size: 200,
@@ -754,16 +730,16 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: payload));
                       Navigator.pop(sheetContext);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text("Código Pix Copia e Cola copiado com sucesso!"),
-                          backgroundColor: Color(0xFF10B981),
+                          backgroundColor: AppColors.success,
                         ),
                       );
                     },
@@ -810,7 +786,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   height: 4,
                   decoration: BoxDecoration(
                     color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(AppRadius.tag),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -843,7 +819,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.surface(context),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.zero,
                     border: Border.all(color: AppColors.border(context)),
                   ),
                   child: Row(
@@ -869,16 +845,16 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: chave));
                       Navigator.pop(sheetContext);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text("Chave Pix copiada com sucesso!"),
-                          backgroundColor: Color(0xFF10B981),
+                          backgroundColor: AppColors.success,
                         ),
                       );
                     },
@@ -923,7 +899,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                     height: 4,
                     decoration: BoxDecoration(
                       color: AppColors.border(context),
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(AppRadius.tag),
                     ),
                   ),
                 ),
@@ -1097,7 +1073,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: AppColors.primary,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.zero,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1119,7 +1095,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppColors.onPrimary.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1170,7 +1146,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
           ),
           const SizedBox(height: 16),
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.zero,
             child: Stack(
               children: [
                 Container(
@@ -1185,7 +1161,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                     height: 6,
                     decoration: BoxDecoration(
                       color: AppColors.onPrimary,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.zero,
                     ),
                   ),
                 ),
@@ -1338,8 +1314,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
             icon: Icon(
               PhosphorIcons.caretLeft,
               color: selectedIndex > 0 
-                  ? const Color(0xFF94A3B8) 
-                  : const Color(0xFFCBD5E1).withValues(alpha: 0.4),
+                  ? AppColors.textTertiary(context) 
+                  : AppColors.border(context).withValues(alpha: 0.4),
             ),
             onPressed: selectedIndex > 0
                 ? () {
@@ -1377,7 +1353,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
                         color: isSelected ? AppColors.primary : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1388,8 +1364,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                               color: isSelected 
                                   ? AppColors.onPrimary 
                                   : (Theme.of(context).brightness == Brightness.dark
-                                      ? const Color(0xFF94A3B8)
-                                      : const Color(0xFF64748B)),
+                                      ? AppColors.textTertiary(context)
+                                      : AppColors.textSecondary(context)),
                               fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
                               fontSize: 12.5,
                               letterSpacing: 0.4,
@@ -1402,8 +1378,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                               color: isSelected 
                                   ? AppColors.onPrimary.withValues(alpha: 0.9)
                                   : (Theme.of(context).brightness == Brightness.dark
-                                      ? const Color(0xFF64748B)
-                                      : const Color(0xFF94A3B8)),
+                                      ? AppColors.textSecondary(context)
+                                      : AppColors.textTertiary(context)),
                               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                               fontSize: 10,
                             ),
@@ -1423,8 +1399,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
             icon: Icon(
               PhosphorIcons.caretRight,
               color: selectedIndex < titlesTabs.length - 1 
-                  ? const Color(0xFF94A3B8) 
-                  : const Color(0xFFCBD5E1).withValues(alpha: 0.4),
+                  ? AppColors.textTertiary(context) 
+                  : AppColors.border(context).withValues(alpha: 0.4),
             ),
             onPressed: selectedIndex < titlesTabs.length - 1
                 ? () {
@@ -1526,14 +1502,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            )
-          ],
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: AppColors.border(context),
             width: 1.2,
@@ -1578,7 +1547,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.error,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: Text(
                     "${cat.pendingCount}",
@@ -1680,7 +1649,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: AppColors.surface(context),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                         border: Border.all(color: AppColors.border(context)),
                       ),
                       child: DropdownButtonHideUnderline(
@@ -1715,11 +1684,11 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         fillColor: AppColors.surface(context),
                         filled: true,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.zero,
                           borderSide: BorderSide(color: AppColors.border(context)),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.zero,
                           borderSide: BorderSide(color: AppColors.border(context)),
                         ),
                       ),
@@ -1743,11 +1712,11 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                   fillColor: AppColors.surface(context),
                                   filled: true,
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.zero,
                                     borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                   enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.zero,
                                     borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                 ),
@@ -1773,11 +1742,11 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                   filled: true,
                                   suffixIcon: Icon(Icons.calendar_today, size: 18, color: AppColors.textSecondary(context)),
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.zero,
                                     borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                   enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.zero,
                                     borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                 ),
@@ -1826,7 +1795,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
                         ),
                         child: Row(
@@ -1835,7 +1804,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
                                 color: AppColors.primary.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.zero,
                               ),
                               child: Icon(
                                 scannedPix != null && scannedPix!.trim().isNotEmpty
@@ -1876,7 +1845,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(PhosphorIcons.trash, size: 18, color: Colors.redAccent),
+                              icon: Icon(PhosphorIcons.trash, size: 18, color: AppColors.error),
                               tooltip: 'Remover código',
                               onPressed: () => setModalState(() {
                                 scannedLinha = null;
@@ -1930,7 +1899,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                         ? "Pix Copia e Cola vinculado com sucesso!"
                                         : "Código de barras vinculado${parsed.valorFormatado != null ? ' (R\$ ${parsed.valorFormatado})' : ''}!",
                                   ),
-                                  backgroundColor: Colors.green,
+                                  backgroundColor: AppColors.success,
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
@@ -1943,7 +1912,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                           ),
                         ),
                       ),
@@ -1955,7 +1924,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: AppColors.onPrimary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         ),
                         onPressed: () async {
                           if (txtNome.text.trim().isEmpty || txtValor.text.trim().isEmpty || txtVencimento.text.trim().isEmpty) {
@@ -1993,7 +1962,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             messenger.showSnackBar(
                               SnackBar(
                                 content: Text(isEditing ? "Conta atualizada!" : "Conta criada com sucesso!"),
-                                backgroundColor: Colors.green,
+                                backgroundColor: AppColors.success,
                               ),
                             );
                           } else {
@@ -2053,7 +2022,7 @@ class _ToggleItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.zero,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2061,13 +2030,13 @@ class _ToggleItem extends StatelessWidget {
               Icon(
                 icon,
                 size: 15,
-                color: isSelected ? AppColors.onPrimary : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                color: isSelected ? AppColors.onPrimary : (isDark ? AppColors.textTertiary(context) : AppColors.textSecondary(context)),
               ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? AppColors.onPrimary : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                  color: isSelected ? AppColors.onPrimary : (isDark ? AppColors.textTertiary(context) : AppColors.textSecondary(context)),
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   letterSpacing: 0.6,
                   fontSize: 12,
@@ -2119,28 +2088,19 @@ class _DashboardHeader extends StatelessWidget {
     final cleanReceitas = _cleanMoeda(receitas);
     final cleanDespesas = _cleanMoeda(despesas);
 
-    final statusColor = isNeg ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
+    final statusColor = isNeg ? AppColors.error : AppColors.success;
 
     return Column(
       children: [
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : Colors.white,
-            borderRadius: BorderRadius.circular(20),
+            color: AppColors.surface(context),
+            borderRadius: BorderRadius.zero,
             border: Border.all(
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+              color: AppColors.border(context),
               width: 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: isDark 
-                    ? Colors.black.withValues(alpha: 0.20) 
-                    : const Color(0xFF64748B).withValues(alpha: 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.xl),
@@ -2152,8 +2112,8 @@ class _DashboardHeader extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(10),
+                        color: AppColors.surface(context),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: Icon(
                         PhosphorIcons.wallet,
@@ -2165,7 +2125,7 @@ class _DashboardHeader extends StatelessWidget {
                     Text(
                       'SALDO ATUAL',
                       style: TextStyle(
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        color: isDark ? AppColors.textTertiary(context) : AppColors.textSecondary(context),
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.2,
                         fontSize: 12,
@@ -2190,7 +2150,7 @@ class _DashboardHeader extends StatelessWidget {
                 const SizedBox(height: 14),
                 Container(
                   height: 1,
-                  color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                  color: AppColors.surfaceElevated(context),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -2198,13 +2158,13 @@ class _DashboardHeader extends StatelessWidget {
                     Icon(
                       PhosphorIcons.clockCounterClockwise,
                       size: 14,
-                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                      color: isDark ? AppColors.textSecondary(context) : AppColors.textTertiary(context),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       'Última atualização: $data',
                       style: TextStyle(
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        color: isDark ? AppColors.textTertiary(context) : AppColors.textSecondary(context),
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
                       ),
@@ -2222,9 +2182,9 @@ class _DashboardHeader extends StatelessWidget {
               child: _SmallSummaryCard(
                 label: 'RECEITAS',
                 value: cleanReceitas,
-                color: const Color(0xFF16A34A),
+                color: AppColors.success,
                 icon: PhosphorIcons.arrowDownLeft,
-                iconBg: const Color(0xFFDCFCE7),
+                iconBg: AppColors.surface(context),
                 isDark: isDark,
               ),
             ),
@@ -2233,9 +2193,9 @@ class _DashboardHeader extends StatelessWidget {
               child: _SmallSummaryCard(
                 label: 'DESPESAS',
                 value: cleanDespesas,
-                color: const Color(0xFFDC2626),
+                color: AppColors.error,
                 icon: PhosphorIcons.arrowUpRight,
-                iconBg: const Color(0xFFFEE2E2),
+                iconBg: AppColors.surface(context),
                 isDark: isDark,
               ),
             ),
@@ -2268,19 +2228,12 @@ class _SmallSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          color: AppColors.border(context),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? Colors.black.withValues(alpha: 0.15) : const Color(0xFF64748B).withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2319,7 +2272,7 @@ class _SmallSummaryCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: label == 'DESPESAS' ? const Color(0xFFDC2626) : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                color: label == 'DESPESAS' ? AppColors.error : AppColors.textPrimary(context),
               ),
             ),
           ),
@@ -2351,7 +2304,7 @@ class _CountChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
         color: isDark ? color.withValues(alpha: 0.15) : (bgColor ?? color.withValues(alpha: 0.08)),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
           color: isDark ? color.withValues(alpha: 0.3) : (borderColor ?? color.withValues(alpha: 0.2)),
           width: 1,
@@ -2401,15 +2354,15 @@ class _LancamentoCard extends StatelessWidget {
     final isPago = item['pago'] is num ? item['pago'] == 1 : item['pago']?.toString() == '1';
     final isVerifying = item['status']?.toString() == '2';
 
-    final valueColor = isCredito ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+    final valueColor = isCredito ? AppColors.success : AppColors.error;
     final statusColor = isPago 
-        ? const Color(0xFF16A34A) 
-        : (isVerifying ? AppColors.primary : const Color(0xFFD97706));
+        ? AppColors.success 
+        : (isVerifying ? AppColors.primary : AppColors.warning);
     final statusBg = isPago 
-        ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7))
+        ? AppColors.accentGhost(context)
         : (isVerifying 
-            ? (isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE))
-            : (isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7)));
+            ? AppColors.accentGhost(context)
+            : AppColors.accentGhost(context));
 
     String valorFormatted = (item['valorString'] ?? '').toString().replaceAll('BRL', 'R\$').trim();
 
@@ -2417,19 +2370,12 @@ class _LancamentoCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          color: AppColors.border(context),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? Colors.black.withValues(alpha: 0.15) : const Color(0xFF64748B).withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -2438,13 +2384,13 @@ class _LancamentoCard extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               color: isCredito 
-                  ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7)) 
-                  : (isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.4) : const Color(0xFFEFF6FF)),
-              borderRadius: BorderRadius.circular(14),
+                  ? AppColors.accentGhost(context) 
+                  : (isDark ? AppColors.surface(context).withValues(alpha: 0.4) : AppColors.surface(context)),
+              borderRadius: BorderRadius.zero,
             ),
             child: Icon(
               _getIcon(item['categoria'] ?? ''),
-              color: isCredito ? const Color(0xFF16A34A) : AppColors.primary,
+              color: isCredito ? AppColors.success : AppColors.primary,
               size: 22,
             ),
           ),
@@ -2458,7 +2404,7 @@ class _LancamentoCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    color: AppColors.textPrimary(context),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -2469,7 +2415,7 @@ class _LancamentoCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    color: isDark ? AppColors.textTertiary(context) : AppColors.textSecondary(context),
                   ),
                 ),
               ],
@@ -2492,7 +2438,7 @@ class _LancamentoCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
                   color: statusBg,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Text(
                   isPago ? "PAGO" : (isVerifying ? "ANÁLISE" : "PENDENTE"),
@@ -2531,26 +2477,19 @@ class _ActionCardButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: isDark ? const Color(0xFF1E293B) : Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      color: AppColors.surface(context),
+      borderRadius: BorderRadius.zero,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.zero,
             border: Border.all(
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+              color: AppColors.border(context),
               width: 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: isDark ? Colors.black.withValues(alpha: 0.15) : const Color(0xFF64748B).withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2570,7 +2509,7 @@ class _ActionCardButton extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    color: AppColors.textPrimary(context),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -2677,7 +2616,7 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                               decoration: BoxDecoration(
                                 color: sel ? AppColors.primary : AppColors.surface(context),
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.zero,
                                 border: Border.all(color: sel ? AppColors.primary : AppColors.textSecondary(context).withValues(alpha: 0.1)),
                               ),
                               child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -2696,13 +2635,13 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
                   // Cards de resumo (clicáveis → telas de detalhe)
                   Row(children: [
                     Expanded(child: _InadKpiCard(label: 'Arrecadado', value: money(r['totalArrecadado']),
-                      icon: PhosphorIcons.checkCircle, color: const Color(0xFF22C55E),
+                      icon: PhosphorIcons.checkCircle, color: AppColors.success,
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
                         InadimplenciaListaPage(titulo: 'Arrecadado', itens: _pagas)))
                         .then((_) => _load()))),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(child: _InadKpiCard(label: 'Pendente', value: money(r['totalPendente']),
-                      icon: PhosphorIcons.clock, color: const Color(0xFFF59E0B),
+                      icon: PhosphorIcons.clock, color: AppColors.warning,
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
                         InadimplenciaListaPage(titulo: 'Pendente', itens: _pendentes)))
                         .then((_) => _load()))),
@@ -2740,7 +2679,7 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(AppSpacing.xl),
-                      decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+                      decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
                       child: Column(children: [
                         Icon(PhosphorIcons.checkCircle, size: 40, color: AppColors.success.withValues(alpha: 0.6)),
                         const SizedBox(height: AppSpacing.sm),
@@ -2778,12 +2717,12 @@ class _InadKpiCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         child: Container(
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             color: AppColors.surface(context),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.zero,
             border: Border.all(color: color.withValues(alpha: 0.15)),
           ),
           child: Column(
@@ -2793,7 +2732,7 @@ class _InadKpiCard extends StatelessWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.zero),
                     child: Icon(icon, color: color, size: 18),
                   ),
                   const Spacer(),
@@ -2823,7 +2762,7 @@ class _InadEventoTile extends StatelessWidget {
     IconData icon; Color color; String label;
     switch (tipo) {
       case 'pagamento':
-        icon = PhosphorIcons.checkCircle; color = const Color(0xFF22C55E); label = 'Pagamento recebido'; break;
+        icon = PhosphorIcons.checkCircle; color = AppColors.success; label = 'Pagamento recebido'; break;
       case 'vencido':
         icon = PhosphorIcons.warningCircle; color = AppColors.error; label = 'Cobrança vencida'; break;
       default:
@@ -2835,7 +2774,7 @@ class _InadEventoTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
       child: Row(
         children: [
           Icon(icon, color: color, size: 18),
@@ -2874,19 +2813,19 @@ class _InadBlocoTile extends StatelessWidget {
     final aptos = (bloco['aptos'] is List) ? bloco['aptos'] as List : [];
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           leading: Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: AppColors.accentGhost(context), borderRadius: BorderRadius.zero),
             child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 18),
           ),
           title: Text('Bloco $nomeBloco', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.zero),
             child: Text('${aptos.length}', style: AppTypography.caption(context).copyWith(color: AppColors.onPrimary, fontWeight: FontWeight.bold)),
           ),
           children: aptos.map<Widget>((a) {
@@ -2943,15 +2882,15 @@ class InadimplenciaListaPage extends StatelessWidget {
                 final pago = item['pago'] == 1;
                 return Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(14)),
+                  decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
                   child: Row(children: [
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: (pago ? const Color(0xFF22C55E) : const Color(0xFFF59E0B)).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10)),
+                        color: (pago ? AppColors.success : AppColors.warning).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.zero),
                       child: Icon(pago ? PhosphorIcons.checkCircle : PhosphorIcons.clock,
-                        color: pago ? const Color(0xFF22C55E) : const Color(0xFFF59E0B), size: 18),
+                        color: pago ? AppColors.success : AppColors.warning, size: 18),
                     ),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2965,7 +2904,7 @@ class InadimplenciaListaPage extends StatelessWidget {
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Text((item['valorString'] ?? '').toString(),
                         style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w800,
-                          color: pago ? const Color(0xFF22C55E) : AppColors.error)),
+                          color: pago ? AppColors.success : AppColors.error)),
                       // Nenhuma cobrança aceita baixa pelo Clique: quem marca
                       // como paga é o arquivo de retorno do banco, no ERP.
                       // O selo diz onde a baixa acontece, em vez de oferecer
@@ -3024,11 +2963,11 @@ class InadimplenciaAptosPage extends StatelessWidget {
                 final qtd = a['qtd'] ?? 0;
                 return Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(14)),
+                  decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
                   child: Row(children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: AppColors.accentGhost(context), borderRadius: BorderRadius.zero),
                       child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 18),
                     ),
                     const SizedBox(width: AppSpacing.md),
@@ -3049,7 +2988,7 @@ class InadimplenciaAptosPage extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(color: AppColors.primary.withValues(alpha: 0.3))),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Icon(PhosphorIcons.bell, size: 12, color: AppColors.primary),

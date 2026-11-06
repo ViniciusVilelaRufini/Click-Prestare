@@ -29,10 +29,7 @@ class FinanceiroResumoCards extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.lg),
           decoration: BoxDecoration(
             color: AppColors.primary,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(color: AppColors.primary.withValues(alpha: 0.22), blurRadius: 18, offset: const Offset(0, 8)),
-            ],
+            borderRadius: BorderRadius.zero,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,7 +46,7 @@ class FinanceiroResumoCards extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         Row(children: [
-          Expanded(child: _ValorCard(titulo: 'Receitas', valor: receita, percentual: percentualReceita, icone: PhosphorIcons.trendUp, cor: const Color(0xFF16A34A))),
+          Expanded(child: _ValorCard(titulo: 'Receitas', valor: receita, percentual: percentualReceita, icone: PhosphorIcons.trendUp, cor: AppColors.success)),
           const SizedBox(width: AppSpacing.md),
           Expanded(child: _ValorCard(titulo: 'Despesas', valor: despesa, percentual: percentualDespesa, icone: PhosphorIcons.trendDown, cor: AppColors.error)),
         ]),
@@ -70,7 +67,7 @@ class _ValorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(AppSpacing.md),
-    decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: cor.withValues(alpha: .14))),
+    decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero, border: Border.all(color: cor.withValues(alpha: .14))),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icone, size: 18, color: cor),
       const SizedBox(height: AppSpacing.sm),

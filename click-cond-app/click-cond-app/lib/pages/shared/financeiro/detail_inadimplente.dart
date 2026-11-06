@@ -111,7 +111,7 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.onPrimary,
             minimumSize: const Size(double.infinity, 48),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           ),
         ),
       ),
@@ -187,9 +187,9 @@ class _MonthCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
-          color: Colors.orange.withValues(alpha: 0.3),
+          color: AppColors.warning.withValues(alpha: 0.3),
         ),
       ),
       // Tocar no mes abria o formulario de cobranca do morador. O financeiro
@@ -204,12 +204,12 @@ class _MonthCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  color: AppColors.accentGhost(context),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Icon(
                   PhosphorIcons.calendarX,
-                  color: Colors.orange,
+                  color: AppColors.warning,
                   size: 22,
                 ),
               ),
@@ -246,16 +246,16 @@ class _MonthCard extends StatelessWidget {
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.blue.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(
-                            color: Colors.blue.withValues(alpha: 0.3),
+                            color: AppColors.primary.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Text(
                           'Auditoria',
                           style: AppTypography.tiny(context).copyWith(
-                            color: Colors.blue,
+                            color: AppColors.primary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -264,16 +264,16 @@ class _MonthCard extends StatelessWidget {
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
+                          color: AppColors.accentGhost(context),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(
-                            color: Colors.orange.withValues(alpha: 0.3),
+                            color: AppColors.warning.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Text(
                           'Pendente',
                           style: AppTypography.tiny(context).copyWith(
-                            color: Colors.orange,
+                            color: AppColors.warning,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

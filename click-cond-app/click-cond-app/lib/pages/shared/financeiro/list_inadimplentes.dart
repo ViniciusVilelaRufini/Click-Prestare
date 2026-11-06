@@ -49,7 +49,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
           : blocos.isEmpty
               ? Center(
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(PhosphorIcons.checkCircle, size: 56, color: const Color(0xFF22C55E)),
+                    Icon(PhosphorIcons.checkCircle, size: 56, color: AppColors.success),
                     const SizedBox(height: AppSpacing.md),
                     Text(getText('financeiro_nenhum_inadimplente'), style: AppTypography.caption(context), textAlign: TextAlign.center),
                   ]),
@@ -65,7 +65,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                           child: Container(
                             decoration: BoxDecoration(
                               color: AppColors.surface(context),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(color: AppColors.error.withValues(alpha: 0.15)),
                             ),
                             child: Theme(
@@ -83,8 +83,8 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                     Container(
                                       width: 40, height: 40,
                                       decoration: BoxDecoration(
-                                        color: AppColors.error.withValues(alpha: 0.08), 
-                                        borderRadius: BorderRadius.circular(10)
+                                        color: AppColors.accentGhost(context), 
+                                        borderRadius: BorderRadius.zero
                                       ),
                                       child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 20),
                                     ),
@@ -101,7 +101,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: AppColors.error, 
-                                        borderRadius: BorderRadius.circular(12)
+                                        borderRadius: BorderRadius.zero
                                       ),
                                       child: Text(
                                         '${bloco['aptos'].length}', 
@@ -133,7 +133,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                                   padding: const EdgeInsets.all(8),
                                                   decoration: BoxDecoration(
                                                     color: AppColors.textSecondary(context).withValues(alpha: 0.05),
-                                                    borderRadius: BorderRadius.circular(8),
+                                                    borderRadius: BorderRadius.zero,
                                                   ),
                                                   child: Icon(PhosphorIcons.door, size: 18, color: AppColors.textSecondary(context)),
                                                 ),
@@ -152,8 +152,8 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                                   child: Container(
                                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                                     decoration: BoxDecoration(
-                                                      color: AppColors.error.withValues(alpha: 0.08),
-                                                      borderRadius: BorderRadius.circular(12),
+                                                      color: AppColors.accentGhost(context),
+                                                      borderRadius: BorderRadius.zero,
                                                       border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
                                                     ),
                                                     child: FittedBox(

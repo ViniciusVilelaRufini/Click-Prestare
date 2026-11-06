@@ -130,15 +130,15 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
       case 'Taxa Condominial':
         return AppColors.primary;
       case 'Aluguel':
-        return const Color(0xFF6366F1);
+        return AppColors.textSecondary(context);
       case 'Água':
-        return const Color(0xFF0EA5E9);
+        return AppColors.textSecondary(context);
       case 'Luz':
-        return const Color(0xFFF59E0B);
+        return AppColors.warning;
       case 'Internet':
-        return const Color(0xFF8B5CF6);
+        return AppColors.textSecondary(context);
       default:
-        return const Color(0xFF10B981);
+        return AppColors.success;
     }
   }
 
@@ -212,9 +212,9 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
     final filtered = _getFilteredItems();
     if (filtered.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text("Nenhuma conta encontrada para o filtro selecionado."),
-          backgroundColor: Color(0xFFEF4444),
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -334,7 +334,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                 Expanded(child: Text("Relatório gerado com sucesso! Abrindo...")),
               ],
             ),
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppColors.success,
             duration: const Duration(seconds: 3),
           ),
         );
@@ -377,19 +377,8 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.primary, AppColors.primaryDark],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,7 +389,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
                               color: AppColors.onPrimary.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.zero,
                             ),
                             child: Icon(PhosphorIcons.fileCsv, color: AppColors.onPrimary, size: 24),
                           ),
@@ -435,7 +424,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
                           color: AppColors.onPrimary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.zero,
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -502,7 +491,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
                             color: isSelected ? cor : AppColors.surface(context),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.zero,
                             border: Border.all(
                               color: isSelected ? cor : AppColors.border(context),
                               width: 1.2,
@@ -541,7 +530,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: AppColors.surface(context),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.zero,
                     border: Border.all(color: AppColors.border(context)),
                   ),
                   child: Row(
@@ -573,7 +562,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                             width: 54,
                             decoration: BoxDecoration(
                               color: isSelected ? AppColors.primary : AppColors.surface(context),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
                                 color: isSelected ? AppColors.primary : AppColors.border(context),
                               ),
@@ -607,7 +596,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(
                           color: AppColors.surface(context),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(color: AppColors.border(context)),
                         ),
                         child: DropdownButtonHideUnderline(
@@ -699,7 +688,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                     padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
                     decoration: BoxDecoration(
                       color: AppColors.surface(context),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.zero,
                       border: Border.all(color: AppColors.border(context)),
                     ),
                     child: Column(
@@ -729,7 +718,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: AppColors.surface(context),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.zero,
                         border: Border.all(color: AppColors.border(context)),
                       ),
                       child: Row(
@@ -739,7 +728,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                             height: 38,
                             decoration: BoxDecoration(
                               color: cor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.zero,
                             ),
                             child: Icon(icon, color: cor, size: 20),
                           ),
@@ -774,14 +763,14 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: pago == 1
-                                      ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                                      : const Color(0xFFEF4444).withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(6),
+                                      ? AppColors.success.withValues(alpha: 0.12)
+                                      : AppColors.error.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.zero,
                                 ),
                                 child: Text(
                                   pago == 1 ? "PAGO" : "PENDENTE",
                                   style: TextStyle(
-                                    color: pago == 1 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                    color: pago == 1 ? AppColors.success : AppColors.error,
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -809,21 +798,14 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         decoration: BoxDecoration(
           color: AppColors.bg(context),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 10,
-              offset: const Offset(0, -3),
-            ),
-          ],
         ),
         child: ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.onPrimary,
             minimumSize: const Size(double.infinity, 52),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            elevation: 0,
           ),
           onPressed: _isExporting ? null : _exportarRelatorio,
           icon: _isExporting
@@ -892,7 +874,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surface(context),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected ? AppColors.primary : AppColors.border(context),
             width: isSelected ? 1.5 : 1,
@@ -939,7 +921,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.zero,
           ),
           child: Center(
             child: Text(
@@ -966,7 +948,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
           padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primary : AppColors.surface(context),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.zero,
             border: Border.all(
               color: isSelected ? AppColors.primary : AppColors.border(context),
             ),

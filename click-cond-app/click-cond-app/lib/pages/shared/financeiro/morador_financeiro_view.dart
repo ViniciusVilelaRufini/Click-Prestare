@@ -10,6 +10,7 @@ import 'package:click/utils/boleto_utils.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/theme/app_colors.dart';
+import 'package:click/theme/app_spacing.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:click/utils/utils.dart';
@@ -277,7 +278,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
                                   color: AppColors.primary.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.zero,
                                 ),
                                 child: Icon(PhosphorIcons.wallet, size: 16, color: AppColors.primary),
                               ),
@@ -301,8 +302,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                                 int p = i['pago'] is int ? i['pago'] : (int.tryParse(i['pago']?.toString() ?? '') ?? 0);
                                 return p != 1;
                               })
-                                  ? const Color(0xFFEF4444)
-                                  : const Color(0xFF10B981),
+                                  ? AppColors.error
+                                  : AppColors.success,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -318,25 +319,12 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? AppColors.darkSurface
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          color: AppColors.surface(context),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? AppColors.darkBorder
-                                : const Color(0xFFE2E8F0),
+                            color: AppColors.border(context),
                             width: 1.1,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.black.withValues(alpha: 0.20)
-                                  : const Color(0xFF64748B).withValues(alpha: 0.05),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
                         child: Center(
                           child: Text("Nenhuma despesa registrada", style: AppTypography.caption(context)),
@@ -352,14 +340,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       floatingActionButton: widget.showFab && _viewMode == FinanceiroViewMode.morador
         ? Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.35),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+              borderRadius: BorderRadius.zero,
             ),
             child: FloatingActionButton.extended(
               heroTag: null,
@@ -378,7 +359,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               ),
               backgroundColor: AppColors.primary,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.zero,
               ),
             ),
           )
@@ -391,7 +372,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.zero,
       ),
       child: Row(
         children: [
@@ -486,7 +467,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   height: 4,
                   decoration: BoxDecoration(
                     color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(AppRadius.tag),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -521,17 +502,11 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    border: Border.all(color: Colors.grey.shade200),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                      ),
-                    ],
+                    border: Border.all(color: AppColors.border(context)),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.zero,
                     child: QrImageView(
                       data: payload,
                       size: 200,
@@ -548,16 +523,16 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: payload));
                       Navigator.pop(sheetContext);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text("Código Pix Copia e Cola copiado com sucesso!"),
-                          backgroundColor: Color(0xFF10B981),
+                          backgroundColor: AppColors.success,
                         ),
                       );
                     },
@@ -604,7 +579,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   height: 4,
                   decoration: BoxDecoration(
                     color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(AppRadius.tag),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -637,7 +612,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.surface(context),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.zero,
                     border: Border.all(color: AppColors.border(context)),
                   ),
                   child: Row(
@@ -663,16 +638,16 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: chave));
                       Navigator.pop(sheetContext);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text("Chave Pix copiada com sucesso!"),
-                          backgroundColor: Color(0xFF10B981),
+                          backgroundColor: AppColors.success,
                         ),
                       );
                     },
@@ -717,7 +692,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     height: 4,
                     decoration: BoxDecoration(
                       color: AppColors.border(context),
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(AppRadius.tag),
                     ),
                   ),
                 ),
@@ -924,7 +899,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: AppColors.primary,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.zero,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -947,7 +922,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppColors.onPrimary.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1002,7 +977,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
 
           // Barra de progresso horizontal
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.zero,
             child: Stack(
               children: [
                 Container(
@@ -1017,7 +992,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     height: 6,
                     decoration: BoxDecoration(
                       color: AppColors.onPrimary,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.zero,
                     ),
                   ),
                 ),
@@ -1046,17 +1021,17 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       case 'condominio':
         return AppColors.primary; // Royal Blue
       case 'aluguel':
-        return const Color(0xFF6366F1); // Indigo
+        return AppColors.textSecondary(context); // Indigo
       case 'água':
       case 'agua':
-        return const Color(0xFF0EA5E9); // Sky Cyan
+        return AppColors.textSecondary(context); // Sky Cyan
       case 'luz':
-        return const Color(0xFFF59E0B); // Amber
+        return AppColors.warning; // Amber
       case 'internet':
-        return const Color(0xFF8B5CF6); // Purple
+        return AppColors.textSecondary(context); // Purple
       case 'outros':
       default:
-        return const Color(0xFF10B981); // Emerald
+        return AppColors.success; // Emerald
     }
   }
 
@@ -1123,34 +1098,24 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     final bool hasPending = cat.pendingCount > 0;
     final Color catColor = _corCategoria(cat.title);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? AppColors.darkSurface : Colors.white;
+    final cardBg = AppColors.surface(context);
 
     return Container(
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
           color: hasPending
-              ? const Color(0xFFEF4444).withValues(alpha: 0.35)
-              : (isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
+              ? AppColors.error.withValues(alpha: 0.35)
+              : (AppColors.border(context)),
           width: hasPending ? 1.4 : 1.1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: (hasPending
-                    ? const Color(0xFFEF4444)
-                    : (isDark ? Colors.black : const Color(0xFF64748B)))
-                .withValues(alpha: hasPending ? 0.08 : (isDark ? 0.20 : 0.05)),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.zero,
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.zero,
           onTap: () {
             Navigator.push(
               context,
@@ -1189,7 +1154,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       height: 44,
                       decoration: BoxDecoration(
                         color: catColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(13),
+                        borderRadius: BorderRadius.zero,
                         border: Border.all(
                           color: catColor.withValues(alpha: 0.25),
                           width: 1,
@@ -1203,26 +1168,26 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444).withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(20),
+                          color: AppColors.error.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                            color: AppColors.error.withValues(alpha: 0.4),
                             width: 1,
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            Icon(
                               PhosphorIcons.warningCircleFill,
                               size: 11,
-                              color: Color(0xFFEF4444),
+                              color: AppColors.error,
                             ),
                             const SizedBox(width: 3.5),
                             Text(
                               cat.pendingCount.toString(),
-                              style: const TextStyle(
-                                color: Color(0xFFEF4444),
+                              style: TextStyle(
+                                color: AppColors.error,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -1256,7 +1221,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           : "Nenhuma pendência",
                       style: TextStyle(
                         color: hasPending
-                            ? const Color(0xFFEF4444)
+                            ? AppColors.error
                             : AppColors.textTertiary(context),
                         fontSize: 11.5,
                         fontWeight: hasPending ? FontWeight.w700 : FontWeight.w500,
@@ -1403,7 +1368,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: AppColors.surface(context),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                         border: Border.all(color: AppColors.border(context)),
                       ),
                       child: DropdownButtonHideUnderline(
@@ -1438,11 +1403,11 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         fillColor: AppColors.surface(context),
                         filled: true,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.zero,
                           borderSide: BorderSide(color: AppColors.border(context)),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.zero,
                           borderSide: BorderSide(color: AppColors.border(context)),
                         ),
                       ),
@@ -1466,11 +1431,11 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                                   fillColor: AppColors.surface(context),
                                   filled: true,
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.zero,
                                     borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                   enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.zero,
                                     borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                 ),
@@ -1496,11 +1461,11 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                                   filled: true,
                                   suffixIcon: Icon(Icons.calendar_today, size: 18, color: AppColors.textSecondary(context)),
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.zero,
                                     borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                   enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.zero,
                                     borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                 ),
@@ -1549,7 +1514,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
                         ),
                         child: Row(
@@ -1558,7 +1523,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
                                 color: AppColors.primary.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.zero,
                               ),
                               child: Icon(
                                 scannedPix != null && scannedPix!.trim().isNotEmpty
@@ -1599,7 +1564,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(PhosphorIcons.trash, size: 18, color: Colors.redAccent),
+                              icon: Icon(PhosphorIcons.trash, size: 18, color: AppColors.error),
                               tooltip: 'Remover código',
                               onPressed: () => setModalState(() {
                                 scannedLinha = null;
@@ -1653,7 +1618,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                                         ? "Pix Copia e Cola vinculado com sucesso!"
                                         : "Código de barras vinculado${parsed.valorFormatado != null ? ' (R\$ ${parsed.valorFormatado})' : ''}!",
                                   ),
-                                  backgroundColor: Colors.green,
+                                  backgroundColor: AppColors.success,
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
@@ -1666,7 +1631,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                           ),
                         ),
                       ),
@@ -1678,7 +1643,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: AppColors.onPrimary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         ),
                         onPressed: () async {
                           if (txtNome.text.trim().isEmpty || txtValor.text.trim().isEmpty || txtVencimento.text.trim().isEmpty) {
@@ -1716,7 +1681,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             messenger.showSnackBar(
                               SnackBar(
                                 content: Text(isEditing ? "Conta atualizada!" : "Conta criada com sucesso!"),
-                                backgroundColor: Colors.green,
+                                backgroundColor: AppColors.success,
                               ),
                             );
                           } else {
@@ -1814,8 +1779,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             icon: Icon(
               PhosphorIcons.caretLeft,
               color: selectedIndex > 0 
-                  ? const Color(0xFF94A3B8) 
-                  : const Color(0xFFCBD5E1).withValues(alpha: 0.4),
+                  ? AppColors.textTertiary(context) 
+                  : AppColors.border(context).withValues(alpha: 0.4),
             ),
             onPressed: selectedIndex > 0
                 ? () {
@@ -1861,7 +1826,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
                         color: isSelected ? AppColors.primary : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1872,8 +1837,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                               color: isSelected 
                                   ? AppColors.onPrimary 
                                   : (Theme.of(context).brightness == Brightness.dark
-                                      ? const Color(0xFF94A3B8)
-                                      : const Color(0xFF64748B)),
+                                      ? AppColors.textTertiary(context)
+                                      : AppColors.textSecondary(context)),
                               fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
                               fontSize: 12.5,
                               letterSpacing: 0.4,
@@ -1886,8 +1851,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                               color: isSelected 
                                   ? AppColors.onPrimary.withValues(alpha: 0.9)
                                   : (Theme.of(context).brightness == Brightness.dark
-                                      ? const Color(0xFF64748B)
-                                      : const Color(0xFF94A3B8)),
+                                      ? AppColors.textSecondary(context)
+                                      : AppColors.textTertiary(context)),
                               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                               fontSize: 10,
                             ),
@@ -1907,8 +1872,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             icon: Icon(
               PhosphorIcons.caretRight,
               color: selectedIndex < months.length - 1 
-                  ? const Color(0xFF94A3B8) 
-                  : const Color(0xFFCBD5E1).withValues(alpha: 0.4),
+                  ? AppColors.textTertiary(context) 
+                  : AppColors.border(context).withValues(alpha: 0.4),
             ),
             onPressed: selectedIndex < months.length - 1
                 ? () {
@@ -1946,7 +1911,7 @@ class _ToggleItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.zero,
           ),
           child: Center(
             child: Text(
@@ -2049,14 +2014,7 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
       floatingActionButton: !isCondo
           ? Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
+                borderRadius: BorderRadius.zero,
               ),
               child: FloatingActionButton.extended(
                 heroTag: null,
@@ -2083,7 +2041,7 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
                 ),
                 backgroundColor: AppColors.primary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.zero,
                 ),
               ),
             )
@@ -2100,15 +2058,8 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  )
-                ]
+                color: AppColors.primary,
+                borderRadius: BorderRadius.zero,
               ),
               child: Row(
                 children: [
@@ -2151,25 +2102,12 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? AppColors.darkSurface
-                      : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.zero,
                   border: Border.all(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? AppColors.darkBorder
-                        : const Color(0xFFE2E8F0),
+                    color: AppColors.border(context),
                     width: 1.1,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.black.withValues(alpha: 0.20)
-                          : const Color(0xFF64748B).withValues(alpha: 0.05),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
