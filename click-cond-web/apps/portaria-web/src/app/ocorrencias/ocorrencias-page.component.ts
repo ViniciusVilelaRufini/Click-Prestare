@@ -6,11 +6,12 @@ import {
   Categoria, CreateOcorrencia, FuncionarioAtribuivel, Ocorrencia, OcorrenciaStatus, OcorrenciasApi, OcorrenciaMensagem,
 } from './ocorrencias.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 @Component({
   selector: 'app-ocorrencias-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
   templateUrl: './ocorrencias-page.component.html',
 })
 export class OcorrenciasPageComponent implements OnInit, OnDestroy {
@@ -138,9 +139,9 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   }
 
   statusBadge(s: OcorrenciaStatus) {
-    if (s === 'Pendente') return { bg: 'bg-amber-400/10', border: 'border-amber-400/20', text: 'text-amber-400', dot: 'bg-amber-400 animate-pulse' };
-    if (s === 'Ciente')   return { bg: 'bg-accent/10',    border: 'border-accent/20',    text: 'text-accent',    dot: 'bg-accent' };
-    return { bg: 'bg-emerald-400/10', border: 'border-emerald-400/20', text: 'text-emerald-400', dot: 'bg-emerald-400' };
+    if (s === 'Pendente') return { text: 'text-amber-400', dot: 'ps-dot-warn ps-dot-pulse' };
+    if (s === 'Ciente')   return { text: '', dot: 'ps-dot-ink' };
+    return { text: 'text-emerald-400', dot: 'ps-dot-ok' };
   }
 
   prioridadeCategoria(catId: number): number {
@@ -150,7 +151,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   prioridadeLabel(p: number): { label: string; color: string } {
     if (p <= 1) return { label: 'Crítica', color: 'text-red-400' };
     if (p <= 2) return { label: 'Alta', color: 'text-amber-400' };
-    if (p <= 3) return { label: 'Média', color: 'text-accent' };
+    if (p <= 3) return { label: 'Média', color: '' };
     return { label: 'Baixa', color: 'text-slate-400' };
   }
 
@@ -288,24 +289,24 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   slaInfo(o: Ocorrencia): { label: string; classes: string } | null {
     const s = (o.status ?? '').toLowerCase();
     if (s === 'solucionado' || s === 'resolvida') {
-      return { label: 'Concluída', classes: 'bg-slate-400/10 border-slate-400/20 text-slate-400' };
+      return { label: 'Concluída', classes: 'text-slate-400' };
     }
     if (!o.prazo) {
-      return { label: 'Sem prazo', classes: 'bg-slate-400/10 border-slate-400/20 text-slate-400' };
+      return { label: 'Sem prazo', classes: 'text-slate-400' };
     }
     const prazo = new Date(o.prazo);
     if (isNaN(prazo.getTime())) return null;
     const now = new Date();
     if (now.getTime() > prazo.getTime()) {
-      return { label: 'Atrasada', classes: 'bg-red-400/10 border-red-400/20 text-red-400' };
+      return { label: 'Atrasada', classes: 'text-red-400' };
     }
     const diffH = Math.floor((prazo.getTime() - now.getTime()) / 3600000);
     const label = diffH >= 48 ? `Vence em ${Math.floor(diffH / 24)}d`
       : diffH >= 1 ? `Vence em ${diffH}h`
       : `Vence em ${Math.max(1, Math.floor((prazo.getTime() - now.getTime()) / 60000))}min`;
     const classes = diffH >= 24
-      ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-400'
-      : 'bg-amber-400/10 border-amber-400/20 text-amber-400';
+      ? 'text-emerald-400'
+      : 'text-amber-400';
     return { label, classes };
   }
 
