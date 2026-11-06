@@ -1,113 +1,109 @@
 <div class="min-h-screen p-6 lg:p-8 space-y-6">
 
   <!-- Header -->
-  <div class="flex flex-wrap items-start justify-between gap-4">
-    <div class="flex items-start gap-4">
-      <div class="w-11 h-11 rounded-xl bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center shrink-0">
-        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-        </svg>
-      </div>
-      <div>
-        <h1 class="text-2xl font-semibold text-white tracking-tight">Encomendas</h1>
-        <p class="text-sm text-slate-400 mt-0.5">Recebimento, armazenamento e retirada de pacotes</p>
-      </div>
+  <div class="ps-phead">
+    <div class="ps-phead-t">
+      <h1 class="ps-h1">Encomendas</h1>
+      <p class="text-sm">Recebimento, armazenamento e retirada de pacotes</p>
     </div>
-    <button (click)="showForm = !showForm; formError.set(null)"
-            class="px-4 py-2.5 rounded-xl font-medium text-sm text-white bg-emerald-500 hover:bg-emerald-600 transition flex items-center gap-2">
+    <button (click)="showForm = !showForm; formError.set(null)" class="ps-btn">
       @if (showForm) {
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
         Cancelar
       } @else {
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/></svg>
         Receber encomenda
       }
     </button>
   </div>
 
   <!-- Stats -->
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-    <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">A chegar</p>
-      <div class="flex items-end gap-2 mt-1">
-        <p class="text-2xl font-bold text-sky-400 tabular-nums leading-none">{{ esperando() }}</p>
+  <div class="ps-kpis">
+    <div class="ps-kpi">
+      <div class="ps-kpi-row1">
+        <p class="ps-label">A chegar</p>
+      </div>
+      <div class="ps-kpi-row2">
+        <p class="ps-num">{{ esperando() }}</p>
         @if (esperando() > 0) {
-          <span class="text-[10px] text-sky-400 mb-1">aguardando entrega</span>
+          <span class="ps-cap mb-1">aguardando entrega</span>
         }
       </div>
     </div>
-    <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Aguardando retirada</p>
-      <div class="flex items-end gap-2 mt-1">
-        <p class="text-2xl font-bold text-amber-400 tabular-nums leading-none">{{ aguardando() }}</p>
+    <div class="ps-kpi">
+      <div class="ps-kpi-row1">
+        <p class="ps-label">Aguardando retirada</p>
         @if (aguardando() > 0) {
-          <span class="text-[10px] text-amber-400 mb-1">pendentes</span>
+          <span class="ps-dot ps-dot-warn ps-dot-pulse"></span>
+        }
+      </div>
+      <div class="ps-kpi-row2">
+        <p class="ps-num">{{ aguardando() }}</p>
+        @if (aguardando() > 0) {
+          <span class="ps-cap mb-1">pendentes</span>
         }
       </div>
     </div>
-    <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Retiradas</p>
-      <p class="text-2xl font-bold text-emerald-400 tabular-nums mt-1 leading-none">{{ retiradas() }}</p>
+    <div class="ps-kpi">
+      <div class="ps-kpi-row1">
+        <p class="ps-label">Retiradas</p>
+        <span class="ps-dot ps-dot-ok"></span>
+      </div>
+      <div class="ps-kpi-row2">
+        <p class="ps-num">{{ retiradas() }}</p>
+      </div>
     </div>
-    <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Total registrado</p>
-      <p class="text-2xl font-bold text-white tabular-nums mt-1 leading-none">{{ encomendas().length }}</p>
+    <div class="ps-kpi">
+      <div class="ps-kpi-row1">
+        <p class="ps-label">Total registrado</p>
+      </div>
+      <div class="ps-kpi-row2">
+        <p class="ps-num">{{ encomendas().length }}</p>
+      </div>
     </div>
   </div>
 
   <!-- Legenda de Armazenamento -->
-  <div class="px-4 py-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs text-slate-400">
-    <div class="flex items-center gap-4 flex-wrap">
-      <span class="font-medium text-slate-300">Tempo de Armazenamento:</span>
-      <span class="flex items-center gap-1.5">
-        <span class="w-2.5 h-2.5 rounded bg-slate-400/20 border border-white/10"></span> Recente (&lt; 3 dias)
-      </span>
-      <span class="flex items-center gap-1.5">
-        <span class="w-2.5 h-2.5 rounded bg-amber-500/20 border border-amber-400/30"></span> Atenção (3 a 6 dias)
-      </span>
-      <span class="flex items-center gap-1.5">
-        <span class="w-2.5 h-2.5 rounded bg-red-500/20 border border-red-400/30"></span> Crítico (7+ dias)
-      </span>
+  <div class="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 px-4 py-3 border border-[var(--line-100)] text-[13px] text-[var(--ink-muted)]">
+    <div class="flex items-center gap-x-5 gap-y-2 flex-wrap">
+      <span class="ps-label !text-[var(--ink)]">Tempo de Armazenamento</span>
+      <span class="inline-flex items-center gap-2"><span class="ps-dot"></span> Recente (&lt; 3 dias)</span>
+      <span class="inline-flex items-center gap-2"><span class="ps-dot ps-dot-warn"></span> Atenção (3 a 6 dias)</span>
+      <span class="inline-flex items-center gap-2"><span class="ps-dot ps-dot-danger"></span> Crítico (7+ dias)</span>
     </div>
-    <span class="text-slate-500 text-[11px] hidden md:inline">Notifique moradores diretamente no botão de ação da linha</span>
+    <span class="text-xs hidden md:inline">Notifique moradores diretamente no botão de ação da linha</span>
   </div>
 
   <!-- Barra de Ações em Lote -->
   @if (selecionadas().size > 0) {
-    <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-400/20 flex flex-wrap items-center justify-between gap-4 animate-fade-in">
-      <div class="flex items-center gap-2">
-        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-        </svg>
-        <span class="text-sm font-medium text-white">
-          <span class="font-bold text-emerald-400">{{ selecionadas().size }}</span> encomendas selecionadas
-        </span>
-      </div>
-      <div class="flex items-center gap-2">
-        <button (click)="notificarLote()" 
-                class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center gap-1.5">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="fixed left-1/2 -translate-x-1/2 bottom-6 z-40 w-max max-w-[calc(100%-32px)] flex flex-wrap items-center justify-center gap-x-4 gap-y-2 py-2.5 pl-4 pr-2.5 bg-[var(--accent)] text-[var(--on-accent)] font-medium animate-fade-in">
+      <span class="text-sm">
+        <span class="font-bold">{{ selecionadas().size }}</span> encomendas selecionadas
+      </span>
+      <div class="flex flex-wrap items-center justify-center gap-2">
+        <button (click)="notificarLote()"
+                class="ps-btn ps-btn-sm !bg-[var(--on-accent)] !text-[var(--accent)] !border-[var(--on-accent)]">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
           </svg>
           Notificar Lote
         </button>
-        <button (click)="abrirRetiradaLote()" 
-                class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition flex items-center gap-1.5">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button (click)="abrirRetiradaLote()"
+                class="ps-btn ps-btn-sm !bg-[var(--on-accent)] !text-[var(--accent)] !border-[var(--on-accent)]">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
           Retirar Lote
         </button>
-        <button (click)="imprimirLote()" 
-                class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-graphite border border-white/10 hover:bg-white/5 text-slate-300 hover:text-white transition flex items-center gap-1.5">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button (click)="imprimirLote()"
+                class="ps-btn ps-btn-sm !bg-transparent !text-[var(--on-accent)] !border-[var(--on-accent)]">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
           </svg>
           Imprimir Etiquetas
         </button>
-        <button (click)="limparSelecao()" 
-                class="px-3 py-2 text-xs rounded-lg text-slate-400 hover:text-white transition">
+        <button (click)="limparSelecao()"
+                class="ps-btn ps-btn-sm !bg-transparent !text-[var(--on-accent)] !border-transparent">
           Cancelar
         </button>
       </div>
@@ -115,85 +111,79 @@
   }
 
   <!-- Filtros e Busca -->
-  <div class="flex flex-wrap items-center justify-between gap-4">
+  <div class="flex flex-wrap items-center gap-3">
     <!-- Status Tabs -->
-    <div class="flex items-center gap-1 p-1 rounded-xl bg-graphite-200 border border-white/10 shrink-0">
+    <div class="ps-seg shrink-0" [psSlideIndicator]="'x'">
+      <span class="ps-seg-pill ps-slide-ind"></span>
       @for (s of [{key:'',label:'Todas'},{key:'Esperando',label:'A chegar'},{key:'Aguardando',label:'Aguardando'},{key:'Retirada',label:'Retiradas'}]; track s.key) {
-        <button (click)="filtro.set(s.key)"
-                class="px-3 py-1.5 text-xs rounded-lg transition"
-                [class.bg-emerald-500]="filtro() === s.key"
-                [class.text-white]="filtro() === s.key"
-                [class.text-slate-400]="filtro() !== s.key"
-                [class.hover:text-slate-200]="filtro() !== s.key">
+        <button (click)="filtro.set(s.key)" [class.on]="filtro() === s.key">
           {{ s.label }}
         </button>
       }
     </div>
 
     <!-- Search & Dropdown Filters -->
-    <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-      <!-- Search Input -->
-      <div class="relative flex-1 min-w-[240px] lg:w-72">
-        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
-        </span>
+    <div class="flex-1 flex flex-wrap items-center gap-3 min-w-[260px]">
+      <label class="ps-field flex-1 min-w-[240px]">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
         <input [ngModel]="busca()" (ngModelChange)="busca.set($event)"
-          placeholder="Buscar por volume, apto, bloco..."
-          class="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
-      </div>
+          placeholder="Buscar por volume, apto, bloco..." />
+      </label>
 
       <!-- Transportadora Dropdown -->
-      <div class="relative min-w-[160px]">
-        <select [ngModel]="filtroTransportadora()" (ngModelChange)="filtroTransportadora.set($event)"
-          class="w-full pl-3 pr-8 py-2 text-xs rounded-xl bg-graphite border border-white/10 text-white focus:outline-none focus:border-emerald-400/60 appearance-none">
+      <div class="ps-field min-w-[200px] relative">
+        <select [ngModel]="filtroTransportadora()" (ngModelChange)="filtroTransportadora.set($event)">
           <option value="">Todas transportadoras</option>
           @for (t of transportadorasDisponiveis(); track t) {
             <option [value]="t">{{ t }}</option>
           }
         </select>
-        <span class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </span>
+        <svg class="w-4 h-4 shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"/></svg>
       </div>
 
       <!-- Bloco Dropdown -->
       @if (blocosDisponiveis().length > 0) {
-        <div class="relative min-w-[120px]">
-          <select [ngModel]="filtroBloco()" (ngModelChange)="filtroBloco.set($event)"
-            class="w-full pl-3 pr-8 py-2 text-xs rounded-xl bg-graphite border border-white/10 text-white focus:outline-none focus:border-emerald-400/60 appearance-none">
+        <div class="ps-field min-w-[160px] relative">
+          <select [ngModel]="filtroBloco()" (ngModelChange)="filtroBloco.set($event)">
             <option value="">Todos os blocos</option>
             @for (b of blocosDisponiveis(); track b) {
               <option [value]="b">{{ rotuloBloco(b) }}</option>
             }
           </select>
-          <span class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-          </span>
+          <svg class="w-4 h-4 shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"/></svg>
         </div>
       }
     </div>
   </div>
 
-  <!-- Form -->
+  <!-- Gaveta: Receber encomenda -->
   @if (showForm) {
-    <div class="p-6 rounded-2xl bg-graphite-200 border border-emerald-400/30" data-testid="form-encomenda">
-      <div class="flex items-center gap-2 mb-4">
-        <div class="w-1 h-5 rounded-full bg-emerald-400"></div>
-        <h2 class="text-sm font-semibold text-white">Receber nova encomenda</h2>
+    <div class="ps-scrim on" (click)="showForm = false; formError.set(null)"></div>
+    <div class="ps-drawer on" data-testid="form-encomenda">
+      <div class="ps-drawer-head gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="ps-ico shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          </div>
+          <h2 class="ps-h2 truncate">Receber nova encomenda</h2>
+        </div>
+        <button type="button" (click)="showForm = false; formError.set(null)" class="ps-ibtn" title="Fechar formulário" aria-label="Fechar formulário">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <div class="ps-drawer-body">
         <!-- Scanner & Rastreamento -->
-        <div class="block md:col-span-2 space-y-1.5">
-          <span class="text-xs font-medium text-slate-400 block">Código de Rastreio / Etiqueta</span>
+        <div class="block space-y-1.5">
+          <span class="ps-label block">Código de Rastreio / Etiqueta</span>
           <div class="flex gap-2">
-            <input [(ngModel)]="novo.codigo_rastreio" placeholder="Opcional: Escaneie ou digite o código de rastreamento"
-              class="flex-1 px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
-            
-            <button type="button" (click)="startScan()"
-              class="px-4 py-2.5 rounded-lg text-sm font-medium text-emerald-450 bg-emerald-500/10 border border-emerald-400/20 hover:bg-emerald-550/20 transition flex items-center gap-1.5 shrink-0">
-              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="ps-field flex-1 min-w-0">
+              <input [(ngModel)]="novo.codigo_rastreio" placeholder="Opcional: Escaneie ou digite o código de rastreamento" />
+            </div>
+            <button type="button" (click)="startScan()" class="ps-btn ps-btn-sec shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
               </svg>
               Escanear Etiqueta
@@ -201,53 +191,50 @@
           </div>
         </div>
 
-        <label class="block md:col-span-2">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Descrição do volume *</span>
-          <input [(ngModel)]="novo.descricao" placeholder="Ex: Caixa pequena Mercado Livre"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
+        <label class="block">
+          <span class="ps-label mb-1.5 block">Descrição do volume *</span>
+          <span class="ps-field">
+            <input [(ngModel)]="novo.descricao" placeholder="Ex: Caixa pequena Mercado Livre" />
+          </span>
         </label>
-        <label class="block md:col-span-2">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Destinatário (Bloco / Apto) *</span>
-          <select [(ngModel)]="selectedApto"
-            aria-label="Destinatário (Bloco / Apto)"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-emerald-400/60">
-            <option [ngValue]="null">Selecione o destinatário...</option>
-            @for (a of apartamentos(); track a.id) {
-              <option [ngValue]="a">{{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}</option>
-            }
-          </select>
+        <label class="block">
+          <span class="ps-label mb-1.5 block">Destinatário (Bloco / Apto) *</span>
+          <span class="ps-field">
+            <select [(ngModel)]="selectedApto" aria-label="Destinatário (Bloco / Apto)">
+              <option [ngValue]="null">Selecione o destinatário...</option>
+              @for (a of apartamentos(); track a.id) {
+                <option [ngValue]="a">{{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}</option>
+              }
+            </select>
+            <svg class="w-4 h-4 shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"/></svg>
+          </span>
         </label>
-        <label class="block md:col-span-2">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Recebido de (transportadora)</span>
-          <input [(ngModel)]="novo.recebido_de" placeholder="Ex: Correios, Mercado Livre, Amazon..."
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
+        <label class="block">
+          <span class="ps-label mb-1.5 block">Recebido de (transportadora)</span>
+          <span class="ps-field">
+            <input [(ngModel)]="novo.recebido_de" placeholder="Ex: Correios, Mercado Livre, Amazon..." />
+          </span>
           <div class="flex flex-wrap gap-1.5 mt-2">
             @for (t of ['Correios', 'Mercado Livre', 'Amazon', 'iFood', 'Loggi', 'Jadlog', 'Shopee', 'FedEx', 'DHL']; track t) {
               <button type="button" (click)="novo.recebido_de = (novo.recebido_de === t ? '' : t)"
-                class="px-2.5 py-1 text-xs rounded-lg border transition duration-150"
-                [class.bg-emerald-500/10]="novo.recebido_de === t"
-                [class.border-emerald-400/30]="novo.recebido_de === t"
-                [class.text-emerald-400]="novo.recebido_de === t"
-                [class.bg-white/5]="novo.recebido_de !== t"
-                [class.border-white/10]="novo.recebido_de !== t"
-                [class.text-slate-300]="novo.recebido_de !== t"
-                [class.hover:bg-white/10]="novo.recebido_de !== t">
+                class="ps-btn ps-btn-sec ps-btn-sm"
+                [class.ps-tag-solid]="novo.recebido_de === t">
                 {{ t }}
               </button>
             }
           </div>
         </label>
+
+        @if (formError()) {
+          <div role="alert" class="p-3 border border-[var(--signal-danger)] text-sm text-[var(--signal-danger)]">{{ formError() }}</div>
+        }
       </div>
-      @if (formError()) {
-        <div role="alert" class="mt-4 p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300">{{ formError() }}</div>
-      }
-      <div class="mt-5 flex justify-end gap-2">
-        <button (click)="showForm = false; formError.set(null)"
-          class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition">
+
+      <div class="ps-drawer-foot">
+        <button (click)="showForm = false; formError.set(null)" class="ps-btn ps-btn-sec">
           Cancelar
         </button>
-        <button (click)="registrar()"
-          class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-emerald-500 hover:bg-emerald-600 transition">
+        <button (click)="registrar()" class="ps-btn">
           Confirmar recebimento
         </button>
       </div>
@@ -255,28 +242,28 @@
   }
 
   @if (error()) {
-    <div class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300">{{ error() }}</div>
+    <div class="p-3 border border-[var(--signal-danger)] text-sm text-[var(--signal-danger)]">{{ error() }}</div>
   }
 
   <!-- Tabela -->
   @if (loading() && encomendas().length === 0) {
-    <div class="p-12 text-center rounded-2xl bg-graphite-200 border border-white/10">
-      <div class="inline-block w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+    <div class="ps-panel p-12 text-center">
+      <div class="inline-block w-6 h-6 border-2 border-[var(--line-200)] border-t-[var(--ink)] rounded-full animate-spin"></div>
     </div>
   } @else if (encomendasFiltradas().length === 0) {
-    <div class="p-12 text-center rounded-2xl bg-graphite-200 border border-white/10">
-      <div class="w-12 h-12 rounded-xl bg-white/5 mx-auto flex items-center justify-center mb-3">
-        <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="ps-panel ps-empty">
+      <div class="ps-ico">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
         </svg>
       </div>
-      <p class="text-sm text-slate-350 font-medium">Nenhuma encomenda encontrada</p>
-      <p class="text-xs text-slate-500 mt-1">Registre encomendas recebidas na portaria</p>
+      <p class="text-sm font-medium text-[var(--ink)]">Nenhuma encomenda encontrada</p>
+      <p class="text-xs">Registre encomendas recebidas na portaria</p>
     </div>
   } @else {
-    <div class="rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-sm">
+    <div class="ps-panel overflow-hidden">
       <!-- MOBILE / janela estreita: cards -->
-      <div class="lg:hidden divide-y divide-white/5">
+      <div class="lg:hidden divide-y divide-[var(--line-100)]">
         @for (e of encomendasPaginadas(); track e.id) {
           <div
                role="button"
@@ -287,68 +274,62 @@
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <p class="font-medium text-white leading-tight">{{ e.descricao }}</p>
+                  <p class="font-medium text-[var(--ink)] leading-tight">{{ e.descricao }}</p>
                   @if (e.codigo_validacao) {
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-400/30" title="Código de validação para o entregador">
-                      <svg class="w-3 h-3 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                      <span class="text-[12px] font-bold font-mono tracking-wider text-sky-200">{{ e.codigo_validacao }}</span>
+                    <span class="ps-tag" title="Código de validação para o entregador">
+                      <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                      <span class="font-mono tracking-wider">{{ e.codigo_validacao }}</span>
                     </span>
                   }
                 </div>
-                @if (e.codigo_rastreio) { <p class="text-[10px] text-slate-500 font-mono mt-0.5">{{ e.codigo_rastreio }}</p> }
+                @if (e.codigo_rastreio) { <p class="text-[10px] text-[var(--ink-subtle)] font-mono mt-0.5">{{ e.codigo_rastreio }}</p> }
               </div>
               @if (e.status === 'Esperando') {
-                <span class="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-md bg-sky-400/10 border border-sky-400/20 text-sky-400 shrink-0">
-                  <span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>A chegar
-                </span>
+                <span class="ps-tag shrink-0"><span class="ps-dot ps-dot-ink ps-dot-pulse"></span>A chegar</span>
               } @else if (e.status === 'Aguardando') {
-                <span class="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-md bg-amber-400/10 border border-amber-400/20 text-amber-400 shrink-0">
-                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Aguardando
-                </span>
+                <span class="ps-tag shrink-0"><span class="ps-dot ps-dot-warn"></span>Aguardando</span>
               } @else {
-                <span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 shrink-0">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>Retirada
-                </span>
+                <span class="ps-tag shrink-0"><span class="ps-dot ps-dot-ok"></span>Retirada</span>
               }
             </div>
-            <div class="mt-2 flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
-              <span class="inline-flex items-center gap-1 font-mono text-slate-300">
-                <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            <div class="mt-2 flex items-center gap-3 text-[11px] text-[var(--ink-subtle)] flex-wrap">
+              <span class="inline-flex items-center gap-1 font-mono text-[var(--ink-muted)]">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                 {{ e.destinatario_bloco ? e.destinatario_bloco + ' / ' : '' }}{{ e.destinatario_apto }}
               </span>
               @if (e.recebido_de) {
-                <span [class]="'inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded border ' + getBrandBadgeClass(e.recebido_de).bg + ' ' + getBrandBadgeClass(e.recebido_de).text + ' ' + getBrandBadgeClass(e.recebido_de).border">{{ e.recebido_de }}</span>
+                <span class="ps-tag">{{ e.recebido_de }}</span>
               }
               <span class="font-mono" data-testid="recebida-card">{{ e.status === 'Esperando' ? '—' : (e.recebido_em | date: 'dd/MM HH:mm') }}</span>
               @if (e.status === 'Aguardando' && diasArmazenada(e) >= 7) {
-                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-red-500/10 border border-red-500/20 text-red-400">{{ diasArmazenada(e) }}d - Crítico</span>
+                <span class="inline-flex items-center gap-1.5 font-semibold text-[var(--signal-danger)]"><span class="ps-dot ps-dot-danger"></span>{{ diasArmazenada(e) }}d - Crítico</span>
               } @else if (e.status === 'Aguardando' && diasArmazenada(e) >= 3) {
-                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-500/10 border border-amber-400/20 text-amber-400">{{ diasArmazenada(e) }}d</span>
+                <span class="inline-flex items-center gap-1.5 font-semibold text-[var(--signal-warn)]"><span class="ps-dot ps-dot-warn"></span>{{ diasArmazenada(e) }}d</span>
               }
             </div>
             <div class="mt-2.5 flex items-center gap-2 flex-wrap" (click)="$event.stopPropagation()">
               @if (e.status === 'Esperando') {
-                <button (click)="receber(e)" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-600 hover:!text-white hover:border-blue-600 transition dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                <button (click)="receber(e)" class="ps-btn ps-btn-sec ps-btn-sm">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                   Receber
                 </button>
               }
               @if (e.status === 'Aguardando') {
                 @if (!e.notificado) {
-                  <button (click)="notificar(e)" class="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-600 hover:!text-white transition dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60">Notificar</button>
+                  <button (click)="notificar(e)" class="ps-btn ps-btn-sec ps-btn-sm">Notificar</button>
                 } @else {
-                  <span class="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Notificado</span>
+                  <span class="inline-flex items-center gap-1 text-[11px] text-[var(--signal-ok)] font-medium"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Notificado</span>
                 }
-                <button (click)="abrirRetirada(e)" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-600 hover:!text-white hover:border-emerald-600 transition dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <button (click)="abrirRetirada(e)" class="ps-btn ps-btn-sm">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                   Marcar retirada
                 </button>
               }
-              <button (click)="imprimir(e)" title="Imprimir etiqueta" aria-label="Imprimir etiqueta" class="p-1.5 rounded-md text-slate-400 hover:text-accent hover:bg-white/5 transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+              <button (click)="imprimir(e)" title="Imprimir etiqueta" aria-label="Imprimir etiqueta" class="ps-ibtn">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
               </button>
-              <button (click)="remover(e)" title="Remover" aria-label="Remover encomenda" class="p-1.5 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              <button (click)="remover(e)" title="Remover" aria-label="Remover encomenda" class="ps-ibtn hover:!text-[var(--signal-danger)]">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
               </button>
             </div>
           </div>
@@ -356,38 +337,38 @@
       </div>
 
       <!-- DESKTOP: tabela -->
-      <div class="hidden lg:block overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="bg-white/[0.02] text-slate-400 text-xs border-b border-white/10">
+      <div class="hidden lg:block ps-tablewrap !border-0">
+        <table class="[&_th]:!px-2 [&_td]:!px-2">
+          <thead>
             <tr>
-              <th class="px-5 py-3 text-left w-10">
+              <th class="text-left w-10">
                 @if (filtro() === 'Aguardando' || filtro() === '') {
-                  <input type="checkbox" 
-                         [checked]="todasSelecionadas()" 
-                         (change)="toggleSelecionarTodos()" 
+                  <input type="checkbox"
+                         [checked]="todasSelecionadas()"
+                         (change)="toggleSelecionarTodos()"
                          aria-label="Selecionar todas as encomendas para retirada em lote"
-                         class="rounded bg-graphite border-white/10 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer" />
+                         class="w-4 h-4 cursor-pointer align-middle" />
                 }
               </th>
-              <th class="text-left px-5 py-3 font-medium">Volume</th>
-              <th class="text-left px-5 py-3 font-medium">Destinatário</th>
-              <th class="text-left px-5 py-3 font-medium">Recebido de</th>
-              <th class="text-left px-5 py-3 font-medium">Recebida</th>
-              <th class="text-left px-5 py-3 font-medium">Notificação</th>
-              <th class="text-left px-5 py-3 font-medium">Status</th>
-              <th class="text-right px-5 py-3 font-medium">Ações</th>
+              <th class="text-left">Volume</th>
+              <th class="text-left">Destinatário</th>
+              <th class="text-left">Recebido de</th>
+              <th class="text-left">Recebida</th>
+              <th class="text-left">Notificação</th>
+              <th class="text-left">Status</th>
+              <th class="text-right">Ações</th>
             </tr>
           </thead>
           <tbody>
             @for (e of encomendasPaginadas(); track e.id) {
               <tr
-                   role="button"
-                   tabindex="0"
-                   (keydown.enter)="(e.retirado_assinatura || e.retirado_foto) ? abrirComprovante(e) : null"
-                   (keydown.space)="$event.preventDefault(); (e.retirado_assinatura || e.retirado_foto) ? abrirComprovante(e) : null" [class.cursor-pointer]="e.retirado_assinatura || e.retirado_foto"
+                  role="button"
+                  tabindex="0"
+                  (keydown.enter)="(e.retirado_assinatura || e.retirado_foto) ? abrirComprovante(e) : null"
+                  (keydown.space)="$event.preventDefault(); (e.retirado_assinatura || e.retirado_foto) ? abrirComprovante(e) : null" [class.cursor-pointer]="e.retirado_assinatura || e.retirado_foto"
                   (click)="(e.retirado_assinatura || e.retirado_foto) ? abrirComprovante(e) : null"
-                  class="border-t border-white/5 hover:bg-white/[0.025] transition-colors group">
-                <td class="px-5 py-3.5 w-10 align-middle">
+                  class="transition-colors hover:bg-[var(--accent-ghost)] group">
+                <td class="w-10">
                   @if (e.status === 'Aguardando') {
                     <input type="checkbox"
                            [checked]="selecionadas().has(e.id)"
@@ -396,91 +377,77 @@
                            [attr.aria-label]="'Selecionar encomenda #' + e.id + ' para retirada em lote'"
                            (change)="toggleSelecionado(e.id)"
                            (click)="$event.stopPropagation()"
-                           class="rounded bg-graphite border-white/10 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" />
+                           class="w-4 h-4 cursor-pointer align-middle disabled:opacity-30 disabled:cursor-not-allowed" />
                   } @else {
-                    <span class="text-slate-600 font-mono pl-1">—</span>
+                    <span class="text-[var(--ink-subtle)] font-mono pl-1">—</span>
                   }
                 </td>
-                <td class="px-5 py-3.5 align-middle">
-                  <div class="flex items-center gap-2.5 flex-wrap">
-                    <p class="font-medium text-slate-900 dark:text-white leading-tight">{{ e.descricao }}</p>
+                <td>
+                  <p class="ps-person-name leading-tight">{{ e.descricao }}</p>
+                  <p class="text-xs text-[var(--ink-subtle)] mt-1 flex flex-col items-start gap-1.5">
+                    <span>#{{ e.id }}@if (e.codigo_rastreio) { · <span class="font-mono">{{ e.codigo_rastreio }}</span> }</span>
                     @if (e.codigo_validacao) {
-                      <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 shadow-sm" title="Código de validação para o entregador">
-                        <svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                        <span class="text-[9px] uppercase tracking-wider text-blue-700 dark:text-blue-300 font-bold">Validação</span>
-                        <span class="text-[13px] font-bold font-mono tracking-widest text-blue-900 dark:text-blue-100">{{ e.codigo_validacao }}</span>
+                      <span class="ps-tag !h-[18px]" title="Código de validação para o entregador">
+                        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                        <span>Validação</span>
+                        <span class="font-mono tracking-widest text-[var(--ink)]">{{ e.codigo_validacao }}</span>
                       </span>
                     }
-                  </div>
-                  <p class="text-xs text-slate-500 mt-0.5">
-                    #{{ e.id }}
-                    @if (e.codigo_rastreio) { · <span class="font-mono">{{ e.codigo_rastreio }}</span> }
                   </p>
                 </td>
-                <td class="px-5 py-3.5 align-middle">
-                  <span class="text-sm font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{{ rotuloDestino(e) }}</span>
+                <td>
+                  <span class="text-sm font-medium text-[var(--ink)]">{{ rotuloDestino(e) }}</span>
                 </td>
-                 <td class="px-5 py-3.5 align-middle">
+                <td>
                   @if (e.recebido_de) {
-                    <span [class]="'inline-flex items-center px-2.5 py-0.5 text-xs font-semibold rounded border ' + getBrandBadgeClass(e.recebido_de).bg + ' ' + getBrandBadgeClass(e.recebido_de).text + ' ' + getBrandBadgeClass(e.recebido_de).border">
-                      {{ e.recebido_de }}
-                    </span>
+                    <span class="ps-tag max-w-[140px]" [title]="e.recebido_de"><span class="truncate">{{ e.recebido_de }}</span></span>
                   } @else {
-                    <span class="text-slate-500 font-mono">—</span>
+                    <span class="text-[var(--ink-subtle)] font-mono">—</span>
                   }
                 </td>
-                <td class="px-5 py-3.5 align-middle whitespace-nowrap">
-                  <p class="text-sm text-slate-700 dark:text-slate-200" data-testid="recebida-tabela">{{ e.status === 'Esperando' ? '—' : (e.recebido_em | date: 'dd/MM HH:mm') }}</p>
+                <td>
+                  <p class="text-sm text-[var(--ink)]" data-testid="recebida-tabela">{{ e.status === 'Esperando' ? '—' : (e.recebido_em | date: 'dd/MM HH:mm') }}</p>
                   @switch (nivelArmazenada(e)) {
                     @case ('critico') {
-                      <p class="text-xs font-semibold text-red-500 dark:text-red-400 mt-0.5" title="Aguardando retirada há 7 dias ou mais">{{ textoArmazenada(e) }} · crítico</p>
+                      <p class="text-xs font-semibold text-[var(--signal-danger)] mt-0.5" title="Aguardando retirada há 7 dias ou mais">{{ textoArmazenada(e) }} · crítico</p>
                     }
                     @case ('atencao') {
-                      <p class="text-xs font-semibold text-amber-600 dark:text-amber-400 mt-0.5" title="Aguardando retirada há 3 dias ou mais">{{ textoArmazenada(e) }} · atenção</p>
+                      <p class="text-xs font-semibold text-[var(--signal-warn)] mt-0.5" title="Aguardando retirada há 3 dias ou mais">{{ textoArmazenada(e) }} · atenção</p>
                     }
                     @default {
                       @if (e.status === 'Aguardando') {
-                        <p class="text-xs text-slate-500 mt-0.5">{{ textoArmazenada(e) }}</p>
+                        <p class="text-xs text-[var(--ink-subtle)] mt-0.5">{{ textoArmazenada(e) }}</p>
                       }
                     }
                   }
                 </td>
-                <td class="px-5 py-3.5 align-middle whitespace-nowrap">
+                <td>
                   @if (e.notificado) {
-                    <p class="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
-                      <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                    <p class="inline-flex items-center gap-1 text-sm text-[var(--ink)] font-medium">
+                      <svg class="w-3.5 h-3.5 shrink-0 text-[var(--signal-ok)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                       Notificado
                     </p>
-                    <p class="text-xs text-slate-500 mt-0.5">{{ e.notificado_em | date: 'dd/MM HH:mm' }}</p>
+                    <p class="text-xs text-[var(--ink-subtle)] mt-0.5">{{ e.notificado_em | date: 'dd/MM HH:mm' }}</p>
                   } @else if (e.status === 'Aguardando') {
-                    <p class="text-sm text-amber-600 dark:text-amber-400 font-medium">Não notificado</p>
+                    <p class="text-sm text-[var(--signal-warn)] font-medium">Não notificado</p>
                   } @else {
-                    <span class="text-sm text-slate-500">—</span>
+                    <span class="text-sm text-[var(--ink-subtle)]">—</span>
                   }
                 </td>
-                <td class="px-5 py-3.5 align-middle">
+                <td>
                   @if (e.status === 'Esperando') {
-                    <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/60 text-sky-700 dark:text-sky-300">
-                      <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
-                      A chegar
-                    </span>
+                    <span class="ps-tag"><span class="ps-dot ps-dot-ink"></span>A chegar</span>
                   } @else if (e.status === 'Aguardando') {
-                    <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300">
-                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                      Aguardando
-                    </span>
+                    <span class="ps-tag"><span class="ps-dot ps-dot-warn"></span>Aguardando</span>
                   } @else {
                     <div>
-                      <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300">
-                        <svg class="w-3 h-3 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-                        Retirada
-                      </span>
+                      <span class="ps-tag"><span class="ps-dot ps-dot-ok"></span>Retirada</span>
                       @if (e.retirado_por) {
-                        <p class="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
+                        <p class="text-[10px] text-[var(--ink-subtle)] mt-1 flex items-center gap-1.5 flex-wrap whitespace-normal max-w-[170px]">
                           por {{ e.retirado_por }} · {{ e.retirado_em | date: 'dd/MM HH:mm' }}
                           @if (e.retirado_assinatura || e.retirado_foto) {
-                            <button (click)="abrirComprovante(e); $event.stopPropagation()" 
-                                    class="text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-0.5 font-medium" 
+                            <button (click)="abrirComprovante(e); $event.stopPropagation()"
+                                    class="text-[var(--ink)] underline inline-flex items-center gap-0.5 font-medium"
                                     title="Ver comprovante">
                               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                               <span>Recibo</span>
@@ -491,77 +458,67 @@
                     </div>
                   }
                 </td>
-              <td class="px-5 py-3.5 text-right align-middle">
-                <div class="flex items-center justify-end gap-1.5">
-                  @if (e.status === 'Esperando') {
-                    <button (click)="receber(e); $event.stopPropagation()"
-                            class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-600 hover:!text-white hover:border-blue-600 transition dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                      Receber
+                <td class="text-right">
+                  <div class="flex items-center justify-end gap-1">
+                    @if (e.status === 'Esperando') {
+                      <button (click)="receber(e); $event.stopPropagation()" class="ps-btn ps-btn-sec ps-btn-sm">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                        Receber
+                      </button>
+                    }
+                    @if (e.status === 'Aguardando') {
+                      <button (click)="abrirRetirada(e); $event.stopPropagation()" class="ps-btn ps-btn-sm">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        Marcar retirada
+                      </button>
+                    }
+                    @if (e.status === 'Aguardando') {
+                      <button (click)="notificar(e); $event.stopPropagation()"
+                              [title]="e.notificado ? 'Notificar o morador de novo' : 'Notificar o morador'"
+                              [attr.aria-label]="e.notificado ? 'Notificar o morador de novo' : 'Notificar o morador'"
+                              [class]="e.notificado ? 'ps-ibtn' : 'ps-ibtn !text-[var(--signal-warn)]'">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                      </button>
+                    }
+                    <button (click)="imprimir(e); $event.stopPropagation()" title="Imprimir etiqueta" aria-label="Imprimir etiqueta" class="ps-ibtn">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                     </button>
-                  }
-                  @if (e.status === 'Aguardando') {
-                    <button (click)="abrirRetirada(e); $event.stopPropagation()"
-                            class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-600 hover:!text-white hover:border-emerald-600 transition dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                      Marcar retirada
+                    <button (click)="remover(e); $event.stopPropagation()" title="Remover encomenda" aria-label="Remover encomenda" class="ps-ibtn hover:!text-[var(--signal-danger)]">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </button>
-                  }
-                  @if (e.status === 'Aguardando') {
-                    <button (click)="notificar(e); $event.stopPropagation()"
-                            [title]="e.notificado ? 'Notificar o morador de novo' : 'Notificar o morador'"
-                            [attr.aria-label]="e.notificado ? 'Notificar o morador de novo' : 'Notificar o morador'"
-                            class="p-1.5 rounded-md transition"
-                            [class]="e.notificado
-                              ? 'p-1.5 rounded-md transition text-slate-400 hover:text-accent hover:bg-white/5'
-                              : 'p-1.5 rounded-md transition text-amber-500 hover:text-amber-600 hover:bg-amber-500/10'">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-                    </button>
-                  }
-                  <button (click)="imprimir(e); $event.stopPropagation()" title="Imprimir etiqueta" aria-label="Imprimir etiqueta"
-                          class="p-1.5 rounded-md text-slate-400 hover:text-accent hover:bg-white/5 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                  </button>
-                  <button (click)="remover(e); $event.stopPropagation()" title="Remover encomenda" aria-label="Remover encomenda"
-                          class="p-1.5 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
         </table>
       </div>
 
       <!-- Paginação -->
       @if (encomendasFiltradas().length > itensPorPagina) {
-        <div class="px-5 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between flex-wrap gap-4">
-          <p class="text-xs text-slate-400">
-            Exibindo <span class="text-white font-medium">{{ exibindoInicio() }}</span> a 
-            <span class="text-white font-medium">{{ exibindoFim() }}</span> de 
-            <span class="text-white font-medium">{{ encomendasFiltradas().length }}</span> encomendas
+        <div class="px-5 py-4 border-t border-[var(--line-100)] flex items-center justify-between flex-wrap gap-4">
+          <p class="text-xs text-[var(--ink-subtle)]">
+            Exibindo <span class="text-[var(--ink)] font-medium">{{ exibindoInicio() }}</span> a
+            <span class="text-[var(--ink)] font-medium">{{ exibindoFim() }}</span> de
+            <span class="text-[var(--ink)] font-medium">{{ encomendasFiltradas().length }}</span> encomendas
           </p>
-          
+
           <div class="flex items-center gap-2">
             <button (click)="pagina.set(pagina() - 1)" [disabled]="pagina() === 1"
               aria-label="Página anterior"
-              class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+              class="ps-btn ps-btn-sec ps-btn-sm !px-2 disabled:opacity-40">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </button>
-            
+
             <div class="flex items-center gap-1">
               @for (p of paginasLista(); track p) {
                 @if (p === -1) {
-                  <span class="px-2 text-slate-500">...</span>
+                  <span class="px-2 text-[var(--ink-subtle)]">...</span>
                 } @else {
                   <button (click)="pagina.set(p)"
                     [attr.aria-label]="'Página ' + p"
-                    class="w-8 h-8 rounded-lg text-xs font-semibold transition"
-                    [class.bg-emerald-500]="pagina() === p"
-                    [class.text-white]="pagina() === p"
-                    [class.text-slate-400]="pagina() !== p"
-                    [class.hover:bg-white/5]="pagina() !== p"
-                    [class.hover:text-white]="pagina() !== p">
+                    class="ps-btn ps-btn-sm !px-0 w-8"
+                    [class.ps-btn-ghost]="pagina() !== p">
                     {{ p }}
                   </button>
                 }
@@ -570,8 +527,8 @@
 
             <button (click)="pagina.set(pagina() + 1)" [disabled]="pagina() === totalPaginas()"
               aria-label="Próxima página"
-              class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              class="ps-btn ps-btn-sec ps-btn-sm !px-2 disabled:opacity-40">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
           </div>
         </div>
@@ -581,95 +538,97 @@
 
   <!-- Modal de Confirmação de Retirada -->
   @if (retirandoEncomenda() || isBatchRetirada) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in">
-        
+    <div class="ps-scrim on !z-[60]">
+      <div class="ps-modal on !p-0 !gap-0 overflow-y-auto max-h-[90vh] !w-[min(448px,calc(100%-32px))]">
+
         <!-- Header -->
-        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+        <div class="px-6 py-4 border-b border-[var(--line-100)] flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            <h3 class="text-sm font-semibold text-white">Registrar Retirada de Encomenda</h3>
+            <h3 class="ps-h2 !text-[13px]">Registrar Retirada de Encomenda</h3>
           </div>
-          <button (click)="retirandoEncomenda.set(null); isBatchRetirada = false" aria-label="Fechar modal" class="text-slate-400 hover:text-white transition">
+          <button (click)="retirandoEncomenda.set(null); isBatchRetirada = false" aria-label="Fechar modal" class="ps-ibtn">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
         <!-- Body -->
-        <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div class="p-6 space-y-4">
           @if (!isBatchRetirada) {
-            <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
-              <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Encomenda</span>
-              <p class="text-sm font-medium text-white">{{ retirandoEncomenda()?.descricao }}</p>
-              <p class="text-xs text-slate-400">
-                Destinatário: <span class="font-mono text-emerald-400">{{ retirandoEncomenda()?.destinatario_bloco ? retirandoEncomenda()?.destinatario_bloco + ' / ' : '' }}{{ retirandoEncomenda()?.destinatario_apto }}</span>
+            <div class="p-3.5 border border-[var(--line-100)] space-y-1">
+              <span class="ps-label block">Encomenda</span>
+              <p class="text-sm font-medium text-[var(--ink)]">{{ retirandoEncomenda()?.descricao }}</p>
+              <p class="text-xs text-[var(--ink-muted)]">
+                Destinatário: <span class="font-mono text-[var(--ink)]">{{ retirandoEncomenda()?.destinatario_bloco ? retirandoEncomenda()?.destinatario_bloco + ' / ' : '' }}{{ retirandoEncomenda()?.destinatario_apto }}</span>
               </p>
             </div>
           } @else {
-            <div class="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-400/10 space-y-1">
-              <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Em Lote</span>
-              <p class="text-sm font-medium text-white">Retirando <span class="text-emerald-400 font-bold">{{ selecionadas().size }}</span> encomendas selecionadas.</p>
+            <div class="p-3.5 border border-[var(--line-100)] space-y-1">
+              <span class="ps-label block">Em Lote</span>
+              <p class="text-sm font-medium text-[var(--ink)]">Retirando <span class="font-bold">{{ selecionadas().size }}</span> encomendas selecionadas.</p>
             </div>
           }
 
           <div class="space-y-3">
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1" for="encomendas-page-quem-esta-retirando">Quem está retirando? *</label>
-              <input id="encomendas-page-quem-esta-retirando" type="text" [(ngModel)]="retiranteNome" placeholder="Nome completo do morador ou pessoa autorizada"
-                class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
+              <label class="ps-label block mb-1.5" for="encomendas-page-quem-esta-retirando">Quem está retirando? *</label>
+              <div class="ps-field">
+                <input id="encomendas-page-quem-esta-retirando" type="text" [(ngModel)]="retiranteNome" placeholder="Nome completo do morador ou pessoa autorizada" />
+              </div>
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1" for="encomendas-page-relacao-vinculo">Relação/Vínculo</label>
-              <select id="encomendas-page-relacao-vinculo" [(ngModel)]="retiranteParentesco"
-                class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-emerald-400/60">
-                <option value="Morador">Morador (Próprio destinatário)</option>
-                <option value="Familiar">Familiar (Cônjuge, Filho, etc.)</option>
-                <option value="Autorizado">Pessoa Autorizada</option>
-                <option value="Funcionario">Funcionário do morador</option>
-                <option value="Outro">Outro</option>
-              </select>
+              <label class="ps-label block mb-1.5" for="encomendas-page-relacao-vinculo">Relação/Vínculo</label>
+              <div class="ps-field">
+                <select id="encomendas-page-relacao-vinculo" [(ngModel)]="retiranteParentesco">
+                  <option value="Morador">Morador (Próprio destinatário)</option>
+                  <option value="Familiar">Familiar (Cônjuge, Filho, etc.)</option>
+                  <option value="Autorizado">Pessoa Autorizada</option>
+                  <option value="Funcionario">Funcionário do morador</option>
+                  <option value="Outro">Outro</option>
+                </select>
+                <svg class="w-4 h-4 shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"/></svg>
+              </div>
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1" for="encomendas-page-documento-rg-opcional">Documento / RG (Opcional)</label>
-              <input id="encomendas-page-documento-rg-opcional" type="text" [(ngModel)]="retiranteDocumento" placeholder="Ex: 12.345.678-9"
-                class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
+              <label class="ps-label block mb-1.5" for="encomendas-page-documento-rg-opcional">Documento / RG (Opcional)</label>
+              <div class="ps-field">
+                <input id="encomendas-page-documento-rg-opcional" type="text" [(ngModel)]="retiranteDocumento" placeholder="Ex: 12.345.678-9" />
+              </div>
             </div>
 
             <!-- Foto do Recebedor (Webcam) -->
-            <div class="mt-4 pt-4 border-t border-white/5">
-              <span class="block text-xs font-medium text-slate-400 mb-2">Comprovante de Foto (Opcional)</span>
-              
+            <div class="mt-4 pt-4 border-t border-[var(--line-100)]">
+              <span class="ps-label block mb-2">Comprovante de Foto (Opcional)</span>
+
               @if (capturedPhoto) {
-                <div class="relative w-full max-w-[200px] h-[150px] mx-auto rounded-lg overflow-hidden border border-white/10">
+                <div class="relative w-full max-w-[200px] h-[150px] mx-auto overflow-hidden border border-[var(--line-200)]">
                   <img [src]="capturedPhoto" alt="Comprovante de foto capturada" class="w-full h-full object-cover" />
-                  <button (click)="capturedPhoto = null" 
-                          class="absolute top-2 right-2 p-1.5 rounded-full bg-red-500/80 text-white hover:bg-red-600 transition"
-                          title="Remover foto">
+                  <button (click)="capturedPhoto = null"
+                          class="absolute top-2 right-2 w-7 h-7 inline-flex items-center justify-center bg-[var(--bg-100)] text-[var(--signal-danger)] border border-[var(--signal-danger)]"
+                          title="Remover foto" aria-label="Remover foto">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                   </button>
                 </div>
               } @else if (isCameraActive) {
-                <div class="relative w-full max-w-[200px] h-[150px] mx-auto rounded-lg overflow-hidden border border-emerald-500/30 bg-black">
+                <div class="relative w-full max-w-[200px] h-[150px] mx-auto overflow-hidden border border-[var(--line-200)] bg-black">
                   <video id="webcamVideo" class="w-full h-full object-cover" autoplay playsinline></video>
                   <div class="absolute bottom-2 inset-x-0 flex justify-center gap-1">
-                    <button (click)="capturePhoto()" 
-                            class="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-500 text-white font-medium hover:bg-emerald-600 transition shadow">
+                    <button (click)="capturePhoto()" class="ps-btn ps-btn-sm">
                       Capturar
                     </button>
-                    <button (click)="stopCamera()" 
-                            class="px-2.5 py-1 text-[11px] rounded-lg bg-red-500 text-white font-medium hover:bg-red-600 transition shadow">
+                    <button (click)="stopCamera()" class="ps-btn ps-btn-sm !bg-[var(--bg-100)] !text-[var(--signal-danger)] !border-[var(--signal-danger)]">
                       Cancelar
                     </button>
                   </div>
                 </div>
               } @else {
-                <button (click)="startCamera()" 
-                        class="w-full py-3 border border-dashed border-white/10 hover:border-emerald-500/40 hover:bg-white/[0.02] rounded-xl flex items-center justify-center gap-2 text-xs font-medium text-slate-400 hover:text-white transition">
-                  <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button (click)="startCamera()"
+                        class="ps-btn ps-btn-sec w-full !h-12">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
                   </svg>
@@ -679,22 +638,21 @@
             </div>
 
             <!-- Assinatura Digital -->
-            <div class="mt-4 pt-4 border-t border-white/5">
+            <div class="mt-4 pt-4 border-t border-[var(--line-100)]">
               <div class="flex items-center justify-between mb-2">
-                <span class="block text-xs font-medium text-slate-400">Assinatura Digital (Opcional)</span>
-                <button (click)="clearSignature()" 
-                        class="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 transition">
+                <span class="ps-label block">Assinatura Digital (Opcional)</span>
+                <button (click)="clearSignature()" class="ps-btn ps-btn-ghost ps-btn-sm">
                   Limpar
                 </button>
               </div>
-              <div class="relative w-full h-[120px] rounded-xl overflow-hidden border border-white/10 bg-black/40">
+              <div class="relative w-full h-[120px] overflow-hidden border border-[var(--line-200)] bg-[var(--qr-paper)]">
                 <canvas id="signatureCanvas" width="380" height="120"
-                        (mousedown)="onMouseDown($event)" 
-                        (mousemove)="onMouseMove($event)" 
-                        (mouseup)="onMouseUp()" 
-                        (mouseleave)="onMouseUp()" 
-                        (touchstart)="onTouchStart($event)" 
-                        (touchmove)="onTouchMove($event)" 
+                        (mousedown)="onMouseDown($event)"
+                        (mousemove)="onMouseMove($event)"
+                        (mouseup)="onMouseUp()"
+                        (mouseleave)="onMouseUp()"
+                        (touchstart)="onTouchStart($event)"
+                        (touchmove)="onTouchMove($event)"
                         (touchend)="onMouseUp()"
                         class="w-full h-full cursor-crosshair block"></canvas>
               </div>
@@ -703,13 +661,11 @@
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end gap-2">
-          <button (click)="retirandoEncomenda.set(null); isBatchRetirada = false"
-                  class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition">
+        <div class="px-6 py-4 border-t border-[var(--line-100)] flex justify-end gap-2">
+          <button (click)="retirandoEncomenda.set(null); isBatchRetirada = false" class="ps-btn ps-btn-sec">
             Cancelar
           </button>
-          <button (click)="confirmarRetirada()" [disabled]="!retiranteNome.trim()"
-                  class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 transition">
+          <button (click)="confirmarRetirada()" [disabled]="!retiranteNome.trim()" class="ps-btn disabled:opacity-50">
             Confirmar Retirada
           </button>
         </div>
@@ -719,26 +675,26 @@
 
   <!-- Modal de Visualização de Comprovante -->
   @if (viewingProof(); as proof) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
-      <div class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl">
+    <div class="ps-scrim on !z-[60]">
+      <div class="ps-modal on !p-0 !gap-0 overflow-y-auto max-h-[90vh] !w-[min(448px,calc(100%-32px))]">
         <!-- Header -->
-        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-white">Comprovante de Retirada</h3>
-          <button (click)="viewingProof.set(null)" aria-label="Fechar comprovante" class="text-slate-400 hover:text-white transition">
+        <div class="px-6 py-4 border-b border-[var(--line-100)] flex items-center justify-between">
+          <h3 class="ps-h2 !text-[13px]">Comprovante de Retirada</h3>
+          <button (click)="viewingProof.set(null)" aria-label="Fechar comprovante" class="ps-ibtn">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
         <!-- Body -->
-        <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div class="p-6 space-y-4">
           <div class="space-y-1">
-            <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Encomenda</span>
-            <p class="text-sm font-medium text-white">{{ proof.descricao }}</p>
+            <span class="ps-label block">Encomenda</span>
+            <p class="text-sm font-medium text-[var(--ink)]">{{ proof.descricao }}</p>
           </div>
 
           @if (proof.photo) {
             <div class="space-y-2">
-              <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Foto do Recebedor</span>
-              <div class="w-full max-w-[200px] h-[150px] mx-auto rounded-lg overflow-hidden border border-white/10 bg-black/40">
+              <span class="ps-label block">Foto do Recebedor</span>
+              <div class="w-full max-w-[200px] h-[150px] mx-auto overflow-hidden border border-[var(--line-200)] bg-black">
                 <img [src]="proof.photo" alt="Foto do recebedor da encomenda" class="w-full h-full object-cover" />
               </div>
             </div>
@@ -746,21 +702,20 @@
 
           @if (proof.signature) {
             <div class="space-y-2">
-              <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Assinatura Digital</span>
-              <div class="w-full h-[120px] rounded-xl overflow-hidden border border-white/10 bg-white/50 p-2 flex items-center justify-center">
+              <span class="ps-label block">Assinatura Digital</span>
+              <div class="w-full h-[120px] overflow-hidden border border-[var(--line-200)] bg-[var(--qr-paper)] p-2 flex items-center justify-center">
                 <img [src]="proof.signature" alt="Assinatura digital do recebedor" class="max-h-full max-w-full object-contain" />
               </div>
             </div>
           }
-          
+
           @if (!proof.photo && !proof.signature) {
-            <div class="text-xs text-slate-500 text-center py-4">Nenhum comprovante de foto ou assinatura registrado.</div>
+            <div class="text-xs text-[var(--ink-subtle)] text-center py-4">Nenhum comprovante de foto ou assinatura registrado.</div>
           }
         </div>
         <!-- Footer -->
-        <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end">
-          <button (click)="viewingProof.set(null)"
-                  class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-emerald-500 hover:bg-emerald-600 transition">
+        <div class="px-6 py-4 border-t border-[var(--line-100)] flex justify-end">
+          <button (click)="viewingProof.set(null)" class="ps-btn">
             Fechar
           </button>
         </div>
@@ -770,12 +725,12 @@
 
   <!-- Modal de Scanner de Código de Barras -->
   @if (isScanning) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in">
-      <div class="w-full max-w-sm rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl">
+    <div class="ps-scrim on !z-[60]">
+      <div class="ps-modal on !p-0 !gap-0 overflow-y-auto max-h-[90vh] !w-[min(384px,calc(100%-32px))]">
         <!-- Header -->
-        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-white">Escanear Código de Barras / QR Code</h3>
-          <button (click)="stopScan()" class="text-slate-400 hover:text-white transition">
+        <div class="px-6 py-4 border-b border-[var(--line-100)] flex items-center justify-between">
+          <h3 class="ps-h2 !text-[13px]">Escanear Código de Barras / QR Code</h3>
+          <button (click)="stopScan()" class="ps-ibtn" aria-label="Fechar scanner">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -783,23 +738,22 @@
         </div>
         <!-- Body -->
         <div class="p-6 flex flex-col items-center justify-center space-y-4">
-          <p class="text-xs text-slate-400 text-center">Aproxime o código de barras ou QR Code da etiqueta na câmera</p>
-          
-          <div class="relative w-full aspect-video rounded-xl overflow-hidden border border-emerald-500/30 bg-black">
-            <!-- Linha guia vermelha do scanner -->
-            <div class="absolute inset-x-0 top-1/2 h-0.5 bg-red-500 opacity-70 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
-            
+          <p class="text-xs text-[var(--ink-muted)] text-center">Aproxime o código de barras ou QR Code da etiqueta na câmera</p>
+
+          <div class="relative w-full aspect-video overflow-hidden border border-[var(--line-200)] bg-black">
+            <!-- Linha guia do scanner -->
+            <div class="absolute inset-x-0 top-1/2 h-0.5 bg-[var(--signal-danger)] opacity-70 animate-pulse"></div>
+
             <video id="scanVideo" class="w-full h-full object-cover" autoplay playsinline></video>
           </div>
 
           @if (scanError) {
-            <p class="text-xs text-red-400 text-center bg-red-500/10 p-2.5 rounded-lg border border-red-500/20 w-full">{{ scanError }}</p>
+            <p class="text-xs text-[var(--signal-danger)] text-center p-2.5 border border-[var(--signal-danger)] w-full">{{ scanError }}</p>
           }
         </div>
         <!-- Footer -->
-        <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end">
-          <button (click)="stopScan()"
-                  class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-slate-650 hover:bg-slate-600 transition">
+        <div class="px-6 py-4 border-t border-[var(--line-100)] flex justify-end">
+          <button (click)="stopScan()" class="ps-btn ps-btn-sec">
             Cancelar
           </button>
         </div>
