@@ -1359,11 +1359,11 @@ class ListVisitantesPageState extends State<ListVisitantes> {
               Expanded(
                 child: _isLoading
                     ? ListView.separated(
-                        padding: const EdgeInsets.only(
+                        padding: EdgeInsets.only(
                           left: AppSpacing.lg,
                           right: AppSpacing.lg,
                           top: AppSpacing.lg,
-                          bottom: 120,
+                          bottom: fabClearance(context),
                         ),
                         itemCount: 8,
                         separatorBuilder: (_, __) =>
@@ -1384,11 +1384,11 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                             : 'Ninguém no local no momento.',
                                     PhosphorIcons.houseLine)
                                 : ListView.separated(
-                                    padding: const EdgeInsets.only(
+                                    padding: EdgeInsets.only(
                                       left: AppSpacing.lg,
                                       right: AppSpacing.lg,
                                       top: AppSpacing.lg,
-                                      bottom: 120,
+                                      bottom: fabClearance(context),
                                     ),
                                     itemCount: listInside.length,
                                     separatorBuilder: (_, __) =>
@@ -1414,11 +1414,11 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                             : 'Nenhum visitante ou prestador cadastrado.',
                                     PhosphorIcons.identificationCard)
                                 : ListView.separated(
-                                    padding: const EdgeInsets.only(
+                                    padding: EdgeInsets.only(
                                       left: AppSpacing.lg,
                                       right: AppSpacing.lg,
                                       top: AppSpacing.lg,
-                                      bottom: 120,
+                                      bottom: fabClearance(context),
                                     ),
                                     itemCount: listCadastrados.length,
                                     separatorBuilder: (_, __) =>

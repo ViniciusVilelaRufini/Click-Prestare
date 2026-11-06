@@ -269,7 +269,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           : RefreshIndicator(
               onRefresh: () => _loadData(),
               child: ListView(
-                padding: const EdgeInsets.only(left: 16, right: 16, top: 2, bottom: 100),
+                padding: EdgeInsets.only(left: 16, right: 16, top: 2, bottom: fabClearance(context)),
                 children: [
                   _buildViewToggle(),
                   _buildMonthSelector(),
@@ -1847,7 +1847,7 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
           if (mounted) setState(() {});
         },
         child: ListView(
-          padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
+          padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: fabClearance(context)),
           children: [
             Container(
               padding: const EdgeInsets.all(20),

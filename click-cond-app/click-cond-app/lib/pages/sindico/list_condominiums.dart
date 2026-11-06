@@ -1,4 +1,5 @@
 import 'package:click/utils/rotulo_bloco.dart';
+import 'package:click/utils/utils.dart';
 import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -899,7 +900,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             _kpiGrid(context, [
               _DashboardCard(
                 title: 'Encomendas',
-                value: (_summary?['packages'] ?? 0).toString(),
+                value: contador2(_summary?['packages'] ?? 0),
                 subtitle: 'Aguardando retirada',
                 icon: PhosphorIcons.package,
                 color: AppColors.warning,
@@ -907,7 +908,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               _DashboardCard(
                 title: 'Visitantes Hoje',
-                value: (_summary?['visits_today'] ?? _summary?['visits'] ?? 0).toString(),
+                value: contador2(_summary?['visits_today'] ?? _summary?['visits'] ?? 0),
                 subtitle: 'Liberados hoje',
                 icon: PhosphorIcons.userList,
                 color: AppColors.primary,
@@ -915,7 +916,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               _DashboardCard(
                 title: 'No Condomínio',
-                value: (_summary?['inside_condo'] ?? 0).toString(),
+                value: contador2(_summary?['inside_condo'] ?? 0),
                 subtitle: 'Presentes agora',
                 icon: PhosphorIcons.door,
                 color: AppColors.success,
@@ -923,7 +924,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               _DashboardCard(
                 title: 'Ocorrências',
-                value: (_summary?['occurrences'] ?? 0).toString(),
+                value: contador2(_summary?['occurrences'] ?? 0),
                 subtitle: 'Abertas / Ativas',
                 icon: PhosphorIcons.warningCircle,
                 color: AppColors.error,
@@ -942,7 +943,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               _DashboardCard(
                 title: 'Ocorrências',
-                value: (_summary?['occurrences'] ?? 0).toString(),
+                value: contador2(_summary?['occurrences'] ?? 0),
                 subtitle: 'Aguardando resposta',
                 icon: PhosphorIcons.warningCircle,
                 color: AppColors.warning,
@@ -953,7 +954,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             _kpiGrid(context, [
               _DashboardCard(
                 title: 'Visitas Hoje',
-                value: (_summary?['visits'] ?? 0).toString(),
+                value: contador2(_summary?['visits'] ?? 0),
                 subtitle: 'Agendadas para hoje',
                 icon: PhosphorIcons.userList,
                 color: AppColors.primary,
@@ -961,7 +962,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               _DashboardCard(
                 title: 'Encomendas',
-                value: (_summary?['packages'] ?? 0).toString(),
+                value: contador2(_summary?['packages'] ?? 0),
                 subtitle: 'Aguardando retirada',
                 icon: PhosphorIcons.package,
                 color: AppColors.primary,

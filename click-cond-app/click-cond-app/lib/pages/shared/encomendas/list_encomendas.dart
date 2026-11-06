@@ -224,11 +224,11 @@ class ListEncomendasState extends State<ListEncomendas> {
           Expanded(
             child: _isLoading
                 ? ListView.separated(
-                    padding: const EdgeInsets.only(
+                    padding: EdgeInsets.only(
                       left: AppSpacing.lg,
                       right: AppSpacing.lg,
                       top: AppSpacing.sm,
-                      bottom: 120,
+                      bottom: fabClearance(context),
                     ),
                     itemCount: 6,
                     separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
@@ -253,11 +253,11 @@ class ListEncomendasState extends State<ListEncomendas> {
     final sections = encomendaSections(lista, _filtro);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(
+      padding: EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
         top: AppSpacing.sm,
-        bottom: 120,
+        bottom: fabClearance(context),
       ),
       children: [
         for (final section in sections) ...[

@@ -254,7 +254,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
   Widget _buildStatItem(String label, int count) {
     return Column(
       children: [
-        Text('$count', style: AppTypography.numeral(context).copyWith(fontSize: 22, height: 1)),
+        Text(contador2(count), style: AppTypography.numeral(context).copyWith(fontSize: 22, height: 1)),
         const SizedBox(height: 2),
         Text(label.toUpperCase(), style: AppTypography.label(context)),
       ],

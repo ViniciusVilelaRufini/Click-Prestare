@@ -113,7 +113,8 @@ class VagasBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg,
+          resumo.livres > 0 ? fabClearance(context) : AppSpacing.lg),
       children: [
         _header(context),
         const SizedBox(height: AppSpacing.lg),

@@ -159,7 +159,7 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
         AppSpacing.lg,
         AppSpacing.lg,
         // Espaço para o FAB não cobrir o último card.
-        widget.showFab ? 96 : AppSpacing.lg,
+        widget.showFab ? fabClearance(context) : AppSpacing.lg,
       );
 
   Widget _buildAtivas(List<DeliveryModel> ativas) {
