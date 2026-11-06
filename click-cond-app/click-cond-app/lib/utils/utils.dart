@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/theme/app_colors.dart';
