@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { VeiculosApi, Tag, VeiculoComMorador } from '../moradores/veiculos.service';
 import { Morador, MoradoresApi } from '../moradores/moradores.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 @Component({
   selector: 'app-veiculos-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
   templateUrl: './veiculos-page.component.html',
 })
 export class VeiculosPageComponent implements OnInit {
