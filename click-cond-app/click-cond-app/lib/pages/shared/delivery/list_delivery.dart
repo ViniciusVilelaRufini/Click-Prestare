@@ -273,7 +273,7 @@ class _SummaryStrip extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(AppRadius.full),
+                borderRadius: BorderRadius.circular(AppRadius.tag),
               ),
               child: Text(item,
                   style: AppTypography.tiny(context)
@@ -343,14 +343,7 @@ class _RespondBanner extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         // Mesmo tratamento da faixa de rastreio dos detalhes.
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            style.color.withValues(alpha: dark ? 0.26 : 0.18),
-            style.color.withValues(alpha: dark ? 0.08 : 0.04),
-          ],
-        ),
+        color: style.color.withValues(alpha: dark ? 0.10 : 0.06),
         borderRadius: AppRadius.rxxl,
         border: Border.all(color: style.color.withValues(alpha: 0.40), width: 1.2),
       ),
@@ -439,7 +432,6 @@ class _DeliveryCard extends StatelessWidget {
     final modo = portaria ? 'Na portaria' : 'Na unidade';
     final observacao = delivery.observacaoMorador?.trim();
     final hasObservacao = observacao != null && observacao.isNotEmpty;
-    final dark = Theme.of(context).brightness == Brightness.dark;
 
     return Semantics(
       button: true,
@@ -457,12 +449,9 @@ class _DeliveryCard extends StatelessWidget {
         child: Container(
           // Profundidade suave: sombra leve no claro, borda no escuro.
           decoration: BoxDecoration(
-            color: dark ? AppColors.surface(context) : AppColors.surfaceElevated(context),
+            color: AppColors.surface(context),
             borderRadius: AppRadius.rlg,
             border: Border.all(color: AppColors.border(context)),
-            boxShadow: dark
-                ? null
-                : [BoxShadow(color: const Color(0xFF64748B).withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
           ),
           child: Material(
         color: Colors.transparent,
@@ -545,7 +534,6 @@ class _HistoryCard extends StatelessWidget {
     final title = deliveryTitle(delivery);
     final outcome = deliveryOutcomeLine(delivery);
     final meta = deliveryHistoryMeta(delivery);
-    final dark = Theme.of(context).brightness == Brightness.dark;
 
     return Semantics(
       button: true,
@@ -555,12 +543,9 @@ class _HistoryCard extends StatelessWidget {
       child: _PressScale(
         child: Container(
           decoration: BoxDecoration(
-            color: dark ? AppColors.surface(context) : AppColors.surfaceElevated(context),
+            color: AppColors.surface(context),
             borderRadius: AppRadius.rlg,
             border: Border.all(color: AppColors.border(context)),
-            boxShadow: dark
-                ? null
-                : [BoxShadow(color: const Color(0xFF64748B).withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 3))],
           ),
           child: Material(
             color: Colors.transparent,
@@ -633,8 +618,8 @@ class _MetaChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: AppColors.surfaceElevated(context),
-          borderRadius: BorderRadius.circular(AppRadius.full),
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.circular(AppRadius.tag),
           border: Border.all(color: AppColors.border(context)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -682,7 +667,7 @@ class _TabEmpty extends StatelessWidget {
                       child: Icon(icon, size: 36, color: AppColors.primary),
                     ),
                     const SizedBox(height: AppSpacing.lg),
-                    Text(title, textAlign: TextAlign.center, style: AppTypography.headline(context)),
+                    Text(title.toUpperCase(), textAlign: TextAlign.center, style: AppTypography.headline(context)),
                     const SizedBox(height: AppSpacing.sm),
                     Text(message, textAlign: TextAlign.center, style: AppTypography.caption(context)),
                     if (actionLabel != null && onAction != null) ...[

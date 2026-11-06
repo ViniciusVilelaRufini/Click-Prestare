@@ -28,14 +28,14 @@ class DeliveryStatusStyle {
         return DeliveryStatusStyle._(
             AppColors.warning, PhosphorIcons.bellRinging, 'Chegou');
       case 'AGUARDANDO_AUTORIZACAO':
-        return const DeliveryStatusStyle._(
-            Color(0xFFF97316), PhosphorIcons.handPalm, 'Aguardando você');
+        return DeliveryStatusStyle._(
+            AppColors.warning, PhosphorIcons.handPalm, 'Aguardando você');
       case 'AUTORIZADA':
-        return const DeliveryStatusStyle._(
-            Color(0xFF14B8A6), PhosphorIcons.thumbsUp, 'Autorizada');
+        return DeliveryStatusStyle._(
+            AppColors.primary, PhosphorIcons.thumbsUp, 'Autorizada');
       case 'RETIRADA_NA_PORTARIA':
-        return const DeliveryStatusStyle._(
-            Color(0xFF8B5CF6), PhosphorIcons.storefront, 'Na portaria');
+        return DeliveryStatusStyle._(
+            AppColors.primary, PhosphorIcons.storefront, 'Na portaria');
       case 'CONCLUIDA':
         return DeliveryStatusStyle._(
             AppColors.success, PhosphorIcons.checkCircle, 'Concluída');
@@ -53,9 +53,7 @@ class DeliveryStatusStyle {
   /// Cor para texto sobre o fundo tingido: escurece no tema claro (o âmbar
   /// puro some no branco) e clareia um pouco no escuro.
   Color foreground(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark
-          ? Color.lerp(color, Colors.white, 0.12)!
-          : Color.lerp(color, Colors.black, 0.28)!;
+      color;
 
   /// Cor de ícone/texto sobre o preenchimento sólido da cor do status.
   Color get onColor => AppColors.on(color);
@@ -458,7 +456,7 @@ class DeliveryStatusBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
           color: style.color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(AppRadius.full),
+          borderRadius: BorderRadius.circular(AppRadius.tag),
           border: Border.all(color: style.color.withValues(alpha: 0.28)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [

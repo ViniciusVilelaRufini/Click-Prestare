@@ -124,12 +124,12 @@ class _MudancaCard extends StatelessWidget {
     switch (s?.toLowerCase()) {
       case 'aprovada':
       case 'aceito':
-        return const Color(0xFF10B981); // Emerald
+        return AppColors.success; // Emerald
       case 'rejeitada':
       case 'recusado':
-        return const Color(0xFFEF4444); // Red
+        return AppColors.error; // Red
       default:
-        return const Color(0xFFF59E0B); // Amber
+        return AppColors.warning; // Amber
     }
   }
 
@@ -165,7 +165,7 @@ class _MudancaCard extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface(ctx),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: Text('Recusar Mudança',
             style: AppTypography.bodyMedium(ctx).copyWith(fontWeight: FontWeight.bold)),
         content: TextField(
@@ -175,19 +175,19 @@ class _MudancaCard extends StatelessWidget {
           decoration: InputDecoration(
             hintText: 'Motivo da recusa (opcional)',
             hintStyle: AppTypography.caption(ctx),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.zero),
           ),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancelar', style: TextStyle(color: AppColors.textSecondary(ctx)))),
+              child: Text('Cancelar'.toUpperCase(), style: TextStyle(color: AppColors.textSecondary(ctx)))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.onPrimary,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Recusar'),
@@ -234,18 +234,11 @@ class _MudancaCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border(context)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         child: IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -268,7 +261,7 @@ class _MudancaCard extends StatelessWidget {
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.zero,
                             ),
                             child: Icon(PhosphorIcons.truck, color: color, size: 20),
                           ),
@@ -294,7 +287,7 @@ class _MudancaCard extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(color: color.withValues(alpha: 0.3)),
                             ),
                             child: Row(
@@ -322,7 +315,7 @@ class _MudancaCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
                             color: AppColors.bg(context),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.zero,
                           ),
                           child: Row(
                             children: [
@@ -364,10 +357,10 @@ class _MudancaCard extends StatelessWidget {
                               child: OutlinedButton.icon(
                                 onPressed: () => _recusar(context),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFFEF4444),
+                                  foregroundColor: AppColors.error,
                                   padding: const EdgeInsets.symmetric(vertical: 10),
-                                  side: const BorderSide(color: Color(0x44EF4444)),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  side: BorderSide(color: AppColors.error),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                                 ),
                                 icon: const Icon(PhosphorIcons.x, size: 16),
                                 label: const Text('Recusar', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -378,11 +371,11 @@ class _MudancaCard extends StatelessWidget {
                               child: ElevatedButton.icon(
                                 onPressed: () => onStatusChange(item['id'], true, ''),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF10B981),
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: AppColors.success,
+                                  foregroundColor: AppColors.onPrimary,
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                                 ),
                                 icon: const Icon(PhosphorIcons.check, size: 16),
                                 label: const Text('Aceitar', style: TextStyle(fontWeight: FontWeight.bold)),

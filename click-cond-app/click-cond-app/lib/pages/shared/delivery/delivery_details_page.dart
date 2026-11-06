@@ -212,7 +212,7 @@ class _BottomActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: AppColors.surfaceElevated(context),
+          color: AppColors.surface(context),
           border: Border(top: BorderSide(color: AppColors.border(context))),
         ),
         child: SafeArea(
@@ -258,14 +258,7 @@ class _TrackingHero extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         borderRadius: AppRadius.rxxl,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            style.color.withValues(alpha: dark ? 0.26 : 0.18),
-            style.color.withValues(alpha: dark ? 0.08 : 0.04),
-          ],
-        ),
+        color: style.color.withValues(alpha: dark ? 0.10 : 0.06),
         border: Border.all(color: style.color.withValues(alpha: 0.25)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -550,7 +543,7 @@ class _StepDot extends StatelessWidget {
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: AppColors.surfaceElevated(context),
+            color: AppColors.surface(context),
             shape: BoxShape.circle,
             border: Border.all(color: track, width: 1.5),
           ),
@@ -630,14 +623,10 @@ class _NextStepCard extends StatelessWidget {
 
 /// Card com profundidade suave: sombra leve no claro, borda no escuro.
 BoxDecoration _softCard(BuildContext context) {
-  final dark = Theme.of(context).brightness == Brightness.dark;
   return BoxDecoration(
-    color: dark ? AppColors.surface(context) : AppColors.surfaceElevated(context),
+    color: AppColors.surface(context),
     borderRadius: AppRadius.rlg,
     border: Border.all(color: AppColors.border(context)),
-    boxShadow: dark
-        ? null
-        : [BoxShadow(color: const Color(0xFF64748B).withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
   );
 }
 

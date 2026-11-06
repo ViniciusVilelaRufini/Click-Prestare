@@ -143,13 +143,13 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Nenhuma entrega em andamento'), findsOneWidget);
+    expect(find.text('NENHUMA ENTREGA EM ANDAMENTO'), findsOneWidget);
     // Com o FAB na tela, o vazio não repete o botão "Avisar entrega".
     expect(find.text('Avisar entrega'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
     await tester.tap(find.text('HISTÓRICO (0)'));
     await tester.pumpAndSettle();
-    expect(find.text('Nenhuma entrega no histórico'), findsOneWidget);
+    expect(find.text('NENHUMA ENTREGA NO HISTÓRICO'), findsOneWidget);
   });
 
   testWidgets('embutida sem app bar e sem FAB continua montando as abas',

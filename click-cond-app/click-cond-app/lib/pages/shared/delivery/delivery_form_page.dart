@@ -451,7 +451,7 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
           OutlinedButton(
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
               onPressed: _loadUnits,
-              child: const Text('Tentar carregar novamente')),
+              child: Text('Tentar carregar novamente'.toUpperCase())),
         ]),
       );
     }
@@ -467,7 +467,7 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
       initialValue: _selectedApartmentId,
       decoration: _fieldDecoration(context, 'Unidade do aviso'),
       hint: const Text('Selecione a unidade'),
-      dropdownColor: AppColors.surfaceElevated(context),
+      dropdownColor: AppColors.surface(context),
       borderRadius: AppRadius.rlg,
       items: _units
           .map((unit) =>
@@ -650,7 +650,7 @@ class _ModeCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: selected
                           ? AppColors.primary.withValues(alpha: 0.14)
-                          : AppColors.surfaceElevated(context),
+                          : AppColors.surface(context),
                       borderRadius: AppRadius.rmd,
                     ),
                     child: Icon(icon, size: 20, color: accent),
@@ -703,7 +703,7 @@ class _BottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: AppColors.surfaceElevated(context),
+          color: AppColors.surface(context),
           border: Border(top: BorderSide(color: AppColors.border(context))),
         ),
         child: SafeArea(
