@@ -113,6 +113,6 @@ describe('DeliveryHistoricoComponent', () => {
     api.resumo.mockReturnValue(of(resumoCom(5)));
     const fixture = TestBed.createComponent(DeliveryHistoricoComponent);
     fixture.detectChanges();
-    expect(cartoes(fixture)[0]).toBe('5');
+    expect(cartoes(fixture)[0]).toBe('05');
   });
 });

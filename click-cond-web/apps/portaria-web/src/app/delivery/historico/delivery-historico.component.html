@@ -16,15 +16,15 @@
   <div class="ps-kpis">
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Concluídos</p><span class="ps-dot ps-dot-ok"></span></div>
-      <div class="ps-kpi-row2"><p class="ps-num tabular-nums">{{ resumo()?.periodo?.CONCLUIDA ?? placeholder() }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num tabular-nums">{{ resumo()?.periodo?.CONCLUIDA == null ? placeholder() : (resumo()?.periodo?.CONCLUIDA! < 10 ? '0' + resumo()?.periodo?.CONCLUIDA : resumo()?.periodo?.CONCLUIDA) }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Recusados</p><span class="ps-dot ps-dot-danger"></span></div>
-      <div class="ps-kpi-row2"><p class="ps-num tabular-nums">{{ resumo()?.periodo?.RECUSADA ?? placeholder() }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num tabular-nums">{{ resumo()?.periodo?.RECUSADA == null ? placeholder() : (resumo()?.periodo?.RECUSADA! < 10 ? '0' + resumo()?.periodo?.RECUSADA : resumo()?.periodo?.RECUSADA) }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Cancelados</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num tabular-nums">{{ resumo()?.periodo?.CANCELADA ?? placeholder() }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num tabular-nums">{{ resumo()?.periodo?.CANCELADA == null ? placeholder() : (resumo()?.periodo?.CANCELADA! < 10 ? '0' + resumo()?.periodo?.CANCELADA : resumo()?.periodo?.CANCELADA) }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Tempo médio</p></div>

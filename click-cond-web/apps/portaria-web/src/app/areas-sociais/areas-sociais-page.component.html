@@ -20,7 +20,7 @@
   <div [class]="'ps-kpis ' + (areasMonitoradas() > 0 ? '' : '!grid-cols-3 max-[1180px]:!grid-cols-1')">
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Espaços Cadastrados</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ areas().length }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ areas().length < 10 ? '0' + areas().length : areas().length }}</p></div>
     </div>
 
     <div class="ps-kpi">
@@ -30,12 +30,12 @@
           <span class="ps-dot ps-dot-warn ps-dot-pulse"></span>
         }
       </div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ pendentesCount() }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ pendentesCount() < 10 ? '0' + pendentesCount() : pendentesCount() }}</p></div>
     </div>
 
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Reservas Aprovadas</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ aprovadasCount() }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ aprovadasCount() < 10 ? '0' + aprovadasCount() : aprovadasCount() }}</p></div>
     </div>
 
     @if (areasMonitoradas() > 0) {
@@ -44,7 +44,7 @@
           <p class="ps-label">Pessoas nas Áreas Agora</p>
           <span class="ps-dot ps-dot-ok ps-dot-pulse"></span>
         </div>
-        <div class="ps-kpi-row2"><p class="ps-num">{{ ocupacaoTotal() }}</p></div>
+        <div class="ps-kpi-row2"><p class="ps-num">{{ ocupacaoTotal() < 10 ? '0' + ocupacaoTotal() : ocupacaoTotal() }}</p></div>
       </div>
     }
   </div>

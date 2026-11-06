@@ -6,7 +6,7 @@
         <span class="ps-kpi-row1">
           <span class="ps-label flex items-center gap-2"><span [class]="'ps-dot ' + cls(status).ponto"></span>{{ rotulo(status) }}</span>
         </span>
-        <span class="ps-kpi-row2"><span class="ps-num">{{ store.contador(status) }}</span></span>
+        <span class="ps-kpi-row2"><span class="ps-num">{{ store.contador(status) < 10 ? '0' + store.contador(status) : store.contador(status) }}</span></span>
       </button>
     }
   </div>

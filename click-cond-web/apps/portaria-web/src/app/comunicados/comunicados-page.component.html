@@ -20,11 +20,11 @@
   <div class="ps-kpis !grid-cols-3">
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Total publicados</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ comunicados().length }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ comunicados().length < 10 ? '0' + comunicados().length : comunicados().length }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Últimos 7 dias</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ recentes() }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ recentes() < 10 ? '0' + recentes() : recentes() }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Mais recente</p></div>

@@ -27,7 +27,7 @@
   <div class="ps-kpis">
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Total</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().total }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().total < 10 ? '0' + stats().total : stats().total }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1">
@@ -36,15 +36,15 @@
           <span class="ps-dot ps-dot-warn ps-dot-pulse"></span>
         }
       </div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().pendentes }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().pendentes < 10 ? '0' + stats().pendentes : stats().pendentes }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Em andamento</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().cientes }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().cientes < 10 ? '0' + stats().cientes : stats().cientes }}</p></div>
     </div>
     <div class="ps-kpi">
       <div class="ps-kpi-row1"><p class="ps-label">Solucionadas</p></div>
-      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().solucionadas }}</p></div>
+      <div class="ps-kpi-row2"><p class="ps-num">{{ stats().solucionadas < 10 ? '0' + stats().solucionadas : stats().solucionadas }}</p></div>
     </div>
   </div>
 
