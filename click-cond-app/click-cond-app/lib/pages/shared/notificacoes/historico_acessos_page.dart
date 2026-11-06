@@ -269,7 +269,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.onPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -483,7 +483,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
         child: Text(
           label,
           style: AppTypography.caption(context).copyWith(
-            color: isSelected ? Colors.white : AppColors.textSecondary(context),
+            color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
           ),
         ),

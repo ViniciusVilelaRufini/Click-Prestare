@@ -130,7 +130,7 @@ class _ListCategoriasOcorrenciaState extends State<ListCategoriasOcorrencia> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: AppColors.onPrimary),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Remover'),
           ),
@@ -154,7 +154,7 @@ class _ListCategoriasOcorrenciaState extends State<ListCategoriasOcorrencia> {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openEditor(),
         backgroundColor: AppColors.primary,
-        child: const Icon(PhosphorIcons.plus, color: Colors.white),
+        child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
       ),
       body: _isLoading
           ? ListView.separated(

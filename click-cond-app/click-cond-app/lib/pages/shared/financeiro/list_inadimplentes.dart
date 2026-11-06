@@ -106,7 +106,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                       child: Text(
                                         '${bloco['aptos'].length}', 
                                         style: AppTypography.tiny(context).copyWith(
-                                          color: Colors.white,
+                                          color: AppColors.onPrimary,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),

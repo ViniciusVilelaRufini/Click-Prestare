@@ -151,7 +151,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                         vertical: 18,
                       ),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           colors: [
                             AppColors.primaryGradientStart,
                             AppColors.primaryGradientEnd,
@@ -174,15 +174,15 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.20),
+                              color: AppColors.onPrimary.withValues(alpha: 0.20),
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.25),
+                                color: AppColors.onPrimary.withValues(alpha: 0.25),
                               ),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               PhosphorIcons.shieldCheck,
-                              color: Colors.white,
+                              color: AppColors.onPrimary,
                               size: 24,
                             ),
                           ),
@@ -194,7 +194,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                                 Text(
                                   'Sua privacidade',
                                   style: AppTypography.headline(context).copyWith(
-                                    color: Colors.white,
+                                    color: AppColors.onPrimary,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 19,
                                   ),
@@ -203,7 +203,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                                 Text(
                                   'Precisamos do seu consentimento para tratar alguns dados.',
                                   style: AppTypography.caption(context).copyWith(
-                                    color: Colors.white.withValues(alpha: 0.90),
+                                    color: AppColors.onPrimary.withValues(alpha: 0.90),
                                     fontSize: 12.5,
                                     height: 1.3,
                                   ),
@@ -341,8 +341,8 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                         backgroundColor: AppColors.primary,
                         disabledBackgroundColor:
                             AppColors.primary.withValues(alpha: 0.45),
-                        foregroundColor: Colors.white,
-                        disabledForegroundColor: Colors.white70,
+                        foregroundColor: AppColors.onPrimary,
+                        disabledForegroundColor: AppColors.onPrimary.withValues(alpha: 0.7),
                         elevation: 0,
                         minimumSize: const Size(double.infinity, 50),
                         shape: RoundedRectangleBorder(
@@ -350,12 +350,12 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                         ),
                       ),
                       child: _enviando
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: AppColors.onPrimary,
                               ),
                             )
                           : const Text(
@@ -423,7 +423,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
             child: Icon(
               icone,
               size: 20,
-              color: const Color(0xFF2563EB),
+              color: AppColors.primary,
             ),
           ),
           const SizedBox(width: 12),

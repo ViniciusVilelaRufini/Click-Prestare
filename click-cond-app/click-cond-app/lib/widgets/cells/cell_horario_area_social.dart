@@ -134,7 +134,7 @@ class CellHorarioAreaSocial extends StatelessWidget {
                     ),
                     child: Text(
                       duration,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w700,
                         color: AppColors.primary,

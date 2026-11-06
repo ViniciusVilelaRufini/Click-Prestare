@@ -343,7 +343,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                                   color: AppColors.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.business,
                                   color: AppColors.primary,
                                 ),
@@ -624,7 +624,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
             ],
           ),
-          child: const Icon(PhosphorIcons.buildingsFill, color: Colors.white, size: 24),
+          child: Icon(PhosphorIcons.buildingsFill, color: AppColors.onPrimary, size: 24),
         ),
       ),
     );
@@ -703,7 +703,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     if (photo.isEmpty || photo == 'null' || photo == 'undefined') {
       return Icon(
         PhosphorIcons.user,
-        color: Colors.white,
+        color: AppColors.onPrimary,
         size: avatarRadius,
       );
     }
@@ -727,7 +727,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           gaplessPlayback: true,
           errorBuilder: (context, error, stackTrace) => Icon(
             PhosphorIcons.user,
-            color: Colors.white,
+            color: AppColors.onPrimary,
             size: avatarRadius,
           ),
         );
@@ -735,7 +735,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         logDebug("[ListCondomiums] Base64 decode error: $e");
         return Icon(
           PhosphorIcons.user,
-          color: Colors.white,
+          color: AppColors.onPrimary,
           size: avatarRadius,
         );
       }
@@ -751,7 +751,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         logDebug("[ListCondomiums] Error loading photo: $error");
         return Icon(
           PhosphorIcons.user,
-          color: Colors.white,
+          color: AppColors.onPrimary,
           size: avatarRadius,
         );
       },
@@ -771,7 +771,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 colors: [
                   AppColors.primaryGradientStart,
                   AppColors.primaryGradientEnd,
@@ -795,7 +795,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.4),
+                      color: AppColors.onPrimary.withValues(alpha: 0.4),
                       width: 2,
                     ),
                   ),
@@ -804,7 +804,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                     child: Container(
                       width: avatarRadius * 2,
                       height: avatarRadius * 2,
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: AppColors.onPrimary.withValues(alpha: 0.2),
                       child: _buildAvatarImage(avatarRadius),
                     ),
                   ),
@@ -824,15 +824,15 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                               TextSpan(
                                 text: "${getText('ola')} ",
                                 style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.9),
+                                  color: AppColors.onPrimary.withValues(alpha: 0.9),
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                               TextSpan(
                                 text: getUsername(),
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: AppColors.onPrimary,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 0.2,
@@ -849,7 +849,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
+                          color: AppColors.onPrimary.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -858,7 +858,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                             Icon(
                               PhosphorIcons.calendarBlank,
                               size: 11,
-                              color: Colors.white.withValues(alpha: 0.9),
+                              color: AppColors.onPrimary.withValues(alpha: 0.9),
                             ),
                             const SizedBox(width: 4),
                             Flexible(
@@ -868,7 +868,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                                 child: Text(
                                   _getFormattedHeaderDate(),
                                   style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.95),
+                                    color: AppColors.onPrimary.withValues(alpha: 0.95),
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 0.2,
@@ -938,10 +938,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: AppColors.onPrimary.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: Colors.white, size: iconSize),
+              child: Icon(icon, color: AppColors.onPrimary, size: iconSize),
             ),
           ),
         ),
@@ -988,8 +988,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                     child: Text(
                       _naoLidas > 9 ? '9+' : '$_naoLidas',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: AppColors.onPrimary,
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
                         height: 1.3,
@@ -1340,7 +1340,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       Text(
                         'Ver todos',
                         style: TextStyle(
-                          color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+                          color: AppColors.primary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1348,7 +1348,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       const SizedBox(width: 3),
                       Icon(
                         PhosphorIcons.caretRightBold,
-                        color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+                        color: AppColors.primary,
                         size: 12,
                       ),
                     ],
@@ -1434,7 +1434,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                             Text(
                               '+ $restantes ${restantes == 1 ? 'evento recente' : 'eventos recentes'}',
                               style: TextStyle(
-                                color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+                                color: AppColors.primary,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1443,7 +1443,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                             Icon(
                               PhosphorIcons.arrowRightBold,
                               size: 13,
-                              color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+                              color: AppColors.primary,
                             ),
                           ],
                         ),
@@ -1477,7 +1477,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
     final Color arrowColor = isDark
         ? (isEntrada ? const Color(0xFF60A5FA) : const Color(0xFFC084FC))
-        : (isEntrada ? const Color(0xFF2563EB) : const Color(0xFF9333EA));
+        : (isEntrada ? AppColors.primary : const Color(0xFF9333EA));
 
     final IconData icon = isEntrada
         ? PhosphorIcons.arrowDownLeftBold
@@ -2052,7 +2052,7 @@ class _CondominioCard extends StatelessWidget {
       child: Center(
         child: Icon(
           PhosphorIcons.buildingsBold,
-          color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+          color: AppColors.primary,
           size: 28,
         ),
       ),

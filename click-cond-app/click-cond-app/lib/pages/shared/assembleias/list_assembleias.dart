@@ -62,7 +62,7 @@ class _ListAssembleiasPageState extends State<ListAssembleias> {
                   .then((_) => loadList()),
               backgroundColor: AppColors.primary,
               tooltip: 'Nova assembleia',
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
             )
           : null,
       body: _isLoading

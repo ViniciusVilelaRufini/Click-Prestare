@@ -53,7 +53,7 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
                 MaterialPageRoute(builder: (_) => NewPrestador(isEdit: false)),
               ).then((_) => loadList()),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
             )
           : null,
       body: Column(

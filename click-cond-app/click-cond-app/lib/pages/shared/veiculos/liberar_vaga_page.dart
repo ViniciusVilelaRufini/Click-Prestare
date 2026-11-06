@@ -204,14 +204,14 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
                           borderRadius: BorderRadius.circular(14)),
                     ),
                     child: _isSaving
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
+                                strokeWidth: 2, color: AppColors.onPrimary))
                         : Text('Liberar vaga',
                             style: AppTypography.button(context)
-                                .copyWith(color: Colors.white)),
+                                .copyWith(color: AppColors.onPrimary)),
                   ),
                 ),
               ],

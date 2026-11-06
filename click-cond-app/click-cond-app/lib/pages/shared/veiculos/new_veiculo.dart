@@ -78,7 +78,7 @@ class _NewVeiculoState extends State<NewVeiculo> {
         labelText: label,
         labelStyle: AppTypography.caption(context),
         border: const OutlineInputBorder(),
-        focusedBorder: const OutlineInputBorder(
+        focusedBorder: OutlineInputBorder(
           borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
       );
@@ -156,21 +156,21 @@ class _NewVeiculoState extends State<NewVeiculo> {
                 onPressed: _saving ? null : _save,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.onPrimary,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
                 child: _saving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                            strokeWidth: 2, color: AppColors.onPrimary),
                       )
                     : Text(_isEdit ? 'Salvar alterações' : 'Cadastrar veículo',
                         style: AppTypography.button(context)
-                            .copyWith(color: Colors.white)),
+                            .copyWith(color: AppColors.onPrimary)),
               ),
             ),
           ],

@@ -391,7 +391,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
             children: [
               Row(
                 children: [
-                  const Icon(PhosphorIcons.lightningBold, size: 15, color: AppColors.primary),
+                  Icon(PhosphorIcons.lightningBold, size: 15, color: AppColors.primary),
                   const SizedBox(width: 6),
                   Text(
                     'MODELOS RÁPIDOS (1 TOQUE)',
@@ -411,7 +411,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
+                    children: [
                       Icon(PhosphorIcons.slidersHorizontalBold, size: 13, color: AppColors.primary),
                       SizedBox(width: 4),
                       Text(
@@ -495,7 +495,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
               const SizedBox(width: 6),
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: AppColors.primary,
@@ -749,7 +749,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                     ),
                     child: Text(
                       'Serão criados ${slotsPreview.length} intervalos de ${intervalMin}m por dia (ex: ${slotsPreview.isNotEmpty ? "${slotsPreview.first.horarioDe}-${slotsPreview.first.horarioAte} até ${slotsPreview.last.horarioDe}-${slotsPreview.last.horarioAte}" : ""})',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
                     ),
                   ),
 
@@ -1032,7 +1032,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
+                    children: [
                       Icon(PhosphorIcons.plusCircleBold, size: 16, color: AppColors.primary),
                       SizedBox(width: 5),
                       Text(
@@ -1282,7 +1282,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                           onSelected(formattedNow);
                           Navigator.of(ctx).pop();
                         },
-                        child: const Text(
+                        child: Text(
                           'Pronto',
                           style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14),
                         ),

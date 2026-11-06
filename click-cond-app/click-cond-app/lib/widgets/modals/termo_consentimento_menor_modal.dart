@@ -94,7 +94,7 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
                       color: AppColors.primary.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       PhosphorIcons.shieldCheck,
                       color: AppColors.primary,
                       size: 24,

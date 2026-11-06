@@ -338,7 +338,7 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
                       color: AppColors.primary.withValues(alpha: 0.10),
                       borderRadius: AppRadius.rmd,
                     ),
-                    child: const Icon(PhosphorIcons.listPlus,
+                    child: Icon(PhosphorIcons.listPlus,
                         size: 20, color: AppColors.primary),
                   ),
                   const SizedBox(width: AppSpacing.md),
@@ -438,7 +438,7 @@ class _DeliveryFormPageState extends State<DeliveryFormPage> {
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(PhosphorIcons.warningCircle,
+            Icon(PhosphorIcons.warningCircle,
                 size: 20, color: AppColors.error),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -498,7 +498,7 @@ InputDecoration _fieldDecoration(BuildContext context, String label) {
     enabledBorder: noBorder,
     focusedBorder: OutlineInputBorder(
       borderRadius: AppRadius.rlg,
-      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+      borderSide: BorderSide(color: AppColors.primary, width: 1.5),
     ),
   );
 }

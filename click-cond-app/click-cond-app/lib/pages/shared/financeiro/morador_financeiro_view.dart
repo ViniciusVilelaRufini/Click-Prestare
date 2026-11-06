@@ -279,7 +279,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                                   color: AppColors.primary.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(PhosphorIcons.wallet, size: 16, color: AppColors.primary),
+                                child: Icon(PhosphorIcons.wallet, size: 16, color: AppColors.primary),
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -366,11 +366,11 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               elevation: 0,
               highlightElevation: 0,
               onPressed: () => showContaFormModal(),
-              icon: const Icon(PhosphorIcons.plusBold, color: Colors.white, size: 18),
-              label: const Text(
+              icon: Icon(PhosphorIcons.plusBold, color: AppColors.onPrimary, size: 18),
+              label: Text(
                 "Nova Conta",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.onPrimary,
                   fontWeight: FontWeight.w800,
                   fontSize: 14.5,
                   letterSpacing: 0.2,
@@ -501,10 +501,10 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   const SizedBox(height: 6),
                   Text(
                     "R\$ ${formatMoeda(valor)}",
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF2563EB),
+                      color: AppColors.primary,
                     ),
                   ),
                 ],
@@ -546,7 +546,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   height: 48,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
+                      backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -561,13 +561,13 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         ),
                       );
                     },
-                    icon: const Icon(PhosphorIcons.copy, size: 18, color: Colors.white),
-                    label: const Text(
+                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
+                    label: Text(
                       "Copiar Código Pix",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: Colors.white,
+                        color: AppColors.onPrimary,
                       ),
                     ),
                   ),
@@ -619,10 +619,10 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   const SizedBox(height: 6),
                   Text(
                     "R\$ ${formatMoeda(valor)}",
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF2563EB),
+                      color: AppColors.primary,
                     ),
                   ),
                 ],
@@ -642,7 +642,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(PhosphorIcons.key, color: Color(0xFF2563EB), size: 20),
+                      Icon(PhosphorIcons.key, color: AppColors.primary, size: 20),
                       const SizedBox(width: 12),
                       Expanded(
                         child: SelectableText(
@@ -661,7 +661,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   height: 48,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
+                      backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -676,13 +676,13 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         ),
                       );
                     },
-                    icon: const Icon(PhosphorIcons.copy, size: 18, color: Colors.white),
-                    label: const Text(
+                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
+                    label: Text(
                       "Copiar Chave Pix",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: Colors.white,
+                        color: AppColors.onPrimary,
                       ),
                     ),
                   ),
@@ -750,14 +750,14 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                         leading: CircleAvatar(
-                          backgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.12),
-                          child: const Icon(PhosphorIcons.receipt, color: Color(0xFF2563EB), size: 20),
+                          backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                          child: Icon(PhosphorIcons.receipt, color: AppColors.primary, size: 20),
                         ),
                         title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                         subtitle: Text(it['data_vencimento'] != null ? "Vencimento: ${it['data_vencimento']}" : "Pendente"),
                         trailing: Text(
                           "R\$ ${formatMoeda(val)}",
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF2563EB)),
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.primary),
                         ),
                         onTap: () {
                           Navigator.pop(sheetContext);
@@ -923,7 +923,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: const Color(0xFF2563EB),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -937,7 +937,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               Text(
                 "Total pendente",
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.92),
+                  color: AppColors.onPrimary.withValues(alpha: 0.92),
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.1,
@@ -946,7 +946,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
+                  color: AppColors.onPrimary.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -955,13 +955,13 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     Icon(
                       badgeIcon,
                       size: 13,
-                      color: Colors.white,
+                      color: AppColors.onPrimary,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       badgeText,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: AppColors.onPrimary,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -978,10 +978,10 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              const Text(
+              Text(
                 "R\$ ",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.onPrimary,
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.5,
@@ -989,8 +989,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               ),
               Text(
                 formatMoeda(totalPendente),
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.onPrimary,
                   fontSize: 32,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.8,
@@ -1008,7 +1008,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 Container(
                   height: 6,
                   width: double.infinity,
-                  color: Colors.white.withValues(alpha: 0.25),
+                  color: AppColors.onPrimary.withValues(alpha: 0.25),
                 ),
                 FractionallySizedBox(
                   alignment: Alignment.centerLeft,
@@ -1016,7 +1016,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   child: Container(
                     height: 6,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.onPrimary,
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
@@ -1030,7 +1030,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           Text(
             progressText,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.88),
+              color: AppColors.onPrimary.withValues(alpha: 0.88),
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -1044,7 +1044,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     switch (title.toLowerCase()) {
       case 'condomínio':
       case 'condominio':
-        return const Color(0xFF2563EB); // Royal Blue
+        return AppColors.primary; // Royal Blue
       case 'aluguel':
         return const Color(0xFF6366F1); // Indigo
       case 'água':
@@ -1659,7 +1659,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                               );
                             }
                           },
-                          icon: const Icon(PhosphorIcons.barcode, size: 18, color: AppColors.primary),
+                          icon: Icon(PhosphorIcons.barcode, size: 18, color: AppColors.primary),
                           label: Text("Escanear boleto",
                               style: AppTypography.captionMedium(context)
                                   .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
@@ -1677,7 +1677,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
+                          foregroundColor: AppColors.onPrimary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () async {
@@ -1728,7 +1728,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         },
                         child: Text(
                           isEditing ? "Salvar Alterações" : "Adicionar Conta",
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.onPrimary),
                         ),
                       ),
                     ),
@@ -1860,7 +1860,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       height: 54,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+                        color: isSelected ? AppColors.primary : Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
@@ -1870,7 +1870,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             monthName.toUpperCase(),
                             style: TextStyle(
                               color: isSelected 
-                                  ? Colors.white 
+                                  ? AppColors.onPrimary 
                                   : (Theme.of(context).brightness == Brightness.dark
                                       ? const Color(0xFF94A3B8)
                                       : const Color(0xFF64748B)),
@@ -1884,7 +1884,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             yearShort,
                             style: TextStyle(
                               color: isSelected 
-                                  ? Colors.white.withValues(alpha: 0.9)
+                                  ? AppColors.onPrimary.withValues(alpha: 0.9)
                                   : (Theme.of(context).brightness == Brightness.dark
                                       ? const Color(0xFF64748B)
                                       : const Color(0xFF94A3B8)),
@@ -1952,7 +1952,7 @@ class _ToggleItem extends StatelessWidget {
             child: Text(
               label,
               style: AppTypography.tiny(context).copyWith(
-                color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -2071,11 +2071,11 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
                     },
                   );
                 },
-                icon: const Icon(PhosphorIcons.plusBold, color: Colors.white, size: 18),
-                label: const Text(
+                icon: Icon(PhosphorIcons.plusBold, color: AppColors.onPrimary, size: 18),
+                label: Text(
                   "Adicionar Conta",
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.onPrimary,
                     fontWeight: FontWeight.w800,
                     fontSize: 14.5,
                     letterSpacing: 0.2,
@@ -2100,7 +2100,7 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
+                gradient: LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
@@ -2115,10 +2115,10 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: AppColors.onPrimary.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(widget.icon, color: Colors.white, size: 28),
+                    child: Icon(widget.icon, color: AppColors.onPrimary, size: 28),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -2127,12 +2127,12 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
                       children: [
                         Text(
                           "Total Pendente (${widget.title})",
-                          style: AppTypography.caption(context).copyWith(color: Colors.white70),
+                          style: AppTypography.caption(context).copyWith(color: AppColors.onPrimary.withValues(alpha: 0.7)),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           "${Singleton.instance.getCurrentMoeda()} ${formatMoeda(totalPendente)}",
-                          style: AppTypography.display(context).copyWith(color: Colors.white, fontSize: 24),
+                          style: AppTypography.display(context).copyWith(color: AppColors.onPrimary, fontSize: 24),
                         ),
                       ],
                     ),

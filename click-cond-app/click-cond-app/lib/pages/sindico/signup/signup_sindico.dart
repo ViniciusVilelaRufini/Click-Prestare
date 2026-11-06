@@ -116,7 +116,7 @@ class _SignupSindicoPageState extends State<SignupSindico> {
                         shape: BoxShape.circle,
                         border: Border.all(color: AppColors.surface(context), width: 2),
                       ),
-                      child: const Icon(PhosphorIcons.camera, color: Colors.white, size: 14),
+                      child: Icon(PhosphorIcons.camera, color: AppColors.onPrimary, size: 14),
                     ),
                   ),
                 ],

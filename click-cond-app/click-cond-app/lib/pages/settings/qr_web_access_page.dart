@@ -164,7 +164,7 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const CircularProgressIndicator(color: AppColors.primary),
+                CircularProgressIndicator(color: AppColors.primary),
                 const SizedBox(height: AppSpacing.xl),
                 Text(
                   'Autorizando Acesso Web...',
@@ -252,7 +252,7 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
                                 return const Icon(PhosphorIcons.flashlight, color: Colors.white);
                               case TorchState.on:
                               case TorchState.auto:
-                                return const Icon(PhosphorIcons.flashlightFill, color: AppColors.warning);
+                                return Icon(PhosphorIcons.flashlightFill, color: AppColors.warning);
                             }
                           },
                         ),

@@ -100,16 +100,16 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
         child: ElevatedButton.icon(
           onPressed: _notificando ? null : _notificar,
           icon: _notificando
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary),
                 )
               : const Icon(PhosphorIcons.bell, size: 18),
           label: Text(_notificando ? 'Enviando...' : 'Notificar cobrança'),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
+            foregroundColor: AppColors.onPrimary,
             minimumSize: const Size(double.infinity, 48),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),

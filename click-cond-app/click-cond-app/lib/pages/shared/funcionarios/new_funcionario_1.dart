@@ -181,7 +181,7 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                                 color: AppColors.primary, shape: BoxShape.circle,
                                 border: Border.all(color: AppColors.bg(context), width: 2),
                               ),
-                              child: const Icon(PhosphorIcons.camera, size: 16, color: Colors.white),
+                              child: Icon(PhosphorIcons.camera, size: 16, color: AppColors.onPrimary),
                             ),
                           ),
                         ],
@@ -237,7 +237,7 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                               funcOption,
                               style: AppTypography.captionMedium(context).copyWith(
                                 color: txtFuncao.text.trim().toLowerCase() == funcOption.toLowerCase()
-                                    ? Colors.white
+                                    ? AppColors.onPrimary
                                     : AppColors.textSecondary(context),
                               ),
                             ),
@@ -292,7 +292,7 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                             ),
                             child: Text(cat["display"]!,
                                 style: AppTypography.captionMedium(context).copyWith(
-                                    color: permissoes.contains(cat["value"]) ? Colors.white : AppColors.textSecondary(context))),
+                                    color: permissoes.contains(cat["value"]) ? AppColors.onPrimary : AppColors.textSecondary(context))),
                           ),
                         ),
                     ],

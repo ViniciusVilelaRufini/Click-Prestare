@@ -49,7 +49,7 @@ class _DetailComunicadoPageState extends State<DetailComunicado> {
                       MaterialPageRoute(builder: (_) => NewComunicado(isEdit: true, myId: widget.id)))
                   .then((_) => load()),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.pencilSimple, color: Colors.white),
+              child: Icon(PhosphorIcons.pencilSimple, color: AppColors.onPrimary),
             )
           : null,
       body: _isLoading
@@ -67,7 +67,7 @@ class _DetailComunicadoPageState extends State<DetailComunicado> {
                           color: AppColors.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(PhosphorIcons.megaphone, color: AppColors.primary, size: 26),
+                        child: Icon(PhosphorIcons.megaphone, color: AppColors.primary, size: 26),
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       Text(obj['titulo'] ?? '', style: AppTypography.title(context)),

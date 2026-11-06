@@ -258,11 +258,11 @@ class _NewPrestadorPageState extends State<NewPrestador> {
               bottom: 0,
               child: Container(
                 padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppColors.primary,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(PhosphorIcons.camera, size: 14, color: Colors.white),
+                child: Icon(PhosphorIcons.camera, size: 14, color: AppColors.onPrimary),
               ),
             ),
           ],
@@ -301,7 +301,7 @@ class _NewPrestadorPageState extends State<NewPrestador> {
             child: Text(
               label,
               style: AppTypography.captionMedium(context).copyWith(
-                color: sel ? Colors.white : AppColors.textSecondary(context),
+                color: sel ? AppColors.onPrimary : AppColors.textSecondary(context),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -379,7 +379,7 @@ class _NewPrestadorPageState extends State<NewPrestador> {
                               cat["display"]!,
                               style: AppTypography.captionMedium(context).copyWith(
                                 color: categorias.contains(cat["display"])
-                                    ? Colors.white
+                                    ? AppColors.onPrimary
                                     : AppColors.textSecondary(context),
                               ),
                             ),

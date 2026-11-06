@@ -422,9 +422,9 @@ class _PerfilCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final corTitulo =
-        destaque ? Colors.white : AppColors.textPrimary(context);
+        destaque ? AppColors.onPrimary : AppColors.textPrimary(context);
     final corDescricao = destaque
-        ? Colors.white.withValues(alpha: 0.82)
+        ? AppColors.onPrimary.withValues(alpha: 0.82)
         : AppColors.textSecondary(context);
 
     final raio = BorderRadius.circular(AppRadius.xl);
@@ -436,7 +436,7 @@ class _PerfilCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: destaque ? null : AppColors.surfaceElevated(context),
         gradient: destaque
-            ? const LinearGradient(
+            ? LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
@@ -479,14 +479,14 @@ class _PerfilCard extends StatelessWidget {
                   height: 42,
                   decoration: BoxDecoration(
                     color: destaque
-                        ? Colors.white.withValues(alpha: 0.18)
+                        ? AppColors.onPrimary.withValues(alpha: 0.18)
                         : AppColors.primary.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Icon(
                     icon,
                     size: 22,
-                    color: destaque ? Colors.white : AppColors.primary,
+                    color: destaque ? AppColors.onPrimary : AppColors.primary,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -524,7 +524,7 @@ class _PerfilCard extends StatelessWidget {
                   PhosphorIcons.caretRightBold,
                   size: 16,
                   color: destaque
-                      ? Colors.white
+                      ? AppColors.onPrimary
                       : AppColors.textTertiary(context),
                 ),
               ],

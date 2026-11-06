@@ -265,7 +265,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                         padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
                         child: Row(
                           children: [
-                            const Icon(PhosphorIcons.shieldCheck, color: AppColors.primary, size: 18),
+                            Icon(PhosphorIcons.shieldCheck, color: AppColors.primary, size: 18),
                             const SizedBox(width: 8),
                             Text(
                               'Código de Acesso para Portaria',
@@ -368,7 +368,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                           padding: const EdgeInsets.all(AppSpacing.lg),
                           child: Column(
                             children: [
-                              const Icon(PhosphorIcons.spinnerGap, color: AppColors.primary, size: 32),
+                              Icon(PhosphorIcons.spinnerGap, color: AppColors.primary, size: 32),
                               const SizedBox(height: AppSpacing.sm),
                               Text(
                                 'Gerando código de acesso...',
@@ -481,7 +481,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                         child: Text(
                           'Editar',
                           style: AppTypography.body(context).copyWith(
-                            color: Colors.white,
+                            color: AppColors.onPrimary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -664,7 +664,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                   ),
                 ).then((_) => loadList()),
                 backgroundColor: AppColors.primary,
-                child: const Icon(PhosphorIcons.plus, color: Colors.white),
+                child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
               )
             : null,
         body: Column(
@@ -702,7 +702,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                 child: TabBar(
                   dividerColor: Colors.transparent,
                   unselectedLabelColor: AppColors.textSecondary(context),
-                  labelColor: Colors.white,
+                  labelColor: AppColors.onPrimary,
                   labelStyle: AppTypography.caption(context).copyWith(fontWeight: FontWeight.bold),
                   unselectedLabelStyle: AppTypography.caption(context),
                   indicatorSize: TabBarIndicatorSize.tab,
@@ -907,7 +907,7 @@ class _PrestadorCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        const Icon(PhosphorIcons.key, size: 12, color: AppColors.primary),
+                        Icon(PhosphorIcons.key, size: 12, color: AppColors.primary),
                         const SizedBox(width: 4),
                         Text(
                           'PIN: ${item['codigo_acesso'].toString().length == 6 ? "${item['codigo_acesso'].toString().substring(0, 3)}-${item['codigo_acesso'].toString().substring(3, 6)}" : item['codigo_acesso']}',

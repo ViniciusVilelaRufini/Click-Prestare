@@ -246,7 +246,7 @@ class _StepIndicator extends StatelessWidget {
             value: step / total,
             minHeight: 6,
             backgroundColor: AppColors.border(context),
-            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
           ),
         ),
       ],

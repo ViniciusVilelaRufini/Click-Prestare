@@ -77,7 +77,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     return AppScaffold(
       title: 'Notificações',
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
           : Padding(
               padding: const EdgeInsets.all(AppSpacing.xl),
               child: Column(

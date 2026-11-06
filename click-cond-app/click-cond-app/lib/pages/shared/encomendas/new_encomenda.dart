@@ -233,7 +233,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
     return AppScaffold(
       title: isEdit ? 'Editar Encomenda' : 'Nova Encomenda',
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
           : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 120),
               physics: const BouncingScrollPhysics(),
@@ -280,7 +280,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(PhosphorIcons.buildings, color: AppColors.primary, size: 20),
+                child: Icon(PhosphorIcons.buildings, color: AppColors.primary, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -415,7 +415,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(PhosphorIcons.camera, color: AppColors.primary, size: 20),
+                child: Icon(PhosphorIcons.camera, color: AppColors.primary, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -515,7 +515,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                         color: AppColors.primary.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(PhosphorIcons.camera, color: AppColors.primary, size: 28),
+                      child: Icon(PhosphorIcons.camera, color: AppColors.primary, size: 28),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
@@ -569,7 +569,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(PhosphorIcons.package, color: AppColors.primary, size: 20),
+                child: Icon(PhosphorIcons.package, color: AppColors.primary, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -650,7 +650,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(PhosphorIcons.truck, color: AppColors.primary, size: 20),
+                child: Icon(PhosphorIcons.truck, color: AppColors.primary, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -737,7 +737,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(PhosphorIcons.barcode, color: AppColors.primary, size: 20),
+                child: Icon(PhosphorIcons.barcode, color: AppColors.primary, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -775,7 +775,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: IconButton(
-                  icon: const Icon(PhosphorIcons.barcode, color: AppColors.primary),
+                  icon: Icon(PhosphorIcons.barcode, color: AppColors.primary),
                   tooltip: 'Escanear código de barras',
                   onPressed: () async {
                     final scannedCode = await Navigator.push<String>(

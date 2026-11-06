@@ -117,7 +117,7 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
             ? FloatingActionButton.extended(
                 onPressed: () => openAddDelivery(context),
                 backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.onPrimary,
                 icon: const Icon(PhosphorIcons.plus),
                 label: const Text('Avisar entrega'),
               )
@@ -718,7 +718,7 @@ class _DeliveryError extends StatelessWidget {
               width: 72,
               height: 72,
               decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.10), shape: BoxShape.circle),
-              child: const Icon(PhosphorIcons.warningCircle, size: 36, color: AppColors.error),
+              child: Icon(PhosphorIcons.warningCircle, size: 36, color: AppColors.error),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(message, textAlign: TextAlign.center, style: AppTypography.body(context)),

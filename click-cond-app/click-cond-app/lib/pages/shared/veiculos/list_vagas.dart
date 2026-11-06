@@ -73,9 +73,9 @@ class _ListVagasState extends State<ListVagas> {
           ? FloatingActionButton.extended(
               onPressed: _abrirLiberar,
               backgroundColor: AppColors.primary,
-              icon: const Icon(PhosphorIcons.key, color: Colors.white),
+              icon: Icon(PhosphorIcons.key, color: AppColors.onPrimary),
               label: Text('Liberar vaga',
-                  style: AppTypography.button(context).copyWith(color: Colors.white)),
+                  style: AppTypography.button(context).copyWith(color: AppColors.onPrimary)),
             )
           : null,
       body: _isLoading

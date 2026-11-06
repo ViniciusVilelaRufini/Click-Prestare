@@ -47,13 +47,13 @@ class ValidationAlertWrapper extends StatefulWidget {
       SnackBar(
         content: Row(
           children: [
-            const Icon(PhosphorIcons.warningCircle, color: Colors.white, size: 20),
+            Icon(PhosphorIcons.warningCircle, color: AppColors.onPrimary, size: 20),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 message,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.onPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),

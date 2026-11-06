@@ -243,8 +243,8 @@ class _TrackingHero extends StatelessWidget {
             key: const ValueKey('celebrate'),
             width: 64,
             height: 64,
-            decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
-            child: const Icon(PhosphorIcons.check, size: 32, color: AppColors.lightTextPrimary),
+            decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
+            child: Icon(PhosphorIcons.check, size: 32, color: AppColors.onPrimary),
           )
         : _PulsingIcon(
             key: const ValueKey('status'),

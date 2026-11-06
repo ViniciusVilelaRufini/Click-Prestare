@@ -300,9 +300,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             child: _isChangingMonth
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(2),
-                                    child: const LinearProgressIndicator(
+                                    child: LinearProgressIndicator(
                                       backgroundColor: Colors.transparent,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+                                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
                                     ),
                                   )
                                 : const SizedBox.shrink(),
@@ -321,7 +321,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                         child: _ActionCardButton(
                                           label: getText('financeiro_nav_relatorio'),
                                           icon: PhosphorIcons.filePdf,
-                                          color: const Color(0xFF2563EB),
+                                          color: AppColors.primary,
                                           iconBg: const Color(0xFFEFF6FF),
                                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FinanceiroRelatorio())),
                                         ),
@@ -550,8 +550,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     return FloatingActionButton(
       heroTag: null,
       onPressed: loadList,
-      backgroundColor: const Color(0xFF2563EB),
-      foregroundColor: Colors.white,
+      backgroundColor: AppColors.primary,
+      foregroundColor: AppColors.onPrimary,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 4,
       child: const Icon(PhosphorIcons.arrowsClockwise, size: 22),
@@ -707,10 +707,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   const SizedBox(height: 6),
                   Text(
                     "R\$ ${formatMoeda(valor)}",
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF2563EB),
+                      color: AppColors.primary,
                     ),
                   ),
                 ],
@@ -752,7 +752,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   height: 48,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
+                      backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -767,13 +767,13 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         ),
                       );
                     },
-                    icon: const Icon(PhosphorIcons.copy, size: 18, color: Colors.white),
-                    label: const Text(
+                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
+                    label: Text(
                       "Copiar Código Pix",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: Colors.white,
+                        color: AppColors.onPrimary,
                       ),
                     ),
                   ),
@@ -825,10 +825,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   const SizedBox(height: 6),
                   Text(
                     "R\$ ${formatMoeda(valor)}",
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF2563EB),
+                      color: AppColors.primary,
                     ),
                   ),
                 ],
@@ -848,7 +848,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(PhosphorIcons.key, color: Color(0xFF2563EB), size: 20),
+                      Icon(PhosphorIcons.key, color: AppColors.primary, size: 20),
                       const SizedBox(width: 12),
                       Expanded(
                         child: SelectableText(
@@ -867,7 +867,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   height: 48,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
+                      backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -882,13 +882,13 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         ),
                       );
                     },
-                    icon: const Icon(PhosphorIcons.copy, size: 18, color: Colors.white),
-                    label: const Text(
+                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
+                    label: Text(
                       "Copiar Chave Pix",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: Colors.white,
+                        color: AppColors.onPrimary,
                       ),
                     ),
                   ),
@@ -956,14 +956,14 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                         leading: CircleAvatar(
-                          backgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.12),
-                          child: const Icon(PhosphorIcons.receipt, color: Color(0xFF2563EB), size: 20),
+                          backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                          child: Icon(PhosphorIcons.receipt, color: AppColors.primary, size: 20),
                         ),
                         title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                         subtitle: Text(it['data_vencimento'] != null ? "Vencimento: ${it['data_vencimento']}" : "Pendente"),
                         trailing: Text(
                           "R\$ ${formatMoeda(val)}",
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF2563EB)),
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.primary),
                         ),
                         onTap: () {
                           Navigator.pop(sheetContext);
@@ -1096,7 +1096,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: const Color(0xFF2563EB),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -1109,7 +1109,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               Text(
                 "Total pendente",
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.92),
+                  color: AppColors.onPrimary.withValues(alpha: 0.92),
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.1,
@@ -1118,7 +1118,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
+                  color: AppColors.onPrimary.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -1127,13 +1127,13 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                     Icon(
                       badgeIcon,
                       size: 13,
-                      color: Colors.white,
+                      color: AppColors.onPrimary,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       badgeText,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: AppColors.onPrimary,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1148,10 +1148,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              const Text(
+              Text(
                 "R\$ ",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.onPrimary,
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.5,
@@ -1159,8 +1159,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               ),
               Text(
                 formatMoeda(totalPendente),
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.onPrimary,
                   fontSize: 32,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.8,
@@ -1176,7 +1176,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                 Container(
                   height: 6,
                   width: double.infinity,
-                  color: Colors.white.withValues(alpha: 0.25),
+                  color: AppColors.onPrimary.withValues(alpha: 0.25),
                 ),
                 FractionallySizedBox(
                   alignment: Alignment.centerLeft,
@@ -1184,7 +1184,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   child: Container(
                     height: 6,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.onPrimary,
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
@@ -1196,7 +1196,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
           Text(
             progressText,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.88),
+              color: AppColors.onPrimary.withValues(alpha: 0.88),
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -1376,7 +1376,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       height: 54,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+                        color: isSelected ? AppColors.primary : Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
@@ -1386,7 +1386,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             monthName.toUpperCase(),
                             style: TextStyle(
                               color: isSelected 
-                                  ? Colors.white 
+                                  ? AppColors.onPrimary 
                                   : (Theme.of(context).brightness == Brightness.dark
                                       ? const Color(0xFF94A3B8)
                                       : const Color(0xFF64748B)),
@@ -1400,7 +1400,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             yearShort,
                             style: TextStyle(
                               color: isSelected 
-                                  ? Colors.white.withValues(alpha: 0.9)
+                                  ? AppColors.onPrimary.withValues(alpha: 0.9)
                                   : (Theme.of(context).brightness == Brightness.dark
                                       ? const Color(0xFF64748B)
                                       : const Color(0xFF94A3B8)),
@@ -1582,8 +1582,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   ),
                   child: Text(
                     "${cat.pendingCount}",
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppColors.onPrimary,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1936,7 +1936,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                               );
                             }
                           },
-                          icon: const Icon(PhosphorIcons.barcode, size: 18, color: AppColors.primary),
+                          icon: Icon(PhosphorIcons.barcode, size: 18, color: AppColors.primary),
                           label: Text("Escanear boleto",
                               style: AppTypography.captionMedium(context)
                                   .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
@@ -1954,7 +1954,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
+                          foregroundColor: AppColors.onPrimary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () async {
@@ -2005,7 +2005,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         },
                         child: Text(
                           isEditing ? "Salvar Alterações" : "Adicionar Conta",
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.onPrimary),
                         ),
                       ),
                     ),
@@ -2052,7 +2052,7 @@ class _ToggleItem extends StatelessWidget {
           curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+            color: isSelected ? AppColors.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
@@ -2061,13 +2061,13 @@ class _ToggleItem extends StatelessWidget {
               Icon(
                 icon,
                 size: 15,
-                color: isSelected ? Colors.white : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                color: isSelected ? AppColors.onPrimary : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
               ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                  color: isSelected ? AppColors.onPrimary : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   letterSpacing: 0.6,
                   fontSize: 12,
@@ -2155,10 +2155,10 @@ class _DashboardHeader extends StatelessWidget {
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         PhosphorIcons.wallet,
                         size: 16,
-                        color: Color(0xFF2563EB),
+                        color: AppColors.primary,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -2404,7 +2404,7 @@ class _LancamentoCard extends StatelessWidget {
     final valueColor = isCredito ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
     final statusColor = isPago 
         ? const Color(0xFF16A34A) 
-        : (isVerifying ? const Color(0xFF2563EB) : const Color(0xFFD97706));
+        : (isVerifying ? AppColors.primary : const Color(0xFFD97706));
     final statusBg = isPago 
         ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7))
         : (isVerifying 
@@ -2444,7 +2444,7 @@ class _LancamentoCard extends StatelessWidget {
             ),
             child: Icon(
               _getIcon(item['categoria'] ?? ''),
-              color: isCredito ? const Color(0xFF16A34A) : const Color(0xFF2563EB),
+              color: isCredito ? const Color(0xFF16A34A) : AppColors.primary,
               size: 22,
             ),
           ),
@@ -2681,10 +2681,10 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
                                 border: Border.all(color: sel ? AppColors.primary : AppColors.textSecondary(context).withValues(alpha: 0.1)),
                               ),
                               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(PhosphorIcons.calendarBlank, size: 14, color: sel ? Colors.white : AppColors.textSecondary(context)),
+                                Icon(PhosphorIcons.calendarBlank, size: 14, color: sel ? AppColors.onPrimary : AppColors.textSecondary(context)),
                                 const SizedBox(width: 6),
                                 Text(t['periodo'], style: AppTypography.caption(context).copyWith(
-                                  color: sel ? Colors.white : AppColors.textSecondary(context),
+                                  color: sel ? AppColors.onPrimary : AppColors.textSecondary(context),
                                   fontWeight: sel ? FontWeight.bold : FontWeight.normal)),
                               ]),
                             ),
@@ -2887,7 +2887,7 @@ class _InadBlocoTile extends StatelessWidget {
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(20)),
-            child: Text('${aptos.length}', style: AppTypography.caption(context).copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text('${aptos.length}', style: AppTypography.caption(context).copyWith(color: AppColors.onPrimary, fontWeight: FontWeight.bold)),
           ),
           children: aptos.map<Widget>((a) {
             final apto = (a['apto'] ?? '').toString();

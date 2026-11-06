@@ -42,7 +42,7 @@ displayMessage(BuildContext context, String title, String message) async {
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: Theme.of(context).primaryColor,
-            foregroundColor: Colors.white,
+            foregroundColor: AppColors.onPrimary,
           ),
           onPressed: () => Navigator.pop(c, true),
           child: const Text('OK'),
@@ -63,7 +63,7 @@ displayMessageWithReturn(BuildContext context, String title, String message) asy
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: Theme.of(context).primaryColor,
-            foregroundColor: Colors.white,
+            foregroundColor: AppColors.onPrimary,
           ),
           onPressed: () => Navigator.pop(c, true),
           child: const Text('OK'),
@@ -95,7 +95,7 @@ showConfirmDialog(BuildContext context, {String? text}) async {
                     color: AppColors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     PhosphorIcons.question,
                     color: AppColors.primary,
                     size: 20,
@@ -321,7 +321,7 @@ getPhoto(BuildContext context) async {
                     color: AppColors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     PhosphorIcons.camera,
                     color: AppColors.primary,
                     size: 20,
@@ -373,7 +373,7 @@ getPhoto(BuildContext context) async {
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.onPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -381,16 +381,16 @@ getPhoto(BuildContext context) async {
                       ),
                     ),
                     onPressed: () => Navigator.pop(c, "galeria"),
-                    icon: const Icon(
+                    icon: Icon(
                       PhosphorIcons.image,
                       size: 18,
-                      color: Colors.white,
+                      color: AppColors.onPrimary,
                     ),
                     label: Text(
                       getText('alert_photo_galeria'),
                       style: AppTypography.body(c).copyWith(
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: AppColors.onPrimary,
                       ),
                     ),
                   ),

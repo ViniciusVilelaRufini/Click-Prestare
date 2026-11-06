@@ -331,7 +331,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                     color: AppColors.success.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     PhosphorIcons.circleWavyCheck,
                     color: AppColors.success,
                     size: 54,
@@ -541,8 +541,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
                                 border: Border.all(
                                     color: AppColors.bg(context), width: 2),
                               ),
-                              child: const Icon(PhosphorIcons.camera,
-                                  size: 16, color: Colors.white),
+                              child: Icon(PhosphorIcons.camera,
+                                  size: 16, color: AppColors.onPrimary),
                             ),
                           ),
                         ],
@@ -818,7 +818,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
             child: Text(
               label,
               style: AppTypography.captionMedium(context).copyWith(
-                color: sel ? Colors.white : AppColors.textSecondary(context),
+                color: sel ? AppColors.onPrimary : AppColors.textSecondary(context),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -889,7 +889,7 @@ class _Chip extends StatelessWidget {
           child: Text(
             label,
             style: AppTypography.captionMedium(context).copyWith(
-              color: selected ? Colors.white : AppColors.textSecondary(context),
+              color: selected ? AppColors.onPrimary : AppColors.textSecondary(context),
             ),
           ),
         ),

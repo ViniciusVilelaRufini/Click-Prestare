@@ -38,12 +38,12 @@ class FinanceiroResumoCards extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                const Icon(PhosphorIcons.chartLineUp, color: Colors.white, size: 18),
+                Icon(PhosphorIcons.chartLineUp, color: AppColors.onPrimary, size: 18),
                 const SizedBox(width: AppSpacing.sm),
-                Text('Saldo do período', style: AppTypography.captionMedium(context).copyWith(color: Colors.white.withValues(alpha: .82))),
+                Text('Saldo do período', style: AppTypography.captionMedium(context).copyWith(color: AppColors.onPrimary.withValues(alpha: .82))),
               ]),
               const SizedBox(height: AppSpacing.sm),
-              Text(saldo, style: AppTypography.headline(context).copyWith(color: Colors.white, fontSize: 27, fontWeight: FontWeight.bold)),
+              Text(saldo, style: AppTypography.headline(context).copyWith(color: AppColors.onPrimary, fontSize: 27, fontWeight: FontWeight.bold)),
             ],
           ),
         ),

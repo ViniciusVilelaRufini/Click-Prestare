@@ -467,7 +467,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
               onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => NewOcorrencia(isEdit: true, myId: widget.id)))
                   .then((_) => load()),
-              child: const Icon(PhosphorIcons.pencil, color: Colors.white),
+              child: Icon(PhosphorIcons.pencil, color: AppColors.onPrimary),
             )
           : null,
     );

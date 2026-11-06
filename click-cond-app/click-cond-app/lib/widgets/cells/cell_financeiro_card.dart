@@ -210,7 +210,7 @@ class FinanceiroCard extends StatelessWidget {
                                       color: AppColors.primary.withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       "Pessoal",
                                       style: TextStyle(
                                         color: AppColors.primary,
@@ -629,15 +629,15 @@ class FinanceiroCard extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icone, size: 19, color: Colors.white),
+              Icon(icone, size: 19, color: AppColors.on(corFundo)),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   texto,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: AppColors.on(corFundo),
                     letterSpacing: 0.2,
                   ),
                   maxLines: 1,
@@ -885,14 +885,14 @@ class FinanceiroCard extends StatelessWidget {
                     ),
                   );
                 },
-                icon: const Icon(PhosphorIcons.copy, size: 18, color: Colors.white),
+                icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
                 label: const Text(
                   "Copiar Chave Pix",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.onPrimary,
                   minimumSize: const Size(double.infinity, 48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

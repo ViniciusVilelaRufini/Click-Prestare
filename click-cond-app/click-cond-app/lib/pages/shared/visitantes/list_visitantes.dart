@@ -462,7 +462,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               children: [
                                 Row(
                                   children: [
-                                    const Icon(PhosphorIcons.mapPin,
+                                    Icon(PhosphorIcons.mapPin,
                                         color: AppColors.primary, size: 18),
                                     const SizedBox(width: 8),
                                     Text(
@@ -567,7 +567,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                         },
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: AppColors.primary,
-                                          foregroundColor: Colors.white,
+                                          foregroundColor: AppColors.onPrimary,
                                           shape: RoundedRectangleBorder(
                                               borderRadius:
                                                   BorderRadius.circular(10)),
@@ -611,7 +611,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                         AppSpacing.sm),
                                     child: Row(
                                       children: [
-                                        const Icon(PhosphorIcons.shieldCheck,
+                                        Icon(PhosphorIcons.shieldCheck,
                                             color: AppColors.primary, size: 18),
                                         const SizedBox(width: 8),
                                         Expanded(
@@ -773,7 +773,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                           const EdgeInsets.all(AppSpacing.lg),
                                       child: Column(
                                         children: [
-                                          const Icon(PhosphorIcons.spinnerGap,
+                                          Icon(PhosphorIcons.spinnerGap,
                                               color: AppColors.primary,
                                               size: 32),
                                           const SizedBox(height: AppSpacing.sm),
@@ -854,12 +854,12 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       Navigator.pop(ctx);
                                       await _registrarEntrada(item);
                                     },
-                                    icon: const Icon(PhosphorIcons.signIn,
-                                        size: 20, color: Colors.white),
-                                    label: const Text(
+                                    icon: Icon(PhosphorIcons.signIn,
+                                        size: 20, color: AppColors.onPrimary),
+                                    label: Text(
                                       'Registrar Entrada',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: AppColors.onPrimary,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 15,
                                       ),
@@ -885,12 +885,12 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       Navigator.pop(ctx);
                                       await _registrarSaida(item);
                                     },
-                                    icon: const Icon(PhosphorIcons.signOut,
-                                        size: 20, color: Colors.white),
-                                    label: const Text(
+                                    icon: Icon(PhosphorIcons.signOut,
+                                        size: 20, color: AppColors.onPrimary),
+                                    label: Text(
                                       'Dar Baixa na Visita',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: AppColors.onPrimary,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 15,
                                       ),
@@ -944,14 +944,14 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                             ),
                                           ).then((_) => loadList());
                                         },
-                                        icon: const Icon(
+                                        icon: Icon(
                                             PhosphorIcons.pencilSimple,
-                                            color: Colors.white,
+                                            color: AppColors.onPrimary,
                                             size: 18),
-                                        label: const Text(
+                                        label: Text(
                                           'Editar',
                                           style: TextStyle(
-                                            color: Colors.white,
+                                            color: AppColors.onPrimary,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -1108,7 +1108,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
       await Clipboard.setData(ClipboardData(text: shareText));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('WhatsApp não aberto. Informações do convite copiadas para a área de transferência!'),
             backgroundColor: AppColors.primary,
             duration: Duration(seconds: 3),
@@ -1210,8 +1210,8 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                       child: Text(
                         '$_pendentesCount',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            color: Colors.white,
+                        style: TextStyle(
+                            color: AppColors.onPrimary,
                             fontSize: 10,
                             fontWeight: FontWeight.bold),
                       ),
@@ -1249,7 +1249,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                         color: AppColors.primary,
                         borderRadius: BorderRadius.circular(28),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.20),
+                          color: AppColors.onPrimary.withValues(alpha: 0.20),
                           width: 1.0,
                         ),
                       ),
@@ -1268,8 +1268,8 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(PhosphorIcons.userPlus,
-                                    color: Colors.white, size: 20),
+                                Icon(PhosphorIcons.userPlus,
+                                    color: AppColors.onPrimary, size: 20),
                                 AnimatedSize(
                                   duration: const Duration(milliseconds: 300),
                                   curve: Curves.easeInOutCubic,
@@ -1277,10 +1277,10 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                     children: [
                                       if (_isFabExpanded) ...[
                                         const SizedBox(width: 8),
-                                        const Text(
+                                        Text(
                                           'Cadastrar visitante ou prestador',
                                           style: TextStyle(
-                                            color: Colors.white,
+                                            color: AppColors.onPrimary,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 14,
                                           ),
@@ -1400,7 +1400,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                   child: TabBar(
                     dividerColor: Colors.transparent,
                     unselectedLabelColor: AppColors.textSecondary(context),
-                    labelColor: Colors.white,
+                    labelColor: AppColors.onPrimary,
                     labelStyle: AppTypography.caption(context)
                         .copyWith(fontWeight: FontWeight.bold),
                     unselectedLabelStyle: AppTypography.caption(context),
@@ -1768,13 +1768,13 @@ class _VisitanteCard extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(PhosphorIcons.key,
-                              size: 14, color: Color(0xFF2563EB)),
+                          Icon(PhosphorIcons.key,
+                              size: 14, color: AppColors.primary),
                           const SizedBox(width: 5),
                           Text(
                             formattedPin,
-                            style: const TextStyle(
-                              color: Color(0xFF2563EB),
+                            style: TextStyle(
+                              color: AppColors.primary,
                               fontWeight: FontWeight.w700,
                               fontSize: 13,
                             ),
@@ -1853,17 +1853,17 @@ class _VisitanteCard extends StatelessWidget {
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
-                        children: const [
+                        children: [
                           Icon(
                             PhosphorIcons.paperPlaneTilt,
                             size: 13,
-                            color: Color(0xFF2563EB),
+                            color: AppColors.primary,
                           ),
                           SizedBox(width: 4),
                           Text(
                             'Liberar',
                             style: TextStyle(
-                              color: Color(0xFF2563EB),
+                              color: AppColors.primary,
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1894,7 +1894,7 @@ class _VisitanteCard extends StatelessWidget {
       text = 'NO LOCAL';
     } else if (isAuthorized) {
       bgColor = const Color(0xFFEFF6FF);
-      textColor = const Color(0xFF2563EB);
+      textColor = AppColors.primary;
       text = 'AUTORIZADO';
     } else if (isExpired) {
       bgColor = const Color(0xFFF1F5F9);
@@ -2113,7 +2113,7 @@ Widget _buildVisitanteAvatar(BuildContext context, dynamic item,
     child: Text(
       initials,
       style: TextStyle(
-        color: const Color(0xFF2563EB),
+        color: AppColors.primary,
         fontWeight: FontWeight.bold,
         fontSize: radius * 0.72,
       ),

@@ -65,7 +65,7 @@ class _ListMudancasPageState extends State<ListMudancas> {
                       MaterialPageRoute(builder: (_) => NewMudanca(isEdit: false)))
                   .then((_) => loadList()),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
             )
           : null,
       body: _isLoading

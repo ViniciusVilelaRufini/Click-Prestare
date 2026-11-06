@@ -124,7 +124,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.dark(
               primary: AppColors.primary,
-              onPrimary: Colors.white,
+              onPrimary: AppColors.onPrimary,
               surface: AppColors.surface(context),
               onSurface: AppColors.textPrimary(context),
             ),
@@ -469,8 +469,8 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                       _dataFim = null;
                     });
                   },
-                  icon: const Icon(PhosphorIcons.trash, size: 14, color: AppColors.error),
-                  label: const Text(
+                  icon: Icon(PhosphorIcons.trash, size: 14, color: AppColors.error),
+                  label: Text(
                     'Limpar período',
                     style: TextStyle(color: AppColors.error, fontSize: 12),
                   ),
@@ -500,7 +500,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(PhosphorIcons.xCircle, size: 14, color: AppColors.error),
+                          Icon(PhosphorIcons.xCircle, size: 14, color: AppColors.error),
                           const SizedBox(width: 4),
                           Text(
                             'Limpar unidade',

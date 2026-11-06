@@ -310,7 +310,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
 
   Widget _buildPlaceholderHeader() {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -326,7 +326,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
           child: Icon(
             PhosphorIcons.buildings,
             size: 100,
-            color: Colors.white,
+            color: AppColors.onPrimary,
           ),
         ),
       ),
@@ -428,7 +428,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
   /// Destaque (texto/ícone) sobre fundo tingido de primária: o primário puro
   /// tem pouco contraste sobre a superfície escura.
   Color _destaque() =>
-      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF93B4F8) : AppColors.primaryDark;
+      AppColors.primary;
 
   Widget _cardRegras() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -693,7 +693,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                 MaterialPageRoute(builder: (_) => NewAreaSocial(isEdit: true, obj: obj, myId: obj['id'])),
               ).then((_) => load()),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.pencil, color: Colors.white),
+              child: Icon(PhosphorIcons.pencil, color: AppColors.onPrimary),
             )
           : null,
       // No bottomNavigationBar o Scaffold posiciona o FAB acima do rodapé.

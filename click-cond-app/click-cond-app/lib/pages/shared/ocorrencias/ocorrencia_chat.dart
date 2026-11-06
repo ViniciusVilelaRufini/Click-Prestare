@@ -253,7 +253,7 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
                                         msg['mensagem'] ?? '',
                                         style: AppTypography.body(context).copyWith(
                                           color: isMe
-                                              ? Colors.white
+                                              ? AppColors.onPrimary
                                               : (isDark ? Colors.white : Colors.black87),
                                         ),
                                       ),
@@ -321,22 +321,22 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
                   onTap: _isSending ? null : _sendMessage,
                   child: Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.primary,
                       shape: BoxShape.circle,
                     ),
                     child: _isSending
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white,
+                              color: AppColors.onPrimary,
                             ),
                           )
-                        : const Icon(
+                        : Icon(
                             PhosphorIcons.paperPlaneRight,
-                            color: Colors.white,
+                            color: AppColors.onPrimary,
                             size: 20,
                           ),
                   ),

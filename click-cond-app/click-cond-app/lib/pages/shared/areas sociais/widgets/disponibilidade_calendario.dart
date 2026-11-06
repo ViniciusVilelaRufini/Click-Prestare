@@ -207,10 +207,10 @@ class _Dia extends StatelessWidget {
 
     if (selecionado) {
       fundo = AppColors.primary;
-      texto = Colors.white;
+      texto = AppColors.onPrimary;
     } else if (disponivel) {
       fundo = AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.1);
-      texto = isDark ? const Color(0xFF93B4F8) : AppColors.primaryDark;
+      texto = AppColors.primary;
     } else {
       fundo = Colors.transparent;
       texto = AppColors.textTertiary(context).withValues(alpha: isDark ? 0.8 : 0.7);

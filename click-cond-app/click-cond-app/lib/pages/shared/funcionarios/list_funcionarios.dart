@@ -49,7 +49,7 @@ class _ListFuncionariosPageState extends State<ListFuncionarios> {
                       MaterialPageRoute(builder: (_) => NewFuncionario1(isEdit: false)))
                   .then((_) => loadList()),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
             )
           : null,
       body: _isLoading

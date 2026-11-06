@@ -209,10 +209,10 @@ class _EditSindicoPageState extends State<EditSindico> {
                                 shape: BoxShape.circle,
                                 border: Border.all(color: AppColors.bg(context), width: 2),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 PhosphorIcons.camera,
                                 size: 16,
-                                color: Colors.white,
+                                color: AppColors.onPrimary,
                               ),
                             ),
                           ),

@@ -264,7 +264,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
       if (bytes.lengthInBytes > 10 * 1024 * 1024) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('O arquivo é muito grande (máximo 10MB).'),
             backgroundColor: AppColors.error,
           ),
@@ -403,7 +403,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       color: AppColors.primary.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(PhosphorIcons.camera, color: AppColors.primary),
+                    child: Icon(PhosphorIcons.camera, color: AppColors.primary),
                   ),
                   title: Text('Tirar foto com a câmera', style: AppTypography.body(context)),
                   subtitle: Text('Capture a conta de luz, água ou boleto', style: AppTypography.tiny(context)),
@@ -676,7 +676,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
@@ -731,7 +731,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   child: Text(
                     'PRESTARE IA',
                     style: AppTypography.bodyMedium(context).copyWith(
-                      color: Colors.white,
+                      color: AppColors.onPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -761,10 +761,10 @@ class _ChatIaPageState extends State<ChatIaPage> {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: AppColors.onPrimary.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: Colors.white, size: 18),
+            child: Icon(icon, color: AppColors.onPrimary, size: 18),
           ),
         ),
       ),
@@ -1066,18 +1066,18 @@ class _ChatIaPageState extends State<ChatIaPage> {
                             : Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
+                                  color: AppColors.onPrimary.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(PhosphorIcons.filePdf, color: Colors.white, size: 24),
+                                    Icon(PhosphorIcons.filePdf, color: AppColors.onPrimary, size: 24),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
                                         msg.anexo!['nome'] ?? 'Fatura Anexada',
-                                        style: const TextStyle(
-                                          color: Colors.white,
+                                        style: TextStyle(
+                                          color: AppColors.onPrimary,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 13,
                                         ),
@@ -1097,7 +1097,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                         ? Text(
                             msg.texto,
                             style: AppTypography.body(context)
-                                .copyWith(color: Colors.white),
+                                .copyWith(color: AppColors.onPrimary),
                           )
                         : RespostaFormatada(
                             texto: msg.texto,
@@ -1222,14 +1222,14 @@ class _ChatIaPageState extends State<ChatIaPage> {
                         msg.confirmando ? null : () => _confirmarAcao(msg),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.onPrimary,
                     ),
                     child: msg.confirmando
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 16,
                             width: 16,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                                strokeWidth: 2, color: AppColors.onPrimary),
                           )
                         : const Text('Confirmar'),
                   ),
@@ -1246,13 +1246,13 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () => _acionarBotao(b),
-                    icon: Icon(_iconeBotao(b.efeito), size: 16, color: Colors.white),
+                    icon: Icon(_iconeBotao(b.efeito), size: 16, color: AppColors.onPrimary),
                     label: Text(b.rotulo,
                         style: AppTypography.caption(context)
-                            .copyWith(color: Colors.white)),
+                            .copyWith(color: AppColors.onPrimary)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.onPrimary,
                       alignment: Alignment.centerLeft,
                     ),
                   ),
@@ -1519,8 +1519,8 @@ class _ChatIaPageState extends State<ChatIaPage> {
                                 : AppColors.primary,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(PhosphorIcons.paperPlaneRight,
-                              color: Colors.white, size: 20),
+                          child: Icon(PhosphorIcons.paperPlaneRight,
+                              color: AppColors.onPrimary, size: 20),
                         ),
                       ),
                     ],

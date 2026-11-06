@@ -557,7 +557,7 @@ class _NewReservaPageState extends State<NewReserva> {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: AppRadius.rmd,
                 ),
-                child: const Icon(PhosphorIcons.mapPin, color: AppColors.primary, size: 22),
+                child: Icon(PhosphorIcons.mapPin, color: AppColors.primary, size: 22),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(

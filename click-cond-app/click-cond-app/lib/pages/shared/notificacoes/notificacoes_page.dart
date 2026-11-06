@@ -62,7 +62,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
       case 'encomenda':
         return (
           icon: PhosphorIcons.package,
-          cor: const Color(0xFF2563EB),
+          cor: AppColors.primary,
           tag: 'Encomenda'
         );
       case 'comunicado':
@@ -315,7 +315,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                         f['label']!,
                         style: TextStyle(
                           color: isSelected
-                              ? Colors.white
+                              ? AppColors.onPrimary
                               : AppColors.textPrimary(context),
                           fontWeight:
                               isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -331,7 +331,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? Colors.white.withValues(alpha: 0.25)
+                                ? AppColors.onPrimary.withValues(alpha: 0.25)
                                 : AppColors.primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -339,7 +339,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                             '$count',
                             style: TextStyle(
                               color: isSelected
-                                  ? Colors.white
+                                  ? AppColors.onPrimary
                                   : AppColors.primary,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -475,10 +475,10 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                                         color: v.cor,
                                         borderRadius: BorderRadius.circular(10),
                                       ),
-                                      child: const Text(
+                                      child: Text(
                                         'NOVA',
                                         style: TextStyle(
-                                          color: Colors.white,
+                                          color: AppColors.on(v.cor),
                                           fontSize: 9,
                                           fontWeight: FontWeight.bold,
                                           letterSpacing: 0.5,

@@ -14,7 +14,9 @@ class ThemeController extends ChangeNotifier {
   static final ThemeController instance = ThemeController._();
 
   static const _key = 'theme_mode';
-  final _storage = LocalStorage('user_config');
+  // Tardio: `AppColors` lê [mode] de qualquer lugar, inclusive antes do init e
+  // em testes, e isso não pode abrir o armazenamento.
+  late final _storage = LocalStorage('user_config');
 
   ThemeMode _mode = ThemeMode.system;
   ThemeMode get mode => _mode;
@@ -42,6 +44,10 @@ class ThemeController extends ChangeNotifier {
     _storage.setItem(_key, str);
     notifyListeners();
   }
+
+  /// Troca o modo sem persistir nem avisar ninguém, para testes.
+  @visibleForTesting
+  void debugSetMode(ThemeMode mode) => _mode = mode;
 
   String get label {
     switch (_mode) {

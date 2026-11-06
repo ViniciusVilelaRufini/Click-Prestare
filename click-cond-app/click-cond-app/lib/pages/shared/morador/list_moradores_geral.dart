@@ -113,7 +113,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
               .then((_) => _loadData());
         },
         backgroundColor: AppColors.primary,
-        child: const Icon(PhosphorIcons.plus, color: Colors.white),
+        child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
       ),
       body: _isLoading
           ? ListView.separated(
@@ -311,7 +311,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
               child: Text(
                 cat,
                 style: AppTypography.captionMedium(context).copyWith(
-                  color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                  color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
                   fontSize: 12,
                 ),
               ),
@@ -360,7 +360,7 @@ class _MoradorGeralCard extends StatelessWidget {
             icon: PhosphorIcons.paperPlaneTilt,
             label: 'Enviar',
             backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
+            foregroundColor: AppColors.onPrimary,
             onTap: onSendCredentials!,
           ),
       ],

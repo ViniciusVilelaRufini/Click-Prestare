@@ -153,13 +153,13 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                                   Icon(
                                     PhosphorIcons.calendarBlank,
                                     size: 14,
-                                    color: selected ? Colors.white : AppColors.textSecondary(context),
+                                    color: selected ? AppColors.onPrimary : AppColors.textSecondary(context),
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     t['periodo'],
                                     style: AppTypography.caption(context).copyWith(
-                                      color: selected ? Colors.white : AppColors.textSecondary(context),
+                                      color: selected ? AppColors.onPrimary : AppColors.textSecondary(context),
                                       fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                                     ),
                                   ),
@@ -178,10 +178,10 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                             onPressed: _isExporting ? null : _exportCsv,
                             icon: _isExporting
                                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                                : const Icon(PhosphorIcons.fileCsv, size: 18, color: AppColors.primary),
-                            label: const Text('Exportar CSV', style: TextStyle(color: AppColors.primary)),
+                                : Icon(PhosphorIcons.fileCsv, size: 18, color: AppColors.primary),
+                            label: Text('Exportar CSV', style: TextStyle(color: AppColors.primary)),
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: AppColors.primary),
+                              side: BorderSide(color: AppColors.primary),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
                           ),

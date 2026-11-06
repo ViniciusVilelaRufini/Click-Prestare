@@ -128,7 +128,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
     switch (cat) {
       case 'Condomínio':
       case 'Taxa Condominial':
-        return const Color(0xFF2563EB);
+        return AppColors.primary;
       case 'Aluguel':
         return const Color(0xFF6366F1);
       case 'Água':
@@ -377,7 +377,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       colors: [AppColors.primary, AppColors.primaryDark],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -399,20 +399,20 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: AppColors.onPrimary.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(PhosphorIcons.fileCsv, color: Colors.white, size: 24),
+                            child: Icon(PhosphorIcons.fileCsv, color: AppColors.onPrimary, size: 24),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   "Relatório Pessoal",
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: AppColors.onPrimary,
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -421,7 +421,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                                 Text(
                                   "Personalize os filtros para exportar seus dados",
                                   style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.85),
+                                    color: AppColors.onPrimary.withValues(alpha: 0.85),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -434,16 +434,16 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
+                          color: AppColors.onPrimary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             _buildMiniSummary("Total Geral", "$moeda ${formatMoeda(totalGeral)}"),
-                            Container(width: 1, height: 28, color: Colors.white24),
+                            Container(width: 1, height: 28, color: AppColors.onPrimary.withValues(alpha: 0.24)),
                             _buildMiniSummary("Pendente", "$moeda ${formatMoeda(totalPendente)}"),
-                            Container(width: 1, height: 28, color: Colors.white24),
+                            Container(width: 1, height: 28, color: AppColors.onPrimary.withValues(alpha: 0.24)),
                             _buildMiniSummary("Contas", "${filtered.length}"),
                           ],
                         ),
@@ -514,13 +514,13 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                               Icon(
                                 cat == 'Todas' ? PhosphorIcons.squaresFour : _iconeCategoria(cat),
                                 size: 16,
-                                color: isSelected ? Colors.white : cor,
+                                color: isSelected ? AppColors.on(cor) : cor,
                               ),
                               const SizedBox(width: 6),
                               Text(
                                 cat,
                                 style: TextStyle(
-                                  color: isSelected ? Colors.white : AppColors.textPrimary(context),
+                                  color: isSelected ? AppColors.on(cor) : AppColors.textPrimary(context),
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                                   fontSize: 13,
                                 ),
@@ -584,7 +584,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                                 Text(
                                   m['name']!.toUpperCase(),
                                   style: TextStyle(
-                                    color: isSelected ? Colors.white : AppColors.textPrimary(context),
+                                    color: isSelected ? AppColors.onPrimary : AppColors.textPrimary(context),
                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                                     fontSize: 12,
                                   ),
@@ -643,7 +643,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                             onSelected: (_) => setState(() => _selectedAno = a),
                             selectedColor: AppColors.primary,
                             labelStyle: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.textPrimary(context),
+                              color: isSelected ? AppColors.onPrimary : AppColors.textPrimary(context),
                               fontWeight: FontWeight.bold,
                             ),
                           );
@@ -684,7 +684,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                     if (filtered.isNotEmpty)
                       Text(
                         "$moeda ${formatMoeda(totalGeral)}",
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.primary,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
@@ -820,17 +820,17 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
         child: ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
+            foregroundColor: AppColors.onPrimary,
             minimumSize: const Size(double.infinity, 52),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: 2,
           ),
           onPressed: _isExporting ? null : _exportarRelatorio,
           icon: _isExporting
-              ? const SizedBox(
+              ? SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                  child: CircularProgressIndicator(color: AppColors.onPrimary, strokeWidth: 2.5),
                 )
               : const Icon(PhosphorIcons.downloadSimpleBold, size: 20),
           label: Text(
@@ -847,13 +847,13 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
       children: [
         Text(
           label,
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11),
+          style: TextStyle(color: AppColors.onPrimary.withValues(alpha: 0.8), fontSize: 11),
         ),
         const SizedBox(height: 3),
         Text(
           value,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: AppColors.onPrimary,
             fontWeight: FontWeight.bold,
             fontSize: 13.5,
           ),
@@ -945,7 +945,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
             child: Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                 fontSize: 12,
               ),
@@ -977,13 +977,13 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
               Icon(
                 icon,
                 size: 14,
-                color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
               ),
               const SizedBox(width: 4),
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : AppColors.textPrimary(context),
+                  color: isSelected ? AppColors.onPrimary : AppColors.textPrimary(context),
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                   fontSize: 12,
                 ),

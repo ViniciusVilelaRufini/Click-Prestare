@@ -86,7 +86,7 @@ class HorarioCard extends StatelessWidget {
                     child: Icon(
                       PhosphorIcons.clock,
                       size: 20,
-                      color: selecionado ? Colors.white : destaque,
+                      color: selecionado ? AppColors.onPrimary : destaque,
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),

@@ -195,10 +195,10 @@ class _MyApartamentoViewState extends State<MyApartamentoView> {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: AppColors.onPrimary.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
-            child: const Icon(PhosphorIcons.door, color: Colors.white, size: 28),
+            child: Icon(PhosphorIcons.door, color: AppColors.onPrimary, size: 28),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -207,18 +207,18 @@ class _MyApartamentoViewState extends State<MyApartamentoView> {
               children: [
                 Text(
                   '${getText('lb_apartamento')} $_apto',
-                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: AppColors.onPrimary, fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   rotuloBloco(_bloco),
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 15, fontWeight: FontWeight.w500),
+                  style: TextStyle(color: AppColors.onPrimary.withValues(alpha: 0.9), fontSize: 15, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: AppColors.onPrimary.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -227,12 +227,12 @@ class _MyApartamentoViewState extends State<MyApartamentoView> {
                       Icon(
                         _isProprietario ? PhosphorIcons.crown : PhosphorIcons.user,
                         size: 12,
-                        color: Colors.white,
+                        color: AppColors.onPrimary,
                       ),
                       const SizedBox(width: 6),
                       Text(
                         _badgeText,
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                        style: TextStyle(color: AppColors.onPrimary, fontSize: 12, fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),

@@ -194,7 +194,7 @@ class _EditMoradorPageState extends State<EditMorador> {
                                 shape: BoxShape.circle,
                                 border: Border.all(color: AppColors.bg(context), width: 2),
                               ),
-                              child: const Icon(PhosphorIcons.camera, size: 16, color: Colors.white),
+                              child: Icon(PhosphorIcons.camera, size: 16, color: AppColors.onPrimary),
                             ),
                           ),
                         ],

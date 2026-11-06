@@ -19,13 +19,13 @@ class DeliveryStatusStyle {
 
   const DeliveryStatusStyle._(this.color, this.icon, this.label);
 
-  static const _agendada = DeliveryStatusStyle._(
+  static DeliveryStatusStyle get _agendada => DeliveryStatusStyle._(
       AppColors.primary, PhosphorIcons.calendarCheck, 'Agendada');
 
   static DeliveryStatusStyle of(String status) {
     switch (status) {
       case 'CHEGOU':
-        return const DeliveryStatusStyle._(
+        return DeliveryStatusStyle._(
             AppColors.warning, PhosphorIcons.bellRinging, 'Chegou');
       case 'AGUARDANDO_AUTORIZACAO':
         return const DeliveryStatusStyle._(
@@ -37,13 +37,13 @@ class DeliveryStatusStyle {
         return const DeliveryStatusStyle._(
             Color(0xFF8B5CF6), PhosphorIcons.storefront, 'Na portaria');
       case 'CONCLUIDA':
-        return const DeliveryStatusStyle._(
+        return DeliveryStatusStyle._(
             AppColors.success, PhosphorIcons.checkCircle, 'Concluída');
       case 'CANCELADA':
-        return const DeliveryStatusStyle._(
+        return DeliveryStatusStyle._(
             AppColors.error, PhosphorIcons.prohibit, 'Cancelada');
       case 'RECUSADA':
-        return const DeliveryStatusStyle._(
+        return DeliveryStatusStyle._(
             AppColors.error, PhosphorIcons.xCircle, 'Recusada');
       default:
         return _agendada;
@@ -57,12 +57,8 @@ class DeliveryStatusStyle {
           ? Color.lerp(color, Colors.white, 0.12)!
           : Color.lerp(color, Colors.black, 0.28)!;
 
-  /// Cor de ícone/texto sobre o preenchimento sólido da cor do status:
-  /// escura nos tons claros (âmbar, verde, laranja), branca nos demais.
-  Color get onColor =>
-      ThemeData.estimateBrightnessForColor(color) == Brightness.light
-          ? AppColors.lightTextPrimary
-          : Colors.white;
+  /// Cor de ícone/texto sobre o preenchimento sólido da cor do status.
+  Color get onColor => AppColors.on(color);
 }
 
 /// Título de um aviso: o estabelecimento, ou um texto padrão.

@@ -127,15 +127,15 @@ class _ListVeiculosState extends State<ListVeiculos> {
           ? FloatingActionButton(
               onPressed: () => _abrirFormVeiculo(),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
             )
           : (_resumoVagas.livres > 0
               ? FloatingActionButton.extended(
                   onPressed: _abrirLiberarVaga,
                   backgroundColor: AppColors.primary,
-                  icon: const Icon(PhosphorIcons.key, color: Colors.white),
+                  icon: Icon(PhosphorIcons.key, color: AppColors.onPrimary),
                   label: Text('Liberar vaga',
-                      style: AppTypography.button(context).copyWith(color: Colors.white)),
+                      style: AppTypography.button(context).copyWith(color: AppColors.onPrimary)),
                 )
               : null),
       body: Column(
@@ -271,7 +271,7 @@ class _ToggleItem extends StatelessWidget {
             child: Text(
               label,
               style: AppTypography.tiny(context).copyWith(
-                color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),

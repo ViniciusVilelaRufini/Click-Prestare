@@ -44,7 +44,7 @@ class MyApp extends StatefulWidget {
   MyAppState createState() => MyAppState();
 }
 
-class MyAppState extends State<MyApp> {
+class MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool _ready = false;
   late final AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
@@ -53,6 +53,7 @@ class MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     Singleton.instance.mainView = this;
+    WidgetsBinding.instance.addObserver(this);
     _init();
     _initDeepLinks();
   }
@@ -60,7 +61,7 @@ class MyAppState extends State<MyApp> {
   Future<void> _init() async {
     await LocalStorageConfig.instance.initializeLocalStorage();
     await ThemeController.instance.init();
-    ThemeController.instance.addListener(update);
+    ThemeController.instance.addListener(_trocouTema);
     if (mounted) setState(() => _ready = true);
   }
 
@@ -100,10 +101,31 @@ class MyAppState extends State<MyApp> {
     if (mounted) setState(() {});
   }
 
+  void _trocouTema() {
+    update();
+    if (mounted) _reconstruirArvore();
+  }
+
+  @override
+  void didChangePlatformBrightness() => _trocouTema();
+
+  /// `AppColors.primary` e afins são getters sem `BuildContext`: quem só lê
+  /// neles não depende do `Theme` e não reconstruiria na troca de tema, ficando
+  /// com a cor antiga até o próximo setState.
+  void _reconstruirArvore() {
+    void marcar(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(marcar);
+    }
+
+    (context as Element).visitChildren(marcar);
+  }
+
   @override
   void dispose() {
     _linkSubscription?.cancel();
-    ThemeController.instance.removeListener(update);
+    ThemeController.instance.removeListener(_trocouTema);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 

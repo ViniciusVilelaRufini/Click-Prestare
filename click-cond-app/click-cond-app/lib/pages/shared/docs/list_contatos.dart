@@ -101,7 +101,7 @@ class _ListContatosPageState extends State<ListContatos> {
                       MaterialPageRoute(builder: (_) => const NewContato()))
                   .then((_) => loadList()),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
             )
           : null,
       body: _isLoading

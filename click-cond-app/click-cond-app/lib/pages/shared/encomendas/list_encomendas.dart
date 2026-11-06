@@ -156,12 +156,12 @@ class ListEncomendasState extends State<ListEncomendas> {
           ? FloatingActionButton.extended(
               heroTag: 'register_tracking_fab',
               backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.onPrimary,
               onPressed: () => openAddEncomenda(context),
-              icon: const Icon(PhosphorIcons.plus, color: Colors.white, size: 20),
+              icon: Icon(PhosphorIcons.plus, color: AppColors.onPrimary, size: 20),
               label: Text(
                 _isStaff ? 'Nova Encomenda' : 'Avisar Encomenda',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.onPrimary),
               ),
             )
           : null,
@@ -305,7 +305,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                   color: AppColors.primary.withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(PhosphorIcons.package, size: 56, color: AppColors.primary),
+                child: Icon(PhosphorIcons.package, size: 56, color: AppColors.primary),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
@@ -341,7 +341,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                   label: const Text('Cadastrar Nova Encomenda'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.onPrimary,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -371,7 +371,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                   color: AppColors.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(PhosphorIcons.trash, color: AppColors.error, size: 32),
+                child: Icon(PhosphorIcons.trash, color: AppColors.error, size: 32),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
@@ -404,7 +404,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.error,
-                        foregroundColor: Colors.white,
+                        foregroundColor: AppColors.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
@@ -534,7 +534,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
+                        foregroundColor: AppColors.onPrimary,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         elevation: 0,
@@ -558,7 +558,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                           }
                         }
                       },
-                      child: const Text('Cadastrar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text('Cadastrar', style: TextStyle(color: AppColors.onPrimary, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -1085,7 +1085,7 @@ class _EncomendaCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(PhosphorIcons.trash, size: 15, color: AppColors.error),
@@ -1213,7 +1213,7 @@ class _EncomendaCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
-                          return const Center(
+                          return Center(
                             child: CircularProgressIndicator(color: AppColors.primary),
                           );
                         },
@@ -1222,7 +1222,7 @@ class _EncomendaCard extends StatelessWidget {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(PhosphorIcons.warningCircle, color: AppColors.error, size: 36),
+                                Icon(PhosphorIcons.warningCircle, color: AppColors.error, size: 36),
                                 const SizedBox(height: 8),
                                 Text(
                                   'Erro ao carregar imagem',
@@ -1378,7 +1378,7 @@ class _EncomendaCard extends StatelessWidget {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.onPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -1467,7 +1467,7 @@ class _UnitBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(PhosphorIcons.buildings, size: 12, color: AppColors.primary),
+            Icon(PhosphorIcons.buildings, size: 12, color: AppColors.primary),
             const SizedBox(width: 4),
             Flexible(
               child: Text(

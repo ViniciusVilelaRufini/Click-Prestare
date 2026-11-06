@@ -45,7 +45,7 @@ class _ListOcorrenciasPageState extends State<ListOcorrencias> {
                   MaterialPageRoute(builder: (_) => const NewOcorrencia(isEdit: false)))
               .then((_) => setState(() => _versao++)),
           backgroundColor: AppColors.primary,
-          child: const Icon(PhosphorIcons.plus, color: Colors.white),
+          child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
         ),
         body: Column(
           children: [

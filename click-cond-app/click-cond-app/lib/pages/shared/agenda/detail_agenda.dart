@@ -105,7 +105,7 @@ class _DetailAgendaPageState extends State<DetailAgenda> {
               onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => NewAgenda(isEdit: true, myId: widget.id)))
                   .then((_) => load()),
-              child: const Icon(PhosphorIcons.pencil, color: Colors.white),
+              child: Icon(PhosphorIcons.pencil, color: AppColors.onPrimary),
             )
           : null,
     );

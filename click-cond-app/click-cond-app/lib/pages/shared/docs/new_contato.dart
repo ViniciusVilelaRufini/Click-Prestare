@@ -146,7 +146,7 @@ class _NewContatoPageState extends State<NewContato> {
                       s,
                       style: AppTypography.captionMedium(context).copyWith(
                         color: selecionada
-                            ? Colors.white
+                            ? AppColors.onPrimary
                             : AppColors.textSecondary(context),
                         fontWeight: FontWeight.w600,
                       ),

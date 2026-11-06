@@ -120,7 +120,7 @@ class _ListEnquetesPageState extends State<ListEnquetes> {
                       MaterialPageRoute(builder: (_) => NewVotacao(isEnquete: true)))
                   .then((_) => loadList()),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
             )
           : null,
       body: Column(
@@ -231,7 +231,7 @@ class _MonthStrip extends StatelessWidget {
           final mesLongo = DateFormat('MMMM', 'pt_BR').format(dt);
           final mostrarAno = dt.year != now.year;
 
-          final Color fg = isSelected ? Colors.white : AppColors.textPrimary(context);
+          final Color fg = isSelected ? AppColors.onPrimary : AppColors.textPrimary(context);
           final Color bg = isSelected ? AppColors.primary : AppColors.surface(context);
           final Color borda = isSelected
               ? AppColors.primary
@@ -282,7 +282,7 @@ class _MonthStrip extends StatelessWidget {
                             maxLines: 1,
                             style: AppTypography.tiny(context).copyWith(
                               height: 1.2,
-                              color: isSelected ? Colors.white.withValues(alpha: 0.8) : AppColors.textTertiary(context),
+                              color: isSelected ? AppColors.onPrimary.withValues(alpha: 0.8) : AppColors.textTertiary(context),
                             ),
                           ),
                       ],

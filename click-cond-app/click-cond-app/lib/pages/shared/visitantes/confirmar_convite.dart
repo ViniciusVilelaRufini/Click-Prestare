@@ -154,12 +154,12 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
               onPressed: _enviando ? null : _confirmar,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.onPrimary,
                 minimumSize: const Size(0, 48),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: _enviando
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary))
                   : const Text('Confirmar entrada'),
             ),
           ),
@@ -298,7 +298,7 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
             child: Text(
               _nomesDias[i],
               style: AppTypography.tiny(context).copyWith(
-                color: marcado ? Colors.white : AppColors.textSecondary(context),
+                color: marcado ? AppColors.onPrimary : AppColors.textSecondary(context),
                 fontWeight: FontWeight.bold,
               ),
             ),

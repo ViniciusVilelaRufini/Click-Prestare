@@ -167,7 +167,7 @@ class _SeloData extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fg = isDark ? const Color(0xFF93B4F8) : AppColors.primaryDark;
+    final fg = AppColors.primary;
     final d = data;
 
     return Semantics(

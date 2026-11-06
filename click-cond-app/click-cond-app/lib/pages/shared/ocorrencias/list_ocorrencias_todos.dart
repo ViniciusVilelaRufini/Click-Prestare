@@ -129,7 +129,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                   selectedColor: AppColors.primary,
                   backgroundColor: AppColors.surface(context),
                   labelStyle: AppTypography.captionMedium(context).copyWith(
-                    color: _selectedMonth == null ? Colors.white : AppColors.textSecondary(context),
+                    color: _selectedMonth == null ? AppColors.onPrimary : AppColors.textSecondary(context),
                     fontWeight: FontWeight.w600,
                   ),
                   side: BorderSide(
@@ -157,7 +157,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                     selectedColor: AppColors.primary,
                     backgroundColor: AppColors.surface(context),
                     labelStyle: AppTypography.captionMedium(context).copyWith(
-                      color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                      color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
                       fontWeight: FontWeight.w600,
                     ),
                     side: BorderSide(

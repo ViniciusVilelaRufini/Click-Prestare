@@ -59,7 +59,7 @@ class _CustomDialogBoxState extends State<CustomDialogBox> {
                 ),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               PhosphorIcons.check,
               color: AppColors.primary,
               size: 56,

@@ -188,12 +188,12 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
       ElevatedButton.icon(
         onPressed: _gerando ? null : () => _gerar(isPrestador: _prestador),
         icon: _gerando
-            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary))
             : const Icon(PhosphorIcons.whatsappLogo, size: 20),
         label: Text(_gerando ? 'Gerando...' : 'Gerar e enviar no WhatsApp'),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: AppColors.onPrimary,
           minimumSize: const Size(double.infinity, 50),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),

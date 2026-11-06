@@ -394,7 +394,7 @@ class _NewMoradorPageState extends State<NewMorador> {
                                   child: Icon(
                                     _isMenor ? PhosphorIcons.shieldCheck : PhosphorIcons.camera,
                                     size: 16,
-                                    color: Colors.white,
+                                    color: AppColors.onPrimary,
                                   ),
                                 ),
                               ),
@@ -507,7 +507,7 @@ class _NewMoradorPageState extends State<NewMorador> {
                               color: AppColors.primary.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Text(
+                            child: Text(
                               'LGPD Art. 14',
                               style: TextStyle(
                                 color: AppColors.primary,
@@ -547,7 +547,7 @@ class _NewMoradorPageState extends State<NewMorador> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(PhosphorIcons.shieldCheck, color: AppColors.primary, size: 20),
+                          Icon(PhosphorIcons.shieldCheck, color: AppColors.primary, size: 20),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
@@ -631,7 +631,7 @@ class _NewMoradorPageState extends State<NewMorador> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(PhosphorIcons.info, size: 18, color: AppColors.primary),
+                          Icon(PhosphorIcons.info, size: 18, color: AppColors.primary),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(

@@ -163,7 +163,7 @@ class _ModalAgendaReservaState extends State<ModalAgendaReserva> {
 
     if (isSelected) {
       bg = AppColors.primary;
-      fg = Colors.white;
+      fg = AppColors.onPrimary;
     } else if (allowed) {
       bg = AppColors.primary.withValues(alpha: 0.15);
       fg = AppColors.primary;

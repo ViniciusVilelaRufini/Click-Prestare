@@ -191,12 +191,12 @@ class _NewAptoPageState extends State<NewApto> {
                             width: 56,
                             height: 56,
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: AppColors.onPrimary.withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               PhosphorIcons.door,
-                              color: Colors.white,
+                              color: AppColors.onPrimary,
                               size: 28,
                             ),
                           ),
@@ -207,8 +207,8 @@ class _NewAptoPageState extends State<NewApto> {
                               children: [
                                 Text(
                                   'Apartamento ${txtApto.text}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: AppColors.onPrimary,
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -217,7 +217,7 @@ class _NewAptoPageState extends State<NewApto> {
                                 Text(
                                   'Bloco ${txtBloco.text}',
                                   style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.9),
+                                    color: AppColors.onPrimary.withValues(alpha: 0.9),
                                     fontSize: 15,
                                     fontWeight: FontWeight.w500,
                                   ),

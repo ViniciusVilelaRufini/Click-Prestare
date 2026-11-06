@@ -177,7 +177,7 @@ class CellAreaSocial extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
+                        Text(
                           'Reservar',
                           style: TextStyle(
                             color: AppColors.primary,
@@ -229,7 +229,7 @@ class CellAreaSocial extends StatelessWidget {
 
   Widget _placeholderImage(BuildContext context, IconData icon) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
             AppColors.primaryGradientStart,
@@ -240,7 +240,7 @@ class CellAreaSocial extends StatelessWidget {
         ),
       ),
       child: Center(
-        child: Icon(icon, size: 48, color: Colors.white.withValues(alpha: 0.85)),
+        child: Icon(icon, size: 48, color: AppColors.onPrimary.withValues(alpha: 0.85)),
       ),
     );
   }

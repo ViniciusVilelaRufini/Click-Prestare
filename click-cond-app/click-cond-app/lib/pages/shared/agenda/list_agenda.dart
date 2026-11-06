@@ -50,7 +50,7 @@ class _ListAgendaPageState extends State<ListAgenda> {
                       MaterialPageRoute(builder: (_) => NewAgenda(isEdit: false)))
                   .then((_) => loadList()),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
             )
           : null,
       body: _isLoading
@@ -103,7 +103,7 @@ class _AgendaCard extends StatelessWidget {
             Container(
               width: 44, height: 44,
               decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-              child: const Icon(PhosphorIcons.wrench, color: AppColors.primary, size: 22),
+              child: Icon(PhosphorIcons.wrench, color: AppColors.primary, size: 22),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

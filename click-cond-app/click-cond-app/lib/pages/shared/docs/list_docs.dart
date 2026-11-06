@@ -100,7 +100,7 @@ class _ListDocsPageState extends State<ListDocs> {
                       MaterialPageRoute(builder: (_) => NewDocument(is_ata: false)))
                   .then((_) => loadList()),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
             )
           : null,
       body: _isLoading
@@ -140,7 +140,7 @@ class _ListDocsPageState extends State<ListDocs> {
                           selectedColor: AppColors.primary,
                           backgroundColor: AppColors.surface(context),
                           labelStyle: AppTypography.captionMedium(context).copyWith(
-                            color: _selectedMonth == null ? Colors.white : AppColors.textSecondary(context),
+                            color: _selectedMonth == null ? AppColors.onPrimary : AppColors.textSecondary(context),
                             fontWeight: FontWeight.w600,
                           ),
                           side: BorderSide(
@@ -168,7 +168,7 @@ class _ListDocsPageState extends State<ListDocs> {
                             selectedColor: AppColors.primary,
                             backgroundColor: AppColors.surface(context),
                             labelStyle: AppTypography.captionMedium(context).copyWith(
-                              color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                              color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
                               fontWeight: FontWeight.w600,
                             ),
                             side: BorderSide(

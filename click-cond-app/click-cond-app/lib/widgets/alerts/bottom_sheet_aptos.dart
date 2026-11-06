@@ -128,7 +128,7 @@ void bottomSheetAptos(BuildContext context, List<dynamic> list, String selected,
                                 child: Text(
                                   item,
                                   style: AppTypography.bodyMedium(bc).copyWith(
-                                    color: isSelected ? Colors.white : AppColors.textPrimary(bc),
+                                    color: isSelected ? AppColors.onPrimary : AppColors.textPrimary(bc),
                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                   ),
                                 ),

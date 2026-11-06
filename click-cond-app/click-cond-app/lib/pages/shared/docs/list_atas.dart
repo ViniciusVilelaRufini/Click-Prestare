@@ -96,7 +96,7 @@ class _ListAtasPageState extends State<ListAtas> {
                       MaterialPageRoute(builder: (_) => NewDocument(is_ata: true)))
                   .then((_) => loadList()),
               backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
             )
           : null,
       body: _isLoading
@@ -136,7 +136,7 @@ class _ListAtasPageState extends State<ListAtas> {
                           selectedColor: AppColors.primary,
                           backgroundColor: AppColors.surface(context),
                           labelStyle: AppTypography.captionMedium(context).copyWith(
-                            color: _selectedMonth == null ? Colors.white : AppColors.textSecondary(context),
+                            color: _selectedMonth == null ? AppColors.onPrimary : AppColors.textSecondary(context),
                             fontWeight: FontWeight.w600,
                           ),
                           side: BorderSide(
@@ -164,7 +164,7 @@ class _ListAtasPageState extends State<ListAtas> {
                             selectedColor: AppColors.primary,
                             backgroundColor: AppColors.surface(context),
                             labelStyle: AppTypography.captionMedium(context).copyWith(
-                              color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                              color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
                               fontWeight: FontWeight.w600,
                             ),
                             side: BorderSide(
@@ -214,7 +214,7 @@ class _ListAtasPageState extends State<ListAtas> {
                                     Container(
                                       width: 44, height: 44,
                                       decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                                      child: const Icon(PhosphorIcons.fileText, color: AppColors.primary, size: 22),
+                                      child: Icon(PhosphorIcons.fileText, color: AppColors.primary, size: 22),
                                     ),
                                     const SizedBox(width: AppSpacing.md),
                                     Expanded(child: Text(filteredList[i]['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis)),

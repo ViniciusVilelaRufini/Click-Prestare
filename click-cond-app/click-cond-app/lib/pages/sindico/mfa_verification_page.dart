@@ -393,7 +393,7 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
               ),
             ],
           ),
-          child: const Center(
+          child: Center(
             child: Icon(
               PhosphorIcons.shieldCheckBold,
               color: AppColors.primary,

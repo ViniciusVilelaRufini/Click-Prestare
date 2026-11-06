@@ -183,7 +183,7 @@ class _LinkSelfMoradorSheetState extends State<_LinkSelfMoradorSheet> {
             child: Text(
               value,
               style: AppTypography.bodyMedium(context).copyWith(
-                color: selected ? Colors.white : AppColors.textPrimary(context),
+                color: selected ? AppColors.onPrimary : AppColors.textPrimary(context),
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
               ),
             ),

@@ -1,3 +1,4 @@
+import 'package:click/theme/theme_controller.dart';
 import 'package:click/models/delivery_model.dart';
 import 'package:click/pages/shared/delivery/delivery_status_style.dart';
 import 'package:click/theme/app_colors.dart';
@@ -379,7 +380,12 @@ void main() {
   });
 
   test('onColor garante contraste sobre a cor do status', () {
-    expect(DeliveryStatusStyle.of('CHEGOU').onColor, isNot(Colors.white));
+    addTearDown(() => ThemeController.instance.debugSetMode(ThemeMode.system));
+    ThemeController.instance.debugSetMode(ThemeMode.dark);
+    expect(DeliveryStatusStyle.of('CHEGOU').onColor, Colors.black);
+    expect(DeliveryStatusStyle.of('AGENDADA').onColor, Colors.black);
+    ThemeController.instance.debugSetMode(ThemeMode.light);
+    expect(DeliveryStatusStyle.of('CHEGOU').onColor, Colors.white);
     expect(DeliveryStatusStyle.of('AGENDADA').onColor, Colors.white);
   });
   group('card do histórico', () {
