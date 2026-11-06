@@ -485,8 +485,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         color: AppColors.bg100(context),
         border: Border(top: BorderSide(color: AppColors.border(context))),
       ),
-      child: SafeArea(
-        top: false,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: navBarBottomPadding(context)),
         child: SizedBox(
           height: 58,
           child: Row(

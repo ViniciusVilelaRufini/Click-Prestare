@@ -209,6 +209,15 @@ validateGenericDate(String date) {
 double fabClearance(BuildContext context) =>
     96 + MediaQuery.viewPaddingOf(context).bottom;
 
+/// Folga da barra inferior sobre a área do sistema. No iPhone a reserva inteira
+/// (34) vira uma faixa vazia sob os rótulos, e o indicador só ocupa os 13 de
+/// baixo; no Android o inset pode ser o dos botões de navegação, então fica todo.
+double navBarBottomPadding(BuildContext context) {
+  final inset = MediaQuery.viewPaddingOf(context).bottom;
+  if (defaultTargetPlatform != TargetPlatform.iOS) return inset;
+  return inset < 14 ? inset : 14;
+}
+
 /// Contador inteiro com zero à esquerda (3 -> "03"); não-numéricos viram "00".
 String contador2(dynamic valor) {
   final n = valor is num ? valor.toInt() : int.tryParse('${valor ?? ''}') ?? 0;

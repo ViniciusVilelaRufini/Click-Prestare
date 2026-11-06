@@ -592,8 +592,8 @@ class _MyCondominiumState extends State<MyCondominium> {
         color: AppColors.bg100(context),
         border: Border(top: BorderSide(color: AppColors.border(context))),
       ),
-      child: SafeArea(
-        top: false,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: navBarBottomPadding(context)),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeInOutCubic,
