@@ -44,7 +44,8 @@ ImageProvider? _getVisitorImageProvider(String? photo) {
 }
 
 /// Constrói o avatar do visitante com foto real ou ícone estilizado.
-Widget _buildVisitorAvatar({
+Widget _buildVisitorAvatar(
+  BuildContext context, {
   String? photo,
   required bool isPrestador,
   double size = 48,
@@ -57,10 +58,10 @@ Widget _buildVisitorAvatar({
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
+        color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(
-          color: const Color(0xFFE2E8F0),
+          color: AppColors.border(context),
           width: 1,
         ),
       ),
@@ -72,6 +73,7 @@ Widget _buildVisitorAvatar({
           height: size,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _buildFallbackAvatar(
+            context,
             isPrestador: isPrestador,
             size: size,
             radius: radius,
@@ -82,13 +84,15 @@ Widget _buildVisitorAvatar({
   }
 
   return _buildFallbackAvatar(
+    context,
     isPrestador: isPrestador,
     size: size,
     radius: radius,
   );
 }
 
-Widget _buildFallbackAvatar({
+Widget _buildFallbackAvatar(
+  BuildContext context, {
   required bool isPrestador,
   double size = 48,
   double radius = 12,
@@ -97,9 +101,9 @@ Widget _buildFallbackAvatar({
     width: size,
     height: size,
     decoration: BoxDecoration(
-      color: const Color(0xFFEFF6FF),
+      color: AppColors.surface(context),
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: const Color(0xFFDBEAFE), width: 1),
+      border: Border.all(color: AppColors.surface(context), width: 1),
     ),
     child: Icon(
       isPrestador ? PhosphorIcons.wrench : PhosphorIcons.user,
@@ -279,19 +283,12 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          color: AppColors.border(context),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -301,6 +298,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildVisitorAvatar(
+                context,
                 photo: photo,
                 isPrestador: isPrestador,
                 size: 48,
@@ -325,20 +323,20 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
-                            borderRadius: BorderRadius.circular(6),
+                            color: AppColors.surface(context),
+                            borderRadius: BorderRadius.zero,
                             border: Border.all(
-                              color: const Color(0xFFFECACA),
+                              color: AppColors.border(context),
                               width: 1,
                             ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
-                            children: const [
+                            children: [
                               Text(
                                 'Aguardando',
                                 style: TextStyle(
-                                  color: Color(0xFFDC2626),
+                                  color: AppColors.error,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -394,29 +392,29 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                   children: [
                     Expanded(
                       child: Material(
-                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(10),
+                        color: AppColors.surface(context),
+                        borderRadius: BorderRadius.zero,
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.zero,
                           onTap: () => _responder(item, false),
                           child: Container(
                             height: 44,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
-                                color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                color: AppColors.border(context),
                                 width: 1,
                               ),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(PhosphorIcons.x, size: 16, color: Color(0xFFDC2626)),
+                              children: [
+                                Icon(PhosphorIcons.x, size: 16, color: AppColors.error),
                                 SizedBox(width: 6),
                                 Text(
                                   'Negar',
                                   style: TextStyle(
-                                    color: Color(0xFFDC2626),
+                                    color: AppColors.error,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 14,
                                   ),
@@ -431,14 +429,14 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                     Expanded(
                       child: Material(
                         color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.zero,
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.zero,
                           onTap: () => _responder(item, true, darEntrada: false),
                           child: Container(
                             height: 44,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
                                 color: AppColors.primary.withValues(alpha: 0.35),
                                 width: 1,
@@ -467,26 +465,26 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                 ),
                 const SizedBox(height: 8),
                 Material(
-                  color: const Color(0xFF059669),
-                  borderRadius: BorderRadius.circular(10),
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.zero,
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.zero,
                     onTap: () => _responder(item, true, darEntrada: true),
                     child: Container(
                       height: 44,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(PhosphorIcons.signIn, size: 18, color: Colors.white),
+                        children: [
+                          Icon(PhosphorIcons.signIn, size: 18, color: AppColors.onPrimary),
                           SizedBox(width: 8),
                           Text(
                             'Autorizar e Dar Entrada',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppColors.onPrimary,
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                             ),
@@ -548,9 +546,9 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
     context: ctx,
     barrierDismissible: false,
     builder: (c) => Dialog(
-      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      elevation: 8,
+      backgroundColor: AppColors.surface(c),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      elevation: 0,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -561,6 +559,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
             Row(
               children: [
                 _buildVisitorAvatar(
+                  c,
                   photo: fotoFinal,
                   isPrestador: false,
                   size: 48,
@@ -582,14 +581,14 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: const Color(0xFFFECACA), width: 1),
+                          color: AppColors.surface(c),
+                          borderRadius: BorderRadius.zero,
+                          border: Border.all(color: AppColors.border(c), width: 1),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Aguardando liberação',
                           style: TextStyle(
-                            color: Color(0xFFDC2626),
+                            color: AppColors.error,
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
@@ -605,17 +604,17 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.surface(c),
+                borderRadius: BorderRadius.zero,
                 border: Border.all(
-                  color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  color: AppColors.border(c),
                 ),
               ),
               child: RichText(
                 text: TextSpan(
                   style: TextStyle(
                     fontSize: 14,
-                    color: isDark ? Colors.white70 : const Color(0xFF334155),
+                    color: AppColors.textSecondary(c),
                     height: 1.4,
                   ),
                   children: [
@@ -623,7 +622,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                       text: nomeLabel,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        color: AppColors.textPrimary(c),
                       ),
                     ),
                     const TextSpan(
@@ -638,29 +637,29 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
               children: [
                 Expanded(
                   child: Material(
-                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(10),
+                    color: AppColors.surface(c),
+                    borderRadius: BorderRadius.zero,
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.zero,
                       onTap: () => Navigator.pop(c, DecisaoAutorizacao.negar),
                       child: Container(
                         height: 44,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(
-                            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                            color: AppColors.border(c),
                             width: 1,
                           ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(PhosphorIcons.x, size: 16, color: Color(0xFFDC2626)),
+                          children: [
+                            Icon(PhosphorIcons.x, size: 16, color: AppColors.error),
                             SizedBox(width: 6),
                             Text(
                               'Negar',
                               style: TextStyle(
-                                color: Color(0xFFDC2626),
+                                color: AppColors.error,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
                               ),
@@ -675,14 +674,14 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                 Expanded(
                   child: Material(
                     color: AppColors.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.zero,
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.zero,
                       onTap: () => Navigator.pop(c, DecisaoAutorizacao.autorizar),
                       child: Container(
                         height: 44,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(
                             color: AppColors.primary.withValues(alpha: 0.35),
                             width: 1,
@@ -711,26 +710,26 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
             ),
             const SizedBox(height: 8),
             Material(
-              color: const Color(0xFF059669),
-              borderRadius: BorderRadius.circular(10),
+              color: AppColors.primary,
+              borderRadius: BorderRadius.zero,
               child: InkWell(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.zero,
                 onTap: () => Navigator.pop(c, DecisaoAutorizacao.autorizarEntrada),
                 child: Container(
                   height: 44,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(PhosphorIcons.signIn, size: 18, color: Colors.white),
+                    children: [
+                      Icon(PhosphorIcons.signIn, size: 18, color: AppColors.onPrimary),
                       SizedBox(width: 8),
                       Text(
                         'Autorizar e Dar Entrada',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.onPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -748,7 +747,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
               child: Text(
                 'Decidir depois',
                 style: TextStyle(
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  color: isDark ? AppColors.textTertiary(c) : AppColors.textSecondary(c),
                   fontSize: 13,
                 ),
               ),

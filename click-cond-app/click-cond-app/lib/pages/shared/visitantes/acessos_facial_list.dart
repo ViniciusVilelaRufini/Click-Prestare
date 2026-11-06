@@ -62,8 +62,8 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
         return (icon: PhosphorIcons.signOut, color: AppColors.primary, label: 'Saiu');
       case 'negado':
         return isBlocked
-            ? (icon: PhosphorIcons.prohibit, color: Colors.red, label: 'BLOQUEADO')
-            : (icon: PhosphorIcons.xCircle, color: Colors.red, label: 'Negado');
+            ? (icon: PhosphorIcons.prohibit, color: AppColors.error, label: 'BLOQUEADO')
+            : (icon: PhosphorIcons.xCircle, color: AppColors.error, label: 'Negado');
       default:
         return (
           icon: PhosphorIcons.scan,
@@ -119,7 +119,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: AppColors.textSecondary(context).withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(
           children: [
@@ -163,21 +163,12 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
 
             return Container(
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                color: AppColors.surface(context),
+                borderRadius: BorderRadius.zero,
                 border: Border.all(
-                  color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                  color: AppColors.border(context),
                   width: 1.1,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: isDark
-                        ? Colors.black.withValues(alpha: 0.20)
-                        : const Color(0xFF64748B).withValues(alpha: 0.05),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
               child: Column(
                 children: exibidos.map((a) {
@@ -222,7 +213,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: AppColors.primary.withValues(alpha: 0.10),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.zero,
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -266,7 +257,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: AppColors.textSecondary(context).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(AppRadius.tag),
                         ),
                         child: Text(
                           '${((a['confianca'] as num) * 100).toStringAsFixed(0)}%',

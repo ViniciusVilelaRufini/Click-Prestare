@@ -97,7 +97,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
         SnackBar(
           content: Text(
               'Erro: ${result ?? 'Não foi possível registrar a entrada.'}'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
           duration: const Duration(seconds: 3),
         ),
       );
@@ -124,7 +124,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
         SnackBar(
           content: Text(
               'Erro: ${result ?? 'Não foi possível dar baixa na visita.'}'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
           duration: const Duration(seconds: 3),
         ),
       );
@@ -136,7 +136,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: const Text('Encerrar Visita'),
         content: Text('Deseja registrar a saída de $nome?'),
         actions: [
@@ -151,14 +151,15 @@ class ListVisitantesPageState extends State<ListVisitantes> {
               _registrarSaida(item);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.onPrimary,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                  borderRadius: BorderRadius.zero),
               elevation: 0,
             ),
-            child: const Text('Encerrar',
+            child: Text('Encerrar',
                 style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
+                    color: AppColors.onPrimary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -254,7 +255,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                       decoration: BoxDecoration(
                         color: AppColors.textTertiary(context)
                             .withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(AppRadius.tag),
                       ),
                     )),
                   ),
@@ -303,7 +304,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                               color: AppColors.success
                                                   .withValues(alpha: 0.1),
                                               borderRadius:
-                                                  BorderRadius.circular(6),
+                                                  BorderRadius.zero,
                                             ),
                                             child: Text(
                                               'NO LOCAL',
@@ -322,7 +323,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                               color: AppColors.primary
                                                   .withValues(alpha: 0.1),
                                               borderRadius:
-                                                  BorderRadius.circular(6),
+                                                  BorderRadius.zero,
                                             ),
                                             child: Text(
                                               'AUTORIZADO',
@@ -342,7 +343,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                       context)
                                                   .withValues(alpha: 0.1),
                                               borderRadius:
-                                                  BorderRadius.circular(6),
+                                                  BorderRadius.zero,
                                             ),
                                             child: Text(
                                               'AGENDADO',
@@ -437,25 +438,12 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(AppSpacing.md),
                             decoration: BoxDecoration(
-                              color: Theme.of(context).brightness == Brightness.dark
-                                  ? AppColors.darkSurface
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(16),
+                              color: AppColors.surface(context),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
-                                color: Theme.of(context).brightness == Brightness.dark
-                                    ? AppColors.darkBorder
-                                    : const Color(0xFFE2E8F0),
+                                color: AppColors.border(context),
                                 width: 1.1,
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? Colors.black.withValues(alpha: 0.20)
-                                      : const Color(0xFF64748B).withValues(alpha: 0.05),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,7 +502,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                   .withValues(alpha: 0.4)),
                                           shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(10)),
+                                                  BorderRadius.zero),
                                           padding: const EdgeInsets.symmetric(
                                               vertical: 10),
                                         ),
@@ -570,7 +558,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                           foregroundColor: AppColors.onPrimary,
                                           shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(10)),
+                                                  BorderRadius.zero),
                                           padding: const EdgeInsets.symmetric(
                                               vertical: 10),
                                           elevation: 0,
@@ -588,15 +576,8 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                             Container(
                               width: double.infinity,
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    AppColors.primary.withValues(alpha: 0.15),
-                                    AppColors.primary.withValues(alpha: 0.05),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(20),
+                                color: AppColors.accentGhost(context),
+                                borderRadius: BorderRadius.zero,
                                 border: Border.all(
                                     color: AppColors.primary
                                         .withValues(alpha: 0.3)),
@@ -641,22 +622,22 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                           const EdgeInsets.all(AppSpacing.sm),
                                       decoration: BoxDecoration(
                                         color: Colors.white,
-                                        borderRadius: BorderRadius.circular(16),
+                                        borderRadius: BorderRadius.zero,
                                       ),
                                       child: QrImageView(
                                         data: item['codigo_acesso'].toString(),
                                         version: QrVersions.auto,
                                         size: _qrSize,
                                         backgroundColor: Colors.white,
-                                        eyeStyle: const QrEyeStyle(
+                                        eyeStyle: QrEyeStyle(
                                           eyeShape: QrEyeShape.square,
-                                          color: Color(0xFF0A1628),
+                                          color: AppColors.textPrimary(context),
                                         ),
                                         dataModuleStyle:
-                                            const QrDataModuleStyle(
+                                            QrDataModuleStyle(
                                           dataModuleShape:
                                               QrDataModuleShape.square,
-                                          color: Color(0xFF0A1628),
+                                          color: AppColors.textPrimary(context),
                                         ),
                                       ),
                                     ),
@@ -703,11 +684,11 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                 ),
                                               ),
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: const Color(0xFF25D366),
-                                                foregroundColor: Colors.white,
+                                                backgroundColor: AppColors.textSecondary(context),
+                                                foregroundColor: AppColors.onPrimary,
                                                 elevation: 0,
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(12),
+                                                  borderRadius: BorderRadius.zero,
                                                 ),
                                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                               ),
@@ -748,7 +729,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                         .withValues(alpha: 0.4)),
                                                 shape: RoundedRectangleBorder(
                                                     borderRadius:
-                                                        BorderRadius.circular(10)),
+                                                        BorderRadius.zero),
                                                 padding: const EdgeInsets.symmetric(
                                                     vertical: 10),
                                               ),
@@ -810,7 +791,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               decoration: BoxDecoration(
                                 color: AppColors.textSecondary(context)
                                     .withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.zero,
                                 border: Border.all(
                                     color: AppColors.textSecondary(context)
                                         .withValues(alpha: 0.2)),
@@ -868,7 +849,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       backgroundColor: AppColors.success,
                                       shape: RoundedRectangleBorder(
                                           borderRadius:
-                                              BorderRadius.circular(14)),
+                                              BorderRadius.zero),
                                       elevation: 0,
                                     ),
                                   ),
@@ -896,10 +877,10 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       ),
                                     ),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFDC2626),
+                                      backgroundColor: AppColors.error,
                                       shape: RoundedRectangleBorder(
                                           borderRadius:
-                                              BorderRadius.circular(14)),
+                                              BorderRadius.zero),
                                       elevation: 0,
                                     ),
                                   ),
@@ -920,7 +901,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                                     .withValues(alpha: 0.3)),
                                         shape: RoundedRectangleBorder(
                                             borderRadius:
-                                                BorderRadius.circular(14)),
+                                                BorderRadius.zero),
                                       ),
                                       child: Text('Fechar',
                                           style: AppTypography.body(context)),
@@ -961,7 +942,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                               const Size.fromHeight(48),
                                           shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(14)),
+                                                  BorderRadius.zero),
                                           padding: const EdgeInsets.symmetric(
                                               horizontal: 16),
                                           elevation: 0,
@@ -1205,7 +1186,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                           const BoxConstraints(minWidth: 18, minHeight: 18),
                       decoration: BoxDecoration(
                         color: AppColors.error,
-                        borderRadius: BorderRadius.circular(9),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: Text(
                         '$_pendentesCount',
@@ -1224,20 +1205,10 @@ class ListVisitantesPageState extends State<ListVisitantes> {
         floatingActionButton: canAdd && widget.showFab
             ? Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                          alpha: Theme.of(context).brightness == Brightness.dark
-                              ? 0.3
-                              : 0.08),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.zero,
                   clipBehavior: Clip.antiAlias,
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -1247,7 +1218,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                       height: 56,
                       decoration: BoxDecoration(
                         color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.zero,
                         border: Border.all(
                           color: AppColors.onPrimary.withValues(alpha: 0.20),
                           width: 1.0,
@@ -1262,7 +1233,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               builder: (_) => NewVisitante(isEdit: false),
                             ),
                           ).then((_) => loadList()),
-                          borderRadius: BorderRadius.circular(28),
+                          borderRadius: BorderRadius.zero,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Row(
@@ -1348,7 +1319,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                     filled: true,
                     fillColor: AppColors.surface(context),
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.zero,
                         borderSide: BorderSide.none),
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.md, vertical: 14),
@@ -1395,7 +1366,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: AppColors.surface(context),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: TabBar(
                     dividerColor: Colors.transparent,
@@ -1407,7 +1378,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                     indicatorSize: TabBarIndicatorSize.tab,
                     indicator: BoxDecoration(
                       color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.zero,
                     ),
                     tabs: [
                       Tab(
@@ -1617,21 +1588,12 @@ class _VisitanteCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
-            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            color: AppColors.border(context),
             width: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: isDark
-                  ? Colors.black.withValues(alpha: 0.25)
-                  : const Color(0xFF64748B).withValues(alpha: 0.06),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1651,12 +1613,10 @@ class _VisitanteCard extends StatelessWidget {
                           width: 12,
                           height: 12,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF10B981),
+                            color: AppColors.success,
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF1E293B)
-                                  : Colors.white,
+                              color: AppColors.surface(context),
                               width: 2,
                             ),
                           ),
@@ -1675,7 +1635,7 @@ class _VisitanteCard extends StatelessWidget {
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color:
-                              isDark ? Colors.white : const Color(0xFF0F172A),
+                              AppColors.textPrimary(context),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1687,8 +1647,8 @@ class _VisitanteCard extends StatelessWidget {
                           fontSize: 13,
                           fontWeight: FontWeight.w400,
                           color: isDark
-                              ? const Color(0xFF94A3B8)
-                              : const Color(0xFF64748B),
+                              ? AppColors.textTertiary(context)
+                              : AppColors.textSecondary(context),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1697,14 +1657,14 @@ class _VisitanteCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _buildStatusBadge(isInside, isAuthorized, isExpired),
+                _buildStatusBadge(context, isInside, isAuthorized, isExpired),
               ],
             ),
             const SizedBox(height: 12),
             Divider(
               height: 1,
               thickness: 1,
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              color: AppColors.surfaceElevated(context),
             ),
             const SizedBox(height: 12),
             // Linha Inferior: Horário + PIN + Ação
@@ -1718,8 +1678,8 @@ class _VisitanteCard extends StatelessWidget {
                       PhosphorIcons.clock,
                       size: 16,
                       color: isDark
-                          ? const Color(0xFF64748B)
-                          : const Color(0xFF94A3B8),
+                          ? AppColors.textSecondary(context)
+                          : AppColors.textTertiary(context),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -1729,8 +1689,8 @@ class _VisitanteCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         color: isDark
-                            ? const Color(0xFF94A3B8)
-                            : const Color(0xFF64748B),
+                            ? AppColors.textTertiary(context)
+                            : AppColors.textSecondary(context),
                       ),
                     ),
                     Text(
@@ -1738,8 +1698,8 @@ class _VisitanteCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         color: isDark
-                            ? const Color(0xFF94A3B8)
-                            : const Color(0xFF64748B),
+                            ? AppColors.textTertiary(context)
+                            : AppColors.textSecondary(context),
                       ),
                     ),
                   ],
@@ -1762,8 +1722,8 @@ class _VisitanteCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(10),
+                        color: AppColors.surface(context),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1789,8 +1749,8 @@ class _VisitanteCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       color: isDark
-                          ? const Color(0xFF64748B)
-                          : const Color(0xFF94A3B8),
+                          ? AppColors.textSecondary(context)
+                          : AppColors.textTertiary(context),
                     ),
                   ),
                 const Spacer(),
@@ -1798,17 +1758,17 @@ class _VisitanteCard extends StatelessWidget {
                 if (isInside && onEncerrar != null)
                   InkWell(
                     onTap: onEncerrar,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.zero,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        borderRadius: BorderRadius.circular(10),
+                        color: AppColors.surface(context),
+                        borderRadius: BorderRadius.zero,
                         border: Border.all(
                           color: isDark
-                              ? const Color(0xFF475569)
-                              : const Color(0xFFE2E8F0),
+                              ? AppColors.textSecondary(context)
+                              : AppColors.border(context),
                           width: 1,
                         ),
                       ),
@@ -1819,15 +1779,13 @@ class _VisitanteCard extends StatelessWidget {
                             PhosphorIcons.x,
                             size: 13,
                             color:
-                                isDark ? Colors.white : const Color(0xFF1E293B),
+                                AppColors.textPrimary(context),
                           ),
                           const SizedBox(width: 4),
                           Text(
                             'Encerrar',
                             style: TextStyle(
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF1E293B),
+                              color: AppColors.textPrimary(context),
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1839,15 +1797,15 @@ class _VisitanteCard extends StatelessWidget {
                 else if (!isInside && onQuickRelease != null)
                   InkWell(
                     onTap: onQuickRelease,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.zero,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(10),
+                        color: AppColors.surface(context),
+                        borderRadius: BorderRadius.zero,
                         border: Border.all(
-                          color: const Color(0xFFDBEAFE),
+                          color: AppColors.surface(context),
                           width: 1,
                         ),
                       ),
@@ -1882,28 +1840,28 @@ class _VisitanteCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusBadge(bool isInside, bool isAuthorized, bool isExpired) {
+  Widget _buildStatusBadge(BuildContext context, bool isInside, bool isAuthorized, bool isExpired) {
     Color bgColor;
     Color textColor;
     String text;
     bool showDot = true;
 
     if (isInside) {
-      bgColor = const Color(0xFFDCFCE7);
-      textColor = const Color(0xFF16A34A);
+      bgColor = AppColors.surface(context);
+      textColor = AppColors.success;
       text = 'NO LOCAL';
     } else if (isAuthorized) {
-      bgColor = const Color(0xFFEFF6FF);
+      bgColor = AppColors.surface(context);
       textColor = AppColors.primary;
       text = 'AUTORIZADO';
     } else if (isExpired) {
-      bgColor = const Color(0xFFF1F5F9);
-      textColor = const Color(0xFF64748B);
+      bgColor = AppColors.surface(context);
+      textColor = AppColors.textSecondary(context);
       text = 'FINALIZADO';
       showDot = false;
     } else {
-      bgColor = const Color(0xFFFEF3C7);
-      textColor = const Color(0xFFD97706);
+      bgColor = AppColors.surface(context);
+      textColor = AppColors.warning;
       text = 'AGENDADO';
     }
 
@@ -1911,7 +1869,7 @@ class _VisitanteCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1992,7 +1950,7 @@ class _TipoChip extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.zero,
         child: Container(
           height: 34,
           alignment: Alignment.center,
@@ -2001,7 +1959,7 @@ class _TipoChip extends StatelessWidget {
             color: selected
                 ? AppColors.primary.withValues(alpha: 0.12)
                 : AppColors.surface(context),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.zero,
             border: Border.all(
               color: selected
                   ? AppColors.primary.withValues(alpha: 0.5)
@@ -2092,7 +2050,7 @@ Widget _buildVisitanteAvatar(BuildContext context, dynamic item,
     if (provider != null) {
       return CircleAvatar(
         radius: radius,
-        backgroundColor: const Color(0xFFEFF6FF),
+        backgroundColor: AppColors.surface(context),
         backgroundImage: provider,
       );
     }
@@ -2109,7 +2067,7 @@ Widget _buildVisitanteAvatar(BuildContext context, dynamic item,
 
   return CircleAvatar(
     radius: radius,
-    backgroundColor: const Color(0xFFDBEAFE),
+    backgroundColor: AppColors.surface(context),
     child: Text(
       initials,
       style: TextStyle(
@@ -2134,13 +2092,13 @@ Widget _buildFaceBadge(BuildContext context, String? status) {
       label = 'FACIAL';
       break;
     case 'pending':
-      bg = Colors.amber.withValues(alpha: 0.15);
-      fg = Colors.amber.shade700;
+      bg = AppColors.warning.withValues(alpha: 0.15);
+      fg = AppColors.border(context);
       label = 'SINC.';
       break;
     case 'error':
-      bg = Colors.red.withValues(alpha: 0.15);
-      fg = Colors.red.shade600;
+      bg = AppColors.error.withValues(alpha: 0.15);
+      fg = AppColors.border(context);
       label = 'ERRO';
       break;
     default:
@@ -2153,7 +2111,7 @@ Widget _buildFaceBadge(BuildContext context, String? status) {
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(AppRadius.tag),
       ),
       child: Text(
         label,

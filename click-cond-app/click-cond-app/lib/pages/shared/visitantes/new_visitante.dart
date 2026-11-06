@@ -318,7 +318,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
       builder: (BuildContext context) {
         return Dialog(
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           backgroundColor: AppColors.surface(context),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.xl),
@@ -328,7 +328,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.1),
+                    color: AppColors.accentGhost(context),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -358,7 +358,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       horizontal: AppSpacing.lg, vertical: AppSpacing.md),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceElevated(context),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.zero,
                     border: Border.all(
                         color: AppColors.primary.withValues(alpha: 0.2)),
                   ),
@@ -557,7 +557,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       margin: const EdgeInsets.only(top: AppSpacing.sm),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.zero,
                         border: Border.all(
                             color: AppColors.primary.withValues(alpha: 0.2)),
                       ),
@@ -811,7 +811,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: sel ? AppColors.primary : AppColors.surface(context),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.zero,
               border: Border.all(
                   color: sel ? AppColors.primary : AppColors.border(context)),
             ),
@@ -880,7 +880,7 @@ class _Chip extends StatelessWidget {
             horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           color: selected ? AppColors.primary : AppColors.surface(context),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
               color: selected ? AppColors.primary : AppColors.border(context)),
         ),

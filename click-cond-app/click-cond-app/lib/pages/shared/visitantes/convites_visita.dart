@@ -146,7 +146,7 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Row(children: [
@@ -195,7 +195,7 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.onPrimary,
           minimumSize: const Size(double.infinity, 50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         ),
       ),
     ]);
@@ -209,7 +209,7 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: marcado ? AppColors.primary.withValues(alpha: 0.10) : AppColors.surface(context),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: marcado ? AppColors.primary : AppColors.border(context),
             width: marcado ? 1.6 : 1,
@@ -254,11 +254,11 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.zero,
             child: foto.isNotEmpty
                 ? Image.network(foto, width: 56, height: 56, fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => _semFoto())

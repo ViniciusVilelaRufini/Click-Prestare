@@ -142,7 +142,7 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 48),
                 side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
               ),
               child: Text('Recusar', style: TextStyle(color: AppColors.error)),
             ),
@@ -156,7 +156,7 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.onPrimary,
                 minimumSize: const Size(0, 48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
               ),
               child: _enviando
                   ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary))
@@ -237,11 +237,11 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
       ),
       child: Column(children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.zero,
           child: foto.isNotEmpty
               ? Image.network(foto, width: double.infinity, height: 200, fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => _semFoto())
@@ -259,7 +259,7 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: AppColors.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.zero,
           ),
           child: Text(
             _ehPrestador ? 'Prestador de serviço' : 'Visitante',
@@ -290,7 +290,7 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: marcado ? AppColors.primary : AppColors.surface(context),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.zero,
               border: Border.all(
                 color: marcado ? AppColors.primary : AppColors.border(context),
               ),
