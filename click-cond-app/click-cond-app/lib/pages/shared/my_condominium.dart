@@ -409,17 +409,15 @@ class _MyCondominiumState extends State<MyCondominium> {
 
     if (_temp == null) return const SizedBox.shrink();
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.md, AppSpacing.xl, 0),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
+          color: AppColors.surface(context),
           borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+            color: AppColors.border(context),
           ),
         ),
         child: Row(
@@ -576,12 +574,7 @@ class _MyCondominiumState extends State<MyCondominium> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: AnimatedScale(
-                scale: _isNavBarVisible ? 1.0 : 0.94,
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOutCubic,
-                child: _buildBottomNavigationBar(context),
-              ),
+              child: _buildBottomNavigationBar(context),
             ),
           ],
         ),
@@ -589,59 +582,22 @@ class _MyCondominiumState extends State<MyCondominium> {
     );
   }
 
+  /// `.nav`: faixa bg-100 com filete line-100 no topo, sem vidro nem sombra.
   Widget _buildBottomNavigationBar(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return SafeArea(
-      top: false,
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOutCubic,
-        padding: EdgeInsets.only(
-          left: _isNavBarVisible ? 18.0 : 36.0,
-          right: _isNavBarVisible ? 18.0 : 36.0,
-          bottom: _isNavBarVisible ? 12.0 : 8.0,
-          top: 8.0,
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.07),
-                blurRadius: 20,
-                spreadRadius: 0,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            clipBehavior: Clip.antiAlias,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOutCubic,
-                height: _isNavBarVisible ? 68.0 : 52.0,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.black.withValues(alpha: 0.35)
-                      : Colors.white.withValues(alpha: 0.65),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.15)
-                        : Colors.white.withValues(alpha: 0.65),
-                    width: 1,
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: _buildNavItems(context),
-                ),
-              ),
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bg100(context),
+        border: Border(top: BorderSide(color: AppColors.border(context))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOutCubic,
+          height: _isNavBarVisible ? 58.0 : 44.0,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: _buildNavItems(context),
           ),
         ),
       ),
@@ -649,7 +605,6 @@ class _MyCondominiumState extends State<MyCondominium> {
   }
 
   void _showCadastrarVisitanteOuPrestadorSheet(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -657,8 +612,8 @@ class _MyCondominiumState extends State<MyCondominium> {
       builder: (ctx) {
         return Container(
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            color: AppColors.surface(context),
+            borderRadius: BorderRadius.zero,
           ),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           child: Column(
@@ -670,33 +625,29 @@ class _MyCondominiumState extends State<MyCondominium> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15),
+                    color: AppColors.textTertiary(context),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
               const SizedBox(height: 18),
               Text(
-                'Novo Cadastro',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                ),
+                'Novo Cadastro'.toUpperCase(),
+                style: AppTypography.title(context),
               ),
               const SizedBox(height: 4),
               Text(
                 'Escolha o tipo de liberação para registrar no condomínio:',
                 style: TextStyle(
                   fontSize: 13,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  color: AppColors.textSecondary(context),
                 ),
               ),
               const SizedBox(height: 16),
               Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   onTap: () {
                     Navigator.pop(ctx);
                     Navigator.push(
@@ -710,9 +661,9 @@ class _MyCondominiumState extends State<MyCondominium> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                        color: AppColors.border(context),
                       ),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                     ),
                     child: Row(
                       children: [
@@ -720,10 +671,10 @@ class _MyCondominiumState extends State<MyCondominium> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
+                            color: AppColors.primaryLight,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
-                          child: Icon(PhosphorIcons.userPlus, color: AppColors.primary, size: 22),
+                          child: Icon(PhosphorIcons.userPlus, color: AppColors.textPrimary(context), size: 22),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -735,7 +686,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
-                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  color: AppColors.textPrimary(context),
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -743,7 +694,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                                 'Visita avulsa, familiar ou convidado para uma unidade',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  color: AppColors.textSecondary(context),
                                 ),
                               ),
                             ],
@@ -752,7 +703,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                         Icon(
                           PhosphorIcons.caretRightBold,
                           size: 16,
-                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                          color: AppColors.textTertiary(context),
                         ),
                       ],
                     ),
@@ -763,7 +714,7 @@ class _MyCondominiumState extends State<MyCondominium> {
               Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   onTap: () {
                     Navigator.pop(ctx);
                     Navigator.push(
@@ -777,9 +728,9 @@ class _MyCondominiumState extends State<MyCondominium> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                        color: AppColors.border(context),
                       ),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                     ),
                     child: Row(
                       children: [
@@ -787,10 +738,10 @@ class _MyCondominiumState extends State<MyCondominium> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0D9488).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
+                            color: AppColors.primaryLight,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
-                          child: const Icon(PhosphorIcons.wrench, color: Color(0xFF0D9488), size: 22),
+                          child: Icon(PhosphorIcons.wrench, color: AppColors.textPrimary(context), size: 22),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -802,7 +753,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
-                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  color: AppColors.textPrimary(context),
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -810,7 +761,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                                 'Técnicos, diaristas, reformas, entregadores ou obras',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  color: AppColors.textSecondary(context),
                                 ),
                               ),
                             ],
@@ -819,7 +770,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                         Icon(
                           PhosphorIcons.caretRightBold,
                           size: 16,
-                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                          color: AppColors.textTertiary(context),
                         ),
                       ],
                     ),
@@ -956,45 +907,36 @@ class _MyCondominiumState extends State<MyCondominium> {
   /// cima do chat e sem caminho de volta. Como página empurrada, ela ganha a
   /// AppBar com o voltar padrão e o campo de digitar fica livre da ilha.
   Widget _buildAiNavButton(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ChatIaPage()),
-          ).then((_) {
-            // O PRESTARE IA cria visitante, reserva e ocorrência. As abas vivem
-            // num IndexedStack e só carregam no initState, então sem este
-            // refresh o que ele acabou de criar não aparece — o registro está
-            // no banco, mas a lista na tela é a de antes.
-            //
-            // Só visitantes tem lista em aba; reserva e ocorrência aparecem no
-            // resumo da home, que o _loadCond atualiza.
-            _visitantesKey.currentState?.loadList();
-            _loadCond();
-          });
-        },
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [AppColors.primary, AppColors.primaryDark],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return Expanded(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ChatIaPage()),
+              ).then((_) {
+                // O PRESTARE IA cria visitante, reserva e ocorrência. As abas
+                // vivem num IndexedStack e só carregam no initState, então sem
+                // este refresh o que ele acabou de criar não aparece.
+                //
+                // Só visitantes tem lista em aba; reserva e ocorrência
+                // aparecem no resumo da home, que o _loadCond atualiza.
+                _visitantesKey.currentState?.loadList();
+                _loadCond();
+              });
+            },
+            // Botão central: quadrado sólido `accent` com ícone `on-accent`.
+            child: Container(
+              width: 48,
+              height: 48,
+              color: AppColors.primary,
+              child: Icon(PhosphorIcons.buildings,
+                  color: AppColors.onPrimary, size: 22),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.45),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
-          child: Icon(PhosphorIcons.buildingsFill, color: AppColors.onPrimary, size: 24),
         ),
       ),
     );
@@ -1046,40 +988,30 @@ class _MyCondominiumState extends State<MyCondominium> {
     bool isAction = false,
   }) {
     final isSelected = isAction ? false : _currentTab == index;
-    final activeColor = AppColors.primary;
-    final inactiveColor = isAction ? AppColors.primary : AppColors.textSecondary(context);
-    
+    final cor = (isSelected || isAction)
+        ? AppColors.textPrimary(context)
+        : AppColors.textTertiary(context);
+
     return InkWell(
       key: key,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Pílula do ícone: padding contido para não espremer/estourar com
-          // 4 itens em telas estreitas. Largura segue o ícone, centralizada.
+          // Filete de 2px sobre o item ativo, colado ao topo da barra.
           AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? AppColors.primary.withValues(alpha: 0.12)
-                  : (isAction ? AppColors.primary.withValues(alpha: 0.08) : Colors.transparent),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              isSelected ? activeIcon : icon,
-              color: isSelected ? activeColor : inactiveColor,
-              size: 22,
-            ),
+            duration: const Duration(milliseconds: 300),
+            width: isSelected ? 24 : 0,
+            height: 2,
+            color: AppColors.primary,
           ),
+          const SizedBox(height: 10),
+          Icon(isSelected ? activeIcon : icon, color: cor, size: 20),
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            height: _isNavBarVisible ? 3.0 : 0.0,
-            child: const SizedBox(),
+            height: _isNavBarVisible ? 6.0 : 0.0,
           ),
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -1088,16 +1020,12 @@ class _MyCondominiumState extends State<MyCondominium> {
               duration: const Duration(milliseconds: 200),
               opacity: _isNavBarVisible ? 1.0 : 0.0,
               child: Text(
-                label,
+                label.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: AppTypography.tiny(context).copyWith(
-                  color: isSelected ? activeColor : inactiveColor,
-                  fontWeight: (isSelected || isAction) ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 10,
-                  height: 1.1,
-                ),
+                style: AppTypography.label(context)
+                    .copyWith(fontSize: 10, letterSpacing: 1.6, color: cor),
               ),
             ),
           ),
@@ -1106,45 +1034,28 @@ class _MyCondominiumState extends State<MyCondominium> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final buttonBg = isDark ? AppColors.darkSurface : Colors.white;
-    final buttonBorder = isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
+  /// `.iconbtn`: quadrado de 40px com contorno line-100.
+  Widget _iconBtn(BuildContext context, IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border(context)),
+        ),
+        child: Icon(icon, color: AppColors.textPrimary(context), size: 18),
+      ),
+    );
+  }
 
+  Widget _buildHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.xl, AppSpacing.lg, AppSpacing.xl, AppSpacing.lg),
       child: Row(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: buttonBg,
-              shape: BoxShape.circle,
-              border: Border.all(color: buttonBorder, width: 1.1),
-              boxShadow: [
-                BoxShadow(
-                  color: isDark
-                      ? Colors.black.withValues(alpha: 0.15)
-                      : const Color(0xFF64748B).withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: () => Navigator.pop(context),
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: Icon(PhosphorIcons.caretLeft,
-                      color: AppColors.textPrimary(context)),
-                ),
-              ),
-            ),
-          ),
+          _iconBtn(context, PhosphorIcons.caretLeft, () => Navigator.pop(context)),
           AppSpacing.gapMd,
           Expanded(
             child: Column(
@@ -1154,8 +1065,8 @@ class _MyCondominiumState extends State<MyCondominium> {
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text('${getText('ola')} ${getUsername()}',
-                      style: AppTypography.bodySecondary(context)),
+                  child: Text('${getText('ola')} ${getUsername()}'.toUpperCase(),
+                      style: AppTypography.label(context)),
                 ),
                 Builder(
                   builder: (_) {
@@ -1166,8 +1077,8 @@ class _MyCondominiumState extends State<MyCondominium> {
                       return FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
-                        child: Text(headerNome,
-                            style: AppTypography.headline(context),
+                        child: Text(headerNome.toString().toUpperCase(),
+                            style: AppTypography.title(context),
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                       );
                     }
@@ -1177,39 +1088,11 @@ class _MyCondominiumState extends State<MyCondominium> {
               ],
             ),
           ),
-          Container(
-            decoration: BoxDecoration(
-              color: buttonBg,
-              shape: BoxShape.circle,
-              border: Border.all(color: buttonBorder, width: 1.1),
-              boxShadow: [
-                BoxShadow(
-                  color: isDark
-                      ? Colors.black.withValues(alpha: 0.15)
-                      : const Color(0xFF64748B).withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => const ListVeiculos(),
-                  )).then((_) => _loadCond());
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: Icon(PhosphorIcons.car,
-                      color: AppColors.textPrimary(context)),
-                ),
-              ),
-            ),
-          ),
+          _iconBtn(context, PhosphorIcons.car, () {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const ListVeiculos(),
+            )).then((_) => _loadCond());
+          }),
           const SizedBox(width: AppSpacing.sm),
           if (_isLoading)
             SizedBox(
@@ -1217,39 +1100,11 @@ class _MyCondominiumState extends State<MyCondominium> {
               child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary),
             )
           else
-            Container(
-              decoration: BoxDecoration(
-                color: buttonBg,
-                shape: BoxShape.circle,
-                border: Border.all(color: buttonBorder, width: 1.1),
-                boxShadow: [
-                  BoxShadow(
-                    color: isDark
-                        ? Colors.black.withValues(alpha: 0.15)
-                        : const Color(0xFF64748B).withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => ConfiguracoesView(condominio: _cond),
-                    )).then((_) => _loadCond());
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    child: Icon(PhosphorIcons.gearSix,
-                        color: AppColors.textPrimary(context)),
-                  ),
-                ),
-              ),
-            ),
+            _iconBtn(context, PhosphorIcons.gearSix, () {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => ConfiguracoesView(condominio: _cond),
+              )).then((_) => _loadCond());
+            }),
         ],
       ),
     );
@@ -1260,7 +1115,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   Widget _buildOcorrenciasBadge(BuildContext context) {
     final count = _ocorrenciasAbertas;
     return Material(
-      color: AppColors.onPrimary.withValues(alpha: 0.18),
+      color: AppColors.accentGhost(context),
       borderRadius: BorderRadius.circular(AppRadius.md),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1270,7 +1125,7 @@ class _MyCondominiumState extends State<MyCondominium> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Icon(PhosphorIcons.warningCircle, color: AppColors.onPrimary, size: 20),
+              Icon(PhosphorIcons.warningCircle, color: AppColors.textPrimary(context), size: 20),
               if (count > 0)
                 Positioned(
                   right: -6,
@@ -1279,14 +1134,14 @@ class _MyCondominiumState extends State<MyCondominium> {
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                     constraints: const BoxConstraints(minWidth: 16),
                     decoration: BoxDecoration(
-                      color: AppColors.onPrimary,
-                      borderRadius: BorderRadius.circular(999),
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(AppRadius.tag),
                     ),
                     child: Text(
                       count > 99 ? '99+' : '$count',
                       textAlign: TextAlign.center,
                       style: AppTypography.tiny(context).copyWith(
-                        color: AppColors.primary,
+                        color: AppColors.textPrimary(context),
                         fontWeight: FontWeight.bold,
                         fontSize: 9,
                         height: 1.1,
@@ -1301,13 +1156,13 @@ class _MyCondominiumState extends State<MyCondominium> {
     );
   }
 
+  /// Cartão de solicitações pendentes: contorno `line-200`, ícone quadrado,
+  /// tag "Aguardando" com ponto de 6px (sinal) e seta.
   Widget _buildPendentesBanner(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Material(
-      color: Colors.transparent,
+      color: AppColors.surface(context),
+      shape: Border.all(color: AppColors.borderStrong(context)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
         onTap: () {
           Navigator.push(
             context,
@@ -1316,59 +1171,21 @@ class _MyCondominiumState extends State<MyCondominium> {
             if (mounted) _carregarPendentes();
           });
         },
-        child: Container(
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDark
-                  ? [
-                      const Color(0xFF261909),
-                      const Color(0xFF1A1104),
-                    ]
-                  : [
-                      const Color(0xFFFFF7ED),
-                      const Color(0xFFFFEDD5),
-                    ],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: const Color(0xFFF97316).withValues(alpha: 0.35),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFEA580C).withValues(alpha: 0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
           child: Row(
             children: [
               Container(
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFEA580C).withValues(alpha: 0.32),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
+                  color: AppColors.accentGhost(context),
+                  border: Border.all(color: AppColors.border(context)),
                 ),
-                child: const Icon(
-                  PhosphorIcons.bellRingingFill,
-                  color: Colors.white,
-                  size: 23,
+                child: Icon(
+                  PhosphorIcons.bellRinging,
+                  color: AppColors.textPrimary(context),
+                  size: 22,
                 ),
               ),
               const SizedBox(width: 14),
@@ -1381,43 +1198,34 @@ class _MyCondominiumState extends State<MyCondominium> {
                         Expanded(
                           child: Text(
                             '$_pendentesCount ${_pendentesCount == 1 ? "Visita na Portaria" : "Visitas na Portaria"}',
-                            style: TextStyle(
-                              color: isDark ? Colors.white : const Color(0xFF7C2D12),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              letterSpacing: -0.2,
-                            ),
+                            style: AppTypography.strong(context),
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          height: 22,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFDC2626).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: const Color(0xFFDC2626).withValues(alpha: 0.3),
-                              width: 1,
-                            ),
+                            border: Border.all(color: AppColors.borderStrong(context)),
+                            borderRadius: BorderRadius.circular(AppRadius.tag),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
-                                width: 5.5,
-                                height: 5.5,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFDC2626),
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: AppColors.signalWarn(context),
                                   shape: BoxShape.circle,
                                 ),
                               ),
-                              const SizedBox(width: 4.5),
-                              const Text(
-                                'Aguardando',
-                                style: TextStyle(
-                                  color: Color(0xFFB91C1C),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Aguardando'.toUpperCase(),
+                                style: AppTypography.label(context).copyWith(
                                   fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.2,
+                                  letterSpacing: 1.8,
+                                  color: AppColors.textSecondary(context),
                                 ),
                               ),
                             ],
@@ -1428,28 +1236,16 @@ class _MyCondominiumState extends State<MyCondominium> {
                     const SizedBox(height: 3),
                     Text(
                       'Toque para aprovar ou negar a entrada',
-                      style: TextStyle(
-                        color: isDark ? Colors.white70 : const Color(0xFF9A3412),
-                        fontSize: 12.5,
-                        height: 1.2,
-                      ),
+                      style: AppTypography.bodySecondary(context),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEA580C).withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  PhosphorIcons.caretRightBold,
-                  color: Color(0xFFEA580C),
-                  size: 15,
-                ),
+              Icon(
+                PhosphorIcons.caretRight,
+                color: AppColors.textTertiary(context),
+                size: 16,
               ),
             ],
           ),
@@ -1465,17 +1261,8 @@ class _MyCondominiumState extends State<MyCondominium> {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.xl),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
-          ),
-          borderRadius: BorderRadius.circular(AppRadius.xxl),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.25),
-              blurRadius: 20, offset: const Offset(0, 8),
-            ),
-          ],
+          color: AppColors.surface(context),
+          border: Border.all(color: AppColors.borderStrong(context)),
         ),
         child: Column(
           children: [
@@ -1506,13 +1293,13 @@ class _MyCondominiumState extends State<MyCondominium> {
                           child: Container(
                             padding: const EdgeInsets.all(2),
                             decoration: BoxDecoration(
-                              color: AppColors.onPrimary,
+                              color: AppColors.primary,
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
                               PhosphorIcons.camera,
                               size: 12,
-                              color: AppColors.primary,
+                              color: AppColors.textPrimary(context),
                             ),
                           ),
                         ),
@@ -1530,14 +1317,14 @@ class _MyCondominiumState extends State<MyCondominium> {
                               : (Singleton.instance.condominio_nome.isNotEmpty
                                   ? Singleton.instance.condominio_nome
                                   : 'Condomínio'),
-                          style: AppTypography.headline(context).copyWith(color: AppColors.onPrimary),
+                          style: AppTypography.headline(context).copyWith(color: AppColors.textPrimary(context)),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                       AppSpacing.gapXs,
                       Text(type == 'morador'
                               ? '${getText('lb_apto')} ${Singleton.instance.apartamento}'
                               : '${(_cond?['num_aptos'] ?? '')} ${getText('lb_apartamentos')}',
                           style: AppTypography.caption(context).copyWith(
-                              color: AppColors.onPrimary.withValues(alpha: 0.85))),
+                              color: AppColors.textSecondary(context))),
                     ],
                   ),
                 ),
@@ -1546,7 +1333,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                 // chegar às atas da assembleia.
                 if (type == 'morador')
                   Material(
-                    color: AppColors.onPrimary.withValues(alpha: 0.18),
+                    color: AppColors.accentGhost(context),
                     borderRadius: BorderRadius.circular(AppRadius.md),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1554,7 +1341,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                       child: Padding(
                         padding: const EdgeInsets.all(AppSpacing.md),
                         child: Icon(PhosphorIcons.fileText,
-                            color: AppColors.onPrimary, size: 20),
+                            color: AppColors.textPrimary(context), size: 20),
                       ),
                     ),
                   ),
@@ -1562,7 +1349,7 @@ class _MyCondominiumState extends State<MyCondominium> {
             ),
             if (type == 'sindico') ...[
               AppSpacing.gapXl,
-              Container(height: 1, color: AppColors.onPrimary.withValues(alpha: 0.2)),
+              Container(height: 1, color: AppColors.border(context)),
               AppSpacing.gapLg,
               Row(
                 children: [
@@ -1572,7 +1359,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                       children: [
                         Text('Saldo atual'.toUpperCase(),
                             style: AppTypography.tiny(context).copyWith(
-                                color: AppColors.onPrimary.withValues(alpha: 0.7),
+                                color: AppColors.textSecondary(context),
                                 letterSpacing: 1)),
                         AppSpacing.gapXs,
                         // Mesmo saldo da tela de Financeiro do condomínio (o
@@ -1584,8 +1371,8 @@ class _MyCondominiumState extends State<MyCondominium> {
                                 : _saldo,
                             style: AppTypography.title(context).copyWith(
                                 color: _saldo.contains('-')
-                                    ? const Color(0xFFFFB4BC)
-                                    : AppColors.onPrimary)),
+                                    ? AppColors.error
+                                    : AppColors.textPrimary(context))),
                       ],
                     ),
                   ),
@@ -1593,7 +1380,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                   _buildOcorrenciasBadge(context),
                   AppSpacing.gapSm,
                   Material(
-                    color: AppColors.onPrimary.withValues(alpha: 0.18),
+                    color: AppColors.accentGhost(context),
                     borderRadius: BorderRadius.circular(AppRadius.md),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1601,7 +1388,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                       child: Padding(
                         padding: const EdgeInsets.all(AppSpacing.md),
                         child: Icon(PhosphorIcons.fileText,
-                            color: AppColors.onPrimary, size: 20),
+                            color: AppColors.textPrimary(context), size: 20),
                       ),
                     ),
                   ),
@@ -1611,7 +1398,7 @@ class _MyCondominiumState extends State<MyCondominium> {
               if (!_temApto) ...[
                 AppSpacing.gapLg,
                 Material(
-                  color: AppColors.onPrimary.withValues(alpha: 0.18),
+                  color: AppColors.accentGhost(context),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1621,15 +1408,15 @@ class _MyCondominiumState extends State<MyCondominium> {
                           horizontal: AppSpacing.md, vertical: AppSpacing.md),
                       child: Row(
                         children: [
-                          Icon(PhosphorIcons.houseLine, color: AppColors.onPrimary, size: 18),
+                          Icon(PhosphorIcons.houseLine, color: AppColors.textPrimary(context), size: 18),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
                             child: Text('Vincular-me como morador',
                                 style: AppTypography.bodyMedium(context)
-                                    .copyWith(color: AppColors.onPrimary, fontWeight: FontWeight.w600)),
+                                    .copyWith(color: AppColors.textPrimary(context), fontWeight: FontWeight.w600)),
                           ),
                           Icon(PhosphorIcons.caretRight,
-                              color: AppColors.onPrimary.withValues(alpha: 0.8), size: 16),
+                              color: AppColors.textTertiary(context), size: 16),
                         ],
                       ),
                     ),
@@ -1638,7 +1425,7 @@ class _MyCondominiumState extends State<MyCondominium> {
               ],
             ] else if (type == 'morador') ...[
               AppSpacing.gapXl,
-              Container(height: 1, color: AppColors.onPrimary.withValues(alpha: 0.2)),
+              Container(height: 1, color: AppColors.border(context)),
               AppSpacing.gapLg,
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -1654,7 +1441,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                           isExpanded: false,
                         ),
                         const SizedBox(height: 12),
-                        Container(height: 1, color: AppColors.onPrimary.withValues(alpha: 0.15)),
+                        Container(height: 1, color: AppColors.border(context)),
                         const SizedBox(height: 12),
                         _AlertItem(
                           count: _summary?['visits'] ?? 0,
@@ -1678,7 +1465,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                         Container(
                           width: 1,
                           height: 40,
-                          color: AppColors.onPrimary.withValues(alpha: 0.2),
+                          color: AppColors.border(context),
                           margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                         ),
                         _AlertItem(
@@ -1725,9 +1512,9 @@ class _MyCondominiumState extends State<MyCondominium> {
   }
 
   Widget _condFallback() => Container(
-        color: AppColors.onPrimary.withValues(alpha: 0.2),
+        color: AppColors.surfaceElevated(context),
         child: Icon(PhosphorIcons.buildingsFill,
-            color: AppColors.onPrimary, size: 28),
+            color: AppColors.textPrimary(context), size: 28),
       );
 }
 
@@ -1745,34 +1532,17 @@ class _MenuRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? AppColors.darkSurface : Colors.white;
-    final cardBorder = isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
-
     return Container(
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: cardBorder,
-          width: 1.1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.20)
-                : const Color(0xFF64748B).withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: AppColors.surface(context),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 14),
             child: Row(
@@ -1781,10 +1551,10 @@ class _MenuRow extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(13),
+                    color: AppColors.accentGhost(context),
+                    border: Border.all(color: AppColors.border(context)),
                   ),
-                  child: Icon(item.icon, color: AppColors.primary, size: 22),
+                  child: Icon(item.icon, color: AppColors.textPrimary(context), size: 22),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -1827,7 +1597,7 @@ class _AlertItem extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          Icon(icon, color: AppColors.onPrimary, size: 24),
+          Icon(icon, color: AppColors.textPrimary(context), size: 24),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -1839,7 +1609,7 @@ class _AlertItem extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     count.toString(),
-                    style: AppTypography.headline(context).copyWith(color: AppColors.onPrimary),
+                    style: AppTypography.headline(context).copyWith(color: AppColors.textPrimary(context)),
                   ),
                 ),
                 FittedBox(
@@ -1847,7 +1617,7 @@ class _AlertItem extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     label,
-                    style: AppTypography.tiny(context).copyWith(color: AppColors.onPrimary.withValues(alpha: 0.8)),
+                    style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context)),
                   ),
                 ),
               ],
