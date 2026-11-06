@@ -9,12 +9,13 @@ import { DeliveryStore } from '../delivery.store';
 import { DeliveryStatusBadgeComponent } from '../shared/delivery-status-badge.component';
 import { DeliveryTimelineComponent } from '../shared/delivery-timeline.component';
 import { PeriodoHistorico, intervaloPeriodo, textoDuracao } from '../shared/tempo';
+import { SlideIndicatorDirective } from '../../shared/slide-indicator.directive';
 
 @Component({
   selector: 'app-delivery-historico',
   standalone: true,
   host: { class: 'block' },
-  imports: [DatePipe, FormsModule, DeliveryStatusBadgeComponent, DeliveryTimelineComponent],
+  imports: [SlideIndicatorDirective, DatePipe, FormsModule, DeliveryStatusBadgeComponent, DeliveryTimelineComponent],
   templateUrl: './delivery-historico.component.html',
 })
 export class DeliveryHistoricoComponent implements OnInit {

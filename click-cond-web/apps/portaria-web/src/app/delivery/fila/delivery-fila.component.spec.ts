@@ -125,13 +125,13 @@ describe('DeliveryFilaComponent', () => {
     expect(fixture.nativeElement.querySelector('aside header').textContent).toContain('Na unidade');
   });
 
-  it('confirmar recusa usa keep-white para manter o texto branco no tema claro', () => {
+  it('confirmar recusa usa o botao de perigo do tema (texto legivel nos dois temas)', () => {
     const fixture = montar();
     store.selecionar(ATENDIMENTOS[0]);
     fixture.detectChanges();
     botaoCom(fixture.nativeElement, 'Recusar').click();
     fixture.detectChanges();
-    expect(botaoCom(fixture.nativeElement, 'Confirmar recusa').classList.contains('keep-white')).toBe(true);
+    expect(botaoCom(fixture.nativeElement, 'Confirmar recusa').classList.contains('ps-btn-danger')).toBe(true);
   });
 
   it('não mostra "Nenhuma entrega na fila" enquanto a primeira carga está em andamento', () => {

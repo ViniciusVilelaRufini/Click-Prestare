@@ -12,7 +12,7 @@ import { DeliveryStore } from '../delivery.store';
 export class DeliveryEntregadoresComponent implements OnInit {
   readonly store = inject(DeliveryStore);
   private readonly destroyRef = inject(DestroyRef);
-  readonly campo = 'w-full rounded-lg border border-white/10 bg-graphite px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:border-accent/60 focus:outline-none';
+  readonly campo = 'w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)]';
 
   ngOnInit(): void {
     if (!this.store.entregadores().length) this.store.carregarEntregadores();

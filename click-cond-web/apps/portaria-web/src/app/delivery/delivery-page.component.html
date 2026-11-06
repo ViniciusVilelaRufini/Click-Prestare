@@ -1,23 +1,17 @@
 <div class="min-h-screen space-y-6 p-6 lg:p-8">
-  <div class="flex flex-wrap items-start justify-between gap-4">
-    <div class="flex items-start gap-4">
-      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10">
-        <svg class="h-5 w-5 text-accent dark:text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-        </svg>
-      </div>
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-white">Delivery</h1>
-        <p class="mt-0.5 text-sm text-slate-400">Fila de entregas, entregadores e relatório do condomínio.</p>
-      </div>
+  <div class="ps-phead">
+    <div class="ps-phead-t">
+      <h1 class="ps-h1">Delivery</h1>
+      <p class="text-sm">Fila de entregas, entregadores e relatório do condomínio.</p>
     </div>
-    <div class="flex w-fit items-center gap-1 rounded-xl border border-white/10 bg-graphite-200 p-1" role="tablist" aria-label="Seções do delivery">
+    <div class="ps-seg max-w-full" role="tablist" aria-label="Seções do delivery" [psSlideIndicator]="'x'">
+      <span class="ps-seg-pill ps-slide-ind"></span>
       @for (item of abas(); track item.id) {
         <button type="button" role="tab" [attr.aria-selected]="store.aba() === item.id" (click)="store.trocarAba(item.id)"
-          [class]="'rounded-lg px-3.5 py-1.5 text-sm font-medium transition ' + (store.aba() === item.id ? 'bg-accent text-white shadow-sm' : 'text-slate-400 hover:text-slate-200')">
+          [class.on]="store.aba() === item.id">
           {{ item.rotulo }}
           @if (item.id === 'fila' && store.ativos().length) {
-            <span [class]="'ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] ' + (store.aba() === 'fila' ? 'bg-white/20' : 'bg-white/10')">{{ store.ativos().length }}</span>
+            <span class="ml-1.5 text-[11px]">{{ store.ativos().length }}</span>
           }
         </button>
       }
@@ -25,7 +19,7 @@
   </div>
 
   @if (store.erro()) {
-    <div role="alert" class="flex items-start justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+    <div role="alert" class="ps-panel flex items-start justify-between gap-3 p-3 text-sm text-red-700 dark:text-red-300">
       <span>{{ store.erro() }}</span>
       <button type="button" aria-label="Fechar aviso" (click)="store.erro.set(null)" class="shrink-0 opacity-70 hover:opacity-100">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>

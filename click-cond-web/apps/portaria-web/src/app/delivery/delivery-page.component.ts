@@ -3,13 +3,14 @@ import { DeliveryStore, AbaDelivery } from './delivery.store';
 import { DeliveryFilaComponent } from './fila/delivery-fila.component';
 import { DeliveryEntregadoresComponent } from './entregadores/delivery-entregadores.component';
 import { DeliveryHistoricoComponent } from './historico/delivery-historico.component';
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 const INTERVALO_ATUALIZACAO_MS = 20_000;
 
 @Component({
   selector: 'app-delivery-page',
   standalone: true,
-  imports: [DeliveryFilaComponent, DeliveryEntregadoresComponent, DeliveryHistoricoComponent],
+  imports: [DeliveryFilaComponent, DeliveryEntregadoresComponent, DeliveryHistoricoComponent, SlideIndicatorDirective],
   providers: [DeliveryStore],
   templateUrl: './delivery-page.component.html',
 })

@@ -49,7 +49,7 @@
   </div>
 
   <!-- Filtros -->
-  <div class="ps-seg w-fit max-w-full overflow-x-auto" [psSlideIndicator]="'x'">
+  <div class="ps-seg w-fit max-w-full overflow-x-auto [scrollbar-width:none]" [psSlideIndicator]="'x'">
     <span class="ps-seg-pill ps-slide-ind"></span>
     @for (s of [{key:'',label:'Todas'},{key:'Pendente',label:'Pendentes'},{key:'Ciente',label:'Em andamento'},{key:'Solucionado',label:'Solucionadas'}]; track s.key) {
       <button (click)="filtroStatus.set(s.key)"
