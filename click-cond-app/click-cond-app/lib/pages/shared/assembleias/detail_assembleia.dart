@@ -322,7 +322,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
               minimumSize: const Size(48, 48),
             ),
             icon: const Icon(PhosphorIcons.plus, size: 16),
-            label: const Text('Nova votação'),
+            label: Text('Nova votação'.toUpperCase(), style: AppTypography.button(context)),
           ),
       ],
     );

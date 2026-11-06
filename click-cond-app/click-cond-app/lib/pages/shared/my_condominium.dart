@@ -484,7 +484,7 @@ class _MyCondominiumState extends State<MyCondominium> {
               sliver: SliverToBoxAdapter(
                 child: Row(
                   children: [
-                    Expanded(child: Text('Gerenciar', style: AppTypography.title(context))),
+                    Expanded(child: Text('Gerenciar'.toUpperCase(), style: AppTypography.section(context))),
                     Text('${_menu.length} módulos', style: AppTypography.tiny(context)),
                   ],
                 ),
@@ -1607,7 +1607,7 @@ class _AlertItem extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    count.toString(),
+                    contador2(count),
                     style: AppTypography.headline(context).copyWith(color: AppColors.textPrimary(context)),
                   ),
                 ),
@@ -1615,8 +1615,8 @@ class _AlertItem extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    label,
-                    style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context)),
+                    label.toUpperCase(),
+                    style: AppTypography.label(context).copyWith(color: AppColors.textSecondary(context)),
                   ),
                 ),
               ],

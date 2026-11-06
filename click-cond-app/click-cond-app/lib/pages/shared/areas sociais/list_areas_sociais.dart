@@ -5,6 +5,7 @@ import 'package:click/pages/shared/areas%20sociais/meus_agendamentos_cells.dart'
 import 'package:click/pages/shared/areas%20sociais/new_area_social.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
+import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
@@ -60,9 +61,9 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
   @override
   Widget build(BuildContext context) {
     final tabs = <Tab>[
-      Tab(text: getText('lb_areas_sociais')),
-      if (_isSindico) Tab(text: getText('area_social_agendamentos')),
-      if (_isMorador) Tab(text: getText('area_social_meus_agendamentos')),
+      Tab(text: getText('lb_areas_sociais').toUpperCase()),
+      if (_isSindico) Tab(text: getText('area_social_agendamentos').toUpperCase()),
+      if (_isMorador) Tab(text: getText('area_social_meus_agendamentos').toUpperCase()),
     ];
 
     final views = <Widget>[
@@ -109,14 +110,8 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
                 indicatorSize: TabBarIndicatorSize.tab,
                 labelColor: AppColors.onPrimary,
                 unselectedLabelColor: AppColors.textSecondary(context),
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
-                ),
+                labelStyle: AppTypography.button(context),
+                unselectedLabelStyle: AppTypography.button(context),
                 onTap: (i) => setState(() => _currentTab = i),
                 tabs: tabs,
               ),

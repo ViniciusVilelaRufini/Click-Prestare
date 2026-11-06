@@ -56,14 +56,14 @@ void main() {
 
     testWidgets('sem callback não mostra "Editar"; sem mostrarApto não mostra apto', (tester) async {
       await tester.pumpWidget(app(MinhaReservaCard(reserva: reserva)));
-      expect(find.text('Editar'), findsNothing);
+      expect(find.text('EDITAR'), findsNothing);
       expect(find.text('Bloco A · Apto 101'), findsNothing);
     });
 
     testWidgets('com callback mostra "Editar" e dispara ao tocar', (tester) async {
       var toques = 0;
       await tester.pumpWidget(app(MinhaReservaCard(reserva: reserva, onEditar: () => toques++)));
-      await tester.tap(find.text('Editar'));
+      await tester.tap(find.text('EDITAR'));
       await tester.pump();
       expect(toques, 1);
       expect(tester.getSize(find.byKey(MinhaReservaCard.chaveEditar)).height, greaterThanOrEqualTo(48));

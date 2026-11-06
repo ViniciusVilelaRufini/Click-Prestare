@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
+import 'package:click/theme/app_typography.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -96,13 +97,10 @@ class CellAreaSocial extends StatelessWidget {
                       children: [
                         Icon(areaIcon, size: 14, color: Colors.white),
                         const SizedBox(width: 5),
-                        const Text(
-                          'Área Social',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        Text(
+                          'Área Social'.toUpperCase(),
+                          style: AppTypography.label(context)
+                              .copyWith(color: Colors.white),
                         ),
                       ],
                     ),
@@ -171,12 +169,9 @@ class CellAreaSocial extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Reservar',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          'Reservar'.toUpperCase(),
+                          style: AppTypography.button(context)
+                              .copyWith(color: AppColors.primary),
                         ),
                         const SizedBox(width: 4),
                         Icon(PhosphorIcons.caretRight,
@@ -255,14 +250,12 @@ class _OcupacaoBadge extends StatelessWidget {
             const Icon(PhosphorIcons.users, size: 14, color: Colors.white),
             const SizedBox(width: 5),
             Text(
-              vazia
-                  ? 'Vazio'
-                  : '$ocupacao ${ocupacao == 1 ? 'pessoa' : 'pessoas'}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+              (vazia
+                      ? 'Vazio'
+                      : '$ocupacao ${ocupacao == 1 ? 'pessoa' : 'pessoas'}')
+                  .toUpperCase(),
+              style: AppTypography.label(context)
+                  .copyWith(color: Colors.white),
             ),
           ],
         ),

@@ -330,7 +330,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                             ),
                             onPressed: () => _applyPreset('limpar'),
                             icon: const Icon(PhosphorIcons.trashBold, size: 14),
-                            label: const Text('Limpar todos', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            label: Text('Limpar todos'.toUpperCase(), style: AppTypography.label(context)),
                           ),
                       ],
                     ),
@@ -1120,7 +1120,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                   Row(
                     children: [
                       ActionChip(
-                        label: const Text('Seg a Sex', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        label: Text('Seg a Sex'.toUpperCase(), style: AppTypography.label(context)),
                         onPressed: () {
                           setModalState(() {
                             for (var i = 0; i < 5; i++) {
@@ -1131,7 +1131,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                       ),
                       const SizedBox(width: 8),
                       ActionChip(
-                        label: const Text('Todos os dias', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        label: Text('Todos os dias'.toUpperCase(), style: AppTypography.label(context)),
                         onPressed: () {
                           setModalState(() {
                             for (var i = 0; i < daysOfWeek.length; i++) {

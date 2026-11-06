@@ -251,7 +251,7 @@ void main() {
     expect(find.byTooltip('Editar assembleia'), findsOneWidget);
     expect(find.byTooltip('Finalizar assembleia'), findsOneWidget);
     expect(find.byKey(DetailAssembleia.chaveNovaVotacao), findsOneWidget);
-    expect(find.text('Nova votação'), findsOneWidget);
+    expect(find.text('NOVA VOTAÇÃO'), findsOneWidget);
 
     await tocar(tester, find.byKey(CellVotacao.chaveExcluir(7)));
     await tester.tap(find.text('Sim'));

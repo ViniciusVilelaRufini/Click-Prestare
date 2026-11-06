@@ -302,7 +302,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                   icon: Icon(PhosphorIcons.userPlus, size: 15, color: AppColors.primary),
                                   label: Text(
                                     ((obj['id_responsavel'] != null) ? 'Trocar' : 'Atribuir').toUpperCase(),
-                                    style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary),
+                                    style: AppTypography.button(context).copyWith(color: AppColors.primary),
                                   ),
                                   style: TextButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(horizontal: 8),
