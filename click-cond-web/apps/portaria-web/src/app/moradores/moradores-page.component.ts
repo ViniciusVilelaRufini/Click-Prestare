@@ -16,13 +16,14 @@ import { ToastService } from '../shared/toast.service';
 
 import { compressImage } from '../shared/image-compress.util';
 import { MaskDocPipe } from '../shared/mask-doc.pipe';
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 declare var require: any;
 
 @Component({
   selector: 'app-moradores-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective, EnrollCaptureComponent, FacialCaptureComponent, MaskDocPipe],
+  imports: [CommonModule, FormsModule, InputMaskDirective, EnrollCaptureComponent, FacialCaptureComponent, MaskDocPipe, SlideIndicatorDirective],
   templateUrl: './moradores-page.component.html',
 })
 export class MoradoresPageComponent implements OnInit {
@@ -661,10 +662,10 @@ export class MoradoresPageComponent implements OnInit {
 
   tipoColor(tipo: string | null): string {
     const t = this.normalizeTipo(tipo);
-    if (t === 'proprietario') return 'bg-accent/10 border-accent/20 text-accent';
-    if (t === 'inquilino') return 'bg-amber-400/10 border-amber-400/20 text-amber-400';
-    if (t === 'dependente') return 'bg-slate-400/10 border-slate-400/20 text-slate-300';
-    return 'bg-white/5 border-white/10 text-slate-400';
+    if (t === 'proprietario') return '!text-[var(--ink)] !border-[var(--ink)]';
+    if (t === 'inquilino') return '!text-[var(--ink)]';
+    if (t === 'dependente') return '';
+    return '';
   }
 
   private estadoInicial(): CreateMorador {
