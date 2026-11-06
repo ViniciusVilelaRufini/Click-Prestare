@@ -202,11 +202,12 @@
 
   <!-- Form -->
   @if (showForm) {
-    <div class="rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden mb-6 animate-fade-in">
+    <div class="ps-scrim on"></div>
+    <div class="ps-drawer on !w-[min(840px,100%)]">
       <!-- Cabeçalho do Formulário -->
-      <div class="px-5 py-3.5 bg-slate-50/80 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10 flex items-center justify-between gap-3">
+      <div class="ps-drawer-head gap-3">
         <div class="flex items-center gap-3 min-w-0">
-          <div class="w-9 h-9 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0">
+          <div class="ps-ico shrink-0">
             @if (novaVisitaPara()) {
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             } @else if (editingId && editandoIdentidade()) {
@@ -216,7 +217,7 @@
             }
           </div>
           <div class="min-w-0">
-            <h2 class="text-sm md:text-base font-bold text-slate-900 dark:text-white truncate">
+            <h2 class="ps-h2 truncate">
               @if (novaVisitaPara(); as p) {
                 Nova visita para {{ p.nome }}
               } @else if (editingId && editandoIdentidade()) {
@@ -225,7 +226,7 @@
                 Registrar nova visita
               }
             </h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            <p class="text-xs text-slate-400 mt-1">
               @if (novaVisitaPara()) {
                 Foto e documento já cadastrados serão reutilizados — informe apenas o apartamento e a validade.
               } @else if (editingId && editandoIdentidade()) {
@@ -240,7 +241,7 @@
         <button
           type="button"
           (click)="cancelarForm()"
-          class="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 transition cursor-pointer"
+          class="ps-ibtn"
           title="Fechar formulário"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -249,32 +250,32 @@
         </button>
       </div>
 
-      <div class="p-5 md:p-6 space-y-5">
+      <div class="ps-drawer-body">
         <!-- Painel 1: Identificação e Destino -->
-        <div class="p-4 md:p-5 rounded-xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/5 space-y-4">
-          <div class="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-white/5">
-            <span class="w-2 h-2 rounded-full bg-accent"></span>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+        <div class="ps-panel p-4 md:p-5 space-y-4">
+          <div class="flex items-center gap-2 pb-2 border-b border-slate-300">
+            <span class="ps-dot ps-dot-ink"></span>
+            <h3 class="ps-label">
               1. Identificação e Destino
             </h3>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Nome Completo -->
-            <label class="block lg:col-span-2">
-              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+            <label class="block sm:col-span-2">
+              <span class="ps-label mb-1.5 block">
                 Nome completo <span class="text-rose-500">*</span>
               </span>
               <input
                 [(ngModel)]="novo.nome"
                 placeholder="Ex: João da Silva"
-                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs"
+                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition"
               />
             </label>
 
             <!-- Documento (CPF/CNPJ) -->
             <label class="block">
-              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+              <span class="ps-label mb-1.5 block">
                 Documento (CPF/CNPJ)
               </span>
               <input
@@ -282,31 +283,31 @@
                 appMask="cpfCnpj"
                 placeholder="000.000.000-00"
                 (blur)="verificarPessoaExistente()"
-                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs font-mono"
+                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition font-mono"
               />
             </label>
 
             <!-- Card de Pessoa Já Cadastrada (se encontrada) -->
             @if (pessoaEncontrada(); as p) {
-              <div class="sm:col-span-2 lg:col-span-3 p-3 rounded-xl bg-accent/[0.04] dark:bg-accent/10 border border-accent/25 flex items-center gap-3">
+              <div class="sm:col-span-2 p-3 border border-slate-300 flex items-center gap-3">
                 @if (p.foto_pessoa) {
                   <img
                     [src]="p.foto_pessoa"
                     [alt]="'Foto de ' + p.nome"
-                    class="w-10 h-10 rounded-full object-cover border border-accent/40 shrink-0"
+                    class="ps-avatar object-cover shrink-0"
                   />
                 } @else {
                   <div
-                    class="w-10 h-10 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center text-accent text-xs font-bold shrink-0"
+                    class="ps-avatar"
                   >
                     {{ iniciais(p.nome) }}
                   </div>
                 }
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
-                    <span class="text-xs font-bold text-accent">Pessoa já cadastrada</span>
+                    <span class="ps-label !text-[var(--ink)]">Pessoa já cadastrada</span>
                     @if (p.face_sync_status === 'synced') {
-                      <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      <span class="ps-tag">
                         <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                         Facial sincronizado
                       </span>
@@ -322,7 +323,7 @@
                 <button
                   type="button"
                   (click)="reutilizarPessoa(p)"
-                  class="px-3 py-1.5 rounded-lg text-xs font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 transition shrink-0 cursor-pointer"
+                  class="ps-btn ps-btn-sec ps-btn-sm shrink-0"
                 >
                   Usar dados
                 </button>
@@ -331,12 +332,12 @@
 
             <!-- Apartamento de Destino -->
             <label class="block">
-              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+              <span class="ps-label mb-1.5 block">
                 Apartamento de destino <span class="text-rose-500">*</span>
               </span>
               <select
                 [(ngModel)]="novo.id_apartamento"
-                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs cursor-pointer font-medium"
+                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition cursor-pointer"
               >
                 <option [ngValue]="0" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Selecione o apartamento...</option>
                 @for (a of apartamentos(); track a.id) {
@@ -350,7 +351,7 @@
             <!-- Tipo (Visitante / Prestador) -->
             @if (!isPrestadorModo()) {
               <label class="block">
-                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                <span class="ps-label mb-1.5 block">
                   Tipo de acesso
                 </span>
                 <select
@@ -359,7 +360,7 @@
                     novo.is_prestador = $event === 'prestador' ? 1 : 0;
                     novo.is_visitante = $event === 'prestador' ? 0 : 1
                   "
-                  class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs cursor-pointer"
+                  class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition cursor-pointer"
                 >
                   <option value="visitante" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Visitante</option>
                   <option value="prestador" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Prestador de serviço</option>
@@ -369,37 +370,37 @@
 
             <!-- Tag RFID (Credencial física) -->
             <label class="block">
-              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+              <span class="ps-label mb-1.5 block">
                 Tag RFID (Credencial)
               </span>
               <input
                 [(ngModel)]="novo.tag_rfid"
                 placeholder="Ex: 0010257321"
-                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs font-mono"
+                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition font-mono"
               />
             </label>
 
             <!-- Período: Início -->
             <label class="block">
-              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+              <span class="ps-label mb-1.5 block">
                 Liberado a partir de
               </span>
               <input
                 type="datetime-local"
                 [(ngModel)]="novo.data_hora_inicio"
-                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs"
+                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition"
               />
             </label>
 
             <!-- Período: Fim -->
             <label class="block">
-              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+              <span class="ps-label mb-1.5 block">
                 Liberado até (Validade)
               </span>
               <input
                 type="datetime-local"
                 [(ngModel)]="novo.data_hora_termino"
-                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs"
+                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition"
               />
               <span class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">
                 Em branco = sem prazo (acesso contínuo).
@@ -408,23 +409,19 @@
 
             <!-- Restrição / Bloqueio -->
             <div class="block">
-              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+              <span class="ps-label mb-1.5 block">
                 Segurança / Restrição
               </span>
               <label
-                class="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer select-none transition shadow-2xs"
-                [class.bg-rose-500/10]="novo.bloqueado === 1"
-                [class.border-rose-500/30]="novo.bloqueado === 1"
-                [class.bg-white]="novo.bloqueado !== 1"
-                [class.dark:bg-graphite]="novo.bloqueado !== 1"
+                class="flex items-center gap-2.5 px-3 min-h-10 py-2 border cursor-pointer select-none transition"
+                [class.border-rose-500]="novo.bloqueado === 1"
                 [class.border-slate-300]="novo.bloqueado !== 1"
-                [class.dark:border-white/10]="novo.bloqueado !== 1"
               >
                 <input
                   type="checkbox"
                   [ngModel]="novo.bloqueado === 1"
                   (ngModelChange)="novo.bloqueado = $event ? 1 : 0"
-                  class="w-4 h-4 rounded border-rose-500/30 bg-white dark:bg-graphite text-rose-500 focus:ring-rose-500"
+                  class="w-4 h-4 accent-[var(--ink)]"
                 />
                 <div class="min-w-0">
                   <span class="text-xs font-bold" [class.text-rose-600]="novo.bloqueado === 1" [class.dark:text-rose-400]="novo.bloqueado === 1" [class.text-slate-700]="novo.bloqueado !== 1" [class.dark:text-slate-300]="novo.bloqueado !== 1">
@@ -441,29 +438,29 @@
 
         <!-- Painel Prestador: Categorias e Dias de Acesso (se for prestador) -->
         @if (novo.is_prestador) {
-          <div class="p-4 md:p-5 rounded-xl bg-amber-500/[0.03] dark:bg-amber-500/[0.05] border border-amber-500/20 space-y-4 animate-fade-in">
-            <div class="flex items-center gap-2 pb-2 border-b border-amber-500/20">
-              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-              <h3 class="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400">
+          <div class="ps-panel p-4 md:p-5 space-y-4">
+            <div class="flex items-center gap-2 pb-2 border-b border-slate-300">
+              <span class="ps-dot ps-dot-warn"></span>
+              <h3 class="ps-label">
                 Regras de Prestador de Serviço
               </h3>
             </div>
 
             <!-- Categorias -->
             <div>
-              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 block">
+              <span class="ps-label mb-2 block">
                 Categorias de Atuação
               </span>
               <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                 @for (cat of categoriasPredefinidas; track cat) {
                   <label
-                    class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white dark:bg-graphite border border-slate-200 dark:border-white/10 hover:border-accent/40 cursor-pointer select-none transition shadow-2xs"
+                    class="flex items-center gap-2 px-2.5 py-1.5 bg-graphite-50 border border-slate-300 hover:border-[var(--ink)] cursor-pointer select-none transition"
                   >
                     <input
                       type="checkbox"
                       [checked]="categoriasSelecionadas().has(cat)"
                       (change)="toggleCategoriaSelecionada(cat)"
-                      class="rounded border-slate-300 dark:border-white/20 bg-white dark:bg-graphite text-accent focus:ring-accent"
+                      class="accent-[var(--ink)]"
                     />
                     <span class="text-xs text-slate-700 dark:text-slate-300 font-medium truncate">{{ cat }}</span>
                   </label>
@@ -476,12 +473,12 @@
                   type="text"
                   placeholder="Outra categoria..."
                   (keyup.enter)="adicionarCustomCategoria(customCat.value); customCat.value = ''"
-                  class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-accent w-48 shadow-2xs"
+                  class="h-[30px] px-3 text-xs bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] w-48"
                 />
                 <button
                   type="button"
                   (click)="adicionarCustomCategoria(customCat.value); customCat.value = ''"
-                  class="px-3 py-1.5 text-xs rounded-lg font-medium border border-slate-200 dark:border-white/10 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  class="ps-btn ps-btn-sec ps-btn-sm"
                 >
                   Adicionar
                 </button>
@@ -490,7 +487,7 @@
               @if (categoriasCustomSelecionadas().length > 0) {
                 <div class="mt-2 flex flex-wrap gap-1.5">
                   @for (c of categoriasCustomSelecionadas(); track c) {
-                    <span class="px-2 py-0.5 text-xs rounded-lg bg-accent/10 border border-accent/25 text-accent flex items-center gap-1.5 font-medium">
+                    <span class="ps-tag">
                       {{ c }}
                       <button
                         type="button"
@@ -507,23 +504,23 @@
             </div>
 
             <!-- Dias da Semana -->
-            <div class="pt-2 border-t border-amber-500/15">
+            <div class="pt-2 border-t border-slate-300">
               <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <span class="ps-label">
                   Dias de Acesso Autorizados
                 </span>
                 <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="text-[10px] text-slate-400 uppercase tracking-wider">Atalhos:</span>
-                  <button type="button" (click)="aplicarPresetDias('semana')" class="px-2 py-0.5 text-[11px] rounded-md border border-accent/20 bg-accent/5 hover:bg-accent/10 text-accent font-medium transition cursor-pointer">
+                  <span class="ps-label">Atalhos:</span>
+                  <button type="button" (click)="aplicarPresetDias('semana')" class="ps-btn ps-btn-sec ps-btn-sm">
                     Seg a Sex
                   </button>
-                  <button type="button" (click)="aplicarPresetDias('fim-semana')" class="px-2 py-0.5 text-[11px] rounded-md border border-amber-400/20 bg-amber-400/5 hover:bg-amber-400/10 text-amber-600 dark:text-amber-400 font-medium transition cursor-pointer">
+                  <button type="button" (click)="aplicarPresetDias('fim-semana')" class="ps-btn ps-btn-sec ps-btn-sm">
                     Fim de Semana
                   </button>
-                  <button type="button" (click)="aplicarPresetDias('todos')" class="px-2 py-0.5 text-[11px] rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 font-medium transition cursor-pointer">
+                  <button type="button" (click)="aplicarPresetDias('todos')" class="ps-btn ps-btn-sec ps-btn-sm">
                     Todos
                   </button>
-                  <button type="button" (click)="aplicarPresetDias('nenhum')" class="px-2 py-0.5 text-[11px] rounded-md border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-medium transition cursor-pointer">
+                  <button type="button" (click)="aplicarPresetDias('nenhum')" class="ps-btn ps-btn-sec ps-btn-sm">
                     Limpar
                   </button>
                 </div>
@@ -534,19 +531,10 @@
                   <button
                     type="button"
                     (click)="toggleDiaSemana(dia.key)"
-                    class="px-3 py-1.5 text-xs rounded-lg font-semibold border transition-all flex items-center gap-1.5 select-none cursor-pointer"
-                    [class.bg-accent]="isDiaSelecionado(dia.key)"
-                    [class.text-white]="isDiaSelecionado(dia.key)"
-                    [class.keep-white]="isDiaSelecionado(dia.key)"
-                    [class.border-accent]="isDiaSelecionado(dia.key)"
-                    [class.bg-white]="!isDiaSelecionado(dia.key)"
-                    [class.dark:bg-graphite]="!isDiaSelecionado(dia.key)"
-                    [class.text-slate-600]="!isDiaSelecionado(dia.key)"
-                    [class.dark:text-slate-400]="!isDiaSelecionado(dia.key)"
-                    [class.border-slate-200]="!isDiaSelecionado(dia.key)"
-                    [class.dark:border-white/10]="!isDiaSelecionado(dia.key)"
+                    class="ps-btn ps-btn-sec ps-btn-sm"
+                    [class.ps-tag-solid]="isDiaSelecionado(dia.key)"
                   >
-                    <span class="w-1.5 h-1.5 rounded-full" [class.bg-white]="isDiaSelecionado(dia.key)" [class.bg-slate-400]="!isDiaSelecionado(dia.key)"></span>
+                    <span class="ps-dot ps-dot-ink"></span>
                     {{ dia.label }}
                   </button>
                 }
@@ -556,18 +544,18 @@
         }
 
         <!-- Painel 2: Biometria e Fotos -->
-        <div class="p-4 md:p-5 rounded-xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/5 space-y-4">
-          <div class="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-white/5">
-            <span class="w-2 h-2 rounded-full bg-accent"></span>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+        <div class="ps-panel p-4 md:p-5 space-y-4">
+          <div class="flex items-center gap-2 pb-2 border-b border-slate-300">
+            <span class="ps-dot ps-dot-ink"></span>
+            <h3 class="ps-label">
               2. Biometria e Fotos
             </h3>
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4">
             <!-- Foto da Pessoa (Rosto / Facial) -->
-            <div class="p-3.5 rounded-xl bg-white dark:bg-graphite border border-slate-200 dark:border-white/10 flex items-center gap-4 shadow-2xs">
-              <div class="w-16 h-16 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-graphite flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+            <div class="p-3.5 bg-graphite-50 border border-slate-300 flex items-center gap-4">
+              <div class="w-16 h-16 border border-slate-300 bg-graphite-200 flex items-center justify-center overflow-hidden shrink-0">
                 @if (fotoPessoaBase64()) {
                   <img [src]="fotoPessoaBase64()" alt="Foto da pessoa" class="w-full h-full object-cover" />
                 } @else {
@@ -579,7 +567,7 @@
 
               <div class="flex-1 min-w-0 space-y-2">
                 <div>
-                  <span class="text-xs font-bold text-slate-900 dark:text-white block">
+                  <span class="ps-label !text-[var(--ink)] block">
                     Foto do Rosto (Biometria Facial)
                   </span>
                   <p class="text-[11px] text-slate-500 dark:text-slate-400">
@@ -591,7 +579,7 @@
                   <button
                     type="button"
                     (click)="iniciarCamera('pessoa')"
-                    class="px-2.5 py-1.5 text-xs rounded-lg font-semibold bg-accent/10 hover:bg-accent/15 border border-accent/25 text-accent transition flex items-center gap-1.5 cursor-pointer"
+                    class="ps-btn ps-btn-sec ps-btn-sm"
                   >
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     Tirar Foto
@@ -601,14 +589,14 @@
                     type="button"
                     (click)="facialModalOpen.set(true)"
                     title="Capturar foto pelo terminal facial"
-                    class="px-2.5 py-1.5 text-xs rounded-lg font-semibold bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 transition flex items-center gap-1.5 cursor-pointer"
+                    class="ps-btn ps-btn-sec ps-btn-sm"
                   >
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
                     Câmera facial
                   </button>
 
-                  <label class="px-2.5 py-1.5 text-xs rounded-lg font-medium bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 transition cursor-pointer flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                  <label class="ps-btn ps-btn-sec ps-btn-sm cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                     Upload
                     <input type="file" accept="image/*" class="hidden" (change)="onFileSelected($event, 'pessoa')" />
                   </label>
@@ -617,7 +605,7 @@
                     <button
                       type="button"
                       (click)="removerFoto('pessoa')"
-                      class="text-[11px] text-rose-500 hover:text-rose-600 hover:underline cursor-pointer ml-auto"
+                      class="text-[11px] text-rose-500 hover:underline cursor-pointer ml-auto"
                     >
                       Remover foto
                     </button>
@@ -625,15 +613,15 @@
                 </div>
 
                 @if (fotoPessoaBase64() || novo.foto_pessoa) {
-                  <div class="mt-2.5 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <div class="mt-2.5 p-2.5 border border-slate-300">
                     <label class="flex items-start gap-2 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         [ngModel]="consentimentoBiometria()"
                         (ngModelChange)="consentimentoBiometria.set($event)"
-                        class="mt-0.5 rounded border-emerald-400/40 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        class="mt-0.5 accent-[var(--ink)] cursor-pointer"
                       />
-                      <span class="text-[11px] text-emerald-800 dark:text-emerald-300 font-medium leading-tight">
+                      <span class="text-[11px] text-slate-100 font-medium leading-tight">
                         Declaro que o titular é maior de 18 anos e forneceu autorização prévia e informada para utilização de biometria facial nos acessos deste condomínio (Cláusulas 8.1 e 8.3 do Contrato / DPA LGPD).
                       </span>
                     </label>
@@ -648,8 +636,8 @@
             </div>
 
             <!-- Foto do Documento (RG / CPF) -->
-            <div class="p-3.5 rounded-xl bg-white dark:bg-graphite border border-slate-200 dark:border-white/10 flex items-center gap-4 shadow-2xs">
-              <div class="w-16 h-16 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-graphite flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+            <div class="p-3.5 bg-graphite-50 border border-slate-300 flex items-center gap-4">
+              <div class="w-16 h-16 border border-slate-300 bg-graphite-200 flex items-center justify-center overflow-hidden shrink-0">
                 @if (fotoDocumentoBase64()) {
                   <img [src]="fotoDocumentoBase64()" alt="Foto do documento" class="w-full h-full object-cover" />
                 } @else {
@@ -661,7 +649,7 @@
 
               <div class="flex-1 min-w-0 space-y-2">
                 <div>
-                  <span class="text-xs font-bold text-slate-900 dark:text-white block">
+                  <span class="ps-label !text-[var(--ink)] block">
                     Foto do Documento (RG / CPF)
                   </span>
                   <p class="text-[11px] text-slate-500 dark:text-slate-400">
@@ -673,14 +661,14 @@
                   <button
                     type="button"
                     (click)="iniciarCamera('documento')"
-                    class="px-2.5 py-1.5 text-xs rounded-lg font-semibold bg-accent/10 hover:bg-accent/15 border border-accent/25 text-accent transition flex items-center gap-1.5 cursor-pointer"
+                    class="ps-btn ps-btn-sec ps-btn-sm"
                   >
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     Tirar Foto
                   </button>
 
-                  <label class="px-2.5 py-1.5 text-xs rounded-lg font-medium bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 transition cursor-pointer flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                  <label class="ps-btn ps-btn-sec ps-btn-sm cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                     Upload
                     <input type="file" accept="image/*" class="hidden" (change)="onFileSelected($event, 'documento')" />
                   </label>
@@ -689,7 +677,7 @@
                     <button
                       type="button"
                       (click)="removerFoto('documento')"
-                      class="text-[11px] text-rose-500 hover:text-rose-600 hover:underline cursor-pointer ml-auto"
+                      class="text-[11px] text-rose-500 hover:underline cursor-pointer ml-auto"
                     >
                       Remover foto
                     </button>
@@ -701,9 +689,9 @@
         </div>
 
         <!-- Termo e Aviso de Privacidade LGPD (Art. 5º, II e Art. 11) -->
-        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-xs space-y-2.5">
+        <div class="ps-panel p-3.5 text-xs space-y-2.5">
           <div class="flex items-start gap-2.5">
-            <div class="p-1 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 mt-0.5">
+            <div class="p-1 border border-slate-300 shrink-0 mt-0.5">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
               </svg>
@@ -715,46 +703,45 @@
               <p class="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
                 A coleta da fotografia facial (dado biométrico sensível) e documento destina-se estritamente à identificação, controle de acesso físico e segurança condominial (Art. 7º, IX e Art. 11, II, "g" da LGPD). Os dados não são comercializados nem repassados a terceiros.
               </p>
-              <a routerLink="/politica-de-privacidade" target="_blank" class="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 text-[11px] font-medium underline">
+              <a routerLink="/politica-de-privacidade" target="_blank" class="inline-flex items-center gap-1 text-slate-100 text-[11px] font-medium underline">
                 Consultar Política de Privacidade Oficial
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
               </a>
             </div>
           </div>
-          <label class="flex items-center gap-2 pt-2.5 border-t border-slate-200 dark:border-white/10 cursor-pointer select-none text-slate-700 dark:text-slate-300 text-xs">
-            <input type="checkbox" [checked]="lgpdCiente()" (change)="lgpdCiente.set($any($event.target).checked)" class="rounded border-slate-300 dark:border-white/20 bg-white dark:bg-graphite text-accent focus:ring-accent" />
+          <label class="flex items-center gap-2 pt-2.5 border-t border-slate-300 cursor-pointer select-none text-slate-100 text-xs">
+            <input type="checkbox" [checked]="lgpdCiente()" (change)="lgpdCiente.set($any($event.target).checked)" class="accent-[var(--ink)]" />
             <span>O titular foi informado e está ciente da coleta de imagem facial e documento para controle de acesso.</span>
           </label>
         </div>
-
-        <!-- Barra de Ações (Salvar / Cancelar) -->
-        <div class="pt-3 border-t border-slate-200 dark:border-white/10 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            (click)="cancelarForm()"
-            [disabled]="saving()"
-            class="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 transition disabled:opacity-50 cursor-pointer shadow-2xs"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            (click)="salvar()"
-            [disabled]="saving()"
-            class="px-5 py-2 text-xs font-bold rounded-xl text-white keep-white bg-accent hover:bg-accent-600 transition disabled:opacity-50 flex items-center gap-2 shadow-sm shadow-accent/15 cursor-pointer"
-          >
-            @if (saving()) {
-              <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            }
-            @if (novaVisitaPara()) {
-              Criar visita
-            } @else if (editingId && editandoIdentidade()) {
-              Salvar alterações
-            } @else {
-              Cadastrar e liberar
-            }
-          </button>
-        </div>
+      </div>
+      <!-- Barra de Ações (Salvar / Cancelar) -->
+      <div class="ps-drawer-foot">
+        <button
+          type="button"
+          (click)="cancelarForm()"
+          [disabled]="saving()"
+          class="ps-btn ps-btn-sec disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="salvar()"
+          [disabled]="saving()"
+          class="ps-btn disabled:opacity-50"
+        >
+          @if (saving()) {
+            <div class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+          }
+          @if (novaVisitaPara()) {
+            Criar visita
+          } @else if (editingId && editandoIdentidade()) {
+            Salvar alterações
+          } @else {
+            Cadastrar e liberar
+          }
+        </button>
       </div>
     </div>
   }
@@ -762,7 +749,7 @@
   <!-- Erro -->
   @if (error()) {
     <div
-      class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300 flex items-center gap-2"
+      class="p-3 border border-slate-300 text-sm text-rose-400 flex items-center gap-2"
     >
       <svg
         class="w-4 h-4 shrink-0"
@@ -783,7 +770,7 @@
 
   <!-- Lista -->
   <div
-    class="rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden"
+    class="ps-panel overflow-hidden"
   >
     @if (loading()) {
       <div class="p-12 text-center">
@@ -795,7 +782,7 @@
     } @else if (visitantesFiltrados().length === 0) {
       <div class="p-12 text-center">
         <div
-          class="w-12 h-12 rounded-xl bg-white/5 mx-auto flex items-center justify-center mb-3"
+          class="ps-ico mx-auto mb-3"
         >
           <svg
             class="w-6 h-6 text-slate-500"
@@ -830,7 +817,7 @@
       </div>
     } @else {
       <!-- MOBILE / janela estreita: cards -->
-      <div class="lg:hidden divide-y divide-white/5">
+      <div class="lg:hidden divide-y divide-slate-300">
         @for (v of visitantesPaginados(); track v.id) {
           <div
                role="button"
@@ -842,7 +829,7 @@
           >
             <div class="flex items-start gap-3">
               <div
-                class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden"
+                class="ps-avatar overflow-hidden"
               >
                 @if (v.foto_pessoa) {
                   <img
@@ -851,7 +838,7 @@
                     class="w-full h-full object-cover"
                   />
                 } @else {
-                  <span class="text-xs font-semibold text-accent">{{
+                  <span>{{
                     iniciais(v.nome)
                   }}</span>
                 }
@@ -863,95 +850,83 @@
                   }}</span>
                   @if (v.bloqueado === 1) {
                     <span
-                      class="text-[10px] px-1.5 py-0.5 rounded-md border text-red-450 bg-red-400/10 border-red-400/20 font-bold uppercase tracking-wider flex items-center gap-1"
+                      class="ps-tag"
                     >
-                      <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                      <span class="ps-dot ps-dot-danger ps-dot-pulse"></span>
                       Bloqueado
                     </span>
                   }
                   <span
-                    class="text-[11px] px-2.5 py-0.5 rounded-md border font-semibold"
-                    [class.text-blue-700]="!v.is_prestador"
-                    [class.bg-blue-50]="!v.is_prestador"
-                    [class.border-blue-200]="!v.is_prestador"
-                    [class.dark:text-blue-300]="!v.is_prestador"
-                    [class.dark:bg-blue-950/40]="!v.is_prestador"
-                    [class.dark:border-blue-800/60]="!v.is_prestador"
-                    [class.text-amber-800]="v.is_prestador"
-                    [class.bg-amber-50]="v.is_prestador"
-                    [class.border-amber-200]="v.is_prestador"
-                    [class.dark:text-amber-300]="v.is_prestador"
-                    [class.dark:bg-amber-950/40]="v.is_prestador"
-                    [class.dark:border-amber-800/60]="v.is_prestador"
+                    class="ps-tag"
                   >
                     {{ tipoPessoa(v) }}
                   </span>
                 </div>
                 <div class="mt-2 flex items-center gap-2 flex-wrap">
                   @if (getStatusVisitante(v) === 'presente') {
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="ps-tag">
+                      <span class="ps-dot ps-dot-ok ps-dot-pulse"></span>
                       No condomínio
                     </span>
                   } @else if (v.auth_status === 'pendente' && !autorizacaoExpirada(v)) {
                     @if (autorizacaoSemResposta(v)) {
                       <button
                         (click)="authModalPessoaId.set(chavePessoa(v)); $event.stopPropagation()"
-                        class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition cursor-pointer dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50"
+                        class="ps-tag cursor-pointer"
                         title="Tempo limite esgotado. Clique para ver o pedido."
                       >
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        <span class="ps-dot ps-dot-warn"></span>
                         Sem resposta
                       </button>
                     } @else {
                       <button
                         (click)="authModalPessoaId.set(chavePessoa(v)); $event.stopPropagation()"
-                        class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition cursor-pointer dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50"
+                        class="ps-tag cursor-pointer"
                         title="Aguardando morador. Clique para acompanhar."
                       >
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                        <span class="ps-dot ps-dot-warn ps-dot-pulse"></span>
                         Aguardando morador
                       </button>
                     }
                   } @else if (v.auth_status === 'autorizado' && !autorizacaoExpirada(v)) {
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
-                      <svg class="w-3 h-3 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                    <span class="ps-tag">
+                      <svg class="w-3 h-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                       Autorizado
                     </span>
                   } @else if (v.auth_status === 'negado' && !autorizacaoExpirada(v)) {
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50">
+                    <span class="ps-tag">
                       <svg class="w-3 h-3 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
                       Negado
                     </span>
                   } @else {
                     @switch (getStatusVisitante(v)) {
                       @case ('expirado') {
-                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50" title="A autorização do morador venceu (10 min). Registre a entrada com uma nova janela.">
-                          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        <span class="ps-tag" title="A autorização do morador venceu (10 min). Registre a entrada com uma nova janela.">
+                          <span class="ps-dot ps-dot-warn"></span>
                           Autorização expirada
                         </span>
                       }
                       @case ('liberado') {
-                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
-                          <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                        <span class="ps-tag">
+                          <span class="ps-dot ps-dot-ink"></span>
                           Liberado
                         </span>
                       }
                       @case ('autorizado') {
-                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
-                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        <span class="ps-tag">
+                          <span class="ps-dot ps-dot-ok"></span>
                           Autorizado
                         </span>
                       }
                       @case ('agendado') {
-                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/50">
-                          <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                        <span class="ps-tag">
+                          <span class="ps-dot ps-dot-ink"></span>
                           Agendado
                         </span>
                       }
                       @case ('saiu') {
-                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200/80 dark:bg-white/5 dark:text-slate-400 dark:border-white/10">
-                          <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                        <span class="ps-tag">
+                          <span class="ps-dot ps-dot-ink"></span>
                           Saiu
                         </span>
                       }
@@ -962,13 +937,13 @@
                     <div class="flex items-center gap-1">
                       @for (a of $any(v).apartamentosVisitados.slice(0, 2); track a.id) {
                         <span
-                          class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 font-mono text-[10px] text-slate-700 dark:text-slate-300"
+                          class="ps-tag font-mono"
                           >{{ a.label }}</span
                         >
                       }
                       @if ($any(v).apartamentosVisitados.length > 2) {
                         <span
-                          class="px-1 py-0.5 rounded bg-slate-100/80 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 font-mono text-[10px] text-slate-500"
+                          class="ps-tag font-mono"
                           [title]="'Apartamentos visitados: ' + formatarApartamentosTooltip($any(v).apartamentosVisitados)"
                         >
                           +{{ $any(v).apartamentosVisitados.length - 2 }}
@@ -987,13 +962,13 @@
                     <span>{{ $any(v).ultEntrada | date: 'dd/MM HH:mm' }}</span>
                   }
                   @if (v.temPinAtivo || v.codigo_acesso) {
-                    <span class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-sans text-[11px] font-medium" title="PIN de liberação física ativo">
-                      <svg class="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                    <span class="inline-flex items-center gap-1 text-slate-300 font-sans text-[11px] font-medium" title="PIN de liberação física ativo">
+                      <svg class="w-3 h-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                       PIN
                     </span>
                   }
                   @if (v.tag_rfid) {
-                    <span class="inline-flex items-center gap-1 text-indigo-500 font-sans text-[11px]">
+                    <span class="inline-flex items-center gap-1 text-slate-300 font-sans text-[11px]">
                       Tag {{ v.tag_rfid }}
                     </span>
                   }
@@ -1004,7 +979,7 @@
                   >
                     @if (v.categorias) {
                       <span
-                        class="bg-amber-500/10 dark:bg-amber-400/5 px-1 py-0.5 rounded border border-amber-400/20 truncate max-w-[200px]"
+                        class="ps-tag truncate max-w-[200px]"
                         [title]="v.categorias.split(';').join(', ')"
                         >{{ v.categorias.split(';').join(', ') }}</span
                       >
@@ -1024,7 +999,7 @@
                   @if (getStatusVisitante(v) === 'presente') {
                     <button
                       (click)="darBaixa(v)"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-600 hover:!text-white border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 font-semibold transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
+                      class="ps-btn ps-btn-danger ps-btn-sm"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                       Dar Baixa
@@ -1037,42 +1012,42 @@
                   ) {
                     <button
                       (click)="registrarEntradaManual(v)"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-accent hover:bg-accent-600 text-white keep-white font-semibold transition shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                      class="ps-btn ps-btn-sm"
                     >
-                      <svg class="w-3.5 h-3.5 text-white keep-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                       Registrar Entrada
                     </button>
                   } @else if (v.auth_status === 'pendente' && !autorizacaoExpirada(v)) {
                     <button
                       (click)="authModalPessoaId.set(chavePessoa(v))"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-amber-500 hover:bg-amber-600 text-white keep-white font-semibold transition shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                      class="ps-btn ps-btn-sec ps-btn-sm"
                     >
-                      <svg class="w-3.5 h-3.5 text-white keep-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                       Ver Pedido
                     </button>
                   } @else {
                     <button
                       (click)="abrirSolicitar(v)"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 font-medium transition inline-flex items-center gap-1.5 cursor-pointer"
+                      class="ps-btn ps-btn-sec ps-btn-sm"
                     >
-                      <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                       Solicitar
                     </button>
                   }
 
                   <button
                     (click)="abrirNovaVisita($any(v))"
-                    class="px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 font-medium transition shadow-2xs inline-flex items-center gap-1 cursor-pointer"
+                    class="ps-btn ps-btn-ghost ps-btn-sm"
                   >
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     Nova Visita
                   </button>
 
-                  <div class="flex items-center gap-0.5 border-l border-slate-200 dark:border-white/10 pl-1.5">
+                  <div class="flex items-center gap-0.5 border-l border-slate-300 pl-1.5">
                     <button
                       (click)="abrirEditar(v)"
                       title="Editar"
-                      class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer"
+                      class="ps-ibtn"
                     >
                       <svg
                         class="w-4 h-4"
@@ -1091,7 +1066,7 @@
                     <button
                       (click)="removerPessoa($any(v))"
                       title="Remover"
-                      class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition cursor-pointer"
+                      class="ps-ibtn hover:!text-[var(--signal-danger)]"
                     >
                       <svg
                         class="w-4 h-4"
@@ -1117,22 +1092,20 @@
 
       <!-- TABLET/DESKTOP: tabela com scroll horizontal (arrasta pro lado),
            igual à área de Encomendas -->
-      <div class="hidden lg:block overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead
-            class="bg-slate-50/80 dark:bg-white/[0.02] text-slate-500 dark:text-slate-400 uppercase text-[11px] font-semibold tracking-wider border-b border-slate-200/80 dark:border-white/10"
-          >
+      <div class="hidden lg:block ps-tablewrap !border-0">
+        <table>
+          <thead>
             <tr>
-              <th class="text-left px-5 py-3 font-semibold">Pessoa</th>
-              <th class="text-left px-5 py-3 font-semibold">Documento</th>
-              <th class="text-left px-5 py-3 font-semibold">Tipo</th>
-              <th class="text-left px-5 py-3 font-semibold">Última entrada</th>
-              <th class="text-left px-5 py-3 font-semibold">Apartamentos</th>
-              <th class="text-left px-5 py-3 font-semibold">Status</th>
-              <th class="text-right px-5 py-3 font-semibold">Ações</th>
+              <th class="text-left">Pessoa</th>
+              <th class="text-left">Documento</th>
+              <th class="text-left">Tipo</th>
+              <th class="text-left">Última entrada</th>
+              <th class="text-left">Apartamentos</th>
+              <th class="text-left">Status</th>
+              <th class="text-right">Ações</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100 dark:divide-white/5">
+          <tbody>
             @for (v of visitantesPaginados(); track v.id) {
               <tr
                    role="button"
@@ -1140,10 +1113,10 @@
                    (keydown.enter)="abrirDetalhes(v)"
                    (keydown.space)="$event.preventDefault(); abrirDetalhes(v)"
                 (click)="abrirDetalhes(v)"
-                class="hover:bg-slate-50/75 dark:hover:bg-white/[0.02] active:bg-slate-100 dark:active:bg-white/[0.04] transition group cursor-pointer"
+                class="transition group cursor-pointer"
               >
-                <td class="px-5 py-3.5">
-                  <div class="flex items-center gap-3">
+                <td>
+                  <div class="ps-person">
                     <div
                          role="button"
                          tabindex="0"
@@ -1153,7 +1126,7 @@
                          (keydown.space)="$event.preventDefault(); v.foto_pessoa
                           ? abrirAmpliarFoto(v.foto_pessoa, v.nome, $event)
                           : $event.stopPropagation()"
-                      class="w-9 h-9 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs"
+                      class="ps-avatar overflow-hidden"
                       [class.cursor-pointer]="v.foto_pessoa"
                       [title]="v.foto_pessoa ? 'Clique para ampliar foto' : ''"
                       (click)="
@@ -1169,7 +1142,7 @@
                           class="w-full h-full object-cover"
                         />
                       } @else {
-                        <span class="text-xs font-bold text-accent">{{
+                        <span>{{
                           iniciais(v.nome)
                         }}</span>
                       }
@@ -1177,15 +1150,15 @@
                     <div class="flex flex-col min-w-0">
                       <div class="flex items-center gap-1.5 flex-wrap">
                         <span
-                          class="font-semibold text-slate-900 dark:text-white group-hover:text-accent transition text-sm truncate"
+                          class="ps-person-name truncate"
                           title="Clique na linha para ver detalhes"
                           >{{ v.nome }}</span
                         >
                         @if (v.bloqueado === 1) {
                           <span
-                            class="text-[10px] px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60 font-bold uppercase tracking-wider flex items-center gap-1"
+                            class="ps-tag"
                           >
-                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                            <span class="ps-dot ps-dot-danger ps-dot-pulse"></span>
                             Bloqueado
                           </span>
                         }
@@ -1193,7 +1166,7 @@
                       <div class="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                         @if (v.temPinAtivo || v.codigo_acesso) {
                           <span
-                            class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium"
+                            class="inline-flex items-center gap-1 text-slate-300 font-medium"
                             title="PIN de liberação física ativo"
                           >
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
@@ -1202,7 +1175,7 @@
                         }
                         @if (v.face_sync_status === 'synced') {
                           <span
-                            class="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 font-medium"
+                            class="inline-flex items-center gap-1 text-slate-300 font-medium"
                             title="Reconhecimento facial sincronizado"
                           >
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -1214,7 +1187,7 @@
                           </span>
                         }
                         @if (v.tag_rfid) {
-                          <span class="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-mono text-[10px]" title="Tag RFID">
+                          <span class="inline-flex items-center gap-1 text-slate-300 font-mono text-[10px]" title="Tag RFID">
                             Tag {{ v.tag_rfid }}
                           </span>
                         }
@@ -1227,7 +1200,7 @@
                           <span class="text-slate-300 dark:text-slate-650 select-none">·</span>
                           @if (v.categorias) {
                             <span
-                              class="bg-amber-500/10 dark:bg-amber-400/5 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-400/20 text-amber-700 dark:text-amber-400 truncate max-w-[150px] text-[10px]"
+                              class="ps-tag truncate max-w-[150px]"
                               [title]="v.categorias.split(';').join(', ')"
                               >{{ v.categorias.split(';').join(', ') }}</span
                             >
@@ -1243,7 +1216,7 @@
                   </div>
                 </td>
                 <td
-                  class="px-5 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-xs whitespace-nowrap"
+                  class="text-slate-300 font-mono text-xs"
                   (click)="$event.stopPropagation()"
                 >
                   @if (v.doc_identificacao) {
@@ -1282,46 +1255,33 @@
                     <span class="text-slate-400 dark:text-slate-600">—</span>
                   }
                 </td>
-                <td class="px-5 py-3.5 whitespace-nowrap">
+                <td>
                   <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold"
-                    [class.text-blue-700]="!v.is_prestador"
-                    [class.bg-blue-50]="!v.is_prestador"
-                    [class.border]="true"
-                    [class.border-blue-200]="!v.is_prestador"
-                    [class.dark:text-blue-300]="!v.is_prestador"
-                    [class.dark:bg-blue-950/40]="!v.is_prestador"
-                    [class.dark:border-blue-800/60]="!v.is_prestador"
-                    [class.text-amber-800]="v.is_prestador"
-                    [class.bg-amber-50]="v.is_prestador"
-                    [class.border-amber-200]="v.is_prestador"
-                    [class.dark:text-amber-300]="v.is_prestador"
-                    [class.dark:bg-amber-950/40]="v.is_prestador"
-                    [class.dark:border-amber-800/60]="v.is_prestador"
+                    class="ps-tag"
                   >
                     {{ tipoPessoa(v) }}
                   </span>
                 </td>
-                <td class="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-xs font-mono whitespace-nowrap">
+                <td class="text-slate-400 text-xs font-mono">
                   {{
                     $any(v).ultEntrada
                       ? ($any(v).ultEntrada | date: 'dd/MM HH:mm')
                       : '—'
                   }}
                 </td>
-                <td class="px-5 py-3.5 text-xs whitespace-nowrap">
+                <td class="text-xs">
                   @if ($any(v).apartamentosVisitados?.length) {
                     <div class="flex items-center gap-1.5 flex-wrap">
                       @for (a of $any(v).apartamentosVisitados.slice(0, 2); track a.id) {
                         <span
-                          class="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-300 font-mono text-[11px] font-medium"
+                          class="ps-tag font-mono"
                         >
                           {{ a.label }}
                         </span>
                       }
                       @if ($any(v).apartamentosVisitados.length > 2) {
                         <span
-                          class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100/80 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 text-slate-600 dark:text-slate-400 font-mono text-[10px] font-medium cursor-help"
+                          class="ps-tag font-mono"
                           [title]="'Apartamentos visitados: ' + formatarApartamentosTooltip($any(v).apartamentosVisitados)"
                         >
                           +{{ $any(v).apartamentosVisitados.length - 2 }}
@@ -1332,71 +1292,71 @@
                     <span class="text-slate-400 dark:text-slate-600">—</span>
                   }
                 </td>
-                <td class="px-5 py-3.5 whitespace-nowrap">
+                <td>
                   @if (getStatusVisitante(v) === 'presente') {
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span class="ps-tag">
+                      <span class="ps-dot ps-dot-ok"></span>
                       No condomínio
                     </span>
                   } @else if (v.auth_status === 'pendente' && !autorizacaoExpirada(v)) {
                     @if (autorizacaoSemResposta(v)) {
                       <button
                         (click)="authModalPessoaId.set(chavePessoa(v)); $event.stopPropagation()"
-                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition cursor-pointer dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50"
+                        class="ps-tag cursor-pointer"
                         title="Tempo limite esgotado. Clique para ver o pedido."
                       >
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        <span class="ps-dot ps-dot-warn"></span>
                         Sem resposta
                       </button>
                     } @else {
                       <button
                         (click)="authModalPessoaId.set(chavePessoa(v)); $event.stopPropagation()"
-                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition cursor-pointer dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50"
+                        class="ps-tag cursor-pointer"
                         title="Aguardando morador. Clique para acompanhar."
                       >
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                        <span class="ps-dot ps-dot-warn ps-dot-pulse"></span>
                         Aguardando morador
                       </button>
                     }
                   } @else if (v.auth_status === 'autorizado' && !autorizacaoExpirada(v)) {
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
-                      <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                    <span class="ps-tag">
+                      <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                       Autorizado
                     </span>
                   } @else if (v.auth_status === 'negado' && !autorizacaoExpirada(v)) {
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50">
+                    <span class="ps-tag">
                       <svg class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
                       Negado
                     </span>
                   } @else {
                     @switch (getStatusVisitante(v)) {
                       @case ('expirado') {
-                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50" title="A autorização do morador venceu (10 min). Registre a entrada com uma nova janela.">
-                          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        <span class="ps-tag" title="A autorização do morador venceu (10 min). Registre a entrada com uma nova janela.">
+                          <span class="ps-dot ps-dot-warn"></span>
                           Autorização expirada
                         </span>
                       }
                       @case ('liberado') {
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
-                          <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                        <span class="ps-tag">
+                          <span class="ps-dot ps-dot-ink"></span>
                           Liberado
                         </span>
                       }
                       @case ('autorizado') {
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
-                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        <span class="ps-tag">
+                          <span class="ps-dot ps-dot-ok"></span>
                           Autorizado
                         </span>
                       }
                       @case ('agendado') {
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/50">
-                          <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                        <span class="ps-tag">
+                          <span class="ps-dot ps-dot-ink"></span>
                           Agendado
                         </span>
                       }
                       @case ('saiu') {
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/80 dark:bg-white/5 dark:text-slate-400 dark:border-white/10">
-                          <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                        <span class="ps-tag">
+                          <span class="ps-dot ps-dot-ink"></span>
                           Saiu
                         </span>
                       }
@@ -1404,7 +1364,7 @@
                   }
                 </td>
                 <td
-                  class="px-5 py-3.5 text-right whitespace-nowrap"
+                  class="text-right"
                   (click)="$event.stopPropagation()"
                 >
                   <div class="flex items-center justify-end gap-2">
@@ -1412,7 +1372,7 @@
                     @if (getStatusVisitante(v) === 'presente') {
                       <button
                         (click)="darBaixa(v)"
-                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-600 hover:!text-white border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60 dark:hover:bg-rose-600 dark:hover:!text-white transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                        class="ps-btn ps-btn-danger ps-btn-sm"
                         title="Registrar saída do visitante"
                       >
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
@@ -1426,28 +1386,28 @@
                     ) {
                       <button
                         (click)="registrarEntradaManual(v)"
-                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-accent hover:bg-accent-600 text-white keep-white transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        class="ps-btn ps-btn-sm"
                         title="Registrar entrada no sistema agora"
                       >
-                        <svg class="w-3.5 h-3.5 text-white keep-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                         Registrar Entrada
                       </button>
                     } @else if (v.auth_status === 'pendente' && !autorizacaoExpirada(v)) {
                       <button
                         (click)="authModalPessoaId.set(chavePessoa(v))"
-                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-600 text-white keep-white transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        class="ps-btn ps-btn-sec ps-btn-sm"
                         title="Ver andamento do pedido de autorização"
                       >
-                        <svg class="w-3.5 h-3.5 text-white keep-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                         Ver Pedido
                       </button>
                     } @else {
                       <button
                         (click)="abrirSolicitar(v)"
-                        class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 transition inline-flex items-center gap-1.5 cursor-pointer"
+                        class="ps-btn ps-btn-sec ps-btn-sm"
                         title="Pedir autorização ao morador pelo app"
                       >
-                        <svg class="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                         Solicitar
                       </button>
                     }
@@ -1456,18 +1416,18 @@
                     <button
                       (click)="abrirNovaVisita($any(v))"
                       title="Cadastrar nova visita para esta pessoa em outro apartamento"
-                      class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 transition inline-flex items-center gap-1 shadow-2xs cursor-pointer"
+                      class="ps-ibtn"
                     >
-                      <svg class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                      Nova Visita
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                      <span class="sr-only">Nova Visita</span>
                     </button>
 
                     <!-- Ações de ferramentas (Editar / Remover) com divisor sutil -->
-                    <div class="flex items-center gap-0.5 border-l border-slate-200 dark:border-white/10 pl-1.5">
+                    <div class="flex items-center gap-0.5 border-l border-slate-300 pl-1.5">
                       <button
                         (click)="abrirEditar(v)"
                         title="Editar pessoa"
-                        class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer"
+                        class="ps-ibtn"
                       >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
@@ -1476,7 +1436,7 @@
                       <button
                         (click)="removerPessoa($any(v))"
                         title="Remover pessoa"
-                        class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition cursor-pointer"
+                        class="ps-ibtn hover:!text-[var(--signal-danger)]"
                       >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -1494,7 +1454,7 @@
       <!-- Paginação -->
       @if (visitantesFiltrados().length > itensPorPagina) {
         <div
-          class="px-5 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between flex-wrap gap-4"
+          class="px-5 py-4 border-t border-slate-300 flex items-center justify-between flex-wrap gap-4"
         >
           <p class="text-xs text-slate-400">
             Exibindo
@@ -1511,7 +1471,7 @@
               (click)="pagina.set(pagina() - 1)"
               [disabled]="pagina() === 1"
               aria-label="Página anterior"
-              class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition"
+              class="ps-ibtn border border-slate-300 disabled:opacity-40"
             >
               <svg
                 class="w-4 h-4"
@@ -1553,7 +1513,7 @@
               (click)="pagina.set(pagina() + 1)"
               [disabled]="pagina() === totalPaginas()"
               aria-label="Próxima página"
-              class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition"
+              class="ps-ibtn border border-slate-300 disabled:opacity-40"
             >
               <svg
                 class="w-4 h-4"
@@ -1578,9 +1538,9 @@
   <!-- Modal de Validação de Código (PIN) -->
   <!-- Portaria remota: seleção do apartamento de destino ao solicitar -->
   @if (solicitarModalPessoa(); as sp) {
-    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 dark:bg-black/80 p-4">
-      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/10 overflow-hidden shadow-2xl animate-fade-in">
-        <div class="px-6 py-4 bg-slate-50 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+    <div class="ps-scrim on !z-[60]">
+      <div class="ps-modal on !p-0 !gap-0 overflow-y-auto max-h-[90vh] !w-[min(448px,calc(100%-32px))]">
+        <div class="px-6 py-4 border-b border-slate-300 flex items-center justify-between">
           <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Solicitar autorização</h3>
           <button (click)="fecharSolicitar()" aria-label="Fechar solicitação" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1611,11 +1571,11 @@
           </p>
           <div class="flex justify-end gap-2 pt-2">
             <button (click)="fecharSolicitar()"
-              class="px-4 py-2 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white text-sm hover:bg-slate-200 dark:hover:bg-white/10 transition">
+              class="ps-btn ps-btn-sec">
               Cancelar
             </button>
             <button (click)="confirmarSolicitar()" [disabled]="!solicitarAptoId()"
-              class="px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:opacity-90 transition disabled:opacity-40">
+              class="ps-btn disabled:opacity-40">
               Enviar pedido
             </button>
           </div>
@@ -1626,15 +1586,15 @@
 
   <!-- Modal: Registrar Entrada com Seleção de Unidade / Abas de Apartamentos Liberados -->
   @if (entradaModalPessoa(); as p) {
-    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 dark:bg-black/85 backdrop-blur-xs p-4 animate-fade-in"
+    <div class="ps-scrim on !z-[60]"
          (click)="fecharEntradaModal()">
-      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/10 overflow-hidden shadow-2xl animate-scale-in"
+      <div class="ps-modal on !p-0 !gap-0 overflow-y-auto max-h-[90vh] !w-[min(512px,calc(100%-32px))]"
            (click)="$event.stopPropagation()">
         
         <!-- Header -->
-        <div class="px-6 py-4 bg-slate-50/80 dark:bg-white/[0.02] border-b border-slate-200/80 dark:border-white/10 flex items-center justify-between">
+        <div class="px-6 py-4 border-b border-slate-300 flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0 shadow-2xs">
+            <div class="ps-ico !w-9 !h-9">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
               </svg>
@@ -1658,7 +1618,7 @@
 
         <div class="p-6 space-y-5">
           <!-- Card de identificação da pessoa -->
-          <div class="flex items-center gap-3.5 p-3.5 rounded-xl bg-slate-50/80 dark:bg-white/[0.02] border border-slate-200/70 dark:border-white/5">
+          <div class="flex items-center gap-3.5 p-3.5 border border-slate-300">
             <div class="w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent text-base font-bold shrink-0 overflow-hidden shadow-2xs">
               @if (p.foto_pessoa) {
                 <img [src]="p.foto_pessoa" [alt]="p.nome" class="w-full h-full object-cover" />
@@ -1771,7 +1731,7 @@
         }
 
         <!-- Footer / Ações -->
-        <div class="px-6 py-4 bg-slate-50 dark:bg-white/[0.02] border-t border-slate-200/80 dark:border-white/10 flex items-center justify-end gap-3">
+        <div class="px-6 py-4 border-t border-slate-300 flex items-center justify-end gap-3">
           <button type="button"
                   (click)="fecharEntradaModal()"
                   [disabled]="entradaSalvando()"
@@ -1799,13 +1759,13 @@
 
   <!-- Portaria remota: janela "ao vivo" do pedido de autorização -->
   @if (authModalPessoa(); as ap) {
-    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 dark:bg-black/85 backdrop-blur-xs p-4">
-      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/10 overflow-hidden shadow-2xl animate-fade-in">
+    <div class="ps-scrim on !z-[60]">
+      <div class="ps-modal on !p-0 !gap-0 overflow-y-auto max-h-[90vh] !w-[min(448px,calc(100%-32px))]">
         
         <!-- Header do Modal -->
-        <div class="px-6 py-4 bg-slate-50/80 dark:bg-white/[0.02] border-b border-slate-200/80 dark:border-white/10 flex items-center justify-between">
+        <div class="px-6 py-4 border-b border-slate-300 flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0">
+            <div class="ps-ico !w-9 !h-9">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -1828,7 +1788,7 @@
 
         <div class="p-6 space-y-4">
           <!-- Card de identificação da pessoa -->
-          <div class="flex items-center gap-3.5 p-3.5 rounded-xl bg-slate-50/80 dark:bg-white/[0.02] border border-slate-200/70 dark:border-white/5">
+          <div class="flex items-center gap-3.5 p-3.5 border border-slate-300">
             <div class="w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent text-sm font-bold shrink-0 overflow-hidden shadow-2xs">
               @if (ap.foto_pessoa) {
                 <img [src]="ap.foto_pessoa" [alt]="ap.nome" class="w-full h-full object-cover" />
@@ -1875,7 +1835,7 @@
           <!-- ESTADO: EXPIRADO (> 10 min) -->
           @if (autorizacaoExpirada(ap)) {
             <div class="p-4 rounded-xl bg-slate-500/10 border border-slate-500/20 flex items-start gap-3 animate-fade-in">
-              <div class="w-8 h-8 rounded-lg bg-slate-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+              <div class="ps-ico !w-8 !h-8 mt-0.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -1949,7 +1909,7 @@
           <!-- ESTADO: SEM RESPOSTA (timeout 3-10 min) -->
           @if (ap.auth_status === 'pendente' && autorizacaoSemResposta(ap) && !autorizacaoExpirada(ap)) {
             <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 animate-fade-in">
-              <div class="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+              <div class="ps-ico !w-8 !h-8 mt-0.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -2113,7 +2073,7 @@
           <!-- ESTADO: SEM SOLICITAÇÃO ATIVA / INICIAL (nunca fica em branco) -->
           @if (!autorizacaoExpirada(ap) && ap.auth_status !== 'pendente' && ap.auth_status !== 'autorizado' && ap.auth_status !== 'negado') {
             <div class="p-4 rounded-xl bg-slate-500/10 border border-slate-500/20 flex items-start gap-3 animate-fade-in">
-              <div class="w-8 h-8 rounded-lg bg-slate-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+              <div class="ps-ico !w-8 !h-8 mt-0.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -2175,14 +2135,14 @@
 
   @if (showValidationModal()) {
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      class="ps-scrim on"
     >
       <div
-        class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in"
+        class="ps-modal on !p-0 !gap-0 overflow-y-auto max-h-[90vh] !w-[min(448px,calc(100%-32px))]"
       >
         <!-- Header do Modal -->
         <div
-          class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between"
+          class="px-6 py-4 border-b border-slate-300 flex items-center justify-between"
         >
           <div class="flex items-center gap-2">
             <svg
@@ -2238,16 +2198,16 @@
                     [ngModel]="pinCode()"
                     (ngModelChange)="pinCode.set($event)"
                     (keyup.enter)="validarPIN()"
-                    class="flex-1 px-4 py-3 text-lg font-mono text-center tracking-widest rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition"
+                    class="flex-1 min-w-0 px-4 h-12 text-lg font-mono text-center tracking-widest bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition"
                   />
                   <button
                     (click)="validarPIN()"
                     [disabled]="validating() || !pinCode()"
-                    class="px-5 rounded-lg font-medium text-sm text-white bg-emerald-500 hover:bg-emerald-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                    class="ps-btn !h-12 shrink-0 disabled:opacity-50"
                   >
                     @if (validating()) {
                       <div
-                        class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                        class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
                       ></div>
                     } @else {
                       Buscar
@@ -2261,7 +2221,7 @@
           <!-- Erro de Validação -->
           @if (validationError()) {
             <div
-              class="p-3 rounded-lg bg-red-400/10 border border-red-400/20 text-xs text-red-300 flex items-center gap-2"
+              class="p-3 border border-slate-300 text-xs text-rose-400 flex items-center gap-2"
             >
               <svg
                 class="w-4 h-4 shrink-0"
@@ -2284,7 +2244,7 @@
           @if (validationResult()) {
             <div class="space-y-4 animate-fade-in">
               <div
-                class="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3"
+                class="p-4 border border-slate-300 space-y-3"
               >
                 <div class="flex items-center justify-between">
                   <span
@@ -2399,7 +2359,7 @@
               <div class="flex gap-2">
                 <button
                   (click)="validationResult.set(null)"
-                  class="flex-1 py-2.5 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition"
+                  class="ps-btn ps-btn-sec flex-1"
                 >
                   Voltar
                 </button>
@@ -2432,13 +2392,13 @@
   <!-- Modal da Webcam para Captura -->
   @if (activeCamera()) {
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      class="ps-scrim on"
     >
       <div
-        class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in flex flex-col"
+        class="ps-modal on !p-0 !gap-0 overflow-y-auto max-h-[90vh] !w-[min(512px,calc(100%-32px))]"
       >
         <div
-          class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between"
+          class="px-6 py-4 border-b border-slate-300 flex items-center justify-between"
         >
           <h3 class="text-sm font-semibold text-white">
             Capturando Foto -
@@ -2503,11 +2463,11 @@
           </div>
         </div>
         <div
-          class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end"
+          class="px-6 py-4 border-t border-slate-300 flex justify-end"
         >
           <button
             (click)="fecharCamera()"
-            class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300"
+            class="ps-btn ps-btn-sec"
           >
             Cancelar
           </button>
@@ -2519,11 +2479,11 @@
   <!-- Modal de Detalhes do Visitante (timeline, stats) -->
   @if (detalhesLoading() || detalhesData() || detalhesError()) {
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
+      class="ps-scrim on"
       (click)="fecharDetalhes()"
     >
       <div
-        class="relative w-full max-w-3xl max-h-[90vh] rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-graphite-200 overflow-hidden shadow-2xl animate-fade-in flex flex-col"
+        class="ps-modal on !p-0 !gap-0 overflow-hidden max-h-[90vh] !w-[min(768px,calc(100%-32px))]"
         (click)="$event.stopPropagation()"
       >
         @if (detalhesLoading()) {
@@ -2555,7 +2515,7 @@
         @if (detalhesData(); as d) {
           @if (copiaSucessoTexto()) {
             <div
-              class="absolute top-20 left-1/2 -translate-x-1/2 px-3.5 py-1.5 bg-emerald-500 text-white text-[11px] font-bold rounded-full shadow-lg z-[100] animate-bounce flex items-center gap-1.5"
+              class="absolute top-20 left-1/2 -translate-x-1/2 px-3.5 py-1.5 bg-accent text-white text-[11px] font-bold z-[100] animate-bounce flex items-center gap-1.5"
             >
               <svg
                 class="w-3.5 h-3.5"
@@ -2575,7 +2535,7 @@
           }
           <!-- Header -->
           <div
-            class="px-6 py-5 bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 flex items-start gap-4"
+            class="px-6 py-5 border-b border-slate-300 flex items-start gap-4"
           >
             <div
                  role="button"
@@ -2909,11 +2869,11 @@
                 <div class="space-y-1.5 max-h-[175px] overflow-y-auto pr-1">
                   @for (a of d.stats.apartamentosVisitados; track a.id) {
                     <div
-                      class="bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-white/10 rounded-xl px-3 py-2 shadow-2xs hover:border-blue-300 dark:hover:border-blue-700/60 transition flex items-center justify-between gap-3"
+                      class="bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-white/10 rounded-xl px-3 py-2 shadow-2xs hover:border-slate-100 transition flex items-center justify-between gap-3"
                     >
                       <div class="flex items-center gap-2.5 min-w-0">
                         <div
-                          class="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/50 border border-blue-200/80 dark:border-blue-800/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0"
+                          class="ps-ico !w-7 !h-7"
                         >
                           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
@@ -2974,17 +2934,17 @@
 
                 <!-- Badge de Presença/Status Atual -->
                 @if (d.visitante.data_entrada && !d.visitante.data_saida) {
-                  <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60 shadow-2xs">
+                  <span class="ps-tag">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     No condomínio
                   </span>
                 } @else if (d.visitante.data_saida) {
-                  <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 dark:bg-white/10 dark:text-slate-300 dark:border-white/10">
+                  <span class="ps-tag">
                     <span class="w-2 h-2 rounded-full bg-slate-400"></span>
                     Visita Concluída (Saiu)
                   </span>
                 } @else {
-                  <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/60">
+                  <span class="ps-tag">
                     <span class="w-2 h-2 rounded-full bg-amber-500"></span>
                     Aguardando Entrada
                   </span>
@@ -3319,7 +3279,7 @@
 
           <!-- Footer -->
           <div
-            class="px-6 py-4 border-t border-slate-100 dark:border-white/5 flex justify-end gap-2 bg-slate-50/50 dark:bg-white/[0.01]"
+            class="px-6 py-4 border-t border-slate-300 flex justify-end gap-2"
           >
             <button
               (click)="fecharDetalhes()"
@@ -3336,15 +3296,15 @@
   <!-- Modal de Foto Ampliada -->
   @if (fotoAmpliadaUrl()) {
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+      class="ps-scrim on"
       (click)="fecharAmpliarFoto()"
     >
       <div
-        class="relative max-w-3xl max-h-[85vh] rounded-2xl border border-white/10 bg-graphite overflow-hidden shadow-2xl animate-fade-in flex flex-col"
+        class="ps-modal on !p-0 !gap-0 overflow-hidden max-h-[85vh] !w-[min(768px,calc(100%-32px))]"
         (click)="$event.stopPropagation()"
       >
         <div
-          class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between"
+          class="px-6 py-4 border-b border-slate-300 flex items-center justify-between"
         >
           <h3 class="text-sm font-semibold text-white">
             {{ fotoAmpliadaTitulo() }}
