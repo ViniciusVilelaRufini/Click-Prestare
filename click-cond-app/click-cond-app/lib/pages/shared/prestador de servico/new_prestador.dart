@@ -293,7 +293,7 @@ class _NewPrestadorPageState extends State<NewPrestador> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: sel ? AppColors.primary : AppColors.surface(context),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.zero,
               border: Border.all(
                 color: sel ? AppColors.primary : AppColors.border(context),
               ),
@@ -368,7 +368,7 @@ class _NewPrestadorPageState extends State<NewPrestador> {
                               color: categorias.contains(cat["display"])
                                   ? AppColors.primary
                                   : AppColors.surface(context),
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
                                 color: categorias.contains(cat["display"])
                                     ? AppColors.primary

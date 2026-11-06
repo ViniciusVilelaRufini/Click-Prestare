@@ -1,6 +1,7 @@
+import 'package:click/theme/app_typography.dart';
+import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'reserva_helpers.dart';
 
@@ -16,34 +17,36 @@ class ReservaStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final info = statusReservaInfo(status);
-    final fg = info.corTexto(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Semantics(
       label: 'Status: ${info.rotulo}',
       excludeSemantics: true,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: AppSpacing.xs),
+        height: 22,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: info.cor.withValues(alpha: isDark ? 0.18 : 0.12),
-          borderRadius: BorderRadius.circular(AppRadius.full),
-          border: Border.all(color: info.cor.withValues(alpha: isDark ? 0.4 : 0.3)),
+          border: Border.all(color: AppColors.borderStrong(context)),
+          borderRadius: BorderRadius.circular(AppRadius.tag),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(info.icone, size: 14, color: fg),
-            const SizedBox(width: AppSpacing.xs),
+            Container(
+              width: 6,
+              height: 6,
+              decoration:
+                  BoxDecoration(shape: BoxShape.circle, color: info.cor),
+            ),
+            const SizedBox(width: 6),
             Flexible(
               child: Text(
-                info.rotulo,
+                info.rotulo.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
-                  height: 1.3,
+                style: AppTypography.label(context).copyWith(
+                  color: AppColors.textSecondary(context),
+                  fontSize: 10,
+                  letterSpacing: 10 * 0.18,
                 ),
               ),
             ),

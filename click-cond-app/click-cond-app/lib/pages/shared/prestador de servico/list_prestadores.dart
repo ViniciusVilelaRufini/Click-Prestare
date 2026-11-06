@@ -71,7 +71,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Erro: ${result ?? 'Não foi possível dar baixa na visita.'}'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
           duration: const Duration(seconds: 3),
         ),
       );
@@ -112,7 +112,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
         return Container(
           decoration: BoxDecoration(
             color: AppColors.bg(context),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: const BorderRadius.vertical(top: Radius.zero),
           ),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
           child: Column(
@@ -152,7 +152,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: AppColors.success.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(2),
                                 ),
                                 child: Text(
                                   'NO LOCAL',
@@ -167,7 +167,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: AppColors.primary.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(2),
                                 ),
                                 child: Text(
                                   'AUTORIZADO',
@@ -182,7 +182,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: AppColors.textSecondary(context).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(2),
                                 ),
                                 child: Text(
                                   'AGENDADO',
@@ -248,16 +248,9 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppColors.primary.withValues(alpha: 0.15),
-                        AppColors.primary.withValues(alpha: 0.05),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                    color: AppColors.surface(context),
+                    borderRadius: BorderRadius.zero,
+                    border: Border.all(color: AppColors.border(context)),
                   ),
                   child: Column(
                     children: [
@@ -284,21 +277,21 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                           margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                           padding: const EdgeInsets.all(AppSpacing.sm),
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
+                            color: AppColors.qrPaper,
+                            borderRadius: BorderRadius.zero,
                           ),
                           child: QrImageView(
                             data: item['codigo_acesso'].toString(),
                             version: QrVersions.auto,
                             size: 180,
-                            backgroundColor: Colors.white,
+                            backgroundColor: AppColors.qrPaper,
                             eyeStyle: const QrEyeStyle(
                               eyeShape: QrEyeShape.square,
-                              color: Color(0xFF0A1628),
+                              color: AppColors.qrInk,
                             ),
                             dataModuleStyle: const QrDataModuleStyle(
                               dataModuleShape: QrDataModuleShape.square,
-                              color: Color(0xFF0A1628),
+                              color: AppColors.qrInk,
                             ),
                           ),
                         ),
@@ -331,7 +324,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                             child: OutlinedButton.icon(
                               icon: const Icon(PhosphorIcons.copy, size: 16),
-                              label: const Text('Copiar código'),
+                              label: Text('Copiar código'.toUpperCase()),
                               onPressed: () {
                                 Clipboard.setData(ClipboardData(text: item['codigo_acesso'].toString())).then((_) {
                                   if (context.mounted) {
@@ -348,7 +341,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.primary,
                                 side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                                 padding: const EdgeInsets.symmetric(vertical: 10),
                               ),
                             ),
@@ -393,7 +386,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
                     color: AppColors.textSecondary(context).withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.zero,
                     border: Border.all(color: AppColors.textSecondary(context).withValues(alpha: 0.2)),
                   ),
                   child: Row(
@@ -425,18 +418,18 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                       Navigator.pop(context);
                       await _registrarSaida(item);
                     },
-                    icon: const Icon(PhosphorIcons.signOut, size: 20, color: Colors.white),
-                    label: const Text(
-                      'Dar Baixa na Visita',
+                    icon: Icon(PhosphorIcons.signOut, size: 20, color: AppColors.onPrimary),
+                    label: Text(
+                      'Dar Baixa na Visita'.toUpperCase(),
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppColors.onPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFDC2626),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      backgroundColor: AppColors.error,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                       elevation: 0,
                     ),
                   ),
@@ -451,7 +444,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         side: BorderSide(color: AppColors.textTertiary(context).withValues(alpha: 0.3)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                       ),
                       child: Text('Fechar', style: AppTypography.body(context)),
                     ),
@@ -476,7 +469,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         ),
                         child: Text(
                           'Editar',
@@ -685,7 +678,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                   prefixIcon: Icon(PhosphorIcons.magnifyingGlass, size: 20, color: AppColors.textSecondary(context)),
                   filled: true,
                   fillColor: AppColors.surface(context),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide.none),
                   contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 14),
                 ),
               ),
@@ -697,7 +690,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: AppColors.surface(context),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: TabBar(
                   dividerColor: Colors.transparent,
@@ -708,7 +701,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                   indicatorSize: TabBarIndicatorSize.tab,
                   indicator: BoxDecoration(
                     color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.zero,
                   ),
                    tabs: [
                     Tab(
@@ -842,7 +835,7 @@ class _PrestadorCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
         child: Row(
           children: [
             Stack(
@@ -890,14 +883,14 @@ class _PrestadorCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                          decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(2)),
                           child: Text('NO LOCAL', style: AppTypography.tiny(context).copyWith(color: AppColors.success, fontWeight: FontWeight.bold)),
                         ),
                       ] else if (isAuthorized) ...[
                         const SizedBox(width: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                          decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(2)),
                           child: Text('AUTORIZADO', style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
                         ),
                       ],

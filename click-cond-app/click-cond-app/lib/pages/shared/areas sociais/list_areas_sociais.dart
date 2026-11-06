@@ -96,7 +96,7 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: AppColors.surface(context),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.zero,
                 border: Border.all(color: AppColors.border(context)),
               ),
               child: TabBar(
@@ -104,14 +104,7 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
                 dividerHeight: 0,
                 indicator: BoxDecoration(
                   color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  borderRadius: BorderRadius.zero,
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 labelColor: AppColors.onPrimary,

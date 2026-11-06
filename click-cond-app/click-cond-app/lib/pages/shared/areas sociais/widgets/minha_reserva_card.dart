@@ -64,7 +64,7 @@ class MinhaReservaCard extends StatelessWidget {
         );
 
     return Material(
-      color: AppColors.surfaceElevated(context),
+      color: AppColors.surface(context),
       shape: RoundedRectangleBorder(
         borderRadius: AppRadius.rlg,
         side: BorderSide(color: AppColors.border(context)),

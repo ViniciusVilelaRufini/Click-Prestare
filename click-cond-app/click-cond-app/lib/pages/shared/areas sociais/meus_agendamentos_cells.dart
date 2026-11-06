@@ -32,13 +32,13 @@ class _MeusAgendamentosCellsState extends State<MeusAgendamentosCells> {
         await widget.reload();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
                 'Agendamento cancelado com sucesso.',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
-              backgroundColor: Color(0xFF64748B),
-              duration: Duration(seconds: 2),
+              backgroundColor: AppColors.info,
+              duration: const Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
           );

@@ -203,13 +203,6 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Stack(
         fit: StackFit.expand,
@@ -311,14 +304,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
   Widget _buildPlaceholderHeader() {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primaryGradientStart,
-            AppColors.primaryGradientEnd,
-          ],
-        ),
+        color: AppColors.surface(context),
       ),
       child: Center(
         child: Opacity(
@@ -326,7 +312,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
           child: Icon(
             PhosphorIcons.buildings,
             size: 100,
-            color: AppColors.onPrimary,
+            color: AppColors.textTertiary(context),
           ),
         ),
       ),
@@ -341,8 +327,8 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white24),
+        borderRadius: BorderRadius.zero,
+        border: Border.all(color: AppColors.borderStrong(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -405,14 +391,14 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
           label: 'Autorização',
           descricao: getText('area_social_precisa_autorizacao'),
           icon: PhosphorIcons.shieldCheck,
-          color: Colors.teal,
+          color: AppColors.info,
         ),
       if (obj['precisa_pagamento'] == 1)
         _ChipInfo(
           label: 'Pagamento',
           descricao: getText('area_social_precisa_pagamento'),
           icon: PhosphorIcons.creditCard,
-          color: Colors.orange,
+          color: AppColors.warning,
         ),
       if (clima != null) clima,
     ];
@@ -433,7 +419,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
   Widget _cardRegras() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: AppColors.surfaceElevated(context),
+      color: AppColors.surface(context),
       shape: RoundedRectangleBorder(
         borderRadius: AppRadius.rlg,
         side: BorderSide(color: AppColors.border(context)),
@@ -522,7 +508,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
           children: [
             Flexible(
               child: Text(
-                todas ? getText('area_social_agendamentos') : 'Minhas reservas',
+                (todas ? getText('area_social_agendamentos') : 'Minhas reservas').toUpperCase(),
                 style: AppTypography.title(context).copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary(context),
@@ -537,7 +523,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppColors.surface(context),
-                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  borderRadius: BorderRadius.circular(AppRadius.tag),
                   border: Border.all(color: AppColors.border(context)),
                 ),
                 child: Text(
@@ -731,7 +717,7 @@ class _ChipInfo extends StatelessWidget {
       bg = AppColors.surface(context);
       borda = AppColors.border(context);
     } else {
-      fg = isDark ? Color.lerp(base, Colors.white, 0.45)! : Color.lerp(base, Colors.black, 0.35)!;
+      fg = base;
       bg = base.withValues(alpha: isDark ? 0.18 : 0.08);
       borda = base.withValues(alpha: isDark ? 0.35 : 0.22);
     }
@@ -741,7 +727,7 @@ class _ChipInfo extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(AppRadius.full),
+        borderRadius: BorderRadius.circular(AppRadius.tag),
         border: Border.all(color: borda),
       ),
       child: Row(

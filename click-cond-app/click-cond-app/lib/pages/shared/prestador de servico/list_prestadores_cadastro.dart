@@ -113,7 +113,7 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.zero,
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const ListFuncionarios()),
@@ -122,7 +122,7 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.zero,
               border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
             ),
             child: Row(
@@ -188,7 +188,7 @@ class _PrestadorCadastroCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(
           children: [
@@ -216,7 +216,7 @@ class _PrestadorCadastroCard extends StatelessWidget {
                             color: syncStatus == 'synced'
                                 ? AppColors.success.withValues(alpha: 0.12)
                                 : AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(2),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -263,7 +263,7 @@ class _PrestadorCadastroCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: AppColors.primary.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(2),
                               ),
                               child: Text(
                                 c,

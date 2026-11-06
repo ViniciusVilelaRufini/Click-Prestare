@@ -32,13 +32,13 @@ class _AgendamentosCellsState extends State<AgendamentosCells> {
         await widget.reload();
         if (mounted) {
           String msg = 'Reserva aprovada com sucesso!';
-          Color cor = const Color(0xFF10B981);
+          Color cor = AppColors.success;
           if (status == 'recusado') {
             msg = 'Reserva recusada.';
-            cor = const Color(0xFFEF4444);
+            cor = AppColors.error;
           } else if (status == 'cancelado') {
             msg = 'Reserva cancelada.';
-            cor = const Color(0xFF64748B);
+            cor = AppColors.textTertiary(context);
           }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

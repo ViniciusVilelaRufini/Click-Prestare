@@ -116,7 +116,7 @@ class _DisponibilidadeCalendarioState extends State<DisponibilidadeCalendario> {
     return Container(
       padding: const EdgeInsets.fromLTRB(AppSpacing.sm, AppSpacing.xs, AppSpacing.sm, AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
+        color: AppColors.surface(context),
         borderRadius: AppRadius.rlg,
         border: Border.all(color: AppColors.border(context)),
       ),

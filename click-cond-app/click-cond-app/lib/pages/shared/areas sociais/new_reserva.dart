@@ -512,7 +512,7 @@ class _NewReservaPageState extends State<NewReserva> {
               type: MaterialType.transparency,
               child: InkWell(
                 onTap: _isSaving ? null : () => setState(() => acceptTerms = !acceptTerms),
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(AppRadius.lg)),
+                borderRadius: BorderRadius.vertical(bottom: Radius.zero),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: AppSpacing.xs),
                   child: Row(
@@ -520,7 +520,6 @@ class _NewReservaPageState extends State<NewReserva> {
                       Checkbox(
                         value: acceptTerms,
                         onChanged: _isSaving ? null : (v) => setState(() => acceptTerms = v ?? false),
-                        activeColor: AppColors.primary,
                       ),
                       Expanded(child: Text(getText('lb_li_concordo'), style: AppTypography.body(context))),
                     ],
@@ -541,7 +540,7 @@ class _NewReservaPageState extends State<NewReserva> {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
+        color: AppColors.surface(context),
         borderRadius: AppRadius.rlg,
         border: Border.all(color: AppColors.border(context)),
       ),

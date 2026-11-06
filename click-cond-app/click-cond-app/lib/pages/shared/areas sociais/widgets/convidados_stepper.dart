@@ -56,7 +56,7 @@ class ConvidadosStepper extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
+        color: AppColors.surface(context),
         borderRadius: AppRadius.rlg,
         border: Border.all(color: AppColors.border(context)),
       ),
@@ -131,7 +131,7 @@ class _Botao extends StatelessWidget {
         minimumSize: const Size(48, 48),
         fixedSize: const Size(48, 48),
         backgroundColor: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.08),
-        foregroundColor: isDark ? const Color(0xFF93B4F8) : AppColors.primary,
+        foregroundColor: AppColors.primary,
         disabledBackgroundColor: AppColors.surface(context),
         disabledForegroundColor: AppColors.textTertiary(context),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.rmd),

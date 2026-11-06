@@ -38,7 +38,7 @@ class HorarioCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final duracao = duracaoHorario(de, ate);
     final faixa = faixaHorario(de, ate);
-    final destaque = isDark ? const Color(0xFF93B4F8) : AppColors.primary;
+    final destaque = AppColors.primary;
 
     // excludeSemantics descarta a semântica do InkWell (inclusive a ação de
     // toque), então o onTap precisa ser repassado aqui — senão o toque duplo
@@ -58,7 +58,7 @@ class HorarioCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: selecionado
               ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.06)
-              : AppColors.surfaceElevated(context),
+              : AppColors.surface(context),
           borderRadius: AppRadius.rlg,
           border: Border.all(
             color: selecionado ? AppColors.primary : AppColors.border(context),

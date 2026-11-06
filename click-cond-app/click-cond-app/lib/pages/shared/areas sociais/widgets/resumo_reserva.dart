@@ -46,7 +46,7 @@ class ResumoReserva extends StatelessWidget {
     final b = rotuloBloco(bloco);
     final a = (apto ?? '').trim();
     final unidade = [if (b.isNotEmpty) b, if (a.isNotEmpty) 'Apto $a'].join(' · ');
-    final destaque = isDark ? const Color(0xFF93B4F8) : AppColors.primary;
+    final destaque = AppColors.primary;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),

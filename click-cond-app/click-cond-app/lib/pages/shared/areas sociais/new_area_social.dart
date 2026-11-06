@@ -196,8 +196,8 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
         errorBuilder: (_, __, ___) => Container(
           width: double.infinity,
           height: 180,
-          color: Colors.grey.shade200,
-          child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+          color: AppColors.surface(context),
+          child: Icon(Icons.broken_image, size: 50, color: AppColors.textTertiary(context)),
         ),
       );
     }
@@ -214,8 +214,8 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
           errorBuilder: (_, __, ___) => Container(
             width: double.infinity,
             height: 180,
-            color: Colors.grey.shade200,
-            child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+            color: AppColors.surface(context),
+            child: Icon(Icons.broken_image, size: 50, color: AppColors.textTertiary(context)),
           ),
         );
       } catch (_) {}
@@ -255,7 +255,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                   GestureDetector(
                     onTap: _selectPhoto,
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                       child: _buildImagePreview(),
                     ),
                   ),
@@ -326,7 +326,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                           TextButton.icon(
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              foregroundColor: const Color(0xFFEF4444),
+                              foregroundColor: AppColors.error,
                             ),
                             onPressed: () => _applyPreset('limpar'),
                             icon: const Icon(PhosphorIcons.trashBold, size: 14),
@@ -373,14 +373,13 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
   }
 
   Widget _buildQuickPresetsBar() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.4) : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(
@@ -399,14 +398,14 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.5,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      color: AppColors.textTertiary(context),
                     ),
                   ),
                 ],
               ),
               InkWell(
                 onTap: _openCustomGridGenerator,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(2),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   child: Row(
@@ -471,18 +470,17 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
   }
 
   Widget _buildPresetChip({required IconData icon, required String label, required VoidCallback onTap}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Material(
-      color: isDark ? const Color(0xFF0F172A) : Colors.white,
-      borderRadius: BorderRadius.circular(10),
+      color: AppColors.bg(context),
+      borderRadius: BorderRadius.zero,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.zero,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.zero,
             border: Border.all(
               color: AppColors.primary.withValues(alpha: 0.35),
               width: 1,
@@ -583,14 +581,13 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setGenState) {
-            final isDark = Theme.of(context).brightness == Brightness.dark;
             final slotsPreview = _generateSlots(startHour, endHour, intervalMin);
 
             return Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               decoration: BoxDecoration(
-                color: AppColors.surfaceElevated(context),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                color: AppColors.surface(context),
+                borderRadius: const BorderRadius.vertical(top: Radius.zero),
                 border: Border(top: BorderSide(color: AppColors.border(context))),
               ),
               child: Column(
@@ -609,7 +606,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    'Gerador de Grade de Horários',
+                    'Gerador de Grade de Horários'.toUpperCase(),
                     style: AppTypography.headline(context),
                   ),
                   const SizedBox(height: 3),
@@ -625,7 +622,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      color: AppColors.textTertiary(context),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -668,7 +665,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                color: AppColors.textTertiary(context),
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -676,7 +673,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                               value: startHour,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.zero),
                               ),
                               items: [
                                 for (var h = 0; h < 23; h++)
@@ -707,7 +704,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                color: AppColors.textTertiary(context),
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -715,7 +712,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                               value: endHour,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.zero),
                               ),
                               items: [
                                 for (var h = 1; h <= 24; h++)
@@ -744,7 +741,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                       border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
                     ),
                     child: Text(
@@ -761,7 +758,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      color: AppColors.textTertiary(context),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -870,7 +867,6 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
   }
 
   Widget _buildDayCard(int index) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final dia = daysOfWeek[index];
     final hasHorarios = dia.horarios.isNotEmpty;
 
@@ -881,11 +877,11 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
           color: hasHorarios
-              ? (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))
+              ? (AppColors.border(context))
               : AppColors.border(context),
           width: hasHorarios ? 1.2 : 1,
         ),
@@ -901,8 +897,8 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
           decoration: BoxDecoration(
             color: hasHorarios
                 ? AppColors.primary.withValues(alpha: 0.12)
-                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(10),
+                : (AppColors.surface(context)),
+            borderRadius: BorderRadius.zero,
           ),
           alignment: Alignment.center,
           child: Text(
@@ -930,7 +926,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                 width: 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: hasHorarios ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                  color: hasHorarios ? AppColors.success : AppColors.textTertiary(context),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -946,7 +942,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                     fontSize: 12,
                     fontWeight: hasHorarios ? FontWeight.w600 : FontWeight.w400,
                     color: hasHorarios
-                        ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                        ? (AppColors.success)
                         : AppColors.textSecondary(context),
                   ),
                 ),
@@ -960,7 +956,6 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
             // Switch rápido para ativar/desativar o dia
             Switch(
               value: hasHorarios,
-              activeColor: AppColors.primary,
               onChanged: (val) {
                 setState(() {
                   if (val) {
@@ -983,8 +978,8 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.bg(context),
+                borderRadius: BorderRadius.zero,
               ),
               child: Row(
                 children: [
@@ -1027,7 +1022,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
               // Adicionar intervalo (inteligente sequencial)
               InkWell(
                 onTap: () => _addNextSlot(dia),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.zero,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                   child: Row(
@@ -1052,20 +1047,20 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
               if (hasHorarios)
                 InkWell(
                   onTap: () => _openCopyModal(index),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.zero,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(PhosphorIcons.copyBold, size: 15, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                        Icon(PhosphorIcons.copyBold, size: 15, color: AppColors.textTertiary(context)),
                         const SizedBox(width: 4),
                         Text(
                           'Copiar para outros dias',
                           style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            color: AppColors.textTertiary(context),
                           ),
                         ),
                       ],
@@ -1093,8 +1088,8 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
             return Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
               decoration: BoxDecoration(
-                color: AppColors.surfaceElevated(context),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                color: AppColors.surface(context),
+                borderRadius: const BorderRadius.vertical(top: Radius.zero),
                 border: Border(top: BorderSide(color: AppColors.border(context))),
               ),
               child: Column(
@@ -1113,7 +1108,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Copiar horários de ${fromDay.nome}',
+                    'Copiar horários de ${fromDay.nome}'.toUpperCase(),
                     style: AppTypography.headline(context),
                   ),
                   const SizedBox(height: 4),
@@ -1158,7 +1153,6 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                         contentPadding: EdgeInsets.zero,
                         title: Text(daysOfWeek[i].nome, style: AppTypography.body(context)),
                         value: selectedIndices.contains(i),
-                        activeColor: AppColors.primary,
                         onChanged: (val) {
                           setModalState(() {
                             if (val == true) {
@@ -1237,8 +1231,8 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
             return Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               decoration: BoxDecoration(
-                color: AppColors.surfaceElevated(context),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                color: AppColors.surface(context),
+                borderRadius: const BorderRadius.vertical(top: Radius.zero),
                 border: Border(top: BorderSide(color: AppColors.border(context))),
               ),
               child: Column(
@@ -1260,7 +1254,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                       TextButton(
                         onPressed: () => Navigator.of(ctx).pop(),
                         child: Text(
-                          'Cancelar',
+                          'Cancelar'.toUpperCase(),
                           style: TextStyle(color: AppColors.textSecondary(context), fontSize: 14),
                         ),
                       ),
@@ -1283,7 +1277,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                           Navigator.of(ctx).pop();
                         },
                         child: Text(
-                          'Pronto',
+                          'Pronto'.toUpperCase(),
                           style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14),
                         ),
                       ),
@@ -1384,17 +1378,16 @@ class _ObrigatoriedadeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
           color: value
-              ? (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))
+              ? (AppColors.border(context))
               : AppColors.border(context),
           width: value ? 1.2 : 1,
         ),
@@ -1407,8 +1400,8 @@ class _ObrigatoriedadeCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: value
                   ? AppColors.primary.withValues(alpha: 0.12)
-                  : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
-              borderRadius: BorderRadius.circular(10),
+                  : (AppColors.surface(context)),
+              borderRadius: BorderRadius.zero,
             ),
             child: Icon(
               icon,
@@ -1443,7 +1436,6 @@ class _ObrigatoriedadeCard extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.primary,
           ),
         ],
       ),

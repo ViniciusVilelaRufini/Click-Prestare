@@ -1,3 +1,4 @@
+import 'package:click/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -58,16 +59,16 @@ List<dynamic> reservasVisiveis(
 /// Rótulo pt-BR, cor semântica e ícone de um status de reserva.
 class StatusReservaInfo {
   /// Âmbar — aguardando aprovação.
-  static const Color corPendente = Color(0xFFF59E0B);
+  static Color get corPendente => AppColors.warning;
 
   /// Verde — reserva aprovada.
-  static const Color corAprovada = Color(0xFF10B981);
+  static Color get corAprovada => AppColors.success;
 
   /// Vermelho — reserva recusada.
-  static const Color corRecusada = Color(0xFFEF4444);
+  static Color get corRecusada => AppColors.error;
 
   /// Cinza — cancelada ou status desconhecido.
-  static const Color corNeutra = Color(0xFF64748B);
+  static Color get corNeutra => AppColors.info;
 
   final String rotulo;
   final Color cor;
@@ -78,9 +79,7 @@ class StatusReservaInfo {
   /// Cor para texto/ícone sobre o fundo tingido com [cor]: escurece no tema
   /// claro (âmbar e verde puros não têm contraste no branco) e clareia um
   /// pouco no escuro.
-  Color corTexto(BuildContext context) => Theme.of(context).brightness == Brightness.dark
-      ? Color.lerp(cor, Colors.white, 0.18)!
-      : Color.lerp(cor, Colors.black, 0.4)!;
+  Color corTexto(BuildContext context) => cor;
 }
 
 /// Mapeia o status vindo da API (pendente, aprovado, recusado, cancelado)
@@ -88,15 +87,15 @@ class StatusReservaInfo {
 StatusReservaInfo statusReservaInfo(String? status) {
   switch (_normalizar(status)) {
     case 'pendente':
-      return const StatusReservaInfo('Pendente', StatusReservaInfo.corPendente, PhosphorIcons.hourglassMedium);
+      return StatusReservaInfo('Pendente', StatusReservaInfo.corPendente, PhosphorIcons.hourglassMedium);
     case 'aprovado':
-      return const StatusReservaInfo('Aprovada', StatusReservaInfo.corAprovada, PhosphorIcons.checkCircle);
+      return StatusReservaInfo('Aprovada', StatusReservaInfo.corAprovada, PhosphorIcons.checkCircle);
     case 'recusado':
-      return const StatusReservaInfo('Recusada', StatusReservaInfo.corRecusada, PhosphorIcons.xCircle);
+      return StatusReservaInfo('Recusada', StatusReservaInfo.corRecusada, PhosphorIcons.xCircle);
     case 'cancelado':
-      return const StatusReservaInfo('Cancelada', StatusReservaInfo.corNeutra, PhosphorIcons.prohibit);
+      return StatusReservaInfo('Cancelada', StatusReservaInfo.corNeutra, PhosphorIcons.prohibit);
     case '':
-      return const StatusReservaInfo('Sem status', StatusReservaInfo.corNeutra, PhosphorIcons.question);
+      return StatusReservaInfo('Sem status', StatusReservaInfo.corNeutra, PhosphorIcons.question);
     default:
       return StatusReservaInfo(status!.trim(), StatusReservaInfo.corNeutra, PhosphorIcons.question);
   }
