@@ -158,7 +158,7 @@ class _NewVeiculoState extends State<NewVeiculo> {
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.onPrimary,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.zero),
                   elevation: 0,
                 ),
                 child: _saving

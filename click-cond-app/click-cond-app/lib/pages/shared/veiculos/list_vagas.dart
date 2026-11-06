@@ -143,7 +143,7 @@ class VagasBody extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
       ),
       child: Row(
@@ -153,7 +153,7 @@ class VagasBody extends StatelessWidget {
             height: 52,
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.zero,
             ),
             child: Icon(PhosphorIcons.carSimple, color: AppColors.primary, size: 26),
           ),
@@ -205,10 +205,10 @@ class VagaCard extends StatelessWidget {
 
   ({IconData icon, Color color, String label}) get _tag {
     if (vaga.isVisitante) {
-      return (icon: PhosphorIcons.userCircle, color: Colors.orange, label: 'Visitante');
+      return (icon: PhosphorIcons.userCircle, color: AppColors.warning, label: 'Visitante');
     }
     if (vaga.isInquilino) {
-      return (icon: PhosphorIcons.house, color: Colors.blue, label: 'Inquilino');
+      return (icon: PhosphorIcons.house, color: AppColors.info, label: 'Inquilino');
     }
     return (icon: PhosphorIcons.car, color: AppColors.primary, label: 'Meu veículo');
   }
@@ -229,7 +229,7 @@ class VagaCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border(context)),
       ),
       child: Row(
@@ -239,7 +239,7 @@ class VagaCard extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               color: t.color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.zero,
             ),
             child: Icon(t.icon, color: t.color, size: 22),
           ),
@@ -260,7 +260,7 @@ class VagaCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: t.color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                       child: Text(t.label,
                           style: AppTypography.tiny(context).copyWith(color: t.color)),
@@ -315,7 +315,7 @@ class VagaLivreCard extends StatelessWidget {
               height: 44,
               decoration: BoxDecoration(
                 color: AppColors.textTertiary(context).withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.zero,
               ),
               child: Icon(PhosphorIcons.plus,
                   color: AppColors.textTertiary(context), size: 22),
@@ -354,7 +354,7 @@ class DottedBorderBox extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surface(context).withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
           color: AppColors.border(context),
           width: 1.2,

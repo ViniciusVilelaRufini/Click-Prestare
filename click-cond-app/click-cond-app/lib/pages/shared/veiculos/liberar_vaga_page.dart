@@ -165,11 +165,11 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
                     filled: true,
                     fillColor: AppColors.surface(context),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                       borderSide: BorderSide(color: AppColors.border(context)),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                       borderSide: BorderSide(color: AppColors.border(context)),
                     ),
                   ),
@@ -201,7 +201,7 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                          borderRadius: BorderRadius.zero),
                     ),
                     child: _isSaving
                         ? SizedBox(
@@ -234,7 +234,7 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
               color: active
                   ? AppColors.primary.withValues(alpha: 0.12)
                   : AppColors.surface(context),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.zero,
               border: Border.all(
                 color: active ? AppColors.primary : AppColors.border(context),
                 width: active ? 1.5 : 1,
@@ -272,7 +272,7 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.zero,
           border: Border.all(color: AppColors.border(context)),
         ),
         child: Text(
@@ -296,7 +296,7 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
                 color: active
                     ? AppColors.primary.withValues(alpha: 0.08)
                     : AppColors.surface(context),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.zero,
                 border: Border.all(
                   color: active ? AppColors.primary : AppColors.border(context),
                   width: active ? 1.5 : 1,
@@ -354,7 +354,7 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.warning.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
       ),
       child: Row(
@@ -395,7 +395,7 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.zero,
           border: Border.all(color: AppColors.border(context)),
         ),
         child: Column(

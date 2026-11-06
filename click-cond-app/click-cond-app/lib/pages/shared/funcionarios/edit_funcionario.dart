@@ -204,7 +204,7 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
                       color: AppColors.error.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.zero,
                       border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
                     ),
                     child: Column(
@@ -236,12 +236,12 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
                           child: OutlinedButton.icon(
                             onPressed: _deleteAccount,
                             icon: const Icon(PhosphorIcons.trash, size: 16),
-                            label: const Text('Excluir minha conta'),
+                            label: Text('Excluir minha conta'.toUpperCase()),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.error,
                               side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                             ),
                           ),
                         ),

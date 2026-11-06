@@ -226,7 +226,7 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                               color: txtFuncao.text.trim().toLowerCase() == funcOption.toLowerCase()
                                   ? AppColors.primary
                                   : AppColors.surface(context),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
                                 color: txtFuncao.text.trim().toLowerCase() == funcOption.toLowerCase()
                                     ? AppColors.primary
@@ -253,7 +253,7 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
                       color: AppColors.error.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,7 +285,7 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                             decoration: BoxDecoration(
                               color: permissoes.contains(cat["value"]) ? AppColors.primary : AppColors.surface(context),
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
                                 color: permissoes.contains(cat["value"]) ? AppColors.primary : AppColors.border(context),
                               ),
@@ -311,7 +311,6 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                     subtitle: Text("Permite acessar o sistema web usando o e-mail cadastrado acima e esta senha.", style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context))),
                     value: _hasPortariaAccess,
                     onChanged: (val) => setState(() => _hasPortariaAccess = val),
-                    activeColor: AppColors.primary,
                     contentPadding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: AppSpacing.xl),

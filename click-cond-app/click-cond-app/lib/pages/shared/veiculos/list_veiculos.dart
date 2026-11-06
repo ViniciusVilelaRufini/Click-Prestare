@@ -158,7 +158,7 @@ class _ListVeiculosState extends State<ListVeiculos> {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.zero,
       ),
       child: Row(
         children: [
@@ -257,15 +257,7 @@ class _ToggleItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4))
-                  ]
-                : null,
+            borderRadius: BorderRadius.zero,
           ),
           child: Center(
             child: Text(
@@ -296,7 +288,7 @@ class _VeiculoCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.zero,
           border: Border.all(color: AppColors.border(context)),
         ),
         child: Row(
@@ -306,7 +298,7 @@ class _VeiculoCard extends StatelessWidget {
               height: 44,
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.zero,
               ),
               child: Icon(PhosphorIcons.car, color: AppColors.primary, size: 22),
             ),
@@ -333,7 +325,7 @@ class _VeiculoCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                       child: Text('Tag: ${veiculo.tagCodigo}',
                           style: AppTypography.tiny(context)

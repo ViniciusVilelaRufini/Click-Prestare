@@ -98,7 +98,7 @@ class _FuncionarioCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
         child: Row(
           children: [
             CircleAvatar(
