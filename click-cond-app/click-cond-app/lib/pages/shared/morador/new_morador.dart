@@ -532,7 +532,6 @@ class _NewMoradorPageState extends State<NewMorador> {
                         if (val) _sendCredentials = false;
                       });
                     },
-                    activeColor: AppColors.primary,
                     contentPadding: EdgeInsets.zero,
                   ),
                   if (_isMenor) ...[
@@ -612,7 +611,6 @@ class _NewMoradorPageState extends State<NewMorador> {
                       ),
                       value: _sendCredentials,
                       onChanged: (val) => setState(() => _sendCredentials = val),
-                      activeColor: AppColors.primary,
                       contentPadding: EdgeInsets.zero,
                     ),
                   ] else ...[

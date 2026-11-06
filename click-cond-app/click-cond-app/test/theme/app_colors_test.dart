@@ -81,25 +81,80 @@ void main() {
     expect(AppColors.on(Colors.white), Colors.black);
   });
 
-  testWidgets('helpers contextuais seguem o Theme da árvore', (tester) async {
-    late BuildContext contexto;
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData.dark(),
-        home: Builder(
-          builder: (c) {
-            contexto = c;
-            return const SizedBox();
-          },
+  const esperadoEscuro = {
+    'bg': Color(0xFF000000),
+    'bg100': Color(0xFF0B0B0B),
+    'surface': Color(0xFF141414),
+    'surfaceElevated': Color(0xFF1F1F1F),
+    'border': Color(0xFF242424),
+    'borderStrong': Color(0xFF666666),
+    'textPrimary': Color(0xFFFFFFFF),
+    'textSecondary': Color(0xFFA3A3A3),
+    'textTertiary': Color(0xFF8A8A8A),
+    'accent': Color(0xFFFFFFFF),
+    'onAccent': Color(0xFF000000),
+    'accentGhost': Color(0x14FFFFFF),
+    'signalOk': Color(0xFF5EC28A),
+    'signalWarn': Color(0xFFE3B04B),
+    'signalDanger': Color(0xFFFF6B6B),
+  };
+  const esperadoClaro = {
+    'bg': Color(0xFFFFFFFF),
+    'bg100': Color(0xFFFAFAFA),
+    'surface': Color(0xFFF4F4F4),
+    'surfaceElevated': Color(0xFFE9E9E9),
+    'border': Color(0xFFE2E2E2),
+    'borderStrong': Color(0xFF888888),
+    'textPrimary': Color(0xFF000000),
+    'textSecondary': Color(0xFF555555),
+    'textTertiary': Color(0xFF6B6B6B),
+    'accent': Color(0xFF000000),
+    'onAccent': Color(0xFFFFFFFF),
+    'accentGhost': Color(0x0D000000),
+    'signalOk': Color(0xFF1A7A48),
+    'signalWarn': Color(0xFF946000),
+    'signalDanger': Color(0xFFC42D33),
+  };
+
+  Map<String, Color> lidos(BuildContext c) => {
+        'bg': AppColors.bg(c),
+        'bg100': AppColors.bg100(c),
+        'surface': AppColors.surface(c),
+        'surfaceElevated': AppColors.surfaceElevated(c),
+        'border': AppColors.border(c),
+        'borderStrong': AppColors.borderStrong(c),
+        'textPrimary': AppColors.textPrimary(c),
+        'textSecondary': AppColors.textSecondary(c),
+        'textTertiary': AppColors.textTertiary(c),
+        'accent': AppColors.accent(c),
+        'onAccent': AppColors.onAccent(c),
+        'accentGhost': AppColors.accentGhost(c),
+        'signalOk': AppColors.signalOk(c),
+        'signalWarn': AppColors.signalWarn(c),
+        'signalDanger': AppColors.signalDanger(c),
+      };
+
+  // O modo do controlador fica no oposto do tema da árvore: os helpers têm de
+  // seguir o Theme, não o getter de brilho.
+  for (final caso in [
+    (ThemeData.dark(), ThemeMode.light, esperadoEscuro, 'escuro'),
+    (ThemeData.light(), ThemeMode.dark, esperadoClaro, 'claro'),
+  ]) {
+    testWidgets('helpers contextuais no tema ${caso.$4}', (tester) async {
+      ThemeController.instance.debugSetMode(caso.$2);
+      late BuildContext contexto;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: caso.$1,
+          home: Builder(
+            builder: (c) {
+              contexto = c;
+              return const SizedBox();
+            },
+          ),
         ),
-      ),
-    );
-    expect(AppColors.bg(contexto), AppColors.darkBg);
-    expect(AppColors.surface(contexto), const Color(0xFF141414));
-    expect(AppColors.border(contexto), const Color(0xFF242424));
-    expect(AppColors.borderStrong(contexto), const Color(0xFF666666));
-    expect(AppColors.textPrimary(contexto), const Color(0xFFFFFFFF));
-    expect(AppColors.accent(contexto), const Color(0xFFFFFFFF));
-    expect(AppColors.onAccent(contexto), const Color(0xFF000000));
-  });
+      );
+      expect(lidos(contexto), caso.$3);
+    });
+  }
 }

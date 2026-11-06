@@ -37,6 +37,18 @@ void main() async {
   FirebaseService.instance.init();
 }
 
+/// `AppColors.primary` e afins são getters sem `BuildContext`: quem só lê neles
+/// não depende do `Theme` e não reconstruiria na troca de tema, ficando com a cor
+/// antiga até o próximo setState. Marca toda a árvore abaixo de [context].
+void reconstruirArvore(BuildContext context) {
+  void marcar(Element e) {
+    e.markNeedsBuild();
+    e.visitChildren(marcar);
+  }
+
+  (context as Element).visitChildren(marcar);
+}
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -103,22 +115,14 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   void _trocouTema() {
     update();
-    if (mounted) _reconstruirArvore();
+    if (mounted) reconstruirArvore(context);
   }
 
   @override
-  void didChangePlatformBrightness() => _trocouTema();
-
-  /// `AppColors.primary` e afins são getters sem `BuildContext`: quem só lê
-  /// neles não depende do `Theme` e não reconstruiria na troca de tema, ficando
-  /// com a cor antiga até o próximo setState.
-  void _reconstruirArvore() {
-    void marcar(Element e) {
-      e.markNeedsBuild();
-      e.visitChildren(marcar);
-    }
-
-    (context as Element).visitChildren(marcar);
+  void didChangePlatformBrightness() {
+    // Com modo manual, o brilho do aparelho não muda nenhuma cor.
+    if (ThemeController.instance.mode != ThemeMode.system) return;
+    _trocouTema();
   }
 
   @override

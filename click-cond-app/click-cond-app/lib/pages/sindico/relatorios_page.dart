@@ -115,19 +115,6 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
       initialDate: DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2101),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: AppColors.primary,
-              onPrimary: AppColors.onPrimary,
-              surface: AppColors.surface(context),
-              onSurface: AppColors.textPrimary(context),
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
     if (picked != null) {
       setState(() {

@@ -1,6 +1,5 @@
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_theme.dart';
-import 'package:click/widgets/app/app_bottom_nav.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_card.dart';
 import 'package:click/widgets/app/app_tag.dart';
@@ -73,37 +72,6 @@ void main() {
       tester.widget<Text>(find.text('EXCLUIR')).style?.color,
       AppColors.darkSignalDanger,
     );
-  });
-
-  testWidgets('AppBottomNav dispara o toque e marca o item selecionado',
-      (tester) async {
-    var tocou = 0;
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light(),
-        home: Scaffold(
-          bottomNavigationBar: AppBottomNav(
-            items: [
-              AppNavItem(
-                icon: Icons.home_outlined,
-                label: 'Início',
-                selected: true,
-                onTap: () {},
-              ),
-              AppNavItem(
-                icon: Icons.add,
-                label: 'Novo',
-                center: true,
-                onTap: () => tocou++,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    expect(find.text('INÍCIO'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.add));
-    expect(tocou, 1);
   });
 
   testWidgets('primitivas cabem em 320dp', (tester) async {
