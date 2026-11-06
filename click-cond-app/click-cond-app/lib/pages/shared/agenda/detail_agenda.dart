@@ -120,7 +120,7 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
       );
 }

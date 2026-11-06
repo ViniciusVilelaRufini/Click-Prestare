@@ -112,7 +112,7 @@ void main() {
     servir(area());
     await abrir(tester);
 
-    expect(find.text('Minhas reservas'), findsOneWidget);
+    expect(find.text('MINHAS RESERVAS'), findsOneWidget);
     expect(idsListados(tester), [1, 2]);
     final cards = tester.widgetList<MinhaReservaCard>(find.byType(MinhaReservaCard, skipOffstage: false));
     expect(cards.every((c) => !c.mostrarApto), isTrue);
@@ -125,8 +125,8 @@ void main() {
     servir(area());
     await abrir(tester);
 
-    expect(find.text('Minhas reservas'), findsNothing);
-    expect(find.text('Agendamentos'), findsOneWidget);
+    expect(find.text('MINHAS RESERVAS'), findsNothing);
+    expect(find.text('AGENDAMENTOS'), findsOneWidget);
     expect(idsListados(tester), [1, 4]);
     final cards = tester.widgetList<MinhaReservaCard>(find.byType(MinhaReservaCard, skipOffstage: false));
     expect(cards.every((c) => c.mostrarApto && c.onEditar != null), isTrue);
@@ -194,7 +194,7 @@ void main() {
     servir(area(precisaAgendar: 0));
     await abrir(tester);
 
-    expect(find.text('Minhas reservas'), findsNothing);
+    expect(find.text('MINHAS RESERVAS'), findsNothing);
     expect(find.byType(MinhaReservaCard), findsNothing);
     expect(rodape(), findsNothing);
   });

@@ -1,3 +1,4 @@
+import 'package:click/theme/app_colors.dart';
 import 'package:click/widgets/label/label_default.dart';
 import 'package:flutter/material.dart';
 
@@ -23,12 +24,12 @@ class CellMoradorApto extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: Colors.grey[200],
+                  backgroundColor: AppColors.surface(context),
                   backgroundImage: ((item['foto_pessoa'] ?? item['photo']) != null && (item['foto_pessoa'] ?? item['photo']).toString().isNotEmpty)
                       ? NetworkImage((item['foto_pessoa'] ?? item['photo']).toString())
                       : null,
                   child: ((item['foto_pessoa'] ?? item['photo']) == null || (item['foto_pessoa'] ?? item['photo']).toString().isEmpty)
-                      ? const Icon(Icons.person, color: Colors.grey)
+                      ? Icon(Icons.person, color: AppColors.textTertiary(context))
                       : null,
                 ),
                 const SizedBox(width: 15),

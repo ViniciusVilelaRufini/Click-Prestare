@@ -19,7 +19,7 @@ class CellAgendamento extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: const Text('Recusar Reserva', style: TextStyle(fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -36,7 +36,7 @@ class CellAgendamento extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: 'Ex: Espaço em manutenção neste horário',
                 hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary(context)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.zero),
               ),
             ),
           ],
@@ -44,7 +44,7 @@ class CellAgendamento extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancelar', style: TextStyle(color: AppColors.textSecondary(context))),
+            child: Text('Cancelar'.toUpperCase(), style: TextStyle(color: AppColors.textSecondary(context))),
           ),
           ElevatedButton(
             onPressed: () {
@@ -54,10 +54,10 @@ class CellAgendamento extends StatelessWidget {
               onStatusChange?.call(id, 'recusado', controller.text.trim());
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.onPrimary,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
             child: const Text('Confirmar Recusa', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
@@ -70,7 +70,7 @@ class CellAgendamento extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: const Text('Cancelar Agendamento', style: TextStyle(fontWeight: FontWeight.bold)),
         content: const Text(
           'Tem certeza que deseja cancelar esta reserva? O morador será notificado e o horário voltará a ficar disponível.',
@@ -79,7 +79,7 @@ class CellAgendamento extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Voltar', style: TextStyle(color: AppColors.textSecondary(context))),
+            child: Text('Voltar'.toUpperCase(), style: TextStyle(color: AppColors.textSecondary(context))),
           ),
           ElevatedButton(
             onPressed: () {
@@ -89,10 +89,10 @@ class CellAgendamento extends StatelessWidget {
               onStatusChange?.call(id, 'cancelado', 'Cancelado pela administração');
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.onPrimary,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
             child: const Text('Sim, Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
@@ -126,16 +126,16 @@ class CellAgendamento extends StatelessWidget {
     final bool isAprovado = status == 'aprovado' || status == 'confirmado';
 
     String statusText = getText('lb_pendente');
-    Color statusColor = const Color(0xFFF59E0B);
+    Color statusColor = AppColors.warning;
     IconData statusIcon = PhosphorIcons.clock;
 
     if (isAprovado) {
       statusText = getText('lb_aprovado');
-      statusColor = const Color(0xFF10B981);
+      statusColor = AppColors.success;
       statusIcon = PhosphorIcons.checkCircle;
     } else if (status == 'recusado') {
       statusText = getText('lb_recusado');
-      statusColor = const Color(0xFFEF4444);
+      statusColor = AppColors.error;
       statusIcon = PhosphorIcons.xCircle;
     } else if (status == 'cancelado') {
       statusText = getText('lb_cancelado');
@@ -166,18 +166,11 @@ class CellAgendamento extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border(context)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         child: IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -213,7 +206,7 @@ class CellAgendamento extends StatelessWidget {
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
                               color: statusColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
                                 color: statusColor.withValues(alpha: 0.3),
                               ),
@@ -244,7 +237,7 @@ class CellAgendamento extends StatelessWidget {
                             horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: AppColors.bg(context),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.zero,
                         ),
                         child: Row(
                           children: [
@@ -294,7 +287,7 @@ class CellAgendamento extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             color: statusColor.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.zero,
                             border: Border.all(color: statusColor.withValues(alpha: 0.2)),
                           ),
                           child: Row(
@@ -317,7 +310,7 @@ class CellAgendamento extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w600,
-                                    color: isDark ? statusColor.withValues(alpha: 0.9) : (isAprovado ? const Color(0xFF065F46) : const Color(0xFF991B1B)),
+                                    color: isDark ? statusColor.withValues(alpha: 0.9) : (isAprovado ? AppColors.success : AppColors.error),
                                   ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
@@ -367,11 +360,11 @@ class CellAgendamento extends StatelessWidget {
                               child: OutlinedButton.icon(
                                 onPressed: () => _mostrarModalRecusa(context),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFFEF4444),
+                                  foregroundColor: AppColors.error,
                                   padding: const EdgeInsets.symmetric(vertical: 9),
-                                  side: const BorderSide(color: Color(0x55EF4444)),
+                                  side: BorderSide(color: AppColors.error),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.zero,
                                   ),
                                 ),
                                 icon: const Icon(PhosphorIcons.xBold, size: 14),
@@ -390,12 +383,12 @@ class CellAgendamento extends StatelessWidget {
                                   onStatusChange?.call(id, 'aprovado', '');
                                 },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF10B981),
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: AppColors.success,
+                                  foregroundColor: AppColors.onPrimary,
                                   padding: const EdgeInsets.symmetric(vertical: 9),
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.zero,
                                   ),
                                 ),
                                 icon: const Icon(PhosphorIcons.checkBold, size: 14),
@@ -417,7 +410,7 @@ class CellAgendamento extends StatelessWidget {
                           child: TextButton.icon(
                             onPressed: () => _mostrarModalCancelar(context),
                             style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFFEF4444),
+                              foregroundColor: AppColors.error,
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             ),
                             icon: const Icon(PhosphorIcons.xCircle, size: 15),

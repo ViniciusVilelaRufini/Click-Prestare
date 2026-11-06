@@ -37,17 +37,16 @@ class CellHorarioAreaSocial extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final duration = _calcDuration(horario.horarioDe, horario.horarioAte);
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          color: AppColors.border(context),
           width: 1,
         ),
       ),
@@ -57,12 +56,12 @@ class CellHorarioAreaSocial extends StatelessWidget {
           Expanded(
             child: InkWell(
               onTap: onChangeDe,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.zero,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F172A) : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
+                  color: AppColors.bg(context),
+                  borderRadius: BorderRadius.zero,
                   border: Border.all(
                     color: AppColors.primary.withValues(alpha: 0.25),
                     width: 1,
@@ -130,7 +129,7 @@ class CellHorarioAreaSocial extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                     child: Text(
                       duration,
@@ -150,12 +149,12 @@ class CellHorarioAreaSocial extends StatelessWidget {
           Expanded(
             child: InkWell(
               onTap: onChangeAte,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.zero,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F172A) : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
+                  color: AppColors.bg(context),
+                  borderRadius: BorderRadius.zero,
                   border: Border.all(
                     color: AppColors.primary.withValues(alpha: 0.25),
                     width: 1,
@@ -211,25 +210,21 @@ class CellHorarioAreaSocial extends StatelessWidget {
           // Botão Excluir
           InkWell(
             onTap: onDelete,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.zero,
             child: Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF7F1D1D).withValues(alpha: 0.25)
-                    : const Color(0xFFFEE2E2),
-                borderRadius: BorderRadius.circular(10),
+                color: AppColors.error,
+                borderRadius: BorderRadius.zero,
                 border: Border.all(
-                  color: isDark
-                      ? const Color(0xFFEF4444).withValues(alpha: 0.3)
-                      : const Color(0xFFFECACA),
+                  color: AppColors.error,
                 ),
               ),
-              child: const Icon(
+              child: Icon(
                 PhosphorIcons.trashBold,
                 size: 16,
-                color: Color(0xFFEF4444),
+                color: AppColors.error,
               ),
             ),
           ),

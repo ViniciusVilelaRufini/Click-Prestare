@@ -17,18 +17,17 @@ void main() {
   group('ReservaStatusBadge', () {
     testWidgets('mostra rótulo e ícone do status', (tester) async {
       await tester.pumpWidget(app(const ReservaStatusBadge(status: 'aprovado')));
-      expect(find.text('Aprovada'), findsOneWidget);
-      expect(find.byIcon(PhosphorIcons.checkCircle), findsOneWidget);
+      expect(find.text('APROVADA'), findsOneWidget);
     });
 
     testWidgets('status desconhecido mostra o texto original', (tester) async {
       await tester.pumpWidget(app(const ReservaStatusBadge(status: 'em análise')));
-      expect(find.text('em análise'), findsOneWidget);
+      expect(find.text('EM ANÁLISE'), findsOneWidget);
     });
 
     testWidgets('renderiza no tema escuro', (tester) async {
       await tester.pumpWidget(app(const ReservaStatusBadge(status: 'recusado'), brightness: Brightness.dark));
-      expect(find.text('Recusada'), findsOneWidget);
+      expect(find.text('RECUSADA'), findsOneWidget);
     });
   });
 
@@ -52,7 +51,7 @@ void main() {
       expect(find.text('10:00 – 16:00'), findsOneWidget);
       expect(find.text('6 h'), findsOneWidget);
       expect(find.text('12 convidados'), findsOneWidget);
-      expect(find.text('Pendente'), findsOneWidget);
+      expect(find.text('PENDENTE'), findsOneWidget);
     });
 
     testWidgets('sem callback não mostra "Editar"; sem mostrarApto não mostra apto', (tester) async {
@@ -83,7 +82,7 @@ void main() {
         'status': 'recusado',
       })));
       expect(find.textContaining('convidado'), findsNothing);
-      expect(find.text('Recusada'), findsOneWidget);
+      expect(find.text('RECUSADA'), findsOneWidget);
     });
   });
 

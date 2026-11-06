@@ -47,18 +47,11 @@ class CellAreaSocial extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border(context)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -96,7 +89,7 @@ class CellAreaSocial extends StatelessWidget {
                         horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -172,7 +165,7 @@ class CellAreaSocial extends StatelessWidget {
                         horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -230,17 +223,10 @@ class CellAreaSocial extends StatelessWidget {
   Widget _placeholderImage(BuildContext context, IconData icon) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primaryGradientStart,
-            AppColors.primaryGradientEnd,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.surface(context),
       ),
       child: Center(
-        child: Icon(icon, size: 48, color: AppColors.onPrimary.withValues(alpha: 0.85)),
+        child: Icon(icon, size: 48, color: AppColors.textTertiary(context)),
       ),
     );
   }
@@ -261,7 +247,7 @@ class _OcupacaoBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
