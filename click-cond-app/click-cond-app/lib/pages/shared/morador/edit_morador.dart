@@ -176,7 +176,7 @@ class _EditMoradorPageState extends State<EditMorador> {
                         children: [
                           CircleAvatar(
                             radius: 52,
-                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                            backgroundColor: AppColors.surfaceElevated(context),
                             backgroundImage: imageFile == null
                                 ? const AssetImage('assets/images/defaultUser.png')
                                 : (imageFile is String
@@ -254,9 +254,8 @@ class _EditMoradorPageState extends State<EditMorador> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+                      color: AppColors.surface(context),
+                      border: Border.all(color: AppColors.border(context)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,7 +265,7 @@ class _EditMoradorPageState extends State<EditMorador> {
                             Icon(PhosphorIcons.warningCircle, color: AppColors.error, size: 18),
                             const SizedBox(width: AppSpacing.xs),
                             Text(
-                              'Zona de Perigo',
+                              'Zona de Perigo'.toUpperCase(),
                               style: AppTypography.captionMedium(context).copyWith(
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.error,
@@ -290,9 +289,9 @@ class _EditMoradorPageState extends State<EditMorador> {
                             label: const Text('Excluir minha conta'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.error,
-                              side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+                              side: BorderSide(color: AppColors.borderStrong(context)),
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
                             ),
                           ),
                         ),
@@ -309,6 +308,6 @@ class _EditMoradorPageState extends State<EditMorador> {
   Widget _section(String title) => Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Text(title.toUpperCase(),
-            style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary, letterSpacing: 0.8)),
+            style: AppTypography.label(context)),
       );
 }

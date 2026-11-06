@@ -371,7 +371,7 @@ class _NewMoradorPageState extends State<NewMorador> {
                             children: [
                               CircleAvatar(
                                 radius: 52,
-                                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                                backgroundColor: AppColors.surfaceElevated(context),
                                 backgroundImage: imageFile == null
                                     ? const AssetImage('assets/images/defaultUser.png')
                                     : (imageFile is String
@@ -387,7 +387,7 @@ class _NewMoradorPageState extends State<NewMorador> {
                                   width: 32,
                                   height: 32,
                                   decoration: BoxDecoration(
-                                    color: _isMenor ? AppColors.primary : AppColors.primary,
+                                    color: AppColors.primary,
                                     shape: BoxShape.circle,
                                     border: Border.all(color: AppColors.bg(context), width: 2),
                                   ),
@@ -423,9 +423,9 @@ class _NewMoradorPageState extends State<NewMorador> {
                             ),
                           ),
                           style: TextButton.styleFrom(
-                            backgroundColor: AppColors.primary.withValues(alpha: 0.08),
+                            backgroundColor: AppColors.primaryLight,
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
                           ),
                         ),
                       ],
@@ -504,13 +504,13 @@ class _NewMoradorPageState extends State<NewMorador> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.borderStrong(context)),
+                              borderRadius: BorderRadius.circular(AppRadius.tag),
                             ),
                             child: Text(
                               'LGPD Art. 14',
                               style: TextStyle(
-                                color: AppColors.primary,
+                                color: AppColors.textSecondary(context),
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -540,14 +540,13 @@ class _NewMoradorPageState extends State<NewMorador> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                        color: AppColors.surface(context),
+                        border: Border.all(color: AppColors.border(context)),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(PhosphorIcons.shieldCheck, color: AppColors.primary, size: 20),
+                          Icon(PhosphorIcons.shieldCheck, color: AppColors.textPrimary(context), size: 20),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
@@ -557,7 +556,6 @@ class _NewMoradorPageState extends State<NewMorador> {
                                   'Cadastro Protegido de Menor',
                                   style: AppTypography.captionMedium(context).copyWith(
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
@@ -621,17 +619,12 @@ class _NewMoradorPageState extends State<NewMorador> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)
-                            .withValues(alpha: 0.03),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)
-                              .withValues(alpha: 0.06),
-                        ),
+                        color: AppColors.surface(context),
+                        border: Border.all(color: AppColors.border(context)),
                       ),
                       child: Row(
                         children: [
-                          Icon(PhosphorIcons.info, size: 18, color: AppColors.primary),
+                          Icon(PhosphorIcons.info, size: 18, color: AppColors.textSecondary(context)),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -669,7 +662,7 @@ class _NewMoradorPageState extends State<NewMorador> {
   Widget _section(String title) => Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Text(title.toUpperCase(),
-            style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary, letterSpacing: 0.8)),
+            style: AppTypography.label(context)),
       );
 }
 
