@@ -12,7 +12,7 @@
 
 **Referências:** `C:\Users\vinic\AppData\Local\Temp\claude\c--Users-vinic-Desktop-Click-with-Prestare\8c6e9927-88f3-46cd-9708-0c56d76a73e3\scratchpad\ref\` (`REF`).
 
-**Harness de QA:** `...\scratchpad\qa\` (`QA`), criado na Task 1, fora do repo.
+**Harness de QA:** `C:\Users\vinic\AppData\Local\Temp\claude\c--Users-vinic-Desktop-Click-with-Prestare\8c6e9927-88f3-46cd-9708-0c56d76a73e3\scratchpad\qa\` (`QA`), criado na Task 1, fora do repo.
 
 ## Global Constraints
 
@@ -24,7 +24,7 @@
 - Não copiar dados de exemplo, credenciais nem o domínio `prestaregestao.com.br` do protótipo.
 - Manter o selo Powered by AWS do login.
 - Commits pequenos, em português, com o prefixo `style(portaria-web):` ou `feat(portaria-web):`. Terminar a mensagem com a linha `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Não fazer push.
-- Baseline de testes: `...\scratchpad\baseline-test.log`. Falha que já consta ali não é regressão.
+- Baseline de testes: `C:\Users\vinic\AppData\Local\Temp\claude\c--Users-vinic-Desktop-Click-with-Prestare\8c6e9927-88f3-46cd-9708-0c56d76a73e3\scratchpad\baseline-test.log` (2 suítes e 5 testes já falham, entre eles `sindico-landing.spec.ts`). Falha que já consta ali não é regressão.
 
 ## Task 1: Harness de QA
 
