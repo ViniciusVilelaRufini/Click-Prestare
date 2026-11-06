@@ -135,6 +135,7 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
         home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }

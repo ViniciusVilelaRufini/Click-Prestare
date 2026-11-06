@@ -23,14 +23,17 @@ class AppSpacing {
   static const Widget gapXxxl = SizedBox(height: xxxl, width: xxxl);
 }
 
+/// Cantos do tema: tudo reto. Os degraus antigos valem 0 para quem já os usa;
+/// só [tag] e [full] (avatar e ponto) arredondam.
 class AppRadius {
   AppRadius._();
 
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
-  static const double xl = 20;
-  static const double xxl = 24;
+  static const double sm = 0;
+  static const double md = 0;
+  static const double lg = 0;
+  static const double xl = 0;
+  static const double xxl = 0;
+  static const double tag = 2;
   static const double full = 999;
 
   static BorderRadius rsm = BorderRadius.circular(sm);
