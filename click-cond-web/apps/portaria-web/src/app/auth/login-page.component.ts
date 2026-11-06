@@ -26,7 +26,7 @@ import { ThemeService } from '../shared/theme.service';
             </div>
           </div>
           <div class="ml-5 pl-5 border-l shrink-0 flex items-center" style="border-color: var(--line-100)">
-            <img [src]="isLight() ? '/powered-by-aws-black.png' : '/powered-by-aws-white.png'" alt="Powered by AWS" width="124" height="22" class="block h-[22px] w-auto" />
+            <img [src]="isLight() ? '/powered-by-aws-gray.svg' : '/powered-by-aws-white.svg'" alt="Powered by AWS" width="124" height="22" class="block h-[22px] w-auto" />
           </div>
         </div>
 
