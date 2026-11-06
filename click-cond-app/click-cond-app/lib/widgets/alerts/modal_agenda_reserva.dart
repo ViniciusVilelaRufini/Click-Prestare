@@ -51,13 +51,6 @@ class _ModalAgendaReservaState extends State<ModalAgendaReserva> {
             color: AppColors.surfaceElevated(context),
             borderRadius: BorderRadius.zero,
             border: Border.all(color: AppColors.border(context)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

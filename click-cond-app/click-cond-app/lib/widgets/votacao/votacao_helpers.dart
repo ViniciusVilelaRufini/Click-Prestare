@@ -200,7 +200,26 @@ class StatusVotacaoInfo {
   /// Cor para texto/ícone sobre o fundo tingido com [cor]: escurece no tema
   /// claro e clareia um pouco no escuro (mesma regra de
   /// `StatusReservaInfo.corTexto`).
-  Color corTextoPara(Brightness brilho) => cor;
+  ///
+  /// Se a cor do sinal não atinge contraste 4,5 com o fundo do selo (âmbar no
+  /// tema claro), escurece (claro) ou clareia (escuro) até atingir.
+  Color corTextoPara(Brightness brilho) {
+    final escuro = brilho == Brightness.dark;
+    final superficie = escuro ? AppColors.darkSurface : AppColors.lightSurface;
+    final fundo = Color.alphaBlend(cor.withValues(alpha: escuro ? 0.2 : 0.1), superficie);
+    var hsl = HSLColor.fromColor(cor);
+    var c = cor;
+    for (var i = 0; i < 20 && _contraste(c, fundo) < 4.5; i++) {
+      hsl = hsl.withLightness((hsl.lightness + (escuro ? 0.03 : -0.03)).clamp(0.0, 1.0));
+      c = hsl.toColor();
+    }
+    return c;
+  }
+
+  static double _contraste(Color a, Color b) {
+    final x = a.computeLuminance(), y = b.computeLuminance();
+    return (x > y ? x + 0.05 : y + 0.05) / (x > y ? y + 0.05 : x + 0.05);
+  }
 
   /// [corTextoPara] com o brilho do tema atual.
   Color corTexto(BuildContext context) => corTextoPara(Theme.of(context).brightness);

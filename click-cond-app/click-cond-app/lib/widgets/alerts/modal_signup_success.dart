@@ -51,13 +51,6 @@ class _CustomDialogBoxState extends State<CustomDialogBox> {
               color: AppColors.primary.withValues(alpha: 0.12),
               shape: BoxShape.circle,
               border: Border.all(color: AppColors.primary.withValues(alpha: 0.24), width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.08),
-                  blurRadius: 32,
-                  spreadRadius: 8,
-                ),
-              ],
             ),
             child: Icon(
               PhosphorIcons.check,

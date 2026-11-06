@@ -357,7 +357,6 @@ Future<void> copiarLinhaDigitavelOuExtrair(BuildContext context, Map item, {Void
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("Código do boleto copiado! Cole no app do seu banco para pagar."),
-        backgroundColor: Colors.green,
         duration: Duration(seconds: 3),
       ),
     );
@@ -383,8 +382,7 @@ Future<void> copiarLinhaDigitavelOuExtrair(BuildContext context, Map item, {Void
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Código do boleto copiado! Cole no app do seu banco para pagar."),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
+                duration: Duration(seconds: 3),
           ),
         );
       }

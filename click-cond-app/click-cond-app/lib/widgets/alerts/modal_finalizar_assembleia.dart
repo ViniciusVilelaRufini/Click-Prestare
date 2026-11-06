@@ -83,11 +83,7 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
             shape: BoxShape.rectangle,
             color: AppColors.surface(context),
             borderRadius: BorderRadius.zero,
-            boxShadow: [
-              BoxShadow(color: Colors.black,offset: Offset(0,5),
-              blurRadius: 15
-              ),
-            ]
+            border: Border.all(color: AppColors.border(context)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -103,7 +99,7 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
                     child: Text(
                       'X',
                       style: TextStyle(
-                        color: Colors.black,
+                        color: AppColors.textPrimary(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -111,7 +107,7 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
                   ),
                 ],
               ),
-              Text(getText('assembleia_finalize_upload'),  textAlign: TextAlign.center, style: TextStyle(fontSize: 22,fontWeight: FontWeight.w900, color: Theme.of(context).hintColor),),
+              Text(getText('assembleia_finalize_upload'),  textAlign: TextAlign.center, style: TextStyle(fontSize: 22,fontWeight: FontWeight.w900, color: AppColors.textPrimary(context)),),
               SizedBox(height: 25,),
               uploadFile(title: getText('assembleia_upload_ata'), types: ['pdf'], maxDocs: 1,
                 onPressed: (listFiles){

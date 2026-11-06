@@ -1,3 +1,4 @@
+import 'package:click/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 class Loader extends StatelessWidget  {
@@ -31,15 +32,13 @@ class Loader extends StatelessWidget  {
               crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Container(
-                  width: 60,
-                  height: 60,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.only(top: 10),
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: AssetImage("assets/loading.gif"),
-                    ),
+                // A barreira é sempre preta: o anel usa o branco do tema escuro.
+                const SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: AppColors.darkTextPrimary,
                   ),
                 ),
               ],

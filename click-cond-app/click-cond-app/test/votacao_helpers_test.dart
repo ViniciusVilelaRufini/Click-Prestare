@@ -1,3 +1,5 @@
+import 'package:click/theme/app_colors.dart';
+import 'package:click/theme/theme_controller.dart';
 import 'package:click/widgets/votacao/votacao_helpers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -201,10 +203,28 @@ void main() {
       expect(i.cor, StatusVotacaoInfo.corFinalizada);
     });
 
-    test('corTexto usa a cor do sinal, que já muda por tema', () {
-      final i = statusVotacaoInfo(1);
-      expect(i.corTextoPara(Brightness.light), i.cor);
-      expect(i.corTextoPara(Brightness.dark), i.cor);
+    test('corTexto contrasta >= 4.5 com o fundo do selo nos dois temas', () {
+      addTearDown(() => ThemeController.instance.debugSetMode(ThemeMode.system));
+      double lum(Color c) => c.computeLuminance();
+      double razao(Color a, Color b) {
+        final x = lum(a), y = lum(b);
+        return (x > y ? x + 0.05 : y + 0.05) / (x > y ? y + 0.05 : x + 0.05);
+      }
+
+      for (final modo in [ThemeMode.light, ThemeMode.dark]) {
+        ThemeController.instance.debugSetMode(modo);
+        final escuro = modo == ThemeMode.dark;
+        final brilho = escuro ? Brightness.dark : Brightness.light;
+        final superficie = escuro ? AppColors.darkSurface : AppColors.lightSurface;
+        for (final status in [0, 1, 2, 99]) {
+          final i = statusVotacaoInfo(status);
+          // Fundo do selo como em votacao_card: cor do sinal a 20%/10% sobre a superfície.
+          final fundo = Color.alphaBlend(
+              i.cor.withValues(alpha: escuro ? 0.2 : 0.1), superficie);
+          expect(razao(i.corTextoPara(brilho), fundo), greaterThanOrEqualTo(4.5),
+              reason: 'status $status, tema ${modo.name}');
+        }
+      }
     });
   });
 

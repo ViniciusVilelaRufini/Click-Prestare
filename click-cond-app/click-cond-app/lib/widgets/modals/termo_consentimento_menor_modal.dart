@@ -47,7 +47,6 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final maxSheetHeight = MediaQuery.of(context).size.height * 0.88;
 
     return Container(
@@ -55,13 +54,6 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
       decoration: BoxDecoration(
         color: AppColors.surface(context),
         border: Border(top: BorderSide(color: AppColors.borderStrong(context))),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
       ),
       child: SafeArea(
         top: false,
@@ -75,7 +67,7 @@ class _TermoConsentimentoMenorModalState extends State<TermoConsentimentoMenorMo
                 width: 44,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.2),
+                  color: AppColors.borderStrong(context),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
