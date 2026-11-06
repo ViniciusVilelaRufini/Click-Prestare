@@ -716,6 +716,11 @@
     var anoRodape = document.getElementById('ano-rodape');
     if (anoRodape) anoRodape.textContent = String(new Date().getFullYear());
     var formulario = document.querySelector('[data-orcamento-form]');
+    // Sem isto, um campo marcado como inválido trava o envio mesmo depois de corrigido:
+    // o navegador barra o submit antes de o handler abaixo limpar a validade.
+    if (formulario) formulario.addEventListener('input', function (event) {
+      if (event.target && typeof event.target.setCustomValidity === 'function') event.target.setCustomValidity('');
+    });
     if (formulario) formulario.addEventListener('submit', function (event) {
       event.preventDefault();
       var form = event.currentTarget;
