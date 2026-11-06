@@ -88,7 +88,7 @@ void main() {
     expect(find.byType(ConvidadosStepper), findsNothing);
     expect(find.byType(ResumoReserva), findsNothing);
     expect(find.text('Proibido som alto após 22h.'), findsNothing);
-    expect(find.text('Solicitar reserva'), findsOneWidget);
+    expect(find.text('SOLICITAR RESERVA'), findsOneWidget);
     expect(botaoAcao(tester).onPressed, isNull);
 
     // Dia → horários.
@@ -117,7 +117,7 @@ void main() {
 
   testWidgets('sem regras: dia + horário bastam; área sem autorização usa "Confirmar reserva"', (tester) async {
     await abrir(tester, NewReserva(obj: area(regras: '  ', precisaAutorizacao: 0)));
-    expect(find.text('Confirmar reserva'), findsOneWidget);
+    expect(find.text('CONFIRMAR RESERVA'), findsOneWidget);
 
     await tocar(tester, diaDoCalendario('12'));
     await tocar(tester, find.text('18:00 – 22:00'));
@@ -196,7 +196,7 @@ void main() {
     await tocar(tester, find.byKey(ConvidadosStepper.chaveMais));
     expect(find.text('2 convidados'), findsOneWidget); // resumo acompanha
 
-    await tocar(tester, find.text('Solicitar reserva'));
+    await tocar(tester, find.text('SOLICITAR RESERVA'));
 
     expect(enviado.url.path, endsWith('/areas-sociais/agendamento/insert'));
     final payload = jsonDecode(enviado.body) as Map<String, dynamic>;
@@ -225,7 +225,7 @@ void main() {
     await tocar(tester, find.byKey(ConvidadosStepper.chaveMenos)); // volta a "Opcional"
     expect(find.text('Opcional'), findsOneWidget);
 
-    await tocar(tester, find.text('Solicitar reserva'));
+    await tocar(tester, find.text('SOLICITAR RESERVA'));
     final payload = jsonDecode(enviado.body) as Map<String, dynamic>;
     expect((payload['agendamento'] as Map)['convidados'], isNull);
   });
@@ -288,7 +288,7 @@ void main() {
     expect(find.byType(ConvidadosStepper), findsNothing);
     expect(find.byType(ResumoReserva), findsOneWidget);
     expect(find.text('4 convidados'), findsOneWidget);
-    expect(find.text('Solicitar reserva'), findsNothing);
+    expect(find.text('SOLICITAR RESERVA'), findsNothing);
     final botao = botaoAcao(tester);
     expect(botao.variant, AppButtonVariant.danger);
     expect(botao.onPressed, isNotNull);

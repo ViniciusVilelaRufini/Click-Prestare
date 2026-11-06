@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_typography.dart';
 
 class SwipeAction {
   final IconData icon;
   final String label;
   final Color backgroundColor;
-  final Color foregroundColor;
+
+  /// Sem valor, escolhe preto ou branco pelo [backgroundColor].
+  final Color? foregroundColor;
   final VoidCallback onTap;
 
   const SwipeAction({
     required this.icon,
     required this.label,
     required this.backgroundColor,
-    this.foregroundColor = Colors.white,
+    this.foregroundColor,
     required this.onTap,
   });
 }
@@ -154,14 +157,16 @@ class SwipeableActionCardState extends State<SwipeableActionCard>
                         children: [
                           Icon(
                             action.icon,
-                            color: action.foregroundColor,
+                            color: action.foregroundColor ??
+                                AppColors.on(action.backgroundColor),
                             size: 20,
                           ),
                           const SizedBox(height: 4),
                           Text(
                             action.label,
                             style: AppTypography.caption(context).copyWith(
-                              color: action.foregroundColor,
+                              color: action.foregroundColor ??
+                                  AppColors.on(action.backgroundColor),
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),

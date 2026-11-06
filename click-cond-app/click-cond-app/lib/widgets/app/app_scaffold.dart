@@ -3,7 +3,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-/// Scaffold padrão do app com AppBar moderna e fundo correto por tema.
+/// Scaffold padrão do app: fundo `bg-000` e título em caixa alta.
 class AppScaffold extends StatelessWidget {
   final String? title;
   final Widget body;
@@ -41,14 +41,17 @@ class AppScaffold extends StatelessWidget {
               title: title != null
                   ? FittedBox(
                       fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(title!, style: AppTypography.headline(context)),
+                      child: Text(
+                        title!.toUpperCase(),
+                        style: AppTypography.title(context),
+                      ),
                     )
                   : null,
               leading: showBackButton && Navigator.canPop(context)
                   ? IconButton(
                       icon: Icon(
                         PhosphorIcons.caretLeft,
+                        size: 18,
                         color: AppColors.textPrimary(context),
                       ),
                       onPressed: onBack ?? () => Navigator.pop(context),

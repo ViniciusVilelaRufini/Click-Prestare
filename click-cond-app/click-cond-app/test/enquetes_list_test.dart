@@ -98,7 +98,7 @@ void main() {
     servir(enquetes());
     await abrir(tester);
 
-    expect(find.text('Enquetes'), findsOneWidget);
+    expect(find.text('ENQUETES'), findsOneWidget);
     expect(find.text('Votações'), findsNothing);
     expect(chamadasLista, 1);
 

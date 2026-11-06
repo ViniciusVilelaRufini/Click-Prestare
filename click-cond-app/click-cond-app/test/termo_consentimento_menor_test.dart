@@ -37,7 +37,7 @@ void main() {
     expect(find.text('Revogação a Qualquer Momento'), findsOneWidget);
 
     // O botão "Autorizar e Capturar" deve estar desabilitado enquanto o checkbox não for marcado
-    final btnFinder = find.widgetWithText(AppButton, 'Autorizar e Capturar');
+    final btnFinder = find.widgetWithText(AppButton, 'AUTORIZAR E CAPTURAR');
     expect(btnFinder, findsOneWidget);
     final AppButton btnAntes = tester.widget(btnFinder);
     expect(btnAntes.onPressed, isNull);

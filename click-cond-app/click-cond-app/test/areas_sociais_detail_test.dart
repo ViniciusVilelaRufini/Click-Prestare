@@ -99,7 +99,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Finder rodape() => find.text('Nova reserva');
+  Finder rodape() => find.text('NOVA RESERVA');
 
   List<int> idsListados(WidgetTester tester) => tester
       .widgetList<MinhaReservaCard>(find.byType(MinhaReservaCard, skipOffstage: false))

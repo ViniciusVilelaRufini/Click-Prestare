@@ -49,7 +49,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verifica se os elementos principais da tela estão presentes
-    expect(find.text('Exportar Relatório'), findsOneWidget);
+    expect(find.text('EXPORTAR RELATÓRIO'), findsOneWidget);
     expect(find.text('Relatório Pessoal'), findsOneWidget);
     expect(find.text('1. Modelo de Relatório'), findsOneWidget);
     expect(find.text('2. Conta / Categoria'), findsOneWidget);

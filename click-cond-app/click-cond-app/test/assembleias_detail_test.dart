@@ -122,7 +122,7 @@ void main() {
     servir([detalhe()]);
     await abrir(tester);
 
-    expect(find.text('Assembleia'), findsOneWidget); // título da tela
+    expect(find.text('ASSEMBLEIA'), findsOneWidget); // título da tela
     expect(find.text('Assembleia Geral Ordinária'), findsOneWidget);
     expect(find.text('Domingo, 11 de outubro de 2026 às 19:30'), findsOneWidget);
     expect(find.text('Salão de festas'), findsOneWidget);
@@ -199,7 +199,7 @@ void main() {
     // Cancelar volta ao resultado sem enviar.
     votosEnviados.clear();
     await tocar(tester, find.byKey(CellVotacao.chaveVotar(7)));
-    await tocar(tester, find.text('Cancelar'));
+    await tocar(tester, find.text('CANCELAR'));
     expect(find.byType(OpcaoResultadoBar), findsNWidgets(3));
     expect(votosEnviados, isEmpty);
   });
@@ -294,7 +294,7 @@ void main() {
     await tocar(tester, find.byType(OpcaoSelecionavel).first);
     expect(tester.takeException(), isNull);
     await tocar(tester, find.byKey(CellVotacao.chaveVotar(8)));
-    expect(find.text('Cancelar'), findsOneWidget);
+    expect(find.text('CANCELAR'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -3000));
     await tester.pumpAndSettle();

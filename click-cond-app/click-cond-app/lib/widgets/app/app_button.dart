@@ -6,8 +6,9 @@ import 'package:flutter/material.dart';
 enum AppButtonVariant { primary, secondary, ghost, danger }
 enum AppButtonSize { sm, md, lg }
 
-/// Botão padrão do app, com 4 variantes (primary, secondary, ghost, danger)
-/// e 3 tamanhos (sm, md, lg).
+/// Botão padrão do app (`.btn`): sólido `accent` no primário, contorno `line-200`
+/// no secundário, sem fundo no ghost. O perigo é só contorno e texto: sinal
+/// nunca vira fundo de botão.
 class AppButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -30,21 +31,9 @@ class AppButton extends StatelessWidget {
     this.loading = false,
   });
 
-  double get _height {
-    switch (size) {
-      case AppButtonSize.sm: return 40;
-      case AppButtonSize.md: return 48;
-      case AppButtonSize.lg: return 56;
-    }
-  }
+  double get _height => size == AppButtonSize.sm ? 34 : 48;
 
-  double get _fontSize {
-    switch (size) {
-      case AppButtonSize.sm: return 14;
-      case AppButtonSize.md: return 15;
-      case AppButtonSize.lg: return 16;
-    }
-  }
+  double get _fontSize => size == AppButtonSize.sm ? 11 : 13;
 
   @override
   Widget build(BuildContext context) {
@@ -53,8 +42,9 @@ class AppButton extends StatelessWidget {
 
     final child = loading
         ? SizedBox(
-            height: 22, width: 22,
-            child: CircularProgressIndicator(strokeWidth: 2.5, color: colors.fg),
+            height: 18,
+            width: 18,
+            child: CircularProgressIndicator(strokeWidth: 1.5, color: colors.fg),
           )
         : FittedBox(
             fit: BoxFit.scaleDown,
@@ -63,15 +53,20 @@ class AppButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 20, color: colors.fg),
-                  const SizedBox(width: 8),
+                  Icon(icon, size: 16, color: colors.fg),
+                  const SizedBox(width: 10),
                 ],
-                Text(label, style: AppTypography.button(context).copyWith(
-                  color: colors.fg, fontSize: _fontSize,
-                )),
+                Text(
+                  label.toUpperCase(),
+                  style: AppTypography.button(context).copyWith(
+                    color: colors.fg,
+                    fontSize: _fontSize,
+                    letterSpacing: _fontSize * 0.2,
+                  ),
+                ),
                 if (trailingIcon != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(trailingIcon, size: 20, color: colors.fg),
+                  const SizedBox(width: 10),
+                  Icon(trailingIcon, size: 16, color: colors.fg),
                 ],
               ],
             ),
@@ -80,31 +75,18 @@ class AppButton extends StatelessWidget {
     return SizedBox(
       width: fullWidth ? double.infinity : null,
       height: _height,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: colors.bg,
-          borderRadius: AppRadius.rlg,
-          border: colors.border != null
-              ? Border.all(color: colors.border!, width: 1.5)
-              : null,
-          boxShadow: variant == AppButtonVariant.primary && !disabled
-              ? [BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.25),
-                  offset: const Offset(0, 4), blurRadius: 12,
-                )]
-              : null,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: AppRadius.rlg,
-          child: InkWell(
-            onTap: disabled ? null : onPressed,
-            borderRadius: AppRadius.rlg,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: Center(child: child),
+      child: Material(
+        color: colors.bg,
+        shape: colors.border != null
+            ? RoundedRectangleBorder(side: BorderSide(color: colors.border!))
+            : const RoundedRectangleBorder(),
+        child: InkWell(
+          onTap: disabled ? null : onPressed,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: size == AppButtonSize.sm ? 14 : AppSpacing.xl,
             ),
+            child: Center(child: child),
           ),
         ),
       ),
@@ -112,29 +94,35 @@ class AppButton extends StatelessWidget {
   }
 
   _ButtonColors _resolveColors(BuildContext c, bool disabled) {
-    final isDark = Theme.of(c).brightness == Brightness.dark;
     if (disabled) {
       return _ButtonColors(
-        bg: AppColors.surface(c),
+        bg: variant == AppButtonVariant.primary
+            ? AppColors.surfaceElevated(c)
+            : Colors.transparent,
         fg: AppColors.textTertiary(c),
-        border: variant == AppButtonVariant.secondary ? AppColors.border(c) : null,
+        border: variant == AppButtonVariant.ghost ? null : AppColors.border(c),
       );
     }
     switch (variant) {
       case AppButtonVariant.primary:
-        return _ButtonColors(bg: AppColors.primary, fg: Colors.white);
+        return _ButtonColors(bg: AppColors.accent(c), fg: AppColors.onAccent(c));
       case AppButtonVariant.secondary:
         return _ButtonColors(
-          bg: isDark ? AppColors.darkSurface : Colors.white,
-          fg: AppColors.primary,
-          border: AppColors.primary,
+          bg: Colors.transparent,
+          fg: AppColors.textPrimary(c),
+          border: AppColors.borderStrong(c),
         );
       case AppButtonVariant.ghost:
         return _ButtonColors(
-          bg: Colors.transparent, fg: AppColors.primary,
+          bg: Colors.transparent,
+          fg: AppColors.textPrimary(c),
         );
       case AppButtonVariant.danger:
-        return _ButtonColors(bg: AppColors.error, fg: Colors.white);
+        return _ButtonColors(
+          bg: Colors.transparent,
+          fg: AppColors.signalDanger(c),
+          border: AppColors.borderStrong(c),
+        );
     }
   }
 }

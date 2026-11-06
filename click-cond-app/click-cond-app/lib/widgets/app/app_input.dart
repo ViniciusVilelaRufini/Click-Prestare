@@ -5,7 +5,7 @@ import 'package:click/widgets/animations/validation_alert_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Input padrão do app — fundo de superfície, sem borda externa, label flutuante.
+/// Input padrão do app: fundo `bg-200`, contorno `line-100`, rótulo flutuante.
 class AppInput extends StatefulWidget {
   final String label;
   final String? hint;
@@ -58,6 +58,10 @@ class _AppInputState extends State<AppInput> {
     final hasCustomError =
         widget.errorText != null && widget.errorText!.trim().isNotEmpty;
 
+    final linha = hasCustomError
+        ? AppColors.signalDanger(context)
+        : AppColors.border(context);
+
     final field = TextFormField(
       controller: widget.controller,
       obscureText: widget.isPassword && _obscure,
@@ -70,15 +74,15 @@ class _AppInputState extends State<AppInput> {
       onTap: widget.onTap,
       maxLines: widget.isPassword ? 1 : widget.maxLines,
       style: AppTypography.body(context),
-      cursorColor: AppColors.primary,
+      cursorColor: AppColors.textPrimary(context),
       decoration: InputDecoration(
-        labelText: widget.label,
+        labelText: widget.label.toUpperCase(),
         hintText: widget.hint,
         prefixIcon: widget.prefixIcon != null
             ? Icon(
                 widget.prefixIcon,
-                size: 20,
-                color: AppColors.textSecondary(context),
+                size: 18,
+                color: AppColors.textTertiary(context),
               )
             : null,
         suffixIcon: _suffixIcon(context),
@@ -88,58 +92,28 @@ class _AppInputState extends State<AppInput> {
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.lg,
         ),
-        labelStyle: AppTypography.body(context).copyWith(
+        labelStyle: AppTypography.label(context).copyWith(
           color: AppColors.textSecondary(context),
+          fontSize: 13,
+          letterSpacing: 13 * 0.16,
         ),
-        floatingLabelStyle: AppTypography.captionMedium(context).copyWith(
+        floatingLabelStyle: AppTypography.label(context).copyWith(
           color: hasCustomError
-              ? AppColors.error.withValues(alpha: 0.8)
-              : AppColors.primary,
+              ? AppColors.signalDanger(context)
+              : AppColors.textPrimary(context),
         ),
-        hintStyle: AppTypography.body(context).copyWith(
+        hintStyle: AppTypography.bodySecondary(context).copyWith(
           color: AppColors.textTertiary(context),
         ),
-        border: OutlineInputBorder(
-          borderRadius: AppRadius.rlg,
-          borderSide: hasCustomError
-              ? BorderSide(
-                  color: AppColors.error.withValues(alpha: 0.5),
-                  width: 1.0,
-                )
-              : BorderSide.none,
+        border: _borda(linha),
+        enabledBorder: _borda(linha),
+        focusedBorder: _borda(
+          hasCustomError
+              ? AppColors.signalDanger(context)
+              : AppColors.textPrimary(context),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: AppRadius.rlg,
-          borderSide: hasCustomError
-              ? BorderSide(
-                  color: AppColors.error.withValues(alpha: 0.5),
-                  width: 1.0,
-                )
-              : BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: AppRadius.rlg,
-          borderSide: BorderSide(
-            color: hasCustomError
-                ? AppColors.error.withValues(alpha: 0.7)
-                : AppColors.primary,
-            width: hasCustomError ? 1.2 : 1.5,
-          ),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: AppRadius.rlg,
-          borderSide: BorderSide(
-            color: AppColors.error.withValues(alpha: 0.5),
-            width: 1.0,
-          ),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: AppRadius.rlg,
-          borderSide: BorderSide(
-            color: AppColors.error.withValues(alpha: 0.7),
-            width: 1.2,
-          ),
-        ),
+        errorBorder: _borda(AppColors.signalDanger(context)),
+        focusedErrorBorder: _borda(AppColors.signalDanger(context)),
       ),
     );
 
@@ -150,20 +124,25 @@ class _AppInputState extends State<AppInput> {
     );
   }
 
+  OutlineInputBorder _borda(Color cor) => OutlineInputBorder(
+        borderRadius: BorderRadius.zero,
+        borderSide: BorderSide(color: cor),
+      );
+
   Widget? _suffixIcon(BuildContext context) {
     if (widget.isPassword) {
       return IconButton(
         icon: Icon(
           _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-          size: 20,
-          color: AppColors.textSecondary(context),
+          size: 18,
+          color: AppColors.textTertiary(context),
         ),
         onPressed: () => setState(() => _obscure = !_obscure),
       );
     }
     if (widget.suffixIcon != null) {
       return IconButton(
-        icon: Icon(widget.suffixIcon, size: 20, color: AppColors.textSecondary(context)),
+        icon: Icon(widget.suffixIcon, size: 18, color: AppColors.textTertiary(context)),
         onPressed: widget.onSuffixTap,
       );
     }

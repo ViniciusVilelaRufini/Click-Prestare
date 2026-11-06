@@ -49,7 +49,7 @@ void main() {
     expect(find.text('Entrega autorizada'), findsWidgets);
     expect(find.text('123.456.789-00'), findsNothing);
     expect(find.text('Registro interno'), findsNothing);
-    expect(find.text('Cancelar aviso'), findsNothing);
+    expect(find.text('CANCELAR AVISO'), findsNothing);
   });
 
   testWidgets(
@@ -66,7 +66,7 @@ void main() {
       onChanged: () => changes++,
     )));
 
-    await tester.tap(find.text('Cancelar aviso'));
+    await tester.tap(find.text('CANCELAR AVISO'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sim'));
     await tester.pumpAndSettle();
@@ -83,9 +83,9 @@ void main() {
       await tester
           .pumpWidget(app(const DeliveryDetailsPage(delivery: aguardando)));
 
-      expect(find.text('Autorizar entrega'), findsOneWidget);
-      expect(find.text('Recusar'), findsOneWidget);
-      expect(find.text('Cancelar aviso'), findsNothing);
+      expect(find.text('AUTORIZAR ENTREGA'), findsOneWidget);
+      expect(find.text('RECUSAR'), findsOneWidget);
+      expect(find.text('CANCELAR AVISO'), findsNothing);
     });
 
     testWidgets('autorizar envia AUTORIZADA e avisa a lista', (tester) async {
@@ -98,7 +98,7 @@ void main() {
 
       await tester.pumpWidget(app(
           DeliveryDetailsPage(delivery: aguardando, onChanged: () => changes++)));
-      await tester.tap(find.text('Autorizar entrega'));
+      await tester.tap(find.text('AUTORIZAR ENTREGA'));
       await tester.pumpAndSettle();
 
       expect(enviado, {'status': 'AUTORIZADA'});
@@ -114,7 +114,7 @@ void main() {
 
       await tester
           .pumpWidget(app(const DeliveryDetailsPage(delivery: aguardando)));
-      await tester.tap(find.text('Recusar'));
+      await tester.tap(find.text('RECUSAR'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Sim'));
       await tester.pumpAndSettle();
@@ -126,7 +126,7 @@ void main() {
   group('barra de ações fixa', () {
     Finder naBarra(String texto) => find.descendant(
         of: find.byKey(const Key('delivery-actions-bar')),
-        matching: find.text(texto));
+        matching: find.text(texto.toUpperCase()));
 
     testWidgets('aguardando autorização: autorizar e recusar na barra',
         (tester) async {
@@ -144,8 +144,8 @@ void main() {
           delivery: DeliveryModel(id: 7, status: 'AGENDADA'))));
 
       expect(naBarra('Cancelar aviso'), findsOneWidget);
-      expect(find.text('Autorizar entrega'), findsNothing);
-      expect(find.text('Avisar nova entrega'), findsNothing);
+      expect(find.text('AUTORIZAR ENTREGA'), findsNothing);
+      expect(find.text('AVISAR NOVA ENTREGA'), findsNothing);
     });
 
     for (final status in ['CHEGOU', 'AUTORIZADA', 'RETIRADA_NA_PORTARIA']) {
@@ -163,8 +163,8 @@ void main() {
             DeliveryDetailsPage(delivery: DeliveryModel(id: 7, status: status))));
 
         expect(naBarra('Avisar nova entrega'), findsOneWidget);
-        expect(find.text('Cancelar aviso'), findsNothing);
-        expect(find.text('Autorizar entrega'), findsNothing);
+        expect(find.text('CANCELAR AVISO'), findsNothing);
+        expect(find.text('AUTORIZAR ENTREGA'), findsNothing);
       });
     }
   });
@@ -175,12 +175,12 @@ void main() {
         delivery: DeliveryModel(
             id: 7, status: 'CONCLUIDA', estabelecimento: 'Pizzaria Central'))));
 
-    await tester.tap(find.text('Avisar nova entrega'));
+    await tester.tap(find.text('AVISAR NOVA ENTREGA'));
     await tester.pumpAndSettle();
 
     expect(find.byType(DeliveryFormPage), findsOneWidget);
     final campo =
-        find.widgetWithText(TextFormField, 'Estabelecimento (opcional)');
+        find.widgetWithText(TextFormField, 'ESTABELECIMENTO (OPCIONAL)');
     expect(tester.widget<TextFormField>(campo).controller!.text,
         'Pizzaria Central');
   });

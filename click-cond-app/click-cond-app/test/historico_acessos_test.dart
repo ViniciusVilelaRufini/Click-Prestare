@@ -11,7 +11,7 @@ void main() {
     );
 
     // Renderiza a estrutura inicial
-    expect(find.text('Eventos de Acesso'), findsOneWidget);
+    expect(find.text('EVENTOS DE ACESSO'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
     expect(find.text('Todos'), findsOneWidget);
     expect(find.text('Visitantes'), findsOneWidget);

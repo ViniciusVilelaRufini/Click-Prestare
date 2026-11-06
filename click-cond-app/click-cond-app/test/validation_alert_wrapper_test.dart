@@ -56,7 +56,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Nome do Visitante'), findsWidgets);
+    expect(find.text('NOME DO VISITANTE'), findsWidgets);
     expect(find.text('Informe o nome do visitante.'), findsOneWidget);
     expect(find.byIcon(PhosphorIcons.warningCircle), findsOneWidget);
   });

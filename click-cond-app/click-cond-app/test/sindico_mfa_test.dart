@@ -95,15 +95,15 @@ void main() {
       );
 
       // Título e e-mail
-      expect(find.text('Autenticação em 2 Etapas'), findsOneWidget);
+      expect(find.text('AUTENTICAÇÃO EM 2 ETAPAS'), findsOneWidget);
       expect(find.textContaining('si****@click.com'), findsOneWidget);
-      expect(find.text('Digite o código recebido'), findsOneWidget);
+      expect(find.text('DIGITE O CÓDIGO RECEBIDO'), findsOneWidget);
 
       // Checkbox de 30 dias
       expect(find.text('Lembrar deste aparelho por 30 dias'), findsOneWidget);
 
       // Botão de confirmação
-      expect(find.text('Confirmar e Entrar'), findsOneWidget);
+      expect(find.text('CONFIRMAR E ENTRAR'), findsOneWidget);
 
       // 1 campo de texto unificado OTP (evita fechar teclado no iOS a cada dígito)
       expect(find.byType(TextField), findsOneWidget);

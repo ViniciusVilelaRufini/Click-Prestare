@@ -99,7 +99,7 @@ void main() {
     servir(assembleias());
     await abrir(tester);
 
-    expect(find.text('Assembleias'), findsOneWidget);
+    expect(find.text('ASSEMBLEIAS'), findsOneWidget);
     expect(chamadasLista, 1);
     expect(find.byType(AssembleiaCard), findsNWidgets(2));
     expect(find.text('Assembleia Geral Ordinária'), findsOneWidget);

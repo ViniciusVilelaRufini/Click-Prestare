@@ -104,7 +104,7 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Autorizar'));
+    await tester.tap(find.text('AUTORIZAR'));
     await tester.pumpAndSettle();
 
     expect(enviado, {'status': 'AUTORIZADA'});
@@ -127,7 +127,7 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Recusar'));
+    await tester.tap(find.text('RECUSAR'));
     await tester.pumpAndSettle();
     expect(enviado, isNull);
     await tester.tap(find.text('Sim'));
@@ -194,7 +194,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(FloatingActionButton), findsNothing);
-    expect(find.text('Avisar entrega'), findsOneWidget);
+    expect(find.text('AVISAR ENTREGA'), findsOneWidget);
   });
 
   testWidgets('título do card tem a linha inteira, sem dividir com o selo',

@@ -1,4 +1,5 @@
 import 'package:click/theme/app_colors.dart';
+import 'package:click/theme/app_typography.dart';
 import 'package:flutter/material.dart';
 
 /// Item de um [AppSegmentedControl].
@@ -9,8 +10,7 @@ class AppSegment {
   const AppSegment({required this.label, this.icon, this.count});
 }
 
-/// Controle segmentado em pílula (mesmo desenho do seletor "Meu financeiro /
-/// Condomínio"). Pode ser usado de forma controlada ([selectedIndex] +
+/// Abas com sublinhado (`.tabs`). Pode ser usado de forma controlada ([selectedIndex] +
 /// [onChanged]) ou ligado ao [TabController] mais próximo com
 /// [AppSegmentedControl.tabs], mantendo o gesto de arrastar do `TabBarView`.
 class AppSegmentedControl extends StatelessWidget {
@@ -31,34 +31,19 @@ class AppSegmentedControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border(context)),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.2)
-                : const Color(0xFF64748B).withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border(bottom: BorderSide(color: AppColors.border(context))),
       ),
       child: Row(
         children: [
-          for (var i = 0; i < segments.length; i++) ...[
-            if (i > 0) const SizedBox(width: 4),
+          for (var i = 0; i < segments.length; i++)
             _SegmentItem(
               segment: segments[i],
               selected: i == selectedIndex,
               compact: segments.length >= 3,
               onTap: () => onChanged(i),
             ),
-          ],
         ],
       ),
     );
@@ -81,7 +66,9 @@ class _SegmentItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? Colors.white : AppColors.textSecondary(context);
+    final color = selected
+        ? AppColors.textPrimary(context)
+        : AppColors.textTertiary(context);
     final label = segment.count == null ? segment.label : '${segment.label} (${segment.count})';
     return Expanded(
       child: Semantics(
@@ -99,8 +86,14 @@ class _SegmentItem extends StatelessWidget {
             alignment: Alignment.center,
             padding: EdgeInsets.symmetric(vertical: 10, horizontal: compact ? 4 : 8),
             decoration: BoxDecoration(
-              color: selected ? AppColors.primary : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
+              border: Border(
+                bottom: BorderSide(
+                  color: selected
+                      ? AppColors.accent(context)
+                      : Colors.transparent,
+                  width: 2,
+                ),
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -118,11 +111,9 @@ class _SegmentItem extends StatelessWidget {
                     child: Text(
                       label.toUpperCase(),
                       maxLines: 1,
-                      style: TextStyle(
+                      style: AppTypography.label(context).copyWith(
                         color: color,
-                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                        letterSpacing: 0.6,
-                        fontSize: 12,
+                        letterSpacing: 11 * 0.18,
                       ),
                     ),
                   ),

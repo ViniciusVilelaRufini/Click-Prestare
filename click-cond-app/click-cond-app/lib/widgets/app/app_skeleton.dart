@@ -11,7 +11,7 @@ class AppSkeleton extends StatelessWidget {
     super.key,
     required this.width,
     required this.height,
-    this.borderRadius = 8,
+    this.borderRadius = 0,
   });
 
   @override
@@ -37,7 +37,7 @@ class AppSkeleton extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppSkeleton(width: 64, height: 64, borderRadius: 12),
+          AppSkeleton(width: 64, height: 64),
           const SizedBox(width: 16),
           Expanded(
             child: Column(

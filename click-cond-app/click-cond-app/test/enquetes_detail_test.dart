@@ -159,7 +159,7 @@ void main() {
     await abrir(tester);
 
     await tocar(tester, find.byKey(DetailEnquete.chaveBotaoVotar));
-    await tocar(tester, find.text('Cancelar'));
+    await tocar(tester, find.text('CANCELAR'));
     expect(find.text('Você já votou'), findsOneWidget);
     expect(find.byType(OpcaoResultadoBar), findsNWidgets(3));
     expect(votosEnviados, isEmpty);
@@ -212,7 +212,7 @@ void main() {
 
     final finalizar = find.byKey(DetailEnquete.chaveBotaoFinalizar);
     expect(finalizar, findsOneWidget);
-    expect(find.text('Finalizar votação'), findsOneWidget);
+    expect(find.text('FINALIZAR VOTAÇÃO'), findsOneWidget);
 
     // "Não" no diálogo não chama a API.
     await tocar(tester, finalizar);
@@ -278,6 +278,6 @@ void main() {
     await abrir(tester, largura: 320, tema: ThemeData(brightness: Brightness.dark));
     await tocar(tester, find.byKey(DetailEnquete.chaveBotaoVotar));
     expect(tester.takeException(), isNull);
-    expect(find.text('Cancelar'), findsOneWidget);
+    expect(find.text('CANCELAR'), findsOneWidget);
   });
 }

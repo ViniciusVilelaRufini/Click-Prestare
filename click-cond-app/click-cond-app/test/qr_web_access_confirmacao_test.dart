@@ -45,13 +45,13 @@ void main() {
   testWidgets('mostra a confirmação e não chama o servidor antes dela', (tester) async {
     await abrir(tester);
 
-    expect(find.text('Liberar acesso ao console web?'), findsOneWidget);
+    expect(find.text('LIBERAR ACESSO AO CONSOLE WEB?'), findsOneWidget);
     expect(chamadas, isEmpty);
   });
 
   testWidgets('Cancelar não autoriza nada', (tester) async {
     final resultado = await abrir(tester);
-    await tester.tap(find.text('Cancelar'));
+    await tester.tap(find.text('CANCELAR'));
     await tester.pumpAndSettle();
 
     expect(await resultado, isNull);
@@ -60,7 +60,7 @@ void main() {
 
   testWidgets('Autorizar chama POST /auth/qr/authorize com o QR lido', (tester) async {
     final resultado = await abrir(tester);
-    await tester.tap(find.text('Autorizar'));
+    await tester.tap(find.text('AUTORIZAR'));
     await tester.pumpAndSettle();
 
     final resposta = await resultado;

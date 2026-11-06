@@ -1,3 +1,4 @@
+import 'package:click/theme/app_colors.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
@@ -80,7 +81,7 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
           margin: EdgeInsets.only(top: 25),
           decoration: BoxDecoration(
             shape: BoxShape.rectangle,
-            color: Colors.white,
+            color: AppColors.surface(context),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(color: Colors.black,offset: Offset(0,5),

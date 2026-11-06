@@ -45,15 +45,15 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nome do entregador (opcional)'),
+      find.widgetWithText(TextFormField, 'NOME DO ENTREGADOR (OPCIONAL)'),
       'João da Silva',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Telefone do entregador (opcional)'),
+      find.widgetWithText(TextFormField, 'TELEFONE DO ENTREGADOR (OPCIONAL)'),
       '(11) 99999-9999',
     );
-    await tester.ensureVisible(find.text('Criar aviso'));
-    await tester.tap(find.text('Criar aviso'));
+    await tester.ensureVisible(find.text('CRIAR AVISO'));
+    await tester.tap(find.text('CRIAR AVISO'));
     await tester.pumpAndSettle();
 
     final payload = jsonDecode(request.body) as Map<String, dynamic>;
@@ -84,8 +84,8 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: DeliveryFormPage()));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Criar aviso'));
-    await tester.tap(find.text('Criar aviso'));
+    await tester.ensureVisible(find.text('CRIAR AVISO'));
+    await tester.tap(find.text('CRIAR AVISO'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('delivery-unit-selector')), findsOneWidget);
@@ -115,8 +115,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Bloco B · Unidade 202').last);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Criar aviso'));
-    await tester.tap(find.text('Criar aviso'));
+    await tester.ensureVisible(find.text('CRIAR AVISO'));
+    await tester.tap(find.text('CRIAR AVISO'));
     await tester.pumpAndSettle();
 
     expect(postRequest, isNotNull);
@@ -142,7 +142,7 @@ void main() {
     });
 
     Future<Map<String, dynamic>> criar(WidgetTester tester) async {
-      await tester.tap(find.text('Criar aviso'));
+      await tester.tap(find.text('CRIAR AVISO'));
       await tester.pumpAndSettle();
       return jsonDecode(postRequest!.body) as Map<String, dynamic>;
     }
@@ -169,15 +169,15 @@ void main() {
         expect(find.text(titulo), findsOneWidget, reason: titulo);
       }
       expect(find.byKey(const Key('delivery-unit-single')), findsOneWidget);
-      expect(find.text('Nome do entregador (opcional)'), findsNothing);
-      expect(find.text('Observação (opcional)'), findsNothing);
+      expect(find.text('NOME DO ENTREGADOR (OPCIONAL)'), findsNothing);
+      expect(find.text('OBSERVAÇÃO (OPCIONAL)'), findsNothing);
 
       await tocar(tester, find.text('Mais detalhes (opcional)'));
 
       expect(find.text('Entregador'), findsOneWidget);
       expect(find.text('Observação'), findsOneWidget);
-      expect(find.text('Nome do entregador (opcional)'), findsOneWidget);
-      expect(find.text('Observação (opcional)'), findsOneWidget);
+      expect(find.text('NOME DO ENTREGADOR (OPCIONAL)'), findsOneWidget);
+      expect(find.text('OBSERVAÇÃO (OPCIONAL)'), findsOneWidget);
     });
 
     testWidgets('recolher "Mais detalhes" mantém o que foi digitado e mostra o resumo',
@@ -186,14 +186,14 @@ void main() {
       await tester.pumpAndSettle();
       await tocar(tester, find.text('Mais detalhes (opcional)'));
       await tester.enterText(
-          find.widgetWithText(TextFormField, 'Nome do entregador (opcional)'),
+          find.widgetWithText(TextFormField, 'NOME DO ENTREGADOR (OPCIONAL)'),
           'João');
       await tester.enterText(
-          find.widgetWithText(TextFormField, 'Observação (opcional)'),
+          find.widgetWithText(TextFormField, 'OBSERVAÇÃO (OPCIONAL)'),
           'Interfone quebrado');
       await tocar(tester, find.text('Mais detalhes (opcional)'));
 
-      expect(find.text('Nome do entregador (opcional)'), findsNothing);
+      expect(find.text('NOME DO ENTREGADOR (OPCIONAL)'), findsNothing);
       expect(find.text('João · com observação'), findsOneWidget);
 
       final payload = await criar(tester);
@@ -211,7 +211,7 @@ void main() {
       }
 
       await tocar(tester, find.widgetWithText(ChoiceChip, 'iFood'));
-      final campo = find.widgetWithText(TextFormField, 'Estabelecimento (opcional)');
+      final campo = find.widgetWithText(TextFormField, 'ESTABELECIMENTO (OPCIONAL)');
       expect(tester.widget<TextFormField>(campo).controller!.text, 'iFood');
       expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'iFood')).selected,
           isTrue);
@@ -314,7 +314,7 @@ void main() {
           home: DeliveryFormPage(prefillEstablishment: 'Pizzaria Central')));
       await tester.pumpAndSettle();
 
-      final campo = find.widgetWithText(TextFormField, 'Estabelecimento (opcional)');
+      final campo = find.widgetWithText(TextFormField, 'ESTABELECIMENTO (OPCIONAL)');
       expect(tester.widget<TextFormField>(campo).controller!.text, 'Pizzaria Central');
       final payload = await criar(tester);
       expect(payload['estabelecimento'], 'Pizzaria Central');
@@ -332,7 +332,7 @@ void main() {
       await tocar(tester, find.text('Mais detalhes (opcional)'));
 
       expect(tester.takeException(), isNull);
-      expect(find.text('Criar aviso'), findsOneWidget);
+      expect(find.text('CRIAR AVISO'), findsOneWidget);
     });
   });
 
@@ -386,7 +386,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final observacao =
-        find.widgetWithText(TextFormField, 'Observação (opcional)');
+        find.widgetWithText(TextFormField, 'OBSERVAÇÃO (OPCIONAL)');
     await tester.ensureVisible(observacao);
     await tester.pumpAndSettle();
     await tester.tap(observacao);
@@ -397,7 +397,7 @@ void main() {
     await tester.pumpAndSettle();
 
     const topoDoTeclado = 800.0 - teclado;
-    final botao = tester.getRect(find.text('Criar aviso'));
+    final botao = tester.getRect(find.text('CRIAR AVISO'));
     expect(botao.bottom, lessThanOrEqualTo(topoDoTeclado));
     // O campo focado rolou para a área visível acima da barra (o Flutter
     // garante o cursor, que fica na primeira linha do campo multilinha).
