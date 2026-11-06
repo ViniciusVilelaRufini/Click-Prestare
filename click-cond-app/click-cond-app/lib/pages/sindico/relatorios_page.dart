@@ -91,25 +91,21 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
       'label': 'Visitantes',
       'desc': 'Histórico de controle de acesso de moradores e prestadores.',
       'icon': PhosphorIcons.users,
-      'color': Colors.blue,
     },
     'encomendas': {
       'label': 'Encomendas',
       'desc': 'Entradas, entregas e pendências de mercadorias no condomínio.',
       'icon': PhosphorIcons.package,
-      'color': AppColors.success,
     },
     'ocorrencias': {
       'label': 'Ocorrências',
       'desc': 'Histórico de ocorrências abertas pelos moradores e resoluções.',
       'icon': PhosphorIcons.warningCircle,
-      'color': Colors.amber,
     },
     'financeiro': {
       'label': 'Financeiro',
       'desc': 'Fluxo de despesas, receitas e balanço do condomínio.',
       'icon': PhosphorIcons.wallet,
-      'color': Colors.purple,
     },
   };
 
@@ -250,8 +246,6 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return AppScaffold(
       title: 'Relatórios do Condomínio',
       body: SingleChildScrollView(
@@ -276,36 +270,27 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? AppColors.primary.withValues(alpha: 0.08)
-                        : (isDark ? AppColors.surface(context) : Colors.white),
+                        ? AppColors.primaryLight
+                        : AppColors.surface(context),
                     borderRadius: BorderRadius.circular(AppRadius.lg),
                     border: Border.all(
                       color: isSelected
                           ? AppColors.primary
-                          : (isDark ? AppColors.border(context) : const Color(0xFFE2E8F0)),
+                          : AppColors.border(context),
                       width: isSelected ? 1.5 : 1,
                     ),
-                    boxShadow: isDark
-                        ? null
-                        : [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
                   ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(AppSpacing.sm),
                         decoration: BoxDecoration(
-                          color: (category['color'] as Color).withValues(alpha: 0.12),
+                          color: AppColors.accentGhost(context),
                           borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                         child: Icon(
                           category['icon'] as IconData,
-                          color: category['color'] as Color,
+                          color: AppColors.textPrimary(context),
                           size: 24,
                         ),
                       ),
@@ -354,20 +339,11 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                         horizontal: AppSpacing.md,
                       ),
                       decoration: BoxDecoration(
-                        color: isDark ? AppColors.surface(context) : Colors.white,
+                        color: AppColors.surface(context),
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
-                          color: isDark ? AppColors.border(context) : const Color(0xFFE2E8F0),
+                          color: AppColors.border(context),
                         ),
-                        boxShadow: isDark
-                            ? null
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.03),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,20 +386,11 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                         horizontal: AppSpacing.md,
                       ),
                       decoration: BoxDecoration(
-                        color: isDark ? AppColors.surface(context) : Colors.white,
+                        color: AppColors.surface(context),
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
-                          color: isDark ? AppColors.border(context) : const Color(0xFFE2E8F0),
+                          color: AppColors.border(context),
                         ),
-                        boxShadow: isDark
-                            ? null
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.03),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,23 +521,14 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                         horizontal: AppSpacing.md,
                       ),
                       decoration: BoxDecoration(
-                        color: isDark ? AppColors.surface(context) : Colors.white,
+                        color: AppColors.surface(context),
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
                           color: _selectedBloco != null
                               ? AppColors.primary
-                              : (isDark ? AppColors.border(context) : const Color(0xFFE2E8F0)),
+                              : AppColors.border(context),
                           width: _selectedBloco != null ? 1.5 : 1,
                         ),
-                        boxShadow: isDark
-                            ? null
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.03),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -657,23 +615,14 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                         horizontal: AppSpacing.md,
                       ),
                       decoration: BoxDecoration(
-                        color: isDark ? AppColors.surface(context) : Colors.white,
+                        color: AppColors.surface(context),
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
                           color: _selectedApto != null
                               ? AppColors.primary
-                              : (isDark ? AppColors.border(context) : const Color(0xFFE2E8F0)),
+                              : AppColors.border(context),
                           width: _selectedApto != null ? 1.5 : 1,
                         ),
-                        boxShadow: isDark
-                            ? null
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.03),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
