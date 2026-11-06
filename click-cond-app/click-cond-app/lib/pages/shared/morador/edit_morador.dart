@@ -144,7 +144,7 @@ class _EditMoradorPageState extends State<EditMorador> {
         icon: PhosphorIcons.checkCircle,
         iconColor: AppColors.success,
       );
-      await storageLogout();
+      storageLogout();
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
     } else {

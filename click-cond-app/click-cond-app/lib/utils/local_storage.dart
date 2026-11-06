@@ -25,11 +25,14 @@ Future<void> _prepararStorage() async {
   var arquivoLido = true;
   try {
     await _storage.ready;
-  } catch (e) {
+  } on FormatException catch (e) {
     // JSON corrompido: o pacote segue com o mapa vazio e o próximo flush
     // reescreve o arquivo. O boot não pode depender deste arquivo.
     arquivoLido = false;
     logDebug('[LocalStorage] user_data ilegível: ${e.runtimeType}');
+  } catch (e) {
+    // Erro de E/S não prova que os dados se perderam: a sessão fica.
+    logDebug('[LocalStorage] user_data sem leitura: ${e.runtimeType}');
   }
   // Token e dispositivo confiável vivem no armazenamento seguro (fora do
   // JSON em texto puro e do backup). O legado serve para migrar e de reserva.
@@ -183,6 +186,8 @@ void storageAutoLogin(Map<String, dynamic> parsed, String loginType) {
   }
 }
 
+/// A sessão local acaba antes do primeiro `await`: as telas navegam sem esperar
+/// o Future, que só cobre o aviso de push ao servidor (até 60s sem rede).
 Future<void> storageLogout() async {
   _inMemoryPhoto = '';
   // Cache de exibição do condomínio vive no processo, não no storage: sem isto

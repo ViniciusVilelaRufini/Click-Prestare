@@ -157,7 +157,7 @@ class _EditSindicoPageState extends State<EditSindico> {
         icon: PhosphorIcons.checkCircle,
         iconColor: AppColors.success,
       );
-      await storageLogout();
+      storageLogout();
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
     } else {

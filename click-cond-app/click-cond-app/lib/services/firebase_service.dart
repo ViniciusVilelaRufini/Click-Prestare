@@ -30,6 +30,9 @@ class FirebaseService {
   @visibleForTesting
   Future<void> Function() apagarTokenFcm = () => FirebaseMessaging.instance.deleteToken();
 
+  /// Remoção de push mais recente: o login seguinte espera por ela. Nunca lança.
+  Future<void> _desregistro = Future.value();
+
   /// Nunca lança: quem chama não espera o resultado, e uma falha aqui não
   /// pode derrubar nem travar o app — no máximo o aparelho fica sem push.
   Future<void> init() async {
@@ -195,8 +198,9 @@ class FirebaseService {
 
   /// Envia o token do aparelho para o servidor, se houver sessão.
   Future<void> registrarNoServidor([String? tokenFcm]) async {
-    // Push é acessório: sem rede ou sem Google Play o getToken lança, e o login
-    // espera por este método antes de navegar.
+    // Token pedido com um deleteToken em curso morreria logo em seguida.
+    await _desregistro;
+    // Push é acessório: sem rede ou sem Google Play o getToken lança.
     String? token = tokenFcm;
     try {
       token ??= await obterTokenFcm().timeout(limiteFcm);
@@ -238,7 +242,10 @@ class FirebaseService {
   /// quando esta chamada chega ao servidor. Se outra sessão começar nesse
   /// intervalo, para por aqui: o token do aparelho é um só, e removê-lo deixaria
   /// o login novo sem push (a rota do servidor não filtra por usuário).
-  Future<void> desregistrarNoServidor({String? jwt}) async {
+  Future<void> desregistrarNoServidor({String? jwt}) =>
+      _desregistro = _desregistrar(jwt: jwt);
+
+  Future<void> _desregistrar({String? jwt}) async {
     final sessao = jwt ?? getToken();
     bool outraSessao() => jwt != null && getToken().isNotEmpty;
 

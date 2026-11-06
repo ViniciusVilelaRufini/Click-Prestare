@@ -121,7 +121,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
     // Registra a recusa antes de sair: é um fato com consequência e precisa
     // constar no histórico.
     await apiRegistrarConsentimento(privacidade: false, biometria: false);
-    await storageLogout();
+    storageLogout();
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
   }

@@ -108,11 +108,7 @@ class _RecuperarSenhaNovaSenhaPageState extends State<RecuperarSenhaNovaSenhaPag
       if (!mounted) return;
 
       // Registra push notification após login automático
-      try {
-        await FirebaseService.instance.registrarNoServidor();
-      } catch (_) {}
-
-      if (!mounted) return;
+      FirebaseService.instance.registrarNoServidor();
 
       // Entrada direta no aplicativo sem precisar relogar manualmente
       Navigator.pushAndRemoveUntil(

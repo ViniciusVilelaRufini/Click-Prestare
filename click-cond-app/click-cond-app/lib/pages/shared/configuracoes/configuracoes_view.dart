@@ -366,11 +366,9 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
             _SettingsTile(
               icon: PhosphorIcons.signOut,
               label: getText('lb_logout'),
-              onTap: () async {
-                await storageLogout();
-                if (context.mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
-                }
+              onTap: () {
+                storageLogout();
+                Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
               },
             ),
             AppSpacing.gapXl,

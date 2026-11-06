@@ -209,7 +209,7 @@ class _LoginSindicoPageState extends State<LoginSindico> {
         }
       }
 
-      await _updateFcmToken();
+      _updateFcmToken();
       if (!mounted) return;
       Navigator.pushReplacement(
         context,

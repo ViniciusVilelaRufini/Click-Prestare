@@ -161,11 +161,8 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
 
       if (error.isEmpty) {
         // Sucesso na validação 2FA
-        try {
-          await FirebaseService.instance.registrarNoServidor();
-        } catch (_) {}
+        FirebaseService.instance.registrarNoServidor();
 
-        if (!mounted) return;
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const PortaDeEntrada()),

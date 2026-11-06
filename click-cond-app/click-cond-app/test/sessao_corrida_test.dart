@@ -400,6 +400,40 @@ void main() {
       expect(getToken(), 'token-novo');
     });
 
+    test('Sair sem esperar: a sessão local já acabou quando a tela navega', () async {
+      storageMorador(_loginDe('token-velho'));
+      final saindo = storageLogout();
+      expect(getToken(), '');
+      expect(getUsername(), '');
+      await saindo;
+    });
+
+    test('registro do login novo espera o deleteToken em curso', () async {
+      final apagando = Completer<void>();
+      var pedidos = 0;
+      FirebaseService.instance
+        ..apagarTokenFcm = (() => apagando.future)
+        ..obterTokenFcm = (() async {
+          pedidos++;
+          return 'fcm';
+        });
+      storageMorador(_loginDe('token-velho'));
+      final saindo = storageLogout();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      final antes = pedidos;
+
+      storageMorador(_loginDe('token-novo'));
+      final registrando = FirebaseService.instance.registrarNoServidor();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      expect(pedidos, antes, reason: 'o token pedido agora morreria com o delete em curso');
+
+      apagando.complete();
+      await saindo;
+      await registrando;
+      expect(pedidos, antes + 1);
+      expect(chamadas.last, 'update-fcm-token');
+    });
+
     test('login enquanto o aviso ao servidor está no ar não apaga o token do aparelho', () async {
       final aviso = Completer<void>();
       ApiClient.client = MockClient((_) async {
