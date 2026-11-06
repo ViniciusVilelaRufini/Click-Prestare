@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:click/widgets/app/app_card.dart';
+import 'package:click/widgets/app/app_tag.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -129,31 +131,19 @@ class FinanceiroCard extends StatelessWidget {
     final bool pagaOnline = ehSuperlogica && temUrlBoleto;
     final bool temComprovante = _temValor(item['url_comprovante']) || _temValor(item['photo']);
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.zero,
-        border: Border.all(
-          color: AppColors.border(context),
-          width: 1.1,
-        ),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top status highlight line (subtle and sleek)
-            Container(
-              height: 3.5,
-              width: double.infinity,
-              color: statusColor.withValues(alpha: 0.85),
-            ),
             Padding(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -162,20 +152,8 @@ class FinanceiroCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       // Ícone temático com squircle suave
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.zero,
-                        ),
-                        child: Icon(
-                          _getIconForCategory(categoria, tipo),
-                          size: 22,
-                          color: statusColor,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
+                      AppIconBox(icon: _getIconForCategory(categoria, tipo)),
+                      const SizedBox(width: 14),
                       // Título e Subtítulo
                       Expanded(
                         child: Column(
@@ -186,43 +164,22 @@ class FinanceiroCard extends StatelessWidget {
                                 Flexible(
                                   child: Text(
                                     tituloPrincipal,
-                                    style: AppTypography.body(context).copyWith(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15.5,
-                                    ),
+                                    style: AppTypography.strong(context),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 if (mostrarSeloPessoal || tipo == 'D') ...[
                                   const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.zero,
-                                    ),
-                                    child: Text(
-                                      "Pessoal",
-                                      style: TextStyle(
-                                        color: AppColors.primary,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
+                                  const AppTag(label: "Pessoal"),
                                 ],
                               ],
                             ),
                             if (subtituloInfo != null && subtituloInfo.isNotEmpty) ...[
-                              const SizedBox(height: 3),
+                              const SizedBox(height: 2),
                               Text(
                                 subtituloInfo,
-                                style: AppTypography.caption(context).copyWith(
-                                  color: AppColors.textSecondary(context),
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                style: AppTypography.tiny(context),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -240,13 +197,9 @@ class FinanceiroCard extends StatelessWidget {
 
                   // 2. PAINEL DE VALOR E VENCIMENTO
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.only(top: 12),
                     decoration: BoxDecoration(
-                      color: AppColors.bg(context).withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.zero,
-                      border: Border.all(
-                        color: AppColors.border(context).withValues(alpha: 0.6),
-                      ),
+                      border: Border(top: BorderSide(color: AppColors.border(context))),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -257,13 +210,8 @@ class FinanceiroCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isPago ? "PAGAMENTO" : "VENCIMENTO",
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                letterSpacing: 0.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textTertiary(context),
-                              ),
+                              (isPago ? "PAGAMENTO" : "VENCIMENTO"),
+                              style: AppTypography.label(context),
                             ),
                             const SizedBox(height: 4),
                             Row(
@@ -280,9 +228,7 @@ class FinanceiroCard extends StatelessWidget {
                                 const SizedBox(width: 5),
                                 Text(
                                   vencimento,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
+                                  style: AppTypography.captionMedium(context).copyWith(
                                     color: isVencido && !isPago
                                         ? AppColors.error
                                         : AppColors.textPrimary(context),
@@ -297,23 +243,13 @@ class FinanceiroCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              isPago ? "VALOR PAGO" : "VALOR TOTAL",
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                letterSpacing: 0.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textTertiary(context),
-                              ),
+                              (isPago ? "VALOR PAGO" : "VALOR TOTAL"),
+                              style: AppTypography.label(context),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               valorFormatado,
-                              style: TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w800,
-                                color: isPago ? AppColors.success : AppColors.textPrimary(context),
-                                letterSpacing: -0.5,
-                              ),
+                              style: AppTypography.numeral(context).copyWith(fontSize: 22, height: 1.1),
                             ),
                           ],
                         ),
@@ -330,7 +266,7 @@ class FinanceiroCard extends StatelessWidget {
                         context,
                         icone: PhosphorIcons.qrCode,
                         texto: "Pagar com Pix (QR Code)",
-                        corFundo: AppColors.success,
+                        corFundo: AppColors.primary,
                         onTap: () => _abrirSheetPixQrCode(context),
                       )
                     else if (temBoletoOuCodigo)
@@ -552,52 +488,22 @@ class FinanceiroCard extends StatelessWidget {
 
   /// Badge de Status estilizado (Pill com ícone e cores suaves)
   Widget _buildStatusPill(BuildContext context, bool isPago, bool isVerifying, bool isVencido) {
-    Color cor;
-    IconData icone;
     String texto;
 
     if (isPago) {
-      cor = AppColors.success;
-      icone = PhosphorIcons.checkCircleFill;
       texto = "Pago";
     } else if (isVerifying) {
-      cor = AppColors.textSecondary(context);
-      icone = PhosphorIcons.arrowsClockwise;
       texto = "Em análise";
     } else if (isVencido) {
-      cor = AppColors.error;
-      icone = PhosphorIcons.warningCircleFill;
       texto = "Vencido";
     } else {
-      cor = AppColors.warning;
-      icone = PhosphorIcons.clock;
       texto = "Pendente";
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
-      decoration: BoxDecoration(
-        color: cor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.zero,
-        border: Border.all(color: cor.withValues(alpha: 0.35), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icone, size: 13, color: cor),
-          const SizedBox(width: 4),
-          Text(
-            texto,
-            style: TextStyle(
-              color: cor,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
-      ),
-    );
+    final signal = isPago
+        ? AppSignal.ok
+        : (isVerifying ? AppSignal.neutral : (isVencido ? AppSignal.danger : AppSignal.warn));
+    return AppTag(label: texto, signal: signal);
   }
 
   /// Botão Principal de Pagamento destacado (Largura total, ícone grande e feedback)
@@ -609,29 +515,22 @@ class FinanceiroCard extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return Material(
-      color: corFundo,
-      borderRadius: BorderRadius.zero,
-      elevation: 0,
+      color: AppColors.primary,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.zero,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icone, size: 19, color: AppColors.on(corFundo)),
+              Icon(icone, size: 18, color: AppColors.onPrimary),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  texto,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.on(corFundo),
-                    letterSpacing: 0.2,
-                  ),
+                  texto.toUpperCase(),
+                  style: AppTypography.button(context),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -652,33 +551,24 @@ class FinanceiroCard extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return Material(
-      color: AppColors.bg(context).withValues(alpha: 0.6),
-      borderRadius: BorderRadius.zero,
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.zero,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.zero,
-            border: Border.all(
-              color: AppColors.border(context).withValues(alpha: 0.7),
-              width: 1,
-            ),
+            border: Border.all(color: AppColors.borderStrong(context)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icone, size: 15, color: corIcone),
+              Icon(icone, size: 15, color: AppColors.textPrimary(context)),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  texto,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary(context),
-                  ),
+                  texto.toUpperCase(),
+                  style: AppTypography.label(context).copyWith(color: AppColors.textPrimary(context)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -755,9 +645,9 @@ class FinanceiroCard extends StatelessWidget {
               Container(
                 width: 190,
                 height: 190,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.qrPaper,
                   border: Border.all(color: AppColors.border(context)),
                   borderRadius: BorderRadius.zero,
                 ),
@@ -766,7 +656,9 @@ class FinanceiroCard extends StatelessWidget {
                   child: QrImageView(
                     data: payload,
                     size: 190,
-                    backgroundColor: Colors.white,
+                    backgroundColor: AppColors.qrPaper,
+                      eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: AppColors.qrInk),
+                      dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: AppColors.qrInk),
                     padding: EdgeInsets.zero,
                   ),
                 ),
@@ -779,18 +671,17 @@ class FinanceiroCard extends StatelessWidget {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text("Código Pix Copia e Cola copiado!"),
-                      backgroundColor: AppColors.success,
                     ),
                   );
                 },
-                icon: const Icon(PhosphorIcons.copy, size: 18, color: Colors.white),
+                icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
                 label: const Text(
                   "Copiar Código Pix",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.onPrimary,
                   minimumSize: const Size(double.infinity, 48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,
@@ -867,7 +758,6 @@ class FinanceiroCard extends StatelessWidget {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text("Chave Pix copiada com sucesso!"),
-                      backgroundColor: AppColors.success,
                     ),
                   );
                 },

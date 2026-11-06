@@ -23,6 +23,9 @@ import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
+import 'package:click/widgets/app/app_card.dart';
+import 'package:click/widgets/app/app_segmented_control.dart';
+import 'package:click/widgets/app/app_tag.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -258,7 +261,12 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       actions: (!isSindico && deveCarregarFinanceiroPessoal(getUserType()))
           ? [
               IconButton(
-                icon: const Icon(PhosphorIcons.downloadSimple),
+                style: IconButton.styleFrom(
+                  fixedSize: const Size(40, 40),
+                  side: BorderSide(color: AppColors.border(context)),
+                  shape: const RoundedRectangleBorder(),
+                ),
+                icon: const Icon(PhosphorIcons.downloadSimple, size: 18),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -356,13 +364,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                 if (_viewMode == FinanceiroViewMode.condominio) ...[
                                   const SizedBox(height: AppSpacing.lg),
                                   Container(
+                                    height: 44,
                                     decoration: BoxDecoration(
                                       color: AppColors.surface(context),
-                                      borderRadius: BorderRadius.zero,
-                                      border: Border.all(
-                                        color: AppColors.border(context),
-                                        width: 1,
-                                      ),
+                                      border: Border.all(color: AppColors.border(context)),
                                     ),
                                     child: TextField(
                                       controller: _searchController,
@@ -370,23 +375,18 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                         _searchQuery = v;
                                         _applyFilter();
                                       },
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: AppColors.textPrimary(context),
-                                      ),
+                                      style: AppTypography.bodySecondary(context).copyWith(color: AppColors.textPrimary(context)),
                                       decoration: InputDecoration(
+                                        isDense: true,
                                         hintText: 'Pesquisar lançamentos...',
-                                        hintStyle: TextStyle(
-                                          fontSize: 14,
-                                          color: Theme.of(context).brightness == Brightness.dark ? AppColors.textSecondary(context) : AppColors.textTertiary(context),
-                                        ),
+                                        hintStyle: AppTypography.bodySecondary(context).copyWith(color: AppColors.textTertiary(context)),
                                         prefixIcon: Icon(
                                           PhosphorIcons.magnifyingGlass,
                                           size: 18,
                                           color: Theme.of(context).brightness == Brightness.dark ? AppColors.textSecondary(context) : AppColors.textTertiary(context),
                                         ),
                                         border: InputBorder.none,
-                                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                                       ),
                                     ),
                                   ),
@@ -428,10 +428,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                           child: Container(
                             margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                             padding: const EdgeInsets.all(AppSpacing.xl),
-                            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.zero),
+                            decoration: BoxDecoration(color: AppColors.surface(context), border: Border.all(color: AppColors.border(context))),
                             child: Column(
                               children: [
-                                Icon(PhosphorIcons.magnifyingGlass, size: 48, color: AppColors.textTertiary(context)),
+                                AppIconBox(icon: PhosphorIcons.magnifyingGlass, size: 56, iconSize: 24),
                                 const SizedBox(height: AppSpacing.md),
                                 Text(
                                   _searchQuery.isEmpty ? getText('financeiro_sem_lancamentos') : 'Nenhum resultado para a busca',
@@ -453,14 +453,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(data.toUpperCase(), 
-                                  style: TextStyle(
-                                    color: Theme.of(context).brightness == Brightness.dark ? AppColors.textSecondary(context) : AppColors.textTertiary(context),
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.1,
-                                    fontSize: 11,
-                                  )
-                                ),
+                                Text(data.toUpperCase(), style: AppTypography.section(context)),
                                 const SizedBox(height: AppSpacing.sm),
                                 for (var item in _filteredLancamentos[data])
                                   _LancamentoCard(item: item),
@@ -479,13 +472,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                "Contas",
-                                style: AppTypography.headline(context).copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
+                              Text("Contas".toUpperCase(), style: AppTypography.section(context)),
                               const SizedBox(height: AppSpacing.xl),
                               _buildCategoriesGrid(activeItems, personalCategories),
                             ],
@@ -554,42 +541,20 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       return const SizedBox.shrink();
     }
     final isSindico = getUserType() == 'sindico';
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.zero,
-        border: Border.all(
-          color: AppColors.border(context),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          _ToggleItem(
-            label: 'MEU FINANCEIRO',
-            icon: PhosphorIcons.user,
-            isSelected: _viewMode == FinanceiroViewMode.morador,
-            onTap: () {
-              setState(() => _viewMode = FinanceiroViewMode.morador);
-              _applyFilter();
-            },
-          ),
-          if (isSindico) ...[
-            const SizedBox(width: 4),
-            _ToggleItem(
-              label: 'CONDOMÍNIO',
-              icon: PhosphorIcons.buildings,
-              isSelected: _viewMode == FinanceiroViewMode.condominio,
-              onTap: () {
-                setState(() => _viewMode = FinanceiroViewMode.condominio);
-                _applyFilter();
-              },
-            ),
-          ],
-        ],
-      ),
+    final modos = [
+      FinanceiroViewMode.morador,
+      if (isSindico) FinanceiroViewMode.condominio,
+    ];
+    return AppSegmentedControl(
+      selectedIndex: modos.indexOf(_viewMode).clamp(0, modos.length - 1),
+      onChanged: (i) {
+        setState(() => _viewMode = modos[i]);
+        _applyFilter();
+      },
+      segments: [
+        const AppSegment(label: 'MEU FINANCEIRO', icon: PhosphorIcons.user),
+        if (isSindico) const AppSegment(label: 'CONDOMÍNIO', icon: PhosphorIcons.buildings),
+      ],
     );
   }
 
@@ -706,9 +671,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                 Container(
                   width: 200,
                   height: 200,
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.qrPaper,
                     border: Border.all(color: AppColors.border(context)),
                     borderRadius: BorderRadius.zero,
                   ),
@@ -717,7 +682,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                     child: QrImageView(
                       data: payload,
                       size: 200,
-                      backgroundColor: Colors.white,
+                      backgroundColor: AppColors.qrPaper,
+                      eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: AppColors.qrInk),
+                      dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: AppColors.qrInk),
                       padding: EdgeInsets.zero,
                     ),
                   ),
@@ -1070,10 +1037,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.zero,
+        color: AppColors.surface(context),
+        border: Border.all(color: AppColors.borderStrong(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1082,101 +1049,48 @@ class ListFinanceiroState extends State<ListFinanceiro> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                "Total pendente",
-                style: TextStyle(
-                  color: AppColors.onPrimary.withValues(alpha: 0.92),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.1,
-                ),
+              Flexible(
+                child: Text("Total pendente".toUpperCase(), style: AppTypography.label(context)),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.onPrimary.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.zero,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      badgeIcon,
-                      size: 13,
-                      color: AppColors.onPrimary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      badgeText,
-                      style: TextStyle(
-                        color: AppColors.onPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
+              AppTag(
+                label: badgeText,
+                signal: contasPendentes > 0 ? AppSignal.warn : AppSignal.ok,
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                "R\$ ",
-                style: TextStyle(
-                  color: AppColors.onPrimary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              Text(
-                formatMoeda(totalPendente),
-                style: TextStyle(
-                  color: AppColors.onPrimary,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.8,
+              Text("BRL", style: AppTypography.label(context)),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  formatMoeda(totalPendente),
+                  style: AppTypography.display(context).copyWith(
+                    fontWeight: FontWeight.w300,
+                    fontSize: 48,
+                    height: 1,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.zero,
-            child: Stack(
-              children: [
-                Container(
-                  height: 6,
-                  width: double.infinity,
-                  color: AppColors.onPrimary.withValues(alpha: 0.25),
-                ),
-                FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: progressRatio.clamp(0.0, 1.0),
-                  child: Container(
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: AppColors.onPrimary,
-                      borderRadius: BorderRadius.zero,
-                    ),
-                  ),
-                ),
-              ],
+          Container(
+            height: 2,
+            width: double.infinity,
+            color: AppColors.border(context),
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: progressRatio.clamp(0.0, 1.0),
+              child: Container(height: 2, color: AppColors.primary),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            progressText,
-            style: TextStyle(
-              color: AppColors.onPrimary.withValues(alpha: 0.88),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          const SizedBox(height: 10),
+          Text(progressText, style: AppTypography.tiny(context)),
         ],
       ),
     );
@@ -1456,110 +1370,93 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       _CategoryItem(title: 'Outros', icon: PhosphorIcons.fileText, pendingCount: pendingCounts['Outros'] ?? 0),
     ];
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.4,
+    final linha = AppColors.border(context);
+    final celulas = [
+      for (final cat in categories) SizedBox(height: 132, child: _buildCategoryCard(cat, personalCategories)),
+    ];
+    return Container(
+      decoration: BoxDecoration(color: linha, border: Border.all(color: linha)),
+      child: Column(
+        children: [
+          for (var i = 0; i < celulas.length; i += 2) ...[
+            if (i > 0) const SizedBox(height: 1),
+            Row(
+              children: [
+                Expanded(child: celulas[i]),
+                const SizedBox(width: 1),
+                Expanded(
+                  child: i + 1 < celulas.length
+                      ? celulas[i + 1]
+                      : ColoredBox(color: AppColors.surface(context), child: const SizedBox(height: 132)),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
-      itemCount: categories.length,
-      itemBuilder: (context, index) {
-        final cat = categories[index];
-        return _buildCategoryCard(cat, personalCategories);
-      },
     );
   }
 
   Widget _buildCategoryCard(_CategoryItem cat, List<String> personalCategories) {
     final hasPending = cat.pendingCount > 0;
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MoradorFinanceiroCategoryDetailPage(
-              title: cat.title,
-              icon: cat.icon,
-              getItems: () => _personalLancamentos,
-              personalCategories: personalCategories,
-              mes: mes,
-              ano: ano,
-              onRefresh: () => loadList(),
-              showContaFormModal: ({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
-                showContaFormModal(item: item, initialCategory: initialCategory, customContext: customContext, onSuccess: onSuccess);
-              },
-              buildFinanceiroCard: (item, {onChanged}) => _buildPersonalFinanceiroCard(item),
+    return Material(
+      color: AppColors.surface(context),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MoradorFinanceiroCategoryDetailPage(
+                title: cat.title,
+                icon: cat.icon,
+                getItems: () => _personalLancamentos,
+                personalCategories: personalCategories,
+                mes: mes,
+                ano: ano,
+                onRefresh: () => loadList(),
+                showContaFormModal: ({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
+                  showContaFormModal(item: item, initialCategory: initialCategory, customContext: customContext, onSuccess: onSuccess);
+                },
+                buildFinanceiroCard: (item, {onChanged}) => _buildPersonalFinanceiroCard(item),
+              ),
             ),
-          ),
-        ).then((_) {
-          setState(() {});
-        });
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface(context),
-          borderRadius: BorderRadius.zero,
-          border: Border.all(
-            color: AppColors.border(context),
-            width: 1.2,
-          ),
-        ),
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+          ).then((_) {
+            setState(() {});
+          });
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: hasPending
-                          ? AppColors.error.withValues(alpha: 0.08)
-                          : AppColors.primary.withValues(alpha: 0.08),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      cat.icon,
-                      color: hasPending ? AppColors.error : AppColors.primary,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
+                  AppIconBox(icon: cat.icon),
+                  if (hasPending) AppTag(label: cat.pendingCount.toString(), signal: AppSignal.warn),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(cat.title, style: AppTypography.strong(context), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
                   Text(
-                    cat.title,
-                    style: AppTypography.bodyMedium(context).copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                    hasPending
+                        ? "${cat.pendingCount} pendente${cat.pendingCount > 1 ? 's' : ''}"
+                        : "Nenhuma pendência",
+                    style: AppTypography.tiny(context).copyWith(color: hasPending ? AppColors.warning : null),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
-            ),
-            if (hasPending)
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.error,
-                    borderRadius: BorderRadius.zero,
-                  ),
-                  child: Text(
-                    "${cat.pendingCount}",
-                    style: TextStyle(
-                      color: AppColors.onPrimary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1777,7 +1674,6 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         Text("Pago", style: AppTypography.bodyMedium(context)),
                         Switch(
                           value: isPago,
-                          activeColor: AppColors.primary,
                           onChanged: (val) {
                             setModalState(() => isPago = val);
                           },
@@ -1996,60 +1892,6 @@ class _CategoryItem {
   const _CategoryItem({required this.title, required this.icon, required this.pendingCount});
 }
 
-class _ToggleItem extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _ToggleItem({
-    required this.label,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.zero,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 15,
-                color: isSelected ? AppColors.onPrimary : (isDark ? AppColors.textTertiary(context) : AppColors.textSecondary(context)),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? AppColors.onPrimary : (isDark ? AppColors.textTertiary(context) : AppColors.textSecondary(context)),
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                  letterSpacing: 0.6,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _DashboardHeader extends StatelessWidget {
   final String saldo;
   final String receitas;
@@ -2082,202 +1924,59 @@ class _DashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isNeg = saldo.contains('-');
     final cleanSaldo = _cleanMoeda(saldo);
     final cleanReceitas = _cleanMoeda(receitas);
     final cleanDespesas = _cleanMoeda(despesas);
 
-    final statusColor = isNeg ? AppColors.error : AppColors.success;
-
     return Column(
       children: [
         Container(
           width: double.infinity,
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.surface(context),
-            borderRadius: BorderRadius.zero,
-            border: Border.all(
-              color: AppColors.border(context),
-              width: 1,
-            ),
+            border: Border.all(color: AppColors.borderStrong(context)),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface(context),
-                        borderRadius: BorderRadius.zero,
-                      ),
-                      child: Icon(
-                        PhosphorIcons.wallet,
-                        size: 16,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'SALDO ATUAL',
-                      style: TextStyle(
-                        color: isDark ? AppColors.textTertiary(context) : AppColors.textSecondary(context),
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    cleanSaldo,
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                      color: statusColor,
-                    ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('SALDO ATUAL', style: AppTypography.label(context)),
+                  AppTag(label: isNeg ? 'NEGATIVO' : 'POSITIVO', signal: isNeg ? AppSignal.danger : AppSignal.ok),
+                ],
+              ),
+              const SizedBox(height: 10),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  cleanSaldo,
+                  style: AppTypography.display(context).copyWith(
+                    fontWeight: FontWeight.w300,
+                    fontSize: 48,
+                    height: 1,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-                const SizedBox(height: 14),
-                Container(
-                  height: 1,
-                  color: AppColors.surfaceElevated(context),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(
-                      PhosphorIcons.clockCounterClockwise,
-                      size: 14,
-                      color: isDark ? AppColors.textSecondary(context) : AppColors.textTertiary(context),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Última atualização: $data',
-                      style: TextStyle(
-                        color: isDark ? AppColors.textTertiary(context) : AppColors.textSecondary(context),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 14),
+              Container(height: 1, color: AppColors.border(context)),
+              const SizedBox(height: 12),
+              Text('Última atualização: $data', style: AppTypography.tiny(context)),
+            ],
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        Row(
+        AppKpiGrid(
           children: [
-            Expanded(
-              child: _SmallSummaryCard(
-                label: 'RECEITAS',
-                value: cleanReceitas,
-                color: AppColors.success,
-                icon: PhosphorIcons.arrowDownLeft,
-                iconBg: AppColors.surface(context),
-                isDark: isDark,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: _SmallSummaryCard(
-                label: 'DESPESAS',
-                value: cleanDespesas,
-                color: AppColors.error,
-                icon: PhosphorIcons.arrowUpRight,
-                iconBg: AppColors.surface(context),
-                isDark: isDark,
-              ),
-            ),
+            AppKpi(label: 'RECEITAS', value: cleanReceitas),
+            AppKpi(label: 'DESPESAS', value: cleanDespesas),
           ],
         ),
       ],
-    );
-  }
-}
-
-class _SmallSummaryCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  final Color iconBg;
-  final IconData icon;
-  final bool isDark;
-
-  const _SmallSummaryCard({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.iconBg,
-    required this.icon,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.zero,
-        border: Border.all(
-          color: AppColors.border(context),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: isDark ? color.withValues(alpha: 0.20) : iconBg,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 14, color: color),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    fontSize: 11,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: label == 'DESPESAS' ? AppColors.error : AppColors.textPrimary(context),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -2299,31 +1998,22 @@ class _CountChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: isDark ? color.withValues(alpha: 0.15) : (bgColor ?? color.withValues(alpha: 0.08)),
-        borderRadius: BorderRadius.zero,
-        border: Border.all(
-          color: isDark ? color.withValues(alpha: 0.3) : (borderColor ?? color.withValues(alpha: 0.2)),
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.borderStrong(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              letterSpacing: 0.3,
-            ),
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
           ),
+          const SizedBox(width: 8),
+          Text(label.toUpperCase(), style: AppTypography.label(context).copyWith(color: AppColors.textSecondary(context))),
         ],
       ),
     );
@@ -2349,51 +2039,22 @@ class _LancamentoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isCredito = item['tipo'] == 'C';
     final isPago = item['pago'] is num ? item['pago'] == 1 : item['pago']?.toString() == '1';
     final isVerifying = item['status']?.toString() == '2';
 
-    final valueColor = isCredito ? AppColors.success : AppColors.error;
-    final statusColor = isPago 
-        ? AppColors.success 
-        : (isVerifying ? AppColors.primary : AppColors.warning);
-    final statusBg = isPago 
-        ? AppColors.accentGhost(context)
-        : (isVerifying 
-            ? AppColors.accentGhost(context)
-            : AppColors.accentGhost(context));
-
     String valorFormatted = (item['valorString'] ?? '').toString().replaceAll('BRL', 'R\$').trim();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 1),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.zero,
-        border: Border.all(
-          color: AppColors.border(context),
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: isCredito 
-                  ? AppColors.accentGhost(context) 
-                  : (isDark ? AppColors.surface(context).withValues(alpha: 0.4) : AppColors.surface(context)),
-              borderRadius: BorderRadius.zero,
-            ),
-            child: Icon(
-              _getIcon(item['categoria'] ?? ''),
-              color: isCredito ? AppColors.success : AppColors.primary,
-              size: 22,
-            ),
-          ),
+          AppIconBox(icon: _getIcon(item['categoria'] ?? '')),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -2401,23 +2062,12 @@ class _LancamentoCard extends StatelessWidget {
               children: [
                 Text(
                   item['nome'] ?? '',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary(context),
-                  ),
+                  style: AppTypography.strong(context),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  item['categoria'] ?? 'Geral',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? AppColors.textTertiary(context) : AppColors.textSecondary(context),
-                  ),
-                ),
+                const SizedBox(height: 2),
+                Text(item['categoria'] ?? 'Geral', style: AppTypography.tiny(context)),
               ],
             ),
           ),
@@ -2427,28 +2077,16 @@ class _LancamentoCard extends StatelessWidget {
             children: [
               Text(
                 valorFormatted,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: valueColor,
+                style: AppTypography.numeral(context).copyWith(
+                  fontSize: 18,
+                  height: 1.1,
+                  color: isCredito ? AppColors.success : AppColors.textPrimary(context),
                 ),
               ),
-              const SizedBox(height: 5),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.zero,
-                ),
-                child: Text(
-                  isPago ? "PAGO" : (isVerifying ? "ANÁLISE" : "PENDENTE"),
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.4,
-                  ),
-                ),
+              const SizedBox(height: 6),
+              AppTag(
+                label: isPago ? "PAGO" : (isVerifying ? "ANÁLISE" : "PENDENTE"),
+                signal: isPago ? AppSignal.ok : (isVerifying ? AppSignal.neutral : AppSignal.warn),
               ),
             ],
           ),
@@ -2475,42 +2113,25 @@ class _ActionCardButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: AppColors.surface(context),
-      borderRadius: BorderRadius.zero,
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.zero,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.zero,
-            border: Border.all(
-              color: AppColors.border(context),
-              width: 1,
-            ),
+            border: Border.all(color: AppColors.borderStrong(context)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: isDark ? color.withValues(alpha: 0.20) : (iconBg ?? color.withValues(alpha: 0.12)),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 16),
-              ),
-              const SizedBox(width: 10),
+              Icon(icon, color: AppColors.textPrimary(context), size: 16),
+              const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    color: AppColors.textPrimary(context),
-                  ),
+                  label.toUpperCase(),
+                  style: AppTypography.label(context).copyWith(color: AppColors.textPrimary(context)),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

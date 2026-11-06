@@ -55,7 +55,7 @@ void main() {
     testWidgets('oferece pagar com cartão', (tester) async {
       await tester.pumpWidget(_montar(_cobranca(origem: 'superlogica', pix: '00020126...')));
 
-      expect(find.text('Pagar com cartão'), findsOneWidget);
+      expect(find.text('PAGAR COM CARTÃO'), findsOneWidget);
     });
 
     testWidgets('chama o link do ERP de "2ª via", não de boleto', (tester) async {
@@ -63,8 +63,8 @@ void main() {
 
       // O link abre a página do ERP. Rotular como "Ver boleto" com ícone de
       // PDF descreve errado o que está do outro lado.
-      expect(find.text('Abrir 2ª via'), findsOneWidget);
-      expect(find.text('Ver boleto'), findsNothing);
+      expect(find.text('ABRIR 2ª VIA'), findsOneWidget);
+      expect(find.text('VER BOLETO'), findsNothing);
     });
 
     testWidgets('mantém o Pix em destaque como botão principal', (tester) async {
@@ -72,7 +72,7 @@ void main() {
 
       // Pix é instantâneo e não tem taxa de cartão para o condomínio: cartão
       // é alternativa, não o caminho oferecido primeiro.
-      expect(find.text('Pagar com Pix (QR Code)'), findsOneWidget);
+      expect(find.text('PAGAR COM PIX (QR CODE)'), findsOneWidget);
     });
   });
 
@@ -80,8 +80,8 @@ void main() {
     testWidgets('NÃO oferece cartão — o link é só um arquivo', (tester) async {
       await tester.pumpWidget(_montar(_cobranca(origem: 'clique')));
 
-      expect(find.text('Pagar com cartão'), findsNothing);
-      expect(find.text('Ver boleto'), findsOneWidget);
+      expect(find.text('PAGAR COM CARTÃO'), findsNothing);
+      expect(find.text('VER BOLETO'), findsOneWidget);
     });
 
     testWidgets('origem ausente é tratada como não-Superlógica', (tester) async {
@@ -90,7 +90,7 @@ void main() {
 
       // Lançamento antigo, anterior à integração, não tem o campo. Na dúvida,
       // não prometer cartão.
-      expect(find.text('Pagar com cartão'), findsNothing);
+      expect(find.text('PAGAR COM CARTÃO'), findsNothing);
     });
   });
 
@@ -100,8 +100,8 @@ void main() {
         _montar(_cobranca(origem: 'superlogica', pix: '00020126...', pago: 1)),
       );
 
-      expect(find.text('Pagar com cartão'), findsNothing);
-      expect(find.text('Pagar com Pix (QR Code)'), findsNothing);
+      expect(find.text('PAGAR COM CARTÃO'), findsNothing);
+      expect(find.text('PAGAR COM PIX (QR CODE)'), findsNothing);
     });
   });
 
@@ -111,7 +111,7 @@ void main() {
         _montar(_cobranca(origem: 'superlogica', pix: '00020126...', urlBoleto: '')),
       );
 
-      expect(find.text('Pagar com cartão'), findsNothing);
+      expect(find.text('PAGAR COM CARTÃO'), findsNothing);
     });
   });
 }

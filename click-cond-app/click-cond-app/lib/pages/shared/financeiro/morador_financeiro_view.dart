@@ -15,7 +15,10 @@ import 'package:click/utils/localizable/localizable.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/widgets/app/app_card.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/app_segmented_control.dart';
+import 'package:click/widgets/app/app_tag.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/widgets/cells/cell_financeiro_card.dart';
@@ -228,13 +231,19 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       appBar: AppBar(
-        title: Text(getText('lb_financeiro')),
+        title: Text(getText('lb_financeiro').toUpperCase(), style: AppTypography.title(context)),
+        centerTitle: true,
         backgroundColor: AppColors.bg(context),
         elevation: 0,
         automaticallyImplyLeading: !widget.hideAppBar,
         actions: [
           IconButton(
-            icon: const Icon(PhosphorIcons.downloadSimple),
+            style: IconButton.styleFrom(
+              fixedSize: const Size(40, 40),
+              side: BorderSide(color: AppColors.border(context)),
+              shape: const RoundedRectangleBorder(),
+            ),
+            icon: const Icon(PhosphorIcons.downloadSimple, size: 18),
             onPressed: () {
               Navigator.push(
                 context,
@@ -248,7 +257,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 ),
               );
             },
-          )
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
@@ -267,67 +277,38 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   if (_viewMode == FinanceiroViewMode.morador) ...[
                     _buildSummaryCard(activeItems),
                     const SizedBox(height: 18),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.zero,
-                                ),
-                                child: Icon(PhosphorIcons.wallet, size: 16, color: AppColors.primary),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                "Contas",
-                                style: AppTypography.bodyMedium(context).copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 17,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            "${activeItems.where((i) {
-                              int p = i['pago'] is int ? i['pago'] : (int.tryParse(i['pago']?.toString() ?? '') ?? 0);
-                              return p != 1;
-                            }).length} pendente(s)",
-                            style: AppTypography.caption(context).copyWith(
-                              color: activeItems.any((i) {
-                                int p = i['pago'] is int ? i['pago'] : (int.tryParse(i['pago']?.toString() ?? '') ?? 0);
-                                return p != 1;
-                              })
-                                  ? AppColors.error
-                                  : AppColors.success,
-                              fontWeight: FontWeight.w700,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Contas".toUpperCase(), style: AppTypography.section(context)),
+                        Builder(builder: (_) {
+                          final pend = activeItems.where((i) {
+                            int p = i['pago'] is int ? i['pago'] : (int.tryParse(i['pago']?.toString() ?? '') ?? 0);
+                            return p != 1;
+                          }).length;
+                          return Text(
+                            "$pend pendente(s)".toUpperCase(),
+                            style: AppTypography.label(context).copyWith(
+                              color: pend > 0 ? AppColors.warning : AppColors.success,
                             ),
-                          ),
-                        ],
-                      ),
+                          );
+                        }),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     _buildCategoriesGrid(activeItems, personalCategories),
                   ] else ...[
-                    Text("Despesas do Condomínio", style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
+                    Text("Despesas do Condomínio".toUpperCase(), style: AppTypography.section(context)),
                     const SizedBox(height: 16),
                     if (_condoItems.isEmpty)
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
                           color: AppColors.surface(context),
-                          borderRadius: BorderRadius.zero,
-                          border: Border.all(
-                            color: AppColors.border(context),
-                            width: 1.1,
-                          ),
+                          border: Border.all(color: AppColors.border(context)),
                         ),
                         child: Center(
-                          child: Text("Nenhuma despesa registrada", style: AppTypography.caption(context)),
+                          child: Text("Nenhuma despesa registrada", style: AppTypography.bodySecondary(context)),
                         ),
                       )
                     else
@@ -349,13 +330,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               onPressed: () => showContaFormModal(),
               icon: Icon(PhosphorIcons.plusBold, color: AppColors.onPrimary, size: 18),
               label: Text(
-                "Nova Conta",
-                style: TextStyle(
-                  color: AppColors.onPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14.5,
-                  letterSpacing: 0.2,
-                ),
+                "Nova Conta".toUpperCase(),
+                style: AppTypography.button(context),
               ),
               backgroundColor: AppColors.primary,
               shape: RoundedRectangleBorder(
@@ -368,26 +344,14 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   }
 
   Widget _buildViewToggle() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.zero,
-      ),
-      child: Row(
-        children: [
-          _ToggleItem(
-            label: 'MEU FINANCEIRO',
-            isSelected: _viewMode == FinanceiroViewMode.morador,
-            onTap: () => setState(() => _viewMode = FinanceiroViewMode.morador),
-          ),
-          _ToggleItem(
-            label: 'CONDOMÍNIO',
-            isSelected: _viewMode == FinanceiroViewMode.condominio,
-            onTap: () => setState(() => _viewMode = FinanceiroViewMode.condominio),
-          ),
-        ],
-      ),
+    return AppSegmentedControl(
+      selectedIndex: _viewMode == FinanceiroViewMode.morador ? 0 : 1,
+      onChanged: (i) => setState(() => _viewMode =
+          i == 0 ? FinanceiroViewMode.morador : FinanceiroViewMode.condominio),
+      segments: const [
+        AppSegment(label: 'MEU FINANCEIRO'),
+        AppSegment(label: 'CONDOMÍNIO'),
+      ],
     );
   }
 
@@ -499,9 +463,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 Container(
                   width: 200,
                   height: 200,
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.qrPaper,
                     border: Border.all(color: AppColors.border(context)),
                     borderRadius: BorderRadius.zero,
                   ),
@@ -510,7 +474,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     child: QrImageView(
                       data: payload,
                       size: 200,
-                      backgroundColor: Colors.white,
+                      backgroundColor: AppColors.qrPaper,
+                      eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: AppColors.qrInk),
+                      dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: AppColors.qrInk),
                       padding: EdgeInsets.zero,
                     ),
                   ),
@@ -896,120 +862,63 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.zero,
+        color: AppColors.surface(context),
+        border: Border.all(color: AppColors.borderStrong(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Linha Superior: Total pendente + Badge
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                "Total pendente",
-                style: TextStyle(
-                  color: AppColors.onPrimary.withValues(alpha: 0.92),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.1,
+              Flexible(
+                child: Text(
+                  "Total pendente".toUpperCase(),
+                  style: AppTypography.label(context),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.onPrimary.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.zero,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      badgeIcon,
-                      size: 13,
-                      color: AppColors.onPrimary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      badgeText,
-                      style: TextStyle(
-                        color: AppColors.onPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
+              AppTag(
+                label: badgeText,
+                signal: contasPendentes > 0 ? AppSignal.warn : AppSignal.ok,
               ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // Valor em destaque: R$ 1.258,19
+          const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                "R\$ ",
-                style: TextStyle(
-                  color: AppColors.onPrimary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              Text(
-                formatMoeda(totalPendente),
-                style: TextStyle(
-                  color: AppColors.onPrimary,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.8,
+              Text("BRL", style: AppTypography.label(context)),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  formatMoeda(totalPendente),
+                  style: AppTypography.display(context).copyWith(
+                    fontWeight: FontWeight.w300,
+                    fontSize: 48,
+                    height: 1,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-
-          // Barra de progresso horizontal
-          ClipRRect(
-            borderRadius: BorderRadius.zero,
-            child: Stack(
-              children: [
-                Container(
-                  height: 6,
-                  width: double.infinity,
-                  color: AppColors.onPrimary.withValues(alpha: 0.25),
-                ),
-                FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: progressRatio.clamp(0.0, 1.0),
-                  child: Container(
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: AppColors.onPrimary,
-                      borderRadius: BorderRadius.zero,
-                    ),
-                  ),
-                ),
-              ],
+          Container(
+            height: 2,
+            width: double.infinity,
+            color: AppColors.border(context),
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: progressRatio.clamp(0.0, 1.0),
+              child: Container(height: 2, color: AppColors.primary),
             ),
           ),
-          const SizedBox(height: 8),
-
-          // Legenda do progresso
-          Text(
-            progressText,
-            style: TextStyle(
-              color: AppColors.onPrimary.withValues(alpha: 0.88),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          const SizedBox(height: 10),
+          Text(progressText, style: AppTypography.tiny(context)),
         ],
       ),
     );
@@ -1077,45 +986,41 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       _CategoryItem(title: 'Outros', icon: PhosphorIcons.fileText, pendingCount: pendingCounts['Outros'] ?? 0),
     ];
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.15,
+    final linha = AppColors.border(context);
+    final celulas = [
+      for (final cat in categories) SizedBox(height: 132, child: _buildCategoryCard(cat, personalCategories)),
+    ];
+    return Container(
+      decoration: BoxDecoration(color: linha, border: Border.all(color: linha)),
+      child: Column(
+        children: [
+          for (var i = 0; i < celulas.length; i += 2) ...[
+            if (i > 0) const SizedBox(height: 1),
+            Row(
+              children: [
+                Expanded(child: celulas[i]),
+                const SizedBox(width: 1),
+                Expanded(
+                  child: i + 1 < celulas.length
+                      ? celulas[i + 1]
+                      : ColoredBox(color: AppColors.surface(context), child: const SizedBox(height: 132)),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
-      itemCount: categories.length,
-      itemBuilder: (context, index) {
-        final cat = categories[index];
-        return _buildCategoryCard(cat, personalCategories);
-      },
     );
   }
 
   Widget _buildCategoryCard(_CategoryItem cat, List<String> personalCategories) {
     final bool hasPending = cat.pendingCount > 0;
-    final Color catColor = _corCategoria(cat.title);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = AppColors.surface(context);
 
     return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.zero,
-        border: Border.all(
-          color: hasPending
-              ? AppColors.error.withValues(alpha: 0.35)
-              : (AppColors.border(context)),
-          width: hasPending ? 1.4 : 1.1,
-        ),
-      ),
+      color: AppColors.surface(context),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.zero,
         child: InkWell(
-          borderRadius: BorderRadius.zero,
           onTap: () {
             Navigator.push(
               context,
@@ -1139,92 +1044,37 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             });
           },
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Topo do card: Ícone em squircle estilizado + Badge de status
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: catColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.zero,
-                        border: Border.all(
-                          color: catColor.withValues(alpha: 0.25),
-                          width: 1,
-                        ),
-                      ),
-                      child: Center(
-                        child: Icon(cat.icon, color: catColor, size: 22),
-                      ),
-                    ),
+                    AppIconBox(icon: cat.icon),
                     if (hasPending)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-                        decoration: BoxDecoration(
-                          color: AppColors.error.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.zero,
-                          border: Border.all(
-                            color: AppColors.error.withValues(alpha: 0.4),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              PhosphorIcons.warningCircleFill,
-                              size: 11,
-                              color: AppColors.error,
-                            ),
-                            const SizedBox(width: 3.5),
-                            Text(
-                              cat.pendingCount.toString(),
-                              style: TextStyle(
-                                color: AppColors.error,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      const SizedBox.shrink(),
+                      AppTag(label: cat.pendingCount.toString(), signal: AppSignal.warn),
                   ],
                 ),
-                // Base do card: Título e subtítulo
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       cat.title,
-                      style: AppTypography.bodyMedium(context).copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        height: 1.15,
-                      ),
+                      style: AppTypography.strong(context),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 2),
                     Text(
                       hasPending
                           ? "${cat.pendingCount} pendente${cat.pendingCount > 1 ? 's' : ''}"
                           : "Nenhuma pendência",
-                      style: TextStyle(
-                        color: hasPending
-                            ? AppColors.error
-                            : AppColors.textTertiary(context),
-                        fontSize: 11.5,
-                        fontWeight: hasPending ? FontWeight.w700 : FontWeight.w500,
+                      style: AppTypography.tiny(context).copyWith(
+                        color: hasPending ? AppColors.warning : null,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1496,7 +1346,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         Text("Pago", style: AppTypography.bodyMedium(context)),
                         Switch(
                           value: isPago,
-                          activeColor: AppColors.primary,
                           onChanged: (val) {
                             setModalState(() => isPago = val);
                           },
@@ -1833,28 +1682,15 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         children: [
                           Text(
                             monthName.toUpperCase(),
-                            style: TextStyle(
-                              color: isSelected 
-                                  ? AppColors.onPrimary 
-                                  : (Theme.of(context).brightness == Brightness.dark
-                                      ? AppColors.textTertiary(context)
-                                      : AppColors.textSecondary(context)),
-                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                              fontSize: 12.5,
-                              letterSpacing: 0.4,
+                            style: AppTypography.label(context).copyWith(
+                              color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             yearShort,
-                            style: TextStyle(
-                              color: isSelected 
-                                  ? AppColors.onPrimary.withValues(alpha: 0.9)
-                                  : (Theme.of(context).brightness == Brightness.dark
-                                      ? AppColors.textSecondary(context)
-                                      : AppColors.textTertiary(context)),
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              fontSize: 10,
+                            style: AppTypography.tiny(context).copyWith(
+                              color: isSelected ? AppColors.onPrimary : AppColors.textTertiary(context),
                             ),
                           ),
                         ],
@@ -1888,41 +1724,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 : null,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ToggleItem extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _ToggleItem({required this.label, required this.isSelected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.zero,
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: AppTypography.tiny(context).copyWith(
-                color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

@@ -328,13 +328,12 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
-              children: const [
-                Icon(PhosphorIcons.checkCircleFill, color: Colors.white, size: 20),
+              children: [
+                Icon(PhosphorIcons.checkCircleFill, color: AppColors.success, size: 20),
                 SizedBox(width: 10),
                 Expanded(child: Text("Relatório gerado com sucesso! Abrindo...")),
               ],
             ),
-            backgroundColor: AppColors.success,
             duration: const Duration(seconds: 3),
           ),
         );
