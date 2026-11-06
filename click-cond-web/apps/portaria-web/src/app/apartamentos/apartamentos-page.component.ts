@@ -10,13 +10,14 @@ import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
 import { MoradoresApi } from '../moradores/moradores.service';
 import { VagasApi, VagasResumo, VagaBeneficiarios } from './vagas.service';
+import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 declare var require: any;
 
 @Component({
   selector: 'app-apartamentos-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
   templateUrl: './apartamentos-page.component.html',
 })
 export class ApartamentosPageComponent implements OnInit {
