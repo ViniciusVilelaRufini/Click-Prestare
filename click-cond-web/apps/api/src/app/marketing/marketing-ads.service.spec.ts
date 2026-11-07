@@ -65,3 +65,47 @@ describe('MarketingAdsService', () => {
     restaurar();
   });
 });
+
+describe('MarketingAdsService.conversoesGoogle', () => {
+  const agora = new Date('2026-11-07T15:00:00.000Z');
+  const leads = [
+    { id: 1, origem: 'google', gclid: 'G1', criado_em: new Date('2026-11-07T12:30:00.000Z') },
+    { id: 2, origem: 'google', gclid: null, criado_em: new Date('2026-11-06T12:00:00.000Z') },
+    { id: 3, origem: 'openai', gclid: null, criado_em: new Date('2026-11-06T12:00:00.000Z') },
+    { id: 4, origem: 'google', gclid: 'G4', criado_em: new Date('2026-11-05T12:00:00.000Z') },
+    { id: 5, origem: 'google', gclid: 'G5', criado_em: new Date('2026-09-01T12:00:00.000Z') },
+    { id: 6, origem: 'google', gclid: '   ', criado_em: new Date('2026-11-06T12:00:00.000Z') },
+  ];
+  // Lead 4 não confirmou no WhatsApp; os demais confirmaram.
+  const confirmados = [1, 2, 3, 5, 6];
+
+  function montarConversoes() {
+    const prisma: any = {
+      crm_Leads: { findMany: jest.fn(async () => leads) },
+      crm_WhatsApp_Conversas: { findMany: jest.fn(async () => confirmados.map((id) => ({ conversao_lead_id: id }))) },
+    };
+    const segredos: any = { obter: jest.fn(async (n: string) => (n === 'ADS_INGEST_TOKEN' ? 'segredo' : undefined)) };
+    return new MarketingAdsService(prisma, {} as any, segredos);
+  }
+
+  it('rejeita token errado com 401', async () => {
+    await expect(montarConversoes().conversoesGoogle('x', agora)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('rejeita quando não há token', async () => {
+    await expect(montarConversoes().conversoesGoogle(undefined, agora)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('devolve só leads google confirmados com gclid, dos últimos 30 dias, com hora BRT', async () => {
+    await expect(montarConversoes().conversoesGoogle('segredo', agora)).resolves.toEqual([
+      { gclid: 'G1', conversao_em: '2026-11-07 09:30:00-03:00' },
+    ]);
+  });
+
+  it('hora da conversão é estável entre execuções', async () => {
+    const svc = montarConversoes();
+    const a = await svc.conversoesGoogle('segredo', agora);
+    const b = await svc.conversoesGoogle('segredo', new Date('2026-11-20T08:00:00.000Z'));
+    expect(b).toEqual(a);
+  });
+});

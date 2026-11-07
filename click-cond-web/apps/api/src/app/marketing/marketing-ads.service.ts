@@ -16,6 +16,19 @@ export interface LinhaAnuncio {
 }
 
 const DIA = /^\d{4}-\d{2}-\d{2}$/;
+const JANELA_CONVERSAO_MS = 30 * 24 * 60 * 60 * 1000;
+const OFFSET_BRT_MS = 3 * 60 * 60 * 1000;
+
+/** Lead do Google confirmado no WhatsApp, no formato que o upload offline do Google Ads aceita. */
+export interface ConversaoGoogleOffline {
+  gclid: string;
+  /** `yyyy-MM-dd HH:mm:ss-03:00` — sempre o `criado_em` do lead, para o reenvio diário ser duplicata descartada. */
+  conversao_em: string;
+}
+
+function horaGoogleBrt(d: Date): string {
+  return new Date(d.getTime() - OFFSET_BRT_MS).toISOString().slice(0, 19).replace('T', ' ') + '-03:00';
+}
 
 function tokenConfere(recebido: string | undefined, esperado: string | undefined): boolean {
   if (!esperado || !recebido) return false;
@@ -96,6 +109,30 @@ export class MarketingAdsService implements OnModuleInit {
     if (!Array.isArray(rows) || rows.length > 5000) throw new BadRequestException('Corpo inválido.');
     const linhas = rows.map(linhaValida);
     return { gravadas: await this.upsert('google', linhas) };
+  }
+
+  /**
+   * Leads de anúncio do Google que confirmaram no WhatsApp nos últimos 30 dias.
+   * Lido diariamente pelo Google Ads Script, que sobe cada um como conversão offline.
+   */
+  async conversoesGoogle(token: string | undefined, agora: Date = new Date()): Promise<ConversaoGoogleOffline[]> {
+    if (!tokenConfere(token, await this.segredos.obter('ADS_INGEST_TOKEN'))) throw new UnauthorizedException();
+    const desde = new Date(agora.getTime() - JANELA_CONVERSAO_MS);
+    const leads = await this.prisma.crm_Leads.findMany({
+      where: { origem: 'google', gclid: { not: null }, criado_em: { gte: desde } },
+      select: { id: true, origem: true, gclid: true, criado_em: true },
+      orderBy: { criado_em: 'asc' },
+    });
+    const candidatos = leads.filter((l) => l.origem === 'google' && l.gclid?.trim() && l.criado_em >= desde);
+    if (!candidatos.length) return [];
+    const conversas = await this.prisma.crm_WhatsApp_Conversas.findMany({
+      where: { conversao_lead_id: { in: candidatos.map((l) => l.id) } },
+      select: { conversao_lead_id: true },
+    });
+    const confirmados = new Set(conversas.map((c) => c.conversao_lead_id));
+    return candidatos
+      .filter((l) => confirmados.has(l.id))
+      .map((l) => ({ gclid: l.gclid!.trim(), conversao_em: horaGoogleBrt(l.criado_em) }));
   }
 
   async sincronizarOpenAi(): Promise<number> {

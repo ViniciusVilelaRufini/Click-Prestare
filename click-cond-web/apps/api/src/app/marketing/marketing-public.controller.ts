@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Headers, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Headers, HttpCode, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
 import { MarketingAdsService } from './marketing-ads.service';
@@ -28,5 +28,13 @@ export class MarketingPublicController {
   @Post('ads/google')
   ingestGoogle(@Headers('x-ingest-token') token: string | undefined, @Body() body: unknown) {
     return this.ads.ingestGoogle(token, body);
+  }
+
+  /** Leads do Google confirmados no WhatsApp — o Ads Script sobe como conversão offline. */
+  @Public()
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Get('ads/google/conversoes')
+  conversoesGoogle(@Headers('x-ingest-token') token: string | undefined) {
+    return this.ads.conversoesGoogle(token);
   }
 }
