@@ -319,11 +319,11 @@ class _PerfilCard extends StatelessWidget {
               Container(
                 width: 40,
                 height: 40,
-                color: AppColors.accentGhost(context),
+                color: AppColors.brandSoftOf(context),
                 child: Icon(
                   icon,
                   size: 20,
-                  color: AppColors.textPrimary(context),
+                  color: AppColors.brandInkOf(context),
                 ),
               ),
               const SizedBox(width: 14),

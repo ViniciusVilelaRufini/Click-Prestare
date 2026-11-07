@@ -111,8 +111,8 @@ class _ScanBoletoPageState extends State<ScanBoletoPage> {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.onPrimary,
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: AppColors.onBrand,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.zero,
                       ),

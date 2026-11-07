@@ -41,8 +41,8 @@ displayMessage(BuildContext context, String title, String message) async {
       actions: [
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).primaryColor,
-            foregroundColor: AppColors.onPrimary,
+            backgroundColor: AppColors.brand,
+            foregroundColor: AppColors.onBrand,
           ),
           onPressed: () => Navigator.pop(c, true),
           child: const Text('OK'),
@@ -62,8 +62,8 @@ displayMessageWithReturn(BuildContext context, String title, String message) asy
       actions: [
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).primaryColor,
-            foregroundColor: AppColors.onPrimary,
+            backgroundColor: AppColors.brand,
+            foregroundColor: AppColors.onBrand,
           ),
           onPressed: () => Navigator.pop(c, true),
           child: const Text('OK'),
@@ -390,8 +390,8 @@ getPhoto(BuildContext context) async {
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.onPrimary,
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: AppColors.onBrand,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -402,13 +402,13 @@ getPhoto(BuildContext context) async {
                     icon: Icon(
                       PhosphorIcons.image,
                       size: 18,
-                      color: AppColors.onPrimary,
+                      color: AppColors.onBrand,
                     ),
                     label: Text(
                       getText('alert_photo_galeria'),
                       style: AppTypography.body(c).copyWith(
                         fontWeight: FontWeight.w600,
-                        color: AppColors.onPrimary,
+                        color: AppColors.onBrand,
                       ),
                     ),
                   ),

@@ -48,8 +48,8 @@ class _DetailComunicadoPageState extends State<DetailComunicado> {
               onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => NewComunicado(isEdit: true, myId: widget.id)))
                   .then((_) => load()),
-              backgroundColor: AppColors.primary,
-              child: Icon(PhosphorIcons.pencilSimple, color: AppColors.onPrimary),
+              backgroundColor: AppColors.brand,
+              child: Icon(PhosphorIcons.pencilSimple, color: AppColors.onBrand),
             )
           : null,
       body: _isLoading

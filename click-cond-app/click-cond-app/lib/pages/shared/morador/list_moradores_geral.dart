@@ -112,8 +112,8 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const ListMoradores()))
               .then((_) => _loadData());
         },
-        backgroundColor: AppColors.primary,
-        child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+        backgroundColor: AppColors.brand,
+        child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
       ),
       body: _isLoading
           ? ListView.separated(
@@ -302,16 +302,16 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : AppColors.surface(context),
+                color: isSelected ? AppColors.brand : AppColors.surface(context),
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(
-                  color: isSelected ? AppColors.primary : AppColors.border(context),
+                  color: isSelected ? AppColors.brand : AppColors.border(context),
                 ),
               ),
               child: Text(
                 cat,
                 style: AppTypography.captionMedium(context).copyWith(
-                  color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
+                  color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
                   fontSize: 12,
                 ),
               ),

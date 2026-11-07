@@ -328,12 +328,12 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               elevation: 0,
               highlightElevation: 0,
               onPressed: () => showContaFormModal(),
-              icon: Icon(PhosphorIcons.plusBold, color: AppColors.onPrimary, size: 18),
+              icon: Icon(PhosphorIcons.plusBold, color: AppColors.onBrand, size: 18),
               label: Text(
                 "Nova Conta".toUpperCase(),
-                style: AppTypography.button(context),
+                style: AppTypography.button(context).copyWith(color: AppColors.onBrand),
               ),
-              backgroundColor: AppColors.primary,
+              backgroundColor: AppColors.brand,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.zero,
               ),
@@ -486,7 +486,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   height: 48,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: AppColors.brand,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.zero,
                       ),
@@ -501,13 +501,13 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         ),
                       );
                     },
-                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
+                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onBrand),
                     label: Text(
                       "Copiar Código Pix",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: AppColors.onPrimary,
+                        color: AppColors.onBrand,
                       ),
                     ),
                   ),
@@ -600,7 +600,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   height: 48,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: AppColors.brand,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.zero,
                       ),
@@ -615,13 +615,13 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         ),
                       );
                     },
-                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
+                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onBrand),
                     label: Text(
                       "Copiar Chave Pix",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: AppColors.onPrimary,
+                        color: AppColors.onBrand,
                       ),
                     ),
                   ),
@@ -1483,8 +1483,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       height: 48,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.onPrimary,
+                          backgroundColor: AppColors.brand,
+                          foregroundColor: AppColors.onBrand,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         ),
                         onPressed: () async {
@@ -1535,7 +1535,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         },
                         child: Text(
                           isEditing ? "Salvar Alterações" : "Adicionar Conta",
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.onPrimary),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.onBrand),
                         ),
                       ),
                     ),
@@ -1667,7 +1667,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       height: 54,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary : Colors.transparent,
+                        color: isSelected ? AppColors.brand : Colors.transparent,
                         borderRadius: BorderRadius.zero,
                       ),
                       child: Column(
@@ -1676,14 +1676,14 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           Text(
                             monthName.toUpperCase(),
                             style: AppTypography.label(context).copyWith(
-                              color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
+                              color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             yearShort,
                             style: AppTypography.tiny(context).copyWith(
-                              color: isSelected ? AppColors.onPrimary : AppColors.textTertiary(context),
+                              color: isSelected ? AppColors.onBrand : AppColors.textTertiary(context),
                             ),
                           ),
                         ],
@@ -1823,17 +1823,17 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
                     },
                   );
                 },
-                icon: Icon(PhosphorIcons.plusBold, color: AppColors.onPrimary, size: 18),
+                icon: Icon(PhosphorIcons.plusBold, color: AppColors.onBrand, size: 18),
                 label: Text(
                   "Adicionar Conta",
                   style: TextStyle(
-                    color: AppColors.onPrimary,
+                    color: AppColors.onBrand,
                     fontWeight: FontWeight.w800,
                     fontSize: 14.5,
                     letterSpacing: 0.2,
                   ),
                 ),
-                backgroundColor: AppColors.primary,
+                backgroundColor: AppColors.brand,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.zero,
                 ),

@@ -126,16 +126,16 @@ class _ListVeiculosState extends State<ListVeiculos> {
       floatingActionButton: isVeiculos
           ? FloatingActionButton(
               onPressed: () => _abrirFormVeiculo(),
-              backgroundColor: AppColors.primary,
-              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+              backgroundColor: AppColors.brand,
+              child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
             )
           : (_resumoVagas.livres > 0
               ? FloatingActionButton.extended(
                   onPressed: _abrirLiberarVaga,
-                  backgroundColor: AppColors.primary,
-                  icon: Icon(PhosphorIcons.key, color: AppColors.onPrimary),
+                  backgroundColor: AppColors.brand,
+                  icon: Icon(PhosphorIcons.key, color: AppColors.onBrand),
                   label: Text('Liberar vaga',
-                      style: AppTypography.button(context).copyWith(color: AppColors.onPrimary)),
+                      style: AppTypography.button(context).copyWith(color: AppColors.onBrand)),
                 )
               : null),
       body: Column(
@@ -256,14 +256,14 @@ class _ToggleItem extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.transparent,
+            color: isSelected ? AppColors.brand : Colors.transparent,
             borderRadius: BorderRadius.zero,
           ),
           child: Center(
             child: Text(
               label,
               style: AppTypography.tiny(context).copyWith(
-                color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
+                color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),

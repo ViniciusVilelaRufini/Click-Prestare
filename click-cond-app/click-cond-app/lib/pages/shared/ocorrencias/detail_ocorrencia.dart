@@ -463,11 +463,11 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                 ),
       floatingActionButton: isMorador && obj != null && obj['status'] == 'Pendente'
           ? FloatingActionButton(
-              backgroundColor: AppColors.primary,
+              backgroundColor: AppColors.brand,
               onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => NewOcorrencia(isEdit: true, myId: widget.id)))
                   .then((_) => load()),
-              child: Icon(PhosphorIcons.pencil, color: AppColors.onPrimary),
+              child: Icon(PhosphorIcons.pencil, color: AppColors.onBrand),
             )
           : null,
     );

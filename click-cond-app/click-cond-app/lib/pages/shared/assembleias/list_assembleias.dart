@@ -60,9 +60,9 @@ class _ListAssembleiasPageState extends State<ListAssembleias> {
               onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => NewAssembleia(isEdit: false)))
                   .then((_) => loadList()),
-              backgroundColor: AppColors.primary,
+              backgroundColor: AppColors.brand,
               tooltip: 'Nova assembleia',
-              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+              child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
             )
           : null,
       body: _isLoading

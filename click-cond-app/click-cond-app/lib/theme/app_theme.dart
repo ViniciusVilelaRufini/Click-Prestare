@@ -9,7 +9,7 @@ class _Tokens {
   final Brightness brightness;
   final Color bg000, bg100, bg200, bg300, line100, line200;
   final Color ink, inkMuted, inkSubtle, accent, onAccent, ghost;
-  final Color ok, warn, danger, scrim;
+  final Color ok, warn, danger, scrim, brand;
 
   const _Tokens.dark()
       : brightness = Brightness.dark,
@@ -28,7 +28,8 @@ class _Tokens {
         ok = AppColors.darkSignalOk,
         warn = AppColors.darkSignalWarn,
         danger = AppColors.darkSignalDanger,
-        scrim = AppColors.darkScrim;
+        scrim = AppColors.darkScrim,
+        brand = AppColors.darkBrand;
 
   const _Tokens.light()
       : brightness = Brightness.light,
@@ -47,7 +48,8 @@ class _Tokens {
         ok = AppColors.lightSignalOk,
         warn = AppColors.lightSignalWarn,
         danger = AppColors.lightSignalDanger,
-        scrim = AppColors.lightScrim;
+        scrim = AppColors.lightScrim,
+        brand = AppColors.lightBrand;
 }
 
 /// Tema Prestare Dark: cantos retos, sem elevação nem sombra, primário sólido.
@@ -158,12 +160,15 @@ class AppTheme {
       minimumSize: const WidgetStatePropertyAll(Size(64, 48)),
       textStyle: WidgetStatePropertyAll(botaoTexto),
       backgroundColor: WidgetStateProperty.resolveWith(
-        (s) => s.contains(WidgetState.disabled) ? t.bg300 : t.accent,
+        (s) => s.contains(WidgetState.disabled) ? t.bg300 : t.brand,
       ),
       foregroundColor: WidgetStateProperty.resolveWith(
-        (s) => s.contains(WidgetState.disabled) ? t.inkSubtle : t.onAccent,
+        (s) => s.contains(WidgetState.disabled)
+            ? t.inkSubtle
+            : AppColors.onBrandColor,
       ),
-      overlayColor: WidgetStatePropertyAll(t.onAccent.withValues(alpha: 0.08)),
+      overlayColor:
+          WidgetStatePropertyAll(AppColors.onBrandColor.withValues(alpha: 0.08)),
     );
 
     return base.copyWith(
@@ -237,8 +242,8 @@ class AppTheme {
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: t.accent,
-        foregroundColor: t.onAccent,
+        backgroundColor: t.brand,
+        foregroundColor: AppColors.onBrandColor,
         elevation: 0,
         focusElevation: 0,
         hoverElevation: 0,
@@ -282,7 +287,7 @@ class AppTheme {
         labelStyle: _display(11, 14, 0.18, t.ink),
         unselectedLabelStyle: _display(11, 14, 0.18, t.inkSubtle),
         indicator: UnderlineTabIndicator(
-          borderSide: BorderSide(color: t.accent, width: 2),
+          borderSide: BorderSide(color: t.brand, width: 2),
         ),
         indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: t.line100,
@@ -312,10 +317,11 @@ class AppTheme {
         shape: Border(top: BorderSide(color: t.line200)),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: t.accent,
-        actionTextColor: t.onAccent,
-        closeIconColor: t.onAccent,
-        contentTextStyle: _sans(14, 20, FontWeight.w500, t.onAccent),
+        backgroundColor: t.brand,
+        actionTextColor: AppColors.onBrandColor,
+        closeIconColor: AppColors.onBrandColor,
+        contentTextStyle:
+            _sans(14, 20, FontWeight.w500, AppColors.onBrandColor),
         elevation: 0,
         shape: reto,
         behavior: SnackBarBehavior.floating,
@@ -330,11 +336,12 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: Colors.transparent,
-        selectedColor: t.accent,
+        selectedColor: t.brand,
         disabledColor: t.bg300,
-        checkmarkColor: t.onAccent,
+        checkmarkColor: AppColors.onBrandColor,
         labelStyle: _display(11, 14, 0.16, t.inkMuted),
-        secondaryLabelStyle: _display(11, 14, 0.16, t.onAccent),
+        secondaryLabelStyle:
+            _display(11, 14, 0.16, AppColors.onBrandColor),
         side: BorderSide(color: t.line200),
         shape: reto,
         elevation: 0,

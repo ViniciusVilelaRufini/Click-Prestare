@@ -266,8 +266,8 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
                 width: double.infinity,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.onPrimary,
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.onBrand,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.zero,
@@ -468,19 +468,19 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.primary
+              ? AppColors.brand
               : AppColors.surface(context),
           borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected
-                ? AppColors.primary
+                ? AppColors.brand
                 : AppColors.border(context),
           ),
         ),
         child: Text(
           label,
           style: AppTypography.caption(context).copyWith(
-            color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
+            color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
           ),
         ),

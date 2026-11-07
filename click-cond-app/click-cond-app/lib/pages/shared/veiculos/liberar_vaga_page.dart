@@ -199,7 +199,7 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
                   child: ElevatedButton(
                     onPressed: _isSaving ? null : _salvar,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: AppColors.brand,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.zero),
                     ),
@@ -208,10 +208,10 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: AppColors.onPrimary))
+                                strokeWidth: 2, color: AppColors.onBrand))
                         : Text('Liberar vaga',
                             style: AppTypography.button(context)
-                                .copyWith(color: AppColors.onPrimary)),
+                                .copyWith(color: AppColors.onBrand)),
                   ),
                 ),
               ],

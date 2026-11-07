@@ -529,8 +529,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     return FloatingActionButton(
       heroTag: null,
       onPressed: loadList,
-      backgroundColor: AppColors.primary,
-      foregroundColor: AppColors.onPrimary,
+      backgroundColor: AppColors.brand,
+      foregroundColor: AppColors.onBrand,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       elevation: 0,
       child: const Icon(PhosphorIcons.arrowsClockwise, size: 22),
@@ -695,7 +695,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   height: 48,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: AppColors.brand,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.zero,
                       ),
@@ -710,13 +710,13 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         ),
                       );
                     },
-                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
+                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onBrand),
                     label: Text(
                       "Copiar Código Pix",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: AppColors.onPrimary,
+                        color: AppColors.onBrand,
                       ),
                     ),
                   ),
@@ -809,7 +809,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   height: 48,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: AppColors.brand,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.zero,
                       ),
@@ -824,13 +824,13 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         ),
                       );
                     },
-                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
+                    icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onBrand),
                     label: Text(
                       "Copiar Chave Pix",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: AppColors.onPrimary,
+                        color: AppColors.onBrand,
                       ),
                     ),
                   ),
@@ -1264,7 +1264,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       height: 54,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary : Colors.transparent,
+                        color: isSelected ? AppColors.brand : Colors.transparent,
                         borderRadius: BorderRadius.zero,
                       ),
                       child: Column(
@@ -1274,7 +1274,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             monthName.toUpperCase(),
                             style: TextStyle(
                               color: isSelected 
-                                  ? AppColors.onPrimary 
+                                  ? AppColors.onBrand 
                                   : (Theme.of(context).brightness == Brightness.dark
                                       ? AppColors.textTertiary(context)
                                       : AppColors.textSecondary(context)),
@@ -1288,7 +1288,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             yearShort,
                             style: TextStyle(
                               color: isSelected 
-                                  ? AppColors.onPrimary.withValues(alpha: 0.9)
+                                  ? AppColors.onBrand.withValues(alpha: 0.9)
                                   : (Theme.of(context).brightness == Brightness.dark
                                       ? AppColors.textSecondary(context)
                                       : AppColors.textTertiary(context)),
@@ -1812,8 +1812,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       height: 48,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.onPrimary,
+                          backgroundColor: AppColors.brand,
+                          foregroundColor: AppColors.onBrand,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         ),
                         onPressed: () async {
@@ -1864,7 +1864,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         },
                         child: Text(
                           isEditing ? "Salvar Alterações" : "Adicionar Conta",
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.onPrimary),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.onBrand),
                         ),
                       ),
                     ),
@@ -2233,15 +2233,15 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                               decoration: BoxDecoration(
-                                color: sel ? AppColors.primary : AppColors.surface(context),
+                                color: sel ? AppColors.brand : AppColors.surface(context),
                                 borderRadius: BorderRadius.zero,
-                                border: Border.all(color: sel ? AppColors.primary : AppColors.textSecondary(context).withValues(alpha: 0.1)),
+                                border: Border.all(color: sel ? AppColors.brand : AppColors.textSecondary(context).withValues(alpha: 0.1)),
                               ),
                               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(PhosphorIcons.calendarBlank, size: 14, color: sel ? AppColors.onPrimary : AppColors.textSecondary(context)),
+                                Icon(PhosphorIcons.calendarBlank, size: 14, color: sel ? AppColors.onBrand : AppColors.textSecondary(context)),
                                 const SizedBox(width: 6),
                                 Text(t['periodo'], style: AppTypography.caption(context).copyWith(
-                                  color: sel ? AppColors.onPrimary : AppColors.textSecondary(context),
+                                  color: sel ? AppColors.onBrand : AppColors.textSecondary(context),
                                   fontWeight: sel ? FontWeight.bold : FontWeight.normal)),
                               ]),
                             ),

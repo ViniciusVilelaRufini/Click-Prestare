@@ -1198,15 +1198,15 @@ class _ChatIaPageState extends State<ChatIaPage> {
                     onPressed:
                         msg.confirmando ? null : () => _confirmarAcao(msg),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.onPrimary,
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: AppColors.onBrand,
                     ),
                     child: msg.confirmando
                         ? SizedBox(
                             height: 16,
                             width: 16,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: AppColors.onPrimary),
+                                strokeWidth: 2, color: AppColors.onBrand),
                           )
                         : const Text('Confirmar'),
                   ),
@@ -1223,13 +1223,13 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () => _acionarBotao(b),
-                    icon: Icon(_iconeBotao(b.efeito), size: 16, color: AppColors.onPrimary),
+                    icon: Icon(_iconeBotao(b.efeito), size: 16, color: AppColors.onBrand),
                     label: Text(b.rotulo.toUpperCase(),
                         style: AppTypography.caption(context)
-                            .copyWith(color: AppColors.onPrimary)),
+                            .copyWith(color: AppColors.onBrand)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.onPrimary,
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: AppColors.onBrand,
                       alignment: Alignment.centerLeft,
                     ),
                   ),

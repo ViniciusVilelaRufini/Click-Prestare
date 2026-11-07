@@ -119,8 +119,8 @@ class _ListEnquetesPageState extends State<ListEnquetes> {
               onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => NewVotacao(isEnquete: true)))
                   .then((_) => loadList()),
-              backgroundColor: AppColors.primary,
-              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+              backgroundColor: AppColors.brand,
+              child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
             )
           : null,
       body: Column(
@@ -231,10 +231,10 @@ class _MonthStrip extends StatelessWidget {
           final mesLongo = DateFormat('MMMM', 'pt_BR').format(dt);
           final mostrarAno = dt.year != now.year;
 
-          final Color fg = isSelected ? AppColors.onPrimary : AppColors.textPrimary(context);
-          final Color bg = isSelected ? AppColors.primary : AppColors.surface(context);
+          final Color fg = isSelected ? AppColors.onBrand : AppColors.textPrimary(context);
+          final Color bg = isSelected ? AppColors.brand : AppColors.surface(context);
           final Color borda = isSelected
-              ? AppColors.primary
+              ? AppColors.brand
               : isCurrentMonth
                   ? destaque.withValues(alpha: isDark ? 0.6 : 0.45)
                   : AppColors.border(context);
@@ -282,7 +282,7 @@ class _MonthStrip extends StatelessWidget {
                             maxLines: 1,
                             style: AppTypography.tiny(context).copyWith(
                               height: 1.2,
-                              color: isSelected ? AppColors.onPrimary.withValues(alpha: 0.8) : AppColors.textTertiary(context),
+                              color: isSelected ? AppColors.onBrand.withValues(alpha: 0.8) : AppColors.textTertiary(context),
                             ),
                           ),
                       ],

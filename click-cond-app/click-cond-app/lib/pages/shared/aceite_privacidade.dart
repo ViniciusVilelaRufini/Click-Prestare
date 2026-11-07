@@ -324,11 +324,11 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                     ElevatedButton(
                       onPressed: (!_privacidade || _enviando) ? null : _aceitar,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
+                        backgroundColor: AppColors.brand,
                         disabledBackgroundColor:
                             AppColors.primary.withValues(alpha: 0.45),
-                        foregroundColor: AppColors.onPrimary,
-                        disabledForegroundColor: AppColors.onPrimary.withValues(alpha: 0.7),
+                        foregroundColor: AppColors.onBrand,
+                        disabledForegroundColor: AppColors.onBrand.withValues(alpha: 0.7),
                         elevation: 0,
                         minimumSize: const Size(double.infinity, 50),
                         shape: RoundedRectangleBorder(
@@ -341,7 +341,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.onPrimary,
+                                color: AppColors.onBrand,
                               ),
                             )
                           : const Text(

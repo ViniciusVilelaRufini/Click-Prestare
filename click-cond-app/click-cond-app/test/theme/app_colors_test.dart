@@ -25,6 +25,13 @@ void main() {
       expect(AppColors.onPrimary, const Color(0xFF000000));
     });
 
+    test('marca amarela com texto preto', () {
+      expect(AppColors.brand, const Color(0xFFFFC83D));
+      expect(AppColors.onBrand, const Color(0xFF000000));
+      expect(AppColors.brandInk, const Color(0xFFFFC83D));
+      expect(AppColors.brandSoft, const Color(0x1FFFC83D));
+    });
+
     test('sinais do tema escuro', () {
       expect(AppColors.success, const Color(0xFF5EC28A));
       expect(AppColors.warning, const Color(0xFFE3B04B));
@@ -39,6 +46,14 @@ void main() {
       expect(AppColors.brightness, Brightness.light);
       expect(AppColors.primary, const Color(0xFF000000));
       expect(AppColors.onPrimary, const Color(0xFFFFFFFF));
+    });
+
+    test('marca amarela com texto preto, tinta escura para texto', () {
+      expect(AppColors.brand, const Color(0xFFF2B10F));
+      expect(AppColors.onBrand, const Color(0xFF000000));
+      expect(AppColors.brandInk, const Color(0xFF8A5A00));
+      expect(AppColors.brandSoft, const Color(0x29F2B10F));
+      expect(AppColors.primary, const Color(0xFF000000));
     });
 
     test('sinais do tema claro', () {

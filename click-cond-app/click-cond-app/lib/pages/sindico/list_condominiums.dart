@@ -326,11 +326,11 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                               Container(
                                 width: 40,
                                 height: 40,
-                                color: AppColors.accentGhost(context),
+                                color: AppColors.brandSoftOf(context),
                                 child: Icon(
                                   PhosphorIcons.buildings,
                                   size: 20,
-                                  color: AppColors.textPrimary(context),
+                                  color: AppColors.brandInkOf(context),
                                 ),
                               ),
                               const SizedBox(width: AppSpacing.md),
@@ -556,7 +556,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     ).then((_) => _loadList());
   }
 
-  /// Botão central da barra: quadrado sólido `accent` com ícone `on-accent`.
+  /// Botão central da barra: quadrado sólido `brand` com ícone `on-brand`.
   Widget _buildAiNavButton(BuildContext context) {
     return Expanded(
       child: Align(
@@ -568,9 +568,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             child: Container(
               width: 48,
               height: 48,
-              color: AppColors.primary,
+              color: AppColors.brand,
               child: Icon(PhosphorIcons.buildings,
-                  color: AppColors.onPrimary, size: 22),
+                  color: AppColors.onBrand, size: 22),
             ),
           ),
         ),
@@ -587,7 +587,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     required VoidCallback onTap,
   }) {
     final cor = isSelected
-        ? AppColors.textPrimary(context)
+        ? AppColors.brandInk
         : AppColors.textTertiary(context);
 
     return Expanded(
@@ -604,7 +604,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               duration: const Duration(milliseconds: 300),
               width: isSelected ? 24 : 0,
               height: 2,
-              color: AppColors.primary,
+              color: AppColors.brand,
             ),
             const SizedBox(height: 10),
             Icon(isSelected ? activeIcon : icon, color: cor, size: 20),
@@ -1304,9 +1304,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           Container(
             width: 52,
             height: 52,
-            color: AppColors.accentGhost(context),
+            color: AppColors.brandSoftOf(context),
             child: Icon(PhosphorIcons.buildings,
-                size: 24, color: AppColors.textPrimary(context)),
+                size: 24, color: AppColors.brandInkOf(context)),
           ),
           AppSpacing.gapLg,
           Text('NENHUM CONDOMÍNIO',
@@ -1610,11 +1610,11 @@ class _CondominioCard extends StatelessWidget {
     return Container(
       width: 48,
       height: 48,
-      color: AppColors.accentGhost(context),
+      color: AppColors.brandSoftOf(context),
       child: Center(
         child: Icon(
           PhosphorIcons.buildings,
-          color: AppColors.textPrimary(context),
+          color: AppColors.brandInkOf(context),
           size: 22,
         ),
       ),

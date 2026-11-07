@@ -117,7 +117,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
         SnackBar(
           content: Text(
               'Baixa na visita de ${item['nome'] ?? 'visitante'} realizada com sucesso!'),
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.brand,
           duration: const Duration(seconds: 3),
         ),
       );
@@ -552,8 +552,8 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                           }
                                         },
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppColors.primary,
-                                          foregroundColor: AppColors.onPrimary,
+                                          backgroundColor: AppColors.brand,
+                                          foregroundColor: AppColors.onBrand,
                                           shape: RoundedRectangleBorder(
                                               borderRadius:
                                                   BorderRadius.zero),
@@ -646,6 +646,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                           : item['codigo_acesso'].toString(),
                                       style:
                                           AppTypography.display(context).copyWith(
+                                        color: AppColors.brandInk,
                                         letterSpacing: _pinSize * 0.14,
                                         fontWeight: FontWeight.w500,
                                         fontSize: _pinSize,
@@ -667,8 +668,8 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                               icon: const Icon(PhosphorIcons.whatsappLogo, size: 18),
                                               label: Text('Enviar QR code completo'.toUpperCase()),
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: AppColors.primary,
-                                                foregroundColor: AppColors.onPrimary,
+                                                backgroundColor: AppColors.brand,
+                                                foregroundColor: AppColors.onBrand,
                                                 minimumSize: const Size(0, 48),
                                                 elevation: 0,
                                                 shape: const RoundedRectangleBorder(),
@@ -901,17 +902,17 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                         },
                                         icon: Icon(
                                             PhosphorIcons.pencilSimple,
-                                            color: AppColors.onPrimary,
+                                            color: AppColors.onBrand,
                                             size: 18),
                                         label: Text(
                                           'Editar',
                                           style: TextStyle(
-                                            color: AppColors.onPrimary,
+                                            color: AppColors.onBrand,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppColors.primary,
+                                          backgroundColor: AppColors.brand,
                                           minimumSize:
                                               const Size.fromHeight(48),
                                           shape: RoundedRectangleBorder(
@@ -1065,7 +1066,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('WhatsApp não aberto. Informações do convite copiadas para a área de transferência!'),
-            backgroundColor: AppColors.primary,
+            backgroundColor: AppColors.brand,
             duration: Duration(seconds: 3),
           ),
         );
@@ -1191,10 +1192,10 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                       curve: Curves.easeInOutCubic,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
+                        color: AppColors.brand,
                         borderRadius: BorderRadius.zero,
                         border: Border.all(
-                          color: AppColors.onPrimary.withValues(alpha: 0.20),
+                          color: AppColors.onBrand.withValues(alpha: 0.20),
                           width: 1.0,
                         ),
                       ),
@@ -1214,7 +1215,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(PhosphorIcons.userPlus,
-                                    color: AppColors.onPrimary, size: 20),
+                                    color: AppColors.onBrand, size: 20),
                                 Flexible(
                                   child: AnimatedSize(
                                     duration: const Duration(milliseconds: 300),
@@ -1231,7 +1232,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style:
-                                                  AppTypography.button(context),
+                                                  AppTypography.button(context).copyWith(color: AppColors.onBrand),
                                             ),
                                           ),
                                         ],
@@ -1638,7 +1639,7 @@ class _VisitanteCard extends StatelessWidget {
                           Text(
                             formattedPin,
                             style: AppTypography.label(context).copyWith(
-                                color: AppColors.textPrimary(context)),
+                                color: AppColors.brandInk),
                           ),
                         ],
                       ),
@@ -1782,12 +1783,12 @@ class _TipoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cor =
-        selected ? AppColors.onPrimary : AppColors.textSecondary(context);
+        selected ? AppColors.onBrand : AppColors.textSecondary(context);
     return Material(
-      color: selected ? AppColors.primary : Colors.transparent,
+      color: selected ? AppColors.brand : Colors.transparent,
       shape: RoundedRectangleBorder(
         side: BorderSide(
-          color: selected ? AppColors.primary : AppColors.borderStrong(context),
+          color: selected ? AppColors.brand : AppColors.borderStrong(context),
         ),
       ),
       child: InkWell(

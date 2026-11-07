@@ -44,8 +44,8 @@ class _ListOcorrenciasPageState extends State<ListOcorrencias> {
           onPressed: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const NewOcorrencia(isEdit: false)))
               .then((_) => setState(() => _versao++)),
-          backgroundColor: AppColors.primary,
-          child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+          backgroundColor: AppColors.brand,
+          child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
         ),
         body: Column(
           children: [
@@ -54,7 +54,7 @@ class _ListOcorrenciasPageState extends State<ListOcorrencias> {
               width: double.infinity,
               child: TabBar(
                 isScrollable: true,
-                indicatorColor: AppColors.primary,
+                indicatorColor: AppColors.brand,
                 labelColor: AppColors.primary,
                 unselectedLabelColor: AppColors.textSecondary(context),
                 labelStyle: AppTypography.button(context),

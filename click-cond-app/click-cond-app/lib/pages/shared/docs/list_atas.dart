@@ -95,8 +95,8 @@ class _ListAtasPageState extends State<ListAtas> {
               onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => NewDocument(is_ata: true)))
                   .then((_) => loadList()),
-              backgroundColor: AppColors.primary,
-              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+              backgroundColor: AppColors.brand,
+              child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
             )
           : null,
       body: _isLoading
@@ -133,15 +133,15 @@ class _ListAtasPageState extends State<ListAtas> {
                           onSelected: (val) {
                             setState(() => _selectedMonth = null);
                           },
-                          selectedColor: AppColors.primary,
+                          selectedColor: AppColors.brand,
                           backgroundColor: AppColors.surface(context),
                           labelStyle: AppTypography.captionMedium(context).copyWith(
-                            color: _selectedMonth == null ? AppColors.onPrimary : AppColors.textSecondary(context),
+                            color: _selectedMonth == null ? AppColors.onBrand : AppColors.textSecondary(context),
                             fontWeight: FontWeight.w600,
                           ),
                           side: BorderSide(
                             color: _selectedMonth == null 
-                                ? AppColors.primary 
+                                ? AppColors.brand 
                                 : AppColors.textTertiary(context).withValues(alpha: 0.15),
                           ),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
@@ -161,15 +161,15 @@ class _ListAtasPageState extends State<ListAtas> {
                                 _selectedMonth = val ? DateTime(m['year'], m['month']) : null;
                               });
                             },
-                            selectedColor: AppColors.primary,
+                            selectedColor: AppColors.brand,
                             backgroundColor: AppColors.surface(context),
                             labelStyle: AppTypography.captionMedium(context).copyWith(
-                              color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
+                              color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
                               fontWeight: FontWeight.w600,
                             ),
                             side: BorderSide(
                               color: isSelected 
-                                  ? AppColors.primary 
+                                  ? AppColors.brand 
                                   : AppColors.textTertiary(context).withValues(alpha: 0.15),
                             ),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),

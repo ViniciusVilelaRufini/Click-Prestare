@@ -275,7 +275,7 @@ class FinanceiroCard extends StatelessWidget {
                         context,
                         icone: PhosphorIcons.qrCode,
                         texto: "Pagar com Pix (QR Code)",
-                        corFundo: AppColors.primary,
+                        corFundo: AppColors.brand,
                         onTap: () => _abrirSheetPixQrCode(context),
                       )
                     else if (temBoletoOuCodigo)
@@ -283,7 +283,7 @@ class FinanceiroCard extends StatelessWidget {
                         context,
                         icone: PhosphorIcons.barcode,
                         texto: "Copiar código do boleto",
-                        corFundo: AppColors.primary,
+                        corFundo: AppColors.brand,
                         onTap: () => copiarLinhaDigitavelOuExtrair(context, item),
                       )
                     else if (temChavePix)
@@ -291,7 +291,7 @@ class FinanceiroCard extends StatelessWidget {
                         context,
                         icone: PhosphorIcons.copy,
                         texto: "Copiar chave Pix do condomínio",
-                        corFundo: AppColors.primary,
+                        corFundo: AppColors.brand,
                         onTap: () => _abrirSheetChavePix(context),
                       ),
 
@@ -524,7 +524,7 @@ class FinanceiroCard extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return Material(
-      color: AppColors.primary,
+      color: AppColors.brand,
       child: InkWell(
         onTap: onTap,
         child: Container(
@@ -534,12 +534,12 @@ class FinanceiroCard extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icone, size: 18, color: AppColors.onPrimary),
+              Icon(icone, size: 18, color: AppColors.onBrand),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   texto.toUpperCase(),
-                  style: AppTypography.button(context),
+                  style: AppTypography.button(context).copyWith(color: AppColors.onBrand),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -682,14 +682,14 @@ class FinanceiroCard extends StatelessWidget {
                     ),
                   );
                 },
-                icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
+                icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onBrand),
                 label: const Text(
                   "Copiar Código Pix",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.onPrimary,
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: AppColors.onBrand,
                   minimumSize: const Size(double.infinity, 48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,
@@ -768,14 +768,14 @@ class FinanceiroCard extends StatelessWidget {
                     ),
                   );
                 },
-                icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onPrimary),
+                icon: Icon(PhosphorIcons.copy, size: 18, color: AppColors.onBrand),
                 label: const Text(
                   "Copiar Chave Pix",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.onPrimary,
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: AppColors.onBrand,
                   minimumSize: const Size(double.infinity, 48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,

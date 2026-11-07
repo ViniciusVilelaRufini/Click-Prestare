@@ -72,10 +72,10 @@ class _ListVagasState extends State<ListVagas> {
       floatingActionButton: (_resumo.livres > 0)
           ? FloatingActionButton.extended(
               onPressed: _abrirLiberar,
-              backgroundColor: AppColors.primary,
-              icon: Icon(PhosphorIcons.key, color: AppColors.onPrimary),
+              backgroundColor: AppColors.brand,
+              icon: Icon(PhosphorIcons.key, color: AppColors.onBrand),
               label: Text('Liberar vaga',
-                  style: AppTypography.button(context).copyWith(color: AppColors.onPrimary)),
+                  style: AppTypography.button(context).copyWith(color: AppColors.onBrand)),
             )
           : null,
       body: _isLoading

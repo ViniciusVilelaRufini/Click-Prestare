@@ -74,8 +74,8 @@ class _ListMoradoresPageState extends State<ListMoradores> {
                 onPressed: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => NewApto(isEdit: false)))
                     .then((_) => loadList()),
-                backgroundColor: AppColors.primary,
-                child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+                backgroundColor: AppColors.brand,
+                child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
               )
             : null,
         body: _isLoading

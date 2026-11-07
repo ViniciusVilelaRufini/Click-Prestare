@@ -48,8 +48,8 @@ class _ListFuncionariosPageState extends State<ListFuncionarios> {
               onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => NewFuncionario1(isEdit: false)))
                   .then((_) => loadList()),
-              backgroundColor: AppColors.primary,
-              child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+              backgroundColor: AppColors.brand,
+              child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
             )
           : null,
       body: _isLoading

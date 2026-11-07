@@ -560,10 +560,10 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                             duration: const Duration(milliseconds: 150),
                             width: 54,
                             decoration: BoxDecoration(
-                              color: isSelected ? AppColors.primary : AppColors.surface(context),
+                              color: isSelected ? AppColors.brand : AppColors.surface(context),
                               borderRadius: BorderRadius.zero,
                               border: Border.all(
-                                color: isSelected ? AppColors.primary : AppColors.border(context),
+                                color: isSelected ? AppColors.brand : AppColors.border(context),
                               ),
                             ),
                             child: Column(
@@ -572,7 +572,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                                 Text(
                                   m['name']!.toUpperCase(),
                                   style: TextStyle(
-                                    color: isSelected ? AppColors.onPrimary : AppColors.textPrimary(context),
+                                    color: isSelected ? AppColors.onBrand : AppColors.textPrimary(context),
                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                                     fontSize: 12,
                                   ),
@@ -629,9 +629,9 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                             label: Text(a),
                             selected: isSelected,
                             onSelected: (_) => setState(() => _selectedAno = a),
-                            selectedColor: AppColors.primary,
+                            selectedColor: AppColors.brand,
                             labelStyle: TextStyle(
-                              color: isSelected ? AppColors.onPrimary : AppColors.textPrimary(context),
+                              color: isSelected ? AppColors.onBrand : AppColors.textPrimary(context),
                               fontWeight: FontWeight.bold,
                             ),
                           );
@@ -800,8 +800,8 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
         ),
         child: ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.onPrimary,
+            backgroundColor: AppColors.brand,
+            foregroundColor: AppColors.onBrand,
             minimumSize: const Size(double.infinity, 52),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             elevation: 0,
@@ -811,7 +811,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
               ? SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(color: AppColors.onPrimary, strokeWidth: 2.5),
+                  child: CircularProgressIndicator(color: AppColors.onBrand, strokeWidth: 2.5),
                 )
               : const Icon(PhosphorIcons.downloadSimpleBold, size: 20),
           label: Text(
@@ -919,14 +919,14 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.transparent,
+            color: isSelected ? AppColors.brand : Colors.transparent,
             borderRadius: BorderRadius.zero,
           ),
           child: Center(
             child: Text(
               label,
               style: TextStyle(
-                color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
+                color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                 fontSize: 12,
               ),
@@ -946,10 +946,10 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : AppColors.surface(context),
+            color: isSelected ? AppColors.brand : AppColors.surface(context),
             borderRadius: BorderRadius.zero,
             border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.border(context),
+              color: isSelected ? AppColors.brand : AppColors.border(context),
             ),
           ),
           child: Row(
@@ -958,13 +958,13 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
               Icon(
                 icon,
                 size: 14,
-                color: isSelected ? AppColors.onPrimary : AppColors.textSecondary(context),
+                color: isSelected ? AppColors.onBrand : AppColors.textSecondary(context),
               ),
               const SizedBox(width: 4),
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? AppColors.onPrimary : AppColors.textPrimary(context),
+                  color: isSelected ? AppColors.onBrand : AppColors.textPrimary(context),
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                   fontSize: 12,
                 ),

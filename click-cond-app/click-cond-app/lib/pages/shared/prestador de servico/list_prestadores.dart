@@ -62,7 +62,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Baixa na visita de ${item['nome'] ?? 'prestador'} realizada com sucesso!'),
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.brand,
           duration: const Duration(seconds: 3),
         ),
       );
@@ -309,7 +309,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                               ? "${item['codigo_acesso'].toString().substring(0, 3)}-${item['codigo_acesso'].toString().substring(3, 6)}"
                               : item['codigo_acesso'].toString(),
                           style: AppTypography.title(context).copyWith(
-                            color: AppColors.primary,
+                            color: AppColors.brandInk,
                             letterSpacing: 6,
                             fontWeight: FontWeight.w900,
                             fontSize: 32,
@@ -330,7 +330,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: const Text('Código PIN copiado!'),
-                                        backgroundColor: AppColors.primary.withValues(alpha: 0.9),
+                                        backgroundColor: AppColors.brand,
                                         duration: const Duration(seconds: 2),
                                       ),
                                     );
@@ -466,14 +466,14 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                           ).then((_) => loadList());
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: AppColors.brand,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         ),
                         child: Text(
                           'Editar',
                           style: AppTypography.body(context).copyWith(
-                            color: AppColors.onPrimary,
+                            color: AppColors.onBrand,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -655,8 +655,8 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                     ),
                   ),
                 ).then((_) => loadList()),
-                backgroundColor: AppColors.primary,
-                child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+                backgroundColor: AppColors.brand,
+                child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
               )
             : null,
         body: Column(
@@ -694,12 +694,12 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                 child: TabBar(
                   dividerColor: Colors.transparent,
                   unselectedLabelColor: AppColors.textSecondary(context),
-                  labelColor: AppColors.onPrimary,
+                  labelColor: AppColors.onBrand,
                   labelStyle: AppTypography.caption(context).copyWith(fontWeight: FontWeight.bold),
                   unselectedLabelStyle: AppTypography.caption(context),
                   indicatorSize: TabBarIndicatorSize.tab,
                   indicator: BoxDecoration(
-                    color: AppColors.primary,
+                    color: AppColors.brand,
                     borderRadius: BorderRadius.zero,
                   ),
                    tabs: [
@@ -899,12 +899,12 @@ class _PrestadorCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        Icon(PhosphorIcons.key, size: 12, color: AppColors.primary),
+                        Icon(PhosphorIcons.key, size: 12, color: AppColors.brandInk),
                         const SizedBox(width: 4),
                         Text(
                           'PIN: ${item['codigo_acesso'].toString().length == 6 ? "${item['codigo_acesso'].toString().substring(0, 3)}-${item['codigo_acesso'].toString().substring(3, 6)}" : item['codigo_acesso']}',
                           style: AppTypography.tiny(context).copyWith(
-                            color: AppColors.primary,
+                            color: AppColors.brandInk,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

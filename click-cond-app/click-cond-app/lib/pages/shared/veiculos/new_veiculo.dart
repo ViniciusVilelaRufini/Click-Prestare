@@ -155,8 +155,8 @@ class _NewVeiculoState extends State<NewVeiculo> {
               child: ElevatedButton(
                 onPressed: _saving ? null : _save,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.onPrimary,
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: AppColors.onBrand,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.zero),
                   elevation: 0,
@@ -166,11 +166,11 @@ class _NewVeiculoState extends State<NewVeiculo> {
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: AppColors.onPrimary),
+                            strokeWidth: 2, color: AppColors.onBrand),
                       )
                     : Text(_isEdit ? 'Salvar alterações' : 'Cadastrar veículo',
                         style: AppTypography.button(context)
-                            .copyWith(color: AppColors.onPrimary)),
+                            .copyWith(color: AppColors.onBrand)),
               ),
             ),
           ],

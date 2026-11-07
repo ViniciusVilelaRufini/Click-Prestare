@@ -135,12 +135,12 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                               decoration: BoxDecoration(
                                 color: selected 
-                                    ? AppColors.primary 
+                                    ? AppColors.brand 
                                     : AppColors.surface(context),
                                 borderRadius: BorderRadius.zero,
                                 border: Border.all(
                                   color: selected 
-                                      ? AppColors.primary 
+                                      ? AppColors.brand 
                                       : AppColors.textSecondary(context).withValues(alpha: 0.1),
                                   width: 1,
                                 ),
@@ -153,13 +153,13 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                                   Icon(
                                     PhosphorIcons.calendarBlank,
                                     size: 14,
-                                    color: selected ? AppColors.onPrimary : AppColors.textSecondary(context),
+                                    color: selected ? AppColors.onBrand : AppColors.textSecondary(context),
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     t['periodo'],
                                     style: AppTypography.caption(context).copyWith(
-                                      color: selected ? AppColors.onPrimary : AppColors.textSecondary(context),
+                                      color: selected ? AppColors.onBrand : AppColors.textSecondary(context),
                                       fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                                     ),
                                   ),

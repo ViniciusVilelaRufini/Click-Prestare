@@ -153,13 +153,13 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
             child: ElevatedButton(
               onPressed: _enviando ? null : _confirmar,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.onPrimary,
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.onBrand,
                 minimumSize: const Size(0, 48),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
               ),
               child: _enviando
-                  ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary))
+                  ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onBrand))
                   : const Text('Confirmar entrada'),
             ),
           ),

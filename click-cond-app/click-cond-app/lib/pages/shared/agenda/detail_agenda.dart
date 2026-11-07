@@ -101,11 +101,11 @@ class _DetailAgendaPageState extends State<DetailAgenda> {
                 ),
       floatingActionButton: getUserType() == 'sindico'
           ? FloatingActionButton(
-              backgroundColor: AppColors.primary,
+              backgroundColor: AppColors.brand,
               onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => NewAgenda(isEdit: true, myId: widget.id)))
                   .then((_) => load()),
-              child: Icon(PhosphorIcons.pencil, color: AppColors.onPrimary),
+              child: Icon(PhosphorIcons.pencil, color: AppColors.onBrand),
             )
           : null,
     );

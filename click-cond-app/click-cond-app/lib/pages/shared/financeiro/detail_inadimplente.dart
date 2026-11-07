@@ -103,13 +103,13 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
               ? SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onBrand),
                 )
               : const Icon(PhosphorIcons.bell, size: 18),
           label: Text(_notificando ? 'Enviando...' : 'Notificar cobrança'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.onPrimary,
+            backgroundColor: AppColors.brand,
+            foregroundColor: AppColors.onBrand,
             minimumSize: const Size(double.infinity, 48),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           ),

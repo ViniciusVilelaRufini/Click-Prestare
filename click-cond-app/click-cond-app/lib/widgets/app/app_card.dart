@@ -118,7 +118,7 @@ class AppListItem extends StatelessWidget {
   }
 }
 
-/// `.ico`: quadrado `accent-ghost` com ícone. [color] só para sinal.
+/// `.ico`: quadrado `brand-soft` com ícone `brand-ink`. [color] só para sinal.
 class AppIconBox extends StatelessWidget {
   final IconData icon;
   final double size;
@@ -139,11 +139,11 @@ class AppIconBox extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      color: AppColors.accentGhost(context),
+      color: AppColors.brandSoftOf(context),
       child: Icon(
         icon,
         size: iconSize,
-        color: color ?? AppColors.textPrimary(context),
+        color: color ?? AppColors.brandInkOf(context),
       ),
     );
   }

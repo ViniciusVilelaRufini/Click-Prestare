@@ -422,7 +422,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                 ),
                 const SizedBox(height: 8),
                 Material(
-                  color: AppColors.primary,
+                  color: AppColors.brand,
                   borderRadius: BorderRadius.zero,
                   child: InkWell(
                     borderRadius: BorderRadius.zero,
@@ -436,11 +436,11 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(PhosphorIcons.signIn, size: 18, color: AppColors.onPrimary),
+                          Icon(PhosphorIcons.signIn, size: 18, color: AppColors.onBrand),
                           SizedBox(width: 8),
                           Text(
                             'Autorizar e Dar Entrada'.toUpperCase(),
-                            style: AppTypography.button(context),
+                            style: AppTypography.button(context).copyWith(color: AppColors.onBrand),
                           ),
                         ],
                       ),
@@ -663,7 +663,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
             ),
             const SizedBox(height: 8),
             Material(
-              color: AppColors.primary,
+              color: AppColors.brand,
               borderRadius: BorderRadius.zero,
               child: InkWell(
                 borderRadius: BorderRadius.zero,
@@ -677,11 +677,11 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(PhosphorIcons.signIn, size: 18, color: AppColors.onPrimary),
+                      Icon(PhosphorIcons.signIn, size: 18, color: AppColors.onBrand),
                       SizedBox(width: 8),
                       Text(
                             'Autorizar e Dar Entrada'.toUpperCase(),
-                            style: AppTypography.button(c),
+                            style: AppTypography.button(c).copyWith(color: AppColors.onBrand),
                           ),
                     ],
                   ),

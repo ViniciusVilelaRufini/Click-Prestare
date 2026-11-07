@@ -83,8 +83,8 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
                 onPressed: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => NewAreaSocial(isEdit: false)))
                     .then((_) => loadAll()),
-                backgroundColor: AppColors.primary,
-                child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+                backgroundColor: AppColors.brand,
+                child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
               )
             : null,
         body: Column(
@@ -104,11 +104,11 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
                 dividerColor: Colors.transparent,
                 dividerHeight: 0,
                 indicator: BoxDecoration(
-                  color: AppColors.primary,
+                  color: AppColors.brand,
                   borderRadius: BorderRadius.zero,
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: AppColors.onPrimary,
+                labelColor: AppColors.onBrand,
                 unselectedLabelColor: AppColors.textSecondary(context),
                 labelStyle: AppTypography.button(context),
                 unselectedLabelStyle: AppTypography.button(context),

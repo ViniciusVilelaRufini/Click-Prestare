@@ -153,8 +153,8 @@ class _ListCategoriasOcorrenciaState extends State<ListCategoriasOcorrencia> {
       title: 'Categorias de Ocorrência',
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openEditor(),
-        backgroundColor: AppColors.primary,
-        child: Icon(PhosphorIcons.plus, color: AppColors.onPrimary),
+        backgroundColor: AppColors.brand,
+        child: Icon(PhosphorIcons.plus, color: AppColors.onBrand),
       ),
       body: _isLoading
           ? ListView.separated(

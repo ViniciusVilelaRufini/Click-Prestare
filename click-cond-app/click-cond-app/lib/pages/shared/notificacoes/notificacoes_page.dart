@@ -289,12 +289,12 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                   ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? AppColors.primary
+                        ? AppColors.brand
                         : AppColors.surface(context),
                     borderRadius: BorderRadius.zero,
                     border: Border.all(
                       color: isSelected
-                          ? AppColors.primary
+                          ? AppColors.brand
                           : AppColors.border(context),
                       width: 1,
                     ),
@@ -306,7 +306,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                         f['label']!,
                         style: TextStyle(
                           color: isSelected
-                              ? AppColors.onPrimary
+                              ? AppColors.onBrand
                               : AppColors.textPrimary(context),
                           fontWeight:
                               isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -322,7 +322,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.onPrimary.withValues(alpha: 0.25)
+                                ? AppColors.onBrand.withValues(alpha: 0.25)
                                 : AppColors.primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.zero,
                           ),
@@ -330,7 +330,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                             '$count',
                             style: TextStyle(
                               color: isSelected
-                                  ? AppColors.onPrimary
+                                  ? AppColors.onBrand
                                   : AppColors.primary,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,

@@ -116,8 +116,8 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
         floatingActionButton: widget.showFab
             ? FloatingActionButton.extended(
                 onPressed: () => openAddDelivery(context),
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.onPrimary,
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.onBrand,
                 icon: const Icon(PhosphorIcons.plus),
                 label: const Text('Avisar entrega'),
               )

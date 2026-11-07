@@ -156,14 +156,14 @@ class ListEncomendasState extends State<ListEncomendas> {
       floatingActionButton: widget.showFab
           ? FloatingActionButton.extended(
               heroTag: 'register_tracking_fab',
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.onPrimary,
+              backgroundColor: AppColors.brand,
+              foregroundColor: AppColors.onBrand,
               shape: const RoundedRectangleBorder(),
               onPressed: () => openAddEncomenda(context),
-              icon: Icon(PhosphorIcons.plus, color: AppColors.onPrimary, size: 20),
+              icon: Icon(PhosphorIcons.plus, color: AppColors.onBrand, size: 20),
               label: Text(
                 (_isStaff ? 'Nova Encomenda' : 'Avisar Encomenda').toUpperCase(),
-                style: AppTypography.button(context),
+                style: AppTypography.button(context).copyWith(color: AppColors.onBrand),
               ),
             )
           : null,
@@ -323,8 +323,8 @@ class ListEncomendasState extends State<ListEncomendas> {
                   icon: const Icon(PhosphorIcons.plus, size: 18),
                   label: const Text('Cadastrar Nova Encomenda'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.onPrimary,
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.onBrand,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                   ),
@@ -515,8 +515,8 @@ class ListEncomendasState extends State<ListEncomendas> {
                     const SizedBox(width: 8),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: AppColors.onPrimary,
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: AppColors.onBrand,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         elevation: 0,
@@ -540,7 +540,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                           }
                         }
                       },
-                      child: Text('Cadastrar', style: TextStyle(color: AppColors.onPrimary, fontWeight: FontWeight.bold)),
+                      child: Text('Cadastrar', style: TextStyle(color: AppColors.onBrand, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -798,8 +798,8 @@ class _EncomendaCard extends StatelessWidget {
                     const SizedBox(height: AppSpacing.lg),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: AppColors.onPrimary,
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: AppColors.onBrand,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.zero,
@@ -812,7 +812,7 @@ class _EncomendaCard extends StatelessWidget {
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.onPrimary,
+                                color: AppColors.onBrand,
                               ),
                             )
                           : Text(
@@ -1077,8 +1077,8 @@ class _EncomendaCard extends StatelessWidget {
                               label: Text('Dar Baixa'.toUpperCase()),
                               style: ElevatedButton.styleFrom(
                                 minimumSize: const Size(0, 48),
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: AppColors.onPrimary,
+                                backgroundColor: AppColors.brand,
+                                foregroundColor: AppColors.onBrand,
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                                 elevation: 0,
@@ -1265,8 +1265,8 @@ class _EncomendaCard extends StatelessWidget {
                 if (!_jaRetirada) ...[
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.onPrimary,
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: AppColors.onBrand,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                     ),
@@ -1319,8 +1319,8 @@ class _EncomendaCard extends StatelessWidget {
                 ],
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.onPrimary,
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.onBrand,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                   ),

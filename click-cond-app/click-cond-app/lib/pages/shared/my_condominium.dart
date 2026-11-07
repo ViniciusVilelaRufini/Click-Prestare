@@ -673,10 +673,10 @@ class _MyCondominiumState extends State<MyCondominium> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: AppColors.primaryLight,
+                            color: AppColors.brandSoft,
                             borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
-                          child: Icon(PhosphorIcons.userPlus, color: AppColors.textPrimary(context), size: 22),
+                          child: Icon(PhosphorIcons.userPlus, color: AppColors.brandInkOf(context), size: 22),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -930,14 +930,14 @@ class _MyCondominiumState extends State<MyCondominium> {
                 _loadCond();
               });
             },
-            // Botão central: quadrado sólido `accent` com ícone `on-accent`.
+            // Botão central: quadrado sólido `brand` com ícone `on-brand`.
             child: Container(
               // Cabe na barra nos dois estados (58 e 44): 6+48 e 4+36.
               width: _isNavBarVisible ? 48 : 36,
               height: _isNavBarVisible ? 48 : 36,
-              color: AppColors.primary,
+              color: AppColors.brand,
               child: Icon(PhosphorIcons.buildings,
-                  color: AppColors.onPrimary, size: 22),
+                  color: AppColors.onBrand, size: 22),
             ),
           ),
         ),
@@ -991,9 +991,11 @@ class _MyCondominiumState extends State<MyCondominium> {
     bool isAction = false,
   }) {
     final isSelected = isAction ? false : _currentTab == index;
-    final cor = (isSelected || isAction)
-        ? AppColors.textPrimary(context)
-        : AppColors.textTertiary(context);
+    final cor = isSelected
+        ? AppColors.brandInk
+        : isAction
+            ? AppColors.textPrimary(context)
+            : AppColors.textTertiary(context);
 
     return InkWell(
       key: key,
@@ -1008,7 +1010,7 @@ class _MyCondominiumState extends State<MyCondominium> {
             duration: const Duration(milliseconds: 300),
             width: isSelected ? 24 : 0,
             height: 2,
-            color: AppColors.primary,
+            color: AppColors.brand,
           ),
           const SizedBox(height: 10),
           Icon(isSelected ? activeIcon : icon, color: cor, size: 20),
@@ -1182,12 +1184,12 @@ class _MyCondominiumState extends State<MyCondominium> {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: AppColors.accentGhost(context),
+                  color: AppColors.brandSoftOf(context),
                   border: Border.all(color: AppColors.border(context)),
                 ),
                 child: Icon(
                   PhosphorIcons.bellRinging,
-                  color: AppColors.textPrimary(context),
+                  color: AppColors.brandInkOf(context),
                   size: 22,
                 ),
               ),
@@ -1553,10 +1555,10 @@ class _MenuRow extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.accentGhost(context),
+                    color: AppColors.brandSoftOf(context),
                     border: Border.all(color: AppColors.border(context)),
                   ),
-                  child: Icon(item.icon, color: AppColors.textPrimary(context), size: 22),
+                  child: Icon(item.icon, color: AppColors.brandInkOf(context), size: 22),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(

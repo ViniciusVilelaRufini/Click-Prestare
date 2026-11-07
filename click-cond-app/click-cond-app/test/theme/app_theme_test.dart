@@ -40,17 +40,32 @@ void main() {
     }
   });
 
-  testWidgets('AppButton primário usa accent e on-accent, em caixa alta',
+  testWidgets('AppButton primário usa brand e on-brand, em caixa alta',
       (tester) async {
     await tester.pumpWidget(
       _app(AppTheme.dark(), AppButton(label: 'Salvar', onPressed: () {})),
     );
     expect(
       _materialDe(tester, find.byType(AppButton)).color,
-      AppColors.darkAccent,
+      AppColors.darkBrand,
     );
     final texto = tester.widget<Text>(find.text('SALVAR'));
-    expect(texto.style?.color, AppColors.darkOnAccent);
+    expect(texto.style?.color, AppColors.onBrandColor);
+  });
+
+  testWidgets('AppButton primário no tema claro: amarelo com texto preto',
+      (tester) async {
+    await tester.pumpWidget(
+      _app(AppTheme.light(), AppButton(label: 'Salvar', onPressed: () {})),
+    );
+    expect(
+      _materialDe(tester, find.byType(AppButton)).color,
+      AppColors.lightBrand,
+    );
+    expect(
+      tester.widget<Text>(find.text('SALVAR')).style?.color,
+      const Color(0xFF000000),
+    );
   });
 
   testWidgets('AppButton perigo não usa o sinal como fundo', (tester) async {

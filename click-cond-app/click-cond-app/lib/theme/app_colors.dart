@@ -33,6 +33,9 @@ class AppColors {
   static const Color darkSignalWarn = Color(0xFFE3B04B);
   static const Color darkSignalDanger = Color(0xFFFF6B6B);
   static const Color darkScrim = Color(0x99000000); // preto a 60%
+  static const Color darkBrand = Color(0xFFFFC83D); // amarelo da marca
+  static const Color darkBrandInk = Color(0xFFFFC83D); // amarelo como texto
+  static const Color darkBrandSoft = Color(0x1FFFC83D); // amarelo a 12%
 
   // ── Tema CLARO
   static const Color lightBg = Color(0xFFFFFFFF); // bg-000
@@ -51,6 +54,12 @@ class AppColors {
   static const Color lightSignalWarn = Color(0xFF946000);
   static const Color lightSignalDanger = Color(0xFFC42D33);
   static const Color lightScrim = Color(0x59000000); // preto a 35%
+  static const Color lightBrand = Color(0xFFF2B10F); // amarelo da marca
+  static const Color lightBrandInk = Color(0xFF8A5A00); // amarelo como texto
+  static const Color lightBrandSoft = Color(0x29F2B10F); // amarelo a 16%
+
+  /// Texto e ícone sobre o amarelo da marca: preto nos dois temas.
+  static const Color onBrandColor = Color(0xFF000000);
 
   // ── QR: sempre preto sobre branco, nos dois temas
   static const Color qrInk = Color(0xFF000000);
@@ -79,6 +88,19 @@ class AppColors {
   /// Texto ou ícone sobre [primary] e sobre os sinais usados como fundo.
   static Color get onPrimary => _dark ? darkOnAccent : lightOnAccent;
   static Color get primaryDark => primary;
+
+  // ── Marca: amarelo só em pontos de destaque
+  /// Fundo sólido de destaque (botão primário, FAB, chip ativo).
+  static Color get brand => _dark ? darkBrand : lightBrand;
+
+  /// Texto ou ícone sobre [brand]: preto nos dois temas, nunca [onPrimary].
+  static Color get onBrand => onBrandColor;
+
+  /// Amarelo como texto ou ícone sobre fundo normal (no claro é mais escuro).
+  static Color get brandInk => _dark ? darkBrandInk : lightBrandInk;
+
+  /// Amarelo translúcido de fundo de quadradinho de ícone.
+  static Color get brandSoft => _dark ? darkBrandSoft : lightBrandSoft;
 
   /// Preto ou branco legível sobre um fundo [bg] que só se conhece em execução
   /// (cor de status, de categoria). Sobre [primary], use [onPrimary].
@@ -126,6 +148,11 @@ class AppColors {
   static Color accent(BuildContext c) => _isDark(c) ? darkAccent : lightAccent;
   static Color onAccent(BuildContext c) =>
       _isDark(c) ? darkOnAccent : lightOnAccent;
+  static Color brandOf(BuildContext c) => _isDark(c) ? darkBrand : lightBrand;
+  static Color brandInkOf(BuildContext c) =>
+      _isDark(c) ? darkBrandInk : lightBrandInk;
+  static Color brandSoftOf(BuildContext c) =>
+      _isDark(c) ? darkBrandSoft : lightBrandSoft;
   static Color accentGhost(BuildContext c) =>
       _isDark(c) ? darkAccentGhost : lightAccentGhost;
   static Color signalOk(BuildContext c) =>

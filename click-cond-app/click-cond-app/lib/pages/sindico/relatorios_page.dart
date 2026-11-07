@@ -272,12 +272,12 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                       Container(
                         padding: const EdgeInsets.all(AppSpacing.sm),
                         decoration: BoxDecoration(
-                          color: AppColors.accentGhost(context),
+                          color: AppColors.brandSoftOf(context),
                           borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                         child: Icon(
                           category['icon'] as IconData,
-                          color: AppColors.textPrimary(context),
+                          color: AppColors.brandInkOf(context),
                           size: 24,
                         ),
                       ),

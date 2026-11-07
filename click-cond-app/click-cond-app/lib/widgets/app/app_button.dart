@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 enum AppButtonVariant { primary, secondary, ghost, danger }
 enum AppButtonSize { sm, md, lg }
 
-/// Botão padrão do app (`.btn`): sólido `accent` no primário, contorno `line-200`
+/// Botão padrão do app (`.btn`): sólido `brand` (amarelo) no primário, contorno `line-200`
 /// no secundário, sem fundo no ghost. O perigo é só contorno e texto: sinal
 /// nunca vira fundo de botão.
 class AppButton extends StatelessWidget {
@@ -105,7 +105,10 @@ class AppButton extends StatelessWidget {
     }
     switch (variant) {
       case AppButtonVariant.primary:
-        return _ButtonColors(bg: AppColors.accent(c), fg: AppColors.onAccent(c));
+        return _ButtonColors(
+          bg: AppColors.brandOf(c),
+          fg: AppColors.onBrand,
+        );
       case AppButtonVariant.secondary:
         return _ButtonColors(
           bg: Colors.transparent,

@@ -677,8 +677,8 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                 context,
                 MaterialPageRoute(builder: (_) => NewAreaSocial(isEdit: true, obj: obj, myId: obj['id'])),
               ).then((_) => load()),
-              backgroundColor: AppColors.primary,
-              child: Icon(PhosphorIcons.pencil, color: AppColors.onPrimary),
+              backgroundColor: AppColors.brand,
+              child: Icon(PhosphorIcons.pencil, color: AppColors.onBrand),
             )
           : null,
       // No bottomNavigationBar o Scaffold posiciona o FAB acima do rodapé.

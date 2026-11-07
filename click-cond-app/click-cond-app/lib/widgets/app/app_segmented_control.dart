@@ -89,7 +89,7 @@ class _SegmentItem extends StatelessWidget {
               border: Border(
                 bottom: BorderSide(
                   color: selected
-                      ? AppColors.accent(context)
+                      ? AppColors.brandOf(context)
                       : Colors.transparent,
                   width: 2,
                 ),
