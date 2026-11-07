@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Crm_Leads } from '../prisma/generated';
+import { MarketingSegredosService } from './marketing-segredos.service';
 
 export interface LeadWhatsAppConfirmado {
   wamid: string;
@@ -8,25 +9,21 @@ export interface LeadWhatsAppConfirmado {
 }
 
 const OPENAI_EVENTS_URL = 'https://bzr.openai.com/v1/events';
-const GOOGLE_CONFIGURACAO = [
-  'GOOGLE_ADS_DEVELOPER_TOKEN',
-  'GOOGLE_ADS_REFRESH_TOKEN',
-  'GOOGLE_ADS_CUSTOMER_ID',
-  'GOOGLE_ADS_CONVERSION_ACTION',
-] as const;
 
 @Injectable()
 export class MarketingConversionsService {
   private readonly logger = new Logger(MarketingConversionsService.name);
 
+  constructor(private readonly segredos: MarketingSegredosService) {}
+
   async confirmarLeadWhatsApp(input: LeadWhatsAppConfirmado): Promise<void> {
     if (input.lead.origem === 'openai') await this.enviarOpenAi(input);
-    if (input.lead.origem === 'google') this.registrarGoogleDesabilitado();
+    if (input.lead.origem === 'google') this.registrarGoogleViaScript();
   }
 
   private async enviarOpenAi({ wamid, em, lead }: LeadWhatsAppConfirmado): Promise<void> {
-    const pixelId = process.env.OPENAI_ADS_PIXEL_ID?.trim();
-    const apiKey = process.env.OPENAI_ADS_CONVERSIONS_API_KEY?.trim();
+    const pixelId = (await this.segredos.obter('OPENAI_ADS_PIXEL_ID'))?.trim();
+    const apiKey = (await this.segredos.obter('OPENAI_ADS_CONVERSIONS_API_KEY'))?.trim();
     const oppref = lead.oppref?.trim();
     if (!pixelId || !apiKey || !oppref) return;
 
@@ -47,10 +44,7 @@ export class MarketingConversionsService {
     }
   }
 
-  private registrarGoogleDesabilitado(): void {
-    const configurado = GOOGLE_CONFIGURACAO.every((nome) => Boolean(process.env[nome]?.trim()));
-    this.logger.warn(configurado
-      ? 'Conversão Google confirmada, mas upload offline permanece desabilitado.'
-      : 'Conversão Google confirmada sem credenciais completas; upload offline não realizado.');
+  private registrarGoogleViaScript(): void {
+    this.logger.log('Conversão Google confirmada; o Google Ads Script envia como conversão offline.');
   }
 }

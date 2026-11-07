@@ -5,6 +5,8 @@ import { decryptSecret } from '../facial/device-secret.util';
 export type SegredoMarketing =
   | 'ADS_INGEST_TOKEN'
   | 'OPENAI_ADS_API_KEY'
+  | 'OPENAI_ADS_PIXEL_ID'
+  | 'OPENAI_ADS_CONVERSIONS_API_KEY'
   | 'WA_ACCESS_TOKEN'
   | 'WA_APP_SECRET'
   | 'WA_VERIFY_TOKEN';
