@@ -382,7 +382,7 @@
           <!-- Apartamentos -->
           <div class="flex items-center justify-between gap-3.5 px-5 py-3.5 border-b border-[var(--line-100)]">
             <div class="flex items-center gap-3.5">
-              <div class="ps-ico !bg-[var(--bg-300)] text-[var(--ink-muted)]">
+              <div class="ps-ico">
                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
                 </svg>
@@ -395,7 +395,7 @@
           <!-- Moradores -->
           <div class="flex items-center justify-between gap-3.5 px-5 py-3.5 border-b border-[var(--line-100)]">
             <div class="flex items-center gap-3.5">
-              <div class="ps-ico !bg-[var(--bg-300)] text-[var(--ink-muted)]">
+              <div class="ps-ico">
                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                 </svg>
@@ -408,7 +408,7 @@
           <!-- Comunicados -->
           <div class="flex items-center justify-between gap-3.5 px-5 py-3.5">
             <div class="flex items-center gap-3.5">
-              <div class="ps-ico !bg-[var(--bg-300)] text-[var(--ink-muted)]">
+              <div class="ps-ico">
                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.68.34-1.44.52-2.22.52H5a1 1 0 01-1-1v-4a1 1 0 011-1h3.12c.78 0 1.54.18 2.22.52l5.77-2.88A1 1 0 0118 8.87v6.26a1 1 0 01-1.89.47l-5.77-2.88zM18 9.5a3.5 3.5 0 010 5M21 8a6 6 0 010 8" />
                 </svg>
@@ -434,7 +434,7 @@
             <button (click)="abrirModalLiberar()"
                class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
                title="Liberar entrada de visitante já cadastrado">
-              <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-[22px] h-[22px] text-[var(--brand-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
               </svg>
@@ -444,7 +444,7 @@
             <button (click)="abrirValidador()"
                class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
                title="Validar PIN de acesso">
-              <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-[22px] h-[22px] text-[var(--brand-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
@@ -454,7 +454,7 @@
             <a routerLink="/visitantes" [queryParams]="{novo: 'true'}"
                class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
                title="Cadastrar um novo visitante">
-              <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-[22px] h-[22px] text-[var(--brand-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
               </svg>
@@ -464,7 +464,7 @@
             <button (click)="abrirModalBaixa()"
                class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
                title="Registrar saída de visitante ou prestador">
-              <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-[22px] h-[22px] text-[var(--brand-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
               </svg>
@@ -1136,7 +1136,7 @@
       <div class="ps-drawer on" (click)="$event.stopPropagation()">
         
         @if (copiaSucessoTexto()) {
-          <div class="absolute top-16 left-1/2 -translate-x-1/2 px-3.5 py-1.5 bg-[var(--accent)] text-[var(--on-accent)] text-[11px] font-semibold z-[100] flex items-center gap-1.5">
+          <div class="absolute top-16 left-1/2 -translate-x-1/2 px-3.5 py-1.5 bg-[var(--brand)] text-[var(--on-brand)] text-[11px] font-semibold z-[100] flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
             {{ copiaSucessoTexto() }}
           </div>
@@ -1168,7 +1168,7 @@
                     [ngModel]="pinCode()"
                     (ngModelChange)="pinCode.set($event)"
                     (keyup.enter)="validarPIN()"
-                    class="flex-1 min-w-0 h-12 px-4 text-lg font-mono text-center tracking-widest bg-[var(--bg-200)] border border-[var(--line-200)] text-[var(--ink)] focus:outline-none focus:border-[var(--ink)]" />
+                    class="flex-1 min-w-0 h-12 px-4 text-lg font-mono text-center tracking-widest bg-[var(--bg-200)] border border-[var(--line-200)] text-[var(--ink)] focus:outline-none focus:border-[var(--brand)]" />
                   <button
                     (click)="validarPIN()"
                     [disabled]="validating() || !pinCode()"

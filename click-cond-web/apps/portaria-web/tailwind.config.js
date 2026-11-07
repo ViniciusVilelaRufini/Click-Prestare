@@ -108,11 +108,11 @@ function regrasDeCor({ addBase }) {
   const secundario = botao([...SINAIS['signal-warn'], ...FRIAS]);
   addBase({
     [primario]: {
-      'background-color': 'var(--accent) !important',
-      'border-color': 'var(--accent) !important',
+      'background-color': 'var(--brand) !important',
+      'border-color': 'var(--brand) !important',
     },
-    [`${primario},${primario} *`]: { color: 'var(--on-accent) !important' },
-    [`${primario}:hover`]: { 'background-color': 'var(--accent-press) !important' },
+    [`${primario},${primario} *`]: { color: 'var(--on-brand) !important' },
+    [`${primario}:hover`]: { opacity: '0.86' },
     [perigo]: {
       'background-color': 'transparent !important',
       ...bordaDeControle,

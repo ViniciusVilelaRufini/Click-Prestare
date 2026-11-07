@@ -421,7 +421,7 @@
                   type="checkbox"
                   [ngModel]="novo.bloqueado === 1"
                   (ngModelChange)="novo.bloqueado = $event ? 1 : 0"
-                  class="w-4 h-4 accent-[var(--ink)]"
+                  class="w-4 h-4 accent-[var(--brand)]"
                 />
                 <div class="min-w-0">
                   <span class="text-xs font-bold" [class.text-rose-600]="novo.bloqueado === 1" [class.dark:text-rose-400]="novo.bloqueado === 1" [class.text-slate-700]="novo.bloqueado !== 1" [class.dark:text-slate-300]="novo.bloqueado !== 1">
@@ -460,7 +460,7 @@
                       type="checkbox"
                       [checked]="categoriasSelecionadas().has(cat)"
                       (change)="toggleCategoriaSelecionada(cat)"
-                      class="accent-[var(--ink)]"
+                      class="accent-[var(--brand)]"
                     />
                     <span class="text-xs text-slate-700 dark:text-slate-300 font-medium truncate">{{ cat }}</span>
                   </label>
@@ -619,7 +619,7 @@
                         type="checkbox"
                         [ngModel]="consentimentoBiometria()"
                         (ngModelChange)="consentimentoBiometria.set($event)"
-                        class="mt-0.5 accent-[var(--ink)] cursor-pointer"
+                        class="mt-0.5 accent-[var(--brand)] cursor-pointer"
                       />
                       <span class="text-[11px] text-slate-100 font-medium leading-tight">
                         Declaro que o titular é maior de 18 anos e forneceu autorização prévia e informada para utilização de biometria facial nos acessos deste condomínio (Cláusulas 8.1 e 8.3 do Contrato / DPA LGPD).
@@ -710,7 +710,7 @@
             </div>
           </div>
           <label class="flex items-center gap-2 pt-2.5 border-t border-slate-300 cursor-pointer select-none text-slate-100 text-xs">
-            <input type="checkbox" [checked]="lgpdCiente()" (change)="lgpdCiente.set($any($event.target).checked)" class="accent-[var(--ink)]" />
+            <input type="checkbox" [checked]="lgpdCiente()" (change)="lgpdCiente.set($any($event.target).checked)" class="accent-[var(--brand)]" />
             <span>O titular foi informado e está ciente da coleta de imagem facial e documento para controle de acesso.</span>
           </label>
         </div>
@@ -2198,7 +2198,7 @@
                     [ngModel]="pinCode()"
                     (ngModelChange)="pinCode.set($event)"
                     (keyup.enter)="validarPIN()"
-                    class="flex-1 min-w-0 px-4 h-12 text-lg font-mono text-center tracking-widest bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition"
+                    class="flex-1 min-w-0 px-4 h-12 text-lg font-mono text-center tracking-widest bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--brand)] transition"
                   />
                   <button
                     (click)="validarPIN()"

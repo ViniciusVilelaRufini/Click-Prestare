@@ -22,6 +22,10 @@
   --on-accent: #000000;
   --accent-ghost: rgba(255, 255, 255, 0.08);
   --accent-press: #d4d4d4;
+  --brand: #ffc83d;
+  --on-brand: #000000;
+  --brand-ink: #ffc83d;
+  --brand-soft: rgba(255, 200, 61, 0.12);
   --signal-ok: #5ec28a;
   --signal-warn: #e3b04b;
   --signal-danger: #ff6b6b;
@@ -65,6 +69,10 @@ html.light {
   --on-accent: #ffffff;
   --accent-ghost: rgba(0, 0, 0, 0.05);
   --accent-press: #262626;
+  --brand: #f2b10f;
+  --on-brand: #000000;
+  --brand-ink: #8a5a00;
+  --brand-soft: rgba(242, 177, 15, 0.16);
   --signal-ok: #1a7a48;
   --signal-warn: #946000;
   --signal-danger: #c42d33;
@@ -156,9 +164,9 @@ html.light {
     font-size: 12px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    border: 1px solid var(--accent);
-    background: var(--accent);
-    color: var(--on-accent);
+    border: 1px solid var(--brand);
+    background: var(--brand);
+    color: var(--on-brand);
     white-space: nowrap;
     transition: opacity 0.2s, transform 0.1s, background 0.2s;
   }
@@ -286,13 +294,13 @@ html.light {
     white-space: nowrap;
   }
   .ps-seg button.on {
-    color: var(--on-accent);
+    color: var(--on-brand);
   }
   .ps-seg-pill {
     position: absolute;
     top: 0;
     bottom: 0;
-    background: var(--accent);
+    background: var(--brand);
     transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
@@ -458,7 +466,8 @@ html.light {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--accent-ghost);
+    background: var(--brand-soft);
+    color: var(--brand-ink);
     flex: none;
   }
   .ps-empty {
@@ -551,8 +560,8 @@ html.light {
     right: 24px;
     bottom: 24px;
     z-index: 60;
-    background: var(--accent);
-    color: var(--on-accent);
+    background: var(--brand);
+    color: var(--on-brand);
     padding: 14px 18px;
     display: flex;
     gap: 10px;
@@ -712,6 +721,16 @@ html, body {
   color: var(--on-accent) !important;
 }
 
+/* Botão sólido e opção ativa em bg-accent usam a cor de marca; barras e pontos seguem neutros */
+:is(button, a):is(.bg-accent, .bg-accent-500, .bg-accent-600, .bg-accent-700) {
+  background-color: var(--brand) !important;
+  border-color: var(--brand) !important;
+}
+:is(button, a):is(.bg-accent, .bg-accent-500, .bg-accent-600, .bg-accent-700),
+:is(button, a):is(.bg-accent, .bg-accent-500, .bg-accent-600, .bg-accent-700) * {
+  color: var(--on-brand) !important;
+}
+
 /* Escurecimento atrás de modais e lightbox */
 .fixed.inset-0:is([class*="bg-black/"], [class*="bg-slate-950/"], [class*="bg-slate-900/"]) {
   background-color: var(--scrim) !important;
@@ -781,7 +800,7 @@ button.border:not([class*="border-rose"], [class*="border-red"], [class*="border
 
 input[type="checkbox"],
 input[type="radio"] {
-  accent-color: var(--accent);
+  accent-color: var(--brand);
 }
 
 select option,

@@ -46,7 +46,7 @@ interface NavGroup {
       color: var(--ink);
     }
     .ps-nav-item.on {
-      color: var(--on-accent);
+      color: var(--on-brand);
     }
     .ps-nav-svg {
       width: 17px;
@@ -59,7 +59,7 @@ interface NavGroup {
       top: 0;
       height: 34px;
       opacity: 0;
-      background: var(--accent);
+      background: var(--brand);
       z-index: 0;
       transition: top 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s;
     }

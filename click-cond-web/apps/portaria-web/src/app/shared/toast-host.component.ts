@@ -11,14 +11,14 @@ import { ToastService } from './toast.service';
       @for (t of svc.toasts(); track t.id) {
         <div class="ps-toast on !static !max-w-full pointer-events-auto animate-slide-in" role="alert">
           <span class="ps-dot shrink-0 outline outline-1 outline-offset-0"
-                style="outline-color: var(--on-accent)"
+                style="outline-color: var(--on-brand)"
                 [class.ps-dot-ok]="t.type === 'success'"
                 [class.ps-dot-danger]="t.type === 'error'"
                 [class.ps-dot-warn]="t.type === 'warning'"
                 [class.ps-dot-ink]="t.type === 'info'"></span>
           <p class="flex-1 min-w-0 text-sm">{{ t.message }}</p>
           <button type="button" (click)="svc.remove(t.id)" aria-label="Fechar"
-                  class="ps-ibtn !w-6 !h-6 !text-[var(--on-accent)] hover:!bg-transparent opacity-70 hover:opacity-100 shrink-0">
+                  class="ps-ibtn !w-6 !h-6 !text-[var(--on-brand)] hover:!bg-transparent opacity-70 hover:opacity-100 shrink-0">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>

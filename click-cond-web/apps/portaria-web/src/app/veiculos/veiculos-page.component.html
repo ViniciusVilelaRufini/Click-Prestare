@@ -265,7 +265,7 @@
             class="ps-btn disabled:opacity-50 disabled:cursor-not-allowed"
           >
             @if (salvandoVeiculo()) {
-              <span class="w-3.5 h-3.5 border-2 border-[var(--on-accent)] border-t-transparent rounded-full animate-spin"></span>
+              <span class="w-3.5 h-3.5 border-2 border-[var(--on-brand)] border-t-transparent rounded-full animate-spin"></span>
               <span>Salvando...</span>
             } @else {
               <span>{{ editandoVeiculo() ? 'Salvar Alterações' : 'Confirmar Cadastro' }}</span>
@@ -325,7 +325,7 @@
             class="ps-btn disabled:opacity-50 disabled:cursor-not-allowed"
           >
             @if (salvandoTag()) {
-              <span class="w-3.5 h-3.5 border-2 border-[var(--on-accent)] border-t-transparent rounded-full animate-spin"></span>
+              <span class="w-3.5 h-3.5 border-2 border-[var(--on-brand)] border-t-transparent rounded-full animate-spin"></span>
               <span>Salvando...</span>
             } @else {
               <span>Cadastrar Tag</span>

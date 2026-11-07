@@ -135,7 +135,7 @@ import { ThemeService } from '../shared/theme.service';
             -->
             <label class="flex items-start gap-3 p-3 border border-white/10 cursor-pointer">
               <input type="checkbox" name="aceite" [(ngModel)]="aceite"
-                class="mt-0.5 w-4 h-4 shrink-0" style="accent-color: var(--accent)" />
+                class="mt-0.5 w-4 h-4 shrink-0" style="accent-color: var(--brand)" />
               <span class="text-[11px] leading-relaxed text-slate-400">
                 Autorizo o condomínio a usar meu nome, CPF e foto para autorizar
                 minha entrada, <strong class="text-slate-300">inclusive pelo reconhecimento facial da portaria</strong>,
