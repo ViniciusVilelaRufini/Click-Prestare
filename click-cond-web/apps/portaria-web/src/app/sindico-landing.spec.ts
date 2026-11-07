@@ -78,7 +78,7 @@ it('apresenta a transformação da rotina em um fluxo visual sem grade de cards 
 it('mostra processos e telas reais do console', () => {
   const html = htmlDaPaginaSindico();
   ['Visitantes', 'Encomendas', 'Comunicados', 'Áreas sociais', 'Financeiro', 'Ocorrências'].forEach((t) => expect(html).toContain(t));
-  ['web-dashboard.png', 'web-visitantes.png', 'web-financeiro.png', 'web-autorizacao.png'].forEach((a) => expect(html).toContain(`/sobre/assets/${a}`));
+  ['web-dashboard-claro.jpg', 'web-visitantes-claro.jpg', 'web-ocorrencias-claro.jpg', 'web-relatorios-claro.jpg'].forEach((a) => expect(html).toContain(`/sobre/assets/${a}`));
   expect(html).toContain('aspect-ratio: 16 / 10');
 });
 

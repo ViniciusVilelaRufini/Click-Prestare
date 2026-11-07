@@ -780,8 +780,9 @@
           <button class="ibtn" type="button" onClick="{{ consoleAnterior }}" aria-label="Tela anterior"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
           <div class="dots">
             <button type="button" onClick="{{ consoleIr0 }}" aria-label="Ver Visitantes"><span style="width: {{ consoleLarg0 }}; background: {{ consoleCor0 }};"></span></button>
-            <button type="button" onClick="{{ consoleIr1 }}" aria-label="Ver Financeiro"><span style="width: {{ consoleLarg1 }}; background: {{ consoleCor1 }};"></span></button>
-            <button type="button" onClick="{{ consoleIr2 }}" aria-label="Ver Dashboard"><span style="width: {{ consoleLarg2 }}; background: {{ consoleCor2 }};"></span></button>
+            <button type="button" onClick="{{ consoleIr1 }}" aria-label="Ver Dashboard"><span style="width: {{ consoleLarg1 }}; background: {{ consoleCor1 }};"></span></button>
+            <button type="button" onClick="{{ consoleIr2 }}" aria-label="Ver Ocorrências"><span style="width: {{ consoleLarg2 }}; background: {{ consoleCor2 }};"></span></button>
+            <button type="button" onClick="{{ consoleIr3 }}" aria-label="Ver Relatórios"><span style="width: {{ consoleLarg3 }}; background: {{ consoleCor3 }};"></span></button>
           </div>
           <button class="ibtn" type="button" onClick="{{ consoleProximo }}" aria-label="Próxima tela"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
         </div>
@@ -1179,7 +1180,7 @@ class Component extends DCLogic {
 
   // Ordem do carrossel do console. As legendas e os textos moram no TELAS,
   // para o carrossel e o modal nunca divergirem.
-  CONSOLE_TELAS = ["web-visitantes", "web-financeiro", "web-dashboard"];
+  CONSOLE_TELAS = ["web-visitantes", "web-dashboard", "web-ocorrencias", "web-relatorios"];
 
   alternarMenu = () => this.setState({ menuAberto: !this.state.menuAberto });
   fecharMenu = () => this.setState({ menuAberto: false });
@@ -1285,7 +1286,7 @@ class Component extends DCLogic {
       itens: ["Foto e nome de quem está no portão", "Autorizar, negar ou decidir depois", "Resolve sem atender o interfone"]
     },
     "web-visitantes": {
-      src: "/sobre/assets/web-visitantes-dark.jpg", srcClaro: "/sobre/assets/web-visitantes-light.jpg", tipo: "Sistema web", titulo: "Visitantes",
+      src: "/sobre/assets/web-visitantes-claro.jpg", srcClaro: "/sobre/assets/web-visitantes-claro.jpg", dim: [1600, 900], tipo: "Sistema web", titulo: "Visitantes",
       legenda: "Visitantes · controle de acesso, entrada e saída do condomínio",
       texto: "A tela que a portaria usa no turno inteiro. Ativos no local, liberados aguardando, quem saiu e o total registrado — com documento mascarado, validação de PIN e baixa por apartamento.",
       itens: ["Ativos no local em tempo real", "Dar baixa e nova visita em um clique", "Documento revelado só por permissão"]
@@ -1297,10 +1298,22 @@ class Component extends DCLogic {
       itens: ["Receitas, despesas e saldo do período", "Inadimplência por bloco e apartamento", "Exportação em CSV"]
     },
     "web-dashboard": {
-      src: "/sobre/assets/web-dashboard.png", tipo: "Sistema web", titulo: "Dashboard da operação",
+      src: "/sobre/assets/web-dashboard-claro.jpg", srcClaro: "/sobre/assets/web-dashboard-claro.jpg", dim: [1600, 894], tipo: "Sistema web", titulo: "Dashboard da operação",
       legenda: "Dashboard · o condomínio agora, com os últimos eventos em tempo real",
       texto: "A tela que o síndico abre para saber como o condomínio está agora: visitantes no local, encomendas aguardando retirada, ocorrências pendentes e prestadores ativos. Ao lado, o fluxo de entradas e saídas em tempo real e os atalhos que a portaria mais usa no turno.",
       itens: ["Quatro indicadores do dia em destaque", "Últimos eventos com filtro por tipo", "Atalhos: liberar visitante, validar PIN, dar baixa"]
+    },
+    "web-ocorrencias": {
+      src: "/sobre/assets/web-ocorrencias-claro.jpg", srcClaro: "/sobre/assets/web-ocorrencias-claro.jpg", dim: [1600, 899], tipo: "Sistema web", titulo: "Ocorrências",
+      legenda: "Ocorrências · registro, prioridade e resposta da administração",
+      texto: "Cada ocorrência chega com categoria, prioridade e prazo. A administração responde na própria ficha, atribui um responsável, marca como ciente e solucionada, e conversa com quem abriu — tudo registrado no histórico.",
+      itens: ["Pendentes, em andamento e solucionadas", "Resposta da administração na ficha", "Atribuição e conversa com o morador"]
+    },
+    "web-relatorios": {
+      src: "/sobre/assets/web-relatorios-claro.jpg", srcClaro: "/sobre/assets/web-relatorios-claro.jpg", dim: [1600, 900], tipo: "Sistema web", titulo: "Relatórios e auditoria",
+      legenda: "Relatórios · acessos, encomendas, ocorrências e balanço financeiro",
+      texto: "Relatórios consolidados de acessos, encomendas, ocorrências e balanço financeiro, com filtro por período e saída em PDF ou planilha. A exportação completa dos dados atende a LGPD.",
+      itens: ["Filtro por período", "PDF para imprimir ou planilha Excel", "Exportação completa dos dados (LGPD)"]
     }
   };
 
@@ -1308,7 +1321,7 @@ class Component extends DCLogic {
   // que só existem no visual antigo saem em tons de cinza para não destoar.
   imgTela = (t, alt, estilo) => {
     // Dimensões reais dos arquivos: reservam o espaço antes de a imagem chegar.
-    const dim = t.srcClaro ? (t.retrato ? [540, 1169] : [1400, 875]) : (t.retrato ? [738, 1600] : [1919, 943]);
+    const dim = t.dim || (t.srcClaro ? (t.retrato ? [540, 1169] : [1400, 875]) : (t.retrato ? [738, 1600] : [1919, 943]));
     const props = { alt: alt, style: estilo, width: dim[0], height: dim[1] };
     if (!t.srcClaro) return React.createElement("img", { ...props, src: t.src, className: "ps-antiga" });
     return React.createElement(React.Fragment, null,
@@ -1795,12 +1808,15 @@ class Component extends DCLogic {
       consoleIr0: this.irConsole(0),
       consoleIr1: this.irConsole(1),
       consoleIr2: this.irConsole(2),
+      consoleIr3: this.irConsole(3),
       consoleCor0: ci === 0 ? "var(--brand)" : "var(--line-200)",
       consoleCor1: ci === 1 ? "var(--brand)" : "var(--line-200)",
       consoleCor2: ci === 2 ? "var(--brand)" : "var(--line-200)",
+      consoleCor3: ci === 3 ? "var(--brand)" : "var(--line-200)",
       consoleLarg0: ci === 0 ? "28px" : "14px",
       consoleLarg1: ci === 1 ? "28px" : "14px",
       consoleLarg2: ci === 2 ? "28px" : "14px",
+      consoleLarg3: ci === 3 ? "28px" : "14px",
       mostrarNumeros: this.props.mostrarNumeros ?? true,
       mostrarFaq: this.props.mostrarFaq ?? true,
       telefone: this.formatarTelefone(this.props.whatsapp ?? "5517996608148"),
