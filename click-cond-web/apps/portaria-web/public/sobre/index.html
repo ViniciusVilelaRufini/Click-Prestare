@@ -32,16 +32,7 @@
 <meta name="twitter:title" content="Prestare Gestão — controle de acesso e portaria digital para condomínios">
 <meta name="twitter:description" content="Controle de acesso para condomínios: reconhecimento facial, portaria digital e remota, visitantes, encomendas e app do morador. Peça um orçamento.">
 <meta name="twitter:image" content="https://www.prestarecondominios.com.br/sobre/assets/og-prestare-gestao-v3.jpg">
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18476913499"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'AW-18476913499');
-</script>
-<!-- OpenAI Ads Pixel -->
-<script>!function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");oaiq("init",{pixelId:"17H2XPR4dY5HHBNUs9L5ha"});</script>
+<script src="/consentimento-anuncios.js"></script>
 <script>
   // Origem do lead: parâmetros dos anúncios guardados na chegada, para não se
   // perderem se a pessoa navegar pela página antes de pedir orçamento.
@@ -1098,7 +1089,7 @@
             </label>
             <label class="cookie-opt">
               <input type="checkbox" checked="{{ cookieMarketing }}" onChange="{{ alternarMarketing }}">
-              <span style="min-width: 0;"><b>Marketing</b><small>Permite medir a origem de quem chega até aqui por anúncio ou campanha.</small></span>
+              <span style="min-width: 0;"><b>Marketing</b><small>Permite medir a origem de quem chega até aqui por anúncio ou campanha. Inclui tags do Google Ads e da OpenAI.</small></span>
             </label>
           </div>
         </sc-if>
@@ -1528,6 +1519,7 @@ class Component extends DCLogic {
       versao: 1, data: new Date().toISOString(),
       necessarios: true, analytics: analytics, marketing: marketing
     });
+    if (window.psAplicarConsentimento) window.psAplicarConsentimento();
     this.setState({
       cookieAnalytics: analytics, cookieMarketing: marketing,
       cookieBanner: false, cookiePainel: false

@@ -22,9 +22,7 @@
   <meta name="twitter:title" content="Prestare Gestão para síndicos | Mais controle, menos rotina">
   <meta name="twitter:description" content="Gestão do condomínio sem consumir o seu dia.">
   <meta name="twitter:image" content="https://www.prestarecondominios.com.br/sobre/assets/og-prestare-gestao-v3.jpg">
-  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18476913499"></script>
-  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','AW-18476913499');</script>
-  <script>!function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");oaiq("init",{pixelId:"17H2XPR4dY5HHBNUs9L5ha"});</script>
+  <script src="/consentimento-anuncios.js"></script>
   <script>(function(){try{var q=new URLSearchParams(location.search);var chaves=['gclid','oppref','utm_source','utm_medium','utm_campaign','campaign_id','ad_group_id','ad_id'];var salvo=JSON.parse(sessionStorage.getItem('psOrigem')||'{}');chaves.forEach(function(k){if(q.get(k))salvo[k]=q.get(k)});sessionStorage.setItem('psOrigem',JSON.stringify(salvo))}catch(e){}})();</script>
   <script>
     /* Tema escolhido pela pessoa; sem escolha, segue o sistema (CSS). */
@@ -359,6 +357,14 @@
       .sindico-card{padding:28px 20px}
     }
     @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
+      .sindico-cookie{position:fixed;left:16px;bottom:16px;z-index:90;width:min(440px,calc(100% - 32px));padding:22px;background:var(--bg-100);border:1px solid var(--line-200)}
+    .sindico-cookie[hidden]{display:none}
+    .sindico-cookie h2{font-family:var(--font-display);font-weight:600;font-size:18px;line-height:22px;letter-spacing:.12em;text-transform:uppercase;margin:0}
+    .sindico-cookie p{margin:10px 0 0;font-size:14px;line-height:21px;color:var(--ink-muted)}
+    .sindico-cookie a{color:var(--ink);text-decoration:underline}
+    .sindico-cookie-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+    .sindico-cookie-acoes .btn{flex:1 1 150px;min-height:44px;padding:8px 14px;font-size:12px}
+    .sindico-cookie-link{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
   </style>
 </head>
 <body>
@@ -625,6 +631,7 @@
           <span class="ps-foot-title">Legal</span>
           <a href="/politica-de-privacidade.html">Política de privacidade</a>
           <a href="/termos-de-uso.html">Termos de uso</a>
+          <button type="button" class="sindico-cookie-link" onclick="window.psAbrirCookies&&window.psAbrirCookies()">Preferências de cookies</button>
         </nav>
       </div>
       <div class="bigword" aria-hidden="true">Prestare</div>
@@ -748,5 +755,14 @@
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && menu.hasAttribute('open')) { menu.removeAttribute('open'); menu.querySelector('summary').focus(); } });
     })();
   </script>
+  <div class="sindico-cookie" id="sindicoCookie" role="dialog" aria-label="Preferências de cookies" hidden>
+    <h2>Valorizamos sua privacidade</h2>
+    <p>Os cookies necessários mantêm o site funcionando. Com a sua autorização, usamos também as tags do Google Ads e da OpenAI para medir a origem de quem chega por anúncio. <a href="/politica-de-privacidade.html">Ler a política de privacidade</a></p>
+    <div class="sindico-cookie-acoes">
+      <button type="button" class="btn sec" id="sindicoCookieRejeitar">Rejeitar</button>
+      <button type="button" class="btn" id="sindicoCookieAceitar">Aceitar</button>
+    </div>
+  </div>
+  <script>(function(){var CHAVE='prestare-click:consentimento';var caixa=document.getElementById('sindicoCookie');function ler(){try{return JSON.parse(localStorage.getItem(CHAVE)||'null')}catch(e){return null}}function decidir(aceitou){try{localStorage.setItem(CHAVE,JSON.stringify({versao:1,data:new Date().toISOString(),necessarios:true,analytics:aceitou,marketing:aceitou}))}catch(e){}caixa.hidden=true;if(window.psAplicarConsentimento)window.psAplicarConsentimento()}document.getElementById('sindicoCookieAceitar').onclick=function(){decidir(true)};document.getElementById('sindicoCookieRejeitar').onclick=function(){decidir(false)};window.psAbrirCookies=function(){caixa.hidden=false};if(!ler())caixa.hidden=false})();</script>
 </body>
 </html>
