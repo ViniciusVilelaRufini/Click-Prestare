@@ -150,10 +150,19 @@ URL: `/sobre/?utm_source=chatgpt&utm_medium=cpc&utm_campaign=sindico-sp` · tema
 de condomínio, segurança de condomínio, portaria, síndico. Ajustar aos limites reais do Ads Manager
 (anotados abaixo na Task 7).
 
-- **Título:** Controle de acesso para condomínio
-- **Texto:** Cada entrada registrada com data, hora e quem autorizou. Facial, visitantes e
-  encomendas no app e no computador. A partir de R$ 298/mês.
+- **Título (≤ 50):** Controle de acesso para condomínio
+- **Descrição (≤ 100):** Toda entrada registrada com data, hora e quem autorizou. Facial e app. A partir de R$ 298/mês.
+- **Imagem:** recorte quadrado 1080×1080 da ilustração de `og-prestare-gestao-v3.jpg` (visual atual do site).
 
-### Anotações da plataforma (Task 7)
+### Anotações da plataforma (07/11/2026)
 
-_(preencher: segmentação por estado, orçamento mínimo diário em BRL, limites dos campos)_
+- Segmentação por **estado** existe ("São Paulo, Brazil — Regiões"); campanha só com SP.
+- Orçamento mínimo: **R$ 40/dia**; orçamento total mínimo **R$ 570** (qualquer duração) — por isso
+  R$ 40/dia por 6 dias com data de término (~R$ 240).
+- Objetivo **Cliques** (sem volume para otimizar por conversão); lance **CPC máximo R$ 8,00**
+  (sugerido pela plataforma: R$ 13,50 — avisa "pode não entregar"; subir se não houver impressões em 2 dias).
+- **Aprimoramento criativo desligado** (a IA reescreveria títulos sem revisão).
+- `oppref` é parâmetro reservado: a plataforma acrescenta sozinha. Campanha usa
+  `utm_source=chatgpt&utm_medium=cpc&utm_campaign=sindico-sp`; grupo usa `campaign_id/ad_group_id/ad_id`.
+- Nome do anunciante exibido: "Campanha Prestare Gestão" (configuração da conta — trocar para "Prestare").
+- Campanha salva como **rascunho** "Síndico | SP"; ao liberar, ajustar datas (início = dia da liberação, término = +6 dias) e publicar.
