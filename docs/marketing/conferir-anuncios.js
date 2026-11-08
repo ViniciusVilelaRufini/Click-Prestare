@@ -24,7 +24,7 @@ function conferir(rotulo, textos, max, qtd) {
 
 const titulos = blocos('titulos');
 const descricoes = blocos('descricoes');
-if (titulos.length !== 3 || descricoes.length !== 3) erros.push('esperados 3 grupos de anúncio');
+if (titulos.length !== 4 || descricoes.length !== 4) erros.push('esperados 4 grupos de anúncio');
 titulos.forEach((b, i) => conferir(`títulos G${i + 1}`, itens(b), 30, 15));
 descricoes.forEach((b, i) => conferir(`descrições G${i + 1}`, itens(b), 90, 4));
 blocos('destaques').forEach((b) => conferir('destaques', itens(b), 25));

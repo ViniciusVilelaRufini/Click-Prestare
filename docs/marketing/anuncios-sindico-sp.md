@@ -22,6 +22,8 @@ sufixo de URL: `utm_source=google&utm_medium=cpc&utm_campaign=sindico-sp`
 - **G2 Controle de acesso** (lance R$ 3,50) — frase + exata:
   controle de acesso condomínio · sistema de controle de acesso para condomínio ·
   reconhecimento facial condomínio · acesso facial condomínio
+- **G4 Concorrentes** (lance R$ 3,00, teste) — frase + exata: vida de síndico · gruvi · almah condos · winker
+  (o único lead da campanha antiga veio de "aplicativo vida de síndico"; texto do anúncio não cita concorrente)
 - **G3 Gestão / app** (lance R$ 3,50) — frase + exata:
   aplicativo para condomínio · app para síndico · sistema para síndico
 
@@ -30,7 +32,9 @@ sufixo de URL: `utm_source=google&utm_medium=cpc&utm_campaign=sindico-sp`
 prestare · emprego · vaga · vagas · salário · curso · apostila · concurso · grátis · gratuito ·
 download · pdf · modelo · login · entrar · 2 via · boleto · como ser síndico · o que é ·
 academia · fechadura · catraca usada · mercado livre · olx · reclame aqui ·
-portaria remota · portaria virtual
+portaria remota · portaria virtual ·
+villagua · synnus · lello · administradora · administradoras · site condominios · atende portaria ·
+como funciona · como montar _(adicionadas em 08/11 a partir dos termos da campanha antiga)_
 
 ### Sitelinks
 
@@ -144,6 +148,35 @@ Caminhos: `condominio` / `orcamento` · sem posições fixas
 4. Planos a partir de R$ 298/mês. Simule o preço e fale conosco pelo WhatsApp.
 <!-- /descricoes -->
 
+### Anúncio G4 — Concorrentes
+
+Caminhos: `condominio` / `orcamento` · sem posições fixas
+
+<!-- titulos G4 -->
+1. Aplicativo para Condomínio
+2. Conheça a Prestare
+3. Controle de Acesso Condomínio
+4. Toda Entrada Fica Registrada
+5. Histórico de Quem Entrou
+6. Visitantes e Encomendas
+7. App para Síndico e Portaria
+8. Seu Condomínio no Controle
+9. Compare Antes de Contratar
+10. Console Web e App iOS/Android
+11. A partir de R$ 298/mês
+12. Simule o Preço Online
+13. Peça seu Orçamento
+14. Atendemos Todo o Estado de SP
+15. Prestare Controle de Acesso
+<!-- /titulos -->
+
+<!-- descricoes G4 -->
+1. Cada entrada fica registrada com data, hora e quem autorizou. Consulte quando quiser.
+2. Visitantes, encomendas e ocorrências num só sistema, no app e no computador.
+3. Compare antes de contratar: simule o preço do seu condomínio em poucos segundos.
+4. Planos a partir de R$ 298/mês. Simule o preço e fale conosco pelo WhatsApp.
+<!-- /descricoes -->
+
 ## ChatGPT Ads — campanha "Síndico | SP"
 
 URL: `/sobre/?utm_source=chatgpt&utm_medium=cpc&utm_campaign=sindico-sp` · temas: administração
@@ -165,4 +198,9 @@ de condomínio, segurança de condomínio, portaria, síndico. Ajustar aos limit
 - `oppref` é parâmetro reservado: a plataforma acrescenta sozinha. Campanha usa
   `utm_source=chatgpt&utm_medium=cpc&utm_campaign=sindico-sp`; grupo usa `campaign_id/ad_group_id/ad_id`.
 - Nome do anunciante exibido: "Campanha Prestare Gestão" (configuração da conta — trocar para "Prestare").
+- **08/11 — aprendizados das campanhas antigas** (set–nov: R$ 274,85, 123 cliques, CPC real R$ 1,72–4,36, 1 conversão):
+  campanha antiga "Prestare Gestão | Orçamento | Conversões" pausada; 2º anúncio no grupo, com o texto antigo de melhor CTR
+  adaptado aos limites deste formulário (título ≤ 32, descrição ≤ 54): "Síndico: acesso sem complicação" /
+  "Visitantes e encomendas no app. Peça seu orçamento." (cópia duplicada desligada).
+- 1º anúncio reprovado com "Facial"; aprovado sem biometria: "Toda entrada registrada: data, hora e quem autorizou. Visitantes no app. Desde R$ 298/mês."
 - Campanha salva como **rascunho** "Síndico | SP"; ao liberar, ajustar datas (início = dia da liberação, término = +6 dias) e publicar.

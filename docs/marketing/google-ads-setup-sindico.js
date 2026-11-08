@@ -8,7 +8,7 @@
  */
 var CAMPANHA = 'Síndico | Pesquisa | SP';
 var URL_FINAL = 'https://www.prestarecondominios.com.br/sobre/';
-var ORCAMENTO_DIA = 10;
+var ORCAMENTO_DIA = 15; // ajustado pelo usuário em 07/11/2026
 var CAMINHOS = ['condominio', 'orcamento'];
 
 var NEGATIVAS = [
@@ -16,6 +16,9 @@ var NEGATIVAS = [
   'grátis', 'gratuito', 'download', 'pdf', 'modelo', 'login', 'entrar', '2 via', 'boleto',
   'como ser síndico', 'o que é', 'academia', 'fechadura', 'catraca usada', 'mercado livre',
   'olx', 'reclame aqui', 'portaria remota', 'portaria virtual',
+  // Aprendido com a campanha antiga (termos de pesquisa set–nov/2026):
+  'villagua', 'synnus', 'lello', 'administradora', 'administradoras', 'site condominios',
+  'atende portaria', 'como funciona', 'como montar',
 ];
 
 var DESCRICOES_COMUNS = {
@@ -65,6 +68,20 @@ var GRUPOS = [
     descricoes: ['O síndico acompanha visitantes, encomendas e ocorrências pelo app e pelo computador.',
       DESCRICOES_COMUNS.registro,
       'Menos mensagens e ligações para resolver o básico do dia a dia do condomínio.', DESCRICOES_COMUNS.preco],
+  },
+  {
+    // Teste: o único lead da campanha antiga veio de "aplicativo vida de síndico".
+    // Marca de concorrente só como palavra-chave; o texto do anúncio não cita concorrente.
+    nome: 'G4 Concorrentes',
+    cpc: 3.0,
+    palavras: ['vida de síndico', 'gruvi', 'almah condos', 'winker'],
+    titulos: ['Aplicativo para Condomínio', 'Conheça a Prestare', 'Controle de Acesso Condomínio',
+      'Toda Entrada Fica Registrada', 'Histórico de Quem Entrou', 'Visitantes e Encomendas',
+      'App para Síndico e Portaria', 'Seu Condomínio no Controle', 'Compare Antes de Contratar',
+      'Console Web e App iOS/Android', 'A partir de R$ 298/mês', 'Simule o Preço Online', 'Peça seu Orçamento',
+      'Atendemos Todo o Estado de SP', 'Prestare Controle de Acesso'],
+    descricoes: [DESCRICOES_COMUNS.registro, DESCRICOES_COMUNS.sistema,
+      'Compare antes de contratar: simule o preço do seu condomínio em poucos segundos.', DESCRICOES_COMUNS.preco],
   },
 ];
 
