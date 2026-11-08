@@ -105,14 +105,22 @@ function programarHorario(c) {
   Logger.log('Horário: seg–sex 07–21h, sáb 08–14h');
 }
 
+// Chave estável: o Google pode devolver o texto sem aspas/colchetes; o tipo vem de getMatchType().
+function chave(texto, tipo) {
+  return texto.replace(/^[\["+]+|[\]"]+$/g, '').trim().toLowerCase() + '|' + tipo;
+}
+function tipoDoTexto(t) {
+  return t.charAt(0) === '[' ? 'EXACT' : t.charAt(0) === '"' ? 'PHRASE' : 'BROAD';
+}
+
 function negativas(c) {
   var existentes = {};
   var it = c.negativeKeywords().get();
-  while (it.hasNext()) existentes[it.next().getText()] = true;
+  while (it.hasNext()) { var nk = it.next(); existentes[chave(nk.getText(), nk.getMatchType())] = true; }
   var n = 0;
   NEGATIVAS.forEach(function (p) {
     var t = '"' + p + '"';
-    if (!existentes[t]) { c.createNegativeKeyword(t); n++; }
+    if (!existentes[chave(t, 'PHRASE')]) { c.createNegativeKeyword(t); n++; }
   });
   Logger.log('Negativas novas: ' + n + ' (total desejado ' + NEGATIVAS.length + ')');
 }
@@ -138,11 +146,11 @@ function montarGrupo(c, g) {
 
   var existentes = {};
   var kit = ag.keywords().get();
-  while (kit.hasNext()) existentes[kit.next().getText()] = true;
+  while (kit.hasNext()) { var kw = kit.next(); existentes[chave(kw.getText(), kw.getMatchType())] = true; }
   var novas = 0;
   g.palavras.forEach(function (p) {
     ['"' + p + '"', '[' + p + ']'].forEach(function (t) {
-      if (existentes[t]) return;
+      if (existentes[chave(t, tipoDoTexto(t))]) return;
       var op = ag.newKeywordBuilder().withText(t).build();
       if (!op.isSuccessful()) Logger.log('  palavra ' + t + ' falhou: ' + op.getErrors().join('; '));
       else novas++;
