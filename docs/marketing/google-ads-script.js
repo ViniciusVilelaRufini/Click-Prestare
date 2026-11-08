@@ -8,6 +8,7 @@
  * WhatsApp (últimos 30 dias). A ação de conversão NOME_CONVERSAO precisa
  * existir na conta, do tipo "Importação → cliques". O reenvio diário dos
  * mesmos leads usa a mesma hora e o Google descarta como duplicata.
+ * A hora vai sem fuso (yyyy-MM-dd HH:mm:ss) e o fuso entra no upload (America/Sao_Paulo).
  */
 var URL = 'https://api.prestarecondominios.com.br/api/public/ads/google';
 var TOKEN = 'COLE_AQUI_O_ADS_INGEST_TOKEN';
@@ -60,14 +61,14 @@ function enviarConversoes() {
       return;
     }
     var upload = AdsApp.bulkUploads()
-      .newCsvUpload(['Google Click ID', 'Conversion Name', 'Conversion Time'], { moneyInMicros: false })
+      .newCsvUpload(['Google Click ID', 'Conversion Name', 'Conversion Time'], { moneyInMicros: false, timeZone: 'America/Sao_Paulo' })
       .forOfflineConversions()
-      .setFileName('crm-prestare-' + Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd'));
+      .setFileName('crm-prestare-' + Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd-HH'));
     conversoes.forEach(function (c) {
-      upload.append({ 'Google Click ID': c.gclid, 'Conversion Name': NOME_CONVERSAO, 'Conversion Time': c.conversao_em });
+      upload.append({ 'Google Click ID': c.gclid, 'Conversion Name': NOME_CONVERSAO, 'Conversion Time': String(c.conversao_em).slice(0, 19) });
     });
     upload.apply();
-    Logger.log('Conversões: ' + conversoes.length + ' enviadas para "' + NOME_CONVERSAO + '"');
+    Logger.log('Conversões: ' + conversoes.length + ' na fila de upload para "' + NOME_CONVERSAO + '" — resultado por linha em Ferramentas → Ações em massa → Uploads');
   } catch (e) {
     Logger.log('Conversões: falhou — ' + e);
   }
