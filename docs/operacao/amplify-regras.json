@@ -28,10 +28,5 @@
     "source": "</^\\/((login|redefinir-senha|selecionar-condominio|convite|politica-de-privacidade|politica-privacidade|exclusao-de-conta|exclusao-conta|dashboard|visitantes|prestadores|moradores|apartamentos|veiculos|ocorrencias|comunicados|encomendas|delivery|areas-sociais|assembleias|financeiro|documentos|configuracoes|terminais-faciais|relatorios)(\\/[^.]*)?)?$/>",
     "target": "/index.html",
     "status": "200"
-  },
-  {
-    "source": "/<*>",
-    "target": "/404.html",
-    "status": "404"
   }
 ]

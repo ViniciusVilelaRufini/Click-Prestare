@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const pub = (p: string) => join(process.cwd(), 'apps/portaria-web/public', p);
@@ -104,11 +104,10 @@ describe('página inexistente', () => {
   it('caminho desconhecido não entra no SPA', () => {
     ['/pagina-que-nao-existe-xyz', '/sobre/nao-existe', '/loginx'].forEach((c) => expect([c, casa(c)]).toEqual([c, false]));
   });
-  it('o resto vira 404 real, com página própria que não indexa', () => {
+  it('sem regra pegando todo o resto: o Amplify responde 404 real (vazio) ao que nao existe', () => {
     const r = regras();
-    expect(r[r.length - 1]).toMatchObject({ source: '/<*>', target: '/404.html', status: '404' });
-    expect(existsSync(pub('404.html'))).toBe(true);
-    expect(readFileSync(pub('404.html'), 'utf8')).toContain('noindex');
+    expect(r.some((x) => x.source === '/<*>')).toBe(false);
+    expect(r[r.length - 1].target).toBe('/index.html');
   });
 });
 
