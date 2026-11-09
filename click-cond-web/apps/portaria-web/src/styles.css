@@ -794,6 +794,14 @@ html, body {
   transition: background-color 0.4s, color 0.4s;
 }
 
+/* Troca de tema: desliga as transições por um instante (ver ThemeService) */
+html.sem-transicao,
+html.sem-transicao *,
+html.sem-transicao *::before,
+html.sem-transicao *::after {
+  transition: none !important;
+}
+
 .app-bg {
   background: var(--bg-000) !important;
   transition: background-color 0.4s;

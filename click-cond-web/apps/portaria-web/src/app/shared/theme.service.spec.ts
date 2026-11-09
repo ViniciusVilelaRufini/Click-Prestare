@@ -146,4 +146,40 @@ describe('ThemeService', () => {
     expect(service.isLight()).toBe(false);
     expect(temaAplicado()).toEqual({ light: false, dark: true });
   });
+});
+
+// Cada elemento anima cor e fundo; sem isto a troca recalculava a página inteira
+// a cada quadro por quase 1 s e o console travava.
+describe('troca de tema sem transição', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.className = '';
+    document.body.className = '';
+    sistema('dark');
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => jest.useRealTimers());
+
+  it('aplica o tema com as transições desligadas e as religa depois', () => {
+    const service = new ThemeService();
+    service.toggleTheme();
+    expect(temaAplicado()).toEqual({ light: true, dark: false });
+    expect(document.documentElement.classList.contains('sem-transicao')).toBe(true);
+
+    jest.runAllTimers();
+    expect(document.documentElement.classList.contains('sem-transicao')).toBe(false);
+  });
+
+  it('a regra que desliga as transições existe no CSS global', () => {
+    const css = readFileSync(join(__dirname, '../../styles.css'), 'utf8');
+    // O próprio <html> anima a cor, que é herdada: sem ele aqui a página inteira
+    // continuava sendo recalculada a cada quadro.
+    expect(css).toMatch(/html\.sem-transicao,\s*html\.sem-transicao \*[\s\S]*?transition: none !important/);
+  });
+
+  it('a escolha inicial não passa pelo modo sem transição', () => {
+    new ThemeService();
+    expect(document.documentElement.classList.contains('sem-transicao')).toBe(false);
+  });
 });

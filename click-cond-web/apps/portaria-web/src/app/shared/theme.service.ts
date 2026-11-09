@@ -33,9 +33,16 @@ export class ThemeService {
     }
   }
 
+  // Quase todo elemento anima cor e fundo. Trocar o tema com as transições ligadas
+  // fazia o navegador recalcular a página inteira a cada quadro por quase 1 s e o
+  // console travava. Aplica o tema de uma vez, já sem transição, e depois as religa.
   toggleTheme() {
+    const raiz = document.documentElement;
+    raiz.classList.add('sem-transicao');
     const nextLight = !this.isLight();
     this.setTheme(nextLight);
     localStorage.setItem(CHAVE_TEMA, nextLight ? 'light' : 'dark');
+    void document.body.offsetHeight;
+    setTimeout(() => raiz.classList.remove('sem-transicao'));
   }
 }
