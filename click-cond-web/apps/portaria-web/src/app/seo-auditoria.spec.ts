@@ -100,6 +100,7 @@ describe('página inexistente', () => {
     expect(caminhos.length).toBeGreaterThan(20);
     caminhos.forEach((c) => expect([c, casa('/' + c)]).toEqual([c, true]));
   });
+  it('a raiz continua indo para o console', () => expect(casa('/')).toBe(true));
   it('caminho desconhecido não entra no SPA', () => {
     ['/pagina-que-nao-existe-xyz', '/sobre/nao-existe', '/loginx'].forEach((c) => expect([c, casa(c)]).toEqual([c, false]));
   });
