@@ -84,7 +84,7 @@ class Pagina {
   TELAS = {
     "app-home": {
       src: "/sobre/assets/TelaInicio-dark.webp", srcClaro: "/sobre/assets/TelaInicio-light.webp", tipo: "App do morador", retrato: true, titulo: "Início",
-      texto: "A primeira tela do morador: saudação, resumo do dia com visitas agendadas e encomendas aguardando retirada, e a lista dos condomínios em que ele tem unidade — cada um com o que está acontecendo lá agora. Abaixo, os eventos recentes de entrada e saída da própria unidade.",
+      texto: "A primeira tela do morador: saudação, resumo do dia com visitas agendadas e encomendas aguardando retirada, e a lista dos condomínios em que ele tem unidade, cada um com o que está acontecendo lá agora. Abaixo, os eventos recentes de entrada e saída da própria unidade.",
       itens: ["Resumo geral do dia", "Situação de cada condomínio à vista", "Eventos recentes da unidade"]
     },
     "app-ia": {
@@ -104,7 +104,7 @@ class Pagina {
     },
     "app-financeiro": {
       src: "/sobre/assets/TelaFinanceiro-dark.webp", srcClaro: "/sobre/assets/TelaFinanceiro-light.webp", tipo: "App do morador", retrato: true, titulo: "Meu financeiro",
-      texto: "A conta do condomínio na palma da mão: total pendente em destaque, mês a mês, e cada conta com o próprio status — Condomínio, Aluguel, Água, Luz e Internet.",
+      texto: "A conta do condomínio na palma da mão: total pendente em destaque, mês a mês, e cada conta com o próprio status: Condomínio, Aluguel, Água, Luz e Internet.",
       itens: ["Total pendente do mês", "1 pendente · Nenhuma pendência", "Boleto direto na conta"]
     },
     "porteiro-inicio": {
@@ -114,7 +114,7 @@ class Pagina {
     },
     "porteiro-mudancas": {
       src: "/sobre/assets/porteiro-mudancas.webp", tipo: "App da portaria", retrato: true, titulo: "Agendamentos de mudança",
-      texto: "O morador pede a data da mudança e a portaria aceita ou recusa na própria tela, sem bilhete no balcão. Cada pedido mostra apartamento, dia e hora, e fica com o estado à vista — pendente, aceito ou recusado.",
+      texto: "O morador pede a data da mudança e a portaria aceita ou recusa na própria tela, sem bilhete no balcão. Cada pedido mostra apartamento, dia e hora, e fica com o estado à vista: pendente, aceito ou recusado.",
       itens: ["Aceitar ou recusar em um toque", "Pendentes destacados no topo", "Histórico do que já foi agendado"]
     },
     "porteiro-comunicados": {
@@ -129,18 +129,18 @@ class Pagina {
     },
     "web-autorizacao": {
       src: "/sobre/assets/web-autorizacao.webp", dim: [1919, 943], tipo: "Sistema web", titulo: "Autorização de acesso",
-      texto: "A portaria toca em Solicitar e o pedido sai para o morador. Quando a resposta volta, o console mostra o estado na própria linha — e oferece os dois caminhos: registrar a entrada no sistema ou liberar a catraca e o portão físico.",
+      texto: "A portaria toca em Solicitar e o pedido sai para o morador. Quando a resposta volta, o console mostra o estado na própria linha e oferece dois caminhos: registrar a entrada no sistema ou liberar a catraca e o portão físico.",
       itens: ["Solicitar direto da linha da pessoa", "Resposta do morador em tempo real", "Registrar entrada ou liberar catraca"]
     },
     "app-autorizacao": {
       src: "/sobre/assets/app-autorizacao.webp", tipo: "App do morador", retrato: true, titulo: "Liberação pelo morador",
-      texto: "A notificação chega com a foto e o nome de quem está no portão. O morador responde de onde estiver: Negar, Autorizar, ou Autorizar e Dar Entrada de uma vez — e ainda pode deixar para decidir depois, sem travar a portaria.",
+      texto: "A notificação chega com a foto e o nome de quem está no portão. O morador responde de onde estiver: Negar, Autorizar, ou Autorizar e Dar Entrada de uma vez. Também pode deixar para decidir depois, sem travar a portaria.",
       itens: ["Foto e nome de quem está no portão", "Autorizar, negar ou decidir depois", "Resolve sem atender o interfone"]
     },
     "web-visitantes": {
       src: "/sobre/assets/web-visitantes-claro.webp", srcClaro: "/sobre/assets/web-visitantes-claro.webp", dim: [1600, 900], tipo: "Sistema web", titulo: "Visitantes",
       legenda: "Visitantes · controle de acesso, entrada e saída do condomínio",
-      texto: "A tela que a portaria usa no turno inteiro. Ativos no local, liberados aguardando, quem saiu e o total registrado — com documento mascarado na tela, validação de PIN e baixa por apartamento.",
+      texto: "A tela que a portaria usa no turno inteiro. Ativos no local, liberados aguardando, quem saiu e o total registrado, com documento mascarado na tela, validação de PIN e baixa por apartamento.",
       itens: ["Ativos no local em tempo real", "Dar baixa e nova visita em um clique", "Documento mascarado na lista"]
     },
     "web-financeiro": {
@@ -158,7 +158,7 @@ class Pagina {
     "web-ocorrencias": {
       src: "/sobre/assets/web-ocorrencias-claro.webp", srcClaro: "/sobre/assets/web-ocorrencias-claro.webp", dim: [1600, 899], tipo: "Sistema web", titulo: "Ocorrências",
       legenda: "Ocorrências · registro, prioridade e resposta da administração",
-      texto: "Cada ocorrência chega com categoria, prioridade e prazo. A administração responde na própria ficha, atribui um responsável, marca como ciente e solucionada, e conversa com quem abriu — tudo registrado no histórico.",
+      texto: "Cada ocorrência chega com categoria, prioridade e prazo. A administração responde na própria ficha, atribui um responsável, marca como ciente e solucionada, e conversa com quem abriu. Tudo fica no histórico.",
       itens: ["Pendentes, em andamento e solucionadas", "Resposta da administração na ficha", "Atribuição e conversa com o morador"]
     },
     "web-relatorios": {
@@ -644,7 +644,7 @@ class Pagina {
       abrirWebAutorizacao: this.abrir("web-autorizacao"),
       abrirAppAutorizacao: this.abrir("app-autorizacao"),
       consoleImg: this.imgTela(telaConsole, telaConsole.titulo + " no sistema web, com dados fictícios", { width: "100%" }),
-      consoleAlt: telaConsole.titulo + " no sistema web — clique para ampliar",
+      consoleAlt: telaConsole.titulo + " no sistema web. Clique para ampliar",
       consoleLegenda: telaConsole.legenda,
       consoleAbrir: this.abrir(chaveConsole),
       menuAberto: this.state.menuAberto,

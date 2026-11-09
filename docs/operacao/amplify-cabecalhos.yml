@@ -22,8 +22,22 @@ customHeaders:
         value: strict-origin-when-cross-origin
       - key: Permissions-Policy
         value: camera=(self), microphone=(), geolocation=(), payment=()
+      # Report-Only sem 'unsafe-eval': nem a landing (pagina.js, sem Babel) nem o
+      # console Angular (AOT) usam eval, então qualquer relato aqui é sinal de
+      # problema. Antes de trocar para Content-Security-Policy (aplicada), ver a
+      # proposta "CSP aplicada" no fim do arquivo.
       - key: Content-Security-Policy-Report-Only
-        value: "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        value: "default-src 'self' https: data: blob: 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+
+  # ---- Texto e XML com charset: llms.txt e robots.txt têm acentos ----
+  - pattern: '*.txt'
+    headers:
+      - key: Content-Type
+        value: text/plain; charset=utf-8
+  - pattern: '/sitemap.xml'
+    headers:
+      - key: Content-Type
+        value: application/xml; charset=utf-8
 
   # ---- Cache longo e imutável: só arquivos cujo nome muda quando o conteúdo muda ----
   # Pacotes do Angular gerados com outputHashing "all" (main-HASH.js, chunk-HASH.js...).
@@ -52,14 +66,36 @@ customHeaders:
     headers:
       - key: Cache-Control
         value: public, max-age=31536000, immutable
-  # Imagem com versão no nome (og-prestare-gestao-v3.jpg).
-  - pattern: '/sobre/assets/*-v[0-9]*.*'
+  # Imagem com versão no nome. Padrão explícito (sem classe [0-9] de glob, que
+  # não está documentada nos cabeçalhos do Amplify). Ao criar uma -v4, somar aqui.
+  - pattern: '/sobre/assets/og-prestare-gestao-v3.jpg'
     headers:
       - key: Cache-Control
         value: public, max-age=31536000, immutable
-  # Demais imagens das páginas: os nomes ainda não levam versão, então o cache
-  # é de 1 dia com revalidação, para uma troca de tela aparecer no dia seguinte.
+  # Demais imagens das páginas (telas, OGs por página, foto do escritório,
+  # selos): os nomes ainda não levam versão, então o cache é de 1 dia com
+  # revalidação, para uma troca de imagem aparecer no dia seguinte.
   - pattern: '/sobre/assets/*.webp'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=86400, stale-while-revalidate=604800
+  - pattern: '/sobre/assets/*.jpg'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=86400, stale-while-revalidate=604800
+  - pattern: '/sobre/assets/*.png'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=86400, stale-while-revalidate=604800
+  - pattern: '/sobre/assets/*.svg'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=86400, stale-while-revalidate=604800
+  - pattern: '/*.svg'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=86400, stale-while-revalidate=604800
+  - pattern: '/favicon*'
     headers:
       - key: Cache-Control
         value: public, max-age=86400, stale-while-revalidate=604800
@@ -225,3 +261,30 @@ customHeaders:
 #
 # Não foi incluído 301 de /pagina/index.html para /pagina/: a regra 200 de
 # /pagina/ reescreve justamente para /pagina/index.html; a canônica cobre o caso.
+#
+# Conferências a mais (curl -sI):
+#   /llms.txt e /robots.txt   -> Content-Type: text/plain; charset=utf-8
+#   /sitemap.xml              -> Content-Type: application/xml; charset=utf-8
+#   /sobre/assets/og-precos.jpg -> Cache-Control max-age=86400 (não immutable)
+#   http://prestarecondominios.com.br/ -> hoje são 2 saltos (o CloudFront do
+#     Amplify sobe para https no mesmo host e a 1ª regra leva ao www). Um salto
+#     só exigiria a função de borda fora do Amplify; 2 saltos 301 são aceitáveis.
+#
+# HSTS e includeSubDomains: o cabeçalho enviado pelo www só cobre *.www. Para
+# valer em api., crm. etc., ele precisa sair também da raiz sem www
+# (prestarecondominios.com.br). Conferir se a resposta 301 da 1ª regra leva o
+# Strict-Transport-Security; se não levar, o includeSubDomains fica restrito ao www.
+#
+# CSP aplicada (proposta, NÃO aplicar sem uma semana de Report-Only limpo no
+# console do navegador e sem testar o consentimento e as tags de conversão):
+#   pattern '/sobre/*', '/sindico/*', '/precos/*', '/quem-somos/*' e as três
+#   páginas de funcionalidade, com:
+#   default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com
+#   https://bzrcdn.openai.com; connect-src 'self' https://api.prestarecondominios.com.br
+#   https://*.google.com https://*.google-analytics.com https://*.doubleclick.net
+#   https://*.openai.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline';
+#   font-src 'self'; frame-src https://*.doubleclick.net https://www.googletagmanager.com;
+#   object-src 'none'; base-uri 'self'; frame-ancestors 'self'
+#   ('unsafe-inline' em script-src continua porque o registro do lead e a troca
+#   de tema são scripts inline; trocar por hashes quando o build gerar esses
+#   blocos. O JSON-LD não conta: tipo application/ld+json não executa.)

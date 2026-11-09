@@ -414,6 +414,54 @@ describe('rodada 3: imagens, descrições e CSS das páginas de conteúdo', () =
   });
 });
 
+describe('rodada 5: imagem de compartilhamento, foto do escritório e perguntas próprias de cada tema', () => {
+  const OG: [string, string][] = [
+    ['/sobre/', 'og-controle-de-acesso.jpg'],
+    ['/quem-somos/', 'og-controle-de-acesso.jpg'],
+    ['/precos/', 'og-precos.jpg'],
+    ['/sindico/', 'og-sindico.jpg'],
+    ['/controle-de-visitantes-condominio/', 'og-controle-de-visitantes.jpg'],
+    ['/livro-de-portaria-digital/', 'og-livro-de-portaria.jpg'],
+    ['/reconhecimento-facial-condominio/', 'og-reconhecimento-facial.jpg'],
+  ];
+  it.each(OG)('%s usa a própria OG de 1200x630', (rota, arq) => {
+    const html = pagina(rota);
+    const url = `https://www.prestarecondominios.com.br/sobre/assets/${arq}`;
+    expect(html).toMatch(new RegExp(`<meta property="og:image" content="${url}">`));
+    expect(html).toContain(`<meta name="twitter:image" content="${url}">`);
+    expect(html).toContain('<meta property="og:image:width" content="1200">');
+    expect(html).toContain('<meta property="og:image:height" content="630">');
+    expect(html).not.toContain('og-prestare-gestao');
+    expect(statSync(pub('sobre/assets/' + arq)).size).toBeGreaterThan(10000);
+  });
+  it('foto do escritório usa o recorte sem painéis de outras marcas', () => {
+    [sobre(), pagina('/quem-somos/')].forEach((html) => {
+      expect(html).not.toContain('instagram-prestare-office');
+      expect(html).toContain('src="/sobre/assets/escritorio-prestare-sala.webp"');
+    });
+  });
+  it('quem-somos explica os endereços com "clickprestare"', () => {
+    const t = texto(pagina('/quem-somos/'));
+    expect(t).toContain('Outros nomes que você pode encontrar');
+    expect(t).toContain('br.com.clickprestare.app');
+  });
+  it('visitantes troca as perguntas repetidas por perguntas do tema, conferidas no código', () => {
+    const t = texto(pagina('/controle-de-visitantes-condominio/'));
+    expect(t).not.toContain('É portaria remota?');
+    expect(t).toContain('Como funciona o convite por link?');
+    const api = readFileSync(join(process.cwd(), 'apps/api/src/app/convites/convites.service.ts'), 'utf8');
+    expect(api).toContain('HORAS_DE_VALIDADE = 24;');
+    expect(api).toContain('MAX_CONVITES_ATIVOS = 5;');
+    expect(t).toContain('O link vale por 24 horas');
+    expect(t).toContain('até 5 convites em aberto');
+  });
+  it('livro responde sobre o valor do registro sem prometer validade jurídica', () => {
+    const t = texto(pagina('/livro-de-portaria-digital/'));
+    expect(t).toContain('a Prestare não dá parecer jurídico');
+    expect(t.toLowerCase()).not.toContain('validade jurídica garantida');
+  });
+});
+
 describe('rodada 4: WebSite na raiz e páginas legais sem extensão', () => {
   const ldDe = (html: string) =>
     [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
@@ -440,5 +488,35 @@ describe('rodada 4: WebSite na raiz e páginas legais sem extensão', () => {
     expect(r[i]).toEqual({ source: de, target: para, status: '301' });
     expect(i).toBeLessThan(r.findIndex((x) => x.target === '/index.html'));
     expect(i).toBeGreaterThan(0);
+  });
+});
+
+describe('rodada 6: técnica das páginas estáticas', () => {
+  const cab = () => readFileSync(join(process.cwd(), '../docs/operacao/amplify-cabecalhos.yml'), 'utf8');
+  it.each(['politica-de-privacidade.html', 'termos-de-uso.html', 'exclusao-de-conta.html'])('%s mostra o telefone no rodapé', (p) => {
+    const rodape = readFileSync(pub(p), 'utf8').match(/<footer[\s\S]*?<\/footer>/)![0];
+    expect(texto(rodape)).toContain('(17) 99660-8148');
+    expect(rodape).toContain('href="https://wa.me/5517996608148"');
+  });
+  it('a 1ª regra do Amplify leva o host sem www para o www mantendo o caminho', () => {
+    expect(regras()[0]).toEqual({
+      source: 'https://prestarecondominios.com.br/<*>',
+      target: 'https://www.prestarecondominios.com.br/<*>',
+      status: '301',
+    });
+  });
+  it('CSP em Report-Only não libera eval', () => {
+    const linha = cab().match(/key: Content-Security-Policy-Report-Only\s+value: "([^"]+)"/)![1];
+    expect(linha).not.toContain('unsafe-eval');
+    expect(linha).toContain("object-src 'none'");
+  });
+  it('.txt e sitemap saem com charset utf-8', () => {
+    expect(cab()).toMatch(/pattern: '\*\.txt'\s+headers:\s+- key: Content-Type\s+value: text\/plain; charset=utf-8/);
+    expect(cab()).toMatch(/pattern: '\/sitemap\.xml'\s+headers:\s+- key: Content-Type\s+value: application\/xml; charset=utf-8/);
+  });
+  it('imagens sem versão no nome não ficam imutáveis; padrões sem classe de glob', () => {
+    const h = cab();
+    expect(h).not.toMatch(/pattern: '[^'\n]*\[/);
+    expect(h).toMatch(/pattern: '\/sobre\/assets\/\*\.jpg'\s+headers:\s+- key: Cache-Control\s+value: public, max-age=86400/);
   });
 });
