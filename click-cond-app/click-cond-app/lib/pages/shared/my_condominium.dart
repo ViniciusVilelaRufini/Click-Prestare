@@ -163,35 +163,35 @@ class _MyCondominiumState extends State<MyCondominium> {
 
   List<_MenuItem> _buildMenu() {
     final all = <_MenuItem>[
-      _MenuItem(getText('lb_areas_sociais'), PhosphorIcons.usersFour, ListAreasSociais()),
-      _MenuItem(getText('lb_financeiro'), PhosphorIcons.wallet, getUserType() == 'morador' ? const MoradorFinanceiroView() : const ListFinanceiro()),
-      _MenuItem('Minhas Encomendas', PhosphorIcons.package, const ListEncomendas()),
-      _MenuItem(getText('lb_assembleias'), PhosphorIcons.usersThree, ListAssembleias()),
-      _MenuItem(getText('lb_enquetes'), PhosphorIcons.chartBar, ListEnquetes()),
-      _MenuItem(getText('lb_comunicados'), PhosphorIcons.megaphone, ListComunicados()),
-      _MenuItem(getText('lb_ocorrencias'), PhosphorIcons.warningCircle, ListOcorrencias()),
-      _MenuItem(getText('lb_funcionarios_condominio'), PhosphorIcons.users, const ListPrestadoresCadastro()),
-      _MenuItem(getText('lb_manut_programadas'), PhosphorIcons.wrench, ListAgenda()),
-      _MenuItem(getText('lb_prestadores_servico'), PhosphorIcons.handshake, ListPrestadores()),
-      _MenuItem('Eventos de Acesso', PhosphorIcons.clockCounterClockwise, const HistoricoAcessosPage()),
-      _MenuItem(getText('lb_agendar_mudanca'), PhosphorIcons.truck, ListMudancas()),
-      _MenuItem(getText('lb_cadastrar_visitante'), PhosphorIcons.userPlus, ListVisitantes()),
+      _MenuItem(getText('lb_areas_sociais'), PhosphorIcons.usersFour, ListAreasSociais(), asset: 'assets/images/modulos/areas_sociais.png'),
+      _MenuItem(getText('lb_financeiro'), PhosphorIcons.wallet, getUserType() == 'morador' ? const MoradorFinanceiroView() : const ListFinanceiro(), asset: 'assets/images/modulos/financeiro.png'),
+      _MenuItem('Minhas Encomendas', PhosphorIcons.package, const ListEncomendas(), asset: 'assets/images/modulos/encomendas.png'),
+      _MenuItem(getText('lb_assembleias'), PhosphorIcons.usersThree, ListAssembleias(), asset: 'assets/images/modulos/assembleias.png'),
+      _MenuItem(getText('lb_enquetes'), PhosphorIcons.chartBar, ListEnquetes(), asset: 'assets/images/modulos/enquetes.png'),
+      _MenuItem(getText('lb_comunicados'), PhosphorIcons.megaphone, ListComunicados(), asset: 'assets/images/modulos/comunicados.png'),
+      _MenuItem(getText('lb_ocorrencias'), PhosphorIcons.warningCircle, ListOcorrencias(), asset: 'assets/images/modulos/ocorrencias.png'),
+      _MenuItem(getText('lb_funcionarios_condominio'), PhosphorIcons.users, const ListPrestadoresCadastro(), asset: 'assets/images/modulos/funcionarios.png'),
+      _MenuItem(getText('lb_manut_programadas'), PhosphorIcons.wrench, ListAgenda(), asset: 'assets/images/modulos/manutencoes.png'),
+      _MenuItem(getText('lb_prestadores_servico'), PhosphorIcons.handshake, ListPrestadores(), asset: 'assets/images/modulos/prestadores.png'),
+      _MenuItem('Eventos de Acesso', PhosphorIcons.clockCounterClockwise, const HistoricoAcessosPage(), asset: 'assets/images/modulos/eventos_acesso.png'),
+      _MenuItem(getText('lb_agendar_mudanca'), PhosphorIcons.truck, ListMudancas(), asset: 'assets/images/modulos/mudanca.png'),
+      _MenuItem(getText('lb_cadastrar_visitante'), PhosphorIcons.userPlus, ListVisitantes(), asset: 'assets/images/modulos/visitante.png'),
       // Morador vê apenas o próprio apartamento ("Meu Apartamento"); síndico/funcionário
       // continuam com a lista de blocos/apartamentos do condomínio.
       getUserType() == 'morador'
-          ? _MenuItem(getText('lb_meu_apartamento'), PhosphorIcons.house, const MyApartamentoView())
-          : _MenuItem(getText('lb_apartamentos'), PhosphorIcons.house, ListMoradores()),
+          ? _MenuItem(getText('lb_meu_apartamento'), PhosphorIcons.house, const MyApartamentoView(), asset: 'assets/images/modulos/apartamento.png')
+          : _MenuItem(getText('lb_apartamentos'), PhosphorIcons.house, ListMoradores(), asset: 'assets/images/modulos/apartamentos.png'),
     ];
     if (getUserType() == 'morador' || _sindicoEhMorador) {
-      all.add(_MenuItem('Delivery', PhosphorIcons.package, const ListDelivery()));
+      all.add(_MenuItem('Delivery', PhosphorIcons.package, const ListDelivery(), asset: 'assets/images/modulos/delivery.png'));
     }
     if (getUserType() == 'sindico') {
-      all.add(_MenuItem('Moradores', PhosphorIcons.usersThree, const ListMoradoresGeral()));
-      all.add(_MenuItem('Relatórios', PhosphorIcons.filePdf, const RelatoriosPage()));
+      all.add(_MenuItem('Moradores', PhosphorIcons.usersThree, const ListMoradoresGeral(), asset: 'assets/images/modulos/moradores.png'));
+      all.add(_MenuItem('Relatórios', PhosphorIcons.filePdf, const RelatoriosPage(), asset: 'assets/images/modulos/relatorios.png'));
       // Quando o síndico também é morador deste condomínio (vinculado a um apto),
       // ganha o item "Meu Apartamento" como o morador.
       if (_sindicoEhMorador) {
-        all.add(_MenuItem(getText('lb_meu_apartamento'), PhosphorIcons.houseLine, const MyApartamentoView()));
+        all.add(_MenuItem(getText('lb_meu_apartamento'), PhosphorIcons.houseLine, const MyApartamentoView(), asset: 'assets/images/modulos/apartamento.png'));
       }
     }
     if (getUserType() == 'funcionario') {
@@ -499,17 +499,31 @@ class _MyCondominiumState extends State<MyCondominium> {
               padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, 88),
               // O menu é montado localmente (_buildMenu), não depende de rede:
               // nunca fica em esqueleto esperando o carregamento do condomínio.
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (_, i) {
-                    if (i.isOdd) return const SizedBox(height: AppSpacing.sm);
-                    final idx = i ~/ 2;
-                    return _MenuRow(
-                      item: _menu[idx],
-                      onTap: () => _navigate(_menu[idx].page),
-                    );
-                  },
-                  childCount: _menu.length * 2 - 1,
+              // Lista compacta: um bloco só, linhas separadas por traço fino
+              // que começa depois do ícone, sem traço depois da última.
+              sliver: SliverToBoxAdapter(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface(context),
+                    border: Border.all(color: AppColors.border(context)),
+                  ),
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < _menu.length; i++) ...[
+                        if (i > 0)
+                          Divider(
+                            height: 1,
+                            thickness: 1,
+                            indent: _MenuRow.inicioTexto,
+                            color: AppColors.border(context),
+                          ),
+                        _MenuRow(
+                          item: _menu[i],
+                          onTap: () => _navigate(_menu[i].page),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1563,7 +1577,11 @@ class _MenuItem {
   final String label;
   final IconData icon;
   final Widget page;
-  _MenuItem(this.label, this.icon, this.page);
+
+  /// Ícone em PNG com o degradê da marca (assets/images/modulos). Sem ele a
+  /// linha cai no ícone Phosphor.
+  final String? asset;
+  _MenuItem(this.label, this.icon, this.page, {this.asset});
 }
 
 class _MenuRow extends StatelessWidget {
@@ -1571,52 +1589,52 @@ class _MenuRow extends StatelessWidget {
   final VoidCallback onTap;
   const _MenuRow({required this.item, required this.onTap});
 
+  static const double _padding = AppSpacing.lg;
+  static const double _icone = 36;
+  static const double _vao = 12;
+
+  /// Onde o nome começa; o traço entre linhas parte daqui.
+  static const double inicioTexto = _padding + _icone + _vao;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        border: Border.all(color: AppColors.border(context)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.brandSoftOf(context),
-                    border: Border.all(color: AppColors.border(context)),
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 60),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _padding, vertical: 12),
+          child: Row(
+            children: [
+              SizedBox.square(
+                dimension: _icone,
+                child: item.asset != null
+                    ? Image.asset(item.asset!, fit: BoxFit.cover)
+                    : ColoredBox(
+                        color: AppColors.brandSoftOf(context),
+                        child: Icon(item.icon, color: AppColors.brandInkOf(context), size: 18),
+                      ),
+              ),
+              const SizedBox(width: _vao),
+              Expanded(
+                child: Text(
+                  item.label,
+                  style: AppTypography.bodyMedium(context).copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
-                  child: Icon(item.icon, color: AppColors.brandInkOf(context), size: 22),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Text(
-                    item.label,
-                    style: AppTypography.bodyMedium(context).copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
-              ],
-            ),
+              ),
+              Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
 class _AlertItem extends StatelessWidget {
   final int count;
   final String label;
