@@ -642,14 +642,13 @@
                role="button"
                tabindex="0"
                (keydown.enter)="abrirDetalhes(m)"
-               (keydown.space)="$event.preventDefault(); abrirDetalhes(m)" (click)="abrirDetalhes(m)" class="p-4 hover:bg-[var(--accent-ghost)] transition cursor-pointer">
+               (keydown.space)="$event.preventDefault(); abrirDetalhes(m)" (click)="abrirDetalhes(m)" class="ps-mor-celula p-4 hover:bg-[var(--accent-ghost)] transition cursor-pointer" style="--tom: var(--ink-subtle)">
             <div class="flex items-start gap-3">
-              <div class="ps-avatar !w-10 !h-10 overflow-hidden">
+              <div class="ps-mor-foto" aria-hidden="true">
                 @if (m.foto_pessoa || m.photo) {
-                  <img [src]="m.foto_pessoa || m.photo" alt="" class="w-full h-full object-cover" />
-                } @else {
-                  <span class="text-xs">{{ iniciais(m.nome) }}</span>
+                  <img [src]="m.foto_pessoa || m.photo" alt="" (error)="$any($event.target).hidden = true" />
                 }
+                <span class="ps-mor-ini">{{ iniciais(m.nome) }}</span>
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1.5 flex-wrap">
@@ -709,15 +708,14 @@
                  tabindex="0"
                  (keydown.enter)="abrirDetalhes(m)"
                  (keydown.space)="$event.preventDefault(); abrirDetalhes(m)" (click)="abrirDetalhes(m)"
-                class="transition cursor-pointer group">
-              <td>
+                class="transition cursor-pointer group" style="--tom: var(--ink-subtle)">
+              <td class="ps-mor-celula">
                 <div class="flex items-center gap-3">
-                  <div class="ps-avatar !w-8 !h-8 overflow-hidden">
+                  <div class="ps-mor-foto" aria-hidden="true">
                     @if (m.foto_pessoa || m.photo) {
-                      <img [src]="m.foto_pessoa || m.photo" alt="" class="w-full h-full object-cover" />
-                    } @else {
-                      <span class="text-[11px]">{{ iniciais(m.nome) }}</span>
+                      <img [src]="m.foto_pessoa || m.photo" alt="" (error)="$any($event.target).hidden = true" />
                     }
+                    <span class="ps-mor-ini">{{ iniciais(m.nome) }}</span>
                   </div>
                   <div class="min-w-0">
                     <div class="flex items-center gap-1.5">
@@ -1068,16 +1066,20 @@
   <div class="ps-scrim on" (click)="fecharDetalhes()"></div>
 
   <!-- Slide-in panel — bg adaptativo (branco/grafite) com borda visível em ambos modos. -->
-  <div class="ps-drawer on">
+  <div class="ps-drawer on !w-[min(640px,100%)]">
 
-    <!-- Hero — gradient e blur agem como decoração suave em ambos modos. -->
-    <div class="relative shrink-0 border-b border-[var(--line-100)]">
-      <!-- Brilho decorativo (mais sutil no light pra não competir com o texto) -->
+    <!-- Capa: foto ao fundo em degradê e cor pelo vínculo do morador -->
+    <div class="ps-mor-hero" style="--tom: var(--ink-subtle)">
+      @if (selectedMorador()!.foto_pessoa || selectedMorador()!.photo) {
+        <div class="ps-pessoa-hero-foto" aria-hidden="true">
+          <img [src]="selectedMorador()!.foto_pessoa || selectedMorador()!.photo" alt="" (error)="$any($event.target).hidden = true" />
+        </div>
+      }
 
       <!-- Botão fechar flutuante -->
       <button (click)="fecharDetalhes()"
               aria-label="Fechar detalhes do morador"
-              class="absolute top-3 right-3 z-10 ps-ibtn">
+              class="absolute top-3 right-3 z-10 ps-ibtn ps-pessoa-fechar">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
 
@@ -1087,19 +1089,20 @@
              role="button"
              tabindex="0"
              (keydown.enter)="(selectedMorador()!.foto_pessoa || selectedMorador()!.photo) && abrirAmpliarFoto(selectedMorador()!.foto_pessoa || selectedMorador()!.photo!, selectedMorador()!.nome)"
-             (keydown.space)="$event.preventDefault(); (selectedMorador()!.foto_pessoa || selectedMorador()!.photo) && abrirAmpliarFoto(selectedMorador()!.foto_pessoa || selectedMorador()!.photo!, selectedMorador()!.nome)" class="ps-avatar !w-16 !h-16 overflow-hidden cursor-pointer"
+             (keydown.space)="$event.preventDefault(); (selectedMorador()!.foto_pessoa || selectedMorador()!.photo) && abrirAmpliarFoto(selectedMorador()!.foto_pessoa || selectedMorador()!.photo!, selectedMorador()!.nome)" class="ps-avatar ps-pessoa-avatar overflow-hidden cursor-pointer"
              (click)="(selectedMorador()!.foto_pessoa || selectedMorador()!.photo) && abrirAmpliarFoto(selectedMorador()!.foto_pessoa || selectedMorador()!.photo!, selectedMorador()!.nome)"
              title="Clique para ampliar">
           @if (selectedMorador()!.foto_pessoa || selectedMorador()!.photo) {
             <img [src]="selectedMorador()!.foto_pessoa || selectedMorador()!.photo" [alt]="'Foto de ' + selectedMorador()!.nome" class="w-full h-full object-cover" />
           } @else {
-            <span class="text-lg">{{ iniciais(selectedMorador()!.nome) }}</span>
+            <span class="ps-pessoa-ini">{{ iniciais(selectedMorador()!.nome) }}</span>
           }
         </div>
 
         <!-- Identidade -->
         <div class="flex-1 min-w-0 pr-8">
-          <h2 class="ps-h2 leading-tight truncate">{{ selectedMorador()!.nome }}</h2>
+          <span class="ps-ev-dir !w-auto mb-1.5"><span class="ps-ev-ponto"></span>{{ rotuloVinculo(selectedMorador()!) }}</span>
+          <h2 class="ps-ev-hero-nome !text-[22px] !leading-6 truncate">{{ selectedMorador()!.nome }}</h2>
           <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
             <span class="ps-tag capitalize {{ tipoColor(selectedMorador()!.tipo) }}">
               {{ selectedMorador()!.tipo || 'sem vínculo' }}

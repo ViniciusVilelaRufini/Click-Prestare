@@ -586,6 +586,26 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     return 'ps-dot-warn';
   }
 
+  /** Linha de apoio da capa do detalhe, conforme o tipo do evento. */
+  subtituloEvento(evento: any): string {
+    switch (evento?.tipo) {
+      case 'Prestador': return 'Prestador de serviço';
+      case 'Visitante': return 'Visitante cadastrado';
+      case 'Encomenda': return 'Encomenda / correspondência';
+      case 'Ocorrência': return 'Registro de ocorrência';
+      case 'Acesso Facial': return evento.detalhes?.reconhecimentoLabel || 'Reconhecido pelo terminal facial';
+      default: return '';
+    }
+  }
+  /** Cor da faixa do evento na lista: mesma regra dos pontos de sinal (tipoColor). */
+  tomEvento(evento: any): string {
+    if (evento?.tipo === 'Encomenda' && !evento?.direcao) return 'var(--brand)';
+    const classe = this.tipoColor(evento);
+    if (classe === 'ps-dot-ok') return 'var(--signal-ok)';
+    if (classe === 'ps-dot-danger') return 'var(--signal-danger)';
+    if (classe === 'ps-dot-warn') return 'var(--signal-warn)';
+    return 'var(--ink-subtle)';
+  }
   /**
    * Selo (badge) do evento na lista/modal de detalhes. Lógica compartilhada
    * com a página de Relatórios em shared/direcao-label.util.ts — ver lá o

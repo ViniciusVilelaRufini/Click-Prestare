@@ -1115,7 +1115,7 @@
                 (click)="abrirDetalhes(v)"
                 class="transition group cursor-pointer"
               >
-                <td>
+                <td class="ps-mor-celula">
                   <div class="ps-person">
                     <div
                          role="button"
@@ -1126,7 +1126,7 @@
                          (keydown.space)="$event.preventDefault(); v.foto_pessoa
                           ? abrirAmpliarFoto(v.foto_pessoa, v.nome, $event)
                           : $event.stopPropagation()"
-                      class="ps-avatar overflow-hidden"
+                      class="ps-mor-foto"
                       [class.cursor-pointer]="v.foto_pessoa"
                       [title]="v.foto_pessoa ? 'Clique para ampliar foto' : ''"
                       (click)="
@@ -1136,16 +1136,11 @@
                       "
                     >
                       @if (v.foto_pessoa) {
-                        <img
-                          [src]="v.foto_pessoa"
-                          [alt]="'Foto de ' + v.nome"
-                          class="w-full h-full object-cover"
-                        />
-                      } @else {
-                        <span>{{
+                        <img [src]="v.foto_pessoa" [alt]="'Foto de ' + v.nome" (error)="$any($event.target).hidden = true" />
+                      }
+                      <span class="ps-mor-ini">{{
                           iniciais(v.nome)
                         }}</span>
-                      }
                     </div>
                     <div class="flex flex-col min-w-0">
                       <div class="flex items-center gap-1.5 flex-wrap">
@@ -2533,10 +2528,13 @@
               {{ copiaSucessoTexto() }}
             </div>
           }
-          <!-- Header -->
-          <div
-            class="px-6 py-5 border-b border-slate-300 flex items-start gap-4"
-          >
+          <!-- Capa: foto ao fundo em degradê e cor pelo status da visita -->
+          <div class="ps-pessoa-hero" [style.--tom]="d.visitante.data_entrada && !d.visitante.data_saida ? 'var(--signal-ok)' : d.visitante.data_saida ? 'var(--ink-subtle)' : 'var(--signal-warn)'">
+            @if (d.visitante.foto_pessoa) {
+              <div class="ps-pessoa-hero-foto" aria-hidden="true">
+                <img [src]="d.visitante.foto_pessoa" alt="" (error)="$any($event.target).hidden = true" />
+              </div>
+            }
             <div
                  role="button"
                  tabindex="0"
@@ -2544,7 +2542,7 @@
                   abrirAmpliarFoto(d.visitante.foto_pessoa, d.visitante.nome)"
                  (keydown.space)="$event.preventDefault(); d.visitante.foto_pessoa &&
                   abrirAmpliarFoto(d.visitante.foto_pessoa, d.visitante.nome)"
-              class="w-14 h-14 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition"
+              class="ps-pessoa-avatar flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition"
               (click)="
                 d.visitante.foto_pessoa &&
                   abrirAmpliarFoto(d.visitante.foto_pessoa, d.visitante.nome)
@@ -2557,12 +2555,13 @@
                   class="w-full h-full object-cover"
                 />
               } @else {
-                <span class="text-sm font-bold text-accent">{{
+                <span class="ps-pessoa-ini">{{
                   iniciais(d.visitante.nome)
                 }}</span>
               }
             </div>
             <div class="flex-1 min-w-0">
+              <span class="ps-ev-dir !w-auto mb-1.5"><span class="ps-ev-ponto"></span>{{ d.visitante.data_entrada && !d.visitante.data_saida ? 'No condomínio' : d.visitante.data_saida ? 'Visita concluída (saiu)' : 'Aguardando entrada' }}</span>
               <div class="flex items-center gap-2 flex-wrap">
                 <div
                      role="button"
@@ -2749,7 +2748,8 @@
             </div>
             <button
               (click)="fecharDetalhes()"
-              class="text-slate-450 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition shrink-0"
+              class="ps-ibtn shrink-0 ps-pessoa-fechar"
+              aria-label="Fechar"
             >
               <svg
                 class="w-5 h-5"
@@ -2772,38 +2772,38 @@
             <!-- KPIs -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div
-                class="bg-emerald-500/[0.04] dark:bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3"
+                class="ps-pessoa-kpi" style="--tom: var(--signal-ok)"
               >
                 <div
-                  class="text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-1"
+                  class="ps-label mb-2"
                 >
                   Entradas
                 </div>
                 <div
-                  class="text-2xl font-bold text-emerald-500 dark:text-emerald-400"
+                  class="ps-pessoa-num"
                 >
                   {{ d.stats.totalEntradas }}
                 </div>
               </div>
               <div
-                class="bg-rose-500/[0.04] dark:bg-rose-500/5 border border-rose-500/20 rounded-xl p-3"
+                class="ps-pessoa-kpi" style="--tom: var(--ink-subtle)"
               >
                 <div
-                  class="text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-1"
+                  class="ps-label mb-2"
                 >
                   Saídas
                 </div>
                 <div
-                  class="text-2xl font-bold text-rose-500 dark:text-rose-400"
+                  class="ps-pessoa-num"
                 >
                   {{ d.stats.totalSaidas }}
                 </div>
               </div>
               <div
-                class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-3"
+                class="ps-pessoa-kpi"
               >
                 <div
-                  class="text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-1"
+                  class="ps-label mb-2"
                 >
                   Permanência média
                 </div>
@@ -2817,10 +2817,10 @@
                 </div>
               </div>
               <div
-                class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-3"
+                class="ps-pessoa-kpi"
               >
                 <div
-                  class="text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-1"
+                  class="ps-label mb-2"
                 >
                   Método
                 </div>
@@ -2911,13 +2911,11 @@
             }
 
             <!-- Visita atual -->
-            <div
-              class="bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-white/10 rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm"
-            >
+            <div class="ps-pessoa-visita space-y-4" [style.--tom]="d.visitante.data_entrada && !d.visitante.data_saida ? 'var(--signal-ok)' : d.visitante.data_saida ? 'var(--ink-subtle)' : 'var(--signal-warn)'">
               <!-- Cabeçalho do Card com Status da Visita em destaque -->
               <div class="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-white/5 pb-3">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/50 border border-blue-200/70 dark:border-blue-800/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                  <div class="ps-pessoa-visita-ico">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                     </svg>

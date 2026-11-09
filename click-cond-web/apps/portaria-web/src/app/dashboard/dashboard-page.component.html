@@ -351,57 +351,58 @@
           } @else {
             <ul>
               @for (e of eventosFiltrados(); track $index) {
+                <!-- Linha do evento: foto em degradê, faixa na cor do tipo de evento e as informações -->
                 <li
                      role="button"
                      tabindex="0"
                      (keydown.enter)="abrirDetalhes(e)"
                      (keydown.space)="$event.preventDefault(); abrirDetalhes(e)" (click)="abrirDetalhes(e)"
                     [title]="e.descricao + ' - Clique para ver detalhes'"
-                    [class]="modoCompacto() && eventosMaximizados()
-                             ? 'flex items-center gap-3.5 cursor-pointer px-5 py-1.5 border-b border-[var(--line-100)] last:border-b-0 hover:bg-[var(--accent-ghost)] transition-colors max-[520px]:flex-wrap max-[520px]:gap-x-3 max-[520px]:gap-y-2'
-                             : 'flex items-center gap-3.5 cursor-pointer px-5 py-3 border-b border-[var(--line-100)] last:border-b-0 hover:bg-[var(--accent-ghost)] transition-colors max-[520px]:flex-wrap max-[520px]:gap-x-3 max-[520px]:gap-y-2'">
+                    class="ps-ev"
+                    [class.ps-ev-compacto]="modoCompacto() && eventosMaximizados()"
+                    [style.--tom]="tomEvento(e)"
+                    [style.--tom-texto]="e.tipo === 'Encomenda' && !e.direcao ? 'var(--brand-ink)' : null">
 
-                  <!-- Avatar / miniatura do evento -->
-                  @if (e.tipo === 'Visitante' || e.tipo === 'Prestador' || e.tipo === 'Acesso Facial') {
-                    @if (e.detalhes.fotoPessoa) {
-                      <img [src]="e.detalhes.fotoPessoa"
-                           [alt]="'Foto de ' + (e.detalhes.nome || 'pessoa')"
-                           class="w-8 h-8 rounded-full object-cover border border-[var(--line-200)] shrink-0" />
+                  <div class="ps-ev-foto" aria-hidden="true">
+                    @if (e.tipo === 'Visitante' || e.tipo === 'Prestador' || e.tipo === 'Acesso Facial') {
+                      <!-- A inicial fica por baixo: se a foto não carregar, ela aparece. -->
+                      <span class="ps-ev-ini">{{ (e.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}</span>
+                      @if (e.detalhes.fotoPessoa) {
+                        <img [src]="e.detalhes.fotoPessoa" alt="" (error)="$any($event.target).hidden = true" />
+                      }
+                    } @else if (e.tipo === 'Encomenda') {
+                      <span class="ps-ev-ini">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                        </svg>
+                      </span>
                     } @else {
-                      <div class="ps-avatar !w-8 !h-8 !text-xs">
-                        {{ (e.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}
-                      </div>
+                      <span class="ps-ev-ini">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                      </span>
                     }
-                  } @else if (e.tipo === 'Encomenda') {
-                    <div class="w-8 h-8 border border-[var(--line-100)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                      </svg>
-                    </div>
-                  } @else {
-                    <div class="w-8 h-8 border border-[var(--line-100)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                      </svg>
-                    </div>
-                  }
+                  </div>
 
-                  <span class="ps-tag shrink-0">
-                    <span class="ps-dot {{ tipoColor(e) }}"></span>
-                    {{ direcaoLabel(e.direcao, e.tipo) }}
-                  </span>
-                  @if (e.detalhes.tipoPessoa) {
-                    <span class="ps-tag shrink-0">
-                      {{ e.detalhes.tipoPessoa === 'morador' ? 'Morador' :
-                         e.detalhes.tipoPessoa === 'visitante' ? 'Visitante' :
-                         e.detalhes.tipoPessoa === 'prestador' ? 'Prestador' :
-                         e.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : e.detalhes.tipoPessoa }}
+                  <div class="ps-ev-corpo">
+                    <span class="ps-ev-dir">
+                      <span class="ps-ev-ponto"></span>
+                      {{ direcaoLabel(e.direcao, e.tipo) }}
                     </span>
-                  }
-                  <span class="flex-1 min-w-0 text-sm truncate max-[520px]:basis-full max-[520px]:order-3 max-[520px]:whitespace-normal">{{ e.descricao }}</span>
-                  <span class="order-first w-[92px] text-xs text-[var(--ink-muted)] shrink-0 tabular-nums max-[620px]:order-none max-[620px]:w-auto max-[520px]:ml-auto">
-                    {{ formatarDataEvento(e.quando) }}
-                  </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="text-sm truncate">{{ e.descricao }}</p>
+                      <p class="ps-ev-meta">
+                        {{ formatarDataEvento(e.quando) }}
+                        @if (e.detalhes.tipoPessoa) {
+                          · {{ e.detalhes.tipoPessoa === 'morador' ? 'Morador' :
+                               e.detalhes.tipoPessoa === 'visitante' ? 'Visitante' :
+                               e.detalhes.tipoPessoa === 'prestador' ? 'Prestador' :
+                               e.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : e.detalhes.tipoPessoa }}
+                        }
+                      </p>
+                    </div>
+                  </div>
                 </li>
               }
             </ul>
@@ -503,33 +504,37 @@
       <div class="ps-drawer on !w-[min(520px,100%)]"
            (click)="$event.stopPropagation()">
         
-        <!-- Header -->
-        <div class="ps-drawer-head !items-start !flex-col gap-1">
-          <div class="flex items-center justify-between w-full">
-            <div class="flex items-center gap-2">
-              <span class="ps-tag">
-                <span class="ps-dot {{ tipoColor(ev) }}"></span>
-                {{ direcaoLabel(ev.direcao, ev.tipo) }}
-              </span>
-              @if (ev.detalhes.tipoPessoa) {
-                <span class="ps-tag">
-                  {{ ev.detalhes.tipoPessoa === 'morador' ? 'Morador' :
-                     ev.detalhes.tipoPessoa === 'visitante' ? 'Visitante' :
-                     ev.detalhes.tipoPessoa === 'prestador' ? 'Prestador' :
-                     ev.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : ev.detalhes.tipoPessoa }}
-                </span>
-              }
-              <h3 class="ps-h2">Detalhes do Evento</h3>
-            </div>
-            <button (click)="fecharDetalhes()" class="ps-ibtn shrink-0">
-              <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
+        <!-- Capa: foto em degradê, faixa na cor do evento e o resumo -->
+        <div class="ps-ev-hero" [style.--tom]="tomEvento(ev)"
+             [style.--tom-texto]="ev.tipo === 'Encomenda' && !ev.direcao ? 'var(--brand-ink)' : null">
+          <div class="ps-ev-hero-foto">
+            @if (ev.detalhes.fotoPessoa) {
+              <img [src]="ev.detalhes.fotoPessoa" [alt]="'Foto de ' + (ev.detalhes.nome || 'pessoa')"
+                   (click)="abrirAmpliarFoto(ev.detalhes.fotoPessoa, 'Foto de ' + ev.detalhes.nome)"
+                   (error)="$any($event.target).hidden = true"
+                   title="Clique para ampliar a foto" />
+            }
+            @if (ev.tipo === 'Visitante' || ev.tipo === 'Prestador' || ev.tipo === 'Acesso Facial') {
+              <span class="ps-ev-hero-ini" aria-hidden="true">{{ (ev.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}</span>
+            }
           </div>
-          <p class="text-sm text-[var(--ink-muted)] leading-relaxed mt-1 block max-w-md">
-            {{ ev.descricao }}
-          </p>
+          <button (click)="fecharDetalhes()" class="ps-ibtn ps-ev-hero-fechar" aria-label="Fechar">
+            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+          <div class="ps-ev-hero-corpo">
+            <span class="ps-ev-dir !w-auto">
+              <span class="ps-ev-ponto"></span>
+              {{ direcaoLabel(ev.direcao, ev.tipo) }}
+            </span>
+            <h3 class="ps-ev-hero-nome">{{ ev.detalhes.nome || ev.tipo }}</h3>
+            @if (subtituloEvento(ev)) {
+              <p class="ps-label">{{ subtituloEvento(ev) }}</p>
+            }
+            <p class="ps-ev-hero-desc">{{ ev.descricao }}</p>
+            <p class="ps-ev-meta">{{ formatarDataEvento(ev.quando) }}</p>
+          </div>
         </div>
 
         <!-- Conteúdo -->
@@ -538,25 +543,6 @@
           <!-- Evento tipo: Visitante ou Prestador -->
           @if (ev.tipo === 'Visitante' || ev.tipo === 'Prestador') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-[var(--bg-200)] p-4 border border-[var(--line-100)]">
-                @if (ev.detalhes.fotoPessoa) {
-                  <img [src]="ev.detalhes.fotoPessoa" 
-                       [alt]="'Foto de ' + (ev.detalhes.nome || 'pessoa')"
-                       (click)="abrirAmpliarFoto(ev.detalhes.fotoPessoa, 'Foto de ' + ev.detalhes.nome)"
-                       class="w-10 h-10 rounded-full object-cover border border-slate-250 dark:border-white/10 cursor-pointer hover:scale-105 transition-all" 
-                       title="Clique para ampliar a foto" />
-                } @else {
-                  <div class="w-10 h-10 rounded-full bg-[var(--bg-300)] border border-[var(--line-200)] flex items-center justify-center text-[var(--ink)] font-bold text-base">
-                    {{ (ev.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}
-                  </div>
-                }
-                <div>
-                  <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
-                  <p class="ps-label mt-0.5">
-                    {{ ev.tipo === 'Prestador' ? 'Prestador de Serviço' : 'Visitante Cadastrado' }}
-                  </p>
-                </div>
-              </div>
 
               <div class="grid grid-cols-2 gap-3">
                 <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
@@ -639,23 +625,23 @@
                     </svg>
                     Histórico de Acessos
                   </span>
-                  <ul class="space-y-2">
+                  <ul class="ps-hist">
                     @for (h of ev.detalhes.historicoAcessos; track $index) {
                       <li class="flex items-center gap-2.5 text-xs">
                         @if (h.evento === 'entrada') {
-                          <span class="w-6 h-6 rounded-full border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
+                          <span class="ps-hist-ico ps-hist-ok">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
                             </svg>
                           </span>
                         } @else if (h.evento === 'saida') {
-                          <span class="w-6 h-6 rounded-full border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
+                          <span class="ps-hist-ico">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                             </svg>
                           </span>
                         } @else {
-                          <span class="w-6 h-6 rounded-full border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)] shrink-0">
+                          <span class="ps-hist-ico ps-hist-neg">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01"/>
                             </svg>
@@ -693,17 +679,6 @@
           <!-- Evento tipo: Encomenda -->
           @if (ev.tipo === 'Encomenda') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-[var(--bg-200)] p-4 border border-[var(--line-100)]">
-                <div class="w-10 h-10 border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)]">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                  </svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <h4 class="font-bold text-slate-800 dark:text-white text-base truncate leading-tight">{{ ev.detalhes.nome }}</h4>
-                  <p class="ps-label mt-0.5">Encomenda / Correspondência</p>
-                </div>
-              </div>
 
               <div class="grid grid-cols-2 gap-3">
                 <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
@@ -750,17 +725,6 @@
           <!-- Evento tipo: Ocorrência -->
           @if (ev.tipo === 'Ocorrência') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-[var(--bg-200)] p-4 border border-[var(--line-100)]">
-                <div class="w-10 h-10 border border-[var(--line-200)] flex items-center justify-center text-[var(--ink-muted)]">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                  </svg>
-                </div>
-                <div>
-                  <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
-                  <p class="ps-label mt-0.5">Registro de Ocorrência</p>
-                </div>
-              </div>
 
               <div class="bg-[var(--bg-200)] p-3.5 border border-[var(--line-100)]">
                 <span class="ps-label block mb-1.5">Descrição da Ocorrência</span>
@@ -801,39 +765,6 @@
           <!-- Evento tipo: Acesso Facial -->
           @if (ev.tipo === 'Acesso Facial') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-[var(--bg-200)] p-4 border border-[var(--line-100)]">
-                @if (ev.detalhes.fotoPessoa) {
-                  <img [src]="ev.detalhes.fotoPessoa"
-                       [alt]="'Foto de identificação facial de ' + (ev.detalhes.nome || 'pessoa')"
-                       (click)="abrirAmpliarFoto(ev.detalhes.fotoPessoa, 'Foto de ' + ev.detalhes.nome)"
-                       class="w-12 h-12 rounded-full object-cover border border-[var(--line-200)] cursor-pointer hover:scale-105 transition-all"
-                       title="Clique para ampliar a foto" />
-                } @else {
-                  <div class="w-12 h-12 rounded-full bg-[var(--bg-300)] border border-[var(--line-200)] flex items-center justify-center text-[var(--ink)] font-bold text-base">
-                    {{ (ev.detalhes.nome || 'P').substring(0, 1).toUpperCase() }}
-                  </div>
-                }
-                <div>
-                  <div class="flex items-center gap-2">
-                    <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
-                    @if (ev.detalhes.tipoPessoa) {
-                      <span class="ps-tag">
-                        {{ ev.detalhes.tipoPessoa === 'morador' ? 'Morador' :
-                           ev.detalhes.tipoPessoa === 'visitante' ? 'Visitante' :
-                           ev.detalhes.tipoPessoa === 'prestador' ? 'Prestador' :
-                           ev.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : ev.detalhes.tipoPessoa }}
-                      </span>
-                    }
-                  </div>
-                  <p class="ps-label mt-0.5 flex items-center gap-1">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                    </svg>
-                    {{ ev.detalhes.reconhecimentoLabel || 'Reconhecido pelo terminal facial' }}
-                  </p>
-                </div>
-              </div>
 
               <div class="grid grid-cols-2 gap-3">
                 @if (ev.detalhes.blocoApto) {

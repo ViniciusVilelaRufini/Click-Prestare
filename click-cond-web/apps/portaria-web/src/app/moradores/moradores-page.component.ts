@@ -660,6 +660,10 @@ export class MoradoresPageComponent implements OnInit {
     return nome.trim().split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('');
   }
 
+  rotuloVinculo(m: { tipo?: string | null; id_apartamento?: number | null }): string {
+    if (!m.id_apartamento || m.id_apartamento <= 0) return 'Sem unidade vinculada';
+    return this.tipoLabel(m.tipo);
+  }
   tipoColor(tipo: string | null): string {
     const t = this.normalizeTipo(tipo);
     if (t === 'proprietario') return '!text-[var(--ink)] !border-[var(--ink)]';
