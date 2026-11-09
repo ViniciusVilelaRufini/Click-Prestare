@@ -35,6 +35,19 @@ import { parseLocalTimeToUTC } from '../visitantes/visitantes.service';
 const MAX_FOTO_SIGNUP_BYTES = 5 * 1024 * 1024;
 const FOTO_SIGNUP_MIME = /^data:image\/(jpeg|jpg|png|webp);base64,/i;
 
+/**
+ * Foto para listas do app (ex.: "Meus eventos"): só quando é um link. Registros
+ * antigos guardam a imagem inteira em base64, pesada demais para ir em cada
+ * item do feed.
+ */
+export function linkDaFoto(...fotos: (string | null | undefined)[]): string | null {
+  for (const f of fotos) {
+    const v = typeof f === 'string' ? f.trim() : '';
+    if (/^https?:\/\//i.test(v)) return v;
+  }
+  return null;
+}
+
 export function fotoDoSignup(photo: unknown, ehDataUrl: (v: string) => boolean): string | null {
   if (typeof photo !== 'string' || photo === '') return null;
   if (!ehDataUrl(photo)) return null;
@@ -1275,7 +1288,7 @@ export class MobileAuthService {
                 is_prestador: true,
                 data_entrada: true,
                 data_saida: true,
-                pessoa: { select: { nome: true, tipo_pessoa: true } },
+                pessoa: { select: { nome: true, tipo_pessoa: true, foto_pessoa: true } },
               },
               take: 50,
             })
@@ -1294,6 +1307,7 @@ export class MobileAuthService {
                 is_prestador: true,
                 data_entrada: true,
                 data_saida: true,
+                foto_pessoa: true,
               },
               take: 50,
             }),
@@ -1313,6 +1327,7 @@ export class MobileAuthService {
             tipo_pessoa: v.pessoa?.tipo_pessoa ?? (v.is_prestador === 1 ? 'prestador' : 'visitante'),
             data_entrada: v.data_entrada,
             data_saida: v.data_saida,
+            foto: linkDaFoto(v.pessoa?.foto_pessoa),
           }))
         : (visitorsRaw as any[]).map((v) => ({
             id: v.id,
@@ -1323,16 +1338,32 @@ export class MobileAuthService {
             tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
             data_entrada: v.data_entrada,
             data_saida: v.data_saida,
+            foto: linkDaFoto(v.foto_pessoa),
           }));
 
       // Acesso facial pode guardar o tipo existente na hora da passagem.
       // A lista móvel usa a classificação vigente da Pessoa para não exibir
       // como prestador quem já é visitante recorrente.
       const tipoAtualPorId = new Map<number, string>();
+      // Foto pelos dois espaços de id que o facial pode ter gravado.
+      const fotoPorId = new Map<number, string | null>();
       for (const v of visitors) {
         tipoAtualPorId.set(v.id, v.tipo_pessoa);
         if (v.id_pessoa_alt != null) tipoAtualPorId.set(v.id_pessoa_alt, v.tipo_pessoa);
+        fotoPorId.set(v.id, v.foto);
+        if (v.id_pessoa_alt != null) fotoPorId.set(v.id_pessoa_alt, v.foto);
       }
+      const idsMoradorNoFeed = [
+        ...new Set(facialEvents.filter((e) => e.tipo_pessoa === 'morador' && e.id_pessoa != null).map((e) => e.id_pessoa as number)),
+      ];
+      const fotoMorador = new Map<number, string | null>(
+        idsMoradorNoFeed.length
+          ? (await this.prisma.moradores.findMany({
+              where: { id: { in: idsMoradorNoFeed } },
+              select: { id: true, foto_pessoa: true, user: { select: { photo: true } } },
+            })).map((m: any) => [m.id, linkDaFoto(m.foto_pessoa, m.user?.photo)])
+          : [],
+      );
       const facialEventsAtualizados = facialEvents.map((e) => ({
         ...e,
         tipo_pessoa: (e.id_pessoa != null ? tipoAtualPorId.get(e.id_pessoa) : undefined) ?? e.tipo_pessoa,
@@ -1415,13 +1446,17 @@ export class MobileAuthService {
         tipo_dispositivo: e.tipo_dispositivo,
         confianca: e.confianca,
         categoria,
+        foto: (e.tipo_pessoa === 'morador' ? fotoMorador : fotoPorId).get(e.id_pessoa as number) ?? null,
         condominio: condNome,
         timestamp: e.timestamp,
       }));
     }
 
     const [moras, aptoUsers] = await Promise.all([
-      this.prisma.moradores.findMany({ where: { id_user: idUser }, select: { id: true } }),
+      this.prisma.moradores.findMany({
+        where: { id_user: idUser },
+        select: { id: true, foto_pessoa: true, user: { select: { photo: true } } },
+      }),
       this.prisma.apartamentos_Users.findMany({ where: { id_user: idUser }, select: { id_apto: true } }),
     ]);
     const moradorIds = moras.map((m) => m.id);
@@ -1443,7 +1478,7 @@ export class MobileAuthService {
             is_prestador: true,
             data_entrada: true,
             data_saida: true,
-            pessoa: { select: { nome: true, tipo_pessoa: true } },
+            pessoa: { select: { nome: true, tipo_pessoa: true, foto_pessoa: true } },
           },
         })
       : await this.prisma.visitantes.findMany({
@@ -1460,6 +1495,7 @@ export class MobileAuthService {
             is_prestador: true,
             data_entrada: true,
             data_saida: true,
+            foto_pessoa: true,
           },
         });
 
@@ -1475,6 +1511,7 @@ export class MobileAuthService {
           tipo_pessoa: v.pessoa?.tipo_pessoa ?? (v.is_prestador === 1 ? 'prestador' : 'visitante'),
           data_entrada: v.data_entrada,
           data_saida: v.data_saida,
+          foto: linkDaFoto(v.pessoa?.foto_pessoa),
         }))
       : (visitorsRaw as any[]).map((v) => ({
           id: v.id,
@@ -1485,6 +1522,7 @@ export class MobileAuthService {
           tipo_pessoa: v.tipo_pessoa,
           data_entrada: v.data_entrada,
           data_saida: v.data_saida,
+          foto: linkDaFoto(v.foto_pessoa),
         }));
     const visitorIds = visitors.map((v) => v.id);
     // No caminho migrado, o filtro de `Acessos_Facial.id_pessoa` abaixo
@@ -1534,10 +1572,17 @@ export class MobileAuthService {
     // próprio registro do visitante, do mesmo jeito que a linha do tempo do
     // detalhe. Sem isso o feed do app perdia todo acesso que não fosse facial.
     const tipoAtualPorId = new Map<number, string>();
+    // Foto pelos dois espaços de id que o facial pode ter gravado.
+    const fotoPorId = new Map<number, string | null>();
     for (const v of visitors) {
       tipoAtualPorId.set(v.id, v.tipo_pessoa);
       if (v.id_pessoa_alt != null) tipoAtualPorId.set(v.id_pessoa_alt, v.tipo_pessoa);
+      fotoPorId.set(v.id, v.foto);
+      if (v.id_pessoa_alt != null) fotoPorId.set(v.id_pessoa_alt, v.foto);
     }
+    const fotoMorador = new Map<number, string | null>(
+      moras.map((m: any) => [m.id, linkDaFoto(m.foto_pessoa, m.user?.photo)]),
+    );
     const visEvAtualizados = visEv.map((e) => ({
       ...e,
       tipo_pessoa: (e.id_pessoa != null ? tipoAtualPorId.get(e.id_pessoa) : undefined) ?? e.tipo_pessoa,
@@ -1623,6 +1668,7 @@ export class MobileAuthService {
       tipo_dispositivo: e.tipo_dispositivo,
       confianca: e.confianca,
       categoria,
+      foto: (categoria === 'voce' ? fotoMorador : fotoPorId).get(e.id_pessoa as number) ?? null,
       condominio: condMap.get(e.id_condominio) || '',
       timestamp: e.timestamp,
     }));
