@@ -97,7 +97,11 @@ class _AppInputState extends State<AppInput> {
           fontSize: 13,
           letterSpacing: 13 * 0.16,
         ),
+        // O InputDecorator desenha o rótulo flutuante a 75% deste estilo: 16
+        // aparece como 12 na tela. Com os 11 do label ele virava ~8, minúsculo.
         floatingLabelStyle: AppTypography.label(context).copyWith(
+          fontSize: 16,
+          letterSpacing: 16 * 0.16,
           color: hasCustomError
               ? AppColors.signalDanger(context)
               : AppColors.textPrimary(context),

@@ -431,7 +431,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   else
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.lg, 12, AppSpacing.lg, AppSpacing.lg),
+                          AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
                       sliver: SliverToBoxAdapter(child: _buildCondominioList(context)),
                     ),
                   if (!_isLoading && _errorMessage == null && _eventos.isNotEmpty)
@@ -725,7 +725,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     final sw = MediaQuery.of(context).size.width;
     final saudacao = '${getText('ola')} ${getUsername()}'.toUpperCase();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      // 12 embaixo: o mesmo vão título → conteúdo das outras seções (antes
+      // 24 + 12 da lista deixavam um buraco sob "MEUS CONDOMÍNIOS").
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
