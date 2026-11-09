@@ -671,11 +671,12 @@ class _ChatIaPageState extends State<ChatIaPage> {
         AppSpacing.lg,
         AppSpacing.sm,
       ),
+      // Mesmo cabeçalho das outras telas: sobre o fundo, título em caixa
+      // alta e traço fino embaixo (antes era um bloco preto sólido).
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.zero,
+          border: Border(bottom: BorderSide(color: AppColors.border(context))),
         ),
         // Stack, não Row: são dois botões à esquerda e um à direita, então o
         // vão entre eles não tem o mesmo meio que a barra. Num Expanded o
@@ -714,9 +715,8 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   fit: BoxFit.scaleDown,
                   child: Text(
                     'PRESTARE IA',
-                    style: AppTypography.bodyMedium(context).copyWith(
-                      color: AppColors.onPrimary,
-                      fontWeight: FontWeight.bold,
+                    style: AppTypography.title(context).copyWith(
+                      color: AppColors.textPrimary(context),
                     ),
                   ),
                 ),
@@ -728,7 +728,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
     );
   }
 
-  /// Botão redondo translúcido — o mesmo tratamento das ações do card azul da
+  /// Botão quadrado com traço fino — o mesmo `.iconbtn` das ações do topo da
   /// home (`_buildHeaderActions` em list_condominiums.dart).
   Widget _acaoTopo({
     required IconData icon,
@@ -743,11 +743,14 @@ class _ChatIaPageState extends State<ChatIaPage> {
         child: Tooltip(
           message: tooltip,
           child: Container(
-            padding: const EdgeInsets.all(8),
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.accentGhost(context),
+              color: AppColors.surface(context),
+              border: Border.all(color: AppColors.border(context)),
             ),
-            child: Icon(icon, color: AppColors.onPrimary, size: 18),
+            child: Icon(icon, color: AppColors.textPrimary(context), size: 18),
           ),
         ),
       ),
@@ -985,7 +988,12 @@ class _ChatIaPageState extends State<ChatIaPage> {
           alignment: WrapAlignment.center,
           children: _sugestoes
               .map((s) => ActionChip(
-                    label: Text(s, style: AppTypography.caption(context)),
+                    label: Text(
+                      s,
+                      style: AppTypography.caption(context)
+                          .copyWith(color: AppColors.textPrimary(context)),
+                    ),
+                    shape: const RoundedRectangleBorder(),
                     backgroundColor: AppColors.surface(context),
                     side: BorderSide(color: AppColors.border(context)),
                     onPressed: () => _enviar(s),
