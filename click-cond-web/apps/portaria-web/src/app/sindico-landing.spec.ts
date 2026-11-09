@@ -43,7 +43,7 @@ it('usa uma tela real do produto no hero e inicializa a medição da landing', (
   const html = htmlDaPaginaSindico();
   const hero = html.match(/<section class="sindico-hero-wrap"[\s\S]*?<\/section>/)?.[0] || '';
   expect(hero).toContain('sindico-hero-visual');
-  expect(html).toContain('<script src="/consentimento-anuncios.js"></script>');
+  expect(html).toContain('<script src="/consentimento-anuncios.js" defer></script>');
   expect(html).toContain("sessionStorage.setItem('psOrigem'");
 });
 

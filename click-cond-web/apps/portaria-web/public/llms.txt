@@ -1,0 +1,23 @@
+# Prestare Gestão
+
+> Prestare Gestão: controle de acesso para condomínios. Sistema com app para morador e síndico, app da portaria e console web, para o condomínio fazer o próprio controle de acesso com o porteiro. Não é central de portaria remota: não há operador à distância nem central 24h. Preço a partir de R$ 298/mês, por faixa de unidades, mais R$ 490 de implantação. Atende condomínios em todo o estado de São Paulo.
+
+Empresa: PRESTARE GESTAO CONDOMINIAL INTELIGENTE LTDA, CNPJ 09.195.104/0001-73, R. Maranhão, 1368, sala 30, Catanduva-SP, CEP 15800-020. WhatsApp (17) 99660-8148.
+
+O app e o console precisam de internet para registrar. Só o terminal facial guarda eventos localmente quando a conexão cai. O reconhecimento facial é opcional e depende de consentimento.
+
+## Páginas principais
+
+- [Visão geral do sistema](https://www.prestarecondominios.com.br/sobre/): módulos, telas, simulador de preço e dúvidas frequentes
+- [App e sistema para síndico](https://www.prestarecondominios.com.br/sindico/): o que o síndico acompanha, relatórios e preço
+- [Preços](https://www.prestarecondominios.com.br/precos/): tabela por faixa de unidades e exemplos de cálculo
+- [Controle de visitantes](https://www.prestarecondominios.com.br/controle-de-visitantes-condominio/): cadastro pelo morador, PIN na portaria, relatório de visitantes
+- [Livro de portaria digital](https://www.prestarecondominios.com.br/livro-de-portaria-digital/): o que fica registrado, quem altera e como exportar
+- [Reconhecimento facial e LGPD](https://www.prestarecondominios.com.br/reconhecimento-facial-condominio/): consentimento, alternativa para quem recusa e terminais
+- [Quem somos](https://www.prestarecondominios.com.br/quem-somos/): dados da empresa e contato
+
+## Documentos
+
+- [Política de Privacidade](https://www.prestarecondominios.com.br/politica-de-privacidade.html)
+- [Termos de Uso](https://www.prestarecondominios.com.br/termos-de-uso.html)
+- [Exclusão de conta](https://www.prestarecondominios.com.br/exclusao-de-conta.html)

@@ -172,6 +172,78 @@ describe('dados estruturados', () => {
   });
 });
 
+describe('grafo da entidade igual em todas as páginas', () => {
+  const B = 'https://www.prestarecondominios.com.br';
+  const TODAS = ['/sobre/', '/sindico/', ...NOVAS];
+  const grafo = (rota: string) => JSON.parse(pagina(rota).match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1])['@graph'] as Record<string, any>[];
+  const no = (rota: string, id: string) => grafo(rota).find((n) => n['@id'] === id);
+  it.each(TODAS)('%s repete a mesma Organization, com contactPoint', (rota) => {
+    expect(no(rota, B + '/#org')).toEqual(no('/sobre/', B + '/#org'));
+    expect(no(rota, B + '/#org').contactPoint.telephone).toBe('+55-17-99660-8148');
+  });
+  it.each(TODAS)('%s não redefine o #app com outra descrição', (rota) => {
+    const app = no(rota, B + '/#app');
+    if (app) expect(app).toEqual(no('/sobre/', B + '/#app'));
+  });
+  it.each(TODAS)('%s tem WebPage com about e dateModified', (rota) => {
+    const pg = no(rota, `${B}${rota}#pagina`);
+    expect(pg.about['@id']).toBe(rota === '/quem-somos/' ? B + '/#org' : B + '/#app');
+    expect(pg.dateModified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('higiene do HTML publicado', () => {
+  it.each(['/sobre/', '/sindico/', ...NOVAS])('%s não publica comentários internos', (rota) => {
+    const semScripts = pagina(rota).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, '');
+    expect(semScripts).not.toContain('<!--');
+  });
+  it('não há classe que esconda conteúdo reservado', () => {
+    expect(readFileSync(pub('paginas.css'), 'utf8')).not.toContain('.prova');
+  });
+  it.each(['/controle-de-visitantes-condominio/', '/livro-de-portaria-digital/', '/reconhecimento-facial-condominio/', '/precos/'])('%s mostra a data de atualização', (rota) => {
+    expect(pagina(rota)).toMatch(/<p class="pg-data">[^<]*<time datetime="\d{4}-\d{2}-\d{2}">/);
+  });
+});
+
+describe('profundidade das páginas temáticas', () => {
+  it('visitantes traz exemplo de relatório com as colunas reais e a comparação com caderno e planilha', () => {
+    const t = texto(pagina('/controle-de-visitantes-condominio/'));
+    ['Nome', 'Documento', 'Apto', 'Entrada', 'Saída', 'Autorizado por', 'No local', 'dados fictícios'].forEach((c) => expect(t).toContain(c));
+    expect(t).toContain('Caderno, planilha ou sistema de controle de visitantes');
+    const api = readFileSync(join(process.cwd(), 'apps/api/src/app/relatorios/relatorios.service.ts'), 'utf8');
+    expect(api).toContain("['Nome', 'Documento', 'Apto', 'Entrada', 'Saída', 'Autorizado Por']");
+  });
+  it('livro traz exemplo da auditoria com as colunas do CSV e a comparação com o papel', () => {
+    const t = texto(pagina('/livro-de-portaria-digital/'));
+    ['Data', 'Usuário', 'Ação', 'Módulo', 'Descrição', 'IP'].forEach((c) => expect(t).toContain(c));
+    expect(t).toContain('Livro de papel ou livro de portaria digital');
+    const api = readFileSync(join(process.cwd(), 'apps/api/src/app/relatorios/relatorios.service.ts'), 'utf8');
+    expect(api).toContain("['Data', 'Usuário', 'E-mail', 'Ação', 'Módulo', 'Entidade', 'Descrição', 'IP', 'Detalhes']");
+  });
+  it('facial cita o texto oficial da LGPD', () => {
+    expect(pagina('/reconhecimento-facial-condominio/')).toContain('href="https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm"');
+  });
+  it('/precos/ não repete a pergunta dentro da resposta', () => {
+    expect(texto(pagina('/precos/'))).not.toContain('Não. A Prestare é portaria remota?');
+  });
+});
+
+describe('sitemap e llms.txt', () => {
+  const sm = () => readFileSync(pub('sitemap.xml'), 'utf8');
+  it('sem priority e com lastmod em toda URL', () => {
+    expect(sm()).not.toContain('<priority>');
+    const urls = sm().match(/<url>[\s\S]*?<\/url>/g)!;
+    urls.forEach((u) => expect(u).toMatch(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/));
+  });
+  it('inclui a página de exclusão de conta', () => expect(sm()).toContain('/exclusao-de-conta.html</loc>'));
+  it('llms.txt lista as páginas do sitemap e diz que não é portaria remota', () => {
+    const l = readFileSync(pub('llms.txt'), 'utf8');
+    [...sm().matchAll(/<loc>([^<]+)<\/loc>/g)].forEach((m) => expect(l).toContain(`(${m[1]})`));
+    expect(l).toContain('Não é central de portaria remota');
+    expect(l).toContain('R$ 298');
+  });
+});
+
 describe('imagem do Instagram', () => {
   it('usa arquivo leve', () => {
     const src = sobre().match(/class="insta-foto"[\s\S]*?<img[^>]*\ssrc="([^"]+)"/)![1];
@@ -277,5 +349,30 @@ describe('cabeçalhos de segurança', () => {
     expect(h).toContain('max-age=63072000; includeSubDomains');
     ["'/'", "'/login'", "'/dashboard'", "'/convite/*'"].forEach((p) => expect(h).toContain(`pattern: ${p}`));
     expect(h).toMatch(/pattern: '\/chunk-\*\.js'\s+headers:\s+- key: Cache-Control\s+value: public, max-age=31536000, immutable/);
+  });
+});
+
+describe('desempenho das páginas estáticas', () => {
+  const COM_BIGWORD = ['sobre/index.html', 'sindico/index.html', '404.html', ...NOVAS.map((r) => r.slice(1) + 'index.html')];
+  it.each(COM_BIGWORD)('%s: palavra decorativa do rodapé vem do CSS (sem texto de baixo contraste no DOM)', (p) => {
+    const html = readFileSync(pub(p), 'utf8');
+    expect(html).toContain('<div class="bigword" aria-hidden="true" data-palavra="Prestare"></div>');
+    expect(html + readFileSync(pub('paginas.css'), 'utf8')).toContain('.bigword::before{content:attr(data-palavra)}');
+  });
+  it.each(['sindico/index.html', 'politica-de-privacidade.html', 'termos-de-uso.html', 'exclusao-de-conta.html', '404.html', ...NOVAS.map((r) => r.slice(1) + 'index.html')])(
+    '%s: @font-face embutido, sem folha de fontes bloqueando a renderização',
+    (p) => {
+      const html = readFileSync(pub(p), 'utf8');
+      expect(html).not.toContain('href="/fontes/barlow.css"');
+      expect(html).toContain('src:url(/fontes/barlow-400.woff2)');
+    },
+  );
+  it('consentimento carrega com defer (só é chamado por clique) e o build minifica os scripts da landing', () => {
+    expect(sobre()).toContain('<script src="/consentimento-anuncios.js" defer></script>');
+    expect(sobre()).not.toMatch(/unpkg\.com|babel|\{\{/i);
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+    expect(pkg.scripts.build).toContain('node scripts/minificar-landing.mjs');
+    const script = readFileSync(join(process.cwd(), 'scripts/minificar-landing.mjs'), 'utf8');
+    expect(script).toContain("'sobre/pagina.js'");
   });
 });

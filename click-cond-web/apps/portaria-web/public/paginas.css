@@ -103,7 +103,7 @@
     .foot-canais{margin-top:20px;display:grid;gap:10px;justify-items:start}
     .foot-canais a{display:inline-flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)}
     .foot-canais svg{width:16px;height:16px}
-    .bigword{font-family:var(--font-display);font-weight:600;font-size:clamp(64px,15vw,300px);line-height:.8;letter-spacing:.01em;text-transform:uppercase;margin-top:72px;color:var(--bg-300);white-space:nowrap;overflow:hidden;user-select:none}
+    .bigword{font-family:var(--font-display);font-weight:600;font-size:clamp(64px,15vw,300px);line-height:.8;letter-spacing:.01em;text-transform:uppercase;margin-top:72px;color:var(--bg-300);white-space:nowrap;overflow:hidden;user-select:none}.bigword::before{content:attr(data-palavra)}
     .ps-foot-bottom{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink-subtle);margin-top:24px;padding-top:24px;border-top:1px solid var(--line-100)}
 
     
@@ -134,6 +134,7 @@ section{padding-block:84px}
 .pg-tabela thead th{font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-subtle)}
 .pg-tabela tbody th{font-weight:500;color:var(--ink)}
 .pg-tabela tbody tr:last-child>*{border-bottom:0}
+.pg-tabela caption{caption-side:bottom;text-align:left;padding:12px 18px;font-size:13px;color:var(--ink-subtle);border-top:1px solid var(--line-100)}
 .pg-dados{margin:32px 0 0;display:grid;grid-template-columns:minmax(120px,220px) minmax(0,1fr);gap:0}
 .pg-dados dt,.pg-dados dd{margin:0;padding:12px 0;border-top:1px solid var(--line-100)}
 .pg-dados dt{font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-subtle)}
@@ -152,8 +153,8 @@ section{padding-block:84px}
 .pg-links span{display:block;margin-top:6px;font-size:14px;color:var(--ink-muted)}
 .pg-aviso{margin-top:24px;padding:16px 18px;border-left:2px solid var(--brand);background:var(--bg-100);font-size:15px;color:var(--ink-muted)}
 .pg-cta{background:var(--bg-100)}
-/* Espaço reservado para prova real: só recebe conteúdo autorizado por escrito. */
-.prova{display:none}
+.pg-data{margin:20px 0 0;font-size:13px;color:var(--ink-subtle)}
+.pg-fonte{margin-top:12px;font-size:13px;color:var(--ink-subtle)}
 @media (max-width:1300px){.ps-nav a:not(.sindico-nav-cta){display:none}.ps-mobile-menu{display:block}.ps-tema{margin-left:auto}}
 @media (max-width:900px){
   section{padding-block:64px}

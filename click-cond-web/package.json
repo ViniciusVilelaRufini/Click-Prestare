@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "build": "nx build portaria-web",
+    "build": "nx build portaria-web && node scripts/minificar-landing.mjs",
     "build:crm": "nx build crm-web",
     "start": "nx serve portaria-web",
     "start:crm": "nx serve crm-web",

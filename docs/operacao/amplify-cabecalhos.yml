@@ -210,5 +210,14 @@ customHeaders:
 #      /login, /?convite=x e /api/... seguem como antes.
 #   2. Se o Amplify responder 200 ou redirecionar, desistir e manter o 404 vazio
 #      atual (status correto, só sem corpo).
+# Janela do deploy: o HTML do console em cache pode apontar para main-*.js de um
+# build já apagado (visto em 09/11). O HTML segue com max-age=0 (padrão) e os
+# bundles com hash ficam imutáveis; se voltar a acontecer, invalidar "/" e
+# "/index.html" no fim do deploy.
+#
+# Scripts da landing sem hash (/sobre/pagina.js, /consentimento-anuncios.js,
+# /paginas.css) ficam com o padrão max-age=0: são minificados no build
+# (click-cond-web/scripts/minificar-landing.mjs) e revalidados a cada visita.
+#
 # Não foi incluído 301 de /pagina/index.html para /pagina/: a regra 200 de
 # /pagina/ reescreve justamente para /pagina/index.html; a canônica cobre o caso.

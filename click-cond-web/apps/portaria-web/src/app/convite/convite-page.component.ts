@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { API_BASE } from '../shared/api.config';
 import { ThemeService } from '../shared/theme.service';
 
@@ -29,7 +29,7 @@ import { ThemeService } from '../shared/theme.service';
 @Component({
   selector: 'app-convite-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule],
   template: `
     <div
       class="min-h-screen app-bg font-sans transition-colors duration-500 px-4 py-8 sm:py-12"
@@ -141,7 +141,7 @@ import { ThemeService } from '../shared/theme.service';
                 minha entrada, <strong class="text-slate-300">inclusive pelo reconhecimento facial da portaria</strong>,
                 e declaro ter 18 anos ou mais. Os dados ficam com o condomínio e
                 são apagados se a visita não for confirmada.
-                <a routerLink="/politica-de-privacidade" target="_blank" class="text-white underline font-semibold">Política de privacidade</a>.
+                <a href="/politica-de-privacidade.html#biometria" target="_blank" rel="noopener" class="text-white underline font-semibold">Política de privacidade</a>.
               </span>
             </label>
 

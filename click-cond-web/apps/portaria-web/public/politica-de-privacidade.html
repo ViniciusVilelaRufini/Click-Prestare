@@ -20,7 +20,7 @@
   <!-- Fontes servidas pelo próprio site (sem Google Fonts). -->
   <link rel="preload" href="/fontes/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fontes/barlow-400.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/fontes/barlow.css">
+  <style>@font-face{font-family:"Barlow";font-style:normal;font-weight:400;font-display:swap;src:url(/fontes/barlow-400.woff2) format("woff2");unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}@font-face{font-family:"Barlow";font-style:normal;font-weight:500;font-display:swap;src:url(/fontes/barlow-500.woff2) format("woff2");unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}@font-face{font-family:"Barlow";font-style:normal;font-weight:600;font-display:swap;src:url(/fontes/barlow-600.woff2) format("woff2");unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:300;font-display:swap;src:url(/fontes/barlow-condensed-300.woff2) format("woff2");unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:400;font-display:swap;src:url(/fontes/barlow-condensed-400.woff2) format("woff2");unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:500;font-display:swap;src:url(/fontes/barlow-condensed-500.woff2) format("woff2");unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:600;font-display:swap;src:url(/fontes/barlow-condensed-600.woff2) format("woff2");unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}</style>
   <script>
     // Tema escolhido pela pessoa (mesma chave da landing); sem escolha, segue o sistema (CSS).
     try { var psTema = localStorage.getItem('ps-theme'); if (psTema) document.documentElement.dataset.theme = psTema; } catch (e) {}
@@ -324,7 +324,7 @@
               <tr><td>Superlógica</td><td>Somente nos condomínios com a integração: troca de cadastro (nome, e-mail, telefone, CPF) e cobranças</td><td>Conforme a contratação do condomínio</td></tr>
               <tr><td>Meta (WhatsApp Business)</td><td>Atendimento comercial pelo nosso número</td><td>Fora do Brasil</td></tr>
               <tr><td>Google Ads e OpenAI</td><td>Medição de anúncios (<a href="#cookies">seções 7</a> e <a href="#comercial">8</a>)</td><td>Fora do Brasil</td></tr>
-              <tr><td>Google Fonts</td><td>Fontes das páginas públicas. O Google recebe o endereço IP de quem abre a página</td><td>Fora do Brasil</td></tr>
+              <tr><td>Google Fonts</td><td>Fontes do console da portaria e do aplicativo. O Google recebe o endereço IP do aparelho quando as fontes são baixadas. As páginas públicas do site usam fontes próprias, sem esse envio</td><td>Fora do Brasil</td></tr>
               <tr><td>Provedor de e-mail (Google Workspace ou Resend, conforme a configuração)</td><td>Credenciais, códigos de verificação e avisos</td><td>Conforme o fornecedor</td></tr>
               <tr><td>Ferramenta interna de acompanhamento de suporte, quando ativa</td><td>Contato do síndico e ocorrências técnicas</td><td>Conforme o fornecedor</td></tr>
               </tbody>
@@ -387,7 +387,7 @@
               </tbody>
             </table>
           </div>
-          <p>Se você rejeitar, ou escolher só os necessários, as tags não são carregadas. Se retirar a autorização depois, o site apaga os cookies dessas tags no navegador e recarrega a página sem elas. Esta página e as demais páginas legais não carregam tags de anúncio.</p>
+          <p>Se você rejeitar, ou escolher só os necessários, as tags não são carregadas. Se retirar a autorização depois, o site apaga os cookies dessas tags no navegador e recarrega a página sem elas. As tags só existem em /sobre/ e /sindico/. As páginas de preços, quem somos e de funcionalidades não carregam tags de anúncio: só guardam na aba do navegador, durante a visita, os parâmetros de origem descritos na <a href="#comercial">seção 8</a>. Esta página e as demais páginas legais não carregam tags nem guardam esses parâmetros.</p>
         </section>
 
         <section class="doc" id="comercial">
@@ -426,7 +426,7 @@
               <tbody>
               <tr><td>Conta de usuário e consentimentos ligados a ela</td><td>Enquanto a conta existir</td></tr>
               <tr><td>Foto de rosto do morador</td><td>Enquanto durar o vínculo, ou até a revogação da biometria</td></tr>
-              <tr><td>Foto de rosto e de documento de visitante</td><td>Apagadas 90 dias depois da saída. O registro da visita (nome, documento e horários) permanece</td></tr>
+              <tr><td>Foto de rosto e de documento de visitante</td><td>Apagadas por rotina automática 90 dias depois da última saída registrada da pessoa. Quem volta ao condomínio nesse período mantém a foto até 90 dias depois da nova saída. O registro da visita (nome, documento e horários) permanece</td></tr>
               <tr><td>Convite de visita vencido, abandonado ou recusado</td><td>Apagado 7 dias depois do fim da validade</td></tr>
               <tr><td>Foto e documento de prestador</td><td>Enquanto o cadastro existir. Ainda não há exclusão automática por prazo. O rosto sai dos terminais quando a autorização expira</td></tr>
               <tr><td>Eventos de acesso e registros de auditoria</td><td>Durante o contrato com o condomínio. Ainda não há exclusão automática por prazo</td></tr>

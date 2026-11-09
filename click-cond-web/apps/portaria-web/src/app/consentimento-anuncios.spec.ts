@@ -25,7 +25,7 @@ describe('tags de anúncio só com consentimento de marketing', () => {
     const html = publico(pagina);
     expect(html).not.toContain('googletagmanager.com');
     expect(html).not.toContain('bzrcdn.openai.com');
-    expect(html).toContain('<script src="/consentimento-anuncios.js"></script>');
+    expect(html).toContain('<script src="/consentimento-anuncios.js" defer></script>');
   });
 
   it('sem escolha gravada, não carrega nada', () => {

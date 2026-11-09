@@ -9,7 +9,8 @@ function htmlDaLanding(): string {
 
 // A lógica da página (handlers, simulador) mora em /sobre/pagina.js.
 function logicaDaLanding(): string {
-  return readFileSync(join(process.cwd(), 'apps/portaria-web/public/sobre/pagina.js'), 'utf8');
+  // Checkout no Windows com core.autocrlf traz CRLF; as buscas abaixo usam '\n'.
+  return readFileSync(join(process.cwd(), 'apps/portaria-web/public/sobre/pagina.js'), 'utf8').replace(/\r\n/g, '\n');
 }
 
 function carregarRastreadorDaLanding(): void {
