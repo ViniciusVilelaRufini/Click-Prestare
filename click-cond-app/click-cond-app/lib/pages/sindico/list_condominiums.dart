@@ -13,6 +13,7 @@ import 'package:click/controllers/controller_notificacoes.dart';
 import 'package:click/pages/shared/chat_ia/chat_ia_page.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/notificacoes/notificacoes_page.dart';
+import 'package:click/widgets/app/evento_linha.dart';
 import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
 import 'package:click/pages/shared/financeiro/list_financeiro.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
@@ -1303,11 +1304,6 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     final tipoPessoa = (e['tipo_pessoa'] ?? '').toString();
     final nome = (e['nome'] ?? '').toString();
 
-    final String statusLabel = isEntrada ? 'Entrou' : 'Saiu';
-    // Cor só sinaliza: entrada em verde, saída no cinza do texto.
-    final Color statusColor =
-        isEntrada ? AppColors.success : AppColors.textSecondary(context);
-
     final String tag;
     if (isVoce) {
       tag = 'Você';
@@ -1323,64 +1319,15 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
     final horaStr = _formatHora(e['timestamp']);
 
-    return Material(
-      color: AppColors.surface(context),
-      child: InkWell(
-        onTap: () => _abrirHistoricoAcessos(destacarId: id),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 58,
-                child: Text(
-                  horaStr,
-                  style: _dTxt(context, 22, ls: 0.02, w: FontWeight.w300)
-                      .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      displayName,
-                      style: _bTxt(context, 16,
-                          lh: 22,
-                          w: FontWeight.w500,
-                          color: AppColors.textPrimary(context)),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: statusLabel,
-                            style: TextStyle(color: statusColor),
-                          ),
-                          TextSpan(text: ' · $tag'),
-                        ],
-                      ),
-                      style: _bTxt(context, 12,
-                          lh: 16, color: AppColors.textTertiary(context)),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                PhosphorIcons.caretRight,
-                color: AppColors.textTertiary(context),
-                size: 16,
-              ),
-            ],
-          ),
-        ),
-      ),
+    final foto = (e['foto'] ?? '').toString().trim();
+    // Mesmo desenho das linhas de evento da portaria web.
+    return EventoLinha(
+      nome: displayName,
+      entrada: isEntrada,
+      tipo: tag,
+      hora: horaStr,
+      foto: foto.isEmpty ? null : foto,
+      onTap: () => _abrirHistoricoAcessos(destacarId: id),
     );
   }
 
