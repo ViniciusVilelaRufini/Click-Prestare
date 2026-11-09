@@ -1,6 +1,7 @@
 import 'package:click/pages/shared/chat_ia/chat_ia_page.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// O cabeçalho da Prestare IA era um bloco preto sólido, diferente de todas as
@@ -44,5 +45,22 @@ void main() {
   testWidgets('cabe numa tela estreita (320)', (t) async {
     await abrir(t, largura: 320);
     expect(t.takeException(), isNull);
+  });
+
+  testWidgets('sugestão longa quebra linha em vez de sair cortada', (t) async {
+    await abrir(t, largura: 412);
+    for (final e in find.byType(ActionChip).evaluate()) {
+      final r = t.getRect(find.byWidget(e.widget));
+      expect(r.right, lessThanOrEqualTo(412), reason: (e.widget as ActionChip).label.toString());
+    }
+    // O chip ocupa a largura toda e o texto era cortado dentro dele: as letras
+    // desenhadas passavam da largura do parágrafo (e sumiam no fade).
+    for (final e in find.descendant(of: find.byType(ActionChip), matching: find.byType(RichText)).evaluate()) {
+      final p = e.renderObject! as RenderParagraph;
+      final tudo = TextSelection(baseOffset: 0, extentOffset: p.text.toPlainText().length);
+      final direita = p.getBoxesForSelection(tudo).map((b) => b.right).reduce((a, b) => a > b ? a : b);
+      expect(direita, lessThanOrEqualTo(p.size.width + 0.5), reason: p.text.toPlainText());
+      expect(p.didExceedMaxLines, isFalse, reason: p.text.toPlainText());
+    }
   });
 }

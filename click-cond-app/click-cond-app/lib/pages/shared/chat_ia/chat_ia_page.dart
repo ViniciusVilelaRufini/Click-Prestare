@@ -988,8 +988,13 @@ class _ChatIaPageState extends State<ChatIaPage> {
           alignment: WrapAlignment.center,
           children: _sugestoes
               .map((s) => ActionChip(
+                    // O chip força uma linha só; a sugestão longa saía cortada.
                     label: Text(
                       s,
+                      softWrap: true,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
                       style: AppTypography.caption(context)
                           .copyWith(color: AppColors.textPrimary(context)),
                     ),
