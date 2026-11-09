@@ -47,6 +47,30 @@ void main() {
     expect(find.descendant(of: find.byType(ShaderMask), matching: find.byType(Image)), findsOneWidget);
   });
 
+  // Faixa única na cor do evento: colorida já na borda esquerda (sem emenda
+  // com um quadrado da inicial) e mais leve no tema claro.
+  Future<LinearGradient> faixa(WidgetTester t, Brightness brilho) async {
+    await t.pumpWidget(MaterialApp(
+      theme: ThemeData(brightness: brilho),
+      home: Scaffold(
+        body: EventoLinha(nome: 'Rafael', entrada: true, tipo: 'Visitante', hora: '13:57', onTap: () {}),
+      ),
+    ));
+    await t.pumpAndSettle(); // a troca de tema do MaterialApp é animada
+    final caixa = t.widget<DecoratedBox>(find.byKey(const ValueKey('evento-faixa')));
+    return (caixa.decoration as BoxDecoration).gradient! as LinearGradient;
+  }
+
+  testWidgets('faixa começa colorida na borda e é mais leve no claro', (t) async {
+    final claro = await faixa(t, Brightness.light);
+    final escuro = await faixa(t, Brightness.dark);
+    expect(claro.stops!.first, 0);
+    expect(claro.colors.first.a, greaterThan(0));
+    expect(claro.colors.first.a, lessThan(escuro.colors.first.a));
+    expect(find.byType(ColoredBox).evaluate().where((e) =>
+        (e.widget as ColoredBox).color == AppColors.surfaceElevated(e)), isEmpty);
+  });
+
   testWidgets('toque abre o evento', (t) async {
     var abriu = false;
     await montar(t, entrada: true, onTap: () => abriu = true);

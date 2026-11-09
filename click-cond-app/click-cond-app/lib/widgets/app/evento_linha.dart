@@ -33,13 +33,21 @@ class EventoLinha extends StatelessWidget {
     final tom = entrada ? AppColors.success : AppColors.textTertiary(context);
     final inicial = nome.trim().isEmpty ? '?' : nome.trim()[0].toUpperCase();
 
-    final semFoto = Container(
-      alignment: Alignment.centerLeft,
+    // Uma faixa só, já colorida na borda esquerda e sumindo até o meio: a
+    // inicial (ou a foto) fica por cima, sem um quadrado próprio que criava
+    // emenda. No claro o tom é mais leve para não sujar o cinza do cartão.
+    final escuro = Theme.of(context).brightness == Brightness.dark;
+    final forte = escuro ? 0.26 : 0.16;
+    final medio = escuro ? 0.10 : 0.06;
+
+    final letra = Padding(
       padding: const EdgeInsets.only(left: 22),
-      color: Color.alphaBlend(tom.withValues(alpha: 0.18), AppColors.surfaceElevated(context)),
-      child: Text(
-        inicial,
-        style: AppTypography.title(context).copyWith(color: tom, fontSize: 26),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          inicial,
+          style: AppTypography.title(context).copyWith(color: tom, fontSize: 26),
+        ),
       ),
     );
 
@@ -49,18 +57,17 @@ class EventoLinha extends StatelessWidget {
         onTap: onTap,
         child: Stack(
           children: [
-            // Faixa da cor do evento, mais forte logo depois da foto.
             Positioned.fill(
               child: DecoratedBox(
+                key: const ValueKey('evento-faixa'),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      tom.withValues(alpha: 0),
-                      tom.withValues(alpha: 0.22),
-                      tom.withValues(alpha: 0.07),
+                      tom.withValues(alpha: forte),
+                      tom.withValues(alpha: medio),
                       tom.withValues(alpha: 0),
                     ],
-                    stops: const [0.18, 0.34, 0.6, 0.85],
+                    stops: const [0, 0.35, 0.75],
                   ),
                 ),
               ),
@@ -70,20 +77,20 @@ class EventoLinha extends StatelessWidget {
               top: 0,
               bottom: 0,
               width: _largFoto,
-              child: ShaderMask(
-                blendMode: BlendMode.dstIn,
-                shaderCallback: (r) => const LinearGradient(
-                  colors: [Colors.white, Colors.white, Colors.transparent],
-                  stops: [0, 0.3, 1],
-                ).createShader(r),
-                child: foto == null
-                    ? semFoto
-                    : Image.network(
+              child: foto == null
+                  ? letra
+                  : ShaderMask(
+                      blendMode: BlendMode.dstIn,
+                      shaderCallback: (r) => const LinearGradient(
+                        colors: [Colors.white, Colors.white, Colors.transparent],
+                        stops: [0, 0.3, 1],
+                      ).createShader(r),
+                      child: Image.network(
                         foto!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => semFoto,
+                        errorBuilder: (_, __, ___) => letra,
                       ),
-              ),
+                    ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(_inicioTexto, 12, 16, 12),
