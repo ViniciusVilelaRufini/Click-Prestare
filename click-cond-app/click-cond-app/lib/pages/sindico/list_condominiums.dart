@@ -898,33 +898,67 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
-  /// `.quick`: quatro atalhos, separados por 1px de line-100. O último muda com
-  /// o perfil: o morador paga, o síndico administra e o funcionário não tem
+  /// Atalhos em grade 2x2, no padrão das ações do topo do console: o primeiro
+  /// (liberar visitante) em destaque na cor de marca. O último muda com o
+  /// perfil: o morador paga, o síndico administra e o funcionário não tem
   /// financeiro no início.
   Widget _buildAtalhos(BuildContext context) {
     final type = getUserType();
-    Widget atalho(IconData icone, String rotulo, String modulo) {
+    final encomendas = int.tryParse('${_summary?['packages'] ?? 0}') ?? 0;
+
+    Widget atalho({
+      required IconData icone,
+      required String titulo,
+      required String apoio,
+      required String modulo,
+      bool destaque = false,
+    }) {
+      final tinta = destaque ? AppColors.onBrand : AppColors.textPrimary(context);
+      final tintaApoio = destaque
+          ? AppColors.onBrand.withValues(alpha: 0.65)
+          : AppColors.textTertiary(context);
       return Expanded(
         child: Material(
-          color: AppColors.surface(context),
+          color: destaque ? AppColors.brand : AppColors.surface(context),
+          shape: destaque
+              ? const RoundedRectangleBorder()
+              : RoundedRectangleBorder(side: BorderSide(color: AppColors.border(context))),
           child: InkWell(
             onTap: () => _onDashboardTap(modulo),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(4, 14, 4, 12),
-              child: Column(
+              padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+              child: Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
-                    color: AppColors.brandSoft,
-                    child: Icon(icone, size: 18, color: AppColors.brandInk),
+                    width: 38,
+                    height: 38,
+                    color: destaque
+                        ? Colors.black.withValues(alpha: 0.12)
+                        : AppColors.brandSoft,
+                    child: Icon(icone,
+                        size: 18, color: destaque ? AppColors.onBrand : AppColors.brandInk),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    rotulo.toUpperCase(),
-                    style: _dTxt(context, 10, ls: 0.14),
-                    maxLines: 1,
-                    overflow: TextOverflow.clip,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          titulo.toUpperCase(),
+                          style: _dTxt(context, 13, ls: 0.12, color: tinta),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          apoio,
+                          style: _bTxt(context, 11, lh: 14, color: tintaApoio),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -934,30 +968,56 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       );
     }
 
-    final linha = AppColors.border(context);
-    return Container(
-      decoration: BoxDecoration(color: linha, border: Border.all(color: linha)),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    final ultimo = type == 'funcionario'
+        ? atalho(
+            icone: PhosphorIcons.warningCircle,
+            titulo: 'Ocorrências',
+            apoio: 'Abertas e em andamento',
+            modulo: 'occurrences',
+          )
+        : atalho(
+            icone: PhosphorIcons.wallet,
+            titulo: type == 'morador' ? 'Pagar' : 'Financeiro',
+            apoio: type == 'morador' ? 'Boletos e contas' : 'Contas do condomínio',
+            modulo: 'debts',
+          );
+
+    return Column(
+      children: [
+        Row(
           children: [
-            atalho(PhosphorIcons.userPlus, 'Liberar', 'visits'),
-            const SizedBox(width: 1),
-            atalho(PhosphorIcons.package, 'Encomendas', 'packages'),
-            const SizedBox(width: 1),
-            atalho(PhosphorIcons.calendarBlank, 'Reservar', 'areas'),
-            const SizedBox(width: 1),
-            if (type == 'funcionario')
-              atalho(PhosphorIcons.warningCircle, 'Ocorrências', 'occurrences')
-            else
-              atalho(
-                PhosphorIcons.wallet,
-                type == 'morador' ? 'Pagar' : 'Financeiro',
-                'debts',
-              ),
+            atalho(
+              icone: PhosphorIcons.userPlus,
+              titulo: 'Liberar',
+              apoio: 'Novo visitante',
+              modulo: 'visits',
+              destaque: true,
+            ),
+            const SizedBox(width: 8),
+            atalho(
+              icone: PhosphorIcons.package,
+              titulo: 'Encomendas',
+              apoio: encomendas > 0
+                  ? '$encomendas aguardando retirada'
+                  : 'Nada aguardando',
+              modulo: 'packages',
+            ),
           ],
         ),
-      ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            atalho(
+              icone: PhosphorIcons.calendarBlank,
+              titulo: 'Reservar',
+              apoio: 'Áreas sociais',
+              modulo: 'areas',
+            ),
+            const SizedBox(width: 8),
+            ultimo,
+          ],
+        ),
+      ],
     );
   }
 
