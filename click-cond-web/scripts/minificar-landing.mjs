@@ -48,6 +48,7 @@ const PAGINAS = [
   'controle-de-visitantes-condominio/index.html',
   'livro-de-portaria-digital/index.html',
   'reconhecimento-facial-condominio/index.html',
+  'aplicativo-para-condominio/index.html',
 ];
 try {
   const fonteCss = readFileSync(join(SAIDA, 'paginas.css'), 'utf8');

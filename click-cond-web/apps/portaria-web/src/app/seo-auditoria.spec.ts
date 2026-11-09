@@ -6,7 +6,7 @@ const sobre = () => readFileSync(pub('sobre/index.html'), 'utf8');
 const sindico = () => readFileSync(pub('sindico/index.html'), 'utf8');
 const texto = (html: string) => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const jsonLd = () => JSON.parse(sobre().match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1]);
-const NOVAS = ['/quem-somos/', '/precos/', '/controle-de-visitantes-condominio/', '/livro-de-portaria-digital/', '/reconhecimento-facial-condominio/'];
+const NOVAS = ['/quem-somos/', '/precos/', '/controle-de-visitantes-condominio/', '/livro-de-portaria-digital/', '/reconhecimento-facial-condominio/', '/aplicativo-para-condominio/'];
 const pagina = (rota: string) => readFileSync(pub(rota.slice(1) + 'index.html'), 'utf8');
 const regras = () => JSON.parse(readFileSync(join(process.cwd(), '../docs/operacao/amplify-regras.json'), 'utf8')) as { source: string; target: string; status: string }[];
 
@@ -200,7 +200,7 @@ describe('higiene do HTML publicado', () => {
   it('não há classe que esconda conteúdo reservado', () => {
     expect(readFileSync(pub('paginas.css'), 'utf8')).not.toContain('.prova');
   });
-  it.each(['/controle-de-visitantes-condominio/', '/livro-de-portaria-digital/', '/reconhecimento-facial-condominio/', '/precos/'])('%s mostra a data de atualização', (rota) => {
+  it.each(['/controle-de-visitantes-condominio/', '/livro-de-portaria-digital/', '/reconhecimento-facial-condominio/', '/precos/', '/aplicativo-para-condominio/'])('%s mostra a data de atualização', (rota) => {
     expect(pagina(rota)).toMatch(/<p class="pg-data">[^<]*<time datetime="\d{4}-\d{2}-\d{2}">/);
   });
 });
@@ -393,7 +393,7 @@ describe('rodada 3: imagens, descrições e CSS das páginas de conteúdo', () =
   });
   it('preço fica no fecho da description só na /sobre, na /sindico e em /precos', () => {
     const desc = (html: string) => html.match(/<meta name="description" content="([^"]+)"/)![1];
-    ['/controle-de-visitantes-condominio/', '/livro-de-portaria-digital/', '/reconhecimento-facial-condominio/', '/quem-somos/'].forEach((r) => {
+    ['/controle-de-visitantes-condominio/', '/livro-de-portaria-digital/', '/reconhecimento-facial-condominio/', '/quem-somos/', '/aplicativo-para-condominio/'].forEach((r) => {
       expect(desc(pagina(r))).not.toContain('R$ 298');
     });
   });
@@ -423,6 +423,7 @@ describe('rodada 5: imagem de compartilhamento, foto do escritório e perguntas 
     ['/controle-de-visitantes-condominio/', 'og-controle-de-visitantes.jpg'],
     ['/livro-de-portaria-digital/', 'og-livro-de-portaria.jpg'],
     ['/reconhecimento-facial-condominio/', 'og-reconhecimento-facial.jpg'],
+    ['/aplicativo-para-condominio/', 'og-institucional.jpg'],
   ];
   it.each(OG)('%s usa a própria OG de 1200x630', (rota, arq) => {
     const html = pagina(rota);
@@ -518,5 +519,57 @@ describe('rodada 6: técnica das páginas estáticas', () => {
     const h = cab();
     expect(h).not.toMatch(/pattern: '[^'\n]*\[/);
     expect(h).toMatch(/pattern: '\/sobre\/assets\/\*\.jpg'\s+headers:\s+- key: Cache-Control\s+value: public, max-age=86400/);
+  });
+});
+
+describe('rodada 7: referências do grafo, fontes verificáveis e app do morador', () => {
+  const B = 'https://www.prestarecondominios.com.br';
+  const grafo = (html: string) => JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1])['@graph'] as Record<string, any>[];
+  it.each(['/sobre/', '/sindico/', ...NOVAS])('%s declara no próprio grafo todo nó que referencia', (rota) => {
+    const g = grafo(pagina(rota));
+    const ids = new Set(g.map((n) => n['@id']));
+    const refs = JSON.stringify(g).match(/\{"@id":"[^"]+"\}/g) ?? [];
+    refs.map((r) => JSON.parse(r)['@id']).filter((id) => id.startsWith(B)).forEach((id) => expect([rota, id, ids.has(id)]).toEqual([rota, id, true]));
+  });
+  it('captura do hero da /sobre carrega cedo, sem lazy, e só no tema ativo', () => {
+    const pic = sobre().match(/<picture class="ps-tema">[\s\S]*?<\/picture>/)![0];
+    const img = pic.match(/<img[^>]*>/)![0];
+    expect(img).toContain('TelaInicio-dark-360.webp');
+    expect(img).not.toContain('loading="lazy"');
+    expect(img).toContain('fetchpriority="high"');
+    expect(pic).toMatch(/<source data-tema-claro media="\(prefers-color-scheme: light\)" srcset="[^"]*TelaInicio-light-360\.webp/);
+    expect(sobre().match(/TelaInicio-(?:dark|light)-360\.webp/g)!.length).toBe(2);
+    expect(readFileSync(pub('sobre/pagina.js'), 'utf8')).toContain('source[data-tema-claro]');
+  });
+  it.each(['politica-de-privacidade.html', 'termos-de-uso.html', 'exclusao-de-conta.html'])('%s usa a OG institucional atual', (p) => {
+    const html = readFileSync(pub(p), 'utf8');
+    expect(html).not.toContain('og-prestare-gestao');
+    expect(html).toContain('content="https://www.prestarecondominios.com.br/sobre/assets/og-institucional.jpg"');
+    expect(html).toContain('<meta property="og:image:height" content="630" />');
+  });
+  it('comparação cita páginas oficiais da uCondo, não post de blog', () => {
+    const t = sobre().match(/Informações das páginas públicas de cada fornecedor[\s\S]*?<\/p>/)![0];
+    expect(t).not.toContain('ucondo.com.br/blog');
+    expect(t).toContain('https://www.ucondo.com.br/ia-mora');
+    expect(sobre()).not.toContain('uma versão envia boletos');
+  });
+  it('FTR, restauração e teste de segurança vêm com o que foi feito e como conferir', () => {
+    const t = texto(sobre());
+    expect(t).toContain('A AWS não publica esse resultado numa página aberta');
+    expect(t).toContain('ficou disponível em cerca de 16 minutos');
+    expect(t).toContain('A falha de risco alto encontrada foi corrigida');
+    expect(texto(pagina('/quem-somos/'))).toContain('A AWS não publica esse resultado numa página aberta');
+  });
+  it('app do morador: grátis, limites honestos e itens que existem no menu do app', () => {
+    const t = texto(pagina('/aplicativo-para-condominio/'));
+    expect(t).toContain('Aplicativo para condomínio: o app do morador');
+    expect(t).toContain('O app e o console precisam de internet');
+    expect(t).toContain('integração financeira da Superlógica');
+    expect(t).toContain('O reconhecimento facial é opcional');
+    const menu = readFileSync(join(process.cwd(), '../click-cond-app/click-cond-app/lib/pages/shared/my_condominium.dart'), 'utf8');
+    ["'Minhas Encomendas'", "'Eventos de Acesso'", "'Delivery'", "getText('lb_areas_sociais')", "getText('lb_enquetes')", "getText('lb_agendar_mudanca')"].forEach((m) => expect(menu).toContain(m));
+  });
+  it('menu "Para o morador" das páginas de conteúdo leva à página do app', () => {
+    ['/sindico/', ...NOVAS].forEach((r) => expect(pagina(r)).not.toContain('href="/sobre/#app">Para o morador'));
   });
 });

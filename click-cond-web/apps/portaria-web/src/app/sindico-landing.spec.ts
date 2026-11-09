@@ -35,7 +35,7 @@ it('reutiliza a navegação desktop, menu mobile e rodapé da landing', () => {
   expect(html).toContain('<nav class="ps-nav"');
   expect(html).toContain('<nav class="ps-mobile-nav"');
   expect(html).toContain('<footer class="ps-footer"');
-  expect(html).toContain('href="/sobre/#app">Para o morador</a>');
+  expect(html).toContain('href="/aplicativo-para-condominio/">Para o morador</a>');
   expect(html).toContain('href="/sindico/" aria-current="page">Para o síndico</a>');
 });
 

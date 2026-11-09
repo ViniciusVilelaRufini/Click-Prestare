@@ -14,6 +14,7 @@ O app e o console precisam de internet para registrar. Só o terminal facial gua
 - [Controle de visitantes](https://www.prestarecondominios.com.br/controle-de-visitantes-condominio/): cadastro pelo morador, PIN na portaria, relatório de visitantes
 - [Livro de portaria digital](https://www.prestarecondominios.com.br/livro-de-portaria-digital/): o que fica registrado, quem altera e como exportar
 - [Reconhecimento facial e LGPD](https://www.prestarecondominios.com.br/reconhecimento-facial-condominio/): consentimento, alternativa para quem recusa e terminais
+- [Aplicativo para condomínio](https://www.prestarecondominios.com.br/aplicativo-para-condominio/): o app do morador, Prestare IA, download e dúvidas
 - [Quem somos](https://www.prestarecondominios.com.br/quem-somos/): dados da empresa e contato
 
 ## Documentos

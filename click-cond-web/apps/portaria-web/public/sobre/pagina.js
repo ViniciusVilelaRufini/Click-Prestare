@@ -191,6 +191,8 @@ class Pagina {
     const atual = raiz.dataset.theme || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
     const novo = atual === "light" ? "dark" : "light";
     raiz.dataset.theme = novo;
+    // <picture> do hero: a fonte clara passa a valer (ou não) pelo tema escolhido.
+    document.querySelectorAll("source[data-tema-claro]").forEach((s) => { s.media = novo === "light" ? "all" : "not all"; });
     try { localStorage.setItem("ps-theme", novo); } catch (_) { /* sem storage: vale só para esta visita */ }
   };
 
@@ -208,18 +210,23 @@ class Pagina {
       etapas.forEach((s) => s.classList.add("lit"));
       return;
     }
+    // Sem getBoundingClientRect na carga (forçava layout da página inteira): a
+    // posição vem do próprio IntersectionObserver. A primeira notificação de
+    // cada seção diz se ela já estava na tela; essa não anima.
+    const vistos = new WeakSet();
     this._obsReveal = new IntersectionObserver((itens) => itens.forEach((it) => {
+      const primeira = !vistos.has(it.target);
+      vistos.add(it.target);
       if (!it.isIntersecting) return;
       this._obsReveal.unobserve(it.target);
-      if (it.target.getBoundingClientRect().top < window.innerHeight * 0.2) return;
+      const altura = it.rootBounds ? it.rootBounds.height : window.innerHeight;
+      if (primeira || it.boundingClientRect.top < altura * 0.2) return;
       it.target.animate(
         [{ opacity: 0, transform: "translateY(28px)" }, { opacity: 1, transform: "none" }],
         { duration: 800, easing: "cubic-bezier(.2,.8,.2,1)" }
       );
     }), { threshold: 0.01 });
-    document.querySelectorAll(".rv").forEach((el) => {
-      if (el.getBoundingClientRect().top > window.innerHeight) this._obsReveal.observe(el);
-    });
+    document.querySelectorAll(".rv").forEach((el) => this._obsReveal.observe(el));
     this._obsEtapas = new IntersectionObserver((itens) => itens.forEach((it) => {
       if (!it.isIntersecting) return;
       etapas.forEach((s, i) => window.setTimeout(() => s.classList.add("lit"), i * 350));

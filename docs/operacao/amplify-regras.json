@@ -75,6 +75,16 @@
     "status": "200"
   },
   {
+    "source": "/aplicativo-para-condominio",
+    "target": "/aplicativo-para-condominio/",
+    "status": "301"
+  },
+  {
+    "source": "/aplicativo-para-condominio/",
+    "target": "/aplicativo-para-condominio/index.html",
+    "status": "200"
+  },
+  {
     "source": "/politica-de-privacidade",
     "target": "/politica-de-privacidade.html",
     "status": "301"
