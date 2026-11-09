@@ -266,8 +266,11 @@ describe('sitemap e /sindico', () => {
 
 describe('regras do Amplify', () => {
   const ESTATICAS = ['/sobre', '/sindico', ...NOVAS.map((r) => r.slice(0, -1))];
-  it('a primeira regra leva o domínio sem www para o www, com o caminho', () => {
-    expect(regras()[0]).toEqual({ source: 'https://prestarecondominios.com.br/<*>', target: 'https://www.prestarecondominios.com.br/<*>', status: '301' });
+  // Formato documentado do Amplify, sem <*>: o host com <*> não casava. Testado
+  // em produção: mantém caminho e query (gclid) no redirecionamento.
+  it('a primeira regra leva o domínio sem www para o www', () => {
+    expect(regras()[0]).toEqual({ source: 'https://prestarecondominios.com.br', target: 'https://www.prestarecondominios.com.br', status: '301' });
+    expect(regras().filter((r) => r.source.startsWith('https://prestarecondominios.com.br'))).toHaveLength(1);
   });
   it.each(ESTATICAS)('%s sem barra vai por 301 para a versão com barra, que serve o HTML estático', (rota) => {
     const r = regras();
@@ -498,13 +501,6 @@ describe('rodada 6: técnica das páginas estáticas', () => {
     const rodape = readFileSync(pub(p), 'utf8').match(/<footer[\s\S]*?<\/footer>/)![0];
     expect(texto(rodape)).toContain('(17) 99660-8148');
     expect(rodape).toContain('href="https://wa.me/5517996608148"');
-  });
-  it('a 1ª regra do Amplify leva o host sem www para o www mantendo o caminho', () => {
-    expect(regras()[0]).toEqual({
-      source: 'https://prestarecondominios.com.br/<*>',
-      target: 'https://www.prestarecondominios.com.br/<*>',
-      status: '301',
-    });
   });
   it('CSP em Report-Only não libera eval', () => {
     const linha = cab().match(/key: Content-Security-Policy-Report-Only\s+value: "([^"]+)"/)![1];
