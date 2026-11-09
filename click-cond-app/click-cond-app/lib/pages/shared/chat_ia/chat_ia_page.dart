@@ -660,10 +660,17 @@ class _ChatIaPageState extends State<ChatIaPage> {
     );
   }
 
-  /// Caixa azul do topo — mesmo gradiente e sombra do card da home, com os
-  /// controles em branco por cima. Flutua sobre a conversa (a lista tem folga
-  /// no topo), então o conteúdo desliza por baixo em vez de parar numa borda.
+  /// Cabeçalho no padrão das telas. Flutua sobre a conversa (a lista tem folga
+  /// no topo), então precisa ser opaco: pintado com o fundo da tela, para as
+  /// mensagens roladas sumirem por baixo em vez de aparecerem atrás do título.
   Widget _buildTopBar(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.bg(context),
+      child: _barraDoTopo(context),
+    );
+  }
+
+  Widget _barraDoTopo(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,

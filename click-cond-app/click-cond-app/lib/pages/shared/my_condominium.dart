@@ -499,31 +499,18 @@ class _MyCondominiumState extends State<MyCondominium> {
               padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, 88),
               // O menu é montado localmente (_buildMenu), não depende de rede:
               // nunca fica em esqueleto esperando o carregamento do condomínio.
-              // Lista compacta: um bloco só, linhas separadas por traço fino
-              // que começa depois do ícone, sem traço depois da última.
+              // Um cartão por módulo, com a imagem 3D se dissolvendo no fundo.
               sliver: SliverToBoxAdapter(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surface(context),
-                    border: Border.all(color: AppColors.border(context)),
-                  ),
-                  child: Column(
-                    children: [
-                      for (var i = 0; i < _menu.length; i++) ...[
-                        if (i > 0)
-                          Divider(
-                            height: 1,
-                            thickness: 1,
-                            indent: _MenuRow.inicioTexto,
-                            color: AppColors.border(context),
-                          ),
-                        _MenuRow(
-                          item: _menu[i],
-                          onTap: () => _navigate(_menu[i].page),
-                        ),
-                      ],
+                child: Column(
+                  children: [
+                    for (var i = 0; i < _menu.length; i++) ...[
+                      if (i > 0) const SizedBox(height: AppSpacing.sm),
+                      _MenuRow(
+                        item: _menu[i],
+                        onTap: () => _navigate(_menu[i].page),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -1589,33 +1576,42 @@ class _MenuRow extends StatelessWidget {
   final VoidCallback onTap;
   const _MenuRow({required this.item, required this.onTap});
 
-  static const double _padding = AppSpacing.lg;
-  static const double _icone = 36;
-  static const double _vao = 12;
-
-  /// Onde o nome começa; o traço entre linhas parte daqui.
-  static const double inicioTexto = _padding + _icone + _vao;
+  static const double _altura = 72;
+  static const double _imagem = 96;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 60),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: _padding, vertical: 12),
+    // O Material é o próprio cartão: a tinta do toque é pintada nele, por
+    // cima do fundo (um Container opaco acima do InkWell a escondia).
+    return Material(
+      color: AppColors.surface(context),
+      shape: Border.fromBorderSide(BorderSide(color: AppColors.border(context))),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: _altura,
           child: Row(
             children: [
-              SizedBox.square(
-                dimension: _icone,
+              SizedBox(
+                width: _imagem,
+                height: _altura,
                 child: item.asset != null
-                    ? Image.asset(item.asset!, fit: BoxFit.cover)
-                    : ColoredBox(
-                        color: AppColors.brandSoftOf(context),
-                        child: Icon(item.icon, color: AppColors.brandInkOf(context), size: 18),
+                    // Mesmo degradê da foto do morador no console: a imagem
+                    // some para a direita dentro da cor do cartão.
+                    ? ShaderMask(
+                        blendMode: BlendMode.dstIn,
+                        shaderCallback: (r) => const LinearGradient(
+                          colors: [Colors.white, Colors.white, Colors.transparent],
+                          stops: [0, 0.45, 1],
+                        ).createShader(r),
+                        child: Image.asset(item.asset!, fit: BoxFit.cover),
+                      )
+                    : Center(
+                        child: Icon(item.icon, color: AppColors.brandInkOf(context), size: 22),
                       ),
               ),
-              const SizedBox(width: _vao),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
                   item.label,
@@ -1626,7 +1622,10 @@ class _MenuRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.lg),
+                child: Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+              ),
             ],
           ),
         ),

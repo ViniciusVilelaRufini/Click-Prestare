@@ -109,3 +109,14 @@ testWidgets('modo normal não rola', (t) async { /* 3 segmentos, scrollable omit
 
 - [ ] **Step 1:** `flutter analyze` sem avisos novos em relação ao início da branch.
 - [ ] **Step 2:** Build `flutter build apk --debug --target-platform android-x64`, instalar com `adb install -r`, e capturar as 5 telas nos temas claro e escuro em `C:\w\app-dark\.superpowers\varredura\depois\`.
+
+### Task 6: Cartões dos módulos com imagem em degradê (Fase 2 do spec)
+
+**Files:** `lib/pages/shared/my_condominium.dart` (`_MenuRow`, sliver do menu), `assets/images/modulos/*.png`, `test/my_condominium_menu_test.dart`, `test/modulos_icones_test.dart`
+
+- [ ] **Step 1:** Gerar 3 amostras no Z Image (1:1) com o prompt-base; mostrar ao usuário; seguir só com o ok.
+- [ ] **Step 2:** Teste `linha do módulo mostra o efeito do toque` (já escrito em my_condominium_menu_test.dart) → FAIL hoje.
+- [ ] **Step 3:** Cartão por módulo: `Material(color: surface, shape: Border(border))` + `InkWell`; imagem 96dp de largura com `ShaderMask` (gradiente horizontal opaco→transparente a partir de ~45%); altura mínima 72; espaço 8 entre cartões.
+- [ ] **Step 4:** Gerar os 15 restantes, salvar em `assets/images/modulos/<nome>.png` (mesmos nomes de hoje), conferir a prancha.
+- [ ] **Step 5:** `flutter test test/my_condominium_menu_test.dart test/modulos_icones_test.dart` → PASS; conferir claro/escuro no emulador.
+- [ ] **Step 6:** Commit.

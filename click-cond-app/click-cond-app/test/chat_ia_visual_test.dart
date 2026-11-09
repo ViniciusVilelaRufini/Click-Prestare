@@ -30,6 +30,17 @@ void main() {
     expect(blocoPreto, findsNothing);
   });
 
+  testWidgets('barra do topo opaca: a conversa rolada não aparece por trás', (t) async {
+    await abrir(t);
+    final titulo = find.text('PRESTARE IA');
+    final ctx = t.element(titulo);
+    final fundo = find.ancestor(
+      of: titulo,
+      matching: find.byWidgetPredicate((w) => w is ColoredBox && w.color == AppColors.bg(ctx)),
+    );
+    expect(fundo, findsOneWidget);
+  });
+
   testWidgets('sugestões com cantos retos e texto legível', (t) async {
     await abrir(t);
     final chips = t.widgetList<ActionChip>(find.byType(ActionChip)).toList();

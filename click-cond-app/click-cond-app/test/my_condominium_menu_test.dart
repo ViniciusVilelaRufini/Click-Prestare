@@ -80,6 +80,33 @@ void main() {
     expect(find.byType(ListEnquetes), findsOneWidget);
   });
 
+  testWidgets('linha do módulo mostra o efeito do toque (Material acima do fundo do bloco)', (tester) async {
+    storageLogin({'token': 't', 'user': {'id': 2, 'name': 'Sid'}});
+    await abrir(tester);
+    final tinta = find.ancestor(of: find.text('Comunicados'), matching: find.byType(InkWell)).first;
+    // A tinta do InkWell é pintada no Material mais próximo; um fundo opaco
+    // entre os dois a esconde.
+    String? achado;
+    tester.element(tinta).visitAncestorElements((e) {
+      final w = e.widget;
+      if (w is Material) {
+        achado = 'material';
+        return false;
+      }
+      final cor = w is ColoredBox
+          ? w.color
+          : (w is DecoratedBox && w.decoration is BoxDecoration)
+              ? (w.decoration as BoxDecoration).color
+              : null;
+      if (cor != null && cor.a > 0) {
+        achado = 'fundo opaco antes do Material';
+        return false;
+      }
+      return true;
+    });
+    expect(achado, 'material');
+  });
+
   testWidgets('funcionário: o filtro continua escondendo Assembleias e Enquetes', (tester) async {
     storageFuncionario({'token': 't', 'user': {'id': 3, 'nome': 'Fun'}});
     await abrir(tester);

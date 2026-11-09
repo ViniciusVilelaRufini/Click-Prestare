@@ -46,3 +46,18 @@ de fonte fixos fica para quando cada tela for mexida.
 ## Restrições
 Sem mudar fluxos ou textos além dos citados; testes existentes continuam
 passando; conferir cada tela no emulador nos temas claro e escuro.
+
+## Fase 2 — cartões dos módulos com imagem em degradê (aprovado 09/11)
+Pedido: cada módulo do GERENCIAR com uma imagem bem trabalhada (Higgsfield) que
+se dissolve em degradê dentro do cartão, como a foto do morador no console web.
+- Estilo (escolha do usuário: "degradê"): objeto 3D por módulo, corpo no
+  degradê da marca #FFD966→#F2A900 com detalhes pretos, luz de estúdio, fundo
+  escuro, mesmo prompt-base em todos. Modelo: Z Image (único liberado no plano
+  free da conta).
+- Cartão: um por módulo, ~72dp; imagem ~96dp à esquerda de ponta a ponta,
+  dissolvendo para a direita na cor do cartão (ShaderMask); nome e seta à
+  direita. Material próprio por cartão, para o efeito de toque aparecer.
+- Antes de gerar os 18: 3 amostras (Mudança, Áreas Sociais, Comunicados)
+  conferidas pelo usuário no emulador.
+- Abordagens: A) objeto 3D (escolhida), B) cena fotográfica (recusada:
+  inconsistente entre os 18).
