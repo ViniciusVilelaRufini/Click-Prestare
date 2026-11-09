@@ -16,11 +16,11 @@ registerLocaleData(ɵfindLocaleData('en'), 'pt');
  * contradizia a página de Comunicados.
  */
 describe('DashboardPageComponent — card Comunicados', () => {
-  /** Linha do card "Comunicados" em Informações Gerais (rótulo + contador). */
-  function linhaComunicados(el: HTMLElement): HTMLElement {
-    const rotulo = (Array.from(el.querySelectorAll('span')) as HTMLElement[])
-      .find((x) => x.textContent?.trim() === 'Comunicados')!;
-    return rotulo.closest('.justify-between') as HTMLElement;
+  /** Célula "Comunicados" do resumo do condomínio (contador + rótulo). */
+  function celulaComunicados(el: HTMLElement): HTMLElement {
+    const rotulo = (Array.from(el.querySelectorAll('.ps-mini3 small')) as HTMLElement[])
+      .find((x) => x.textContent?.trim() === 'Comunicados 7 dias')!;
+    return rotulo.parentElement as HTMLElement;
   }
 
   function render(comunicadosRecentes: number): HTMLElement {
@@ -39,16 +39,15 @@ describe('DashboardPageComponent — card Comunicados', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('sem comunicados recentes diz "Nenhum nos últimos 7 dias"', () => {
+  it('sem comunicados recentes mostra zero na janela de 7 dias', () => {
     const el = render(0);
-    expect(linhaComunicados(el).textContent).toContain('Nenhum nos últimos 7 dias');
+    expect(celulaComunicados(el).querySelector('b')?.textContent?.trim()).toBe('0');
     expect(el.textContent).not.toContain('Nenhum ativo');
   });
 
-  it('com comunicados recentes mostra o número e não o rótulo vazio', () => {
+  it('com comunicados recentes mostra o número', () => {
     const el = render(3);
-    expect(linhaComunicados(el).textContent?.replace(/\s+/g, ' ').trim()).toBe('Comunicados3');
-    expect(el.textContent).not.toContain('Nenhum nos últimos 7 dias');
+    expect(celulaComunicados(el).querySelector('b')?.textContent?.trim()).toBe('3');
     expect(el.textContent).not.toContain('Nenhum ativo');
   });
 });

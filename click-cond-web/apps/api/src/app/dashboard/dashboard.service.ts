@@ -4,6 +4,7 @@ import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial-visitante-lookup.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 import { formatarApto } from '../common/formatar-apto.util';
+import { formatarDataHoraBrasilia, horaBrasilia } from '../common/hora-brasilia.util';
 
 export interface DashboardSummary {
   visitantesAtivos: number;
@@ -13,6 +14,8 @@ export interface DashboardSummary {
   comunicadosRecentes: number;
   totalApartamentos: number;
   totalMoradores: number;
+  /** Entradas de visitantes de hoje por hora (0–23), no horário de Brasília. */
+  movimentoHoje?: number[];
   ultimosEventos: {
     tipo: string;
     descricao: string;
@@ -121,6 +124,7 @@ export class DashboardService {
       ultOcorrencias,
       ultAcessosFacial,
       ultAuditLogs,
+      entradasRecentes,
     ] = await Promise.all([
       // Visitantes ainda no condomínio: entrada registrada mas sem saída registrada, e is_visitante = 1 (ou is_prestador = 0)
       pessoasMigrationEnabled(this.prisma)
@@ -246,6 +250,24 @@ export class DashboardService {
         orderBy: { created_at: 'desc' },
         take: 15,
       }),
+      // 24h cobrem o dia inteiro; entradasPorHora descarta o que é de ontem.
+      pessoasMigrationEnabled(this.prisma)
+        ? this.prisma.visitas.findMany({
+            where: {
+              id_condominio: idCondominio,
+              pessoa: { tipo_pessoa: 'visitante' },
+              data_entrada: { gte: new Date(agora.getTime() - 86400_000) },
+            },
+            select: { data_entrada: true },
+          })
+        : this.prisma.visitantes.findMany({
+            where: {
+              id_condominio: idCondominio,
+              is_prestador: { not: 1 },
+              data_entrada: { gte: new Date(agora.getTime() - 86400_000) },
+            },
+            select: { data_entrada: true },
+          }),
     ]);
 
     // No caminho migrado, `ultEntradasVisitantes`/`ultSaidasVisitantes` vêm
@@ -751,9 +773,20 @@ export class DashboardService {
       comunicadosRecentes,
       totalApartamentos,
       totalMoradores,
+      movimentoHoje: entradasPorHora(entradasRecentes.map((v: any) => v.data_entrada), agora),
       ultimosEventos: sortedEvents,
     };
   }
+}
+
+/** Conta as entradas de hoje por hora (0–23), no calendário de Brasília. */
+export function entradasPorHora(datas: (Date | null)[], agora: Date): number[] {
+  const hoje = formatarDataHoraBrasilia(agora).slice(0, 10);
+  const horas = new Array<number>(24).fill(0);
+  for (const d of datas) {
+    if (d && formatarDataHoraBrasilia(d).slice(0, 10) === hoje) horas[horaBrasilia(new Date(d))]++;
+  }
+  return horas;
 }
 
 /**

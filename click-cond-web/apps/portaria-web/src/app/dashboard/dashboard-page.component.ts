@@ -436,7 +436,66 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Gráfico "Movimento de hoje"; null enquanto a API não envia o dado. */
+  readonly movimento = computed(() => {
+    const horas = this.data()?.movimentoHoje;
+    if (!horas?.length) return null;
+    const LARGURA = 340;
+    const ALTURA = 150;
+    const UTIL = ALTURA - 34;
+    const maximo = Math.max(...horas, 1);
+    const largura = LARGURA / horas.length;
+    const pico = horas.indexOf(Math.max(...horas));
+    return {
+      viewBox: `0 0 ${LARGURA} ${ALTURA}`,
+      largura: LARGURA,
+      base: ALTURA - 18,
+      topo: ALTURA - 18 - UTIL,
+      maximo,
+      total: horas.reduce((s, v) => s + v, 0),
+      pico: `${pico}h`,
+      rotuloY: ALTURA - 4,
+      barras: horas.map((v, h) => {
+        const alt = (v / maximo) * UTIL;
+        return {
+          h,
+          v,
+          x: h * largura + 1.5,
+          y: ALTURA - 18 - alt,
+          largura: largura - 3,
+          altura: Math.max(alt, 1),
+          destaque: v > 0 && h === pico,
+          rotulo: h % 6 === 0,
+          meio: h * largura + largura / 2,
+        };
+      }),
+    };
+  });
+
+  /** Painel "Na portaria agora": quem está no local primeiro; no máximo quatro. */
+  readonly naPortaria = signal<Pessoa[]>([]);
+  readonly naPortariaVisiveis = computed(() =>
+    [...this.naPortaria()]
+      .sort((a, b) => Number(b.noLocal) - Number(a.noLocal))
+      .slice(0, 4),
+  );
+  readonly qtdNoLocal = computed(() => this.naPortaria().filter((p) => p.noLocal).length);
+
+  private carregarNaPortaria() {
+    this.visitantesService.listarPessoas().subscribe({
+      next: (lista) =>
+        this.naPortaria.set(lista.filter((p) => p.noLocal || p.statusLabel === 'Liberado')),
+      error: () => {},
+    });
+  }
+
+  abrirBaixaDe(p: Pessoa) {
+    this.abrirModalBaixa();
+    this.buscaPessoaBaixa.set(p.nome);
+  }
+
   private clockInterval?: ReturnType<typeof setInterval>;
+  private portariaInterval?: ReturnType<typeof setInterval>;
   private refreshInterval?: ReturnType<typeof setInterval>;
 
   ngOnInit() {
@@ -452,12 +511,16 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     // Atualiza eventos do dashboard a cada 4s para refletir acessos faciais
     // e outros eventos em near-real-time
     this.refreshInterval = setInterval(() => this.load(), 4_000);
+    // Lista pesada: não acompanha os 4s dos eventos.
+    this.carregarNaPortaria();
+    this.portariaInterval = setInterval(() => this.carregarNaPortaria(), 30_000);
 
     // Também recarrega quando a aba volta a ficar visível
     document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   ngOnDestroy() {
+    if (this.portariaInterval) clearInterval(this.portariaInterval);
     clearInterval(this.clockInterval);
     clearInterval(this.refreshInterval);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);

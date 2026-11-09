@@ -12,6 +12,8 @@ export interface DashboardSummary {
   comunicadosRecentes: number;
   totalApartamentos: number;
   totalMoradores: number;
+  /** Entradas de visitantes de hoje por hora (0–23), no horário de Brasília. */
+  movimentoHoje?: number[];
   ultimosEventos: {
     tipo: string;
     descricao: string;

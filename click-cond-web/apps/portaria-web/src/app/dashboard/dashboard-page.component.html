@@ -96,16 +96,37 @@
     </div>
   } @else if (data(); as d) {
 
+    <!-- Ações principais -->
+    <div class="ps-qbar">
+      <button type="button" (click)="abrirModalLiberar()" class="ps-qb ps-qb-pri">
+        <span><svg class="w-[20px] h-[20px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></span>
+        <div><b>Liberar visitante</b><small>Entrada com PIN ou cadastro</small></div>
+      </button>
+      <button type="button" (click)="abrirValidador()" class="ps-qb">
+        <span><svg class="w-[20px] h-[20px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg></span>
+        <div><b>Validar PIN</b><small>Código do visitante</small></div>
+      </button>
+      <a routerLink="/encomendas" [queryParams]="{novo: 'true'}" class="ps-qb">
+        <span><svg class="w-[20px] h-[20px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></span>
+        <div><b>Receber encomenda</b><small>Registrar e avisar morador</small></div>
+      </a>
+      <button type="button" (click)="abrirModalBaixa()" class="ps-qb">
+        <span><svg class="w-[20px] h-[20px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg></span>
+        <div><b>Dar baixa</b><small>Saída de quem está no local</small></div>
+      </button>
+    </div>
+
     <!-- KPIs -->
     <div class="ps-kpis">
 
       <!-- Visitantes -->
       <a routerLink="/visitantes" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
         <div class="ps-kpi-row1">
-          <svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <span class="ps-kic"><svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
+          </svg></span>
+          <span class="ps-kpi-lab">Visitantes no condomínio</span>
           <span class="flex items-center gap-1.5">
             <span class="ps-label !text-[10px] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">Acessar</span>
             <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,9 +134,8 @@
             </svg>
           </span>
         </div>
-        <div class="flex flex-col gap-2.5 items-start">
-          <p class="ps-num">{{ d.visitantesAtivos < 10 ? '0' + d.visitantesAtivos : d.visitantesAtivos }}</p>
-          <p class="ps-cap !text-sm">Visitantes no condomínio</p>
+        <p class="ps-num !text-[52px] !leading-[52px]">{{ d.visitantesAtivos < 10 ? '0' + d.visitantesAtivos : d.visitantesAtivos }}</p>
+        <div class="min-h-[22px]">
           @if (d.visitantesAtivos > 0) {
             <span class="ps-tag"><span class="ps-dot ps-dot-ok ps-dot-pulse"></span>presentes</span>
           }
@@ -123,12 +143,13 @@
       </a>
 
       <!-- Encomendas -->
-      <a routerLink="/encomendas" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
+      <a routerLink="/encomendas" [class.ps-tone-warn]="d.encomendasAguardando > 0" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
         <div class="ps-kpi-row1">
-          <svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <span class="ps-kic"><svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-          </svg>
+          </svg></span>
+          <span class="ps-kpi-lab">Encomendas aguardando</span>
           <span class="flex items-center gap-1.5">
             <span class="ps-label !text-[10px] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">Acessar</span>
             <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,9 +157,8 @@
             </svg>
           </span>
         </div>
-        <div class="flex flex-col gap-2.5 items-start">
-          <p class="ps-num">{{ d.encomendasAguardando < 10 ? '0' + d.encomendasAguardando : d.encomendasAguardando }}</p>
-          <p class="ps-cap !text-sm">Encomendas aguardando</p>
+        <p class="ps-num !text-[52px] !leading-[52px]">{{ d.encomendasAguardando < 10 ? '0' + d.encomendasAguardando : d.encomendasAguardando }}</p>
+        <div class="min-h-[22px]">
           @if (d.encomendasAguardando > 0) {
             <span class="ps-tag"><span class="ps-dot ps-dot-warn"></span>pendente</span>
           }
@@ -146,12 +166,13 @@
       </a>
 
       <!-- Ocorrências -->
-      <a routerLink="/ocorrencias" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
+      <a routerLink="/ocorrencias" [class.ps-tone-danger]="d.ocorrenciasPendentes > 0" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
         <div class="ps-kpi-row1">
-          <svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <span class="ps-kic"><svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-          </svg>
+          </svg></span>
+          <span class="ps-kpi-lab">Ocorrências pendentes</span>
           <span class="flex items-center gap-1.5">
             <span class="ps-label !text-[10px] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">Acessar</span>
             <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -159,9 +180,8 @@
             </svg>
           </span>
         </div>
-        <div class="flex flex-col gap-2.5 items-start">
-          <p class="ps-num">{{ d.ocorrenciasPendentes < 10 ? '0' + d.ocorrenciasPendentes : d.ocorrenciasPendentes }}</p>
-          <p class="ps-cap !text-sm">Ocorrências pendentes</p>
+        <p class="ps-num !text-[52px] !leading-[52px]">{{ d.ocorrenciasPendentes < 10 ? '0' + d.ocorrenciasPendentes : d.ocorrenciasPendentes }}</p>
+        <div class="min-h-[22px]">
           @if (d.ocorrenciasPendentes > 0) {
             <span class="ps-tag"><span class="ps-dot ps-dot-danger ps-dot-pulse"></span>urgente</span>
           }
@@ -171,10 +191,11 @@
       <!-- Prestadores -->
       <a routerLink="/prestadores/cadastro" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
         <div class="ps-kpi-row1">
-          <svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <span class="ps-kic"><svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-          </svg>
+          </svg></span>
+          <span class="ps-kpi-lab">Funcionários cadastrados</span>
           <span class="flex items-center gap-1.5">
             <span class="ps-label !text-[10px] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">Acessar</span>
             <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,9 +203,8 @@
             </svg>
           </span>
         </div>
-        <div class="flex flex-col gap-2.5 items-start">
-          <p class="ps-num">{{ d.prestadoresAtivos < 10 ? '0' + d.prestadoresAtivos : d.prestadoresAtivos }}</p>
-          <p class="ps-cap !text-sm">Funcionários cadastrados</p>
+        <p class="ps-num !text-[52px] !leading-[52px]">{{ d.prestadoresAtivos < 10 ? '0' + d.prestadoresAtivos : d.prestadoresAtivos }}</p>
+        <div class="min-h-[22px]">
           @if (d.prestadoresAtivos > 0) {
             <span class="ps-tag"><span class="ps-dot"></span>ativos</span>
           }
@@ -349,7 +369,7 @@
                     </span>
                   }
                   <span class="flex-1 min-w-0 text-sm truncate max-[520px]:basis-full max-[520px]:order-3 max-[520px]:whitespace-normal">{{ e.descricao }}</span>
-                  <span class="text-xs text-[var(--ink-subtle)] shrink-0 tabular-nums max-[520px]:ml-auto">
+                  <span class="order-first w-[92px] text-xs text-[var(--ink-muted)] shrink-0 tabular-nums max-[620px]:order-none max-[620px]:w-auto max-[520px]:ml-auto">
                     {{ formatarDataEvento(e.quando) }}
                   </span>
                 </li>
@@ -374,102 +394,68 @@
       <!-- Painel direito -->
       <div class="flex flex-col gap-5 min-w-0">
 
-        <!-- Totais do condomínio -->
+        <!-- Movimento de hoje -->
+        @if (movimento(); as m) {
+          <div class="ps-panel">
+            <div class="ps-panel-head">
+              <h2 class="ps-h2">Movimento de hoje</h2>
+              <span class="ps-cap">Entradas de visitantes por hora</span>
+            </div>
+            <div class="px-5 pt-3.5 pb-1">
+              <svg [attr.viewBox]="m.viewBox" width="100%" role="img"
+                   [attr.aria-label]="'Entradas de visitantes por hora hoje: ' + m.total + ' no total'">
+                <line x1="0" [attr.x2]="m.largura" [attr.y1]="m.topo" [attr.y2]="m.topo" stroke="var(--line-100)" />
+                <line x1="0" [attr.x2]="m.largura" [attr.y1]="m.base" [attr.y2]="m.base" stroke="var(--line-100)" />
+                <text [attr.x]="m.largura" [attr.y]="m.topo - 4" text-anchor="end" font-size="10" fill="var(--ink-subtle)">{{ m.maximo }}</text>
+                @for (b of m.barras; track b.h) {
+                  <rect [attr.x]="b.x" [attr.y]="b.y" [attr.width]="b.largura" [attr.height]="b.altura"
+                        [attr.fill]="b.destaque ? 'var(--brand)' : 'var(--line-200)'">
+                    <title>{{ b.h }}h: {{ b.v }} entradas</title>
+                  </rect>
+                  @if (b.rotulo) {
+                    <text [attr.x]="b.meio" [attr.y]="m.rotuloY" text-anchor="middle" font-size="10" fill="var(--ink-subtle)">{{ b.h }}h</text>
+                  }
+                }
+              </svg>
+            </div>
+            <div class="ps-chartfoot">
+              <div><b class="tabular-nums">{{ m.total }}</b><span>entradas</span></div>
+              <div><b class="tabular-nums">{{ m.total ? m.pico : '—' }}</b><span>horário de pico</span></div>
+              <div><b class="tabular-nums">{{ d.visitantesAtivos }}</b><span>no local agora</span></div>
+            </div>
+          </div>
+        }
+
+        <!-- Na portaria agora -->
         <div class="ps-panel">
           <div class="ps-panel-head">
-            <h2 class="ps-h2">Informações Gerais</h2>
+            <h2 class="ps-h2">Na portaria agora</h2>
+            <span class="ps-tag"><span class="ps-dot ps-dot-ok ps-dot-pulse"></span>{{ qtdNoLocal() }} no local</span>
           </div>
-          <!-- Apartamentos -->
-          <div class="flex items-center justify-between gap-3.5 px-5 py-3.5 border-b border-[var(--line-100)]">
-            <div class="flex items-center gap-3.5">
-              <div class="ps-ico">
-                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
-                </svg>
+          @for (p of naPortariaVisiveis(); track p.id) {
+            <div class="flex items-center gap-3.5 px-5 py-3 border-b border-[var(--line-100)] last:border-b-0">
+              <span class="ps-avatar shrink-0">{{ iniciais(p.nome) }}</span>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium truncate">{{ p.nome }}</p>
+                <p class="ps-cap truncate">{{ p.noLocal ? 'No local' : 'Liberado' }}</p>
               </div>
-              <span class="text-sm">Apartamentos</span>
-            </div>
-            <span class="ps-num !text-[28px] !leading-8">{{ d.totalApartamentos }}</span>
-          </div>
-
-          <!-- Moradores -->
-          <div class="flex items-center justify-between gap-3.5 px-5 py-3.5 border-b border-[var(--line-100)]">
-            <div class="flex items-center gap-3.5">
-              <div class="ps-ico">
-                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                </svg>
-              </div>
-              <span class="text-sm">Moradores</span>
-            </div>
-            <span class="ps-num !text-[28px] !leading-8">{{ d.totalMoradores }}</span>
-          </div>
-
-          <!-- Comunicados -->
-          <div class="flex items-center justify-between gap-3.5 px-5 py-3.5">
-            <div class="flex items-center gap-3.5">
-              <div class="ps-ico">
-                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.68.34-1.44.52-2.22.52H5a1 1 0 01-1-1v-4a1 1 0 011-1h3.12c.78 0 1.54.18 2.22.52l5.77-2.88A1 1 0 0118 8.87v6.26a1 1 0 01-1.89.47l-5.77-2.88zM18 9.5a3.5 3.5 0 010 5M21 8a6 6 0 010 8" />
-                </svg>
-              </div>
-              <span class="text-sm">Comunicados</span>
-            </div>
-            <div class="text-right">
-              @if (d.comunicadosRecentes === 0) {
-                <span class="ps-tag">Nenhum nos últimos 7 dias</span>
+              @if (p.noLocal) {
+                <button type="button" (click)="abrirBaixaDe(p)" class="ps-btn ps-btn-sec ps-btn-sm">Baixa</button>
               } @else {
-                <span class="ps-num !text-[28px] !leading-8">{{ d.comunicadosRecentes }}</span>
+                <a routerLink="/visitantes" class="ps-btn ps-btn-sm">Abrir</a>
               }
             </div>
-          </div>
+          } @empty {
+            <p class="px-5 py-6 text-center text-sm text-[var(--ink-muted)]">Ninguém no local nem liberado agora.</p>
+          }
         </div>
 
-        <!-- Acesso rápido -->
+        <!-- Totais do condomínio -->
         <div class="ps-panel">
-          <div class="ps-panel-head">
-            <h2 class="ps-h2">Acesso Rápido</h2>
-          </div>
-          <div class="grid grid-cols-2 gap-px bg-[var(--line-100)]">
-            <button (click)="abrirModalLiberar()"
-               class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
-               title="Liberar entrada de visitante já cadastrado">
-              <svg class="w-[22px] h-[22px] text-[var(--brand-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-              </svg>
-              <span>Liberar Visitante</span>
-            </button>
-
-            <button (click)="abrirValidador()"
-               class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
-               title="Validar PIN de acesso">
-              <svg class="w-[22px] h-[22px] text-[var(--brand-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-              </svg>
-              <span>Validar PIN</span>
-            </button>
-
-            <a routerLink="/visitantes" [queryParams]="{novo: 'true'}"
-               class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
-               title="Cadastrar um novo visitante">
-              <svg class="w-[22px] h-[22px] text-[var(--brand-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
-              </svg>
-              <span>Cadastrar Visitante</span>
-            </a>
-
-            <button (click)="abrirModalBaixa()"
-               class="bg-[var(--bg-200)] hover:bg-[var(--bg-300)] transition-colors py-[22px] px-3 flex flex-col items-center gap-3 text-center font-display font-semibold text-xs tracking-[0.16em] uppercase"
-               title="Registrar saída de visitante ou prestador">
-              <svg class="w-[22px] h-[22px] text-[var(--brand-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-              </svg>
-              <span>Dar Baixa</span>
-            </button>
+          <div class="ps-mini3">
+            <div><span class="ps-ico"><svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span><b class="tabular-nums">{{ d.totalApartamentos }}</b><small>Apartamentos</small></div>
+            <div><span class="ps-ico"><svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></span><b class="tabular-nums">{{ d.totalMoradores }}</b><small>Moradores</small></div>
+            <div><span class="ps-ico"><svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg></span><b class="tabular-nums">{{ d.comunicadosRecentes }}</b><small>Comunicados 7 dias</small></div>
           </div>
         </div>
 
