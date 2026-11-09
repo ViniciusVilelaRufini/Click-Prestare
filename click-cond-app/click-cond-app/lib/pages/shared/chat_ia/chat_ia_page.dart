@@ -78,20 +78,82 @@ class _ChatIaPageState extends State<ChatIaPage> {
   bool _ouvindo = false;
 
   // Sugestões iniciais adaptadas ao papel do usuário.
-  List<String> get _sugestoes {
+  /// Sugestões da tela vazia, cada uma com o ícone do assunto.
+  List<(String, IconData)> get _sugestoes {
     final tipo = getUserType();
     if (tipo == 'sindico') {
       return [
-        'Quantos visitantes entraram hoje?',
-        'O que foi decidido na última ata?',
-        'Quem são os funcionários do condomínio?',
+        ('Quantos visitantes entraram hoje?', PhosphorIcons.userPlus),
+        ('O que foi decidido na última ata?', PhosphorIcons.fileText),
+        ('Quem são os funcionários do condomínio?', PhosphorIcons.identificationBadge),
       ];
     }
     return [
-      'Quais visitas estão agendadas para o meu apartamento?',
-      'O que foi decidido na última assembleia?',
-      'Quem trabalha na portaria?',
+      ('Quais visitas estão agendadas para o meu apartamento?', PhosphorIcons.calendarCheck),
+      ('O que foi decidido na última assembleia?', PhosphorIcons.usersThree),
+      ('Quem trabalha na portaria?', PhosphorIcons.identificationBadge),
     ];
+  }
+
+  /// Degradê da marca dos ícones do app (módulos, atalhos): claro em cima à
+  /// esquerda, âmbar embaixo à direita.
+  static const _degradeMarca = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFFFD966), Color(0xFFF2A900)],
+  );
+
+  Widget _cartaoSugestao(BuildContext context, String texto, IconData icone) {
+    return Material(
+      key: const ValueKey('ia-sugestao'),
+      color: AppColors.surface(context),
+      shape: Border.fromBorderSide(BorderSide(color: AppColors.border(context))),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _enviar(texto),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Mesmo cartão dos módulos: o ícone em degradê some no fundo.
+              SizedBox(
+                width: 92,
+                child: ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (r) => const LinearGradient(
+                    colors: [Colors.white, Colors.white, Colors.transparent],
+                    stops: [0, 0.3, 1],
+                  ).createShader(r),
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(gradient: _degradeMarca),
+                    child: Align(
+                      alignment: const Alignment(-0.45, 0),
+                      child: Icon(icone, color: AppColors.onBrand, size: 22),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  // Frases curtas e fixas: quebram à vontade, nunca cortadas.
+                  child: Text(
+                    texto,
+                    style: AppTypography.body(context)
+                        .copyWith(color: AppColors.textPrimary(context)),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -968,11 +1030,8 @@ class _ChatIaPageState extends State<ChatIaPage> {
         Center(
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.accentGhost(context),
-            ),
-            child: Icon(PhosphorIcons.sparkle,
-                color: AppColors.primary, size: 40),
+            decoration: const BoxDecoration(gradient: _degradeMarca),
+            child: Icon(PhosphorIcons.sparkle, color: AppColors.onBrand, size: 40),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -989,29 +1048,10 @@ class _ChatIaPageState extends State<ChatIaPage> {
           style: AppTypography.caption(context),
         ),
         const SizedBox(height: AppSpacing.xxl),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          alignment: WrapAlignment.center,
-          children: _sugestoes
-              .map((s) => ActionChip(
-                    // O chip força uma linha só; a sugestão longa saía cortada.
-                    label: Text(
-                      s,
-                      softWrap: true,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: AppTypography.caption(context)
-                          .copyWith(color: AppColors.textPrimary(context)),
-                    ),
-                    shape: const RoundedRectangleBorder(),
-                    backgroundColor: AppColors.surface(context),
-                    side: BorderSide(color: AppColors.border(context)),
-                    onPressed: () => _enviar(s),
-                  ))
-              .toList(),
-        ),
+        for (final (texto, icone) in _sugestoes) ...[
+          _cartaoSugestao(context, texto, icone),
+          const SizedBox(height: AppSpacing.sm),
+        ],
       ],
     );
   }
@@ -1475,16 +1515,16 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       const SizedBox(width: 4),
                       GestureDetector(
                         onTap: _isSending ? null : () => _enviar(),
+                        // Ação principal da tela: amarelo da marca, cantos retos.
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: _isSending
-                                ? AppColors.primary.withValues(alpha: 0.5)
-                                : AppColors.primary,
-                            shape: BoxShape.circle,
+                                ? AppColors.brand.withValues(alpha: 0.5)
+                                : AppColors.brand,
                           ),
                           child: Icon(PhosphorIcons.paperPlaneRight,
-                              color: AppColors.onPrimary, size: 20),
+                              color: AppColors.onBrand, size: 20),
                         ),
                       ),
                     ],
