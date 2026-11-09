@@ -190,6 +190,7 @@ class Localizable_Es {
           // CADASTRO SÍNDICO
           LocalizableModel(key: 'signup_nav_sindico', text: 'Registro del receptor'),
           LocalizableModel(key: 'sindico_nav_edit', text: 'Editar datos'),
+          LocalizableModel(key: 'morador_nav_edit', text: 'Editar perfil'),
           LocalizableModel(key: 'signup_success', text: '¡Registro completado exitosamente!'),
           LocalizableModel(key: 'signup_erro_dt_nascimento', text: '¡Fecha de nacimiento no válida!'),
           LocalizableModel(key: 'signup_infos_contato', text: 'INFORMACIÓN DEL CONTACTO'),

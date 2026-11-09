@@ -43,6 +43,11 @@ void main() {
       final ptBr = indiceDe(Localizable_PtBr().strings);
       expect(resolverTexto('nova_reserva', ptBr, ptBr), 'Nova reserva');
     });
+
+    test('resolve o título de edição do perfil do morador', () {
+      final ptBr = indiceDe(Localizable_PtBr().strings);
+      expect(resolverTexto('morador_nav_edit', ptBr, ptBr), 'Editar Perfil');
+    });
   });
 
   group('indiceDe', () {

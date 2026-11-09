@@ -190,6 +190,7 @@ class Localizable_EnUs {
           // CADASTRO SÍNDICO
           LocalizableModel(key: 'signup_nav_sindico', text: 'Condominium Registration'),
           LocalizableModel(key: 'sindico_nav_edit', text: 'Edit Data'),
+          LocalizableModel(key: 'morador_nav_edit', text: 'Edit Profile'),
           LocalizableModel(key: 'signup_success', text: 'Registration completed successfully!'),
           LocalizableModel(key: 'signup_erro_dt_nascimento', text: 'Invalid Date of Birth!'),
           LocalizableModel(key: 'signup_infos_contato', text: 'CONTACT INFORMATION'),

@@ -190,6 +190,7 @@ class Localizable_PtBr {
     // CADASTRO SÍNDICO
     LocalizableModel(key: 'signup_nav_sindico', text: 'Cadastro Síndico'),
     LocalizableModel(key: 'sindico_nav_edit', text: 'Editar Dados'),
+    LocalizableModel(key: 'morador_nav_edit', text: 'Editar Perfil'),
     LocalizableModel(key: 'signup_success', text: 'Cadastro efetuado com sucesso!'),
     LocalizableModel(key: 'signup_erro_dt_nascimento', text: 'Data de Nascimento inválida!'),
     LocalizableModel(key: 'signup_infos_contato', text: 'INFORMAÇÕES DE CONTATO'),
