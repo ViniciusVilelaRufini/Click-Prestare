@@ -198,6 +198,10 @@ customHeaders:
 #   /?convite=abc e /?token=abc                     -> 200 (o SPA abre convite e redefinição)
 #   /dashboard/abc, /login/x                       -> 404 (antes era 200 com o shell)
 #   /chunk-*.js e /fontes/barlow-400.woff2         -> Cache-Control immutable
+#   /politica-de-privacidade, /termos-de-uso,
+#   /exclusao-de-conta (e os aliases antigos)      -> 301 para a versão .html
+#     (o componente Angular dessas rotas já fazia location.replace para a .html;
+#      a âncora, como #biometria, é mantida pelo navegador no 301)
 #
 # 404 com corpo (NÃO aplicado): a regra catch-all "/<*> -> /404.html, status 404"
 # já gerou 301/302 para uma página 200 neste app e foi retirada. O arquivo

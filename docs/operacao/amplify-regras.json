@@ -75,6 +75,56 @@
     "status": "200"
   },
   {
+    "source": "/politica-de-privacidade",
+    "target": "/politica-de-privacidade.html",
+    "status": "301"
+  },
+  {
+    "source": "/politica-de-privacidade/",
+    "target": "/politica-de-privacidade.html",
+    "status": "301"
+  },
+  {
+    "source": "/politica-privacidade",
+    "target": "/politica-de-privacidade.html",
+    "status": "301"
+  },
+  {
+    "source": "/politica-privacidade/",
+    "target": "/politica-de-privacidade.html",
+    "status": "301"
+  },
+  {
+    "source": "/exclusao-de-conta",
+    "target": "/exclusao-de-conta.html",
+    "status": "301"
+  },
+  {
+    "source": "/exclusao-de-conta/",
+    "target": "/exclusao-de-conta.html",
+    "status": "301"
+  },
+  {
+    "source": "/exclusao-conta",
+    "target": "/exclusao-de-conta.html",
+    "status": "301"
+  },
+  {
+    "source": "/exclusao-conta/",
+    "target": "/exclusao-de-conta.html",
+    "status": "301"
+  },
+  {
+    "source": "/termos-de-uso",
+    "target": "/termos-de-uso.html",
+    "status": "301"
+  },
+  {
+    "source": "/termos-de-uso/",
+    "target": "/termos-de-uso.html",
+    "status": "301"
+  },
+  {
     "source": "/api/<*>",
     "target": "https://api.clickprestarecondominios.com.br/api/<*>",
     "status": "200"

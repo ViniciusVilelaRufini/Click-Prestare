@@ -376,3 +376,69 @@ describe('desempenho das páginas estáticas', () => {
     expect(script).toContain("'sobre/pagina.js'");
   });
 });
+
+describe('rodada 3: imagens, descrições e CSS das páginas de conteúdo', () => {
+  it.each(['/precos/', '/reconhecimento-facial-condominio/'])('%s tem imagem real com alt, dimensões e legenda de dados fictícios', (rota) => {
+    const html = pagina(rota);
+    const img = html.match(/<figure class="pg-fig[^"]*"><img [^>]+>/)![0];
+    expect(img).toMatch(/ src="\/sobre\/assets\/[^"]+\.webp"/);
+    expect(img).toMatch(/ alt="[^"]{20,}"/);
+    expect(img).toMatch(/ width="\d+" height="\d+"/);
+    expect(html).toContain('Dados fictícios.');
+    const src = img.match(/ src="([^"]+)"/)![1];
+    expect(statSync(pub(src.slice(1))).size).toBeGreaterThan(1000);
+  });
+  it('imagens do facial existem nas duas larguras do srcset', () => {
+    ['sobre/assets/app-eventos.webp', 'sobre/assets/app-eventos-360.webp'].forEach((p) => expect(statSync(pub(p)).size).toBeGreaterThan(1000));
+  });
+  it('preço fica no fecho da description só na /sobre, na /sindico e em /precos', () => {
+    const desc = (html: string) => html.match(/<meta name="description" content="([^"]+)"/)![1];
+    ['/controle-de-visitantes-condominio/', '/livro-de-portaria-digital/', '/reconhecimento-facial-condominio/', '/quem-somos/'].forEach((r) => {
+      expect(desc(pagina(r))).not.toContain('R$ 298');
+    });
+  });
+  it('banner de cookies descreve Analíticos como a Política (nenhuma ferramenta carregada)', () => {
+    expect(sobre()).not.toContain('Medição anônima de navegação');
+    expect(sobre()).toContain('Hoje nenhuma ferramenta de análise é carregada por ela.');
+    expect(readFileSync(pub('politica-de-privacidade.html'), 'utf8')).toContain('Hoje nenhuma ferramenta de análise é carregada por ela');
+  });
+  it('o build embute o paginas.css nas páginas de conteúdo, que o referenciam pelo mesmo link', () => {
+    const script = readFileSync(join(process.cwd(), 'scripts/minificar-landing.mjs'), 'utf8');
+    const link = '<link rel="stylesheet" href="/paginas.css">';
+    expect(script).toContain(`const LINK_CSS = '${link}'`);
+    ['404.html', ...NOVAS.map((r) => r.slice(1) + 'index.html')].forEach((p) => {
+      expect(script).toContain(`'${p}'`);
+      expect(readFileSync(pub(p), 'utf8')).toContain(link);
+    });
+    expect(readFileSync(pub('paginas.css'), 'utf8')).not.toMatch(/url\((?!\/|data:)/);
+  });
+});
+
+describe('rodada 4: WebSite na raiz e páginas legais sem extensão', () => {
+  const ldDe = (html: string) =>
+    [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+  const nos = (ld: any): any[] => (Array.isArray(ld) ? ld.flatMap(nos) : ld['@graph'] ? ld['@graph'] : [ld]);
+  it('a raiz publica o WebSite com url na raiz do domínio', () => {
+    const raiz = readFileSync(join(process.cwd(), 'apps/portaria-web/src/index.html'), 'utf8');
+    const site = ldDe(raiz).flatMap(nos).find((n) => n['@type'] === 'WebSite');
+    expect(site['@id']).toBe('https://www.prestarecondominios.com.br/#site');
+    expect(site.url).toBe('https://www.prestarecondominios.com.br/');
+  });
+  it.each(['/sobre/', '/sindico/', ...NOVAS])('WebSite de %s usa a mesma url da raiz', (rota) => {
+    const site = ldDe(pagina(rota)).flatMap(nos).find((n) => n['@type'] === 'WebSite');
+    expect(site.url).toBe('https://www.prestarecondominios.com.br/');
+  });
+  it.each([
+    ['/politica-de-privacidade', '/politica-de-privacidade.html'],
+    ['/politica-privacidade/', '/politica-de-privacidade.html'],
+    ['/exclusao-de-conta', '/exclusao-de-conta.html'],
+    ['/exclusao-conta', '/exclusao-de-conta.html'],
+    ['/termos-de-uso', '/termos-de-uso.html'],
+  ])('%s faz 301 para %s antes do SPA', (de, para) => {
+    const r = regras();
+    const i = r.findIndex((x) => x.source === de);
+    expect(r[i]).toEqual({ source: de, target: para, status: '301' });
+    expect(i).toBeLessThan(r.findIndex((x) => x.target === '/index.html'));
+    expect(i).toBeGreaterThan(0);
+  });
+});
