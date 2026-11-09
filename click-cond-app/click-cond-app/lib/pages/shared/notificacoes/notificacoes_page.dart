@@ -11,6 +11,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/datas.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
+import 'package:click/widgets/app/app_segmented_control.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -258,93 +259,23 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
       {'key': 'outros', 'label': 'Outros'},
     ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
-      ),
-      child: Row(
-        children: filtros.map((f) {
-          final key = f['key']!;
-          final isSelected = _filtroSelecionado == key;
-          final count = _countTipo(key);
-
-          return Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.xs),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.zero,
-                onTap: () {
-                  setState(() {
-                    _filtroSelecionado = key;
-                  });
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.brand
-                        : AppColors.surface(context),
-                    borderRadius: BorderRadius.zero,
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.brand
-                          : AppColors.border(context),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        f['label']!,
-                        style: TextStyle(
-                          color: isSelected
-                              ? AppColors.onBrand
-                              : AppColors.textPrimary(context),
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w500,
-                          fontSize: 13,
-                        ),
-                      ),
-                      if (count > 0) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.onBrand.withValues(alpha: 0.25)
-                                : AppColors.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.zero,
-                          ),
-                          child: Text(
-                            '$count',
-                            style: TextStyle(
-                              color: isSelected
-                                  ? AppColors.onBrand
-                                  : AppColors.primary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
+    // Mesmas abas sublinhadas de Encomendas; com rolagem porque são 5.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
+      child: AppSegmentedControl(
+        scrollable: true,
+        selectedIndex:
+            filtros.indexWhere((f) => f['key'] == _filtroSelecionado),
+        onChanged: (i) =>
+            setState(() => _filtroSelecionado = filtros[i]['key']!),
+        segments: [
+          for (final f in filtros)
+            AppSegment(
+              label: f['label']!,
+              count: _countTipo(f['key']!) > 0 ? _countTipo(f['key']!) : null,
             ),
-          );
-        }).toList(),
+        ],
       ),
     );
   }
@@ -508,18 +439,10 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                         ),
                         if (navegavel) ...[
                           const SizedBox(width: 8),
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: AppColors.bg(context),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              PhosphorIcons.caretRight,
-                              size: 14,
-                              color: AppColors.textSecondary(context),
-                            ),
+                          Icon(
+                            PhosphorIcons.caretRight,
+                            size: 16,
+                            color: AppColors.textTertiary(context),
                           ),
                         ],
                       ],
