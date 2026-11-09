@@ -4,13 +4,23 @@
     <script>/* domínio antigo -> domínio principal */if(/(^|.)clickprestarecondominios.com.br$/.test(location.hostname)){location.replace("https://www.prestarecondominios.com.br"+location.pathname+location.search+location.hash);}</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Política de Privacidade — Prestare Gestão</title>
-  <meta name="description" content="Política de Privacidade da plataforma Prestare Gestão: dados coletados, finalidade, reconhecimento facial, direitos do titular e exclusão de conta." />
+  <title>Política de Privacidade | Prestare Gestão</title>
+  <meta name="description" content="Como a Prestare Gestão trata dados pessoais: empresa responsável, cookies e tags de anúncio, WhatsApp, assistente de IA, reconhecimento facial, retenção e direitos do titular." />
+  <link rel="canonical" href="https://www.prestarecondominios.com.br/politica-de-privacidade.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Prestare Gestão" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:title" content="Política de Privacidade | Prestare Gestão" />
+  <meta property="og:description" content="Como a Prestare Gestão trata dados pessoais: empresa responsável, cookies e tags de anúncio, WhatsApp, assistente de IA, reconhecimento facial, retenção e direitos do titular." />
+  <meta property="og:url" content="https://www.prestarecondominios.com.br/politica-de-privacidade.html" />
+  <meta property="og:image" content="https://www.prestarecondominios.com.br/sobre/assets/og-prestare-gestao-v3.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Fontes servidas pelo próprio site (sem Google Fonts). -->
+  <link rel="preload" href="/fontes/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fontes/barlow-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fontes/barlow.css">
   <script>
     // Tema escolhido pela pessoa (mesma chave da landing); sem escolha, segue o sistema (CSS).
     try { var psTema = localStorage.getItem('ps-theme'); if (psTema) document.documentElement.dataset.theme = psTema; } catch (e) {}
@@ -168,18 +178,27 @@
       section.doc { break-inside: avoid; margin-bottom: 18pt; }
       a { color: #000; text-decoration: underline; }
     }
+
+    /* Tabelas da politica: rolam dentro da propria caixa no celular. */
+    .tabela { overflow-x: auto; margin: 18px 0; }
+    .tabela:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    .table-data { width: 100%; border-collapse: collapse; font-size: 15px; }
+    .tabela .table-data { min-width: 520px; }
+    .table-data th, .table-data td { text-align: left; vertical-align: top; padding: 12px 14px; border: 1px solid var(--line-100); }
+    .table-data th { font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-subtle); background: var(--bg-100); }
+    @media print { .tabela { overflow: visible; } .tabela .table-data { min-width: 0; } .table-data th, .table-data td { border-color: #888; background: none; } }
   </style>
 </head>
 <body>
 
   <div class="topbar">
     <div class="wrap">
-      <a class="logo" href="/sobre">
+      <a class="logo" href="/sobre/" aria-label="Prestare Gestão, ir para o site">
         <img class="img-dark" src="/prestare-marca-branca.svg" alt="" width="30" height="30" />
         <img class="img-light" src="/prestare-marca-preta.svg" alt="" width="30" height="30" />
         <span>PRESTARE <em>GESTÃO</em></span>
       </a>
-      <nav><a href="/termos-de-uso.html">Termos de uso</a></nav>
+      <nav aria-label="Documentos"><a href="/termos-de-uso.html">Termos de uso</a></nav>
       <button type="button" class="tema" id="tema" aria-label="Alternar entre tema claro e escuro"><svg class="sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="lua" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
     </div>
   </div>
@@ -189,8 +208,8 @@
       <span class="badge">Documento legal oficial</span>
       <h1>Política de Privacidade</h1>
       <div class="meta">
-        <span>Última atualização: <b>13 de agosto de 2026</b></span>
-        <span>Conforme a LGPD — Lei nº 13.709/2018</span>
+        <span>Última atualização: <b>9 de novembro de 2026</b></span>
+        <span>Conforme a LGPD, Lei nº 13.709/2018</span>
       </div>
     </div>
   </header>
@@ -201,13 +220,20 @@
       <nav class="toc" aria-label="Sumário">
         <h2>Nesta página</h2>
         <ol>
-          <li><a href="#introducao">Introdução</a></li>
-          <li><a href="#dados">Dados Coletados</a></li>
-          <li><a href="#finalidade">Finalidade do Tratamento</a></li>
-          <li><a href="#compartilhamento">Compartilhamento e Armazenamento</a></li>
-          <li><a href="#biometria">Reconhecimento Facial</a></li>
-          <li><a href="#direitos">Direitos do Titular</a></li>
-          <li><a href="#contato">Contato e Encarregado (DPO)</a></li>
+          <li><a href="#introducao">Quem somos</a></li>
+          <li><a href="#dados">Dados coletados</a></li>
+          <li><a href="#finalidade">Finalidades e bases legais</a></li>
+          <li><a href="#compartilhamento">Compartilhamento</a></li>
+          <li><a href="#biometria">Reconhecimento facial</a></li>
+          <li><a href="#direitos">Direitos do titular</a></li>
+          <li><a href="#cookies">Cookies e tags</a></li>
+          <li><a href="#comercial">Orçamento e WhatsApp</a></li>
+          <li><a href="#assistente">Assistente de IA</a></li>
+          <li><a href="#transferencia">Transferência internacional</a></li>
+          <li><a href="#retencao">Retenção</a></li>
+          <li><a href="#seguranca">Segurança</a></li>
+          <li><a href="#alteracoes">Alterações</a></li>
+          <li><a href="#contato">Contato e encarregado</a></li>
         </ol>
       </nav>
 
@@ -217,89 +243,233 @@
           <h2>Resumo</h2>
           <dl>
             <div>
-              <dt>Serviço</dt>
-              <dd>Prestare Gestão — plataforma de gestão condominial</dd>
+              <dt>Empresa</dt>
+              <dd>Prestare Gestão Condominial Inteligente Ltda, CNPJ 09.195.104/0001-73</dd>
             </div>
             <div>
               <dt>Dado sensível tratado</dt>
               <dd>Biometria facial, só com consentimento específico e sempre opcional</dd>
             </div>
             <div>
-              <dt>Excluir sua conta</dt>
-              <dd>No app, em Configurações → Excluir Minha Conta, ou por e-mail. Até 15 dias úteis</dd>
+              <dt>Anúncios</dt>
+              <dd>Tags do Google Ads e da OpenAI, só com a sua autorização no aviso de cookies</dd>
             </div>
             <div>
-              <dt>Encarregado (DPO)</dt>
+              <dt>Excluir sua conta</dt>
+              <dd>No app, em Configurações → Excluir minha conta, ou por e-mail, em até 15 dias úteis</dd>
+            </div>
+            <div>
+              <dt>Canal do encarregado (DPO)</dt>
               <dd><a href="mailto:suporte@clickprestarecondominios.com.br">suporte@clickprestarecondominios.com.br</a></dd>
             </div>
           </dl>
         </div>
 
         <section class="doc" id="introducao">
-          <h2><span class="num">1</span>Introdução</h2>
-          <p>O sistema <strong>Prestare Gestão</strong> (operado em parceria com a Prestare Soluções) valoriza a privacidade dos seus usuários, condôminos, síndicos, porteiros e visitantes. Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e protegemos os seus dados pessoais em conformidade com a <strong>Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018)</strong> e os requisitos de transparência das lojas de aplicativos (Google Play Store e Apple App Store).</p>
+          <h2><span class="num">1</span>Quem somos e quem responde pelos dados</h2>
+          <p>A <strong>Prestare Gestão</strong> é a plataforma de controle de acesso e gestão condominial da <strong>Prestare Gestão Condominial Inteligente Ltda</strong>, CNPJ 09.195.104/0001-73, com sede na R. Maranhão, 1368, sala 30, Catanduva-SP, CEP 15800-020. Esta política explica como os dados pessoais são tratados no site, no aplicativo Prestare e no console da portaria, conforme a Lei Geral de Proteção de Dados (LGPD, Lei nº 13.709/2018).</p>
+          <p>O papel de cada parte depende do dado:</p>
+          <ul class="lista">
+            <li><strong>A Prestare é controladora</strong> dos dados do site e do pedido de orçamento, do atendimento comercial por WhatsApp, dos cookies e tags de anúncio e do relacionamento com quem nos contrata.</li>
+            <li><strong>O condomínio é controlador e a Prestare é operadora</strong> dos dados de moradores, funcionários, visitantes e prestadores tratados no sistema. Tratamos esses dados a mando do condomínio, e é a administração dele que define quem é cadastrado e como a portaria funciona.</li>
+          </ul>
         </section>
 
         <section class="doc" id="dados">
-          <h2><span class="num">2</span>Dados Coletados</h2>
-          <p>Coletamos apenas as informações estritamente necessárias para a operação, segurança e gestão do ambiente condominial:</p>
+          <h2><span class="num">2</span>Dados coletados</h2>
           <ul class="lista">
-            <li><strong>Dados Cadastrais:</strong> Nome completo, e-mail, telefone, CPF, bloco e apartamento para autenticação e comunicação oficial.</li>
-            <li><strong>Controle de Acesso:</strong> Registros de entrada e saída de visitantes e prestadores de serviços (incluindo RG e fotografia capturada na portaria) para segurança patrimonial.</li>
-            <li><strong>Dados Biométricos (Face):</strong> Imagem do rosto de moradores, funcionários, prestadores e visitantes autorizados, quando o condomínio utiliza controle de acesso por reconhecimento facial. Por serem dados pessoais sensíveis, recebem o tratamento específico descrito na <a href="#biometria">seção 5</a>.</li>
-            <li><strong>Mídia e Documentos:</strong> Comprovantes de pagamento, fotos de ocorrências e arquivos PDF enviados voluntariamente pelos usuários ou administradores.</li>
+            <li><strong>Cadastro:</strong> nome, e-mail, telefone, CPF ou outro documento, data de nascimento, bloco, unidade e foto de perfil.</li>
+            <li><strong>Visitantes e prestadores:</strong> nome, documento, foto do rosto e do documento capturadas na portaria, unidade de destino, autorização e horários de entrada e saída.</li>
+            <li><strong>Eventos de acesso:</strong> data, hora, ponto de acesso, pessoa e forma de liberação, além de quem fez cada registro no sistema.</li>
+            <li><strong>Biometria facial:</strong> imagem do rosto, quando o condomínio usa terminais de reconhecimento facial. É dado pessoal sensível, com as regras da <a href="#biometria">seção 5</a>.</li>
+            <li><strong>Rotina do condomínio:</strong> veículos e vagas, encomendas, avisos de entrega, reservas, ocorrências, comunicados, assembleias e votos, documentos e arquivos enviados.</li>
+            <li><strong>Financeiro:</strong> boletos e cobranças trazidos da Superlógica nos condomínios com essa integração, e comprovantes enviados por usuários ou administradores.</li>
+            <li><strong>Aparelho e sessão:</strong> token de notificação, plataforma do aparelho, sessão de login e registro de dispositivo confiável na verificação em duas etapas.</li>
+            <li><strong>Assistente de IA:</strong> perguntas, anexos e respostas (<a href="#assistente">seção 9</a>).</li>
+            <li><strong>Site e atendimento comercial:</strong> nome, WhatsApp, condomínio, número de unidades, página de origem, parâmetros de anúncio e mensagens trocadas (<a href="#comercial">seção 8</a>).</li>
           </ul>
+          <p>Duas funções do app ficam no próprio aparelho: o desbloqueio por Face ID ou impressão digital é validado pelo sistema do celular, sem que recebamos esse dado, e o ditado por voz do assistente é reconhecido no aparelho.</p>
         </section>
 
         <section class="doc" id="finalidade">
-          <h2><span class="num">3</span>Finalidade do Tratamento</h2>
-          <p>Os seus dados são utilizados exclusivamente para:</p>
-          <ul class="lista">
-            <li>Permitir a reserva de áreas sociais, registro de encomendas e abertura de chamados/ocorrências.</li>
-            <li>Garantir o direito de voto e deliberação segura em assembleias virtuais e enquetes oficiais do condomínio.</li>
-            <li>Auditar e conciliar pagamentos de taxas condominiais no módulo financeiro.</li>
-            <li>Notificar os moradores sobre comunicados de emergência ou autorizações na portaria.</li>
-          </ul>
+          <h2><span class="num">3</span>Finalidades e bases legais</h2>
+          <div class="tabela" role="region" aria-label="Finalidades e bases legais" tabindex="0">
+            <table class="table-data">
+              <thead><tr><th scope="col">Finalidade</th><th scope="col">Base legal principal</th></tr></thead>
+              <tbody>
+              <tr><td>Controle de acesso, visitantes, encomendas, reservas, ocorrências, comunicados e assembleias</td><td>Execução de contrato e legítimo interesse do condomínio na segurança e na gestão (art. 7º, V e IX). A escolha é do condomínio, como controlador</td></tr>
+              <tr><td>Reconhecimento facial</td><td>Consentimento específico e destacado (art. 11, I)</td></tr>
+              <tr><td>Avisos por notificação e e-mail, verificação em duas etapas e suporte</td><td>Execução de contrato e legítimo interesse (art. 7º, V e IX)</td></tr>
+              <tr><td>Registros de auditoria e segurança do sistema</td><td>Legítimo interesse e cumprimento de obrigação legal, quando houver (art. 7º, II e IX)</td></tr>
+              <tr><td>Conciliação financeira nos condomínios integrados</td><td>Execução de contrato e obrigação legal do condomínio (art. 7º, II e V)</td></tr>
+              <tr><td>Responder ao seu pedido de orçamento e conversar por WhatsApp</td><td>Procedimentos preliminares a um contrato, a seu pedido (art. 7º, V)</td></tr>
+              <tr><td>Tags de anúncio no navegador</td><td>Consentimento (art. 7º, I), dado no aviso de cookies</td></tr>
+              <tr><td>Saber qual anúncio gerou um contato, pelo identificador do clique</td><td>Legítimo interesse (art. 7º, IX)</td></tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section class="doc" id="compartilhamento">
-          <h2><span class="num">4</span>Compartilhamento e Armazenamento</h2>
-          <p>Os dados são armazenados em servidores de alta segurança e criptografados em repouso e em trânsito. <strong>Não vendemos ou alugamos os seus dados pessoais a terceiros.</strong> O compartilhamento ocorre apenas com a administração legítima do seu condomínio (síndico e conselho) e provedores de infraestrutura sob contratos de confidencialidade.</p>
+          <h2><span class="num">4</span>Compartilhamento e operadores</h2>
+          <p><strong>Não vendemos nem alugamos dados pessoais.</strong> Dentro do condomínio, os dados são vistos pela administração e pela portaria conforme o perfil de cada pessoa. Também podemos atender a ordem de autoridade competente. Fora disso, os dados passam apenas pelos fornecedores abaixo, sob as condições contratuais de cada um:</p>
+          <div class="tabela" role="region" aria-label="Fornecedores que tratam dados" tabindex="0">
+            <table class="table-data">
+              <thead><tr><th scope="col">Fornecedor</th><th scope="col">Para quê</th><th scope="col">Onde</th></tr></thead>
+              <tbody>
+              <tr><td>Amazon Web Services (AWS)</td><td>Hospedagem do sistema, banco de dados, arquivos, registros técnicos e entrega do site</td><td>Banco e arquivos na região de São Paulo. O conteúdo do site é entregue pela rede global da AWS</td></tr>
+              <tr><td>Amazon Bedrock (AWS), com modelos Claude, da Anthropic, e Titan, da Amazon</td><td>Assistente de IA</td><td>Entra por São Paulo e pode ser processado em outras regiões da AWS</td></tr>
+              <tr><td>Google Gemini</td><td>Assistente de IA, somente se acionarmos a contingência em caso de falha do provedor principal</td><td>Fora do Brasil</td></tr>
+              <tr><td>Google Firebase (e serviço de notificação da Apple, no iPhone)</td><td>Notificações no celular</td><td>Fora do Brasil</td></tr>
+              <tr><td>Superlógica</td><td>Somente nos condomínios com a integração: troca de cadastro (nome, e-mail, telefone, CPF) e cobranças</td><td>Conforme a contratação do condomínio</td></tr>
+              <tr><td>Meta (WhatsApp Business)</td><td>Atendimento comercial pelo nosso número</td><td>Fora do Brasil</td></tr>
+              <tr><td>Google Ads e OpenAI</td><td>Medição de anúncios (<a href="#cookies">seções 7</a> e <a href="#comercial">8</a>)</td><td>Fora do Brasil</td></tr>
+              <tr><td>Google Fonts</td><td>Fontes das páginas públicas. O Google recebe o endereço IP de quem abre a página</td><td>Fora do Brasil</td></tr>
+              <tr><td>Provedor de e-mail (Google Workspace ou Resend, conforme a configuração)</td><td>Credenciais, códigos de verificação e avisos</td><td>Conforme o fornecedor</td></tr>
+              <tr><td>Ferramenta interna de acompanhamento de suporte, quando ativa</td><td>Contato do síndico e ocorrências técnicas</td><td>Conforme o fornecedor</td></tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section class="doc" id="biometria">
-          <h2><span class="num">5</span>Reconhecimento Facial e Dados Biométricos</h2>
-          <p>Alguns condomínios utilizam equipamentos de reconhecimento facial instalados nas entradas para liberar o acesso. A imagem do rosto é <strong>dado pessoal sensível</strong> nos termos do art. 5º, II, da LGPD, e por isso é tratada com regras próprias, descritas abaixo.</p>
+          <h2><span class="num">5</span>Reconhecimento facial e dados biométricos</h2>
+          <p>Alguns condomínios usam terminais de reconhecimento facial nas entradas. A imagem do rosto é <strong>dado pessoal sensível</strong> (art. 5º, II, da LGPD) e segue regras próprias:</p>
           <ul class="lista">
-            <li><strong>Base legal:</strong> o tratamento ocorre mediante <strong>consentimento específico e destacado</strong> do titular (art. 11, I, da LGPD), fornecido no momento do cadastro. O consentimento pode ser retirado a qualquer momento, sem prejuízo do seu acesso ao condomínio.</li>
-            <li><strong>O que é coletado:</strong> uma fotografia do rosto, capturada no cadastro pelo aplicativo, pela portaria ou pelo próprio equipamento da entrada.</li>
-            <li><strong>Finalidade única:</strong> identificar a pessoa na liberação de acesso às entradas e áreas do condomínio. A imagem <strong>não</strong> é usada para publicidade, para perfilamento comportamental, para reconhecimento de emoções ou para qualquer finalidade alheia ao controle de acesso.</li>
-            <li><strong>Onde fica armazenada:</strong> a fotografia é enviada aos equipamentos de controle de acesso instalados no próprio condomínio e mantida em nosso ambiente de armazenamento para permitir a gestão do cadastro. Não há envio a terceiros para outra finalidade.</li>
-            <li><strong>Por quanto tempo:</strong> enquanto durar o vínculo com o condomínio. O cadastro de <strong>visitantes e prestadores expira automaticamente</strong> ao fim da autorização, e a face é removida dos equipamentos. Moradores e funcionários têm a face removida ao encerrar o vínculo ou ao pedir a exclusão.</li>
-            <li><strong>Uso por menores:</strong> o cadastro facial de menores de idade depende de consentimento específico do responsável legal.</li>
+            <li><strong>Base legal:</strong> consentimento específico e destacado (art. 11, I). O morador responde em tela própria do app. Para visitante e prestador, quem faz o cadastro declara ter colhido a autorização, e sem essa declaração a foto não vai para o terminal.</li>
+            <li><strong>O que é coletado:</strong> uma fotografia do rosto, capturada no cadastro pelo app, pela portaria ou pelo próprio terminal.</li>
+            <li><strong>Finalidade única:</strong> identificar a pessoa na liberação de acesso às entradas e áreas do condomínio. A imagem <strong>não</strong> é usada para publicidade, perfilamento comportamental, reconhecimento de emoções ou outra finalidade alheia ao controle de acesso.</li>
+            <li><strong>Onde fica:</strong> nos terminais instalados no condomínio e no nosso armazenamento de arquivos, em São Paulo, para a gestão do cadastro. Não há envio a terceiros para outra finalidade.</li>
+            <li><strong>Por quanto tempo:</strong> enquanto durar o vínculo com o condomínio. O acesso de visitantes e prestadores expira ao fim da autorização, e o rosto é retirado dos terminais por rotina automática. Os demais prazos estão na <a href="#retencao">seção 11</a>.</li>
+            <li><strong>Terminal fora do ar:</strong> a remoção é refeita por rotina periódica, que compara os terminais com o cadastro, assim que o equipamento volta a responder.</li>
+            <li><strong>Menores de idade:</strong> menores de 18 anos não têm conta de acesso. O cadastro facial de morador menor depende do termo de consentimento do responsável. Sem data de nascimento informada, o rosto não é enviado ao terminal. Visitante ou prestador menor de idade não recebe cadastro facial.</li>
           </ul>
           <div class="info">
             <div>
               <b>O uso da biometria é opcional</b>
-              Ninguém é obrigado a cadastrar o rosto. O condomínio mantém formas alternativas de entrada — identificação na portaria e autorização do morador pelo aplicativo — e a recusa não restringe o seu direito de acesso. Para retirar o consentimento e apagar a sua face dos equipamentos, use os canais da <a href="#direitos">seção 6</a>.
+              Ninguém é obrigado a cadastrar o rosto. O condomínio mantém outras formas de entrada, como a identificação na portaria e a autorização do morador pelo app, e a recusa não restringe o seu direito de acesso. Para retirar o consentimento, procure a administração do condomínio, que pode revogar pelo console, ou escreva para o canal da <a href="#contato">seção 14</a>. A revogação apaga a foto do morador e retira o rosto dos terminais.
             </div>
           </div>
         </section>
 
         <section class="doc" id="direitos">
-          <h2><span class="num">6</span>Direitos do Titular e Exclusão de Dados</h2>
-          <p>Em conformidade com a LGPD e as diretrizes do Google Play Console, você tem o direito de solicitar a visualização, correção ou <strong>exclusão completa da sua conta e dados pessoais</strong> a qualquer momento.</p>
+          <h2><span class="num">6</span>Direitos do titular</h2>
+          <p>A LGPD (art. 18) garante a você:</p>
+          <ul class="lista">
+            <li>confirmação de que tratamos seus dados e acesso a eles;</li>
+            <li>correção de dados incompletos, inexatos ou desatualizados;</li>
+            <li>anonimização, bloqueio ou eliminação de dados desnecessários, excessivos ou tratados em desconformidade;</li>
+            <li>portabilidade a outro fornecedor, conforme a regulamentação;</li>
+            <li>eliminação dos dados tratados com consentimento, ressalvadas as hipóteses de guarda previstas em lei;</li>
+            <li>informação sobre com quem compartilhamos seus dados e sobre a possibilidade de não consentir e suas consequências;</li>
+            <li>revogação do consentimento a qualquer momento;</li>
+            <li>petição à Autoridade Nacional de Proteção de Dados (ANPD).</li>
+          </ul>
+          <p>Para dados tratados a mando do condomínio, o pedido pode ser feito à administração dele. Se chegar a nós, ajudamos a atender ou encaminhamos ao condomínio. Para dados do site e do atendimento comercial, fale diretamente conosco.</p>
           <div class="info">
             <div>
-              <b>Como solicitar a exclusão de dados</b>
-              Você pode solicitar a remoção da sua conta diretamente pelo aplicativo móvel na seção <em>“Configurações → Excluir Minha Conta”</em>, pelo formulário/instruções em nossa <a href="/exclusao-de-conta.html"><strong>Página de Exclusão de Conta</strong></a> ou enviando e-mail para <code>suporte@clickprestarecondominios.com.br</code>. O prazo de processamento é de até 15 dias úteis, ressalvados os prazos de guarda legal obrigatória para fins de auditoria fiscal e segurança pública.
+              <b>Como pedir a exclusão</b>
+              Pelo app, em <em>Configurações → Excluir minha conta</em>, pelas instruções da <a href="/exclusao-de-conta.html"><strong>página de exclusão de conta</strong></a> ou pelo e-mail <a href="mailto:suporte@clickprestarecondominios.com.br">suporte@clickprestarecondominios.com.br</a>. Pedidos por e-mail são atendidos em até 15 dias úteis. A página de exclusão detalha o que é apagado e o que permanece.
             </div>
           </div>
         </section>
 
+        <section class="doc" id="cookies">
+          <h2><span class="num">7</span>Cookies e tags de anúncio</h2>
+          <p>O aviso de cookies do site (<a href="/sobre/">/sobre/</a> e <a href="/sindico/">/sindico/</a>) oferece três categorias. Sua escolha fica salva no próprio navegador e pode ser alterada em <em>Preferências de cookies</em>, no rodapé dessas páginas.</p>
+          <div class="tabela" role="region" aria-label="Categorias de cookies" tabindex="0">
+            <table class="table-data">
+              <thead><tr><th scope="col">Categoria</th><th scope="col">O que faz</th><th scope="col">Quando vale</th></tr></thead>
+              <tbody>
+              <tr><td>Necessários</td><td>Guardam a sua escolha de cookies, o tema claro ou escuro e, durante a visita, a origem da chegada e os cliques já registrados. No console, mantêm a sessão de login</td><td>Sempre</td></tr>
+              <tr><td>Analíticos</td><td>Categoria reservada à medição de navegação. Hoje nenhuma ferramenta de análise é carregada por ela</td><td>Só com autorização</td></tr>
+              <tr><td>Marketing</td><td>Carrega as tags do Google Ads e da OpenAI, que medem a origem de quem chega por anúncio e podem gravar cookies como <code>_gcl_au</code>. Esses fornecedores recebem dados do navegador, como IP e página visitada, e tratam esses dados também conforme as políticas deles</td><td>Só com autorização</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Se você rejeitar, ou escolher só os necessários, as tags não são carregadas. Se retirar a autorização depois, o site apaga os cookies dessas tags no navegador e recarrega a página sem elas. Esta página e as demais páginas legais não carregam tags de anúncio.</p>
+        </section>
+
+        <section class="doc" id="comercial">
+          <h2><span class="num">8</span>Site, pedido de orçamento e WhatsApp</h2>
+          <ul class="lista">
+            <li><strong>Pedido de orçamento:</strong> quando você usa o simulador ou o formulário, guardamos nome, WhatsApp, condomínio, número de unidades e a página de origem no nosso sistema comercial, para responder ao pedido.</li>
+            <li><strong>Clique em WhatsApp ou Instagram:</strong> um clique nesses botões gera um registro sem nome nem telefone, com o canal, a página e os parâmetros de anúncio.</li>
+            <li><strong>Identificador do anúncio:</strong> se você chega por um anúncio, o endereço da página traz parâmetros como <code>gclid</code>, <code>oppref</code> e <code>utm_source</code>. Eles são ligados ao pedido ou ao clique mesmo sem a autorização de marketing, porque não dependem de cookie. Quando o contato se confirma no WhatsApp, podemos informar ao Google Ads ou à OpenAI que aquele clique gerou um contato, usando o identificador e a data, sem enviar nome ou telefone.</li>
+            <li><strong>WhatsApp:</strong> nosso número comercial usa a plataforma do WhatsApp Business, da Meta. Guardamos número, nome do perfil, mensagens e arquivos da conversa no sistema comercial. Podemos responder com mensagens automáticas, como boas-vindas e aviso de fora de horário, e entrar em contato sobre o seu pedido. Essas conversas não passam pelo assistente de IA.</li>
+            <li><strong>Links externos:</strong> ao abrir o WhatsApp ou o Instagram, você passa a seguir também as políticas da Meta.</li>
+          </ul>
+        </section>
+
+        <section class="doc" id="assistente">
+          <h2><span class="num">9</span>Assistente de IA</h2>
+          <p>O app tem um assistente de IA para tirar dúvidas e localizar informações do condomínio.</p>
+          <ul class="lista">
+            <li><strong>O que é enviado ao modelo:</strong> sua pergunta, os anexos que você escolher (imagem ou PDF) e o que o assistente consultar para responder, dentro do seu perfil, como boletos, encomendas, reservas, ocorrências, visitas da sua unidade e trechos de documentos do condomínio. Perfis de gestão também podem consultar dados de moradores e funcionários.</li>
+            <li><strong>Onde roda:</strong> no Amazon Bedrock, dentro da conta AWS da Prestare. A requisição entra pela região de São Paulo e a AWS pode processá-la em outras regiões, conforme a capacidade. Em contingência, podemos usar o Google Gemini.</li>
+            <li><strong>Histórico:</strong> as conversas ficam salvas para você continuar de onde parou, e você pode apagar cada uma delas no próprio assistente.</li>
+            <li><strong>Limites:</strong> as respostas podem conter erros. Quando o assistente propõe uma ação, ela só é feita depois da sua confirmação.</li>
+          </ul>
+        </section>
+
+        <section class="doc" id="transferencia">
+          <h2><span class="num">10</span>Transferência internacional</h2>
+          <p>O banco de dados e os arquivos ficam na região de São Paulo. Alguns tratamentos, porém, podem ocorrer nos Estados Unidos ou em outros países onde os fornecedores operam: notificações (Firebase), assistente de IA (Bedrock em outras regiões e, em contingência, Gemini), WhatsApp (Meta), tags e medição de anúncios (Google e OpenAI), fontes (Google) e, conforme o fornecedor, e-mail.</p>
+          <p>Essas transferências ocorrem para prestar o serviço, atender ao seu pedido ou, no caso das tags de anúncio, com o seu consentimento, nos termos do art. 33 da LGPD.</p>
+        </section>
+
+        <section class="doc" id="retencao">
+          <h2><span class="num">11</span>Por quanto tempo guardamos</h2>
+          <div class="tabela" role="region" aria-label="Prazos de retenção" tabindex="0">
+            <table class="table-data">
+              <thead><tr><th scope="col">Dado</th><th scope="col">Prazo</th></tr></thead>
+              <tbody>
+              <tr><td>Conta de usuário e consentimentos ligados a ela</td><td>Enquanto a conta existir</td></tr>
+              <tr><td>Foto de rosto do morador</td><td>Enquanto durar o vínculo, ou até a revogação da biometria</td></tr>
+              <tr><td>Foto de rosto e de documento de visitante</td><td>Apagadas 90 dias depois da saída. O registro da visita (nome, documento e horários) permanece</td></tr>
+              <tr><td>Convite de visita vencido, abandonado ou recusado</td><td>Apagado 7 dias depois do fim da validade</td></tr>
+              <tr><td>Foto e documento de prestador</td><td>Enquanto o cadastro existir. Ainda não há exclusão automática por prazo. O rosto sai dos terminais quando a autorização expira</td></tr>
+              <tr><td>Eventos de acesso e registros de auditoria</td><td>Durante o contrato com o condomínio. Ainda não há exclusão automática por prazo</td></tr>
+              <tr><td>Declarações de consentimento de visitantes e prestadores</td><td>Guardadas como prova, e a revogação é um novo registro</td></tr>
+              <tr><td>Conversas do assistente de IA</td><td>Até você apagá-las</td></tr>
+              <tr><td>Pedidos de orçamento e conversas comerciais no WhatsApp</td><td>Enquanto houver relacionamento comercial. Ainda não há exclusão automática por prazo. Você pode pedir a exclusão a qualquer momento</td></tr>
+              <tr><td>Registros técnicos da aplicação</td><td>30 dias</td></tr>
+              <tr><td>Cópias de segurança do banco</td><td>7 dias</td></tr>
+              <tr><td>Versões anteriores de arquivos apagados</td><td>Até 90 dias depois de apagados, no armazenamento</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Quando o condomínio encerra o uso, a remoção dos dados dele segue o contrato. Dados também podem ser guardados pelo tempo necessário ao cumprimento de obrigação legal ou ao exercício de direitos.</p>
+        </section>
+
+        <section class="doc" id="seguranca">
+          <h2><span class="num">12</span>Segurança</h2>
+          <ul class="lista">
+            <li>A conexão entre o seu aparelho ou navegador e os nossos serviços usa HTTPS.</li>
+            <li>O banco de dados e os arquivos são criptografados em repouso. O armazenamento de arquivos é privado, e as fotos são entregues por links temporários de até 1 hora.</li>
+            <li>O acesso é separado por condomínio e por perfil, e ações sensíveis ficam em registro de auditoria.</li>
+            <li>O acesso do síndico ao console usa verificação em duas etapas por e-mail.</li>
+            <li>Em incidente de segurança com dados pessoais, comunicamos o condomínio e apoiamos as comunicações previstas em lei à ANPD e aos titulares.</li>
+          </ul>
+          <p>Nenhum sistema é totalmente imune a falhas. Se notar acesso indevido à sua conta, avise a administração do condomínio e o nosso suporte.</p>
+        </section>
+
+        <section class="doc" id="alteracoes">
+          <h2><span class="num">13</span>Alterações desta política</h2>
+          <p>Podemos atualizar esta política, e a data no topo indica a versão vigente. Quando a mudança for relevante, o app pede um novo aceite.</p>
+        </section>
+
         <section class="doc" id="contato">
-          <h2><span class="num">7</span>Contato e Encarregado de Dados (DPO)</h2>
-          <p>Em caso de dúvidas sobre o tratamento dos seus dados ou sobre esta política, entre em contato com o nosso Encarregado de Proteção de Dados pelo e-mail: <code>suporte@clickprestarecondominios.com.br</code>.</p>
+          <h2><span class="num">14</span>Contato e encarregado de dados</h2>
+          <p>Para exercer seus direitos, tirar dúvidas ou falar com o encarregado de proteção de dados (DPO), use o canal abaixo:</p>
+          <div class="info">
+            <div>
+              <b>Canal de privacidade</b>
+              E-mail: <a href="mailto:suporte@clickprestarecondominios.com.br">suporte@clickprestarecondominios.com.br</a><br />
+              WhatsApp: <a href="https://wa.me/5517996608148">(17) 99660-8148</a><br />
+              Endereço: Prestare Gestão Condominial Inteligente Ltda, R. Maranhão, 1368, sala 30, Catanduva-SP, CEP 15800-020
+            </div>
+          </div>
         </section>
 
       </main>
@@ -308,14 +478,16 @@
 
   <footer class="doc">
     <div class="wrap">
-      <span>Prestare Gestão &copy; 2026 · Todos os direitos reservados</span>
-      <nav>
-        <a href="/sobre">Site</a>
+      <span>Prestare Gestão Condominial Inteligente Ltda · CNPJ 09.195.104/0001-73 · R. Maranhão, 1368, sala 30, Catanduva-SP, CEP 15800-020</span>
+      <nav aria-label="Rodapé">
+        <a href="/sobre/">Site</a>
         <a href="/termos-de-uso.html">Termos de uso</a>
+        <a href="/exclusao-de-conta.html">Exclusão de conta</a>
         <a href="mailto:suporte@clickprestarecondominios.com.br">Suporte</a>
       </nav>
     </div>
   </footer>
+
 
   <script>
     document.getElementById('tema').addEventListener('click', function () {

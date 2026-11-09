@@ -4,13 +4,23 @@
     <script>/* domínio antigo -> domínio principal */if(/(^|.)clickprestarecondominios.com.br$/.test(location.hostname)){location.replace("https://www.prestarecondominios.com.br"+location.pathname+location.search+location.hash);}</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Termos de Uso — Prestare Gestão</title>
-  <meta name="description" content="Termos de Uso da plataforma Prestare Gestão: quem pode usar, responsabilidades, assinatura, suporte e foro." />
+  <title>Termos de Uso | Prestare Gestão</title>
+  <meta name="description" content="Termos de Uso da Prestare Gestão: quem pode usar, responsabilidades, contratação, disponibilidade, suporte e foro." />
+  <link rel="canonical" href="https://www.prestarecondominios.com.br/termos-de-uso.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Prestare Gestão" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:title" content="Termos de Uso | Prestare Gestão" />
+  <meta property="og:description" content="Termos de Uso da Prestare Gestão: quem pode usar, responsabilidades, contratação, disponibilidade, suporte e foro." />
+  <meta property="og:url" content="https://www.prestarecondominios.com.br/termos-de-uso.html" />
+  <meta property="og:image" content="https://www.prestarecondominios.com.br/sobre/assets/og-prestare-gestao-v3.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Fontes servidas pelo próprio site (sem Google Fonts). -->
+  <link rel="preload" href="/fontes/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fontes/barlow-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fontes/barlow.css">
   <script>
     // Tema escolhido pela pessoa (mesma chave da landing); sem escolha, segue o sistema (CSS).
     try { var psTema = localStorage.getItem('ps-theme'); if (psTema) document.documentElement.dataset.theme = psTema; } catch (e) {}
@@ -174,12 +184,12 @@
 
   <div class="topbar">
     <div class="wrap">
-      <a class="logo" href="/sobre">
+      <a class="logo" href="/sobre/" aria-label="Prestare Gestão, ir para o site">
         <img class="img-dark" src="/prestare-marca-branca.svg" alt="" width="30" height="30" />
         <img class="img-light" src="/prestare-marca-preta.svg" alt="" width="30" height="30" />
         <span>PRESTARE <em>GESTÃO</em></span>
       </a>
-      <nav><a href="/politica-de-privacidade.html">Política de privacidade</a></nav>
+      <nav aria-label="Documentos"><a href="/politica-de-privacidade.html">Política de privacidade</a></nav>
       <button type="button" class="tema" id="tema" aria-label="Alternar entre tema claro e escuro"><svg class="sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="lua" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
     </div>
   </div>
@@ -189,8 +199,8 @@
       <span class="badge">Documento legal oficial</span>
       <h1>Termos de Uso</h1>
       <div class="meta">
-        <span>Última atualização: <b>14 de maio de 2026</b></span>
-        <span>Aplica-se ao app do morador e ao console web</span>
+        <span>Última atualização: <b>9 de novembro de 2026</b></span>
+        <span>Aplica-se ao app e ao console da portaria</span>
       </div>
     </div>
   </header>
@@ -201,14 +211,16 @@
       <nav class="toc" aria-label="Sumário">
         <h2>Nesta página</h2>
         <ol>
-          <li><a href="#aceitacao">Aceitação dos Termos</a></li>
-          <li><a href="#servico">Descrição do Serviço</a></li>
-          <li><a href="#uso">Uso Permitido</a></li>
-          <li><a href="#responsabilidades">Responsabilidades do Usuário</a></li>
-          <li><a href="#assinatura">Compras e Assinatura</a></li>
-          <li><a href="#disponibilidade">Disponibilidade e Suporte</a></li>
+          <li><a href="#aceitacao">Quem somos e aceitação</a></li>
+          <li><a href="#servico">Descrição do serviço</a></li>
+          <li><a href="#uso">Uso permitido</a></li>
+          <li><a href="#responsabilidades">Responsabilidades</a></li>
+          <li><a href="#assinatura">Contratação e preço</a></li>
+          <li><a href="#disponibilidade">Disponibilidade e suporte</a></li>
+          <li><a href="#assistente">Assistente de IA</a></li>
+          <li><a href="#privacidade">Privacidade e encerramento</a></li>
           <li><a href="#modificacoes">Modificações</a></li>
-          <li><a href="#foro">Foro e Lei Aplicável</a></li>
+          <li><a href="#foro">Foro e lei aplicável</a></li>
         </ol>
       </nav>
 
@@ -218,8 +230,8 @@
           <h2>Resumo</h2>
           <dl>
             <div>
-              <dt>Serviço</dt>
-              <dd>Prestare Gestão — plataforma de gestão condominial</dd>
+              <dt>Empresa</dt>
+              <dd>Prestare Gestão Condominial Inteligente Ltda, CNPJ 09.195.104/0001-73</dd>
             </div>
             <div>
               <dt>Quem pode usar</dt>
@@ -237,18 +249,22 @@
         </div>
 
         <section class="doc" id="aceitacao">
-          <h2><span class="num">1</span>Aceitação dos Termos</h2>
-          <p>Ao utilizar a plataforma <strong>Prestare Gestão</strong>, você concorda com estes Termos de Uso. Se não concordar com qualquer parte, não utilize o serviço.</p>
+          <h2><span class="num">1</span>Quem somos e aceitação</h2>
+          <p>A <strong>Prestare Gestão</strong> é fornecida por <strong>Prestare Gestão Condominial Inteligente Ltda</strong>, CNPJ 09.195.104/0001-73, com sede na R. Maranhão, 1368, sala 30, Catanduva-SP, CEP 15800-020. Ao usar o aplicativo Prestare ou o console da portaria, você concorda com estes Termos de Uso. Se não concordar com alguma parte, não utilize o serviço.</p>
+          <p>Estes termos valem para quem usa o sistema. A relação comercial com o condomínio é regida pela proposta e pelo contrato firmados com ele, que prevalecem em caso de conflito.</p>
         </section>
 
         <section class="doc" id="servico">
-          <h2><span class="num">2</span>Descrição do Serviço</h2>
-          <p>O Prestare Gestão é uma plataforma de gestão condominial que oferece aos usuários ferramentas para controle de acesso, comunicação, gestão financeira, reservas de áreas sociais e demais funcionalidades de administração predial.</p>
+          <h2><span class="num">2</span>Descrição do serviço</h2>
+          <p>A Prestare Gestão é um software de controle de acesso e gestão condominial, com app para moradores e console para a portaria e a administração. Oferece recursos como controle de visitantes e prestadores, encomendas, reconhecimento facial, reservas, ocorrências, comunicados, assembleias, assistente de IA e integração financeira, conforme o que o condomínio contratou e ativou.</p>
+          <div class="callout">
+            A Prestare Gestão é uma ferramenta para o condomínio fazer o próprio controle, com o porteiro. <strong>Não é central de portaria remota</strong> e não coloca operador à distância na sua portaria. A operação do dia a dia segue com o condomínio.
+          </div>
         </section>
 
         <section class="doc" id="uso">
-          <h2><span class="num">3</span>Uso Permitido</h2>
-          <p>O acesso ao aplicativo é concedido exclusivamente a:</p>
+          <h2><span class="num">3</span>Uso permitido</h2>
+          <p>O acesso é concedido exclusivamente a:</p>
           <div class="perfis">
             <div>
               <b>Síndicos e administradores</b>
@@ -263,40 +279,62 @@
               <span>Autorizados pela administração condominial.</span>
             </div>
           </div>
+          <p>Contas de acesso são para maiores de 18 anos. Menores podem constar no cadastro da unidade, sem conta própria.</p>
           <div class="callout">
-            É vedada a utilização do sistema para fins não relacionados à administração do condomínio, bem como o compartilhamento de credenciais de acesso.
+            É vedado usar o sistema para fins não relacionados à administração do condomínio e compartilhar credenciais de acesso.
           </div>
         </section>
 
         <section class="doc" id="responsabilidades">
-          <h2><span class="num">4</span>Responsabilidades do Usuário</h2>
+          <h2><span class="num">4</span>Responsabilidades</h2>
+          <p><strong>Cada usuário deve:</strong></p>
           <ul class="lista">
-            <li>Manter suas credenciais de acesso (e-mail e senha) em sigilo.</li>
-            <li>Fornecer informações verdadeiras no cadastro e atualizá-las quando necessário.</li>
-            <li>Não utilizar o sistema para divulgar conteúdo ofensivo, ilegal ou que viole direitos de terceiros.</li>
-            <li>Notificar imediatamente a administração em caso de acesso não autorizado à sua conta.</li>
+            <li>Manter suas credenciais de acesso em sigilo.</li>
+            <li>Fornecer informações verdadeiras e atualizá-las quando necessário.</li>
+            <li>Não usar o sistema para divulgar conteúdo ofensivo, ilegal ou que viole direitos de terceiros.</li>
+            <li>Avisar a administração se notar acesso não autorizado à sua conta.</li>
+          </ul>
+          <p><strong>O condomínio, por meio da sua administração, responde por:</strong></p>
+          <ul class="lista">
+            <li>Definir quem é cadastrado e com qual perfil.</li>
+            <li>Colher a autorização de biometria facial de quem não tem conta no app, como visitantes e prestadores, antes de declará-la no sistema.</li>
+            <li>Manter uma forma de entrada para quem não quiser usar o reconhecimento facial.</li>
+            <li>A operação da portaria e as decisões de liberação de acesso.</li>
           </ul>
         </section>
 
         <section class="doc" id="assinatura">
-          <h2><span class="num">5</span>Compras e Assinatura</h2>
-          <p>Alguns planos e funcionalidades avançadas do Prestare Gestão podem requerer assinatura paga processada pela Google Play Store. Reembolsos e cancelamentos seguem a política da loja de aplicativos correspondente. Todas as cobranças são transparentes e previamente informadas ao contratante.</p>
+          <h2><span class="num">5</span>Contratação e preço</h2>
+          <p>O serviço é contratado pelo condomínio, com proposta comercial e contrato. O preço é mensal, por faixa de unidades, a partir de R$ 298 por mês, mais R$ 490 de implantação. O simulador em <a href="/sobre/#simulador">/sobre/</a> mostra uma estimativa, e os valores e condições que valem são os da proposta e do contrato.</p>
+          <p>A assinatura do serviço não é vendida nem cobrada pelo aplicativo ou pelas lojas de aplicativos.</p>
         </section>
 
         <section class="doc" id="disponibilidade">
-          <h2><span class="num">6</span>Disponibilidade e Suporte</h2>
-          <p>Nos esforçamos para garantir a disponibilidade do serviço 24 horas por dia, 7 dias por semana, mas não garantimos disponibilidade ininterrupta. Manutenções programadas serão comunicadas previamente sempre que possível.</p>
-          <p>Suporte técnico: <code>suporte@clickprestarecondominios.com.br</code>.</p>
+          <h2><span class="num">6</span>Disponibilidade e suporte</h2>
+          <p>Nos esforçamos para manter o serviço disponível 24 horas por dia, 7 dias por semana, mas não garantimos disponibilidade ininterrupta. Manutenções programadas são comunicadas previamente sempre que possível.</p>
+          <p>O app e o console precisam de internet para registrar. Sem conexão, só o terminal facial guarda eventos localmente.</p>
+          <p>Suporte técnico: <a href="mailto:suporte@clickprestarecondominios.com.br">suporte@clickprestarecondominios.com.br</a>.</p>
+        </section>
+
+        <section class="doc" id="assistente">
+          <h2><span class="num">7</span>Assistente de IA</h2>
+          <p>O assistente de IA ajuda a localizar informações e pode conter erros. Confira o que for importante nas telas do sistema ou com a administração. Ações propostas por ele só são feitas depois da sua confirmação. O tratamento de dados está descrito na <a href="/politica-de-privacidade.html#assistente">Política de Privacidade</a>.</p>
+        </section>
+
+        <section class="doc" id="privacidade">
+          <h2><span class="num">8</span>Privacidade e encerramento</h2>
+          <p>O tratamento de dados pessoais segue a <a href="/politica-de-privacidade.html">Política de Privacidade</a>. O usuário pode pedir a exclusão da conta pela <a href="/exclusao-de-conta.html">página de exclusão de conta</a>.</p>
+          <p>O síndico pode exportar os dados do condomínio pelo console, em arquivos CSV. O encerramento do uso pelo condomínio e o destino dos dados seguem o contrato.</p>
         </section>
 
         <section class="doc" id="modificacoes">
-          <h2><span class="num">7</span>Modificações</h2>
-          <p>Estes Termos podem ser atualizados periodicamente. O uso continuado do aplicativo após notificação de alterações implica a aceitação dos novos termos.</p>
+          <h2><span class="num">9</span>Modificações</h2>
+          <p>Estes termos podem ser atualizados, e a data no topo indica a versão vigente. O uso continuado depois de aviso sobre as alterações implica a aceitação dos novos termos.</p>
         </section>
 
         <section class="doc" id="foro">
-          <h2><span class="num">8</span>Foro e Lei Aplicável</h2>
-          <p>Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica eleito o foro da Comarca de Catanduva/SP para dirimir eventuais litígios, salvo disposição em contrário prevista em lei.</p>
+          <h2><span class="num">10</span>Foro e lei aplicável</h2>
+          <p>Estes termos são regidos pelas leis da República Federativa do Brasil. Fica eleito o foro da Comarca de Catanduva/SP para dirimir eventuais litígios, salvo disposição em contrário prevista em lei.</p>
         </section>
 
       </main>
@@ -305,14 +343,16 @@
 
   <footer class="doc">
     <div class="wrap">
-      <span>Prestare Gestão &copy; 2026 · Todos os direitos reservados</span>
-      <nav>
-        <a href="/sobre">Site</a>
+      <span>Prestare Gestão Condominial Inteligente Ltda · CNPJ 09.195.104/0001-73 · R. Maranhão, 1368, sala 30, Catanduva-SP, CEP 15800-020</span>
+      <nav aria-label="Rodapé">
+        <a href="/sobre/">Site</a>
         <a href="/politica-de-privacidade.html">Política de privacidade</a>
+        <a href="/exclusao-de-conta.html">Exclusão de conta</a>
         <a href="mailto:suporte@clickprestarecondominios.com.br">Suporte</a>
       </nav>
     </div>
   </footer>
+
 
   <script>
     document.getElementById('tema').addEventListener('click', function () {

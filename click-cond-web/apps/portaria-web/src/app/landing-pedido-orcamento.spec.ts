@@ -7,6 +7,11 @@ function htmlDaLanding(): string {
   return readFileSync(join(process.cwd(), 'apps/portaria-web/public/sobre/index.html'), 'utf8');
 }
 
+// A lógica da página (handlers, simulador) mora em /sobre/pagina.js.
+function logicaDaLanding(): string {
+  return readFileSync(join(process.cwd(), 'apps/portaria-web/public/sobre/pagina.js'), 'utf8');
+}
+
 function carregarRastreadorDaLanding(): void {
   const script = Array.from(htmlDaLanding().matchAll(/<script>([\s\S]*?)<\/script>/g))
     .map((m) => m[1])
@@ -37,7 +42,7 @@ function corpoEnviado(fetch: jest.Mock): Record<string, string> {
 
 /** Extrai `  nome = (e) => { ... };` da classe do componente como função comum. */
 function carregarHandler(nome: string): (this: any, event: any) => void {
-  const html = htmlDaLanding();
+  const html = logicaDaLanding();
   const inicio = html.indexOf(`  ${nome} = (e) => {`);
   const fim = html.indexOf('\n  };', inicio);
   if (inicio < 0 || fim < 0) throw new Error(`Handler ${nome} da landing não encontrado.`);
@@ -232,7 +237,7 @@ describe('formulário do simulador', () => {
     const html = htmlDaLanding();
     const inicio = html.indexOf('<section id="simulador"');
     const card = html.slice(inicio, html.indexOf('</section>', inicio));
-    expect(card).toContain('onSubmit="{{ enviarSimulador }}"');
+    expect(card).toContain('data-on-submit="enviarSimulador"');
     expect(card).toContain('Receber minha proposta');
     expect(card).not.toContain('implantação grátis');
     expect(card).not.toContain('Condição de lançamento');
@@ -266,7 +271,7 @@ describe('caminho até o preço', () => {
     const barra = trecho(htmlDaLanding(), '<div class="ps-barra"', '</div>');
     expect(barra).toContain('href="#simulador"');
     expect(barra).toContain('Ver meu preço');
-    expect(barra).toContain('{{ barraTransform }}');
+    expect(barra).toContain('data-estilo="transform:barraTransform');
   });
 });
 
@@ -274,7 +279,9 @@ describe('textos de resposta e oferta', () => {
   it('não promete mais resposta em 1 dia útil', () => {
     const html = htmlDaLanding();
     expect(html).not.toContain('Resposta em até 1 dia útil');
-    expect(html.split('Resposta na hora pelo WhatsApp').length - 1).toBe(2);
+    // "Na hora" não cabia com atendimento em horário comercial.
+    expect(html).not.toContain('Resposta na hora');
+    expect(html.split('Resposta pelo WhatsApp em horário comercial').length - 1).toBe(2);
     expect(html).toContain('Atendimento humano em horário comercial');
   });
 
@@ -294,7 +301,7 @@ describe('textos de resposta e oferta', () => {
 
 describe('correções finais da revisão', () => {
   function simLink(unidades: string): string {
-    const html = htmlDaLanding();
+    const html = logicaDaLanding();
     const inicio = html.indexOf('  simVals(num) {');
     const fim = html.indexOf('\n  }\n', inicio);
     if (inicio < 0 || fim < 0) throw new Error('simVals da landing não encontrado.');

@@ -12,7 +12,8 @@ function carregarRastreadorDaLanding(): void {
 }
 
 function carregarEnvioDoFormulario(): (this: any, event: SubmitEvent) => void {
-  const html = readFileSync(join(process.cwd(), 'apps/portaria-web/public/sobre/index.html'), 'utf8');
+  // A lógica da página mora em /sobre/pagina.js.
+  const html = readFileSync(join(process.cwd(), 'apps/portaria-web/public/sobre/pagina.js'), 'utf8');
   const inicio = html.indexOf('  enviar = (e) => {');
   const fim = html.lastIndexOf('\n  };', html.indexOf('  renderVals()', inicio));
   if (inicio < 0 || fim < 0) throw new Error('Handler de envio da landing nÃ£o encontrado.');

@@ -22,8 +22,8 @@ function montarForm(campos: Record<string, string>): HTMLFormElement {
 it('publica a rota, mensagem central e dois CTAs de orçamento', () => {
   expect(existsSync(pagePath)).toBe(true);
   const html = htmlDaPaginaSindico();
-  expect(html).toContain('<h1>Gestão do condomínio sem consumir o seu dia.</h1>');
-  expect(html).toContain('Acompanhe tudo pelo app e pelo sistema web, reduza tarefas repetitivas e tome decisões com informação em tempo real.');
+  expect(html).toContain('<h1 id="sindico-title">App e sistema para síndico de condomínio</h1>');
+  expect(html).toContain('O porteiro registra quem entra e sai. Você consulta visitantes, encomendas, ocorrências e relatórios pelo celular ou pelo navegador');
   expect(html.split('Pedir orçamento para meu condomínio')).toHaveLength(3);
   expect(html).toContain('id="orcamento"');
   expect(html.match(/Pedir orçamento para meu condomínio\s*<span[^>]*aria-hidden="true"[^>]*>→<\/span>/g)).toHaveLength(2);
@@ -47,12 +47,15 @@ it('usa uma tela real do produto no hero e inicializa a medição da landing', (
   expect(html).toContain("sessionStorage.setItem('psOrigem'");
 });
 
-it('usa composições gráficas próprias no hero e na narrativa operacional', () => {
+it('usa telas reais (dados fictícios) no hero e composição própria na narrativa', () => {
   document.documentElement.innerHTML = htmlDaPaginaSindico();
 
   const hero = document.querySelector('.sindico-hero');
-  expect(hero?.querySelector('img')).toBeNull();
+  // A ilustração com "processos ativos" e "resolvidos hoje" parecia dado real.
+  expect(hero?.querySelector('.sindico-web-metric')).toBeNull();
+  expect(hero?.querySelector('.sindico-device-web img')?.getAttribute('src')).toBe('/sobre/assets/web-dashboard-claro.webp');
   expect(hero?.querySelectorAll('.sindico-device')).toHaveLength(2);
+  expect(hero?.querySelector('.sindico-sync-badge')?.textContent).toBe('Telas do sistema com dados fictícios');
   expect(hero?.querySelector('.sindico-sync-badge')).not.toBeNull();
   expect(document.querySelector('.sindico-operations-map')).not.toBeNull();
   expect(document.querySelector('.sindico-ops-core')).not.toBeNull();
@@ -78,7 +81,7 @@ it('apresenta a transformação da rotina em um fluxo visual sem grade de cards 
 it('mostra processos e telas reais do console', () => {
   const html = htmlDaPaginaSindico();
   ['Visitantes', 'Encomendas', 'Comunicados', 'Áreas sociais', 'Financeiro', 'Ocorrências'].forEach((t) => expect(html).toContain(t));
-  ['web-dashboard-claro.jpg', 'web-visitantes-claro.jpg', 'web-ocorrencias-claro.jpg', 'web-relatorios-claro.jpg'].forEach((a) => expect(html).toContain(`/sobre/assets/${a}`));
+  ['web-dashboard-claro.webp', 'web-visitantes-claro.webp', 'web-ocorrencias-claro.webp', 'web-relatorios-claro.webp'].forEach((a) => expect(html).toContain(`/sobre/assets/${a}`));
   expect(html).toContain('aspect-ratio: 16 / 10');
 });
 
@@ -166,10 +169,10 @@ it('não abre o WhatsApp quando o registro do lead falha', async () => {
 it('apresenta eyebrow do spec, cards de processos, comparativo e benefícios do console', () => {
   document.documentElement.innerHTML = htmlDaPaginaSindico();
 
-  expect(document.querySelector('.sindico-eyebrow-pill')?.textContent).toBe('Para síndicos');
-  expect(document.querySelectorAll('.sindico-processes .sindico-card')).toHaveLength(6);
+  expect(document.querySelector('.sindico-eyebrow-pill')?.textContent).toBe('Sistema para síndico');
+  expect(document.querySelectorAll('.sindico-processes .sindico-card')).toHaveLength(9);
   expect(document.querySelectorAll('.sindico-compare-col')).toHaveLength(2);
-  expect(document.querySelectorAll('.sindico-benefits li')).toHaveLength(3);
+  expect(document.querySelectorAll('.pg-faq details').length).toBeGreaterThanOrEqual(6);
   expect(document.body.textContent).not.toContain('24/7');
   expect(document.body.textContent).not.toContain('0 papel');
 });

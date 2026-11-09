@@ -4,13 +4,23 @@
     <script>/* domínio antigo -> domínio principal */if(/(^|.)clickprestarecondominios.com.br$/.test(location.hostname)){location.replace("https://www.prestarecondominios.com.br"+location.pathname+location.search+location.hash);}</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Exclusão de Conta e Dados — Prestare Gestão / Click Condomínios</title>
-  <meta name="description" content="Instruções para exclusão de conta e remoção de dados pessoais do aplicativo Click Condomínios / Prestare Gestão, em conformidade com as diretrizes do Google Play e a LGPD." />
+  <title>Exclusão de Conta e Dados | Prestare Gestão</title>
+  <meta name="description" content="Como excluir sua conta do aplicativo Prestare e pedir a remoção dos seus dados pessoais: passo a passo, o que é apagado, o que permanece e prazos." />
+  <link rel="canonical" href="https://www.prestarecondominios.com.br/exclusao-de-conta.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Prestare Gestão" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:title" content="Exclusão de Conta e Dados | Prestare Gestão" />
+  <meta property="og:description" content="Como excluir sua conta do aplicativo Prestare e pedir a remoção dos seus dados pessoais: passo a passo, o que é apagado, o que permanece e prazos." />
+  <meta property="og:url" content="https://www.prestarecondominios.com.br/exclusao-de-conta.html" />
+  <meta property="og:image" content="https://www.prestarecondominios.com.br/sobre/assets/og-prestare-gestao-v3.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Fontes servidas pelo próprio site (sem Google Fonts). -->
+  <link rel="preload" href="/fontes/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fontes/barlow-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fontes/barlow.css">
   <script>
     // Tema escolhido pela pessoa (mesma chave da landing); sem escolha, segue o sistema (CSS).
     try { var psTema = localStorage.getItem('ps-theme'); if (psTema) document.documentElement.dataset.theme = psTema; } catch (e) {}
@@ -174,7 +184,6 @@
     .doc-meta { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 8px 28px; font-size: 15px; color: var(--ink-muted); }
     .doc-meta strong { color: var(--ink); font-weight: 600; }
     .wrap.layout { max-width: 1120px; padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
-    nav.toc h3 { font-family: var(--font-display); font-weight: 600; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-subtle); margin-bottom: 14px; }
     section.card-box { scroll-margin-top: 24px; padding-top: 28px; border-top: 1px solid var(--line-100); margin-bottom: 44px; }
     section.card-box h2 { margin-bottom: 18px; font-family: var(--font-display); font-weight: 600; font-size: clamp(24px, 3.2vw, 32px); line-height: 1.1; letter-spacing: .05em; text-transform: uppercase; }
     section.card-box p { margin-bottom: 14px; max-width: 70ch; }
@@ -211,174 +220,194 @@
 
   <div class="topbar">
     <div class="wrap">
-      <a href="/" class="logo">
-        <img class="img-dark" src="/prestare-marca-branca.svg" alt="Prestare Gestão" width="30" height="30" />
+      <a class="logo" href="/sobre/" aria-label="Prestare Gestão, ir para o site">
+        <img class="img-dark" src="/prestare-marca-branca.svg" alt="" width="30" height="30" />
         <img class="img-light" src="/prestare-marca-preta.svg" alt="" width="30" height="30" />
         <span>PRESTARE <em>GESTÃO</em></span>
       </a>
-      <nav>
-        <a href="/politica-de-privacidade.html">Política de Privacidade</a>
-        <a href="/termos-de-uso.html">Termos de Uso</a>
-      </nav>
+      <nav aria-label="Documentos"><a href="/politica-de-privacidade.html">Política de Privacidade</a>
+        <a href="/termos-de-uso.html">Termos de Uso</a></nav>
       <button type="button" class="tema" id="tema" aria-label="Alternar entre tema claro e escuro"><svg class="sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="lua" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
     </div>
   </div>
 
   <header class="doc">
     <div class="wrap">
-      <span class="badge">Google Play & LGPD Compliance</span>
+      <span class="badge">Direitos do titular · LGPD</span>
       <h1>Exclusão de Conta e Dados Pessoais</h1>
       <div class="doc-meta">
-        <span><strong>Aplicativo:</strong> Click Condomínios / Prestare Gestão</span>
-        <span><strong>ID do Pacote:</strong> br.com.clickprestare.app</span>
-        <span><strong>Atualizado em:</strong> 19 de Setembro de 2026</span>
+        <span><strong>Aplicativo:</strong> Prestare</span>
+        <span><strong>ID do pacote:</strong> br.com.clickprestare.app</span>
+        <span><strong>Atualizado em:</strong> 9 de novembro de 2026</span>
       </div>
     </div>
   </header>
 
   <div class="wrap layout">
     <nav class="toc" aria-label="Sumário">
-      <h3>Nesta página</h3>
+      <h2>Nesta página</h2>
       <ol>
-        <li><a href="#visao-geral">Visão Geral</a></li>
-        <li><a href="#como-solicitar-app">Exclusão pelo Aplicativo</a></li>
-        <li><a href="#como-solicitar-web">Exclusão via Web / E-mail</a></li>
-        <li><a href="#dados-excluidos">Dados Excluídos vs Retidos</a></li>
-        <li><a href="#prazos">Prazos e Confirmação</a></li>
-        <li><a href="#contato-dpo">Contato com o DPO</a></li>
+        <li><a href="#visao-geral">Visão geral</a></li>
+        <li><a href="#como-solicitar-app">Exclusão pelo aplicativo</a></li>
+        <li><a href="#como-solicitar-web">Exclusão por e-mail</a></li>
+        <li><a href="#dados-excluidos">O que é apagado e o que fica</a></li>
+        <li><a href="#prazos">Prazos</a></li>
+        <li><a href="#contato-dpo">Contato</a></li>
       </ol>
     </nav>
 
     <main>
-      <!-- 1. Visão Geral -->
       <section class="card-box" id="visao-geral">
-        <h2>1. Visão Geral</h2>
-        <p>Em conformidade com a <strong>Política de Dados do Usuário do Google Play</strong> e a <strong>Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018)</strong>, a plataforma <strong>Click Condomínios / Prestare Gestão</strong> assegura a todos os seus usuários (moradores, síndicos, funcionários e visitantes) o direito de solicitar a exclusão de sua conta e a eliminação dos respectivos dados pessoais armazenados em nossos sistemas.</p>
-        <p>Você não precisa manter o aplicativo instalado no seu celular para solicitar a exclusão da sua conta: disponibilizamos tanto o fluxo automatizado dentro do app quanto um canal web direto e público via e-mail oficial.</p>
+        <h2>1. Visão geral</h2>
+        <p>O aplicativo <strong>Prestare</strong> é da <strong>Prestare Gestão Condominial Inteligente Ltda</strong>, CNPJ 09.195.104/0001-73. Moradores, síndicos, funcionários e visitantes podem pedir a exclusão da conta e a eliminação de seus dados pessoais, conforme a <strong>Lei Geral de Proteção de Dados (LGPD, Lei nº 13.709/2018)</strong> e a política de dados do usuário do Google Play.</p>
+        <p>Você pode excluir a conta dentro do app ou, sem precisar do aplicativo instalado, pelo nosso e-mail.</p>
       </section>
 
-      <!-- 2. Pelo App -->
       <section class="card-box" id="como-solicitar-app">
-        <h2>2. Como Solicitar a Exclusão Diretamente pelo Aplicativo</h2>
-        <p>Se você tem acesso ao aplicativo em seu smartphone (Android ou iPhone), siga os passos abaixo:</p>
+        <h2>2. Como excluir pelo aplicativo</h2>
+        <p>No Android ou no iPhone, com perfil de morador ou síndico:</p>
 
         <div class="step-box">
           <div class="step-num">1</div>
           <div>
-            <strong>Acesse sua Conta</strong>
-            <p>Abra o aplicativo Click Condomínios e faça o login com suas credenciais usuais (e-mail, CPF ou biometria).</p>
+            <strong>Entre na sua conta</strong>
+            <p>Abra o aplicativo Prestare e faça o login.</p>
           </div>
         </div>
 
         <div class="step-box">
           <div class="step-num">2</div>
           <div>
-            <strong>Vá até o Menu de Configurações</strong>
-            <p>Toque no ícone de menu ou no seu perfil e selecione <em>“Configurações”</em>.</p>
+            <strong>Abra as Configurações</strong>
+            <p>Vá até a tela de <em>Configurações</em> do app.</p>
           </div>
         </div>
 
         <div class="step-box">
           <div class="step-num">3</div>
           <div>
-            <strong>Selecione “Excluir Minha Conta”</strong>
-            <p>No final da tela de configurações, clique no botão <em>“Excluir Minha Conta”</em> e confirme a solicitação no diálogo de segurança.</p>
+            <strong>Toque em “Excluir minha conta”</strong>
+            <p>Confirme no aviso que aparece. A conta é apagada na hora e o app volta para a tela de login.</p>
           </div>
         </div>
+        <p>Funcionários não têm essa opção no app e devem usar o e-mail da seção 3 ou falar com a administração do condomínio.</p>
       </section>
 
-      <!-- 3. Pela Web / Sem o App -->
       <section class="card-box" id="como-solicitar-web">
-        <h2>3. Como Solicitar a Exclusão via Web (Sem Necessidade do App)</h2>
-        <p>Caso você não tenha mais o aplicativo instalado, tenha perdido o acesso ao dispositivo ou prefira atendimento direto, você pode solicitar a exclusão total da conta e dos dados pessoais diretamente ao nosso <strong>Encarregado de Proteção de Dados (DPO)</strong>:</p>
+        <h2>3. Como pedir por e-mail (sem o app)</h2>
+        <p>Use este canal se não tem mais o aplicativo, perdeu o acesso ao aparelho, não tem conta (visitantes e prestadores) ou quer remover arquivos e conversas que a exclusão pelo app não apaga:</p>
 
         <div class="info-alert">
-          <strong>Canal Oficial de Exclusão:</strong><br />
-          Envie um e-mail para: <a href="mailto:suporte@clickprestarecondominios.com.br?subject=Solicita%C3%A7%C3%A3o%20de%20Exclus%C3%A3o%20de%20Conta%20e%20Dados%20-%20Click%20Condom%C3%ADnios"><strong>suporte@clickprestarecondominios.com.br</strong></a><br />
-          <strong>Assunto:</strong> Solicitação de Exclusão de Conta — [Seu Nome Completo]<br />
-          <strong>Informações necessárias no corpo do e-mail:</strong>
+          <strong>Canal oficial de exclusão:</strong><br />
+          E-mail: <a href="mailto:suporte@clickprestarecondominios.com.br?subject=Solicita%C3%A7%C3%A3o%20de%20Exclus%C3%A3o%20de%20Conta%20e%20Dados%20-%20Prestare"><strong>suporte@clickprestarecondominios.com.br</strong></a><br />
+          <strong>Assunto:</strong> Solicitação de exclusão de conta e dados, seguido do seu nome completo<br />
+          <strong>Informe no e-mail:</strong>
           <ul style="margin-top: 8px; margin-left: 20px;">
             <li>Nome completo</li>
-            <li>E-mail cadastrado na conta</li>
-            <li>CPF do titular</li>
-            <li>Nome do condomínio e número da unidade (se aplicável)</li>
+            <li>E-mail cadastrado na conta, se houver</li>
+            <li>CPF ou documento do titular</li>
+            <li>Nome do condomínio e número da unidade, se aplicável</li>
           </ul>
         </div>
-        <p>Nossa equipe validará a titularidade da solicitação e iniciará o expurgo dos dados no prazo legal.</p>
+        <p>Confirmamos a titularidade do pedido antes de apagar qualquer dado. Dados de um condomínio podem depender de confirmação da administração dele, que é a controladora.</p>
       </section>
 
-      <!-- 4. Dados Excluídos e Retidos -->
       <section class="card-box" id="dados-excluidos">
-        <h2>4. Quais Dados São Excluídos e Quais São Retidos</h2>
-        <p>A exclusão da conta acarreta a eliminação e desvinculação imediata dos dados cadastrais e de acesso pessoal, respeitando as obrigações legais de guarda vigentes:</p>
+        <h2>4. O que é apagado e o que fica</h2>
+        <p>A tabela mostra o que acontece hoje com cada categoria de dado:</p>
 
         <table class="table-data">
           <thead>
             <tr>
-              <th>Categoria de Dados</th>
-              <th>Tratamento Após a Exclusão</th>
-              <th>Base Legal / Justificativa</th>
+              <th scope="col">Categoria de dados</th>
+              <th scope="col">O que acontece</th>
+              <th scope="col">Base ou justificativa</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><strong>Credenciais e Autenticação</strong><br />(E-mail, senha criptografada, tokens de login e Face ID local)</td>
-              <td><span class="ok">Exclusão Imediata</span> e revogação permanente de acesso aos sistemas.</td>
-              <td>Consentimento revogado / Término do vínculo (Art. 15 e 16 da LGPD).</td>
+              <td><strong>Conta e acesso</strong><br />(e-mail, senha criptografada, sessão, verificação em duas etapas)</td>
+              <td><span class="ok">Apagados</span> ao confirmar a exclusão no app. O acesso é encerrado.</td>
+              <td>Pedido do titular (art. 18, VI, e art. 16 da LGPD).</td>
             </tr>
             <tr>
-              <td><strong>Biometria Facial</strong><br />(Fotos e templates cadastrados nas catracas/portaria)</td>
-              <td><span class="ok">Exclusão Definitiva</span> e desprovisionamento automático dos terminais físicos.</td>
-              <td>Art. 11 e 16 da LGPD (Dado pessoal sensível).</td>
+              <td><strong>Vínculos com o condomínio</strong><br />(cadastro de morador ou síndico, vínculo com a unidade, consentimentos da conta)</td>
+              <td><span class="ok">Apagados</span> junto com a conta.</td>
+              <td>Pedido do titular.</td>
             </tr>
             <tr>
-              <td><strong>Tokens de Notificação (Push/FCM)</strong></td>
-              <td><span class="ok">Exclusão Imediata</span> de nossos bancos e serviços de mensageria.</td>
+              <td><strong>Notificações</strong><br />(tokens dos aparelhos)</td>
+              <td><span class="ok">Apagados</span> junto com a conta.</td>
+              <td>Pedido do titular.</td>
+            </tr>
+            <tr>
+              <td><strong>Rosto nos terminais faciais</strong></td>
+              <td><span class="ok">Remoção automática</span> disparada na exclusão. Se um terminal estiver fora do ar, uma rotina periódica retira o rosto quando ele voltar a responder.</td>
+              <td>Art. 11 e art. 16 da LGPD (dado sensível).</td>
+            </tr>
+            <tr>
+              <td><strong>Arquivo da foto no armazenamento</strong></td>
+              <td><strong>Remoção sob pedido.</strong> Hoje a exclusão pelo app apaga o cadastro, mas não o arquivo. Para apagá-lo, peça pelo e-mail da seção 3, antes ou depois da exclusão.</td>
               <td>Art. 16 da LGPD.</td>
             </tr>
             <tr>
-              <td><strong>Histórico de Cobranças e Boletos Fiscais</strong></td>
-              <td><strong>Retenção Restrita</strong> pelo prazo legal de 5 anos em arquivo morto contábil.</td>
-              <td>Cumprimento de obrigação legal e tributária (Código Civil Brasileiro e Código Tributário Nacional).</td>
+              <td><strong>Conversas com o assistente de IA</strong></td>
+              <td><strong>Remoção por você ou sob pedido.</strong> Apague cada conversa no assistente antes de excluir a conta, ou peça pelo e-mail da seção 3.</td>
+              <td>Art. 16 da LGPD.</td>
             </tr>
             <tr>
-              <td><strong>Registros de Acesso à Portaria</strong></td>
-              <td><strong>Retenção Transitória</strong> nos registros do condomínio pelo prazo de segurança predial, sem vínculo com conta ativa.</td>
-              <td>Legítimo interesse do condomínio e segurança patrimonial coletiva.</td>
+              <td><strong>Registros de acesso e de visitas, encomendas, ocorrências e auditoria</strong></td>
+              <td><strong>Permanecem</strong> nos registros do condomínio, sem vínculo com conta ativa. Ainda não há exclusão automática por prazo.</td>
+              <td>Legítimo interesse do condomínio e segurança patrimonial.</td>
+            </tr>
+            <tr>
+              <td><strong>Registros financeiros do condomínio</strong></td>
+              <td><strong>Permanecem</strong> pelos prazos legais aplicáveis, sob responsabilidade do condomínio e da sua administradora.</td>
+              <td>Cumprimento de obrigação legal.</td>
+            </tr>
+            <tr>
+              <td><strong>Cópias técnicas</strong></td>
+              <td><strong>Saem sozinhas:</strong> cópias de segurança do banco em até 7 dias, e versões anteriores de arquivos apagados em até 90 dias.</td>
+              <td>Segurança e recuperação do sistema.</td>
             </tr>
           </tbody>
         </table>
+        <p>O Face ID ou a impressão digital do celular ficam no próprio aparelho e nunca chegam até nós. Para visitantes, as fotos de rosto e documento são apagadas automaticamente 90 dias depois da saída.</p>
       </section>
 
-      <!-- 5. Prazos -->
       <section class="card-box" id="prazos">
-        <h2>5. Prazos de Processamento</h2>
-        <p>Após a confirmação da solicitação de exclusão:</p>
+        <h2>5. Prazos</h2>
         <ul>
-          <li>O bloqueio de acesso ao aplicativo e desativação das credenciais ocorrem em <strong>até 48 horas</strong> úteis.</li>
-          <li>A eliminação definitiva dos dados nos bancos operacionais e desprovisionamento biométrico é concluída em até <strong>15 (quinze) dias úteis</strong>, conforme estipulado pelo Art. 19 da LGPD.</li>
-          <li>O titular receberá confirmação por e-mail quando o processo for finalizado.</li>
+          <li><strong>Pelo app:</strong> a conta é apagada no momento da confirmação.</li>
+          <li><strong>Por e-mail:</strong> o pedido é concluído em até <strong>15 (quinze) dias úteis</strong> depois de confirmada a titularidade, e respondemos no mesmo e-mail quando terminar.</li>
         </ul>
       </section>
 
-      <!-- 6. Contato DPO -->
       <section class="card-box" id="contato-dpo">
-        <h2>6. Contato com o Encarregado de Proteção de Dados (DPO)</h2>
-        <p>Para dúvidas adicionais sobre a nossa Política de Privacidade, exercício de direitos ou solicitações de exclusão, entre em contato:</p>
+        <h2>6. Contato</h2>
+        <p>Para dúvidas sobre esta página, sobre a <a href="/politica-de-privacidade.html">Política de Privacidade</a> ou sobre outros direitos do titular, fale com o canal do encarregado de proteção de dados (DPO):</p>
         <p>
-          <strong>Encarregado de Proteção de Dados (DPO):</strong> Equipe de Privacidade Prestare Soluções<br />
+          <strong>Empresa:</strong> Prestare Gestão Condominial Inteligente Ltda, CNPJ 09.195.104/0001-73<br />
           <strong>E-mail:</strong> <a href="mailto:suporte@clickprestarecondominios.com.br">suporte@clickprestarecondominios.com.br</a><br />
-          <strong>Website Oficial:</strong> <a href="https://www.prestarecondominios.com.br">www.prestarecondominios.com.br</a>
+          <strong>WhatsApp:</strong> <a href="https://wa.me/5517996608148">(17) 99660-8148</a><br />
+          <strong>Site:</strong> <a href="/sobre/">www.prestarecondominios.com.br/sobre/</a>
         </p>
       </section>
     </main>
   </div>
 
-  <footer class="footer">
+  <footer class="doc">
     <div class="wrap">
-      <p>&copy; 2026 Prestare Gestão / Click Condomínios. Todos os direitos reservados. Em conformidade com a LGPD e Google Play Policies.</p>
+      <span>Prestare Gestão Condominial Inteligente Ltda · CNPJ 09.195.104/0001-73 · R. Maranhão, 1368, sala 30, Catanduva-SP, CEP 15800-020</span>
+      <nav aria-label="Rodapé">
+        <a href="/sobre/">Site</a>
+        <a href="/politica-de-privacidade.html">Política de privacidade</a>
+        <a href="/termos-de-uso.html">Termos de uso</a>
+        <a href="mailto:suporte@clickprestarecondominios.com.br">Suporte</a>
+      </nav>
     </div>
   </footer>
+
 
   <script>
     document.getElementById('tema').addEventListener('click', function () {

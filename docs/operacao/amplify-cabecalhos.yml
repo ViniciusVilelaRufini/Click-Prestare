@@ -1,10 +1,19 @@
 # Cabeçalhos do app Amplify d340ziyanv9pav (aws amplify update-app --custom-headers).
-# CSP só em Report-Only por enquanto: a landing usa scripts inline e de terceiros; endurecer depois de observar.
+# Estado DESEJADO (rodada SEO 09/11/2026). Aplicar junto com amplify-regras.json e
+# conferir com curl -I depois de publicar (ver o checklist no fim do arquivo).
+#
+# CSP só em Report-Only por enquanto. A /sobre/ não usa mais React/Babel do
+# unpkg nem eval; os scripts de terceiros que sobram são as tags de anúncio,
+# carregadas só com consentimento (consentimento-anuncios.js).
 customHeaders:
   - pattern: '**/*'
     headers:
+      # includeSubDomains vale para todo *.prestarecondominios.com.br: antes de
+      # aplicar, confirmar que nenhum subdomínio é servido só em HTTP (www e
+      # api já respondem em HTTPS). Sem "preload" de propósito: sair da lista
+      # de preload dos navegadores é demorado.
       - key: Strict-Transport-Security
-        value: max-age=31536000
+        value: max-age=63072000; includeSubDomains
       - key: X-Content-Type-Options
         value: nosniff
       - key: X-Frame-Options
@@ -15,3 +24,191 @@ customHeaders:
         value: camera=(self), microphone=(), geolocation=(), payment=()
       - key: Content-Security-Policy-Report-Only
         value: "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+
+  # ---- Cache longo e imutável: só arquivos cujo nome muda quando o conteúdo muda ----
+  # Pacotes do Angular gerados com outputHashing "all" (main-HASH.js, chunk-HASH.js...).
+  - pattern: '/main-*.js'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=31536000, immutable
+  - pattern: '/chunk-*.js'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=31536000, immutable
+  - pattern: '/polyfills-*.js'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=31536000, immutable
+  - pattern: '/styles-*.css'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=31536000, immutable
+  - pattern: '/media/**'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=31536000, immutable
+  # Fontes do próprio site: se um dia trocar o arquivo, trocar também o nome.
+  - pattern: '/fontes/*.woff2'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=31536000, immutable
+  # Imagem com versão no nome (og-prestare-gestao-v3.jpg).
+  - pattern: '/sobre/assets/*-v[0-9]*.*'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=31536000, immutable
+  # Demais imagens das páginas: os nomes ainda não levam versão, então o cache
+  # é de 1 dia com revalidação, para uma troca de tela aparecer no dia seguinte.
+  - pattern: '/sobre/assets/*.webp'
+    headers:
+      - key: Cache-Control
+        value: public, max-age=86400, stale-while-revalidate=604800
+
+  # ---- Fora da busca: console (SPA) e raiz ----
+  # A raiz é o login/convite/redefinição de senha por query; as rotas abaixo são
+  # as de src/app/app.routes.ts. noindex com follow: os links continuam valendo.
+  - pattern: '/'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex, follow
+  - pattern: '/index.html'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex, follow
+  - pattern: '/404.html'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex, follow
+  - pattern: '/login'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex, follow
+  - pattern: '/redefinir-senha'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/selecionar-condominio'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/convite'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/convite/*'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  # Aliases do SPA para as páginas legais: a versão indexável é a .html estática.
+  - pattern: '/politica-de-privacidade'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex, follow
+  - pattern: '/politica-privacidade'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex, follow
+  - pattern: '/exclusao-de-conta'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex, follow
+  - pattern: '/exclusao-conta'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex, follow
+  - pattern: '/dashboard'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/visitantes'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/prestadores'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/prestadores/cadastro'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/moradores'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/apartamentos'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/veiculos'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/ocorrencias'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/comunicados'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/encomendas'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/delivery'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/areas-sociais'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/assembleias'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/financeiro'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/documentos'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/configuracoes'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/terminais-faciais'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/relatorios'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+
+# ---------------------------------------------------------------------------
+# Checklist depois de aplicar (curl -sI, sempre com o www salvo indicação):
+#   https://prestarecondominios.com.br/sobre/?x=1  -> 301 para https://www.../sobre/?x=1
+#   /sobre e /precos (sem barra)                   -> 301 para a versão com barra
+#   /sobre/, /precos/, /sindico/ e as outras 4     -> 200, sem X-Robots-Tag
+#   /, /login, /dashboard, /convite/abc            -> 200 com X-Robots-Tag noindex
+#   /?convite=abc e /?token=abc                     -> 200 (o SPA abre convite e redefinição)
+#   /dashboard/abc, /login/x                       -> 404 (antes era 200 com o shell)
+#   /chunk-*.js e /fontes/barlow-400.woff2         -> Cache-Control immutable
+#
+# 404 com corpo (NÃO aplicado): a regra catch-all "/<*> -> /404.html, status 404"
+# já gerou 301/302 para uma página 200 neste app e foi retirada. O arquivo
+# public/404.html existe (noindex) para quando houver forma segura. Proposta de
+# teste, só num branch de pré-visualização do Amplify, nunca direto no master:
+#   1. Acrescentar como ÚLTIMA regra: {"source": "/<*>", "target": "/404.html", "status": "404"}
+#      ("404" devolve o corpo do alvo com status 404; "404-200" devolveria 200,
+#      que seria soft-404) e conferir com curl -sI que /nao-existe responde 404
+#      (não 200, 301 ou 302), que /sobre (sem barra) ainda dá 301 e que /sobre/,
+#      /login, /?convite=x e /api/... seguem como antes.
+#   2. Se o Amplify responder 200 ou redirecionar, desistir e manter o 404 vazio
+#      atual (status correto, só sem corpo).
+# Não foi incluído 301 de /pagina/index.html para /pagina/: a regra 200 de
+# /pagina/ reescreve justamente para /pagina/index.html; a canônica cobre o caso.

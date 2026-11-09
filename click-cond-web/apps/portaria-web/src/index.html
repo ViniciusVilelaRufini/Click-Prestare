@@ -1,13 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
-    <script>/* /sindico/ é uma página estática; sem regra de reescrita no Amplify o SPA responderia no lugar dela */if(/^\/sindico\/?$/.test(location.pathname)){location.replace("/sindico/index.html"+location.search+location.hash);}</script>
-    <script>/* domínio antigo -> domínio principal */if(/(^|.)clickprestarecondominios.com.br$/.test(location.hostname)){location.replace("https://www.prestarecondominios.com.br"+location.pathname+location.search+location.hash);}</script>
     <meta charset="utf-8" />
-    <title>Prestare Gestão — Console da portaria</title>
-    <meta name="description" content="Controle de acesso para condomínios: controle de visitantes, encomendas, reconhecimento facial, portaria digital e app para síndico e moradores. Peça um orçamento." />
-    <!-- A apresentação pública é /sobre/; o console (login e painel) não é a página de entrada da busca. -->
-    <link rel="canonical" href="https://www.prestarecondominios.com.br/sobre/" />
+    <title>Console da portaria | Prestare Gestão</title>
+    <meta name="description" content="Entrada do console da portaria e da administração do Prestare Gestão. Para conhecer o sistema de controle de acesso para condomínios, veja a página de apresentação." />
+    <!-- O console (login, painel, convite e redefinição de senha pela raiz) não
+         é página de busca: noindex, mas os links seguem valendo. A apresentação
+         pública é /sobre/; a raiz não aponta canônica para ela porque o
+         conteúdo é outro. -->
+    <meta name="robots" content="noindex, follow" />
+    <script>/* domínio antigo -> domínio principal (a borda já faz 301; isto cobre um host que escape dela) */if(/(^|.)clickprestarecondominios.com.br$/.test(location.hostname)){location.replace("https://www.prestarecondominios.com.br"+location.pathname+location.search+location.hash);}</script>
+    <script>/* /sindico/ é uma página estática; sem regra de reescrita no Amplify o SPA responderia no lugar dela */if(/^\/sindico\/?$/.test(location.pathname)){location.replace("/sindico/index.html"+location.search+location.hash);}</script>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" sizes="any" />
@@ -30,8 +33,22 @@
         });
       })();
     </script>
+    <style>
+      /* Conteúdo inicial: aparece só enquanto o console carrega (o Angular
+         substitui o que está dentro de app-root) e para quem não roda JS. */
+      .ps-inicial{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;box-sizing:border-box;text-align:center;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#000;color:#f2f2f2}
+      html.light .ps-inicial{background:#fff;color:#111}
+      .ps-inicial h1{margin:0;font-size:20px;font-weight:600;letter-spacing:.02em}
+      .ps-inicial p{margin:0;font-size:15px;line-height:1.5;opacity:.75}
+      .ps-inicial a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+    </style>
   </head>
   <body>
-    <app-root></app-root>
+    <app-root>
+      <main class="ps-inicial">
+        <h1>Prestare Gestão: console da portaria</h1>
+        <p>Carregando o console. <a href="/sobre/">Conheça o sistema de controle de acesso para condomínios</a></p>
+      </main>
+    </app-root>
   </body>
 </html>
