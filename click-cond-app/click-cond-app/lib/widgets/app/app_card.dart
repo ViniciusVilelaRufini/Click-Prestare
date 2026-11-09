@@ -272,3 +272,25 @@ class AppKpi extends StatelessWidget {
     );
   }
 }
+
+/// `.total-card`: borda de marca, faixa de 3px no topo e fundo em degradê. Para
+/// o número principal de uma tela financeira.
+BoxDecoration cartaoDestaque(BuildContext context) {
+  return BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(AppColors.brandSoft, AppColors.surface(context)),
+        AppColors.surface(context),
+      ],
+      stops: const [0, 0.6],
+    ),
+    border: Border(
+      top: BorderSide(color: AppColors.brand, width: 3),
+      left: BorderSide(color: AppColors.brand),
+      right: BorderSide(color: AppColors.brand),
+      bottom: BorderSide(color: AppColors.brand),
+    ),
+  );
+}

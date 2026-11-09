@@ -1,3 +1,4 @@
+import 'package:click/widgets/app/prestare_logo.dart';
 import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/pages/sindico/recuperar_senha_codigo_page.dart';
 import 'package:click/theme/app_colors.dart';
@@ -174,13 +175,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
     final tinta = AppColors.textPrimary(context);
     return Row(
       children: [
-        Image.asset(
-          'assets/images/logo_prestare_mono.png',
-          height: 48,
-          color: tinta,
-          colorBlendMode: BlendMode.srcIn,
-          fit: BoxFit.contain,
-        ),
+        PrestareLogo(height: 48, color: tinta),
         const SizedBox(width: AppSpacing.lg),
         Flexible(
           child: Text.rich(

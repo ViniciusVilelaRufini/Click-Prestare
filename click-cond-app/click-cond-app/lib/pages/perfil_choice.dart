@@ -1,3 +1,4 @@
+import 'package:click/widgets/app/prestare_logo.dart';
 import 'package:click/pages/shared/aceite_privacidade.dart';
 import 'package:click/pages/sindico/login.dart';
 import 'package:click/theme/app_colors.dart';
@@ -86,7 +87,16 @@ class _HomePageState extends State<HomePage> {
       canPop: false,
       child: Scaffold(
         backgroundColor: AppColors.bg(context),
-        body: SafeArea(
+        body: Stack(
+          children: [
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 420,
+              child: _GradeDeFundo(),
+            ),
+            SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
@@ -134,6 +144,8 @@ class _HomePageState extends State<HomePage> {
             },
           ),
         ),
+          ],
+        ),
       ),
     );
   }
@@ -167,13 +179,7 @@ class _HomePageState extends State<HomePage> {
         // então no tema claro vira preto.
         Row(
           children: [
-            Image.asset(
-              'assets/images/logo_prestare_mono.png',
-              height: 72,
-              color: tinta,
-              colorBlendMode: BlendMode.srcIn,
-              fit: BoxFit.contain,
-            ),
+            PrestareLogo(height: 84, color: tinta),
             const SizedBox(width: 18),
             const Flexible(child: PoweredByAws(height: 26)),
           ],
@@ -202,18 +208,42 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 14),
         Wrap(
-          spacing: 14,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            Text('ACESSO', style: _rotulo(context)),
-            Text('/', style: _rotulo(context)),
-            Text('ENCOMENDAS', style: _rotulo(context)),
-            Text('/', style: _rotulo(context)),
-            Text('RELATÓRIOS', style: _rotulo(context)),
+            _recurso(context, PhosphorIcons.shieldCheck, 'ACESSO'),
+            _recurso(context, PhosphorIcons.package, 'ENCOMENDAS'),
+            _recurso(context, PhosphorIcons.wallet, 'FINANCEIRO'),
           ],
         ),
       ],
+    );
+  }
+
+  /// `.login-feats span`: selo com ícone de marca.
+  Widget _recurso(BuildContext context, IconData icone, String rotulo) {
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.borderStrong(context)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icone, size: 13, color: AppColors.brandInk),
+          const SizedBox(width: 6),
+          Text(
+            rotulo,
+            style: GoogleFonts.barlowCondensed(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 10 * 0.16,
+              color: AppColors.textSecondary(context),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -368,4 +398,50 @@ class _PerfilCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Malha quadriculada que some para baixo (`.scroll.boot::before`).
+class _GradeDeFundo extends StatelessWidget {
+  const _GradeDeFundo();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: ShaderMask(
+        shaderCallback: (r) => const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.black, Colors.transparent],
+        ).createShader(r),
+        blendMode: BlendMode.dstIn,
+        child: CustomPaint(
+          painter: _GradePainter(AppColors.border(context).withValues(alpha: 0.6)),
+          size: Size.infinite,
+        ),
+      ),
+    );
+  }
+}
+
+class _GradePainter extends CustomPainter {
+  final Color cor;
+
+  _GradePainter(this.cor);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linha = Paint()
+      ..color = cor
+      ..strokeWidth = 1;
+    const passo = 39.0;
+    for (double x = 0; x <= size.width; x += passo) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), linha);
+    }
+    for (double y = 0; y <= size.height; y += passo) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linha);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GradePainter old) => old.cor != cor;
 }

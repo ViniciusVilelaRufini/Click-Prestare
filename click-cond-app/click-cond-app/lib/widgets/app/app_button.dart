@@ -61,7 +61,7 @@ class AppButton extends StatelessWidget {
                   style: AppTypography.button(context).copyWith(
                     color: colors.fg,
                     fontSize: _fontSize,
-                    letterSpacing: _fontSize * 0.2,
+                    letterSpacing: _fontSize * 0.14,
                   ),
                 ),
                 if (trailingIcon != null) ...[

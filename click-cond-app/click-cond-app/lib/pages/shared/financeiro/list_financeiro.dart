@@ -1036,10 +1036,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        border: Border.all(color: AppColors.borderStrong(context)),
-      ),
+      decoration: cartaoDestaque(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1928,10 +1925,7 @@ class _DashboardHeader extends StatelessWidget {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surface(context),
-            border: Border.all(color: AppColors.borderStrong(context)),
-          ),
+          decoration: cartaoDestaque(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

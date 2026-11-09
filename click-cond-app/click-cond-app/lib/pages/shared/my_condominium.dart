@@ -1,3 +1,4 @@
+import 'package:click/widgets/app/app_card.dart';
 import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'dart:ui';
@@ -909,7 +910,8 @@ class _MyCondominiumState extends State<MyCondominium> {
   /// cima do chat e sem caminho de volta. Como página empurrada, ela ganha a
   /// AppBar com o voltar padrão e o campo de digitar fica livre da ilha.
   Widget _buildAiNavButton(BuildContext context) {
-    return Expanded(
+    return SizedBox(
+      width: 64,
       child: Align(
         alignment: Alignment.topCenter,
         child: Padding(
@@ -1030,10 +1032,14 @@ class _MyCondominiumState extends State<MyCondominium> {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: AppTypography.label(context)
-                    .copyWith(fontSize: 10, letterSpacing: 1.6, color: cor),
+                    .copyWith(fontSize: 9.5, letterSpacing: 9.5 * 0.06, color: cor),
               ),
             ),
           ),
+          if (isSelected && _isNavBarVisible) ...[
+            const SizedBox(height: 2),
+            Container(width: 4, height: 4, color: AppColors.brand),
+          ],
         ],
       ),
     );
@@ -1264,66 +1270,81 @@ class _MyCondominiumState extends State<MyCondominium> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
       child: Container(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        decoration: BoxDecoration(
-          color: AppColors.surface(context),
-          border: Border.all(color: AppColors.borderStrong(context)),
-        ),
+        clipBehavior: Clip.hardEdge,
+        decoration: cartaoDestaque(context),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: getUserType() == 'sindico' ? _updateCondominiumPhoto : null,
-                  child: Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                        child: SizedBox(
-                          width: 56, height: 56,
-                          child: Builder(
-                            builder: (_) {
-                              final photoUrl = (_cond != null && (_cond!['photo'] ?? '').toString().isNotEmpty)
-                                  ? _cond!['photo'].toString().trim()
-                                  : Singleton.instance.condominio_photo.trim();
-                              return _buildCondoPhoto(photoUrl);
-                            },
-                          ),
-                        ),
+            // Capa: a foto na largura do cartão, sumindo em degradê até o nome.
+            SizedBox(
+              height: 88,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  GestureDetector(
+                    onTap: type == 'sindico' ? _updateCondominiumPhoto : null,
+                    child: ShaderMask(
+                      blendMode: BlendMode.dstIn,
+                      shaderCallback: (r) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.black, Colors.black, Colors.transparent],
+                        stops: [0, 0.35, 1],
+                      ).createShader(r),
+                      child: Builder(
+                        builder: (_) {
+                          final photoUrl = (_cond != null && (_cond!['photo'] ?? '').toString().isNotEmpty)
+                              ? _cond!['photo'].toString().trim()
+                              : Singleton.instance.condominio_photo.trim();
+                          return photoUrl.isEmpty ? _capaSemFoto() : _buildCondoPhoto(photoUrl);
+                        },
                       ),
-                      if (getUserType() == 'sindico')
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                            ),
-                            child: Icon(
-                              PhosphorIcons.camera,
-                              size: 12,
-                              color: AppColors.onPrimary,
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
-                ),
-                AppSpacing.gapMd,
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: type == 'sindico'
+                        ? _botaoCapa(
+                            context,
+                            icone: PhosphorIcons.camera,
+                            rotulo: 'Trocar foto',
+                            onTap: _updateCondominiumPhoto,
+                          )
+                        : type == 'morador'
+                            // Documentos/atas: fora do menu, o morador só chega
+                            // às atas da assembleia por aqui.
+                            ? _botaoCapa(
+                                context,
+                                icone: PhosphorIcons.fileText,
+                                rotulo: 'Documentos',
+                                onTap: () => _navigate(ListDocs()),
+                              )
+                            : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      (_cond?['nome'] ?? '').toString().isNotEmpty
+                          ? _cond!['nome']
+                          : (Singleton.instance.condominio_nome.isNotEmpty
+                              ? Singleton.instance.condominio_nome
+                              : 'Condomínio'),
+                      style: AppTypography.title(context).copyWith(color: AppColors.textPrimary(context)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  AppSpacing.gapXs,
+                  Row(
                     children: [
-                      Text(
-                          (_cond?['nome'] ?? '').toString().isNotEmpty
-                              ? _cond!['nome']
-                              : (Singleton.instance.condominio_nome.isNotEmpty
-                                  ? Singleton.instance.condominio_nome
-                                  : 'Condomínio'),
-                          style: AppTypography.headline(context).copyWith(color: AppColors.textPrimary(context)),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                      AppSpacing.gapXs,
+                      Icon(type == 'morador' ? PhosphorIcons.houseLine : PhosphorIcons.buildings,
+                          size: 14, color: AppColors.brandInkOf(context)),
+                      const SizedBox(width: 6),
                       Text(type == 'morador'
                               ? '${getText('lb_apto')} ${Singleton.instance.apartamento}'
                               : '${(_cond?['num_aptos'] ?? '')} ${getText('lb_apartamentos')}',
@@ -1331,165 +1352,181 @@ class _MyCondominiumState extends State<MyCondominium> {
                               color: AppColors.textSecondary(context))),
                     ],
                   ),
-                ),
-                // Documentos/atas para o morador. Não estão no menu, e o único
-                // acesso era o botão do síndico — o morador não tinha como
-                // chegar às atas da assembleia.
-                if (type == 'morador')
-                  Material(
-                    color: AppColors.accentGhost(context),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    child: InkWell(
+                if (type == 'sindico') ...[
+                  AppSpacing.gapMd,
+                  Container(height: 1, color: AppColors.border(context)),
+                  AppSpacing.gapMd,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Saldo atual'.toUpperCase(),
+                                style: AppTypography.tiny(context).copyWith(
+                                    color: AppColors.textSecondary(context),
+                                    letterSpacing: 1)),
+                            AppSpacing.gapXs,
+                            // Mesmo saldo da tela de Financeiro do condomínio (o
+                            // backend usa o mesmo cálculo). Negativo em vermelho,
+                            // positivo em branco — sobre o azul, verde não lê bem.
+                            Text(
+                                _saldo.isEmpty
+                                    ? '${Singleton.instance.getCurrentMoeda()} 0,00'
+                                    : _saldo,
+                                style: AppTypography.title(context).copyWith(
+                                    color: _saldo.contains('-')
+                                        ? AppColors.error
+                                        : AppColors.textPrimary(context))),
+                          ],
+                        ),
+                      ),
+                      // Ocorrências abertas/pendentes: ícone com badge de contagem.
+                      _buildOcorrenciasBadge(context),
+                      AppSpacing.gapSm,
+                      Material(
+                        color: AppColors.accentGhost(context),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          onTap: () => _navigate(ListDocs()),
+                          child: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            child: Icon(PhosphorIcons.fileText,
+                                color: AppColors.textPrimary(context), size: 20),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Se o síndico também mora aqui, oferece o auto-vínculo como morador.
+                  if (!_temApto) ...[
+                    AppSpacing.gapLg,
+                    Material(
+                      color: AppColors.accentGhost(context),
                       borderRadius: BorderRadius.circular(AppRadius.md),
-                      onTap: () => _navigate(ListDocs()),
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        child: Icon(PhosphorIcons.fileText,
-                            color: AppColors.textPrimary(context), size: 20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        onTap: _onLinkSelfMorador,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md, vertical: AppSpacing.md),
+                          child: Row(
+                            children: [
+                              Icon(PhosphorIcons.houseLine, color: AppColors.textPrimary(context), size: 18),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                child: Text('Vincular-me como morador',
+                                    style: AppTypography.bodyMedium(context)
+                                        .copyWith(color: AppColors.textPrimary(context), fontWeight: FontWeight.w600)),
+                              ),
+                              Icon(PhosphorIcons.caretRight,
+                                  color: AppColors.textTertiary(context), size: 16),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            if (type == 'sindico') ...[
-              AppSpacing.gapXl,
-              Container(height: 1, color: AppColors.border(context)),
-              AppSpacing.gapLg,
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Saldo atual'.toUpperCase(),
-                            style: AppTypography.tiny(context).copyWith(
-                                color: AppColors.textSecondary(context),
-                                letterSpacing: 1)),
-                        AppSpacing.gapXs,
-                        // Mesmo saldo da tela de Financeiro do condomínio (o
-                        // backend usa o mesmo cálculo). Negativo em vermelho,
-                        // positivo em branco — sobre o azul, verde não lê bem.
-                        Text(
-                            _saldo.isEmpty
-                                ? '${Singleton.instance.getCurrentMoeda()} 0,00'
-                                : _saldo,
-                            style: AppTypography.title(context).copyWith(
-                                color: _saldo.contains('-')
-                                    ? AppColors.error
-                                    : AppColors.textPrimary(context))),
-                      ],
-                    ),
-                  ),
-                  // Ocorrências abertas/pendentes: ícone com badge de contagem.
-                  _buildOcorrenciasBadge(context),
-                  AppSpacing.gapSm,
-                  Material(
-                    color: AppColors.accentGhost(context),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      onTap: () => _navigate(ListDocs()),
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        child: Icon(PhosphorIcons.fileText,
-                            color: AppColors.textPrimary(context), size: 20),
-                      ),
-                    ),
+                  ],
+                ] else if (type == 'morador') ...[
+                  AppSpacing.gapMd,
+                  Container(height: 1, color: AppColors.border(context)),
+                  AppSpacing.gapMd,
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 240;
+                      if (isNarrow) {
+                        return Column(
+                          children: [
+                            _AlertItem(
+                              count: _summary?['packages'] ?? 0,
+                              label: 'Encomendas',
+                              icon: PhosphorIcons.package,
+                              onTap: () => _navigate(const ListEncomendas()),
+                              isExpanded: false,
+                            ),
+                            const SizedBox(height: 12),
+                            Container(height: 1, color: AppColors.border(context)),
+                            const SizedBox(height: 12),
+                            _AlertItem(
+                              count: _summary?['visits'] ?? 0,
+                              label: 'Visitas Hoje',
+                              icon: PhosphorIcons.userList,
+                              onTap: () => _navigate(const ListVisitantes()),
+                              isExpanded: false,
+                            ),
+                          ],
+                        );
+                      } else {
+                        return Row(
+                          children: [
+                            _AlertItem(
+                              count: _summary?['packages'] ?? 0,
+                              label: 'Encomendas',
+                              icon: PhosphorIcons.package,
+                              onTap: () => _navigate(const ListEncomendas()),
+                              isExpanded: true,
+                            ),
+                            Container(
+                              width: 1,
+                              height: 40,
+                              color: AppColors.border(context),
+                              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                            ),
+                            _AlertItem(
+                              count: _summary?['visits'] ?? 0,
+                              label: 'Visitas Hoje',
+                              icon: PhosphorIcons.userList,
+                              onTap: () => _navigate(const ListVisitantes()),
+                              isExpanded: true,
+                            ),
+                          ],
+                        );
+                      }
+                    },
                   ),
                 ],
-              ),
-              // Se o síndico também mora aqui, oferece o auto-vínculo como morador.
-              if (!_temApto) ...[
-                AppSpacing.gapLg,
-                Material(
-                  color: AppColors.accentGhost(context),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    onTap: _onLinkSelfMorador,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md, vertical: AppSpacing.md),
-                      child: Row(
-                        children: [
-                          Icon(PhosphorIcons.houseLine, color: AppColors.textPrimary(context), size: 18),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: Text('Vincular-me como morador',
-                                style: AppTypography.bodyMedium(context)
-                                    .copyWith(color: AppColors.textPrimary(context), fontWeight: FontWeight.w600)),
-                          ),
-                          Icon(PhosphorIcons.caretRight,
-                              color: AppColors.textTertiary(context), size: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
               ],
-            ] else if (type == 'morador') ...[
-              AppSpacing.gapXl,
-              Container(height: 1, color: AppColors.border(context)),
-              AppSpacing.gapLg,
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isNarrow = constraints.maxWidth < 240;
-                  if (isNarrow) {
-                    return Column(
-                      children: [
-                        _AlertItem(
-                          count: _summary?['packages'] ?? 0,
-                          label: 'Encomendas',
-                          icon: PhosphorIcons.package,
-                          onTap: () => _navigate(const ListEncomendas()),
-                          isExpanded: false,
-                        ),
-                        const SizedBox(height: 12),
-                        Container(height: 1, color: AppColors.border(context)),
-                        const SizedBox(height: 12),
-                        _AlertItem(
-                          count: _summary?['visits'] ?? 0,
-                          label: 'Visitas Hoje',
-                          icon: PhosphorIcons.userList,
-                          onTap: () => _navigate(const ListVisitantes()),
-                          isExpanded: false,
-                        ),
-                      ],
-                    );
-                  } else {
-                    return Row(
-                      children: [
-                        _AlertItem(
-                          count: _summary?['packages'] ?? 0,
-                          label: 'Encomendas',
-                          icon: PhosphorIcons.package,
-                          onTap: () => _navigate(const ListEncomendas()),
-                          isExpanded: true,
-                        ),
-                        Container(
-                          width: 1,
-                          height: 40,
-                          color: AppColors.border(context),
-                          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                        ),
-                        _AlertItem(
-                          count: _summary?['visits'] ?? 0,
-                          label: 'Visitas Hoje',
-                          icon: PhosphorIcons.userList,
-                          onTap: () => _navigate(const ListVisitantes()),
-                          isExpanded: true,
-                        ),
-                      ],
-                    );
-                  }
-                },
-              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+    );
+  }
+
+  /// Botão sobre a capa: fundo da superfície, legível sobre qualquer foto.
+  Widget _botaoCapa(BuildContext context,
+      {required IconData icone, required String rotulo, required VoidCallback onTap}) {
+    return Material(
+      color: AppColors.surface(context).withValues(alpha: 0.92),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icone, size: 14, color: AppColors.brandInkOf(context)),
+              const SizedBox(width: 6),
+              Text(rotulo.toUpperCase(),
+                  style: AppTypography.label(context)
+                      .copyWith(color: AppColors.textPrimary(context))),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
+
+  /// Capa sem foto: bloco de marca com o prédio à direita.
+  Widget _capaSemFoto() => Container(
+        color: AppColors.brandSoftOf(context),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 28),
+        child: Icon(PhosphorIcons.buildings,
+            color: AppColors.brandInkOf(context), size: 56),
+      );
 
   Widget _buildCondoPhoto(String photoUrl) {
     if (photoUrl.isEmpty) return _condFallback();

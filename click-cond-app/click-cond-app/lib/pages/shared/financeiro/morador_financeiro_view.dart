@@ -860,10 +860,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
 
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        border: Border.all(color: AppColors.borderStrong(context)),
-      ),
+      decoration: cartaoDestaque(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

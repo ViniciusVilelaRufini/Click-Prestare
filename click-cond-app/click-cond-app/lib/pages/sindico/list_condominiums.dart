@@ -1,3 +1,5 @@
+import 'package:click/widgets/app/app_card.dart';
+import 'package:click/pages/shared/areas%20sociais/list_areas_sociais.dart';
 import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/log.dart';
@@ -253,6 +255,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       page = ListVisitantes(allCondos: _list.isEmpty);
     } else if (module == 'packages') {
       page = ListEncomendas(allCondos: _list.isEmpty);
+    } else if (module == 'areas') {
+      page = ListAreasSociais();
     }
 
     if (page == null) return;
@@ -457,15 +461,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   /// `.list`: itens colados, separados por 1px de line-100 e com contorno.
+  /// Cada condomínio em um cartão de destaque próprio, com respiro entre eles.
   Widget _buildCondominioList(BuildContext context) {
-    final linha = AppColors.border(context);
-    return Container(
-      decoration: BoxDecoration(color: linha, border: Border.all(color: linha)),
-      child: Column(
+    return Column(
         children: [
           for (var i = 0; i < _list.length; i++) ...[
-            if (i > 0)
-              SizedBox(height: 1, width: double.infinity, child: ColoredBox(color: linha)),
+            if (i > 0) const SizedBox(height: 12),
             _CondominioCard(
               item: _list[i],
               onTap: () => _goToNext(_list[i]),
@@ -474,7 +475,6 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             ),
           ],
         ],
-      ),
     );
   }
 
@@ -558,7 +558,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
   /// Botão central da barra: quadrado sólido `brand` com ícone `on-brand`.
   Widget _buildAiNavButton(BuildContext context) {
-    return Expanded(
+    return SizedBox(
+      width: 64,
       child: Align(
         alignment: Alignment.topCenter,
         child: Padding(
@@ -609,12 +610,19 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             const SizedBox(height: 10),
             Icon(isSelected ? activeIcon : icon, color: cor, size: 20),
             const SizedBox(height: 6),
-            Text(
-              label.toUpperCase(),
-              style: _dTxt(context, 10, ls: 0.16, color: cor),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            SizedBox(
+              height: 13,
+              child: Text(
+                label.toUpperCase(),
+                style: _dTxt(context, 9.5, ls: 0.06, color: cor),
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+              ),
             ),
+            if (isSelected) ...[
+              const SizedBox(height: 2),
+              Container(width: 4, height: 4, color: AppColors.brand),
+            ],
           ],
         ),
       ),
@@ -754,6 +762,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               _buildHeaderActions(context, sw < 360 ? 36 : 40),
             ],
           ),
+          const SizedBox(height: 12),
+          _buildAtalhos(context),
           const SizedBox(height: 24),
           _buildDashboard(context),
           SizedBox(height: (_summary == null && _pendentesCount == 0) ? 0 : 24),
@@ -885,6 +895,69 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     return Container(
       decoration: BoxDecoration(color: linha, border: Border.all(color: linha)),
       child: Column(children: rows),
+    );
+  }
+
+  /// `.quick`: quatro atalhos, separados por 1px de line-100. O último muda com
+  /// o perfil: o morador paga, o síndico administra e o funcionário não tem
+  /// financeiro no início.
+  Widget _buildAtalhos(BuildContext context) {
+    final type = getUserType();
+    Widget atalho(IconData icone, String rotulo, String modulo) {
+      return Expanded(
+        child: Material(
+          color: AppColors.surface(context),
+          child: InkWell(
+            onTap: () => _onDashboardTap(modulo),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 14, 4, 12),
+              child: Column(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    color: AppColors.brandSoft,
+                    child: Icon(icone, size: 18, color: AppColors.brandInk),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    rotulo.toUpperCase(),
+                    style: _dTxt(context, 10, ls: 0.14),
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final linha = AppColors.border(context);
+    return Container(
+      decoration: BoxDecoration(color: linha, border: Border.all(color: linha)),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            atalho(PhosphorIcons.userPlus, 'Liberar', 'visits'),
+            const SizedBox(width: 1),
+            atalho(PhosphorIcons.package, 'Encomendas', 'packages'),
+            const SizedBox(width: 1),
+            atalho(PhosphorIcons.calendarBlank, 'Reservar', 'areas'),
+            const SizedBox(width: 1),
+            if (type == 'funcionario')
+              atalho(PhosphorIcons.warningCircle, 'Ocorrências', 'occurrences')
+            else
+              atalho(
+                PhosphorIcons.wallet,
+                type == 'morador' ? 'Pagar' : 'Financeiro',
+                'debts',
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1197,10 +1270,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           child: Row(
             children: [
               SizedBox(
-                width: 54,
+                width: 58,
                 child: Text(
                   horaStr,
-                  style: _dTxt(context, 20, ls: 0.02, w: FontWeight.w300)
+                  style: _dTxt(context, 22, ls: 0.02, w: FontWeight.w300)
                       .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
                 ),
               ),
@@ -1430,7 +1503,7 @@ class _DashboardCard extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   value,
-                  style: _dTxt(context, 34, lh: 36, ls: 0.02, w: FontWeight.w300)
+                  style: _dTxt(context, 40, lh: 42, ls: 0.02, w: FontWeight.w300)
                       .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
                   maxLines: 1,
                 ),
@@ -1494,16 +1567,26 @@ class _CondominioCard extends StatelessWidget {
     }
 
     return Material(
-      color: AppColors.surface(context),
-      child: InkWell(
+      type: MaterialType.transparency,
+      child: Ink(
+        decoration: cartaoDestaque(context),
+        child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 48,
-                height: 48,
+        child: Stack(
+          children: [
+            // Foto ocupando a altura do cartão e sumindo em degradê sob o texto.
+            // Fica dentro da faixa de 3px do topo e da borda de 1px.
+            Positioned(
+              left: 1,
+              top: 3,
+              bottom: 1,
+              width: 150,
+              child: ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (r) => const LinearGradient(
+                  colors: [Colors.black, Colors.black, Colors.transparent],
+                  stops: [0, 0.45, 1],
+                ).createShader(r),
                 child: item['photo'] != null &&
                         item['photo'].toString().trim().isNotEmpty &&
                         item['photo'].toString() != 'null'
@@ -1514,7 +1597,11 @@ class _CondominioCard extends StatelessWidget {
                       )
                     : _placeholder(context),
               ),
-              const SizedBox(width: 14),
+            ),
+            Padding(
+          padding: const EdgeInsets.fromLTRB(128, 18, 16, 18),
+          child: Row(
+            children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1547,6 +1634,9 @@ class _CondominioCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+          ],
+        ),
         ),
       ),
     );
@@ -1608,10 +1698,10 @@ class _CondominioCard extends StatelessWidget {
   /// `.ico`: quadrado accent-ghost com o ícone em ink.
   Widget _placeholder(BuildContext context) {
     return Container(
-      width: 48,
-      height: 48,
       color: AppColors.brandSoftOf(context),
-      child: Center(
+      padding: const EdgeInsets.only(left: 24),
+      child: Align(
+        alignment: Alignment.centerLeft,
         child: Icon(
           PhosphorIcons.buildings,
           color: AppColors.brandInkOf(context),

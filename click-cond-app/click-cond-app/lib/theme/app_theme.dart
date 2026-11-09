@@ -96,7 +96,7 @@ class AppTheme {
     final contornoForte = RoundedRectangleBorder(
       side: BorderSide(color: t.line200),
     );
-    final botaoTexto = _display(13, 16, 0.2, t.ink);
+    final botaoTexto = _display(13, 16, 0.14, t.ink);
 
     OutlineInputBorder campo(Color cor) => OutlineInputBorder(
           borderRadius: BorderRadius.zero,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:click/widgets/app/prestare_logo.dart';
 import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/pages/sindico/recuperar_senha_nova_senha_page.dart';
 import 'package:click/theme/app_colors.dart';
@@ -318,13 +319,7 @@ class _RecuperarSenhaCodigoPageState extends State<RecuperarSenhaCodigoPage> {
     final tinta = AppColors.textPrimary(context);
     return Row(
       children: [
-        Image.asset(
-          'assets/images/logo_prestare_mono.png',
-          height: 48,
-          color: tinta,
-          colorBlendMode: BlendMode.srcIn,
-          fit: BoxFit.contain,
-        ),
+        PrestareLogo(height: 48, color: tinta),
         const SizedBox(width: AppSpacing.lg),
         Flexible(
           child: Text.rich(

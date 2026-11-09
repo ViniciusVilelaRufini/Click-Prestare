@@ -78,7 +78,7 @@ class AppTypography {
         c,
         size: 13,
         line: 16,
-        spacing: 0.2,
+        spacing: 0.14,
         color: AppColors.onAccent(c),
       );
 
