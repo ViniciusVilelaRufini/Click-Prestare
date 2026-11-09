@@ -74,7 +74,7 @@ it('apresenta a transformação da rotina em um fluxo visual sem grade de cards 
   expect(document.querySelectorAll('.sindico-flow-sources li')).toHaveLength(6);
   expect(document.querySelectorAll('.sindico-outcomes li')).toHaveLength(3);
   expect(document.querySelectorAll('.sindico-story .sindico-card')).toHaveLength(0);
-  expect(document.querySelectorAll('.sindico-console-grid .sindico-shot')).toHaveLength(4);
+  expect(document.querySelectorAll('.sindico-console-grid .sindico-shot')).toHaveLength(6);
   expect(document.querySelector('.sindico-lightbox')).not.toBeNull();
 });
 

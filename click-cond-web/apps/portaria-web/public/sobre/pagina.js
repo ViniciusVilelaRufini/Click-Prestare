@@ -32,7 +32,7 @@ class Pagina {
 
   // Ordem do carrossel do console. As legendas e os textos moram no TELAS,
   // para o carrossel e o modal nunca divergirem.
-  CONSOLE_TELAS = ["web-visitantes", "web-dashboard", "web-ocorrencias", "web-relatorios"];
+  CONSOLE_TELAS = ["web-visitantes", "web-dashboard", "web-moradores", "web-areas-sociais", "web-ocorrencias", "web-relatorios"];
 
   alternarMenu = () => this.setState({ menuAberto: !this.state.menuAberto });
   fecharMenu = () => this.setState({ menuAberto: false });
@@ -138,7 +138,7 @@ class Pagina {
       itens: ["Foto e nome de quem está no portão", "Autorizar, negar ou decidir depois", "Resolve sem atender o interfone"]
     },
     "web-visitantes": {
-      src: "/sobre/assets/web-visitantes-claro.webp", srcClaro: "/sobre/assets/web-visitantes-claro.webp", dim: [1600, 900], tipo: "Sistema web", titulo: "Visitantes",
+      src: "/sobre/assets/web-visitantes-escuro.webp", srcClaro: "/sobre/assets/web-visitantes-claro.webp", dim: [1600, 900], tipo: "Sistema web", titulo: "Visitantes",
       legenda: "Visitantes · controle de acesso, entrada e saída do condomínio",
       texto: "A tela que a portaria usa no turno inteiro. Ativos no local, liberados aguardando, quem saiu e o total registrado, com documento mascarado na tela, validação de PIN e baixa por apartamento.",
       itens: ["Ativos no local em tempo real", "Dar baixa e nova visita em um clique", "Documento mascarado na lista"]
@@ -150,10 +150,22 @@ class Pagina {
       itens: ["Receitas, despesas e saldo do período", "Inadimplência por bloco e apartamento", "Exportação em CSV"]
     },
     "web-dashboard": {
-      src: "/sobre/assets/web-dashboard-claro.webp", srcClaro: "/sobre/assets/web-dashboard-claro.webp", dim: [1600, 894], tipo: "Sistema web", titulo: "Dashboard da operação",
+      src: "/sobre/assets/web-dashboard-escuro.webp", srcClaro: "/sobre/assets/web-dashboard-claro.webp", dim: [1600, 900], tipo: "Sistema web", titulo: "Dashboard da operação",
       legenda: "Dashboard · o condomínio agora, com os últimos eventos em tempo real",
       texto: "A tela que o síndico abre para saber como o condomínio está agora: visitantes no local, encomendas aguardando retirada, ocorrências pendentes e prestadores ativos. Ao lado, o fluxo de entradas e saídas em tempo real e os atalhos que a portaria mais usa no turno.",
       itens: ["Quatro indicadores do dia em destaque", "Últimos eventos com filtro por tipo", "Atalhos: liberar visitante, validar PIN, dar baixa"]
+    },
+    "web-moradores": {
+      src: "/sobre/assets/web-moradores-claro.webp", dim: [1600, 900], tipo: "Sistema web", titulo: "Moradores",
+      legenda: "Moradores · proprietários, inquilinos e dependentes em um só cadastro",
+      texto: "O diretório de quem mora no condomínio, separado entre proprietários, inquilinos e dependentes, com busca por nome, documento ou apartamento. O cadastro pode ser feito um a um ou importado de uma planilha Excel, e a lista pode ser exportada.",
+      itens: ["Proprietários, inquilinos e dependentes", "Importação por planilha Excel", "Documento mascarado na lista"]
+    },
+    "web-areas-sociais": {
+      src: "/sobre/assets/web-areas-sociais-escuro.webp", srcClaro: "/sobre/assets/web-areas-sociais-claro.webp", dim: [1600, 900], tipo: "Sistema web", titulo: "Áreas sociais e reservas",
+      legenda: "Áreas sociais · espaços de lazer, regras de uso e aprovação de reservas",
+      texto: "Salão de festas, churrasqueira e outros espaços ficam cadastrados com foto, capacidade e regra de reserva. As solicitações dos moradores chegam em uma aba própria, e a administração aprova ou recusa cada uma.",
+      itens: ["Capacidade e regra de uso por espaço", "Solicitações de reserva em uma aba", "Reservas pendentes e aprovadas"]
     },
     "web-ocorrencias": {
       src: "/sobre/assets/web-ocorrencias-claro.webp", srcClaro: "/sobre/assets/web-ocorrencias-claro.webp", dim: [1600, 899], tipo: "Sistema web", titulo: "Ocorrências",
@@ -672,14 +684,20 @@ class Pagina {
       consoleIr1: this.irConsole(1),
       consoleIr2: this.irConsole(2),
       consoleIr3: this.irConsole(3),
+      consoleIr4: this.irConsole(4),
+      consoleIr5: this.irConsole(5),
       consoleCor0: ci === 0 ? "var(--brand)" : "var(--line-200)",
       consoleCor1: ci === 1 ? "var(--brand)" : "var(--line-200)",
       consoleCor2: ci === 2 ? "var(--brand)" : "var(--line-200)",
       consoleCor3: ci === 3 ? "var(--brand)" : "var(--line-200)",
+      consoleCor4: ci === 4 ? "var(--brand)" : "var(--line-200)",
+      consoleCor5: ci === 5 ? "var(--brand)" : "var(--line-200)",
       consoleLarg0: ci === 0 ? "28px" : "14px",
       consoleLarg1: ci === 1 ? "28px" : "14px",
       consoleLarg2: ci === 2 ? "28px" : "14px",
       consoleLarg3: ci === 3 ? "28px" : "14px",
+      consoleLarg4: ci === 4 ? "28px" : "14px",
+      consoleLarg5: ci === 5 ? "28px" : "14px",
       mostrarNumeros: this.props.mostrarNumeros ?? true,
       mostrarFaq: this.props.mostrarFaq ?? true,
       telefone: this.formatarTelefone(this.props.whatsapp ?? "5517996608148"),

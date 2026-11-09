@@ -800,7 +800,7 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
     <div class="ps-console" data-on-mouseenter="pausarConsole" data-on-mouseleave="retomarConsole">
       <div class="browser rv">
         <div class="bar"><i></i><i></i><i></i><span>Console da portaria</span></div>
-        <figure class="ps-frame" tabindex="0" role="button" aria-label="Visitantes no sistema web. Clique para ampliar" data-html="consoleImg" data-on-click="consoleAbrir" data-attr="aria-label:consoleAlt"><img loading="lazy" decoding="async" srcset="/sobre/assets/web-visitantes-claro-800.webp 800w, /sobre/assets/web-visitantes-claro.webp 1600w" sizes="(max-width: 1180px) 94vw, 1180px" src="/sobre/assets/web-visitantes-claro.webp" alt="Visitantes no sistema web, com dados fictícios" style="width:100%" width="1600" height="900"></figure>
+        <figure class="ps-frame" tabindex="0" role="button" aria-label="Visitantes no sistema web. Clique para ampliar" data-html="consoleImg" data-on-click="consoleAbrir" data-attr="aria-label:consoleAlt"><img class="img-dark" loading="lazy" decoding="async" srcset="/sobre/assets/web-visitantes-escuro-800.webp 800w, /sobre/assets/web-visitantes-escuro.webp 1600w" sizes="(max-width: 1180px) 94vw, 1180px" src="/sobre/assets/web-visitantes-escuro.webp" alt="Visitantes no sistema web, com dados fictícios" style="width:100%" width="1600" height="900"><img class="img-light" loading="lazy" decoding="async" srcset="/sobre/assets/web-visitantes-claro-800.webp 800w, /sobre/assets/web-visitantes-claro.webp 1600w" sizes="(max-width: 1180px) 94vw, 1180px" src="/sobre/assets/web-visitantes-claro.webp" alt="Visitantes no sistema web, com dados fictícios" style="width:100%" width="1600" height="900"></figure>
       </div>
       <div class="carrossel">
         <span data-t="consoleLegenda">Visitantes · controle de acesso, entrada e saída do condomínio</span>
@@ -809,8 +809,10 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
           <div class="dots">
             <button type="button" aria-label="Ver Visitantes" data-on-click="consoleIr0"><span style="width: 28px; background: var(--brand);" data-estilo="width:consoleLarg0,background:consoleCor0"></span></button>
             <button type="button" aria-label="Ver Dashboard" data-on-click="consoleIr1"><span style="width: 14px; background: var(--line-200);" data-estilo="width:consoleLarg1,background:consoleCor1"></span></button>
-            <button type="button" aria-label="Ver Ocorrências" data-on-click="consoleIr2"><span style="width: 14px; background: var(--line-200);" data-estilo="width:consoleLarg2,background:consoleCor2"></span></button>
-            <button type="button" aria-label="Ver Relatórios" data-on-click="consoleIr3"><span style="width: 14px; background: var(--line-200);" data-estilo="width:consoleLarg3,background:consoleCor3"></span></button>
+            <button type="button" aria-label="Ver Moradores" data-on-click="consoleIr2"><span style="width: 14px; background: var(--line-200);" data-estilo="width:consoleLarg2,background:consoleCor2"></span></button>
+            <button type="button" aria-label="Ver Áreas sociais" data-on-click="consoleIr3"><span style="width: 14px; background: var(--line-200);" data-estilo="width:consoleLarg3,background:consoleCor3"></span></button>
+            <button type="button" aria-label="Ver Ocorrências" data-on-click="consoleIr4"><span style="width: 14px; background: var(--line-200);" data-estilo="width:consoleLarg4,background:consoleCor4"></span></button>
+            <button type="button" aria-label="Ver Relatórios" data-on-click="consoleIr5"><span style="width: 14px; background: var(--line-200);" data-estilo="width:consoleLarg5,background:consoleCor5"></span></button>
           </div>
           <button class="ibtn" type="button" aria-label="Próxima tela" data-on-click="consoleProximo"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
         </div>
