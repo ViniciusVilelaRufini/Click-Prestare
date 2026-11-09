@@ -573,3 +573,18 @@ describe('rodada 7: referências do grafo, fontes verificáveis e app do morador
     ['/sindico/', ...NOVAS].forEach((r) => expect(pagina(r)).not.toContain('href="/sobre/#app">Para o morador'));
   });
 });
+
+describe('conversão nas páginas de destino dos anúncios', () => {
+  it.each(['/sindico/', ...NOVAS])('%s guarda a origem do anúncio e registra o clique no WhatsApp', (r) => {
+    const html = pagina(r);
+    expect(html).toContain('<script src="/origem-lead.js"></script>');
+    expect(html).toContain('<script src="/consentimento-anuncios.js"');
+  });
+  it('origem-lead.js guarda gclid e registra o clique só uma vez por canal', () => {
+    const js = readFileSync(pub('origem-lead.js'), 'utf8');
+    expect(js).toContain("'gclid'");
+    expect(js).toContain("'oppref'");
+    expect(js).toContain('/api/public/leads');
+    expect(js).toContain("sessionStorage.getItem('psClique_' + canal)");
+  });
+});
