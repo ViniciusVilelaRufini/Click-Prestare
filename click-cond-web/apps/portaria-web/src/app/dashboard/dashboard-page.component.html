@@ -134,7 +134,17 @@
             </svg>
           </span>
         </div>
-        <p class="ps-num !text-[52px] !leading-[52px]">{{ d.visitantesAtivos < 10 ? '0' + d.visitantesAtivos : d.visitantesAtivos }}</p>
+        <div class="flex items-end justify-between gap-2">
+          <p class="ps-num !text-[52px] !leading-[52px]">{{ d.visitantesAtivos < 10 ? '0' + d.visitantesAtivos : d.visitantesAtivos }}</p>
+          @if (tendencias()?.visitantes; as s) {
+            <svg class="shrink-0 max-w-[45%]" viewBox="0 0 120 36" width="120" height="36" role="img"
+                 [attr.aria-label]="'Entradas de visitantes nos últimos 7 dias: ' + s.total">
+              <path [attr.d]="s.area" fill="var(--signal-ok)" opacity="0.14" />
+              <path [attr.d]="s.linha" fill="none" stroke="var(--signal-ok)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+              <circle [attr.cx]="s.x" [attr.cy]="s.y" r="3.5" fill="var(--signal-ok)" />
+            </svg>
+          }
+        </div>
         <div class="min-h-[22px]">
           @if (d.visitantesAtivos > 0) {
             <span class="ps-tag"><span class="ps-dot ps-dot-ok ps-dot-pulse"></span>presentes</span>
@@ -157,7 +167,17 @@
             </svg>
           </span>
         </div>
-        <p class="ps-num !text-[52px] !leading-[52px]">{{ d.encomendasAguardando < 10 ? '0' + d.encomendasAguardando : d.encomendasAguardando }}</p>
+        <div class="flex items-end justify-between gap-2">
+          <p class="ps-num !text-[52px] !leading-[52px]">{{ d.encomendasAguardando < 10 ? '0' + d.encomendasAguardando : d.encomendasAguardando }}</p>
+          @if (tendencias()?.encomendas; as s) {
+            <svg class="shrink-0 max-w-[45%]" viewBox="0 0 120 36" width="120" height="36" role="img"
+                 [attr.aria-label]="'Encomendas recebidas nos últimos 7 dias: ' + s.total">
+              <path [attr.d]="s.area" fill="var(--signal-warn)" opacity="0.14" />
+              <path [attr.d]="s.linha" fill="none" stroke="var(--signal-warn)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+              <circle [attr.cx]="s.x" [attr.cy]="s.y" r="3.5" fill="var(--signal-warn)" />
+            </svg>
+          }
+        </div>
         <div class="min-h-[22px]">
           @if (d.encomendasAguardando > 0) {
             <span class="ps-tag"><span class="ps-dot ps-dot-warn"></span>pendente</span>
@@ -180,7 +200,17 @@
             </svg>
           </span>
         </div>
-        <p class="ps-num !text-[52px] !leading-[52px]">{{ d.ocorrenciasPendentes < 10 ? '0' + d.ocorrenciasPendentes : d.ocorrenciasPendentes }}</p>
+        <div class="flex items-end justify-between gap-2">
+          <p class="ps-num !text-[52px] !leading-[52px]">{{ d.ocorrenciasPendentes < 10 ? '0' + d.ocorrenciasPendentes : d.ocorrenciasPendentes }}</p>
+          @if (tendencias()?.ocorrencias; as s) {
+            <svg class="shrink-0 max-w-[45%]" viewBox="0 0 120 36" width="120" height="36" role="img"
+                 [attr.aria-label]="'Ocorrências abertas nos últimos 7 dias: ' + s.total">
+              <path [attr.d]="s.area" fill="var(--signal-danger)" opacity="0.14" />
+              <path [attr.d]="s.linha" fill="none" stroke="var(--signal-danger)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+              <circle [attr.cx]="s.x" [attr.cy]="s.y" r="3.5" fill="var(--signal-danger)" />
+            </svg>
+          }
+        </div>
         <div class="min-h-[22px]">
           @if (d.ocorrenciasPendentes > 0) {
             <span class="ps-tag"><span class="ps-dot ps-dot-danger ps-dot-pulse"></span>urgente</span>

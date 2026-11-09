@@ -14,6 +14,8 @@ export interface DashboardSummary {
   totalMoradores: number;
   /** Entradas de visitantes de hoje por hora (0–23), no horário de Brasília. */
   movimentoHoje?: number[];
+  /** Totais por dia dos últimos 7 dias (o último é hoje), no horário de Brasília. */
+  tendencia7d?: { visitantes: number[]; encomendas: number[]; ocorrencias: number[] };
   ultimosEventos: {
     tipo: string;
     descricao: string;

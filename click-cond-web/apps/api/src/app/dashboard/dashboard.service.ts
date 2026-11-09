@@ -16,6 +16,8 @@ export interface DashboardSummary {
   totalMoradores: number;
   /** Entradas de visitantes de hoje por hora (0–23), no horário de Brasília. */
   movimentoHoje?: number[];
+  /** Totais por dia dos últimos 7 dias (o último é hoje), no horário de Brasília. */
+  tendencia7d?: { visitantes: number[]; encomendas: number[]; ocorrencias: number[] };
   ultimosEventos: {
     tipo: string;
     descricao: string;
@@ -109,6 +111,7 @@ export class DashboardService {
     }
 
     const seteDiasAtras = new Date(agora.getTime() - 7 * 86400_000);
+    const oitoDiasAtras = new Date(agora.getTime() - 8 * 86400_000);
 
     const [
       visitantesAtivos,
@@ -125,6 +128,8 @@ export class DashboardService {
       ultAcessosFacial,
       ultAuditLogs,
       entradasRecentes,
+      encomendasSemana,
+      ocorrenciasSemana,
     ] = await Promise.all([
       // Visitantes ainda no condomínio: entrada registrada mas sem saída registrada, e is_visitante = 1 (ou is_prestador = 0)
       pessoasMigrationEnabled(this.prisma)
@@ -250,13 +255,14 @@ export class DashboardService {
         orderBy: { created_at: 'desc' },
         take: 15,
       }),
-      // 24h cobrem o dia inteiro; entradasPorHora descarta o que é de ontem.
+      // 8 dias cobrem hoje e os 6 anteriores no calendário de Brasília; o gráfico
+      // de hoje e as tendências descartam o que fica de fora.
       pessoasMigrationEnabled(this.prisma)
         ? this.prisma.visitas.findMany({
             where: {
               id_condominio: idCondominio,
               pessoa: { tipo_pessoa: 'visitante' },
-              data_entrada: { gte: new Date(agora.getTime() - 86400_000) },
+              data_entrada: { gte: oitoDiasAtras },
             },
             select: { data_entrada: true },
           })
@@ -264,10 +270,18 @@ export class DashboardService {
             where: {
               id_condominio: idCondominio,
               is_prestador: { not: 1 },
-              data_entrada: { gte: new Date(agora.getTime() - 86400_000) },
+              data_entrada: { gte: oitoDiasAtras },
             },
             select: { data_entrada: true },
           }),
+      this.prisma.encomendas.findMany({
+        where: { id_condominio: idCondominio, recebido_em: { gte: oitoDiasAtras } },
+        select: { recebido_em: true },
+      }),
+      this.prisma.ocorrencias.findMany({
+        where: { id_condominio: idCondominio, created_at: { gte: oitoDiasAtras } },
+        select: { created_at: true },
+      }),
     ]);
 
     // No caminho migrado, `ultEntradasVisitantes`/`ultSaidasVisitantes` vêm
@@ -774,9 +788,29 @@ export class DashboardService {
       totalApartamentos,
       totalMoradores,
       movimentoHoje: entradasPorHora(entradasRecentes.map((v: any) => v.data_entrada), agora),
+      tendencia7d: {
+        visitantes: totaisPorDia(entradasRecentes.map((v: any) => v.data_entrada), agora),
+        encomendas: totaisPorDia(encomendasSemana.map((e) => e.recebido_em), agora),
+        ocorrencias: totaisPorDia(ocorrenciasSemana.map((o) => o.created_at), agora),
+      },
       ultimosEventos: sortedEvents,
     };
   }
+}
+
+/** Totais por dia dos últimos `dias` dias (o último é hoje), no calendário de Brasília. */
+export function totaisPorDia(datas: (Date | null)[], agora: Date, dias = 7): number[] {
+  const chave = (d: Date) => formatarDataHoraBrasilia(d).slice(0, 10);
+  const indice = new Map<string, number>();
+  for (let i = 0; i < dias; i++) {
+    indice.set(chave(new Date(agora.getTime() - (dias - 1 - i) * 86400_000)), i);
+  }
+  const totais = new Array<number>(dias).fill(0);
+  for (const d of datas) {
+    const i = d ? indice.get(chave(new Date(d))) : undefined;
+    if (i !== undefined) totais[i]++;
+  }
+  return totais;
 }
 
 /** Conta as entradas de hoje por hora (0–23), no calendário de Brasília. */

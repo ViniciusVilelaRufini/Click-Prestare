@@ -472,6 +472,34 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     };
   });
 
+  /** Mini-gráficos dos indicadores: últimos 7 dias, um ponto por dia. */
+  readonly tendencias = computed(() => {
+    const t = this.data()?.tendencia7d;
+    if (!t) return null;
+    return {
+      visitantes: this.serie(t.visitantes),
+      encomendas: this.serie(t.encomendas),
+      ocorrencias: this.serie(t.ocorrencias),
+    };
+  });
+
+  private serie(valores: number[]) {
+    if (valores.length < 2) return null;
+    const L = 120;
+    const A = 36;
+    const maximo = Math.max(...valores, 1);
+    const pts = valores.map((v, i) => [(i * L) / (valores.length - 1), A - 3 - (v / maximo) * (A - 8)]);
+    const linha = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+    const [ux, uy] = pts[pts.length - 1];
+    return {
+      linha,
+      area: `${linha} L${L} ${A} L0 ${A}Z`,
+      x: ux - 1,
+      y: uy,
+      total: valores.reduce((s, v) => s + v, 0),
+    };
+  }
+
   /** Painel "Na portaria agora": quem está no local primeiro; no máximo quatro. */
   readonly naPortaria = signal<Pessoa[]>([]);
   readonly naPortariaVisiveis = computed(() =>
