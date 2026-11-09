@@ -1576,8 +1576,8 @@ class _MenuRow extends StatelessWidget {
   final VoidCallback onTap;
   const _MenuRow({required this.item, required this.onTap});
 
-  static const double _altura = 72;
-  static const double _imagem = 96;
+  static const double _altura = 68;
+  static const double _moldura = 44;
 
   @override
   Widget build(BuildContext context) {
@@ -1593,25 +1593,23 @@ class _MenuRow extends StatelessWidget {
           height: _altura,
           child: Row(
             children: [
-              SizedBox(
-                width: _imagem,
-                height: _altura,
-                child: item.asset != null
-                    // Mesmo degradê da foto do morador no console: a imagem
-                    // some para a direita dentro da cor do cartão.
-                    ? ShaderMask(
-                        blendMode: BlendMode.dstIn,
-                        shaderCallback: (r) => const LinearGradient(
-                          colors: [Colors.white, Colors.white, Colors.transparent],
-                          stops: [0, 0.45, 1],
-                        ).createShader(r),
-                        child: Image.asset(item.asset!, fit: BoxFit.cover),
-                      )
-                    : Center(
-                        child: Icon(item.icon, color: AppColors.brandInkOf(context), size: 22),
-                      ),
+              // Moldura amarela com o ícone de traço na cor do texto (preto no
+              // claro, branco no escuro, para não sumir no fundo).
+              Padding(
+                padding: const EdgeInsets.only(left: AppSpacing.lg),
+                child: Container(
+                  width: _moldura,
+                  height: _moldura,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.brand, width: 1.5),
+                  ),
+                  child: item.asset != null
+                      ? Image.asset(item.asset!, width: 26, height: 26, color: AppColors.textPrimary(context))
+                      : Icon(item.icon, color: AppColors.textPrimary(context), size: 22),
+                ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Text(
                   item.label,

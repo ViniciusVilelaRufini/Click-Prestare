@@ -4,6 +4,7 @@ import 'package:click/pages/shared/assembleias/list_assembleias.dart';
 import 'package:click/pages/shared/enquetes/list_enquetes.dart';
 import 'package:click/pages/shared/my_condominium.dart';
 import 'package:click/pages/singleton.dart';
+import 'package:click/theme/app_colors.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:flutter/material.dart';
@@ -105,6 +106,24 @@ void main() {
       return true;
     });
     expect(achado, 'material');
+  });
+
+  testWidgets('módulo com moldura amarela e ícone na cor do texto, sem degradê', (tester) async {
+    storageLogin({'token': 't', 'user': {'id': 2, 'name': 'Sid'}});
+    await abrir(tester);
+    final cartao = find.ancestor(of: find.text('Comunicados'), matching: find.byType(InkWell)).first;
+    expect(find.descendant(of: cartao, matching: find.byType(ShaderMask)), findsNothing);
+    final moldura = find.descendant(
+      of: cartao,
+      matching: find.byWidgetPredicate((w) =>
+          w is Container &&
+          w.decoration is BoxDecoration &&
+          (w.decoration as BoxDecoration).border is Border &&
+          ((w.decoration as BoxDecoration).border as Border).top.color == AppColors.brand),
+    );
+    expect(moldura, findsOneWidget);
+    final icone = tester.widget<Image>(find.descendant(of: moldura, matching: find.byType(Image)));
+    expect(icone.color, AppColors.textPrimary(tester.element(moldura)));
   });
 
   testWidgets('funcionário: o filtro continua escondendo Assembleias e Enquetes', (tester) async {
