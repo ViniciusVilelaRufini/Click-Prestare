@@ -1846,20 +1846,19 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
         child: ListView(
           padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: fabClearance(context)),
           children: [
+            // Mesmo cartão amarelo do resumo do Financeiro (antes era o bloco
+            // preto da paleta antiga); ícone na moldura amarela dos módulos.
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.zero,
-              ),
+              decoration: cartaoDestaque(context),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.accentGhost(context),
-                    ),
-                    child: Icon(widget.icon, color: AppColors.onPrimary, size: 28),
+                    width: 48,
+                    height: 48,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(border: Border.all(color: AppColors.brand, width: 1.5)),
+                    child: Icon(widget.icon, color: AppColors.textPrimary(context), size: 24),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -1867,13 +1866,18 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Total Pendente (${widget.title})",
-                          style: AppTypography.caption(context).copyWith(color: AppColors.onPrimary.withValues(alpha: 0.7)),
+                          'Total pendente · ${widget.title}'.toUpperCase(),
+                          style: AppTypography.label(context),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           "${Singleton.instance.getCurrentMoeda()} ${formatMoeda(totalPendente)}",
-                          style: AppTypography.display(context).copyWith(color: AppColors.onPrimary, fontSize: 24),
+                          style: AppTypography.display(context).copyWith(
+                            color: AppColors.textPrimary(context),
+                            fontSize: 28,
+                            fontWeight: FontWeight.w300,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
                         ),
                       ],
                     ),
