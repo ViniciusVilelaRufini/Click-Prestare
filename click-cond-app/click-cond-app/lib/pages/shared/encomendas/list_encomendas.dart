@@ -903,18 +903,23 @@ class _EncomendaCard extends StatelessWidget {
     return (dataFormatada, statusColor);
   }
 
-  Widget _thumb(BuildContext context, double size) => ClipRRect(
-        borderRadius: BorderRadius.zero,
-        child: Container(
-          width: size,
-          height: size,
-          color: AppColors.surfaceElevated(context),
-          child: Image.network(
-            encomenda.fotoVolume!,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Center(
-              child: Icon(PhosphorIcons.imageSquare, size: 22, color: Colors.grey),
-            ),
+  static const double _largFoto = 104;
+  static const double _inicioTexto = 92;
+
+  Widget _fotoDegrade(BuildContext context) => ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (r) => const LinearGradient(
+          colors: [Colors.white, Colors.white, Colors.transparent],
+          stops: [0, 0.35, 1],
+        ).createShader(r),
+        child: Image.network(
+          encomenda.fotoVolume!,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            color: AppColors.surfaceElevated(context),
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.only(left: 18),
+            child: Icon(PhosphorIcons.imageSquare, size: 22, color: AppColors.textTertiary(context)),
           ),
         ),
       );
@@ -938,27 +943,33 @@ class _EncomendaCard extends StatelessWidget {
 
     // Ícone/miniatura: foto do volume quando houver; senão, nas encerradas,
     // check verde ou X vermelho; nas que aguardam, o ícone da transportadora.
-    final Widget leading;
+    // Com foto, ela vira o degradê ponta a ponta à esquerda do cartão (abaixo).
+    final Widget? leading;
     if (hasPhoto) {
-      leading = _thumb(context, 40);
+      leading = null;
     } else if (encerrada) {
       leading = AppIconBox(icon: isRetirado ? PhosphorIcons.check : PhosphorIcons.x);
     } else {
       leading = _buildBrandIcon(context);
     }
 
-    final principal = Semantics(
+    final padCartao = encerrada ? AppSpacing.md : AppSpacing.lg;
+    final principalSemFoto = Semantics(
       button: true,
       label: encerrada && meta != null ? '$titulo, ${linha.text}, $meta' : '$titulo, ${linha.text}',
       onTap: abrirDetalhes,
       excludeSemantics: true,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 52),
+        constraints: BoxConstraints(minHeight: hasPhoto ? 64 : 52),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            leading,
-            const SizedBox(width: AppSpacing.md),
+            if (leading != null) ...[
+              leading,
+              const SizedBox(width: AppSpacing.md),
+            ] else
+              // Texto a partir de 92dp da borda do cartão.
+              SizedBox(width: _inicioTexto - padCartao),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -995,6 +1006,24 @@ class _EncomendaCard extends StatelessWidget {
         ),
       ),
     );
+
+    // Mesma abordagem do CabecalhoPessoa: foto de ponta a ponta à esquerda,
+    // dissolvida só na imagem; altura mínima (não fixa) p/ fonte aumentada.
+    final principal = !hasPhoto
+        ? principalSemFoto
+        : Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: -padCartao,
+                top: -padCartao,
+                bottom: -padCartao,
+                width: _largFoto,
+                child: IgnorePointer(child: _fotoDegrade(context)),
+              ),
+              principalSemFoto,
+            ],
+          );
 
     return Padding(
       padding: EdgeInsets.zero,
