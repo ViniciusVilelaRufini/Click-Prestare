@@ -12,6 +12,7 @@ import 'package:click/utils/datas.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:click/widgets/app/app_segmented_control.dart';
+import 'package:click/widgets/app/linha_faixa.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -63,7 +64,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
       case 'encomenda':
         return (
           icon: PhosphorIcons.package,
-          cor: AppColors.primary,
+          cor: AppColors.brand,
           tag: 'Encomenda'
         );
       case 'comunicado':
@@ -87,7 +88,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
       case 'reserva':
         return (
           icon: PhosphorIcons.calendarCheck,
-          cor: AppColors.primary,
+          cor: AppColors.brand,
           tag: 'Reserva'
         );
       case 'solicitacao':
@@ -102,7 +103,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
         if (isSaida) {
           return (
             icon: PhosphorIcons.signOut,
-            cor: AppColors.primary,
+            cor: AppColors.textTertiary(context),
             tag: 'Saída'
           );
         }
@@ -114,7 +115,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
       default:
         return (
           icon: PhosphorIcons.bell,
-          cor: AppColors.primary,
+          cor: AppColors.textTertiary(context),
           tag: 'Aviso'
         );
     }
@@ -312,145 +313,32 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
     );
   }
 
+  /// Aviso no desenho dos eventos: faixa em degradê na cor do tipo com o
+  /// ícone por cima, selo "● TIPO" e "NOVA" discreto.
   Widget _card(dynamic n) {
     final v = _visual(n);
     final nova = _isNova(n);
     final descricao = (n['descricao']?.toString() ?? '').trim();
     final tipo = n['tipo']?.toString() ?? '';
     final navegavel = tipo != 'reserva';
+    // O amarelo da marca não serve como texto no tema claro.
+    final corTexto = v.cor == AppColors.brand ? AppColors.brandInkOf(context) : null;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.zero,
-        border: Border.all(
-          color: nova ? v.cor.withValues(alpha: 0.4) : AppColors.border(context),
-          width: nova ? 1.2 : 1.0,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.zero,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Linha lateral de destaque para novas notificações
-              Container(
-                width: 4,
-                color: nova ? v.cor : Colors.transparent,
-              ),
-              Expanded(
-                child: InkWell(
-                  onTap: navegavel ? () => _abrir(n) : null,
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Ícone com círculo suavizado
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppColors.accentGhost(context),
-                          ),
-                          child: Icon(v.icon, color: v.cor, size: 22),
-                        ),
-                        const SizedBox(width: 14),
-                        // Conteúdo
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      n['titulo']?.toString() ?? '',
-                                      style: TextStyle(
-                                        color: AppColors.textPrimary(context),
-                                        fontSize: 14.5,
-                                        fontWeight: FontWeight.w600,
-                                        height: 1.2,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  if (nova) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: v.cor,
-                                        borderRadius: BorderRadius.zero,
-                                      ),
-                                      child: Text(
-                                        'NOVA',
-                                        style: TextStyle(
-                                          color: AppColors.on(v.cor),
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              if (descricao.isNotEmpty) ...[
-                                const SizedBox(height: 3),
-                                Text(
-                                  descricao,
-                                  style: TextStyle(
-                                    color: AppColors.textSecondary(context),
-                                    fontSize: 13,
-                                    height: 1.25,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Icon(
-                                    PhosphorIcons.clock,
-                                    size: 12,
-                                    color: AppColors.textTertiary(context),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _tempoRelativo(n['timestamp']?.toString()),
-                                    style: TextStyle(
-                                      color: AppColors.textTertiary(context),
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (navegavel) ...[
-                          const SizedBox(width: 8),
-                          Icon(
-                            PhosphorIcons.caretRight,
-                            size: 16,
-                            color: AppColors.textTertiary(context),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+    return DecoratedBox(
+      decoration: BoxDecoration(border: Border.all(color: AppColors.border(context))),
+      child: LinhaFaixa(
+        tom: v.cor,
+        corSelo: corTexto,
+        selo: v.tag,
+        titulo: n['titulo']?.toString() ?? '',
+        linhas: [descricao, _tempoRelativo(n['timestamp']?.toString())],
+        nova: nova,
+        onTap: navegavel ? () => _abrir(n) : null,
+        esquerda: Padding(
+          padding: const EdgeInsets.only(left: 24),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Icon(v.icon, color: corTexto ?? v.cor, size: 24),
           ),
         ),
       ),

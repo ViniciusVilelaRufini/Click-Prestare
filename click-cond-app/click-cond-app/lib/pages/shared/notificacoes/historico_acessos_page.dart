@@ -5,6 +5,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
+import 'package:click/widgets/app/evento_linha.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -531,149 +532,33 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
     final nome = (e['nome'] ?? '').toString();
     final condominio = (e['condominio'] ?? '').toString();
     final tipoDispositivo = e['tipo_dispositivo']?.toString();
+    final foto = (e['foto'] ?? '').toString().trim();
 
-    final Color cor = isEntrada ? AppColors.success : AppColors.primary;
-    final IconData icon =
-        isEntrada ? PhosphorIcons.signIn : PhosphorIcons.signOut;
     final String tag =
         isVoce ? 'Você' : (tipoPessoa == 'prestador' ? 'Prestador' : 'Visitante');
-    final Color tagColor = isVoce ? AppColors.primary : AppColors.warning;
-    final metodo = _styleForMetodo(tipoDispositivo);
+    final detalhe = [
+      if (tipoDispositivo != null && tipoDispositivo.isNotEmpty) _styleForMetodo(tipoDispositivo).label,
+      if (condominio.isNotEmpty) condominio,
+    ].join(' · ');
+    // O evento aberto por uma notificação ganha a borda na cor do evento.
+    final tom = isEntrada ? AppColors.success : AppColors.textTertiary(context);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.zero,
+    // Mesmo desenho dos eventos do início e da portaria web.
+    return Container(
+      key: key,
+      decoration: BoxDecoration(
+        border: destacado
+            ? Border.all(color: tom, width: 1.5)
+            : Border.all(color: AppColors.border(context)),
+      ),
+      child: EventoLinha(
+        nome: nome.isNotEmpty ? nome : (isVoce ? 'Você' : tag),
+        entrada: isEntrada,
+        tipo: tag,
+        hora: _formatDataHora(e['timestamp']),
+        foto: foto.isEmpty ? null : foto,
+        detalhe: detalhe,
         onTap: () => _showDetalhesEvento(e),
-        child: Container(
-          key: key,
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: destacado
-                ? cor.withValues(alpha: 0.08)
-                : AppColors.surface(context),
-            borderRadius: BorderRadius.zero,
-            border: destacado
-                ? Border.all(color: cor.withValues(alpha: 0.4), width: 1.5)
-                : Border.all(color: AppColors.border(context)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: cor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: Icon(icon, color: cor, size: 20),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          isEntrada ? 'Entrou' : 'Saiu',
-                          style: AppTypography.bodyMedium(context)
-                              .copyWith(color: cor, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            nome.isNotEmpty
-                                ? nome
-                                : (isVoce ? 'Você' : 'Visitante'),
-                            style: AppTypography.caption(context).copyWith(
-                              color: AppColors.textSecondary(context),
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: tagColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                          child: Text(
-                            tag,
-                            style: AppTypography.tiny(context).copyWith(
-                              color: tagColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Text(
-                          _formatDataHora(e['timestamp']),
-                          style: AppTypography.tiny(context)
-                              .copyWith(color: AppColors.textTertiary(context)),
-                        ),
-                        if (tipoDispositivo != null && tipoDispositivo.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: AppColors.textSecondary(context)
-                                  .withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  metodo.icon,
-                                  size: 10,
-                                  color: AppColors.textTertiary(context),
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  metodo.label,
-                                  style: AppTypography.tiny(context).copyWith(
-                                    color: AppColors.textTertiary(context),
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (condominio.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        condominio,
-                        style: AppTypography.tiny(context)
-                            .copyWith(color: AppColors.textTertiary(context)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              Icon(
-                PhosphorIcons.info,
-                size: 18,
-                color: AppColors.textTertiary(context),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

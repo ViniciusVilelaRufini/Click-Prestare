@@ -71,6 +71,15 @@ void main() {
         (e.widget as ColoredBox).color == AppColors.surfaceElevated(e)), isEmpty);
   });
 
+  testWidgets('linha extra opcional (método e condomínio)', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: EventoLinha(
+      nome: 'Rafael', entrada: false, tipo: 'Visitante', hora: '09/11/2026 às 16:43',
+      detalhe: 'PIN / Manual · Boa vista', onTap: () {},
+    ))));
+    expect(find.text('09/11/2026 às 16:43 · Visitante'), findsOneWidget);
+    expect(find.text('PIN / Manual · Boa vista'), findsOneWidget);
+  });
+
   testWidgets('toque abre o evento', (t) async {
     var abriu = false;
     await montar(t, entrada: true, onTap: () => abriu = true);
