@@ -18,9 +18,9 @@ import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_card.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_segmented_control.dart';
-import 'package:click/widgets/app/app_tag.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:click/utils/datas.dart';
+import 'package:click/widgets/app/cabecalho_pessoa.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -1526,63 +1526,39 @@ class _VisitanteCard extends StatelessWidget {
         ? '${pinStr.substring(0, 3)}-${pinStr.substring(3, 6)}'
         : pinStr;
 
+    final status = isInside
+        ? StatusPessoa.noLocal
+        : isAuthorized
+            ? StatusPessoa.autorizado
+            : isExpired
+                ? StatusPessoa.finalizado
+                : StatusPessoa.agendado;
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.zero,
-          border: Border.all(
-            color: AppColors.border(context),
-            width: 1,
-          ),
+          border: Border.all(color: AppColors.border(context)),
         ),
+        clipBehavior: Clip.hardEdge,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Linha Superior: Avatar + Nome/Subtítulo + Badge de Status
-            Row(
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    _buildVisitanteAvatar(context, item, radius: 24),
-                  ],
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item['nome'] ?? '',
-                        style: AppTypography.strong(context),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle,
-                        style: AppTypography.tiny(context),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _buildStatusBadge(context, isInside, isAuthorized, isExpired),
-              ],
+            // Topo no desenho dos eventos: foto em degradê, selo, nome.
+            CabecalhoPessoa(
+              nome: (item['nome'] ?? '').toString(),
+              subtitulo: subtitle,
+              status: status,
+              foto: _fotoProviderVisitante(item),
             ),
-            const SizedBox(height: 12),
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: AppColors.border(context),
-            ),
-            const SizedBox(height: 12),
+            Divider(height: 1, thickness: 1, color: AppColors.border(context)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
             // Linha Inferior: Horário + PIN + Ação
             Wrap(
               alignment: WrapAlignment.spaceBetween,
@@ -1714,21 +1690,13 @@ class _VisitanteCard extends StatelessWidget {
                   )
               ],
             ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
-  }
-
-  Widget _buildStatusBadge(BuildContext context, bool isInside, bool isAuthorized, bool isExpired) {
-    if (isInside) {
-      return const AppTag(label: 'NO LOCAL', signal: AppSignal.ok);
-    } else if (isAuthorized) {
-      return const AppTag(label: 'AUTORIZADO', signal: AppSignal.ok);
-    } else if (isExpired) {
-      return const AppTag(label: 'FINALIZADO');
-    }
-    return const AppTag(label: 'AGENDADO', signal: AppSignal.warn);
   }
 
   String _formatTempoDecorrido(dynamic dataEntradaRaw, dynamic horaEntradaRaw) {
@@ -1859,29 +1827,30 @@ bool temPinParaExibir(dynamic item) {
 
 /// Decide entre exibir a foto (NetworkImage ou MemoryImage de base64)
 /// ou um fallback com a inicial do nome.
+/// Foto do visitante como imagem: link, data URL ou base64 puro. Null quando
+/// não há foto ou ela não decodifica.
+ImageProvider? _fotoProviderVisitante(dynamic item) {
+  final foto = _getFotoVisitante(item);
+  if (foto == null) return null;
+  if (foto.startsWith('http://') || foto.startsWith('https://')) {
+    return NetworkImage(foto);
+  }
+  final base64 = foto.startsWith('data:')
+      ? (foto.contains(',') ? foto.substring(foto.indexOf(',') + 1) : '')
+      : foto;
+  try {
+    return MemoryImage(base64Decode(base64));
+  } catch (_) {
+    return null;
+  }
+}
+
 Widget _buildVisitanteAvatar(BuildContext context, dynamic item,
     {double radius = 24}) {
-  final foto = _getFotoVisitante(item);
   final nome = (item['nome'] ?? 'V').toString().trim();
 
-  if (foto != null) {
-    ImageProvider? provider;
-    if (foto.startsWith('http://') || foto.startsWith('https://')) {
-      provider = NetworkImage(foto);
-    } else if (foto.startsWith('data:')) {
-      // data:image/jpeg;base64,xxxxx
-      final commaIdx = foto.indexOf(',');
-      if (commaIdx > 0) {
-        try {
-          provider = MemoryImage(base64Decode(foto.substring(commaIdx + 1)));
-        } catch (_) {/* fallback abaixo */}
-      }
-    } else {
-      // base64 puro
-      try {
-        provider = MemoryImage(base64Decode(foto));
-      } catch (_) {/* fallback abaixo */}
-    }
+  {
+    final provider = _fotoProviderVisitante(item);
     if (provider != null) {
       return CircleAvatar(
         radius: radius,
