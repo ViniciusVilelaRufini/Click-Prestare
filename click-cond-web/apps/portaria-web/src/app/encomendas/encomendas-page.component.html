@@ -160,7 +160,7 @@
 
   <!-- Gaveta: Receber encomenda -->
   @if (showForm) {
-    <div class="ps-scrim on" (click)="showForm = false; formError.set(null)"></div>
+    <div class="ps-scrim on" (click)="fecharForm()"></div>
     <div class="ps-drawer on" data-testid="form-encomenda">
       <div class="ps-drawer-head gap-3">
         <div class="flex items-center gap-3 min-w-0">
@@ -169,12 +169,40 @@
           </div>
           <h2 class="ps-h2 truncate">Receber nova encomenda</h2>
         </div>
-        <button type="button" (click)="showForm = false; formError.set(null)" class="ps-ibtn" title="Fechar formulário" aria-label="Fechar formulário">
+        <button type="button" (click)="fecharForm()" class="ps-ibtn" title="Fechar formulário" aria-label="Fechar formulário">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
 
       <div class="ps-drawer-body">
+        <!-- Foto da encomenda + leitura da etiqueta -->
+        <div class="block space-y-1.5" data-testid="foto-encomenda">
+          <span class="ps-label block">Foto da encomenda</span>
+          <input #fotoInput type="file" accept="image/*" capture="environment" class="hidden" (change)="onFotoEscolhida($event)" />
+          <div class="flex gap-3 items-start">
+            @if (fotoVolume) {
+              <img [src]="fotoVolume" alt="Foto da encomenda" class="w-24 h-24 object-cover border border-[var(--line-100)] shrink-0" />
+            }
+            <div class="flex flex-col gap-2 min-w-0">
+              <div class="flex gap-2">
+                <button type="button" (click)="fotoInput.click()" class="ps-btn ps-btn-sec shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h1.5l1-2h9l1 2H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9zm9 8a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"/></svg>
+                  {{ fotoVolume ? 'Trocar foto' : 'Tirar foto' }}
+                </button>
+                @if (fotoVolume) {
+                  <button type="button" (click)="removerFoto()" class="ps-btn ps-btn-sec shrink-0">Remover</button>
+                }
+              </div>
+              @if (lendoEtiqueta) {
+                <p class="text-xs text-[var(--ink-subtle)]">Lendo etiqueta…</p>
+              }
+              @if (avisoEtiqueta && !lendoEtiqueta) {
+                <p class="text-xs text-[var(--brand)]" data-testid="aviso-etiqueta">Preenchido pela etiqueta — confira</p>
+              }
+            </div>
+          </div>
+        </div>
+
         <!-- Scanner & Rastreamento -->
         <div class="block space-y-1.5">
           <span class="ps-label block">Código de Rastreio / Etiqueta</span>
@@ -231,7 +259,7 @@
       </div>
 
       <div class="ps-drawer-foot">
-        <button (click)="showForm = false; formError.set(null)" class="ps-btn ps-btn-sec">
+        <button (click)="fecharForm()" class="ps-btn ps-btn-sec">
           Cancelar
         </button>
         <button (click)="registrar()" class="ps-btn">

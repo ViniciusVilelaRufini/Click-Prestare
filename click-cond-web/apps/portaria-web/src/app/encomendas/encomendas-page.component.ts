@@ -7,6 +7,7 @@ import {
 } from './encomendas.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { aplicarLeitura, reduzirImagem } from './foto-encomenda';
 import { Apartamento, ApartamentosApi } from '../apartamentos/apartamentos.service';
 
 /**
@@ -191,6 +192,52 @@ export class EncomendasPageComponent implements OnInit {
   novo: CreateEncomenda = this.estadoInicial();
   selectedApto: Apartamento | null = null;
   showForm = false;
+  fotoVolume: string | null = null;
+  lendoEtiqueta = false;
+  avisoEtiqueta = false;
+
+  fecharForm() {
+    this.showForm = false;
+    this.formError.set(null);
+    this.limparFoto();
+  }
+
+  private limparFoto() {
+    this.fotoVolume = null;
+    this.lendoEtiqueta = false;
+    this.avisoEtiqueta = false;
+  }
+
+  async onFotoEscolhida(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    this.avisoEtiqueta = false;
+    let imagem: string;
+    try {
+      imagem = await reduzirImagem(file);
+    } catch {
+      return;
+    }
+    this.fotoVolume = imagem;
+    this.lendoEtiqueta = true;
+    this.api.lerEtiqueta(imagem).subscribe({
+      next: (r) => {
+        this.lendoEtiqueta = false;
+        if (this.fotoVolume !== imagem) return;
+        const res = aplicarLeitura(this.novo, this.selectedApto, this.apartamentos(), r);
+        this.novo = res.novo;
+        this.selectedApto = res.selecionado;
+        this.avisoEtiqueta = res.preencheu;
+      },
+      error: () => { this.lendoEtiqueta = false; },
+    });
+  }
+
+  removerFoto() {
+    this.limparFoto();
+  }
 
   ngOnInit() { 
     this.carregar(); 
@@ -238,12 +285,16 @@ export class EncomendasPageComponent implements OnInit {
     this.novo.destinatario_bloco = this.selectedApto.bloco || '';
     this.novo.destinatario_apto = this.selectedApto.apto;
 
-    this.api.create(this.novo).subscribe({
+    const dto: CreateEncomenda = { ...this.novo };
+    if (this.fotoVolume) dto.foto_volume = this.fotoVolume;
+
+    this.api.create(dto).subscribe({
       next: () => { 
         this.formError.set(null);
         this.showForm = false; 
         this.novo = this.estadoInicial(); 
         this.selectedApto = null;
+        this.limparFoto();
         this.carregar(); 
       },
       error: (e) => this.formError.set(e?.message ?? 'Erro'),

@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
+import type { LeituraEtiqueta } from './foto-encomenda';
 
 export type EncomendaStatus = 'Aguardando' | 'Retirada' | 'Esperando';
 
@@ -23,6 +24,7 @@ export interface Encomenda {
   notificado_em?: string | null;
   codigo_rastreio?: string | null;
   codigo_validacao?: string | null;
+  foto_volume?: string | null;
 }
 
 export interface CreateEncomenda {
@@ -31,6 +33,7 @@ export interface CreateEncomenda {
   destinatario_bloco?: string;
   recebido_de?: string;
   codigo_rastreio?: string;
+  foto_volume?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -52,6 +55,11 @@ export class EncomendasApi {
 
   create(dto: CreateEncomenda): Observable<Encomenda> {
     return this.http.post<Encomenda>(this.base, dto);
+  }
+
+  /** Le a etiqueta da foto (IA); o chamador trata qualquer falha em silencio. */
+  lerEtiqueta(imagem: string): Observable<LeituraEtiqueta> {
+    return this.http.post<LeituraEtiqueta>(`${this.base}/ler-etiqueta`, { imagem });
   }
 
   retirar(
