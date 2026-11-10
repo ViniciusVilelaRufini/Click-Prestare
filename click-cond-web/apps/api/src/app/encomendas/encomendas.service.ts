@@ -46,8 +46,10 @@ export class EncomendasService implements OnModuleInit {
    */
   async lerEtiqueta(
     idCondominio: number,
+    user: JwtPayload,
     imagem: string,
   ): Promise<{ leitura: LeituraEtiqueta; destinatario: { apto: string; bloco: string | null; nome: string } | null }> {
+    await this.tenant.assertCondominio(idCondominio, user);
     const m = /^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/i.exec(imagem ?? '');
     if (!m) throw new BadRequestException('Envie a foto como imagem (jpeg, png ou webp).');
     const base64 = m[2].replace(/\s+/g, '');

@@ -104,12 +104,15 @@ export function casarMorador(
       if (fb.length) candidatos = fb;
     }
   }
-  if (candidatos.length === 1) return resultado(candidatos[0]);
-  if (candidatos.length > 1) {
+  if (candidatos.length > 0) {
     // Mesmo nome em mais de uma unidade e a etiqueta não desempata.
     const unidades = new Set(candidatos.map((m) => `${norm(m.apartamento)}|${norm(m.bloco)}`));
     if (unidades.size > 1) return null;
-    return resultado(candidatos[0]);
+    const c = candidatos[0];
+    // Apto/bloco lidos que contradizem o morador achado pelo nome: não adivinha.
+    if (leitura.apto && !aptoIgual(c.apartamento, leitura.apto)) return null;
+    if (leitura.bloco && c.bloco && norm(c.bloco) !== norm(leitura.bloco)) return null;
+    return resultado(c);
   }
 
   // Nome sem correspondência: aceita só se o apto (e bloco, se lido) existir.
@@ -120,7 +123,8 @@ export function casarMorador(
       if (fb.length) doApto = fb;
       else return null;
     }
-    if (doApto.length) return resultado(doApto[0]);
+    const unidades = new Set(doApto.map((m) => `${norm(m.apartamento)}|${norm(m.bloco)}`));
+    if (unidades.size === 1) return resultado(doApto[0]);
   }
   return null;
 }

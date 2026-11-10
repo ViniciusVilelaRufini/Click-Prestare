@@ -35,7 +35,7 @@ export class EncomendasController {
     @ReqUser() user: JwtPayload,
   ) {
     assertOperador(user, 'ler etiqueta de encomenda');
-    return this.service.lerEtiqueta(idCondominio, body?.imagem ?? '');
+    return this.service.lerEtiqueta(idCondominio, user, body?.imagem ?? '');
   }
 
   @Get(':id')
