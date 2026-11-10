@@ -1,4 +1,6 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
+import { IaClient } from '../chat-ia/ia.client';
+import { casarMorador, extrairLeitura, leituraVazia, LeituraEtiqueta } from './ler-etiqueta';
 import { PrismaService } from '../prisma/prisma.service';
 import { executarComLock } from '../common/lock-distribuido';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -19,6 +21,13 @@ export interface CreateEncomendaDto {
   codigo_rastreio?: string;
 }
 
+const INSTRUCAO_ETIQUETA =
+  'Você lê etiquetas de encomendas para a portaria de um condomínio. Responda somente com JSON.';
+const PROMPT_ETIQUETA =
+  'Leia a etiqueta da encomenda na foto. Responda APENAS um JSON com as chaves: ' +
+  'nome (destinatário), apto, bloco, transportadora, codigo_rastreio, descricao (resumo curto do conteúdo/volume). ' +
+  'Use null quando não estiver legível. Não invente dados.';
+
 @Injectable()
 export class EncomendasService implements OnModuleInit {
   constructor(
@@ -27,7 +36,42 @@ export class EncomendasService implements OnModuleInit {
     private readonly storage: StorageService,
     private readonly auditoria: AuditoriaService,
     private readonly tenant: TenantAccessService,
+    @Optional() private readonly ia?: IaClient,
   ) {}
+
+  /**
+   * Lê a foto da etiqueta com IA e tenta casar o destinatário com os moradores
+   * do condomínio. Não grava nada. Falha da IA devolve leitura vazia (o porteiro
+   * preenche à mão). Imagem e texto lido não são logados.
+   */
+  async lerEtiqueta(
+    idCondominio: number,
+    imagem: string,
+  ): Promise<{ leitura: LeituraEtiqueta; destinatario: { apto: string; bloco: string | null; nome: string } | null }> {
+    const m = /^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/i.exec(imagem ?? '');
+    if (!m) throw new BadRequestException('Envie a foto como imagem (jpeg, png ou webp).');
+    const base64 = m[2].replace(/\s+/g, '');
+    if (Math.floor((base64.length * 3) / 4) > 5 * 1024 * 1024) {
+      throw new BadRequestException('A foto passa de 5 MB.');
+    }
+    const mimeType = m[1].toLowerCase().replace('image/jpg', 'image/jpeg');
+    try {
+      if (!this.ia) return { leitura: leituraVazia(), destinatario: null };
+      const resp = await this.ia.gerarComFerramentas(
+        [{ role: 'user', parts: [{ text: PROMPT_ETIQUETA }, { inlineData: { mimeType, data: base64 } }] }],
+        [],
+        INSTRUCAO_ETIQUETA,
+      );
+      const leitura = extrairLeitura(resp?.texto ?? '');
+      const moradores = await this.prisma.moradores.findMany({
+        where: { id_condominio: idCondominio },
+        select: { nome: true, apartamento: true, bloco: true },
+      });
+      return { leitura, destinatario: casarMorador(leitura, moradores) };
+    } catch {
+      return { leitura: leituraVazia(), destinatario: null };
+    }
+  }
 
   onModuleInit() {
     // Verificar rastreamentos a cada 2 horas

@@ -27,6 +27,17 @@ export class EncomendasController {
     return this.service.findAll(idCondominio, status, user);
   }
 
+  @SkipAudit()
+  @Post('ler-etiqueta')
+  lerEtiqueta(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Body() body: { imagem?: string },
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'ler etiqueta de encomenda');
+    return this.service.lerEtiqueta(idCondominio, body?.imagem ?? '');
+  }
+
   @Get(':id')
   get(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
     assertOperador(user, 'abrir uma encomenda');
