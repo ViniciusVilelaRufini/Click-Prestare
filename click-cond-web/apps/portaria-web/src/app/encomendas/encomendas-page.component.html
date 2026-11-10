@@ -180,23 +180,23 @@
           <span class="ps-label block">Foto da encomenda</span>
           <input #fotoInput type="file" accept="image/*" capture="environment" class="hidden" (change)="onFotoEscolhida($event)" />
           <div class="flex gap-3 items-start">
-            @if (fotoVolume) {
-              <img [src]="fotoVolume" alt="Foto da encomenda" class="w-24 h-24 object-cover border border-[var(--line-100)] shrink-0" />
+            @if (fotoVolume()) {
+              <img [src]="fotoVolume()" alt="Foto da encomenda" class="w-24 h-24 object-cover border border-[var(--line-100)] shrink-0" />
             }
             <div class="flex flex-col gap-2 min-w-0">
               <div class="flex gap-2">
                 <button type="button" (click)="fotoInput.click()" class="ps-btn ps-btn-sec shrink-0">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h1.5l1-2h9l1 2H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9zm9 8a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"/></svg>
-                  {{ fotoVolume ? 'Trocar foto' : 'Tirar foto' }}
+                  {{ fotoVolume() ? 'Trocar foto' : 'Tirar foto' }}
                 </button>
-                @if (fotoVolume) {
+                @if (fotoVolume()) {
                   <button type="button" (click)="removerFoto()" class="ps-btn ps-btn-sec shrink-0">Remover</button>
                 }
               </div>
-              @if (lendoEtiqueta) {
+              @if (lendoEtiqueta()) {
                 <p class="text-xs text-[var(--ink-subtle)]">Lendo etiqueta…</p>
               }
-              @if (avisoEtiqueta && !lendoEtiqueta) {
+              @if (avisoEtiqueta() && !lendoEtiqueta()) {
                 <p class="text-xs text-[var(--brand)]" data-testid="aviso-etiqueta">Preenchido pela etiqueta — confira</p>
               }
             </div>

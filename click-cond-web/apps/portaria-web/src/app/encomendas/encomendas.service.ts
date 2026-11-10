@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, timeout } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
 import type { LeituraEtiqueta } from './foto-encomenda';
@@ -36,6 +36,8 @@ export interface CreateEncomenda {
   foto_volume?: string;
 }
 
+const LER_ETIQUETA_TIMEOUT_MS = 20_000;
+
 @Injectable({ providedIn: 'root' })
 export class EncomendasApi {
   private http = inject(HttpClient);
@@ -57,9 +59,11 @@ export class EncomendasApi {
     return this.http.post<Encomenda>(this.base, dto);
   }
 
-  /** Le a etiqueta da foto (IA); o chamador trata qualquer falha em silencio. */
+  /** Le a etiqueta da foto (IA); o chamador trata qualquer falha em silencio. Desiste em 20 s. */
   lerEtiqueta(imagem: string): Observable<LeituraEtiqueta> {
-    return this.http.post<LeituraEtiqueta>(`${this.base}/ler-etiqueta`, { imagem });
+    return this.http
+      .post<LeituraEtiqueta>(`${this.base}/ler-etiqueta`, { imagem })
+      .pipe(timeout(LER_ETIQUETA_TIMEOUT_MS));
   }
 
   retirar(

@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -23,6 +23,8 @@ function esc(v: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
+const FOTO_ILEGIVEL = 'Não foi possível abrir a foto';
+
 @Component({
   selector: 'app-encomendas-page',
   standalone: true,
@@ -34,6 +36,7 @@ export class EncomendasPageComponent implements OnInit {
   private aptosApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
   private route = inject(ActivatedRoute);
+  private cdr = inject(ChangeDetectorRef);
 
   constructor() {
     effect(() => {
@@ -192,9 +195,11 @@ export class EncomendasPageComponent implements OnInit {
   novo: CreateEncomenda = this.estadoInicial();
   selectedApto: Apartamento | null = null;
   showForm = false;
-  fotoVolume: string | null = null;
-  lendoEtiqueta = false;
-  avisoEtiqueta = false;
+  // App zoneless: o que muda dentro de callbacks assíncronos (decodificação da foto, HTTP) precisa ser
+  // signal ou marcar a view, senão o drawer não re-renderiza.
+  readonly fotoVolume = signal<string | null>(null);
+  readonly lendoEtiqueta = signal(false);
+  readonly avisoEtiqueta = signal(false);
 
   fecharForm() {
     this.showForm = false;
@@ -203,9 +208,9 @@ export class EncomendasPageComponent implements OnInit {
   }
 
   private limparFoto() {
-    this.fotoVolume = null;
-    this.lendoEtiqueta = false;
-    this.avisoEtiqueta = false;
+    this.fotoVolume.set(null);
+    this.lendoEtiqueta.set(false);
+    this.avisoEtiqueta.set(false);
   }
 
   async onFotoEscolhida(ev: Event) {
@@ -213,25 +218,32 @@ export class EncomendasPageComponent implements OnInit {
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
-    this.avisoEtiqueta = false;
+    this.avisoEtiqueta.set(false);
+    if (this.formError() === FOTO_ILEGIVEL) this.formError.set(null);
     let imagem: string;
     try {
       imagem = await reduzirImagem(file);
     } catch {
+      // ex.: HEIC no desktop; avisa sem travar o cadastro manual
+      this.formError.set(FOTO_ILEGIVEL);
       return;
     }
-    this.fotoVolume = imagem;
-    this.lendoEtiqueta = true;
+    this.fotoVolume.set(imagem);
+    this.lendoEtiqueta.set(true);
     this.api.lerEtiqueta(imagem).subscribe({
       next: (r) => {
-        this.lendoEtiqueta = false;
-        if (this.fotoVolume !== imagem) return;
+        if (this.fotoVolume() !== imagem) return; // resposta de uma foto já trocada/removida
+        this.lendoEtiqueta.set(false);
         const res = aplicarLeitura(this.novo, this.selectedApto, this.apartamentos(), r);
         this.novo = res.novo;
         this.selectedApto = res.selecionado;
-        this.avisoEtiqueta = res.preencheu;
+        this.avisoEtiqueta.set(res.preencheu);
+        this.cdr.markForCheck();
       },
-      error: () => { this.lendoEtiqueta = false; },
+      // falha/timeout: silencioso, formulário segue manual (só a foto atual desliga o "Lendo etiqueta…")
+      error: () => {
+        if (this.fotoVolume() === imagem) this.lendoEtiqueta.set(false);
+      },
     });
   }
 
@@ -286,7 +298,8 @@ export class EncomendasPageComponent implements OnInit {
     this.novo.destinatario_apto = this.selectedApto.apto;
 
     const dto: CreateEncomenda = { ...this.novo };
-    if (this.fotoVolume) dto.foto_volume = this.fotoVolume;
+    const foto = this.fotoVolume();
+    if (foto) dto.foto_volume = foto;
 
     this.api.create(dto).subscribe({
       next: () => { 
