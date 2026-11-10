@@ -106,6 +106,16 @@ class _ChatIaPageState extends State<ChatIaPage> {
         ('Mudança', 'Agendar', PhosphorIcons.truck, 'Quero agendar uma mudança'),
       ];
     }
+    // Equipe não tem apartamento: reserva e conta pessoal a IA recusa. Só o
+    // que ela aceita para funcionário.
+    if (getUserType() == 'funcionario') {
+      return [
+        ('Liberar', 'Visitante', PhosphorIcons.userPlus, 'Quero liberar um visitante'),
+        ('Abrir', 'Ocorrência', PhosphorIcons.warningCircle, 'Quero abrir uma ocorrência'),
+        ('Comunicado', 'Para os moradores', PhosphorIcons.megaphone, 'Quero criar um comunicado'),
+        ('Manutenção', 'Programada', PhosphorIcons.wrench, 'Quero agendar uma manutenção programada'),
+      ];
+    }
     return [
       ('Reservar', 'Área social', PhosphorIcons.calendarBlank, 'Quero reservar uma área social'),
       ('Abrir', 'Ocorrência', PhosphorIcons.warningCircle, 'Quero abrir uma ocorrência'),
@@ -162,23 +172,23 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          titulo.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.label(context).copyWith(
-                            color: AppColors.textPrimary(context),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
+                        // Em tela estreita ou fonte grande o título encolhe
+                        // em vez de virar "MANUTENÇ…"; o apoio quebra linha.
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            titulo.toUpperCase(),
+                            maxLines: 1,
+                            style: AppTypography.label(context).copyWith(
+                              color: AppColors.textPrimary(context),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          apoio,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.tiny(context),
-                        ),
+                        Text(apoio, style: AppTypography.tiny(context)),
                       ],
                     ),
                   ),
@@ -1089,7 +1099,9 @@ class _ChatIaPageState extends State<ChatIaPage> {
     final perguntas = _sugestoes;
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 84, AppSpacing.lg, AppSpacing.xl),
+      // Embaixo, espaço do campo de digitar (que flutua sobre a lista): sem
+      // isso a última pergunta ficava escondida atrás dele.
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 84, AppSpacing.lg, 128),
       children: [
         const SizedBox(height: AppSpacing.lg),
         Row(
@@ -1111,9 +1123,17 @@ class _ChatIaPageState extends State<ChatIaPage> {
         ),
         const SizedBox(height: AppSpacing.xxl),
         _rotuloSecao(context, 'FAÇA POR MIM'),
-        Row(children: [_cartaoAcao(context, acoes[0]), const SizedBox(width: 8), _cartaoAcao(context, acoes[1])]),
-        const SizedBox(height: 8),
-        Row(children: [_cartaoAcao(context, acoes[2]), const SizedBox(width: 8), _cartaoAcao(context, acoes[3])]),
+        // IntrinsicHeight + stretch: os dois cartões da linha ficam da mesma
+        // altura quando um apoio quebra em duas linhas.
+        for (var i = 0; i < acoes.length; i += 2) ...[
+          if (i > 0) const SizedBox(height: 8),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [_cartaoAcao(context, acoes[i]), const SizedBox(width: 8), _cartaoAcao(context, acoes[i + 1])],
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.xxl),
         _rotuloSecao(context, 'PERGUNTE'),
         Material(
