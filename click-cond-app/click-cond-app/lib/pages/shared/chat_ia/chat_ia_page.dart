@@ -95,62 +95,124 @@ class _ChatIaPageState extends State<ChatIaPage> {
     ];
   }
 
-  /// Degradê da marca dos ícones do app (módulos, atalhos): claro em cima à
-  /// esquerda, âmbar embaixo à direita.
-  static const _degradeMarca = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFFFFD966), Color(0xFFF2A900)],
-  );
+  /// Ações da grade "FAÇA POR MIM": título, apoio, ícone e o pedido que vai
+  /// para a conversa (null = abre o menu de anexo da conta).
+  List<(String, String, IconData, String?)> get _acoes {
+    if (getUserType() == 'sindico') {
+      return [
+        ('Comunicado', 'Para os moradores', PhosphorIcons.megaphone, 'Quero criar um comunicado'),
+        ('Manutenção', 'Programada', PhosphorIcons.wrench, 'Quero agendar uma manutenção programada'),
+        ('Abrir', 'Ocorrência', PhosphorIcons.warningCircle, 'Quero abrir uma ocorrência'),
+        ('Mudança', 'Agendar', PhosphorIcons.truck, 'Quero agendar uma mudança'),
+      ];
+    }
+    return [
+      ('Reservar', 'Área social', PhosphorIcons.calendarBlank, 'Quero reservar uma área social'),
+      ('Abrir', 'Ocorrência', PhosphorIcons.warningCircle, 'Quero abrir uma ocorrência'),
+      ('Liberar', 'Visitante', PhosphorIcons.userPlus, 'Quero liberar um visitante'),
+      ('Ler conta', 'Foto ou PDF', PhosphorIcons.fileText, null),
+    ];
+  }
 
-  Widget _cartaoSugestao(BuildContext context, String texto, IconData icone) {
-    return Material(
-      key: const ValueKey('ia-sugestao'),
-      color: AppColors.surface(context),
-      shape: Border.fromBorderSide(BorderSide(color: AppColors.border(context))),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _enviar(texto),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Mesmo cartão dos módulos: o ícone em degradê some no fundo.
-              SizedBox(
-                width: 92,
-                child: ShaderMask(
-                  blendMode: BlendMode.dstIn,
-                  shaderCallback: (r) => const LinearGradient(
-                    colors: [Colors.white, Colors.white, Colors.transparent],
-                    stops: [0, 0.3, 1],
-                  ).createShader(r),
-                  child: DecoratedBox(
-                    decoration: const BoxDecoration(gradient: _degradeMarca),
-                    child: Align(
-                      alignment: const Alignment(-0.45, 0),
-                      child: Icon(icone, color: AppColors.onBrand, size: 22),
+  /// Ícone de traço numa moldura amarela — o mesmo visual dos módulos do
+  /// GERENCIAR.
+  Widget _moldura(BuildContext context, IconData icone, {double lado = 36, double tamanho = 18}) {
+    return Container(
+      width: lado,
+      height: lado,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(border: Border.all(color: AppColors.brand, width: 1.5)),
+      child: Icon(icone, size: tamanho, color: AppColors.textPrimary(context)),
+    );
+  }
+
+  Widget _rotuloSecao(BuildContext context, String texto) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Text(
+        texto,
+        style: AppTypography.label(context).copyWith(
+          color: AppColors.textTertiary(context),
+          letterSpacing: 11 * 0.18,
+        ),
+      ),
+    );
+  }
+
+  /// Cartão da grade "FAÇA POR MIM", no estilo dos atalhos do início.
+  Widget _cartaoAcao(BuildContext context, (String, String, IconData, String?) acao) {
+    final (titulo, apoio, icone, pedido) = acao;
+    return Expanded(
+      child: Material(
+        key: const ValueKey('ia-acao'),
+        color: AppColors.surface(context),
+        shape: Border.fromBorderSide(BorderSide(color: AppColors.border(context))),
+        child: InkWell(
+          onTap: () => pedido == null ? _abrirMenuAnexo() : _enviar(pedido),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 64),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  _moldura(context, icone),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          titulo.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.label(context).copyWith(
+                            color: AppColors.textPrimary(context),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          apoio,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.tiny(context),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  // Frases curtas e fixas: quebram à vontade, nunca cortadas.
-                  child: Text(
-                    texto,
-                    style: AppTypography.body(context)
-                        .copyWith(color: AppColors.textPrimary(context)),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                child: Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
-              ),
-            ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Linha da lista "PERGUNTE": o texto quebra linha, nunca é cortado.
+  Widget _linhaPergunta(BuildContext context, String texto, IconData icone) {
+    return InkWell(
+      onTap: () => _enviar(texto),
+      // A chave fica no conteúdo: as linhas são irmãs na mesma coluna e uma
+      // chave igual nelas quebraria a lista.
+      child: Padding(
+        key: const ValueKey('ia-pergunta'),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Row(
+          children: [
+            _moldura(context, icone, lado: 32, tamanho: 16),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                texto,
+                style: AppTypography.body(context).copyWith(color: AppColors.textPrimary(context)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+          ],
         ),
       ),
     );
@@ -1020,38 +1082,53 @@ class _ChatIaPageState extends State<ChatIaPage> {
     return '${pad(local.day)}/${pad(local.month)}/${local.year}';
   }
 
+  /// Tela vazia: cabeçalho compacto, o que a IA faz ("FAÇA POR MIM") e o
+  /// que dá para perguntar ("PERGUNTE").
   Widget _buildEmptyState(BuildContext context) {
+    final acoes = _acoes;
+    final perguntas = _sugestoes;
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.xl, 84, AppSpacing.xl, AppSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 84, AppSpacing.lg, AppSpacing.xl),
       children: [
-        const SizedBox(height: AppSpacing.xxxl),
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: const BoxDecoration(gradient: _degradeMarca),
-            child: Icon(PhosphorIcons.sparkle, color: AppColors.onBrand, size: 40),
-          ),
-        ),
         const SizedBox(height: AppSpacing.lg),
-        Text(
-          'Olá! Sou o PRESTARE IA.'.toUpperCase(),
-          textAlign: TextAlign.center,
-          style: AppTypography.headline(context),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          'Pergunte sobre o condomínio ou peça para eu resolver: reservar '
-          'área, abrir ocorrência, pagar boleto.',
-          textAlign: TextAlign.center,
-          style: AppTypography.caption(context),
+        Row(
+          children: [
+            _moldura(context, PhosphorIcons.sparkle, lado: 48, tamanho: 24),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // "PRESTARE IA" já está na barra do topo.
+                  Text('COMO POSSO AJUDAR?', style: AppTypography.headline(context)),
+                  const SizedBox(height: 2),
+                  Text('Pergunte ou peça para eu resolver.', style: AppTypography.caption(context)),
+                ],
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.xxl),
-        for (final (texto, icone) in _sugestoes) ...[
-          _cartaoSugestao(context, texto, icone),
-          const SizedBox(height: AppSpacing.sm),
-        ],
+        _rotuloSecao(context, 'FAÇA POR MIM'),
+        Row(children: [_cartaoAcao(context, acoes[0]), const SizedBox(width: 8), _cartaoAcao(context, acoes[1])]),
+        const SizedBox(height: 8),
+        Row(children: [_cartaoAcao(context, acoes[2]), const SizedBox(width: 8), _cartaoAcao(context, acoes[3])]),
+        const SizedBox(height: AppSpacing.xxl),
+        _rotuloSecao(context, 'PERGUNTE'),
+        Material(
+          color: AppColors.surface(context),
+          shape: Border.fromBorderSide(BorderSide(color: AppColors.border(context))),
+          child: Column(
+            children: [
+              for (var i = 0; i < perguntas.length; i++) ...[
+                if (i > 0)
+                  Divider(height: 1, thickness: 1, indent: 56, color: AppColors.border(context)),
+                _linhaPergunta(context, perguntas[i].$1, perguntas[i].$2),
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }

@@ -42,30 +42,51 @@ void main() {
     expect(fundo, findsOneWidget);
   });
 
-  // As sugestões são os cartões com o texto de cada pergunta.
-  Finder cartoes() => find.byKey(const ValueKey('ia-sugestao'));
+  // Tela vazia: cabeçalho compacto, ações em grade 2x2 ("FAÇA POR MIM") e
+  // perguntas em lista ("PERGUNTE"), no visual de moldura amarela — sem o
+  // degradê de antes.
+  Finder acoes() => find.byKey(const ValueKey('ia-acao'));
+  Finder perguntas() => find.byKey(const ValueKey('ia-pergunta'));
 
-  testWidgets('ícone do topo no degradê da marca', (t) async {
+  testWidgets('seções FAÇA POR MIM e PERGUNTE', (t) async {
     await abrir(t);
-    final degrade = find.ancestor(
-      of: find.byIcon(PhosphorIcons.sparkle),
-      matching: find.byWidgetPredicate((w) =>
-          w is DecoratedBox &&
-          w.decoration is BoxDecoration &&
-          (w.decoration as BoxDecoration).gradient is LinearGradient),
-    );
-    expect(degrade, findsWidgets);
+    expect(find.text('FAÇA POR MIM'), findsOneWidget);
+    expect(find.text('PERGUNTE'), findsOneWidget);
+    expect(find.text('Pergunte ou peça para eu resolver.'), findsOneWidget);
   });
 
-  testWidgets('sugestões em cartões com ícone dissolvendo e texto legível', (t) async {
+  testWidgets('quatro ações do morador na grade', (t) async {
     await abrir(t);
-    expect(cartoes(), findsNWidgets(3));
-    for (final e in cartoes().evaluate()) {
-      final cartao = find.byWidget(e.widget);
-      expect(find.descendant(of: cartao, matching: find.byType(ShaderMask)), findsOneWidget);
-      final texto = find.descendant(of: cartao, matching: find.byType(Text)).first;
-      expect(t.widget<Text>(texto).style?.color, AppColors.textPrimary(t.element(texto)));
+    expect(acoes(), findsNWidgets(4));
+    for (final titulo in ['RESERVAR', 'ABRIR', 'LIBERAR', 'LER CONTA']) {
+      expect(find.descendant(of: acoes(), matching: find.text(titulo)), findsOneWidget, reason: titulo);
     }
+  });
+
+  testWidgets('três perguntas em lista, sem degradê', (t) async {
+    await abrir(t);
+    expect(perguntas(), findsNWidgets(3));
+    expect(find.byType(ShaderMask), findsNothing);
+  });
+
+  testWidgets('ícone do topo dentro da moldura amarela', (t) async {
+    await abrir(t);
+    final moldura = find.ancestor(
+      of: find.byIcon(PhosphorIcons.sparkle),
+      matching: find.byWidgetPredicate((w) =>
+          w is Container &&
+          w.decoration is BoxDecoration &&
+          (w.decoration as BoxDecoration).border is Border &&
+          ((w.decoration as BoxDecoration).border as Border).top.color == AppColors.brand),
+    );
+    expect(moldura, findsOneWidget);
+  });
+
+  testWidgets('"Ler conta" abre o menu de anexo', (t) async {
+    await abrir(t);
+    await t.tap(find.descendant(of: acoes(), matching: find.text('LER CONTA')));
+    await t.pumpAndSettle();
+    expect(find.text('ANEXAR CONTA / FATURA'), findsOneWidget);
   });
 
   testWidgets('botão de enviar quadrado e amarelo', (t) async {
@@ -83,11 +104,12 @@ void main() {
   testWidgets('cabe numa tela estreita (320)', (t) async {
     await abrir(t, largura: 320);
     expect(t.takeException(), isNull);
+    expect(acoes(), findsNWidgets(4));
   });
 
   testWidgets('sugestão longa quebra linha em vez de sair cortada', (t) async {
     await abrir(t, largura: 412);
-    for (final e in find.descendant(of: cartoes(), matching: find.byType(RichText)).evaluate()) {
+    for (final e in find.descendant(of: perguntas(), matching: find.byType(RichText)).evaluate()) {
       final p = e.renderObject! as RenderParagraph;
       // Só caracteres visíveis: o espaço no fim de uma linha quebrada tem
       // caixa além da borda, sem nada desenhado.
