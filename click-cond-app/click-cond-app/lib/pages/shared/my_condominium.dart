@@ -51,11 +51,16 @@ class MyCondominium extends StatefulWidget {
   final Map<String, dynamic>? initialCond;
   final Map<String, dynamic>? initialSummary;
 
+  /// Aba em que abre: 0 início, 1 encomendas, 2 visitantes, 3 financeiro.
+  /// A barra do início usa para abrir já na aba tocada, com a barra embaixo.
+  final int initialTab;
+
   const MyCondominium({
     super.key,
     required this.id,
     this.initialCond,
     this.initialSummary,
+    this.initialTab = 0,
   });
 
   @override
@@ -95,6 +100,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   @override
   void initState() {
     super.initState();
+    _currentTab = widget.initialTab.clamp(0, 3);
     Singleton.instance.id_condominio = widget.id;
     _menu = _buildMenu();
 

@@ -178,7 +178,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     }
   }
 
-  void _goToNext(dynamic item, {Widget? directPage}) {
+  void _goToNext(dynamic item, {Widget? directPage, int aba = 0}) {
     Singleton.instance.id_condominio = item["id"];
     Singleton.instance.apartamento = item["apto"] ?? '';
     Singleton.instance.id_apartamento = item["apto_id"] ?? -1;
@@ -218,10 +218,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       );
     }
 
-    _push(condId, initialCond: condMap, initialSummary: _summary);
+    _push(condId, initialCond: condMap, initialSummary: _summary, initialTab: aba);
   }
 
-  void _push(int id, {Map<String, dynamic>? initialCond, Map<String, dynamic>? initialSummary}) {
+  void _push(int id, {Map<String, dynamic>? initialCond, Map<String, dynamic>? initialSummary, int initialTab = 0}) {
     Navigator.push(
         context,
         MaterialPageRoute(
@@ -229,6 +229,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             id: id,
             initialCond: initialCond,
             initialSummary: initialSummary,
+            initialTab: initialTab,
           ),
         )).then((_) {
       if (mounted) _loadList();
@@ -276,7 +277,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     }
   }
 
-  void _showCondominiumSelectionSheet(BuildContext context, Widget targetPage) {
+  void _showCondominiumSelectionSheet(BuildContext context, Widget? targetPage, {int aba = 0}) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -322,7 +323,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       child: InkWell(
                         onTap: () {
                           Navigator.pop(context);
-                          _goToNext(cond, directPage: targetPage);
+                          _goToNext(cond, directPage: targetPage, aba: aba);
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(AppSpacing.md),
@@ -479,6 +480,20 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
+  /// Item da barra do início: abre o condomínio já na aba ([aba] do
+  /// MyCondominium), para a barra continuar embaixo. Abrir a lista solta
+  /// (como fazem os atalhos) fazia a barra sumir. Sem condomínio, cai no
+  /// comportamento antigo.
+  void _abrirAba(int aba, String modulo) {
+    if (_list.isEmpty) {
+      _onDashboardTap(modulo);
+    } else if (_list.length == 1) {
+      _goToNext(_list.first, aba: aba);
+    } else {
+      _showCondominiumSelectionSheet(context, null, aba: aba);
+    }
+  }
+
   /// `.nav`: faixa bg-100 com filete line-100 no topo, sem vidro nem sombra.
   Widget _buildFixedBottomNavigationBar(BuildContext context) {
     return Container(
@@ -507,7 +522,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 icon: PhosphorIcons.package,
                 activeIcon: PhosphorIcons.packageFill,
                 label: 'Encomendas',
-                onTap: () => _onDashboardTap('packages'),
+                onTap: () => _abrirAba(1, 'packages'),
               ),
               _buildAiNavButton(context),
               _buildFixedNavItem(
@@ -516,7 +531,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 icon: PhosphorIcons.userList,
                 activeIcon: PhosphorIcons.userListFill,
                 label: 'Visitantes',
-                onTap: () => _onDashboardTap('visits'),
+                onTap: () => _abrirAba(2, 'visits'),
               ),
               _buildFixedNavItem(
                 key: const ValueKey('nav_financeiro_fixed'),
@@ -524,7 +539,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 icon: PhosphorIcons.wallet,
                 activeIcon: PhosphorIcons.walletFill,
                 label: 'Financeiro',
-                onTap: () => _onDashboardTap('debts'),
+                onTap: () => _abrirAba(3, 'debts'),
               ),
             ],
           ),

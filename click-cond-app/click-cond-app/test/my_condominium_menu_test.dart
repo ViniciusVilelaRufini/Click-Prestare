@@ -126,6 +126,21 @@ void main() {
     expect(icone.color, AppColors.textPrimary(tester.element(moldura)));
   });
 
+  // A barra do início abre o condomínio já na aba escolhida (Encomendas,
+  // Visitantes, Financeiro), com a barra embaixo — antes abria a lista solta.
+  testWidgets('abre já na aba pedida, mantendo a barra', (tester) async {
+    storageLogin({'token': 't', 'user': {'id': 2, 'name': 'Sid'}});
+    tester.view.physicalSize = const Size(400 * 3, 900 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MaterialApp(home: MyCondominium(id: 22, initialTab: 1)));
+    await tester.pumpAndSettle();
+    final abas = tester.widgetList<IndexedStack>(find.byType(IndexedStack))
+        .firstWhere((s) => s.children.length == 4);
+    expect(abas.index, 1);
+    expect(find.byKey(const ValueKey('nav_home')), findsOneWidget);
+  });
+
   testWidgets('funcionário: o filtro continua escondendo Assembleias e Enquetes', (tester) async {
     storageFuncionario({'token': 't', 'user': {'id': 3, 'nome': 'Fun'}});
     await abrir(tester);
