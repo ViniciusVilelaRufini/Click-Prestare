@@ -32,7 +32,7 @@ void main() {
     );
 
     expect(find.text('CONDOMÍNIO'), findsOneWidget);
-    expect(find.text('Total Pendente (Condomínio)'), findsOneWidget);
+    expect(find.text('TOTAL PENDENTE · CONDOMÍNIO'), findsOneWidget);
     expect(find.text('Contas e Cobranças'), findsOneWidget);
     expect(find.text('Boleto Condomínio'), findsOneWidget);
   });
