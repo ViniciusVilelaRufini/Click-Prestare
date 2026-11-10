@@ -410,7 +410,12 @@
                     <span class="text-[var(--ink-subtle)] font-mono pl-1">—</span>
                   }
                 </td>
-                <td>
+                <td [class.ps-mor-celula]="!!e.foto_volume">
+                  @if (e.foto_volume) {
+                    <div class="ps-mor-foto">
+                      <img [src]="e.foto_volume" [alt]="'Foto do volume #' + e.id" (error)="$any($event.target).hidden = true" />
+                    </div>
+                  }
                   <p class="ps-person-name leading-tight">{{ e.descricao }}</p>
                   <p class="text-xs text-[var(--ink-subtle)] mt-1 flex flex-col items-start gap-1.5">
                     <span>#{{ e.id }}@if (e.codigo_rastreio) { · <span class="font-mono">{{ e.codigo_rastreio }}</span> }</span>

@@ -1,4 +1,9 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
+import { ApartamentosApi } from '../apartamentos/apartamentos.service';
 import { EncomendasPageComponent } from './encomendas-page.component';
+import { Encomenda, EncomendasApi } from './encomendas.service';
 
 /** Textos da linha da tabela de encomendas (recebida/armazenada e destinatário). */
 describe('EncomendasPageComponent — linha da tabela', () => {
@@ -35,5 +40,39 @@ describe('EncomendasPageComponent — linha da tabela', () => {
     ['bloco b', 'bloco b'],
   ])('filtro de blocos: "%s" → "%s" (não duplica o prefixo)', (bloco, texto) => {
     expect(tela.rotuloBloco(bloco)).toBe(texto);
+  });
+
+  describe('foto do volume na tabela', () => {
+    const enc = (over: Partial<Encomenda>): Encomenda => ({
+      id: 1, descricao: 'Caixa', destinatario_apto: '101', destinatario_bloco: 'A',
+      recebido_de: null, recebido_em: '2026-10-05T14:30:00', retirado_em: null, retirado_por: null,
+      status: 'Aguardando', ...over,
+    });
+    function montar(lista: Encomenda[]) {
+      TestBed.configureTestingModule({
+        imports: [EncomendasPageComponent],
+        providers: [
+          provideRouter([]),
+          { provide: EncomendasApi, useValue: { list: () => of(lista) } },
+          { provide: ApartamentosApi, useValue: { list: () => of([]) } },
+        ],
+      });
+      const fixture = TestBed.createComponent(EncomendasPageComponent);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('com foto_volume renderiza .ps-mor-foto img na célula do volume', () => {
+      const el = montar([enc({ foto_volume: 'https://cdn/x.jpg' })]);
+      const img = el.querySelector('table tbody td.ps-mor-celula .ps-mor-foto img') as HTMLImageElement;
+      expect(img).not.toBeNull();
+      expect(img.getAttribute('src')).toBe('https://cdn/x.jpg');
+    });
+
+    it('sem foto_volume não renderiza .ps-mor-foto nem muda a célula', () => {
+      const el = montar([enc({ foto_volume: null })]);
+      expect(el.querySelector('table tbody .ps-mor-foto')).toBeNull();
+      expect(el.querySelector('table tbody td.ps-mor-celula')).toBeNull();
+    });
   });
 });
