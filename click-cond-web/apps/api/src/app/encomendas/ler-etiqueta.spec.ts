@@ -16,6 +16,17 @@ describe('extrairLeitura', () => {
   it('texto invalido vira tudo null', () => {
     expect(extrairLeitura('não sei')).toEqual(vazia);
   });
+  it('placeholders da IA (N/A, null, -, desconhecido, ilegivel) viram null', () => {
+    expect(
+      extrairLeitura(
+        '{"nome":" N/A ","apto":"null","bloco":"---","transportadora":"Desconhecido","codigo_rastreio":"n/a","descricao":"Ilegível"}',
+      ),
+    ).toEqual(vazia);
+    expect(extrairLeitura('{"descricao":"none","codigo_rastreio":"NA","transportadora":"ilegivel"}')).toEqual(vazia);
+    expect(extrairLeitura('{"descricao":"Caixa N/A grande","apto":"-12"}')).toEqual(
+      leitura({ descricao: 'Caixa N/A grande', apto: '-12' }),
+    );
+  });
 });
 
 describe('casarMorador', () => {

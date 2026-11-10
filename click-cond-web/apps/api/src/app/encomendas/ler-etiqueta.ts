@@ -28,6 +28,9 @@ export function leituraVazia(): LeituraEtiqueta {
 }
 
 /** Aceita JSON puro ou dentro de cerca ```; qualquer outra coisa vira tudo null. */
+/** Valores que a IA devolve quando não leu o campo; tratados como ausentes. */
+const PLACEHOLDER = /^(null|n\/?a|none|-+|desconhecido|ileg[ií]vel)$/i;
+
 export function extrairLeitura(texto: string): LeituraEtiqueta {
   const out = leituraVazia();
   if (!texto) return out;
@@ -52,7 +55,7 @@ export function extrairLeitura(texto: string): LeituraEtiqueta {
     const v = (obj as Record<string, unknown>)[k];
     if (typeof v === 'string' || typeof v === 'number') {
       const s = String(v).trim();
-      out[k] = s ? s : null;
+      out[k] = s && !PLACEHOLDER.test(s) ? s : null;
     }
   }
   return out;
