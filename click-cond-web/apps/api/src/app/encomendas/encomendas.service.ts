@@ -25,8 +25,10 @@ const INSTRUCAO_ETIQUETA =
   'Você lê etiquetas de encomendas para a portaria de um condomínio. Responda somente com JSON.';
 const PROMPT_ETIQUETA =
   'Leia a etiqueta da encomenda na foto. Responda APENAS um JSON com as chaves: ' +
-  'nome (destinatário), apto, bloco, transportadora, codigo_rastreio, descricao (resumo curto do conteúdo/volume). ' +
-  'Use null quando não estiver legível. Não invente dados.';
+  'nome (destinatário), apto, bloco, transportadora, codigo_rastreio, ' +
+  'descricao (tipo e tamanho do volume que aparece na foto, ex.: "Caixa média", "Envelope", "Sacola"). ' +
+  'Use null quando não estiver legível. Não invente dados. ' +
+  'Nunca comente a qualidade da foto em nenhum campo.';
 
 @Injectable()
 export class EncomendasService implements OnModuleInit {

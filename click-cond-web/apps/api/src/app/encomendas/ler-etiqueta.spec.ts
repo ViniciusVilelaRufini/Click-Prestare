@@ -27,6 +27,21 @@ describe('extrairLeitura', () => {
       leitura({ descricao: 'Caixa N/A grande', apto: '-12' }),
     );
   });
+
+  // A IA às vezes comenta a foto no lugar de descrever o volume; isso virava a
+  // descrição salva da encomenda ("Imagem de baixa resolução, etiqueta não legível").
+  it('comentário sobre a foto não vira descrição', () => {
+    for (const comentario of [
+      'Imagem de baixa resolução, etiqueta não legível',
+      'Foto desfocada',
+      'Não foi possível ler a etiqueta',
+      'Etiqueta ilegível na imagem',
+    ]) {
+      expect(extrairLeitura(JSON.stringify({ descricao: comentario })).descricao).toBeNull();
+    }
+    expect(extrairLeitura('{"descricao":"Caixa média Mercado Livre"}').descricao).toBe('Caixa média Mercado Livre');
+    expect(extrairLeitura('{"descricao":"Envelope pardo"}').descricao).toBe('Envelope pardo');
+  });
 });
 
 describe('casarMorador', () => {

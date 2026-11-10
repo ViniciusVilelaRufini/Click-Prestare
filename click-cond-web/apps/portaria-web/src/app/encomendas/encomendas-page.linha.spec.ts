@@ -62,17 +62,23 @@ describe('EncomendasPageComponent — linha da tabela', () => {
       return fixture.nativeElement as HTMLElement;
     }
 
-    it('com foto_volume renderiza .ps-mor-foto img na célula do volume', () => {
+    // A foto da encomenda tem área própria (o texto começa depois dela, sem
+    // ficar por cima) e abre a imagem inteira numa aba nova.
+    it('com foto_volume renderiza a foto em área própria, que abre a imagem inteira', () => {
       const el = montar([enc({ foto_volume: 'https://cdn/x.jpg' })]);
-      const img = el.querySelector('table tbody td.ps-mor-celula .ps-mor-foto img') as HTMLImageElement;
-      expect(img).not.toBeNull();
-      expect(img.getAttribute('src')).toBe('https://cdn/x.jpg');
+      const link = el.querySelector('table tbody td.ps-enc-celula a.ps-enc-foto') as HTMLAnchorElement;
+      expect(link).not.toBeNull();
+      expect(link.getAttribute('href')).toBe('https://cdn/x.jpg');
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toContain('noopener');
+      expect(link.querySelector('img')?.getAttribute('src')).toBe('https://cdn/x.jpg');
+      expect(el.querySelector('table tbody .ps-mor-foto')).toBeNull();
     });
 
-    it('sem foto_volume não renderiza .ps-mor-foto nem muda a célula', () => {
+    it('sem foto_volume não renderiza a foto nem muda a célula', () => {
       const el = montar([enc({ foto_volume: null })]);
-      expect(el.querySelector('table tbody .ps-mor-foto')).toBeNull();
-      expect(el.querySelector('table tbody td.ps-mor-celula')).toBeNull();
+      expect(el.querySelector('table tbody .ps-enc-foto')).toBeNull();
+      expect(el.querySelector('table tbody td.ps-enc-celula')).toBeNull();
     });
   });
 });

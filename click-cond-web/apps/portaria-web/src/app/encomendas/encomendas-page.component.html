@@ -410,11 +410,13 @@
                     <span class="text-[var(--ink-subtle)] font-mono pl-1">—</span>
                   }
                 </td>
-                <td [class.ps-mor-celula]="!!e.foto_volume">
+                <td [class.ps-enc-celula]="!!e.foto_volume">
                   @if (e.foto_volume) {
-                    <div class="ps-mor-foto">
+                    <!-- Área própria da foto: o texto começa depois dela. Clique abre a imagem inteira. -->
+                    <a class="ps-enc-foto" [href]="e.foto_volume" target="_blank" rel="noopener noreferrer"
+                       [attr.aria-label]="'Abrir a foto do volume #' + e.id" (click)="$event.stopPropagation()">
                       <img [src]="e.foto_volume" [alt]="'Foto do volume #' + e.id" (error)="$any($event.target).hidden = true" />
-                    </div>
+                    </a>
                   }
                   <p class="ps-person-name leading-tight">{{ e.descricao }}</p>
                   <p class="text-xs text-[var(--ink-subtle)] mt-1 flex flex-col items-start gap-1.5">

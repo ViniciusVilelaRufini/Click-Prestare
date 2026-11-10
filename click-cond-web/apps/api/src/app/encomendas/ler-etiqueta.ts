@@ -27,9 +27,18 @@ export function leituraVazia(): LeituraEtiqueta {
   return { nome: null, apto: null, bloco: null, transportadora: null, codigo_rastreio: null, descricao: null };
 }
 
-/** Aceita JSON puro ou dentro de cerca ```; qualquer outra coisa vira tudo null. */
 /** Valores que a IA devolve quando não leu o campo; tratados como ausentes. */
 const PLACEHOLDER = /^(null|n\/?a|none|-+|desconhecido|ileg[ií]vel)$/i;
+
+/**
+ * A IA às vezes comenta a foto em vez de descrever o volume ("Imagem de baixa
+ * resolução, etiqueta não legível"). Isso não é descrição: vira null, e o
+ * porteiro escreve a dele.
+ */
+const COMENTARIO_FOTO =
+  /\b(imagem|foto|resolu[cç][aã]o|desfoca|borrad|ileg[ií]vel|n[aã]o\s+(est[aá]\s+)?leg[ií]vel|n[aã]o\s+foi\s+poss[ií]vel|n[aã]o\s+consigo)/i;
+
+/** Aceita JSON puro ou dentro de cerca ```; qualquer outra coisa vira tudo null. */
 
 export function extrairLeitura(texto: string): LeituraEtiqueta {
   const out = leituraVazia();
@@ -58,6 +67,7 @@ export function extrairLeitura(texto: string): LeituraEtiqueta {
       out[k] = s && !PLACEHOLDER.test(s) ? s : null;
     }
   }
+  if (out.descricao && COMENTARIO_FOTO.test(out.descricao)) out.descricao = null;
   return out;
 }
 
