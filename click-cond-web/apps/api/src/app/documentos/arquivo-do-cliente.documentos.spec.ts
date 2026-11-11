@@ -136,6 +136,14 @@ describe('documentos e assembleias — arquivos recebidos do cliente', () => {
       expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
     });
 
+    it('anexo "data:...;URL do bucket" também é conferido parte por parte: 400', async () => {
+      const { service, prisma } = build();
+      await arquivoInvalido(
+        service.insert(1, { titulo: 'AGO', docs: [`data:application/pdf;base64,JVBERi0=;${ALHEIO}`] }, 7, sindico),
+      );
+      expect(prisma.assembleias.create).not.toHaveBeenCalled();
+    });
+
     it('anexos já contaminados por ";" no banco não tornam a URL alheia "gravada"', async () => {
       const { service, prisma } = build();
       prisma.assembleias.findFirst.mockResolvedValue({ id: 2, id_condominio: 1, anexos: `https://exemplo.com/x;${ALHEIO}` });

@@ -203,6 +203,42 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
       await arquivoInvalido(service.insert(1, { nome: 'Salão', imagem: MINHA }, porteiro));
       expect(prisma.areas_Sociais.create).not.toHaveBeenCalled();
     });
+
+    // `horarios` é JSON livre do cliente, devolvido parseado a todo o
+    // condomínio: sem saneamento, `{ foto: <URL do bucket> }` lá dentro saía
+    // assinado pelo interceptor (que casa chave de arquivo em qualquer nível).
+    const contaminado = [
+      {
+        nome: 'Segunda',
+        foto: ALHEIA,
+        horarios: [
+          { horarioDe: '08:00', horarioAte: '12:00', url: ALHEIA, efeito: 'abrir_url', valor: ALHEIA },
+          { horarioDe: ALHEIA, horarioAte: '13:00' },
+          { horarioDe: '14:00', horarioAte: '18:00' },
+        ],
+      },
+      { foto: ALHEIA },
+      'lixo',
+    ];
+    const saneado = [
+      { nome: 'Segunda', horarios: [{ horarioDe: '08:00', horarioAte: '12:00' }, { horarioDe: '14:00', horarioAte: '18:00' }] },
+      { horarios: [] },
+      { horarios: [] },
+    ];
+
+    it('criar: horarios é saneado para o formato da grade (chaves desconhecidas e horas inválidas caem)', async () => {
+      const { service, prisma } = build();
+      await service.insert(1, { nome: 'Salão', horarios: contaminado }, porteiro);
+      expect(JSON.parse(prisma.areas_Sociais.create.mock.calls[0][0].data.horarios)).toEqual(saneado);
+    });
+
+    it('editar: horarios em string JSON também é saneado; JSON inválido vira grade vazia', async () => {
+      const { service, prisma } = build();
+      await service.update(1, { id: 2, nome: 'Salão', horarios: JSON.stringify(contaminado) }, porteiro);
+      expect(JSON.parse(prisma.areas_Sociais.updateMany.mock.calls[0][0].data.horarios)).toEqual(saneado);
+      await service.update(1, { id: 2, nome: 'Salão', horarios: '{"foto":' }, porteiro);
+      expect(JSON.parse(prisma.areas_Sociais.updateMany.mock.calls[1][0].data.horarios)).toEqual([]);
+    });
   });
 
   describe('DeliveryService (foto do entregador)', () => {
@@ -243,6 +279,15 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
       const prisma: any = { isConnected: true, ocorrencias: { create: jest.fn(async () => ({ id: 1 })) } };
       const service = new OcorrenciasService(prisma, notifications, tenant, storageReal());
       await arquivoInvalido(service.create({ descricao: 'Vazamento', id_condominio: 1, anexos: ALHEIA } as any));
+      expect(prisma.ocorrencias.create).not.toHaveBeenCalled();
+    });
+
+    it('anexo "data:...;URL do bucket" também é recusado (data URL não pula a conferência por parte)', async () => {
+      const prisma: any = { isConnected: true, ocorrencias: { create: jest.fn(async () => ({ id: 1 })) } };
+      const service = new OcorrenciasService(prisma, notifications, tenant, storageReal());
+      await arquivoInvalido(
+        service.create({ descricao: 'Vazamento', id_condominio: 1, anexos: `data:image/png;base64,AAAA;${ALHEIA}` } as any),
+      );
       expect(prisma.ocorrencias.create).not.toHaveBeenCalled();
     });
 

@@ -608,6 +608,8 @@ export class ChatIaService {
       aptos: vinculos.map((v) => v.id_apto),
       prisma: this.prisma,
       cartoes: [],
+      // Botão "Abrir boleto": a saída da API não assina o `valor` de um botão.
+      assinarUrl: (url: string) => (this.storage ? this.storage.assinarUrl(url) : Promise.resolve(url)),
     };
   }
 

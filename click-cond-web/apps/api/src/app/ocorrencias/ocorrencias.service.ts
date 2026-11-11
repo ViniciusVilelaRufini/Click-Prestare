@@ -248,9 +248,11 @@ export class OcorrenciasService {
   async create(dto: CreateOcorrenciaDto) {
     // Ocorrência nova: nenhuma URL do bucket é anexo dela (a API assina toda
     // URL do bucket que devolve — ver StorageService.exigirArquivoDoRegistro).
-    // Cada parte separada por ';' também (a saída assina anexo por anexo).
+    // Cada parte separada por ';' também, sem exceção para data URL: as partes
+    // de uma data URL legítima nunca são URL do bucket, e "data:x;<URL>" não
+    // pode passar escondida.
     await this.storage.exigirArquivoDoRegistro(dto.anexos, []);
-    if (typeof dto.anexos === 'string' && !dto.anexos.startsWith('data:')) {
+    if (typeof dto.anexos === 'string') {
       for (const parte of dto.anexos.split(';')) await this.storage.exigirArquivoDoRegistro(parte.trim(), []);
     }
 

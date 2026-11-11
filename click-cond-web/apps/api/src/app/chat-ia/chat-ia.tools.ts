@@ -40,6 +40,12 @@ export interface ContextoFerramenta {
    * anexa o último à resposta.
    */
   cartoes: CartaoAcao[];
+  /**
+   * Link assinado para arquivo do bucket privado. A saída da API só assina
+   * chaves de arquivo, e o `valor` de um botão não é uma: o link do boleto
+   * sai assinado daqui. Ausente (testes/sem storage), a URL vai como está.
+   */
+  assinarUrl?: (url: string) => Promise<string>;
 }
 
 /**
@@ -485,7 +491,8 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
         botoes.push({ rotulo: 'Copiar linha digitável', efeito: 'copiar' as const, valor: f.linha_digitavel });
       }
       if (f.url_boleto) {
-        botoes.push({ rotulo: 'Abrir boleto', efeito: 'abrir_url' as const, valor: f.url_boleto });
+        const link = ctx.assinarUrl ? await ctx.assinarUrl(f.url_boleto) : f.url_boleto;
+        botoes.push({ rotulo: 'Abrir boleto', efeito: 'abrir_url' as const, valor: link });
       }
 
       // Sem meio de pagamento cadastrado, leva para a tela do financeiro em

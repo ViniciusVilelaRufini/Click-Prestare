@@ -109,16 +109,23 @@ describe('ArquivosPrivadosInterceptor', () => {
       });
     });
 
-    it('botão "abrir_url" do assistente (boleto) continua assinado; os outros botões não', async () => {
+    it('objeto { efeito: "abrir_url", valor } vindo de qualquer lugar NÃO é assinado (o botão do boleto já sai assinado pela ferramenta)', async () => {
+      // Ex.: gravado pelo cliente dentro de `horarios` de uma área social.
       const { saida } = executar({
-        botoes: [
-          { rotulo: 'Abrir boleto', efeito: 'abrir_url', valor: NOSSA },
-          { rotulo: 'Copiar', efeito: 'copiar', valor: NOSSA },
-        ],
+        horarios: [{ efeito: 'abrir_url', valor: NOSSA }],
+        botoes: [{ rotulo: 'Abrir boleto', efeito: 'abrir_url', valor: NOSSA }],
       });
       const r: any = await saida;
-      expect(r.botoes[0].valor).toBe(`${NOSSA}?X-Amz-Signature=ok`);
-      expect(r.botoes[1].valor).toBe(NOSSA);
+      expect(r.horarios[0].valor).toBe(NOSSA);
+      expect(r.botoes[0].valor).toBe(NOSSA);
+      expect(storage.assinarUrl).not.toHaveBeenCalled();
+    });
+
+    it('valor que começa com data: não é quebrado por ";" nem assinado, mesmo sob chave de arquivo', async () => {
+      const contrabando = `data:image/png;base64,AAAA;${NOSSA}`;
+      const { saida } = executar({ anexos: contrabando, foto: contrabando });
+      expect(await saida).toEqual({ anexos: contrabando, foto: contrabando });
+      expect(storage.assinarUrl).not.toHaveBeenCalled();
     });
   });
 

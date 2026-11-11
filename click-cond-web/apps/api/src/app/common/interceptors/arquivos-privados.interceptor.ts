@@ -97,19 +97,20 @@ export class ArquivosPrivadosInterceptor implements NestInterceptor {
     if (nivel > PROFUNDIDADE_MAX) return valor;
     if (Array.isArray(valor)) return Promise.all(valor.map((v) => this.assinar(v, nivel + 1, chave, rota)));
     if (objetoSimples(valor)) {
-      // Botão "Abrir boleto" do assistente: `valor` é o url_boleto do lançamento.
-      const botaoDeLink = valor['efeito'] === 'abrir_url';
+      // Sem exceção por formato de objeto (ex.: botão `{ efeito: 'abrir_url',
+      // valor }`): qualquer objeto com esse formato podia vir do cliente. O
+      // botão do boleto já sai assinado pela ferramenta do assistente.
       const saida: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(valor)) {
-        const chaveFilho = botaoDeLink && k === 'valor' ? 'url' : k;
-        saida[k] = await this.assinar(v, nivel + 1, chaveFilho, rota);
-      }
+      for (const [k, v] of Object.entries(valor)) saida[k] = await this.assinar(v, nivel + 1, k, rota);
       return saida;
     }
     return valor;
   }
 
   private async assinarTexto(valor: string, chave: string | null, rota: string): Promise<string> {
+    // Data URL é o próprio arquivo: nada a assinar, e quebrar por ';'
+    // desenterraria uma URL escondida em "data:x;<URL do bucket>".
+    if (/^data:/i.test(valor)) return valor;
     if (chave !== null && CHAVES_DE_ARQUIVO.has(chave)) {
       if (CHAVES_MULTIPLAS.has(chave) && valor.includes(';')) {
         const partes = await Promise.all(valor.split(';').map((p) => this.assinarUma(p)));
@@ -117,7 +118,11 @@ export class ArquivosPrivadosInterceptor implements NestInterceptor {
       }
       return this.assinarUma(valor);
     }
-    if (/^https?:\/\//i.test(valor) && this.storage.ehArquivoDoBucket(valor)) this.avisar(chave ?? '(raiz)', rota);
+    // Link que o próprio servidor já assinou (ex.: botão do boleto) não é chave esquecida.
+    const jaAssinada = /[?&]X-Amz-Signature=/.test(valor);
+    if (/^https?:\/\//i.test(valor) && !jaAssinada && this.storage.ehArquivoDoBucket(valor)) {
+      this.avisar(chave ?? '(raiz)', rota);
+    }
     return valor;
   }
 

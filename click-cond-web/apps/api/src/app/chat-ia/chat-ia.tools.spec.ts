@@ -302,6 +302,16 @@ describe('Ferramentas do Assistente IA — autorização', () => {
       expect(card.botoes?.[0].valor).toBe('PIX123');
     });
 
+    it('o botão "Abrir boleto" já sai com o link assinado pelo próprio servidor (o interceptor não assina "valor")', async () => {
+      const assinarUrl = jest.fn(async (u: string) => `${u}?X-Amz-Signature=ok`);
+      const c = ctx({ assinarUrl });
+      comFinanceiro(c, [cobranca]);
+      await pegar('como_pagar_conta').executar({ id_cobranca: 9 }, c);
+      const boleto = c.cartoes[0].botoes?.find((b) => b.efeito === 'abrir_url');
+      expect(assinarUrl).toHaveBeenCalledWith('https://boleto/9');
+      expect(boleto?.valor).toBe('https://boleto/9?X-Amz-Signature=ok');
+    });
+
     it('atende a taxa condominial da unidade, que não tem id_usuario', async () => {
       const c = ctx();
       comFinanceiro(c, [

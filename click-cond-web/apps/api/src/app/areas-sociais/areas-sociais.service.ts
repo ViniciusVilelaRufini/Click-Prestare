@@ -17,6 +17,48 @@ import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 
 const DEFAULT_AREA_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
 
+const HORA_HHMM = /^([01]?\d|2[0-3]):[0-5]\d$/;
+const DIAS_NA_GRADE = 7;
+const BLOCOS_POR_DIA_MAX = 288; // de 5 em 5 min, o dia inteiro
+
+/**
+ * Grade semanal da área no formato que o app (new_area_social.dart:
+ * `{ nome, horarios: [{ horarioDe, horarioAte }] }` por dia, índice 0 =
+ * segunda) e a portaria-web gravam. O valor vinha do cliente como JSON livre
+ * e volta parseado a todo o condomínio — uma chave `foto`/`url` lá dentro
+ * saía assinada pela API. Fica só o que a grade usa: `nome` (texto) e os
+ * blocos com hora `HH:MM`. Dia inválido vira dia sem horário (a posição na
+ * semana é o índice, não pode deslocar). JSON inválido vira grade vazia.
+ */
+export function sanearHorarios(entrada: unknown): string {
+  let bruto: unknown = entrada;
+  if (typeof entrada === 'string') {
+    try {
+      bruto = JSON.parse(entrada);
+    } catch {
+      bruto = [];
+    }
+  }
+  const dias = Array.isArray(bruto) ? bruto.slice(0, DIAS_NA_GRADE) : [];
+  const grade = dias.map((dia: any) => {
+    const ehObjeto = dia !== null && typeof dia === 'object' && !Array.isArray(dia);
+    const blocos: unknown[] = ehObjeto && Array.isArray(dia.horarios) ? dia.horarios : [];
+    return {
+      ...(ehObjeto && typeof dia.nome === 'string' && { nome: dia.nome.slice(0, 40) }),
+      horarios: blocos
+        .filter(
+          (b: any) =>
+            b !== null && typeof b === 'object' &&
+            typeof b.horarioDe === 'string' && HORA_HHMM.test(b.horarioDe) &&
+            typeof b.horarioAte === 'string' && HORA_HHMM.test(b.horarioAte),
+        )
+        .slice(0, BLOCOS_POR_DIA_MAX)
+        .map((b: any) => ({ horarioDe: b.horarioDe, horarioAte: b.horarioAte })),
+    };
+  });
+  return JSON.stringify(grade);
+}
+
 /**
  * Fuso dos condomínios. O servidor (Railway) roda em UTC, os moradores vivem
  * em UTC−3: usar o relógio do servidor faz o "hoje" da agenda virar às 21h
@@ -216,9 +258,7 @@ export class AreasSociaisService {
     // Upload do arquivo de imagem (data URL) ou validação da URL informada.
     const imagemUrl = await this.resolveImagem(areaSocial.imagem, []);
 
-    const horariosStr = typeof areaSocial.horarios === 'string'
-      ? areaSocial.horarios
-      : JSON.stringify(areaSocial.horarios ?? []);
+    const horariosStr = sanearHorarios(areaSocial.horarios ?? []);
 
     await this.prisma.areas_Sociais.create({
       data: {
@@ -268,11 +308,7 @@ export class AreasSociaisService {
     // qualquer outro campo.
     const horariosPatch = areaSocial.horarios === undefined
       ? {}
-      : {
-          horarios: typeof areaSocial.horarios === 'string'
-            ? areaSocial.horarios
-            : JSON.stringify(areaSocial.horarios ?? []),
-        };
+      : { horarios: sanearHorarios(areaSocial.horarios ?? []) };
 
     // Idem para "exige pagamento" e capacidade: nenhuma das duas é editável na
     // tela de áreas da web, que portanto não as envia — e escrever

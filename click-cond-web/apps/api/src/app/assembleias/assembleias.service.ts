@@ -24,8 +24,10 @@ export class AssembleiasService {
     const atuais = typeof gravados === 'function' ? umaVez(async () => gravados()) : gravados;
     // `anexos` é gravado com join(';'): um doc "externo;URL do bucket" passaria
     // inteiro (host externo) e viraria dois anexos — cada parte é conferida.
+    // Data URL também: se o upload falha, o storage devolve a própria data
+    // URL, e "data:...;<URL do bucket>" seria gravada como veio.
     for (const doc of docs) {
-      const partes: unknown[] = typeof doc === 'string' && !this.storage.isDataUrl(doc) ? doc.split(';') : [doc];
+      const partes: unknown[] = typeof doc === 'string' ? doc.split(';') : [doc];
       for (const parte of partes) {
         await this.storage.exigirArquivoDoRegistro(typeof parte === 'string' ? parte.trim() : parte, atuais);
       }
