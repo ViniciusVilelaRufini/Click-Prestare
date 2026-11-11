@@ -62,29 +62,65 @@ describe('ChatIaService - validação do anexo', () => {
   });
 });
 
-describe('ChatIaService - anexo só na primeira rodada', () => {
-  it('rodadas seguintes trocam o anexo por texto curto', async () => {
+describe('ChatIaService - anexo em no máximo 2 rodadas', () => {
+  /** Modelo que pede `ferramenta` nas `n` primeiras rodadas e depois encerra. */
+  function modelo(rodadasComFerramenta: number, ferramenta = 'inexistente') {
     const snapshots: string[] = [];
     let n = 0;
     const gerar = jest.fn(async (contents: any[]) => {
       snapshots.push(JSON.stringify(contents));
       n++;
-      if (n < 3) {
+      if (n <= rodadasComFerramenta) {
         return {
           texto: '',
-          chamadas: [{ name: 'inexistente', args: {} }],
-          partesModelo: [{ functionCall: { name: 'inexistente', args: {} } }],
+          chamadas: [{ name: ferramenta, args: {} }],
+          partesModelo: [{ functionCall: { name: ferramenta, args: {} } }],
         };
       }
       return { texto: 'fim', chamadas: [], partesModelo: [] };
     });
+    return { gerar, snapshots };
+  }
+
+  it('leitura na 1ª rodada: a 2ª ainda vê o anexo (extrai os valores da fatura); da 3ª em diante, texto curto', async () => {
+    const { gerar, snapshots } = modelo(3);
     const { svc } = criar({ gerar: gerar as any });
     await svc.responder(1, 'oi', user(), undefined, arq(PNG));
-    expect(gerar).toHaveBeenCalledTimes(3);
+    expect(gerar).toHaveBeenCalledTimes(4);
+    expect(snapshots[0]).toContain('inlineData');
+    expect(snapshots[1]).toContain('inlineData');
+    expect(snapshots[2]).not.toContain('inlineData');
+    expect(snapshots[3]).not.toContain('inlineData');
+    expect(snapshots[2]).toContain('[anexo enviado na primeira mensagem]');
+  });
+
+  it('o modelo propôs a ação: as rodadas seguintes já não carregam o anexo', async () => {
+    const { gerar, snapshots } = modelo(1, 'propor_algo');
+    const { svc } = criar({ gerar: gerar as any });
+    jest
+      .spyOn(svc as any, 'executarFerramenta')
+      .mockImplementation(async (_c: any, _ctx: any, propostas: any) => {
+        propostas.push({ id: 'p1', tipo: 'teste', itens: [] });
+        return { status: 'aguardando_confirmacao' };
+      });
+    await svc.responder(1, 'oi', user(), undefined, arq(PNG));
+    expect(gerar).toHaveBeenCalledTimes(2);
     expect(snapshots[0]).toContain('inlineData');
     expect(snapshots[1]).not.toContain('inlineData');
-    expect(snapshots[2]).not.toContain('inlineData');
-    expect(snapshots[1]).toContain('[anexo enviado na primeira mensagem]');
+  });
+
+  it('a pergunta com anexo e várias rodadas continua contando 1 na cota', async () => {
+    const env = { ...process.env };
+    process.env['CHAT_IA_COTA_USUARIO_DIA'] = '1';
+    try {
+      const { gerar } = modelo(2);
+      const { svc } = criar({ gerar: gerar as any });
+      await expect(svc.responder(1, 'oi', user(), undefined, arq(PNG))).resolves.toBeDefined();
+      expect(gerar).toHaveBeenCalledTimes(3);
+      await expect(svc.responder(1, 'de novo', user())).rejects.toMatchObject({ status: 429 });
+    } finally {
+      process.env = { ...env };
+    }
   });
 });
 

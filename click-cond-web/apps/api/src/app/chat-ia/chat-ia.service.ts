@@ -62,7 +62,8 @@ const TITULO_MAX = 120;
  */
 const MAX_RODADAS_FERRAMENTA = 5;
 
-/** O anexo só vai na primeira rodada; nas outras vira este texto. */
+/** Rodadas que carregam o anexo (até o modelo propor a ação); nas outras ele vira o texto abaixo. */
+const MAX_RODADAS_COM_ANEXO = 2;
 const TEXTO_ANEXO_JA_ENVIADO = '[anexo enviado na primeira mensagem]';
 
 /** Módulo registrado na auditoria para cada tipo de ação confirmada. */
@@ -341,9 +342,12 @@ export class ChatIaService {
       })),
     ];
 
+    const propostasNoInicio = propostas.length;
     for (let rodada = 0; rodada < MAX_RODADAS_FERRAMENTA; rodada++) {
-      // Reenviar o anexo a cada rodada multiplicaria o custo da pergunta.
-      if (rodada === 1) this.removerAnexos(contents);
+      // O anexo segue até o modelo propor a ação (se ele leu algo na 1ª
+      // rodada, ainda precisa ver a fatura para extrair os valores) — mas em
+      // no máximo MAX_RODADAS_COM_ANEXO: reenviá-lo sempre multiplicaria o custo.
+      if (rodada >= MAX_RODADAS_COM_ANEXO || propostas.length > propostasNoInicio) this.removerAnexos(contents);
       const r = await this.ia.gerarComFerramentas(contents, declaracoes, instrucao);
 
       if (r.chamadas.length === 0) {
