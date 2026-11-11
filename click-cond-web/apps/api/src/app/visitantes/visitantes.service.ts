@@ -3940,9 +3940,16 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       if (dto.nome !== undefined || fotoPes !== undefined || dto.doc_identificacao !== undefined) {
         const registros = await this.registrosDaPessoa(updated);
         const outrosIds = registros.map((r) => r.id).filter((id) => id !== updated.id);
+        // Morador: só os registros dos apartamentos DELE. O do vizinho com o
+        // mesmo documento/nome não é dele para renomear nem trocar a foto (que
+        // iria para o terminal facial). Operador segue no condomínio inteiro.
+        const aptosDoChamador = await this.aptosDoMoradorMobile(payload);
         if (outrosIds.length > 0) {
           await this.prisma.visitantes.updateMany({
-            where: { id: { in: outrosIds } },
+            where: {
+              id: { in: outrosIds },
+              ...(aptosDoChamador !== undefined && { id_apartamento: { in: aptosDoChamador } }),
+            },
             data: {
               ...(dto.nome !== undefined && { nome: dto.nome }),
               ...(dto.doc_identificacao !== undefined && { doc_identificacao: dto.doc_identificacao }),

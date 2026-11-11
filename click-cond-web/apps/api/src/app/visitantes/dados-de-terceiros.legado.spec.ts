@@ -157,6 +157,35 @@ describe('Visitantes legado — morador não alcança cadastros de outros aparta
     for (const k of SENSIVEIS) expect(r).not.toHaveProperty(k);
   });
 
+  /** updateMany que de fato aplica o `where` (ids + demais filtros). */
+  function updateManyReal(prisma: any, rows: any[]) {
+    prisma.visitantes.updateMany.mockImplementation(async ({ where, data }: any) => {
+      const { id, ...resto } = where;
+      const alvos = rows.filter((r) => (!id?.in || id.in.includes(r.id)) && casa(r, resto));
+      for (const r of alvos) Object.assign(r, data);
+      return { count: alvos.length };
+    });
+  }
+
+  it('update legado do morador: nome/documento/foto propagam só para os apartamentos dele', async () => {
+    const { service, prisma, rows, vizinho } = build();
+    updateManyReal(prisma, rows);
+    const irmaoProprio = { ...rows[0], id: 7, id_apartamento: 100 };
+    rows.push({ ...rows[0], id: 6, id_apartamento: 100 }, irmaoProprio);
+    await service.update({ id: 6, nome: 'Novo', doc_identificacao: '11144477735' } as any, moradorA);
+    expect(vizinho.nome).toBe('Real');
+    expect(vizinho.doc_identificacao).toBe(DOC);
+    expect(irmaoProprio.nome).toBe('Novo');
+  });
+
+  it('update legado do operador: propagação segue no condomínio inteiro', async () => {
+    const { service, prisma, rows, vizinho } = build();
+    updateManyReal(prisma, rows);
+    rows.push({ ...rows[0], id: 6, id_apartamento: 100 });
+    await service.update({ id: 6, nome: 'Novo' } as any, porteiro);
+    expect(vizinho.nome).toBe('Novo');
+  });
+
   it('não sequestra a visita ativa do vizinho: cria linha nova no apartamento do morador', async () => {
     const { service, prisma, rows, vizinho } = build();
     await service.create({ ...novaVisita } as any, moradorA);
