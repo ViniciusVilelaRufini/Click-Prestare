@@ -2,7 +2,7 @@ import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertOperador } from '../auth/tenant.util';
+import { assertOperador, isSindico } from '../auth/tenant.util';
 
 /**
  * Painel da PORTARIA-WEB: visitantes recentes (nome, documento, fotos),
@@ -17,6 +17,7 @@ export class DashboardController {
   @Get()
   get(@Param('idCondominio', ParseIntPipe) idCondominio: number, @ReqUser() user: JwtPayload) {
     assertOperador(user, 'abrir o painel da portaria');
-    return this.service.summary(idCondominio);
+    // A foto do documento (RG) dos visitantes só vai para o síndico.
+    return this.service.summary(idCondominio, { incluirFotoDocumento: isSindico(user) });
   }
 }

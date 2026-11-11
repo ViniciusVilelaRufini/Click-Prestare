@@ -6,10 +6,11 @@ import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { QrSessionStore } from './qr-session.store';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
-import { idUsuarioDoToken } from './usuario-do-token.util';
+import { autorDoToken, idUsuarioDoToken } from './usuario-do-token.util';
 import { TenantAccessService } from './tenant-access.service';
 import { MfaService } from './mfa/mfa.service';
 import { momentoTrocaSenha } from './senha-alterada.util';
+import { AuditoriaService, type AuditoriaAutorTipo } from '../auditoria/auditoria.service';
 
 /**
  * Lockout por login: após N tentativas falhas na janela, trava o login por X
@@ -47,7 +48,53 @@ export class AuthService {
     private readonly qrStore: QrSessionStore,
     private readonly tenant?: TenantAccessService,
     @Optional() private readonly mfa?: MfaService,
+    @Optional() private readonly auditoria?: AuditoriaService,
   ) {}
+
+  /**
+   * Linha de auditoria do login do console: 'LOGIN' quando uma sessão é EMITIDA para um condomínio (uma
+   * por sessão, não por etapa do MFA) e 'LOGIN_FALHA' quando a conta existe e a senha/código não confere.
+   *
+   * Dispara sem await, de propósito: a resposta de "senha errada" (conta existe) não pode demorar mais
+   * que a de "conta inexistente" (que não tem condomínio e não grava nada) por causa de um INSERT, nem o
+   * login pode falhar porque o log falhou. O IP vem do contexto da requisição, lido de forma síncrona
+   * dentro de `registrar`. Nunca recebe senha, código ou token: só o método e o login digitado.
+   */
+  private auditarLogin(
+    acao: 'LOGIN' | 'LOGIN_FALHA',
+    idCondominio: number | null | undefined,
+    autor: { id: number | null; tipo: AuditoriaAutorTipo | null; nome?: string | null; email?: string | null },
+    detalhes: { metodo: 'senha' | 'mfa' | 'qr' | 'troca_condominio'; login?: string; id_condominio_origem?: number },
+  ): void {
+    if (!this.auditoria || !idCondominio) return;
+    const rotulo: Record<string, string> = {
+      senha: 'senha',
+      mfa: 'código de verificação',
+      qr: 'QR Code',
+      troca_condominio: 'troca de condomínio',
+    };
+    const descricao =
+      acao === 'LOGIN'
+        ? `Login no console da portaria (${rotulo[detalhes.metodo]})`
+        : `Tentativa de login no console da portaria com ${detalhes.metodo === 'mfa' ? 'código de verificação incorreto' : 'senha incorreta'}`;
+    try {
+      void this.auditoria
+        .registrar({
+          id_condominio: Number(idCondominio),
+          usuario_nome: autor.nome?.trim() || 'Usuário',
+          usuario_email: autor.email?.trim() || undefined,
+          autor_id: autor.id,
+          autor_tipo: autor.tipo,
+          acao,
+          modulo: 'auth',
+          descricao,
+          detalhes,
+        })
+        .catch((e: any) => this.logger.warn(`Auditoria de login não gravada: ${e?.message ?? e}`));
+    } catch (e: any) {
+      this.logger.warn(`Auditoria de login não gravada: ${e?.message ?? e}`);
+    }
+  }
 
   /**
    * Chave do lockout. O MySQL compara `login` sem diferenciar caixa nem espaços à direita, então
@@ -204,14 +251,20 @@ export class AuthService {
     };
 
     if (sindico) {
-      const desafio = await this.exigirMfaSindico(sindico.id, deviceToken, payload, resposta);
+      const desafio = await this.exigirMfaSindico(sindico.id, deviceToken, payload, resposta, login);
       if (desafio) return desafio;
     }
 
-    return {
-      access_token: this.jwt.sign(payload, { expiresIn: this.portariaJwtExpiresIn }),
-      ...resposta,
-    };
+    const access_token = this.jwt.sign(payload, { expiresIn: this.portariaJwtExpiresIn });
+    this.auditarLogin(
+      'LOGIN',
+      funcionario.id_condominio,
+      sindico
+        ? { id: sindico.id, tipo: 'user', nome: sindico.nome }
+        : { id: funcionario.id, tipo: 'funcionario_portaria', nome: funcionario.nome },
+      { metodo: 'senha', login },
+    );
+    return { access_token, ...resposta };
   }
 
   async loginPortaria(login: string, senha: string, deviceToken?: string) {
@@ -240,6 +293,15 @@ export class AuthService {
       where: { login, ativo: 1, condominio: { ativo: 1 } },
     });
 
+    // Conta(s) que existem para este login e cuja senha não conferiu, por condomínio. Só vira
+    // LOGIN_FALHA se a tentativa terminar recusada (o fallback de síndico ainda pode autenticar).
+    const falhas = new Map<number, { id: number; tipo: AuditoriaAutorTipo; nome: string; email?: string | null }>();
+    const auditarFalhas = () => {
+      for (const [idCondominio, autor] of falhas) {
+        this.auditarLogin('LOGIN_FALHA', idCondominio, autor, { metodo: 'senha', login });
+      }
+    };
+
     if (funcionario) {
       const isBcrypt = funcionario.password.startsWith('$2');
       let isMatch = false;
@@ -264,6 +326,12 @@ export class AuthService {
       }
       // Se a senha do funcionário não confere, não sobrescreve nem auto-sincroniza com o síndico
       // (Conformidade LGPD e isolamento estrito de credenciais/auditoria).
+      falhas.set(funcionario.id_condominio, {
+        id: funcionario.id,
+        tipo: 'funcionario_portaria',
+        nome: funcionario.nome,
+        email: funcionario.email,
+      });
     }
 
     // Fallback: tenta autenticar como síndico (criado pelo app mobile).
@@ -284,11 +352,13 @@ export class AuthService {
 
     if (!user || !user.sindicos || user.sindicos.length === 0) {
       await this.registrarFalha(login);
+      auditarFalhas();
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
     if (!user.sindicosCondominios || user.sindicosCondominios.length === 0) {
       await this.registrarFalha(login);
+      auditarFalhas();
       throw new UnauthorizedException('Síndico sem condomínio ativo vinculado.');
     }
 
@@ -317,6 +387,14 @@ export class AuthService {
 
     if (!sindicoMatch) {
       await this.registrarFalha(login);
+      // A conta de síndico vale em todos os condomínios ativos que ele administra. Onde o mesmo login
+      // também é registro de portaria, a linha já está lá (uma por condomínio).
+      for (const v of user.sindicosCondominios) {
+        if (!falhas.has(v.id_condominio)) {
+          falhas.set(v.id_condominio, { id: user.id, tipo: 'user', nome: user.sindicos[0].name, email: user.email });
+        }
+      }
+      auditarFalhas();
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
@@ -347,13 +425,17 @@ export class AuthService {
       })),
     };
 
-    const desafio = await this.exigirMfaSindico(user.id, deviceToken, sindicoPayload, resposta);
+    const desafio = await this.exigirMfaSindico(user.id, deviceToken, sindicoPayload, resposta, login);
     if (desafio) return desafio;
 
-    return {
-      access_token: this.jwt.sign(sindicoPayload, { expiresIn: this.portariaJwtExpiresIn }),
-      ...resposta,
-    };
+    const access_token = this.jwt.sign(sindicoPayload, { expiresIn: this.portariaJwtExpiresIn });
+    this.auditarLogin(
+      'LOGIN',
+      vinculo.id_condominio,
+      { id: user.id, tipo: 'user', nome: sindico.name, email: user.email },
+      { metodo: 'senha', login },
+    );
+    return { access_token, ...resposta };
   }
 
   /**
@@ -369,6 +451,7 @@ export class AuthService {
     deviceToken: string | undefined,
     payload: JwtPayload,
     resposta: Record<string, unknown>,
+    login?: string,
   ) {
     if (!this.mfa) return null;
     if (await this.mfa.isDeviceTrusted(idUser, deviceToken)) return null;
@@ -391,7 +474,8 @@ export class AuthService {
     const desafio = await this.mfa.createChallenge({ id: idUser, email, name: sindico?.name || 'Síndico' });
     await this.estadoMfa.definir(
       `mfa-console:${desafio.mfa_token}`,
-      { payload, resposta },
+      // `login`: só para a linha de auditoria da 2ª etapa (o login digitado na 1ª).
+      { payload, resposta, login },
       desafio.expires_in_seconds * 1000,
     );
     return desafio;
@@ -407,7 +491,7 @@ export class AuthService {
     const chave = `mfa-console:${mfaToken}`;
     const pendente =
       typeof mfaToken === 'string' && mfaToken
-        ? (await this.estadoMfa.obter<{ payload: JwtPayload; resposta: Record<string, unknown> }>(chave))?.valor
+        ? (await this.estadoMfa.obter<{ payload: JwtPayload; resposta: Record<string, unknown>; login?: string }>(chave))?.valor
         : undefined;
     if (!pendente || !this.mfa) {
       if (typeof mfaToken === 'string' && mfaToken) await this.estadoMfa.remover(chave);
@@ -416,11 +500,32 @@ export class AuthService {
 
     // verifyChallenge confere o código (limite de 5 tentativas) e apaga o desafio. O token de app que
     // ele também assina é descartado: o console recebe o token de console montado no login.
-    const verificado = await this.mfa.verifyChallenge(mfaToken, code, rememberDevice, meta);
+    // O pendente só existe para síndico (sub = Users.id, carimbado no login).
+    const autor = { id: Number(pendente.payload.sub) || null, tipo: 'user' as const, nome: pendente.payload.nome };
+    const detalhes = { metodo: 'mfa' as const, ...(pendente.login ? { login: pendente.login } : {}) };
+
+    let verificado: Awaited<ReturnType<MfaService['verifyChallenge']>>;
+    try {
+      verificado = await this.mfa.verifyChallenge(mfaToken, code, rememberDevice, meta);
+    } catch (e: any) {
+      // 401 = código incorreto; 429 = desafio invalidado por excesso de erros. Desafio expirado (400) e
+      // banco fora (503) não são tentativa com código errado. A senha já conferiu: a conta é conhecida.
+      const status = typeof e?.getStatus === 'function' ? e.getStatus() : 0;
+      if (status === 401 || status === 429) {
+        const lista = Array.isArray((pendente.resposta as any)?.condominios) ? (pendente.resposta as any).condominios : [];
+        const ids = new Set<number>([Number(pendente.payload.id_condominio), ...lista.map((c: any) => Number(c?.id))]);
+        for (const id of ids) {
+          if (id) this.auditarLogin('LOGIN_FALHA', id, autor, detalhes);
+        }
+      }
+      throw e;
+    }
     await this.estadoMfa.remover(chave);
 
+    const access_token = this.jwt.sign(pendente.payload, { expiresIn: this.portariaJwtExpiresIn });
+    this.auditarLogin('LOGIN', pendente.payload.id_condominio, autor, detalhes);
     return {
-      access_token: this.jwt.sign(pendente.payload, { expiresIn: this.portariaJwtExpiresIn }),
+      access_token,
       ...pendente.resposta,
       device_token: verificado.device_token,
     };
@@ -512,6 +617,17 @@ export class AuthService {
     if (expOrigem !== null && typeof expNovo === 'number' && expNovo > expOrigem) {
       accessToken = this.jwt.sign(assinado, { expiresIn: expOrigem - agora });
     }
+
+    const autor = autorDoToken(payload);
+    this.auditarLogin(
+      'LOGIN',
+      vinculo.id_condominio,
+      { id: autor.autor_id, tipo: autor.autor_tipo, nome: payload.nome, email: payload.email },
+      {
+        metodo: 'troca_condominio',
+        ...(payload.id_condominio ? { id_condominio_origem: Number(payload.id_condominio) } : {}),
+      },
+    );
 
     return {
       access_token: accessToken,
@@ -749,6 +865,19 @@ export class AuthService {
     if (confirmada === false) {
       throw new UnauthorizedException('Sessão QR Code já processada.');
     }
+
+    // A sessão do console fica emitida aqui (o navegador só a retira em qr/status).
+    this.auditarLogin(
+      'LOGIN',
+      idCondominio,
+      {
+        id: userId,
+        tipo: 'user',
+        nome: nomeUsuario ?? payload.user?.nome ?? payload.user?.name,
+        email: payload.email ?? payload.user?.email,
+      },
+      { metodo: 'qr' },
+    );
 
     return { success: true };
   }

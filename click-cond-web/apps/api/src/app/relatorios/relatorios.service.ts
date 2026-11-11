@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as xlsx from 'xlsx';
 import { TDocumentDefinitions } from 'pdfmake/interfaces';
@@ -6,6 +6,37 @@ import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial-visitante-lookup.util';
 import { csvCelula } from '../common/csv.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
+import { formatarApto } from '../common/formatar-apto.util';
+import { AuditoriaService } from '../auditoria/auditoria.service';
+import {
+  FiltroEspinha,
+  FonteEvento,
+  LinhaEspinha,
+  montarSqlEspinha,
+  montarSqlTotal,
+  resolverPeriodoEventos,
+} from './eventos-espinha';
+
+/**
+ * Módulos do log que só o síndico lê: os detalhes trazem valores, nomes e
+ * telefone de cobrança (sigilo financeiro / LGPD).
+ *
+ * `auth` entra porque as linhas de LOGIN/LOGIN_FALHA trazem o login digitado e
+ * o IP de outras contas, inclusive tentativas contra a conta do síndico. As
+ * duas grafias aparecem porque um service antigo grava `AUTH` em maiúsculas e a
+ * comparação do `notIn` depende da colação da coluna.
+ */
+const MODULOS_AUDITORIA_SIGILOSOS = ['financeiro', 'crm', 'crm-condominio', 'superlogica', 'auth', 'AUTH'];
+
+/**
+ * Módulos que a tela oferece como um assunto só, mas que os services gravam
+ * com nomes vizinhos. Filtrar por igualdade perdia essas linhas.
+ */
+const GRUPOS_MODULO_AUDITORIA: Record<string, string[]> = {
+  visitantes: ['visitantes', 'visitas', 'pessoas'],
+  facial: ['facial', 'facial-health', 'dispositivos'],
+  auth: ['auth', 'AUTH'],
+};
 
 const pdfmake = require('pdfmake');
 
@@ -55,7 +86,11 @@ const getGeradoEmStr = (): string => {
 
 @Injectable()
 export class RelatoriosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Opcional: vários specs instanciam o service só com o prisma.
+    @Optional() private readonly auditoria?: AuditoriaService,
+  ) {}
 
   async generate(
     idCondominio: number,
@@ -587,12 +622,14 @@ export class RelatoriosService {
     dataFim?: string,
     page = 1,
     pageSize = 50,
+    /** Só o síndico lê os módulos sigilosos; na dúvida, ficam de fora. */
+    verSigilosos = false,
   ) {
     if (!this.prisma.isConnected) {
       return { items: [], total: 0, page, pageSize };
     }
 
-    const where = this.buildAuditWhere(idCondominio, modulo, dataInicio, dataFim);
+    const where = this.buildAuditWhere(idCondominio, modulo, dataInicio, dataFim, verSigilosos);
     const safeSize = Math.min(Math.max(pageSize, 1), 200);
     const safePage = Math.max(page, 1);
 
@@ -619,12 +656,14 @@ export class RelatoriosService {
     modulo?: string,
     dataInicio?: string,
     dataFim?: string,
+    solicitante?: { nome?: string; email?: string },
   ): Promise<{ buffer: Buffer; filename: string }> {
     if (!this.prisma.isConnected) {
       return { buffer: Buffer.from('Data\n'), filename: 'auditoria_vazia.csv' };
     }
 
-    const where = this.buildAuditWhere(idCondominio, modulo, dataInicio, dataFim);
+    // Export é exclusivo do síndico (assertSindico no controller): vê tudo.
+    const where = this.buildAuditWhere(idCondominio, modulo, dataInicio, dataFim, true);
     const rows = await this.prisma.auditLog.findMany({
       where,
       orderBy: { created_at: 'desc' },
@@ -652,6 +691,8 @@ export class RelatoriosService {
       );
     }
 
+    await this.registrarExportAuditoria(idCondominio, solicitante, { modulo, dataInicio, dataFim }, rows.length);
+
     // BOM para o Excel abrir UTF-8 sem corromper acento.
     const csv = '﻿' + lines.join('\n');
     const stamp = new Date().toISOString().slice(0, 10);
@@ -666,9 +707,23 @@ export class RelatoriosService {
     modulo?: string,
     dataInicio?: string,
     dataFim?: string,
+    verSigilosos = false,
   ) {
     const where: any = { id_condominio: idCondominio };
-    if (modulo && modulo !== 'todos') where.modulo = modulo;
+    const pedido = typeof modulo === 'string' ? modulo.trim() : '';
+    const chave = pedido.toLowerCase();
+    if (pedido && chave !== 'todos') {
+      if (!verSigilosos && MODULOS_AUDITORIA_SIGILOSOS.includes(chave)) {
+        // Pedir um módulo sigiloso sem ser síndico: lista vazia, não erro.
+        where.modulo = { in: [] };
+      } else if (GRUPOS_MODULO_AUDITORIA[chave]) {
+        where.modulo = { in: GRUPOS_MODULO_AUDITORIA[chave] };
+      } else {
+        where.modulo = pedido;
+      }
+    } else if (!verSigilosos) {
+      where.modulo = { notIn: MODULOS_AUDITORIA_SIGILOSOS };
+    }
     if (dataInicio || dataFim) {
       where.created_at = {
         ...(dataInicio ? { gte: new Date(`${dataInicio}T00:00:00.000-03:00`) } : {}),
@@ -678,10 +733,70 @@ export class RelatoriosService {
     return where;
   }
 
+  /**
+   * Rastro do export do log (quem, filtros, quantas linhas) — mesmo padrão do
+   * export LGPD em condominios-export.service.ts. Nunca derruba o export.
+   */
+  private async registrarExportAuditoria(
+    idCondominio: number,
+    solicitante: { nome?: string; email?: string } | undefined,
+    filtros: { modulo?: string; dataInicio?: string; dataFim?: string },
+    linhas: number,
+  ): Promise<void> {
+    const usuario_nome = solicitante?.nome || 'Síndico';
+    const descricao = `Exportação do log de auditoria em CSV (${linhas} linhas)`;
+    const detalhes = {
+      filtros: {
+        modulo: filtros.modulo ?? null,
+        dataInicio: filtros.dataInicio ?? null,
+        dataFim: filtros.dataFim ?? null,
+      },
+      linhas,
+    };
+    try {
+      if (this.auditoria) {
+        // Preferido: resolve o IP pelo contexto da requisição.
+        await this.auditoria.registrar({
+          id_condominio: idCondominio,
+          usuario_nome,
+          usuario_email: solicitante?.email,
+          acao: 'EXPORT',
+          modulo: 'auditoria',
+          descricao,
+          detalhes,
+        });
+      } else if (this.prisma?.auditLog?.create) {
+        await this.prisma.auditLog.create({
+          data: {
+            id_condominio: idCondominio,
+            usuario_nome,
+            usuario_email: solicitante?.email ?? null,
+            acao: 'EXPORT',
+            modulo: 'auditoria',
+            descricao,
+            detalhes: JSON.stringify(detalhes),
+          },
+        });
+      }
+    } catch (e) {
+      console.error('[RelatoriosService] Falha ao registrar o export da auditoria:', e);
+    }
+  }
+
   private csvEscape(value: string): string {
     return csvCelula(value);
   }
 
+  /**
+   * Log de Eventos: linha do tempo de 6 fontes, paginada no banco.
+   *
+   * 1. `consultarEspinhaEventos` resolve a página em SQL (UNION ALL ordenado
+   *    e limitado) e devolve só (fonte, id), mais o total.
+   * 2. `hidratarEventos` busca os relacionamentos/fotos apenas desses ids.
+   *
+   * Não há teto de histórico: `truncado` é sempre `false` (o campo fica no
+   * contrato porque a tela ainda o lê).
+   */
   async getEventos(
     idCondominio: number,
     dataInicio?: string,
@@ -690,165 +805,123 @@ export class RelatoriosService {
     pageSize = 50,
     search?: string,
   ) {
-    if (!this.prisma.isConnected) {
-      return { items: [], total: 0, page, pageSize };
-    }
-
     const safeSize = Math.min(Math.max(pageSize, 1), 200);
     const safePage = Math.max(page, 1);
+    const periodoAplicado = resolverPeriodoEventos(dataInicio, dataFim);
+    const periodo = {
+      dataInicio: periodoAplicado.dataInicio,
+      dataFim: periodoAplicado.dataFim,
+      padrao: periodoAplicado.padrao,
+    };
 
-    const dateFilter = (dataInicio || dataFim) ? {
-      ...(dataInicio ? { gte: new Date(`${dataInicio}T00:00:00.000-03:00`) } : {}),
-      ...(dataFim ? { lte: new Date(`${dataFim}T23:59:59.999-03:00`) } : {}),
-    } : null;
+    if (!this.prisma.isConnected) {
+      return { items: [], total: 0, page, pageSize, truncado: false, periodo };
+    }
 
-    const limitPerSource = 2000;
+    const migrado = pessoasMigrationEnabled(this.prisma);
+    const { linhas, total } = await this.consultarEspinhaEventos({
+      idCondominio,
+      inicio: periodoAplicado.inicio,
+      fimExclusivo: periodoAplicado.fimExclusivo,
+      search,
+      migrado,
+      limit: safeSize,
+      offset: (safePage - 1) * safeSize,
+    });
 
-    const eventosFlagMigracao = pessoasMigrationEnabled(this.prisma);
-    const [entradasVisitantesRaw, saidasVisitantesRaw, encomendas, ocorrencias, acessosFacial, auditLogs, devicesInfo] = await Promise.all([
-      eventosFlagMigracao
-        ? this.prisma.visitas.findMany({
-            where: {
-              id_condominio: idCondominio,
-              NOT: { data_entrada: null },
-              ...(dateFilter ? { data_entrada: dateFilter } : {}),
-              ...(search ? {
-                pessoa: {
-                  OR: [
-                    { nome: { contains: search } },
-                    { doc_identificacao: { contains: search } }
-                  ]
-                }
-              } : {})
-            },
-            orderBy: { data_entrada: 'desc' },
-            take: limitPerSource,
+    const items = await this.hidratarEventos(idCondominio, linhas, migrado);
+
+    return {
+      items,
+      total,
+      page: safePage,
+      pageSize: safeSize,
+      truncado: false,
+      periodo,
+    };
+  }
+
+  /** Página (fonte, id) já ordenada + total — ver eventos-espinha.ts. */
+  protected async consultarEspinhaEventos(
+    filtro: FiltroEspinha,
+  ): Promise<{ linhas: LinhaEspinha[]; total: number }> {
+    const [linhas, contagens] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ fonte: FonteEvento; id: number | bigint }>>(montarSqlEspinha(filtro)),
+      this.prisma.$queryRaw<Array<{ fonte: string; n: number | bigint }>>(montarSqlTotal(filtro)),
+    ]);
+    return {
+      linhas: linhas.map((l) => ({ fonte: l.fonte, id: Number(l.id) })),
+      // COUNT(*) chega como BigInt no MySQL.
+      total: contagens.reduce((soma, c) => soma + Number(c.n), 0),
+    };
+  }
+
+  /**
+   * Monta os itens da página na ordem da espinha, consultando só os ids dela.
+   * Linha que sumiu entre a espinha e a hidratação (excluída no meio) é
+   * simplesmente omitida.
+   */
+  private async hidratarEventos(idCondominio: number, linhas: LinhaEspinha[], migrado: boolean): Promise<any[]> {
+    if (linhas.length === 0) return [];
+
+    const idsDe = (...fontes: FonteEvento[]) => [
+      ...new Set(linhas.filter((l) => fontes.includes(l.fonte)).map((l) => l.id)),
+    ];
+    const idsVisita = idsDe('visita_entrada', 'visita_saida');
+    const idsEncomenda = idsDe('encomenda');
+    const idsOcorrencia = idsDe('ocorrencia');
+    const idsDispositivo = idsDe('dispositivo');
+    const idsFacial = idsDe('facial');
+    const nada = Promise.resolve([] as any[]);
+
+    const [visitasRaw, encomendas, ocorrencias, auditLogs, acessosFacial]: any[][] = await Promise.all([
+      idsVisita.length === 0
+        ? nada
+        : migrado
+          ? this.prisma.visitas.findMany({
+              where: { id: { in: idsVisita }, id_condominio: idCondominio },
+              include: {
+                // Só o que o feed usa — `foto_documento` não sai do banco.
+                pessoa: { select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true } },
+                apartamento: { select: { bloco: true, apto: true } },
+                criadoPor: { select: { name: true } },
+              },
+            })
+          : this.prisma.visitantes.findMany({
+              where: { id: { in: idsVisita }, id_condominio: idCondominio },
+              include: {
+                apartamento: { select: { bloco: true, apto: true } },
+                criadoPor: { select: { name: true } },
+              },
+            }),
+      idsEncomenda.length === 0
+        ? nada
+        : this.prisma.encomendas.findMany({
+            where: { id: { in: idsEncomenda }, id_condominio: idCondominio },
             include: {
-              pessoa: true,
-              apartamento: { select: { bloco: true, apto: true } },
-              criadoPor: { select: { name: true } },
-            },
-          })
-        : this.prisma.visitantes.findMany({
-            where: {
-              id_condominio: idCondominio,
-              NOT: { data_entrada: null },
-              ...(dateFilter ? { data_entrada: dateFilter } : {}),
-              ...(search ? {
-                OR: [
-                  { nome: { contains: search } },
-                  { doc_identificacao: { contains: search } }
-                ]
-              } : {})
-            },
-            orderBy: { data_entrada: 'desc' },
-            take: limitPerSource,
-            include: {
-              apartamento: { select: { bloco: true, apto: true } },
-              criadoPor: { select: { name: true } },
+              recebidoPor: { select: { name: true } },
+              entreguePor: { select: { name: true } },
             },
           }),
-      eventosFlagMigracao
-        ? this.prisma.visitas.findMany({
-            where: {
-              id_condominio: idCondominio,
-              NOT: { data_saida: null },
-              ...(dateFilter ? { data_saida: dateFilter } : {}),
-              ...(search ? {
-                pessoa: {
-                  OR: [
-                    { nome: { contains: search } },
-                    { doc_identificacao: { contains: search } }
-                  ]
-                }
-              } : {})
-            },
-            orderBy: { data_saida: 'desc' },
-            take: limitPerSource,
+      idsOcorrencia.length === 0
+        ? nada
+        : this.prisma.ocorrencias.findMany({
+            where: { id: { in: idsOcorrencia }, id_condominio: idCondominio },
             include: {
-              pessoa: true,
-              apartamento: { select: { bloco: true, apto: true } },
               criadoPor: { select: { name: true } },
-            },
-          })
-        : this.prisma.visitantes.findMany({
-            where: {
-              id_condominio: idCondominio,
-              NOT: { data_saida: null },
-              ...(dateFilter ? { data_saida: dateFilter } : {}),
-              ...(search ? {
-                OR: [
-                  { nome: { contains: search } },
-                  { doc_identificacao: { contains: search } }
-                ]
-              } : {})
-            },
-            orderBy: { data_saida: 'desc' },
-            take: limitPerSource,
-            include: {
-              apartamento: { select: { bloco: true, apto: true } },
-              criadoPor: { select: { name: true } },
+              categoria: { select: { nome: true } },
             },
           }),
-      this.prisma.encomendas.findMany({
-        where: {
-          id_condominio: idCondominio,
-          ...(dateFilter ? { recebido_em: dateFilter } : {}),
-          // `destinatario_nome` NAO EXISTE no modelo Encomendas — o Prisma
-          // rejeita campo desconhecido, entao buscar no relatorio de eventos
-          // estourava em runtime. O destinatario e identificado por apto/bloco,
-          // e quem entregou fica em `recebido_de`.
-          ...(search ? {
-            OR: [
-              { descricao: { contains: search } },
-              { destinatario_apto: { contains: search } },
-              { recebido_de: { contains: search } },
-            ]
-          } : {})
-        },
-        orderBy: { recebido_em: 'desc' },
-        take: limitPerSource,
-        include: {
-          recebidoPor: { select: { name: true } },
-          entreguePor: { select: { name: true } },
-        },
-      }),
-      this.prisma.ocorrencias.findMany({
-        where: {
-          id_condominio: idCondominio,
-          ...(dateFilter ? { created_at: dateFilter } : {}),
-          ...(search ? { descricao: { contains: search } } : {})
-        },
-        orderBy: { created_at: 'desc' },
-        take: limitPerSource,
-        include: {
-          criadoPor: { select: { name: true } },
-          categoria: { select: { nome: true } },
-        },
-      }),
-      this.prisma.acessos_Facial.findMany({
-        where: {
-          id_condominio: idCondominio,
-          ...(dateFilter ? { timestamp: dateFilter } : {}),
-          ...(search ? { nome_pessoa: { contains: search } } : {})
-        },
-        orderBy: { timestamp: 'desc' },
-        take: limitPerSource,
-      }),
-      this.prisma.auditLog.findMany({
-        where: {
-          id_condominio: idCondominio,
-          modulo: 'dispositivos',
-          ...(dateFilter ? { created_at: dateFilter } : {}),
-          ...(search ? { descricao: { contains: search } } : {})
-        },
-        orderBy: { created_at: 'desc' },
-        take: limitPerSource,
-      }),
-      this.prisma.facial_Devices.findMany({
-        where: { id_condominio: idCondominio },
-        select: { id: true, nome: true, ip: true },
-      }),
+      idsDispositivo.length === 0
+        ? nada
+        : this.prisma.auditLog.findMany({
+            where: { id: { in: idsDispositivo }, id_condominio: idCondominio, modulo: 'dispositivos' },
+          }),
+      idsFacial.length === 0
+        ? nada
+        : this.prisma.acessos_Facial.findMany({
+            where: { id: { in: idsFacial }, id_condominio: idCondominio },
+          }),
     ]);
 
     // No caminho migrado, achata `pessoa` de volta pro formato que o resto
@@ -856,107 +929,68 @@ export class RelatoriosService {
     // convenção usada nas outras leituras migradas.
     const flatVisitaRow = (v: any) =>
       v.pessoa
-        ? { ...v, nome: v.pessoa.nome, doc_identificacao: v.pessoa.doc_identificacao, foto_pessoa: v.pessoa.foto_pessoa, foto_documento: v.pessoa.foto_documento }
+        ? { ...v, nome: v.pessoa.nome, doc_identificacao: v.pessoa.doc_identificacao, foto_pessoa: v.pessoa.foto_pessoa }
         : v;
-    const entradasVisitantes = entradasVisitantesRaw.map(flatVisitaRow);
-    const saidasVisitantes = saidasVisitantesRaw.map(flatVisitaRow);
 
-    const deviceById = new Map(devicesInfo.map((d) => [d.id, d.nome]));
-    const deviceIpById = new Map(devicesInfo.map((d) => [d.id, d.ip]));
+    const porChave = new Map<string, any>();
 
-    const ultimosEventos: any[] = [];
-
-    const DEDUP_WINDOW_MS = 15_000;
-    const facialKeys = new Set<string>();
-    for (const a of acessosFacial) {
-      if (a.tipo_pessoa !== 'visitante' && a.tipo_pessoa !== 'prestador') continue;
-      const bucket = Math.floor(a.timestamp.getTime() / DEDUP_WINDOW_MS);
-      facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket}`);
-      facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket - 1}`);
-      facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket + 1}`);
+    // 1 e 2. Visitantes — entrada e saída da MESMA visita podem cair na mesma
+    // página; a espinha diz qual das duas (ou ambas) montar. A deduplicação
+    // contra o facial já foi feita na espinha (ver eventos-espinha.ts).
+    for (const v of visitasRaw.map(flatVisitaRow)) {
+      const aptoStr = v.apartamento ? formatarApto(v.apartamento.apto, v.apartamento.bloco) : '';
+      if (v.data_entrada) {
+        porChave.set(`visita_entrada:${v.id}`, {
+          id: `visitante-ent-${v.id}`,
+          tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
+          descricao: `${v.nome} entrou — ${aptoStr}`.trim(),
+          quando: v.data_entrada.toISOString(),
+          direcao: 'entrada',
+          detalhes: {
+            id: v.id,
+            nome: v.nome,
+            documento: v.doc_identificacao || 'Não informado',
+            blocoApto: aptoStr || 'Não informado',
+            tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+            dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
+            dataSaida: v.data_saida ? v.data_saida.toISOString() : undefined,
+            status: v.data_saida ? 'Saída registrada' : 'No local',
+            autorizadoPor: v.criadoPor?.name || 'Morador',
+            fotoPessoa: v.foto_pessoa || undefined,
+            metodoLiberacao: 'pin',
+            metodoLabel: 'PIN / Manual',
+          },
+        });
+      }
+      if (v.data_saida) {
+        porChave.set(`visita_saida:${v.id}`, {
+          id: `visitante-sai-${v.id}`,
+          tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
+          descricao: `${v.nome} saiu — ${aptoStr}`.trim(),
+          quando: v.data_saida.toISOString(),
+          direcao: 'saida',
+          detalhes: {
+            id: v.id,
+            nome: v.nome,
+            documento: v.doc_identificacao || 'Não informado',
+            blocoApto: aptoStr || 'Não informado',
+            tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+            dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
+            dataSaida: v.data_saida.toISOString(),
+            status: 'Saiu',
+            autorizadoPor: v.criadoPor?.name || 'Morador',
+            fotoPessoa: v.foto_pessoa || undefined,
+            metodoLiberacao: 'pin',
+            metodoLabel: 'PIN / Manual',
+          },
+        });
+      }
     }
 
-    // `Acessos_Facial.id_pessoa` não tem espaço único no caminho migrado
-    // (ver `resolverInfoVisitantesPorIdAcessoFacial` acima) — um evento
-    // gravado com o id de Pessoa não batia contra `v.id` (id de Visita) e a
-    // mesma entrada física aparecia duplicada na lista. `idPessoaAlt` checa
-    // o segundo espaço quando disponível (`v.pessoa.id`, vindo do include
-    // no caminho migrado).
-    const isDuplicadoFacial = (
-      idVisitante: number,
-      evento: 'entrada' | 'saida',
-      ts: Date | null,
-      idPessoaAlt?: number,
-    ) => {
-      if (!ts) return false;
-      const bucket = Math.floor(ts.getTime() / DEDUP_WINDOW_MS);
-      if (facialKeys.has(`${idVisitante}:${evento}:${bucket}`)) return true;
-      if (idPessoaAlt != null && facialKeys.has(`${idPessoaAlt}:${evento}:${bucket}`)) return true;
-      return false;
-    };
-
-    // 1. Map Visitantes Entradas
-    for (const v of entradasVisitantes) {
-      if (!v.data_entrada) continue;
-      if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada, v.pessoa?.id)) continue;
-      const aptoStr = v.apartamento ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : '';
-      ultimosEventos.push({
-        id: `visitante-ent-${v.id}`,
-        tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
-        descricao: `${v.nome} entrou — ${aptoStr}`.trim(),
-        quando: v.data_entrada.toISOString(),
-        direcao: 'entrada',
-        detalhes: {
-          id: v.id,
-          nome: v.nome,
-          documento: v.doc_identificacao || 'Não informado',
-          blocoApto: aptoStr || 'Não informado',
-          tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
-          dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
-          dataSaida: v.data_saida ? v.data_saida.toISOString() : undefined,
-          status: v.data_saida ? 'Saída registrada' : 'No local',
-          autorizadoPor: v.criadoPor?.name || 'Morador',
-          fotoPessoa: v.foto_pessoa || undefined,
-          fotoDocumento: v.foto_documento || undefined,
-          metodoLiberacao: 'pin',
-          metodoLabel: 'PIN / Manual',
-        },
-      });
-    }
-
-    // 2. Map Visitantes Saídas
-    for (const v of saidasVisitantes) {
-      if (!v.data_saida) continue;
-      if (isDuplicadoFacial(v.id, 'saida', v.data_saida, v.pessoa?.id)) continue;
-      const aptoStr = v.apartamento ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : '';
-      ultimosEventos.push({
-        id: `visitante-sai-${v.id}`,
-        tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
-        descricao: `${v.nome} saiu — ${aptoStr}`.trim(),
-        quando: v.data_saida.toISOString(),
-        direcao: 'saida',
-        detalhes: {
-          id: v.id,
-          nome: v.nome,
-          documento: v.doc_identificacao || 'Não informado',
-          blocoApto: aptoStr || 'Não informado',
-          tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
-          dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
-          dataSaida: v.data_saida.toISOString(),
-          status: 'Saiu',
-          autorizadoPor: v.criadoPor?.name || 'Morador',
-          fotoPessoa: v.foto_pessoa || undefined,
-          fotoDocumento: v.foto_documento || undefined,
-          metodoLiberacao: 'pin',
-          metodoLabel: 'PIN / Manual',
-        },
-      });
-    }
-
-    // 3. Map Encomendas
+    // 3. Encomendas
     for (const e of encomendas) {
-      const aptoStr = `Apto ${e.destinatario_apto}${e.destinatario_bloco ?? ''}`;
-      ultimosEventos.push({
+      const aptoStr = formatarApto(e.destinatario_apto, e.destinatario_bloco);
+      porChave.set(`encomenda:${e.id}`, {
         id: `encomenda-${e.id}`,
         tipo: 'Encomenda',
         descricao: `${e.descricao} — ${aptoStr}`,
@@ -982,9 +1016,9 @@ export class RelatoriosService {
       });
     }
 
-    // 4. Map Ocorrências
+    // 4. Ocorrências
     for (const o of ocorrencias) {
-      ultimosEventos.push({
+      porChave.set(`ocorrencia:${o.id}`, {
         id: `ocorrencia-${o.id}`,
         tipo: 'Ocorrência',
         descricao: o.descricao ?? '—',
@@ -1002,10 +1036,10 @@ export class RelatoriosService {
       });
     }
 
-    // 5. Map Dispositivos (AuditLog)
+    // 5. Dispositivos (AuditLog)
     for (const a of auditLogs) {
       const isOffline = a.acao === 'OFFLINE';
-      ultimosEventos.push({
+      porChave.set(`dispositivo:${a.id}`, {
         id: `dispositivo-${a.id}`,
         tipo: 'Ocorrência',
         descricao: a.descricao,
@@ -1025,22 +1059,22 @@ export class RelatoriosService {
       });
     }
 
-    // 6. Map Acessos Faciais
+    // 6. Acessos Faciais
     if (acessosFacial.length > 0) {
-      const idsMorador = acessosFacial
-        .filter((a) => a.tipo_pessoa === 'morador')
-        .map((a) => a.id_pessoa)
-        .filter((id): id is number => id !== null);
-      const idsVisitante = acessosFacial
-        .filter((a) => a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador')
-        .map((a) => a.id_pessoa)
-        .filter((id): id is number => id !== null);
-      const idsFuncionario = acessosFacial
-        .filter((a) => a.tipo_pessoa === 'funcionario')
-        .map((a) => a.id_pessoa)
-        .filter((id): id is number => id !== null);
+      const idsPessoaDe = (...tipos: string[]): number[] => [
+        ...new Set<number>(
+          acessosFacial
+            .filter((a) => tipos.includes(a.tipo_pessoa))
+            .map((a) => a.id_pessoa)
+            .filter((id) => id !== null && id !== undefined),
+        ),
+      ];
+      const idsMorador = idsPessoaDe('morador');
+      const idsVisitante = idsPessoaDe('visitante', 'prestador');
+      const idsFuncionario = idsPessoaDe('funcionario');
+      const idsDevice = [...new Set<number>(acessosFacial.map((a) => a.id_device))];
 
-      const [moradoresInfo, visitanteById, funcionariosInfo] = await Promise.all([
+      const [moradoresInfo, visitanteById, funcionariosInfo, devicesInfo] = await Promise.all([
         idsMorador.length > 0
           ? this.prisma.moradores.findMany({
               where: { id: { in: idsMorador } },
@@ -1053,7 +1087,7 @@ export class RelatoriosService {
               },
             })
           : Promise.resolve([]),
-        pessoasMigrationEnabled(this.prisma)
+        migrado
           ? resolverInfoVisitantesPorIdAcessoFacial(this.prisma, idsVisitante)
           : idsVisitante.length > 0
             ? this.prisma.visitantes.findMany({
@@ -1076,10 +1110,16 @@ export class RelatoriosService {
               },
             })
           : Promise.resolve([]),
+        this.prisma.facial_Devices.findMany({
+          where: { id_condominio: idCondominio, id: { in: idsDevice } },
+          select: { id: true, nome: true, ip: true },
+        }),
       ]);
 
       const moradorById = new Map(moradoresInfo.map((m) => [m.id, m]));
       const funcionarioById = new Map(funcionariosInfo.map((f) => [f.id, f]));
+      const deviceById = new Map(devicesInfo.map((d) => [d.id, d.nome]));
+      const deviceIpById = new Map(devicesInfo.map((d) => [d.id, d.ip]));
 
       for (const a of acessosFacial) {
         const confiancaPct = a.confianca != null ? ` · ${Math.round(a.confianca * 100)}%` : '';
@@ -1104,27 +1144,27 @@ export class RelatoriosService {
           const m = moradorById.get(idPessoa);
           foto = m?.foto_pessoa ?? m?.user?.photo ?? undefined;
           if (m?.bloco || m?.apartamento) {
-            aptoStr = `Apto ${m?.apartamento ?? ''}${m?.bloco ?? ''}`.trim();
+            aptoStr = formatarApto(m?.apartamento, m?.bloco);
           }
         } else if (a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') {
           const v = visitanteById.get(idPessoa);
           foto = v?.foto_pessoa ?? undefined;
           documento = v?.doc_identificacao ?? undefined;
           if (v?.apartamento) {
-            aptoStr = `Apto ${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim();
+            aptoStr = formatarApto(v.apartamento.apto, v.apartamento.bloco);
           }
         } else if (a.tipo_pessoa === 'funcionario') {
           const f = funcionarioById.get(idPessoa);
           foto = f?.foto_pessoa ?? undefined;
           if (f?.apartamento) {
-            aptoStr = `Apto ${f.apartamento.apto ?? ''}${f.apartamento.bloco ?? ''}`.trim();
+            aptoStr = formatarApto(f.apartamento.apto, f.apartamento.bloco);
           }
         }
 
         const terminalNome = deviceById.get(a.id_device) ?? `Terminal #${a.id_device}`;
         const terminalIp = deviceIpById.get(a.id_device) ?? undefined;
 
-        ultimosEventos.push({
+        porChave.set(`facial:${a.id}`, {
           id: `facial-access-${a.id}`,
           tipo: 'Acesso Facial',
           descricao: `${a.nome_pessoa.toUpperCase()} ${acao} ${dispLabel} "${terminalNome}"${confiancaPct}`,
@@ -1148,19 +1188,10 @@ export class RelatoriosService {
       }
     }
 
-    const sorted = ultimosEventos.sort(
-      (a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime()
-    );
-
-    const total = sorted.length;
-    const pageItems = sorted.slice((safePage - 1) * safeSize, safePage * safeSize);
-
-    return {
-      items: pageItems,
-      total,
-      page: safePage,
-      pageSize: safeSize,
-    };
+    // A ordem (e o que entra) é a da espinha; a hidratação só preenche.
+    return linhas
+      .map((l) => porChave.get(`${l.fonte}:${l.id}`))
+      .filter((item) => item !== undefined);
   }
 }
 

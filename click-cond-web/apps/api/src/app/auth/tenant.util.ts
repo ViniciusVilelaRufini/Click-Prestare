@@ -140,11 +140,20 @@ export function isOperador(user: JwtPayload | undefined): boolean {
  * ou segredos, use `assertSindicoEstrito`.
  */
 export function assertSindico(user: JwtPayload | undefined, contexto = 'ação'): void {
-  const tipo = user?.typeAccess ?? user?.user?.typeAccess;
-  const turno = user?.turno;
-  if (tipo !== 'Sindico' && turno !== 'Síndico') {
+  if (!isSindico(user)) {
     throw new ForbiddenException(`Acesso negado: ${contexto} exige síndico.`);
   }
+}
+
+/**
+ * Versão booleana do assertSindico (mesmo critério, inclusive o `turno`), para
+ * quando o papel decide QUANTO devolver em vez de "pode ou não pode" — ex.: a
+ * listagem da auditoria, que o porteiro lê sem os módulos sigilosos.
+ */
+export function isSindico(user: JwtPayload | undefined): boolean {
+  const tipo = user?.typeAccess ?? user?.user?.typeAccess;
+  const turno = user?.turno;
+  return tipo === 'Sindico' || turno === 'Síndico';
 }
 
 /**

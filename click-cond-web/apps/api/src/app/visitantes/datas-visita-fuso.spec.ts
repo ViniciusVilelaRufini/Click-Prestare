@@ -66,3 +66,62 @@ describe('auditoria da visita — horários em Brasília', () => {
     expect(ctx.status.dataEntrada).toContain('22:15');
   });
 });
+
+/**
+ * O PIN/QR do visitante é credencial de acesso físico: gravado no `detalhes`
+ * do log, ficava legível na tela de auditoria e saía no CSV exportado.
+ */
+describe('auditoria da visita — não grava o código de acesso', () => {
+  const { VisitantesService } = jest.requireActual('./visitantes.service');
+
+  const visita = (codigo: string | null) => ({
+    is_prestador: 0,
+    id_apartamento: 106,
+    pessoa: { id: 2000001, nome: 'Fulano', doc_identificacao: null },
+    apartamento: { bloco: 'A', apto: '106' },
+    data_hora_inicio: null,
+    data_hora_termino: null,
+    data_entrada: null,
+    data_saida: null,
+    liberado: 1,
+    codigo_acesso: codigo,
+  });
+
+  it('caminho migrado (Visitas): só diz se há código', () => {
+    const svc = new VisitantesService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const com = (svc as any).construirContextoAuditoria(visita('482913'));
+    expect(com.status.temCodigoAcesso).toBe(true);
+    expect(com.status).not.toHaveProperty('codigoAcesso');
+    expect(JSON.stringify(com)).not.toContain('482913');
+
+    const sem = (svc as any).construirContextoAuditoria(visita(null));
+    expect(sem.status.temCodigoAcesso).toBe(false);
+  });
+
+  it('caminho legado (Visitantes): só diz se há código', async () => {
+    const prisma: any = {
+      visitantes: {
+        findUnique: jest.fn(async () => ({
+          id: 30,
+          nome: 'Fulano',
+          doc_identificacao: null,
+          is_prestador: 0,
+          id_apartamento: 106,
+          apartamento: { bloco: 'A', apto: '106' },
+          user: null,
+          data_hora_inicio: null,
+          data_hora_termino: null,
+          data_entrada: null,
+          data_saida: null,
+          liberado: 1,
+          codigo_acesso: '482913',
+        })),
+      },
+    };
+    const svc = new VisitantesService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const ctx = await (svc as any).carregarContextoVisitante(30);
+    expect(ctx.status.temCodigoAcesso).toBe(true);
+    expect(ctx.status).not.toHaveProperty('codigoAcesso');
+    expect(JSON.stringify(ctx)).not.toContain('482913');
+  });
+});

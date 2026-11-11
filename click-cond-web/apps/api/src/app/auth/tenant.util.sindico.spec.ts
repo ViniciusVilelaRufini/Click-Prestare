@@ -1,5 +1,34 @@
 import { ForbiddenException } from '@nestjs/common';
-import { assertSindicoEstrito } from './tenant.util';
+import { assertSindico, assertSindicoEstrito, isSindico } from './tenant.util';
+
+/** Versão booleana de assertSindico: tem que decidir igual, caso a caso. */
+describe('isSindico', () => {
+  const casos: Array<[string, any]> = [
+    ['síndico do app', { sub: 1, typeAccess: 'Sindico' }],
+    ['síndico aninhado em user', { sub: 1, user: { typeAccess: 'Sindico' } }],
+    ['console com turno Síndico', { sub: 1, id_condominio: 1, turno: 'Síndico' }],
+    ['porteiro do console', { sub: 2, id_condominio: 1, turno: 'Diurno' }],
+    ['funcionário', { sub: 3, typeAccess: 'Funcionario' }],
+    ['morador', { sub: 4, typeAccess: 'Morador' }],
+    ['typeAccess em outra caixa', { sub: 5, typeAccess: 'sindico' }],
+    ['ausente', undefined],
+  ];
+
+  it.each(casos)('%s: mesmo veredito de assertSindico', (_nome, user) => {
+    let passa = true;
+    try {
+      assertSindico(user, 'x');
+    } catch {
+      passa = false;
+    }
+    expect(isSindico(user)).toBe(passa);
+  });
+
+  it('aceita síndico e recusa porteiro', () => {
+    expect(isSindico({ sub: 1, typeAccess: 'Sindico' } as any)).toBe(true);
+    expect(isSindico({ sub: 2, id_condominio: 1, turno: 'Diurno' } as any)).toBe(false);
+  });
+});
 
 describe('assertSindicoEstrito', () => {
   it('aceita typeAccess Sindico, em qualquer caixa e também aninhado em user', () => {

@@ -14,6 +14,7 @@ import { ReqUser } from '../auth/req-user.decorator';
 import { UsuarioAppGuard } from '../auth/usuario-app.guard';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { ChatIaService } from './chat-ia.service';
+import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 /**
  * Assistente IA do app (tela ChatIaPage).
@@ -30,6 +31,11 @@ export class ChatIaController {
 
   // Cada pergunta gera 2+ chamadas pagas ao modelo (embedding + geração).
   // 12/min por IP segura conversa normal e limita abuso/custo.
+  //
+  // @SkipAudit: a pergunta é conversa privada. Como o corpo traz id_condominio,
+  // o AuditInterceptor gravaria o texto em audit_logs.detalhes, legível pelos
+  // operadores da portaria. As ações propostas seguem auditadas em `confirmar`.
+  @SkipAudit()
   @Throttle({ medium: { limit: 12, ttl: 60_000 } })
   @Post('perguntar')
   @HttpCode(200)

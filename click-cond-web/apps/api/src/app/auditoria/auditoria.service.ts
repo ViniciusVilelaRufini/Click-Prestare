@@ -12,6 +12,10 @@ export type AuditoriaAcao =
   | 'RETIRADA'
   | 'RESPOSTA'
   | 'STATUS'
+  | 'EXPORT'            // exportação de dados (ex.: CSV do log de auditoria)
+  // ---- Sessão do console da portaria ----
+  | 'LOGIN'             // sessão do console emitida para um condomínio (detalhes.metodo: senha | mfa | qr | troca_condominio)
+  | 'LOGIN_FALHA'       // conta existe, senha ou código de MFA errado (nunca grava a senha/código)
   // ---- Decisões de controle de acesso físico ----
   | 'ACCESS_GRANTED'    // identificação OK + regras OK → liberou
   | 'ACCESS_DENIED'     // credencial inválida, fora de janela, ou regra bloqueou
@@ -28,10 +32,22 @@ export type AuditoriaAcao =
   | 'DEACTIVATE'        // condomínio desligado: corta app, portaria e facial
   | 'REACTIVATE';       // condomínio religado antes da purga
 
+/**
+ * Em qual tabela `autor_id` vive (audit_logs.autor_tipo):
+ *  - 'funcionario_portaria' → Funcionarios_Portaria.id (porteiro logado no console)
+ *  - 'user'                 → Users.id (síndico, morador ou funcionário do app; síndico no console)
+ *  - 'crm_admin'            → crm_admins.id (operador do CRM)
+ *  - 'sistema'              → job/automação; sem id
+ */
+export type AuditoriaAutorTipo = 'funcionario_portaria' | 'user' | 'crm_admin' | 'sistema';
+
 export interface RegistrarAuditoriaDto {
   id_condominio: number;
   usuario_nome: string;
   usuario_email?: string;
+  /** Id de quem fez a ação, na tabela indicada por `autor_tipo`. Ver `autorDoToken`. */
+  autor_id?: number | null;
+  autor_tipo?: AuditoriaAutorTipo | null;
   acao: AuditoriaAcao;
   modulo: string;
   entidade_id?: number;
@@ -55,6 +71,8 @@ export class AuditoriaService {
           id_condominio: data.id_condominio,
           usuario_nome: data.usuario_nome,
           usuario_email: data.usuario_email ?? null,
+          autor_id: data.autor_id ?? null,
+          autor_tipo: data.autor_tipo ?? null,
           acao: data.acao,
           modulo: data.modulo,
           entidade_id: data.entidade_id ?? null,

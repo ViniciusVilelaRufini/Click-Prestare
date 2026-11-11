@@ -531,7 +531,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         liberado: v.liberado === 1,
         dataEntrada: fmtDate(v.data_entrada as any),
         dataSaida: fmtDate(v.data_saida as any),
-        codigoAcesso: v.codigo_acesso,
+        // PIN/QR é credencial de acesso físico: o log só diz se existe.
+        temCodigoAcesso: !!v.codigo_acesso,
       },
     };
   }
@@ -2299,7 +2300,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         liberado: visita.liberado === 1,
         dataEntrada: fmtDate(visita.data_entrada),
         dataSaida: fmtDate(visita.data_saida),
-        codigoAcesso: visita.codigo_acesso,
+        // PIN/QR é credencial de acesso físico: o log só diz se existe.
+        temCodigoAcesso: !!visita.codigo_acesso,
       },
     };
   }

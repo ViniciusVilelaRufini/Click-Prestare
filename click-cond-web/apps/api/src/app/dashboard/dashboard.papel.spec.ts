@@ -20,6 +20,6 @@ describe('Dashboard do console — exige operador', () => {
     const service: any = { summary: jest.fn(async () => ({})) };
     const ctrl = new DashboardController(service);
     await ctrl.get(1, { sub: 3, nome: 'QA porteiro', id_condominio: 1 } as any);
-    expect(service.summary).toHaveBeenCalledWith(1);
+    expect(service.summary).toHaveBeenCalledWith(1, { incluirFotoDocumento: false });
   });
 });

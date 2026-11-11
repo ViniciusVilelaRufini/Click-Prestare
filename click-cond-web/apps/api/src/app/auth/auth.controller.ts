@@ -6,6 +6,7 @@ import { Public } from './public.decorator';
 import { ReqUser } from './req-user.decorator';
 import type { JwtPayload } from './jwt-payload.interface';
 import { extractClientIp } from '../common/context/request-context';
+import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -77,6 +78,9 @@ export class AuthController {
 
   // Síndico com mais de um condomínio escolhe em qual entrar (ou troca depois).
   // Autenticado: o vínculo é conferido contra o síndico do JWT.
+  // O service grava a linha de LOGIN no condomínio escolhido; o log automático seria uma segunda
+  // linha genérica ("Criação em Autenticação") no condomínio de origem.
+  @SkipAudit()
   @Post('selecionar-condominio')
   @HttpCode(200)
   selecionarCondominio(
@@ -111,6 +115,8 @@ export class AuthController {
     return this.authService.getQrStatus(qrToken);
   }
 
+  // Idem: o service grava a linha de LOGIN (método qr) quando a sessão é confirmada.
+  @SkipAudit()
   @Post('qr/authorize')
   @HttpCode(200)
   authorizeQrSession(

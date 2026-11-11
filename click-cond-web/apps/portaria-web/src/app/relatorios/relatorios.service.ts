@@ -86,4 +86,19 @@ export interface EventosPage {
   total: number;
   page: number;
   pageSize: number;
+  /**
+   * Era `true` quando o histórico passava do teto interno da API. A paginação
+   * hoje é feita no banco, sem teto: a API devolve sempre `false`.
+   */
+  truncado?: boolean;
+  /** Período que a API efetivamente aplicou (ausente em API antiga). */
+  periodo?: EventosPeriodo;
+}
+
+export interface EventosPeriodo {
+  /** `AAAA-MM-DD`; null = lado aberto. */
+  dataInicio: string | null;
+  dataFim: string | null;
+  /** true quando o usuário não escolheu datas e valeu o padrão (últimos 30 dias). */
+  padrao: boolean;
 }

@@ -65,7 +65,16 @@ export interface DashboardSummary {
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async summary(idCondominio: number): Promise<DashboardSummary> {
+  /**
+   * `incluirFotoDocumento`: a foto do documento (RG) do visitante só sai
+   * quando quem pede é síndico (o controller decide pelo token). O padrão é
+   * NÃO enviar — quem esquecer de informar o papel não vaza o documento.
+   */
+  async summary(
+    idCondominio: number,
+    opts: { incluirFotoDocumento?: boolean } = {},
+  ): Promise<DashboardSummary> {
+    const incluirFotoDocumento = opts.incluirFotoDocumento === true;
     const agora = new Date();
 
     if (!this.prisma.isConnected) {
@@ -491,7 +500,8 @@ export class DashboardService {
           status: v.data_saida ? 'Saída registrada' : 'No local',
           autorizadoPor: v.criadoPor?.name || 'Morador',
           fotoPessoa: v.foto_pessoa || undefined,
-          fotoDocumento: v.foto_documento || undefined,
+          // Chave AUSENTE (não `undefined`) para quem não é síndico.
+          ...(incluirFotoDocumento && v.foto_documento ? { fotoDocumento: v.foto_documento } : {}),
           metodoLiberacao: 'pin',
           metodoLabel: 'PIN / Manual',
           historicoAcessos: buildHistoricoAcessos(v),
@@ -522,7 +532,8 @@ export class DashboardService {
           status: 'Saiu',
           autorizadoPor: v.criadoPor?.name || 'Morador',
           fotoPessoa: v.foto_pessoa || undefined,
-          fotoDocumento: v.foto_documento || undefined,
+          // Chave AUSENTE (não `undefined`) para quem não é síndico.
+          ...(incluirFotoDocumento && v.foto_documento ? { fotoDocumento: v.foto_documento } : {}),
           metodoLiberacao: 'pin',
           metodoLabel: 'PIN / Manual',
           historicoAcessos: buildHistoricoAcessos(v),

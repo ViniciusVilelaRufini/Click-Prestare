@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RelatoriosApi } from './relatorios.service';
+import { EventosPeriodo, RelatoriosApi } from './relatorios.service';
 import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
 
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
@@ -33,12 +33,29 @@ export class RelatoriosPageComponent {
   readonly filtroEventosDataInicio = signal<string>('');
   readonly filtroEventosDataFim = signal<string>('');
   readonly filtroEventosSearch = signal<string>('');
+  /** A API cortou o histórico no limite interno: a lista está incompleta. */
+  readonly eventosTruncado = signal<boolean>(false);
+  /** Período que a API aplicou na última consulta do Log de Eventos. */
+  readonly eventosPeriodo = signal<EventosPeriodo | null>(null);
+  /** Texto do período padrão — só quando o usuário não escolheu datas. */
+  readonly eventosPeriodoPadraoLabel = computed(() => {
+    const p = this.eventosPeriodo();
+    if (!p?.padrao || !p.dataInicio || !p.dataFim) return null;
+    const br = (iso: string) => iso.split('-').reverse().join('/');
+    return `Sem período escolhido: exibindo os últimos 30 dias (${br(p.dataInicio)} a ${br(p.dataFim)}).`;
+  });
 
   // Paginação
   readonly pagina = signal<number>(1);
   readonly tamanhoPagina = signal<number>(50);
   readonly total = signal<number>(0);
   readonly totalPaginas = computed(() => Math.max(1, Math.ceil(this.total() / this.tamanhoPagina())));
+  /**
+   * `pagina`/`total` são compartilhados pelas abas de auditoria e eventos. Cada
+   * consulta (e cada troca de aba) recebe um número; só a resposta da consulta
+   * mais recente é aplicada, as demais chegam tarde e são descartadas.
+   */
+  private consultaAtual = 0;
 
   // Gerador de relatórios
   readonly tipo = signal<'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro'>('visitantes');
@@ -51,15 +68,22 @@ export class RelatoriosPageComponent {
     { value: 'todos',         label: 'Todos os módulos' },
     { value: 'facial',        label: 'Controle de Acesso (Dispositivos)' },
     { value: 'regras-acesso', label: 'Regras de Acesso' },
+    { value: 'caminhos-acesso', label: 'Caminhos de Acesso' },
     { value: 'visitantes',    label: 'Visitantes' },
     { value: 'encomendas',    label: 'Encomendas' },
     { value: 'moradores',     label: 'Moradores' },
+    { value: 'apartamentos',  label: 'Apartamentos' },
+    { value: 'veiculos',      label: 'Veículos' },
+    { value: 'vagas',         label: 'Vagas' },
+    { value: 'areas-sociais', label: 'Áreas Sociais' },
     { value: 'ocorrencias',   label: 'Ocorrências' },
     { value: 'prestadores',   label: 'Prestadores' },
     { value: 'financeiro',    label: 'Financeiro / Caixa' },
     { value: 'comunicados',   label: 'Comunicados' },
     { value: 'assembleias',   label: 'Assembleias' },
     { value: 'documentos',    label: 'Documentos' },
+    { value: 'auth',          label: 'Autenticação' },
+    { value: 'sistema',       label: 'Sistema' },
   ];
 
   /** Toggle para expandir o JSON de detalhes de cada linha. */
@@ -73,7 +97,8 @@ export class RelatoriosPageComponent {
     if (!detalhes) return '';
     try {
       const obj = typeof detalhes === 'string' ? JSON.parse(detalhes) : detalhes;
-      return JSON.stringify(obj, null, 2);
+      // Linhas antigas gravavam o PIN/QR do visitante; o valor nunca vai para a tela.
+      return JSON.stringify(obj, (k, v) => (k === 'codigoAcesso' && v ? '[oculto]' : v), 2);
     } catch {
       return String(detalhes);
     }
@@ -130,7 +155,13 @@ export class RelatoriosPageComponent {
 
   setSubTab(tab: 'gerador' | 'auditoria' | 'eventos') {
     this.activeSubTab.set(tab);
+    // Invalida respostas pendentes da aba anterior e zera o que era dela.
+    this.consultaAtual++;
+    this.loadingAudit.set(false);
+    this.loadingEvents.set(false);
     this.pagina.set(1);
+    this.total.set(0);
+    this.expandidos.set({});
     if (tab === 'auditoria') {
       this.carregarAuditoria();
     } else if (tab === 'eventos') {
@@ -139,6 +170,7 @@ export class RelatoriosPageComponent {
   }
 
   carregarAuditoria() {
+    const consulta = ++this.consultaAtual;
     this.loadingAudit.set(true);
     this.errorAudit.set(null);
     this.api.getAuditoria(
@@ -149,11 +181,13 @@ export class RelatoriosPageComponent {
       this.tamanhoPagina(),
     ).subscribe({
       next: (data) => {
+        if (consulta !== this.consultaAtual) return;
         this.auditLogs.set(data?.items ?? []);
         this.total.set(data?.total ?? 0);
         this.loadingAudit.set(false);
       },
       error: (err) => {
+        if (consulta !== this.consultaAtual) return;
         console.error(err);
         this.errorAudit.set('Falha ao carregar logs de auditoria.');
         this.loadingAudit.set(false);
@@ -162,6 +196,7 @@ export class RelatoriosPageComponent {
   }
 
   carregarEventos() {
+    const consulta = ++this.consultaAtual;
     this.loadingEvents.set(true);
     this.errorEvents.set(null);
     this.api.getEventos(
@@ -172,11 +207,15 @@ export class RelatoriosPageComponent {
       this.filtroEventosSearch() || undefined,
     ).subscribe({
       next: (data) => {
+        if (consulta !== this.consultaAtual) return;
         this.eventLogs.set(data?.items ?? []);
         this.total.set(data?.total ?? 0);
+        this.eventosTruncado.set(data?.truncado === true);
+        this.eventosPeriodo.set(data?.periodo ?? null);
         this.loadingEvents.set(false);
       },
       error: (err) => {
+        if (consulta !== this.consultaAtual) return;
         console.error(err);
         this.errorEvents.set('Falha ao carregar logs de eventos.');
         this.loadingEvents.set(false);
@@ -257,7 +296,11 @@ export class RelatoriosPageComponent {
       },
       error: (err) => {
         console.error(err);
-        this.errorAudit.set('Falha ao exportar CSV.');
+        this.errorAudit.set(
+          err?.status === 403
+            ? 'A exportação do log de auditoria é exclusiva do síndico.'
+            : 'Falha ao exportar CSV.',
+        );
         this.exportandoCsv.set(false);
       },
     });
@@ -280,7 +323,11 @@ export class RelatoriosPageComponent {
       },
       error: (err) => {
         console.error(err);
-        this.errorAudit.set('Falha ao exportar dados completos (exclusivo para Síndico).');
+        this.errorAudit.set(
+          err?.status === 403
+            ? 'A exportação completa dos dados é exclusiva do síndico.'
+            : 'Falha ao exportar dados completos.',
+        );
         this.exportandoCompleto.set(false);
       },
     });
@@ -303,6 +350,18 @@ export class RelatoriosPageComponent {
       BRIDGE_TRIGGER:   'text-cyan-300 bg-cyan-500/15 border-cyan-500/30',
       RULE_CHANGE:      'text-fuchsia-300 bg-fuchsia-500/15 border-fuchsia-500/30',
       DEVICE_CHANGE:    'text-indigo-300 bg-indigo-500/15 border-indigo-500/30',
+      ENTREGA:          'text-purple-400 bg-purple-400/10 border-purple-400/20',
+      ONLINE:           'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+      OFFLINE:          'text-red-400 bg-red-400/10 border-red-400/20',
+      FANTASMAS_REMOVIDOS:        'text-orange-400 bg-orange-400/10 border-orange-400/20',
+      DISPOSITIVO_IP_CORRIGIDO:   'text-indigo-300 bg-indigo-500/15 border-indigo-500/30',
+      DISPOSITIVO_MAC_ATUALIZADO: 'text-indigo-300 bg-indigo-500/15 border-indigo-500/30',
+      DEACTIVATE:       'text-orange-400 bg-orange-400/10 border-orange-400/20',
+      REACTIVATE:       'text-teal-400 bg-teal-400/10 border-teal-400/20',
+      EXECUTE:          'text-cyan-300 bg-cyan-500/15 border-cyan-500/30',
+      EXPORT:           'text-amber-300 bg-amber-500/15 border-amber-500/30',
+      LOGIN:            'text-sky-400 bg-sky-400/10 border-sky-400/20',
+      LOGIN_FALHA:     'text-red-300 bg-red-500/15 border-red-500/30',
     };
     return colors[acao] ?? 'text-slate-400 bg-slate-400/10 border-slate-400/20';
   }
@@ -323,6 +382,18 @@ export class RelatoriosPageComponent {
       BRIDGE_TRIGGER:   'Acionamento automático',
       RULE_CHANGE:      'Mudança de regra',
       DEVICE_CHANGE:    'Mudança de dispositivo',
+      ENTREGA:          'Entrega',
+      ONLINE:           'Dispositivo online',
+      OFFLINE:          'Dispositivo offline',
+      FANTASMAS_REMOVIDOS:        'Rostos órfãos removidos',
+      DISPOSITIVO_IP_CORRIGIDO:   'IP do dispositivo corrigido',
+      DISPOSITIVO_MAC_ATUALIZADO: 'MAC do dispositivo atualizado',
+      DEACTIVATE:       'Desativação',
+      REACTIVATE:       'Reativação',
+      EXECUTE:          'Execução',
+      EXPORT:           'Exportação de dados',
+      LOGIN:            'Login',
+      LOGIN_FALHA:     'Tentativa de login',
     };
     return labels[acao] ?? acao;
   }
@@ -345,8 +416,34 @@ export class RelatoriosPageComponent {
       sistema:         'Sistema',
       facial:          'Controle de Acesso',
       'regras-acesso': 'Regras de Acesso',
+      dispositivos:    'Dispositivos de Acesso',
+      'facial-health': 'Monitoramento dos Dispositivos',
+      visitas:         'Visitas',
+      pessoas:         'Cadastro de Pessoas',
+      'caminhos-acesso': 'Caminhos de Acesso',
+      condominios:     'Condomínio',
+      crm:             'CRM',
+      'crm-condominio': 'CRM do Condomínio',
+      superlogica:     'Superlógica',
+      veiculos:        'Veículos',
+      vagas:           'Vagas',
+      funcionarios:    'Funcionários',
+      convites:        'Convites',
+      delivery:        'Delivery',
+      users:           'Usuários',
+      auditoria:       'Auditoria',
+      tags:            'Tags de Veículo',
+      consentimentos:  'Consentimentos (LGPD)',
+      sindico:         'Síndico',
+      agenda:          'Agenda',
+      contatos:        'Contatos',
+      notificacoes:    'Notificações',
+      'chat-ia':       'Assistente IA',
+      dashboard:       'Dashboard',
+      relatorios:      'Relatórios',
     };
-    return labels[modulo] ?? modulo;
+    // A API grava alguns módulos em maiúsculas (ex.: AUTH).
+    return labels[(modulo ?? '').toLowerCase()] ?? modulo;
   }
 
   formatarData(iso: string): string {

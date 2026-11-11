@@ -58,7 +58,17 @@ describe('RelatoriosService — leituras de visitantes (Pessoas/Visitas)', () =>
       auditLog: { findMany: jest.fn(async () => []) },
       facial_Devices: { findMany: jest.fn(async () => []) },
     };
-    return { svc: new RelatoriosService(prisma), prisma, visitanteLegado, visitaMigrada };
+    // A página do Log de Eventos vem de SQL cru (eventos-espinha.ts), que o
+    // Prisma simulado não executa: cada teste de getEventos informa a espinha
+    // (fonte, id) e confere a hidratação. Deduplicação e escolha de tabela no
+    // SQL são exercitadas em relatorios.eventos-paginacao.spec.ts.
+    const svc = new RelatoriosService(prisma);
+    const espinha = (linhas: Array<[string, number]>) =>
+      jest.spyOn(svc as any, 'consultarEspinhaEventos').mockResolvedValue({
+        linhas: linhas.map(([fonte, id]) => ({ fonte, id })),
+        total: linhas.length,
+      });
+    return { svc, prisma, visitanteLegado, visitaMigrada, espinha };
   }
 
   describe('generate("visitantes")', () => {
@@ -84,8 +94,10 @@ describe('RelatoriosService — leituras de visitantes (Pessoas/Visitas)', () =>
   describe('getEventos()', () => {
     it('flag OFF: entradas/saídas vêm de Visitantes, nunca toca Visitas', async () => {
       process.env['PESSOAS_MIGRATION_ENABLED'] = 'false';
-      const { svc, prisma } = build();
+      const { svc, prisma, espinha } = build();
+      const spy = espinha([['visita_entrada', 30]]);
       const r = await svc.getEventos(1);
+      expect((spy.mock.calls[0][0] as any).migrado).toBe(false);
       const item = r.items.find((i: any) => i.detalhes?.nome === 'Maria Legado');
       expect(item).toBeDefined();
       expect(prisma.visitantes.findMany).toHaveBeenCalled();
@@ -94,8 +106,10 @@ describe('RelatoriosService — leituras de visitantes (Pessoas/Visitas)', () =>
 
     it('flag ON: entradas/saídas vêm de Visitas+Pessoa, nunca toca Visitantes', async () => {
       process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
-      const { svc, prisma } = build();
+      const { svc, prisma, espinha } = build();
+      const spy = espinha([['visita_entrada', 300]]);
       const r = await svc.getEventos(1);
+      expect((spy.mock.calls[0][0] as any).migrado).toBe(true);
       const item = r.items.find((i: any) => i.detalhes?.nome === 'Maria Migrada');
       expect(item).toBeDefined();
       expect(prisma.visitas.findMany).toHaveBeenCalled();
@@ -104,7 +118,8 @@ describe('RelatoriosService — leituras de visitantes (Pessoas/Visitas)', () =>
 
     it('flag ON: correlação de Acessos_Facial.id_pessoa faz merge Pessoas+Visitas (um id de cada espaço)', async () => {
       process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
-      const { svc, prisma } = build();
+      const { svc, prisma, espinha } = build();
+      espinha([['facial', 2], ['facial', 1]]);
 
       // Dois acessos faciais tipo "visitante": um com id_pessoa apontando
       // pra uma Pessoa (id 900), outro apontando pra uma Visita (id 901) —
@@ -151,15 +166,17 @@ describe('RelatoriosService — leituras de visitantes (Pessoas/Visitas)', () =>
       expect(viaVisita!.detalhes.blocoApto).toContain('202');
     });
 
-    it('flag ON: dedup encontra o evento facial gravado com id de Pessoa e não duplica a entrada no feed (nem no total)', async () => {
+    it('flag ON: a lista segue a espinha — entrada manual que o banco deduplicou não reaparece na hidratação', async () => {
       process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
-      const { svc, prisma } = build();
+      const { svc, prisma, espinha } = build();
 
       // Evento facial gravado com id_pessoa = Pessoa.id (700) da mesma
       // pessoa de `visitaMigrada` (Visita.id = 300), no MESMO instante da
-      // `data_entrada` — sem o merge dos dois espaços de id no dedup, essa
-      // entrada apareceria duas vezes (uma "Acesso Facial", outra "PIN/Manual"
-      // vinda de `visitas`), inflando `total`.
+      // `data_entrada`. A deduplicação (nos dois espaços de id) acontece no
+      // SQL da espinha — coberta com SQL executado em
+      // relatorios.eventos-paginacao.spec.ts ("segundo espaço de id"). Aqui a
+      // espinha já vem sem a entrada manual, e o serviço não pode
+      // ressuscitá-la mesmo que o banco devolva a visita na hidratação.
       prisma.acessos_Facial.findMany = jest.fn(async () => [
         {
           id: 5, id_condominio: 1, timestamp: new Date('2026-09-01T10:00:00Z'),
@@ -167,13 +184,12 @@ describe('RelatoriosService — leituras de visitantes (Pessoas/Visitas)', () =>
           evento: 'entrada', confianca: 0.9, id_device: 1, id_pessoa: 700,
         },
       ]);
+      espinha([['facial', 5]]);
 
       const r = await svc.getEventos(1);
       const doMaria = r.items.filter((i: any) => i.detalhes?.nome === 'Maria Migrada');
       expect(doMaria).toHaveLength(1);
       expect(doMaria[0].tipo).toBe('Acesso Facial');
-      // `total` é a contagem pré-paginação — se a entrada tivesse duplicado,
-      // o relatório de auditoria contaria um evento a mais do que aconteceu.
       expect(r.total).toBe(r.items.length);
     });
   });

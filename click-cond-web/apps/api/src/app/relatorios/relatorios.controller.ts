@@ -4,7 +4,8 @@ import { RelatoriosService } from './relatorios.service';
 import { CondominiosExportService } from './condominios-export.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertOperador, assertSindico } from '../auth/tenant.util';
+import { assertOperador, assertSindico, isSindico } from '../auth/tenant.util';
+import { dataIsoOuErro, inteiroPositivoOuPadrao, textoUnico } from './relatorios-query.util';
 
 /**
  * Relatórios gerenciais do condomínio.
@@ -80,16 +81,24 @@ export class RelatoriosController {
   async getAuditoria(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @ReqUser() payload: JwtPayload,
-    @Query('modulo') modulo?: string,
-    @Query('dataInicio') dataInicio?: string,
-    @Query('dataFim') dataFim?: string,
-    @Query('page') pageStr?: string,
-    @Query('pageSize') pageSizeStr?: string,
+    @Query('modulo') modulo?: unknown,
+    @Query('dataInicio') dataInicio?: unknown,
+    @Query('dataFim') dataFim?: unknown,
+    @Query('page') pageStr?: unknown,
+    @Query('pageSize') pageSizeStr?: unknown,
   ) {
     assertOperador(payload, 'consultar a auditoria do condomínio');
-    const page = pageStr ? Number(pageStr) : 1;
-    const pageSize = pageSizeStr ? Number(pageSizeStr) : 50;
-    return this.service.getAuditoria(idCondominio, modulo, dataInicio, dataFim, page, pageSize);
+    // Financeiro/CRM/Superlógica no log carregam valores, nomes e telefone de
+    // cobrança: só o síndico lê essas linhas (o porteiro recebe a lista sem elas).
+    return this.service.getAuditoria(
+      idCondominio,
+      textoUnico(modulo),
+      dataIsoOuErro(dataInicio, 'dataInicio'),
+      dataIsoOuErro(dataFim, 'dataFim'),
+      inteiroPositivoOuPadrao(pageStr, 1),
+      inteiroPositivoOuPadrao(pageSizeStr, 50),
+      isSindico(payload),
+    );
   }
 
   @Get('auditoria/export')
@@ -97,16 +106,17 @@ export class RelatoriosController {
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @Res() res: Response,
     @ReqUser() payload: JwtPayload,
-    @Query('modulo') modulo?: string,
-    @Query('dataInicio') dataInicio?: string,
-    @Query('dataFim') dataFim?: string,
+    @Query('modulo') modulo?: unknown,
+    @Query('dataInicio') dataInicio?: unknown,
+    @Query('dataFim') dataFim?: unknown,
   ) {
     assertSindico(payload, 'exportar a auditoria do condomínio');
     const { buffer, filename } = await this.service.exportAuditoriaCsv(
       idCondominio,
-      modulo,
-      dataInicio,
-      dataFim,
+      textoUnico(modulo),
+      dataIsoOuErro(dataInicio, 'dataInicio'),
+      dataIsoOuErro(dataFim, 'dataFim'),
+      { nome: payload.nome || payload.email, email: payload.email },
     );
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -118,16 +128,21 @@ export class RelatoriosController {
   async getEventos(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @ReqUser() payload: JwtPayload,
-    @Query('dataInicio') dataInicio?: string,
-    @Query('dataFim') dataFim?: string,
-    @Query('page') pageStr?: string,
-    @Query('pageSize') pageSizeStr?: string,
-    @Query('search') search?: string,
+    @Query('dataInicio') dataInicio?: unknown,
+    @Query('dataFim') dataFim?: unknown,
+    @Query('page') pageStr?: unknown,
+    @Query('pageSize') pageSizeStr?: unknown,
+    @Query('search') search?: unknown,
   ) {
     assertOperador(payload, 'consultar o histórico de eventos');
-    const page = pageStr ? Number(pageStr) : 1;
-    const pageSize = pageSizeStr ? Number(pageSizeStr) : 50;
-    return this.service.getEventos(idCondominio, dataInicio, dataFim, page, pageSize, search);
+    return this.service.getEventos(
+      idCondominio,
+      dataIsoOuErro(dataInicio, 'dataInicio'),
+      dataIsoOuErro(dataFim, 'dataFim'),
+      inteiroPositivoOuPadrao(pageStr, 1),
+      inteiroPositivoOuPadrao(pageSizeStr, 50),
+      textoUnico(search),
+    );
   }
 }
 

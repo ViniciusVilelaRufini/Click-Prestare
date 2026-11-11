@@ -1265,6 +1265,13 @@ model AuditLog {
   id_condominio Int
   usuario_nome  String   @db.VarChar(255)
   usuario_email String?  @db.VarChar(255)
+  /// Id de quem fez a ação, na tabela indicada por `autor_tipo`. Null em registros antigos e em
+  /// chamadores que ainda não informam o autor.
+  autor_id      Int?
+  /// Em qual tabela `autor_id` vive: 'funcionario_portaria' (Funcionarios_Portaria.id),
+  /// 'user' (Users.id — síndico, morador ou funcionário do app), 'crm_admin' (crm_admins.id)
+  /// ou 'sistema' (job/automação, sem id).
+  autor_tipo    String?  @db.VarChar(30)
   acao          String   @db.VarChar(50)
   modulo        String   @db.VarChar(100)
   entidade_id   Int?
@@ -1273,7 +1280,9 @@ model AuditLog {
   ip            String?  @db.VarChar(45)
   created_at    DateTime @default(now()) @db.DateTime(0)
 
-  @@index([id_condominio], map: "idx_audit_condo")
+  // (id_condominio, created_at) atende a listagem da auditoria (filtra por condomínio, ordena por data)
+  // e, pelo prefixo, tudo que o antigo idx_audit_condo (só id_condominio) atendia.
+  @@index([id_condominio, created_at], map: "idx_audit_condo_created")
   @@index([created_at], map: "idx_audit_created")
   @@map("audit_logs")
 }

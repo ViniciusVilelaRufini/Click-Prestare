@@ -36,7 +36,14 @@ describe('RelatoriosService — getEventos() dataEntrada das encomendas', () => 
       auditLog: { findMany: jest.fn(async () => []) },
       facial_Devices: { findMany: jest.fn(async () => []) },
     };
-    const r: any = await new RelatoriosService(prisma).getEventos(1);
+    // A página vem de SQL cru (eventos-espinha.ts); aqui a espinha é informada
+    // à mão e o teste confere só a montagem do item.
+    const svc: any = new RelatoriosService(prisma);
+    jest.spyOn(svc, 'consultarEspinhaEventos').mockResolvedValue({
+      linhas: [{ fonte: 'encomenda', id: 7 }],
+      total: 1,
+    });
+    const r: any = await svc.getEventos(1);
     const ev = r.items.find((i: any) => i.id === 'encomenda-7');
     expect(ev).toBeDefined();
     return ev;

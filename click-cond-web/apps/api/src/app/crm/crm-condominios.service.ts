@@ -41,6 +41,11 @@ export interface ResumoDesativacao {
   apartamentos: number;
 }
 
+/** Valores gravados em `audit_logs` quando o condomínio é purgado (LGPD). */
+const AUDITORIA_AUTOR_ANONIMIZADO = 'Anonimizado';
+const AUDITORIA_DESCRICAO_ANONIMIZADA =
+  'Registro anonimizado na exclusão definitiva do condomínio';
+
 /**
  * Ciclo de vida comercial do condomínio no CRM: criação, desativação,
  * reativação e purga definitiva.
@@ -62,6 +67,12 @@ export interface ResumoDesativacao {
  * outro foi destruído junto). Por isso a purga só apaga uma conta depois da
  * cascata, e apenas se ela tiver ficado sem nenhum vínculo em qualquer outro
  * condomínio.
+ *
+ * Sobre auditoria: `audit_logs` também fica fora da cascata (sem FK). A purga
+ * anonimiza as linhas do condomínio — mantém data, ação, módulo e id da
+ * entidade; apaga `detalhes`, e-mail e IP; troca autor e descrição por
+ * marcadores — e só então grava a linha da própria exclusão, que permanece
+ * íntegra. Desativar não anonimiza: o condomínio ainda pode ser reativado.
  */
 @Injectable()
 export class CrmCondominiosService {
@@ -446,13 +457,26 @@ export class CrmCondominiosService {
     // 4. Só agora: apaga as contas que ficaram sem QUALQUER vínculo.
     const contasRemovidas = await this.removerContasOrfas(candidatos);
 
+    // 5. LGPD: audit_logs não tem FK, a cascata não a alcança. Anonimiza o que
+    // já existe ANTES de gravar a linha da exclusão, para que essa (operador
+    // do CRM + contagens) seja a única a ficar íntegra.
+    const auditoriaAnonimizada = await this.anonimizarAuditoria(id);
+    const auditoriaAnonimizacaoFalhou = auditoriaAnonimizada === null;
+
+    // O resumo abaixo só pode carregar contagens, flags e nomes de terminal —
+    // nada de nome, e-mail ou documento de morador: esta linha não é
+    // anonimizada.
     await this.auditoria.registrar({
       id_condominio: id,
       usuario_nome: operador,
       acao: 'DELETE',
       modulo: 'crm-condominio',
       entidade_id: id,
-      descricao: `Condomínio "${cond.nome}" excluído definitivamente pelo CRM`,
+      descricao:
+        `Condomínio "${cond.nome}" excluído definitivamente pelo CRM` +
+        (auditoriaAnonimizacaoFalhou
+          ? ' — ATENÇÃO: a anonimização da auditoria falhou e precisa ser refeita'
+          : ''),
       detalhes: {
         ...resumo,
         contasRemovidas,
@@ -461,6 +485,8 @@ export class CrmCondominiosService {
         terminaisComFalha: facial.falhas,
         historicoAcessosPurgado: purgarHistorico && totalAcessos > 0,
         eventosAcessoRemovidos: purgarHistorico ? totalAcessos : 0,
+        auditoriaAnonimizada,
+        auditoriaAnonimizacaoFalhou,
       },
     });
 
@@ -472,7 +498,44 @@ export class CrmCondominiosService {
       contasPreservadas: candidatos.length - contasRemovidas,
       terminaisLimpos: facial.limpos,
       terminaisComFalha: facial.falhas,
+      /** Linhas de audit_logs anonimizadas; `null` quando a anonimização falhou. */
+      auditoriaAnonimizada,
+      auditoriaAnonimizacaoFalhou,
     };
+  }
+
+  /**
+   * Tira os dados pessoais das linhas de auditoria de um condomínio já
+   * purgado, mantendo a trilha: data, ação, módulo e id da entidade ficam.
+   *
+   * Devolve quantas linhas foram alteradas, ou `null` se falhou. Nunca lança:
+   * quando isto roda o condomínio já foi apagado e não há o que desfazer — a
+   * falha tem de chegar ao operador pelo retorno de `purgar` e pela linha da
+   * exclusão, não derrubar a resposta.
+   */
+  private async anonimizarAuditoria(idCondominio: number): Promise<number | null> {
+    try {
+      const { count } = await this.prisma.auditLog.updateMany({
+        where: { id_condominio: idCondominio },
+        data: {
+          usuario_nome: AUDITORIA_AUTOR_ANONIMIZADO, // NOT NULL: marcador
+          usuario_email: null,
+          // Contas sem outro vínculo são apagadas, mas as preservadas seguem
+          // existindo: o id continuaria apontando para uma pessoa.
+          autor_id: null,
+          autor_tipo: null,
+          ip: null,
+          detalhes: null,
+          descricao: AUDITORIA_DESCRICAO_ANONIMIZADA,
+        },
+      });
+      return count;
+    } catch (e: any) {
+      this.logger.error(
+        `Condomínio ${idCondominio} purgado, mas a anonimização de audit_logs falhou: ${e?.message}`,
+      );
+      return null;
+    }
   }
 
   /**
