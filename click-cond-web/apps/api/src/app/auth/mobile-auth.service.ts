@@ -439,6 +439,17 @@ export class MobileAuthService {
     }
   }
 
+  /**
+   * O app reenvia sempre o e-mail do perfil (de `Funcionarios`/`Sindicos`/
+   * `Moradores`, às vezes com outra caixa). Só é troca do e-mail de acesso
+   * quando o novo, normalizado, não é nem o `email` nem o `login` da conta.
+   */
+  private ehTrocaDoEmailDaConta(novo: unknown, conta?: { email?: string | null; login?: string | null } | null): boolean {
+    const norm = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+    const daConta = [conta?.email, conta?.login].map(norm).filter(Boolean);
+    return !daConta.includes(norm(novo));
+  }
+
   async updateSindico(idUser: number, body: {
     nome?: string;
     email?: string;
@@ -462,7 +473,11 @@ export class MobileAuthService {
     const s = user.sindicos[0];
 
     const emailNormalized = body.email?.toLowerCase().trim();
-    if (emailNormalized && emailNormalized !== user.email) {
+    const trocaEmail = !!emailNormalized && this.ehTrocaDoEmailDaConta(emailNormalized, user);
+    if (trocaEmail) {
+      // Senha antes do conflito: sem ela, e-mail em uso e e-mail livre recebem
+      // a mesma resposta (não vira oráculo de contas).
+      await this.exigirSenhaAtualParaTrocaDeEmail(idUser, body.senha_atual);
       const existing = await this.prisma.users.findFirst({
         where: {
           OR: [{ email: emailNormalized }, { login: emailNormalized }],
@@ -472,7 +487,6 @@ export class MobileAuthService {
       if (existing) {
         throw new BadRequestException('Este e-mail já está sendo utilizado por outro usuário.');
       }
-      await this.exigirSenhaAtualParaTrocaDeEmail(idUser, body.senha_atual);
     }
 
     let parsedBirth: Date | null = s.date_birth;
@@ -503,8 +517,8 @@ export class MobileAuthService {
         where: { id: idUser },
         data: {
           name: nomeAtualizado,
-          email: emailNormalized || user.email,
-          login: emailNormalized || user.login,
+          email: trocaEmail ? emailNormalized : user.email,
+          login: trocaEmail ? emailNormalized : user.login,
           ...(phone !== undefined && { phone }),
           ...(docId !== undefined && { cpf: docId }),
           photo: fotoUrl !== undefined ? fotoUrl : user.photo,
@@ -3366,18 +3380,22 @@ export class MobileAuthService {
     if (!atual) throw new NotFoundException('Funcionário não encontrado.');
 
     const email = func.email ? String(func.email).trim() : null;
+    let trocaEmail = false;
     if (email) {
-      const conflito = await this.prisma.users.findFirst({
-        where: { OR: [{ email }, { login: email }], NOT: { id: idUser } },
-        select: { id: true },
-      });
-      if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
       const contaAtual = await this.prisma.users.findUnique({
         where: { id: idUser },
         select: { email: true, login: true },
       });
-      if (email !== contaAtual?.email || email !== contaAtual?.login) {
+      trocaEmail = this.ehTrocaDoEmailDaConta(email, contaAtual);
+      if (trocaEmail) {
+        // Senha antes do conflito: sem ela, e-mail em uso e e-mail livre
+        // recebem a mesma resposta (não vira oráculo de contas).
         await this.exigirSenhaAtualParaTrocaDeEmail(idUser, func.senha_atual ?? body?.senha_atual);
+        const conflito = await this.prisma.users.findFirst({
+          where: { OR: [{ email }, { login: email }], NOT: { id: idUser } },
+          select: { id: true },
+        });
+        if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
       }
     }
 
@@ -3411,7 +3429,7 @@ export class MobileAuthService {
         data: {
           ...(func.nome !== undefined && { name: func.nome }),
           ...(func.documento !== undefined && { cpf: func.documento || null }),
-          ...(email !== null && { email, login: email }),
+          ...(trocaEmail && { email, login: email }),
           ...(func.telefone !== undefined && { phone: func.telefone || null }),
           ...(photoUrl !== null && { photo: photoUrl, profile_image: photoUrl }),
         },
@@ -3907,8 +3925,20 @@ export class MobileAuthService {
         const dnEdicao = mor.data_nascimento ?? atual.data_nascimento;
         if (dnEdicao && calcularIdade(dnEdicao) < 18) delete mor.email;
 
-        const emailMudou = mor.email !== undefined && mor.email !== atual.email;
-        if (emailMudou && mor.email) {
+        const normEmail = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+        const emailMudou = mor.email !== undefined && normEmail(mor.email) !== normEmail(atual.email);
+        // Só é troca do e-mail de ACESSO se o novo não for o email/login da conta
+        // (o app reenvia o Moradores.email, que pode diferir de Users).
+        const trocaDaConta = emailMudou && this.ehTrocaDoEmailDaConta(mor.email, atual.user);
+        const autoedicao = !!atual.id_user && atual.id_user === callerId;
+
+        // Autoedição do e-mail de acesso: prova de posse com a senha atual —
+        // ANTES do conflito, para e-mail em uso e livre terem a mesma resposta.
+        if (trocaDaConta && autoedicao) {
+          await this.exigirSenhaAtualParaTrocaDeEmail(atual.id_user, mor.senha_atual ?? body.senha_atual);
+        }
+
+        if (emailMudou && mor.email && (trocaDaConta || !autoedicao)) {
           const conflito = await this.prisma.users.findFirst({
             where: {
               OR: [{ email: mor.email }, { login: mor.email }],
@@ -3917,11 +3947,6 @@ export class MobileAuthService {
             select: { id: true },
           });
           if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
-        }
-
-        // Autoedição do e-mail de acesso: prova de posse com a senha atual.
-        if (emailMudou && atual.id_user && atual.id_user === callerId) {
-          await this.exigirSenhaAtualParaTrocaDeEmail(atual.id_user, mor.senha_atual ?? body.senha_atual);
         }
 
         // Cláusula 8.3: Bloqueio de menor de 18 anos para login e biometria
@@ -3963,7 +3988,7 @@ export class MobileAuthService {
           if (mor.nome !== undefined) userPatch.name = mor.nome;
           if (mor.telefone !== undefined) userPatch.phone = mor.telefone;
           if (mor.documento !== undefined) userPatch.cpf = mor.documento || null;
-          if (emailMudou) {
+          if (trocaDaConta) {
             userPatch.email = mor.email || null;
             userPatch.login = mor.email || null;
           }
