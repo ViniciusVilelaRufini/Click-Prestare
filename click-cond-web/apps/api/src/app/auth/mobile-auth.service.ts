@@ -721,6 +721,11 @@ export class MobileAuthService {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
     }
 
+    // Corpo da rota sem DTO: objeto em `login` viraria filtro do Prisma.
+    if (typeof login !== 'string' || typeof senhaRaw !== 'string' || !login.trim()) {
+      throw new UnauthorizedException('Login ou Senha incorretos');
+    }
+
     const user = await this.prisma.users.findFirst({
       where: { OR: [{ login }, { email: login }] },
       include: {
@@ -828,6 +833,12 @@ export class MobileAuthService {
   async loginFuncionario(login: string, senhaRaw: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
+    }
+
+    // Corpo da rota sem DTO: objeto em `login` viraria filtro do Prisma (e o
+    // trim() num objeto derrubava a rota com 500).
+    if (typeof login !== 'string' || typeof senhaRaw !== 'string' || !login.trim()) {
+      throw new UnauthorizedException('Login ou Senha incorretos');
     }
 
     const cleanLogin = login.trim();
