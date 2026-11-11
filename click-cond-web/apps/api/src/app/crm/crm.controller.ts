@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Put, Delete, Body, Query, Res, NotFoundException, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Query, Res, NotFoundException, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { Public } from '../auth/public.decorator';
+import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 import { CrmService } from './crm.service';
 import { CrmCondominiosService } from './crm-condominios.service';
 import type { CriarCondominioDto } from './crm-condominios.service';
@@ -198,6 +199,23 @@ export class CrmController {
     @ReqUser() user: JwtPayload,
   ) {
     return this.moradores.create({ ...dto, id_condominio: id }, user);
+  }
+
+  /**
+   * Suporte: corrige o e-mail de acesso (Users.email/login + Moradores.email)
+   * de um morador cadastrado com o e-mail errado. Exige `motivo`, encerra as
+   * sessões da conta e não gera senha. Ver CrmCondominiosService.
+   */
+  @UseGuards(CrmAdminGuard)
+  @SkipAudit()
+  @Patch('clientes/:id/moradores/:idMorador/email-acesso')
+  corrigirEmailAcessoMorador(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('idMorador', ParseIntPipe) idMorador: number,
+    @Body() body: { email?: string; motivo?: string },
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.condominios.corrigirEmailAcessoMorador(id, idMorador, body ?? {}, user);
   }
 
   @UseGuards(CrmAdminGuard)

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -8,8 +9,23 @@ import {
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
+import { autorDoToken } from '../auth/usuario-do-token.util';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FacialDeviceClientService } from '../facial/facial-device-client.service';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MOTIVO_MAX = 500;
+const MSG_EMAIL_DE_OUTRA_CONTA =
+  'Este e-mail já pertence a outra conta. Confirme o endereço com o morador ou use outro e-mail.';
+
+/** "carlos@gmail.com" → "ca****@gmail.com" — a auditoria não guarda o e-mail inteiro. */
+function mascararEmail(email: string): string {
+  if (!email || !email.includes('@')) return email ? '****' : '';
+  const [usuario, dominio] = email.split('@');
+  if (usuario.length <= 2) return `${usuario.charAt(0)}*@${dominio}`;
+  return `${usuario.substring(0, 2)}****@${dominio}`;
+}
 
 export interface CriarCondominioDto {
   nome: string;
@@ -269,6 +285,105 @@ export class CrmCondominiosService {
       login: vinculo.user.login ?? vinculo.user.email,
       senha,
     };
+  }
+
+  /**
+   * Suporte da Prestare: corrige o e-mail de acesso de um morador cadastrado
+   * com o endereço digitado errado.
+   *
+   * Desde a varredura de segurança, síndico, funcionário e console não trocam
+   * o `Users.email/login` da conta de outra pessoa (era tomada de conta). Sem
+   * isto, "Enviar credenciais" e "Esqueci a senha" seguiam indo para o e-mail
+   * errado. Aqui fica a única saída: só admin do CRM, com motivo e auditoria.
+   *
+   * Não gera nem envia senha: depois o morador usa "Esqueci a senha" ou a
+   * portaria usa "Enviar credenciais", que agora chegam ao endereço certo.
+   * As sessões antigas da conta caem pelo mesmo `senha_alterada_em` da
+   * redefinição de senha (JwtStrategy recusa tokens com iat anterior).
+   */
+  async corrigirEmailAcessoMorador(
+    idCondominio: number,
+    idMorador: number,
+    body: { email?: unknown; motivo?: unknown },
+    admin: JwtPayload | undefined,
+  ) {
+    if ((admin as any)?.role !== 'crm_admin') {
+      throw new ForbiddenException('Acesso restrito ao painel do CRM.');
+    }
+
+    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+    if (!email || email.length > 255 || !EMAIL_RE.test(email)) {
+      throw new BadRequestException('Informe um e-mail válido.');
+    }
+    const motivo = typeof body?.motivo === 'string' ? body.motivo.trim() : '';
+    if (!motivo) throw new BadRequestException('Informe o motivo da correção.');
+    if (motivo.length > MOTIVO_MAX) {
+      throw new BadRequestException(`O motivo deve ter no máximo ${MOTIVO_MAX} caracteres.`);
+    }
+
+    const morador = await this.prisma.moradores.findFirst({
+      where: { id: idMorador, id_condominio: idCondominio },
+      select: { id: true, nome: true, email: true, id_user: true },
+    });
+    if (!morador) throw new NotFoundException('Morador não encontrado neste condomínio.');
+
+    // Conta à parte, não pela relação: morador legado com id_user = 0 faria a
+    // relação obrigatória `user` estourar no Prisma.
+    const conta = morador.id_user
+      ? await this.prisma.users.findUnique({
+          where: { id: morador.id_user },
+          select: { id: true, email: true, login: true },
+        })
+      : null;
+    const idUser = conta?.id ?? null;
+    const emailAnterior = conta?.login ?? conta?.email ?? morador.email ?? '';
+
+    try {
+      if (idUser) {
+        const outraConta = await this.prisma.users.findFirst({
+          where: { id: { not: idUser }, OR: [{ email }, { login: email }] },
+          select: { id: true },
+        });
+        if (outraConta) throw new ConflictException(MSG_EMAIL_DE_OUTRA_CONTA);
+
+        await this.prisma.$transaction([
+          this.prisma.users.update({
+            where: { id: idUser },
+            // senha_alterada_em: o mesmo corte de sessão da redefinição de senha.
+            data: { email, login: email, senha_alterada_em: momentoTrocaSenha() },
+          }),
+          this.prisma.moradores.update({ where: { id: morador.id }, data: { email } }),
+        ]);
+      } else {
+        await this.prisma.moradores.update({ where: { id: morador.id }, data: { email } });
+      }
+    } catch (e: any) {
+      // Corrida com outra conta gravando o mesmo e-mail: a unique do banco decide.
+      if (e?.code === 'P2002') throw new ConflictException(MSG_EMAIL_DE_OUTRA_CONTA);
+      throw e;
+    }
+
+    const autor = autorDoToken(admin);
+    await this.auditoria.registrar({
+      id_condominio: idCondominio,
+      usuario_nome: (admin as any)?.nome ?? admin?.email ?? 'Admin CRM',
+      usuario_email: admin?.email,
+      autor_id: autor.autor_id,
+      autor_tipo: autor.autor_tipo,
+      acao: 'UPDATE',
+      modulo: 'crm-morador',
+      entidade_id: morador.id,
+      descricao: `E-mail de acesso do morador ${morador.nome} corrigido pelo suporte (CRM)`,
+      detalhes: {
+        email_anterior: mascararEmail(emailAnterior),
+        email_novo: mascararEmail(email),
+        motivo,
+        conta_atualizada: !!idUser,
+        sessoes_encerradas: !!idUser,
+      },
+    });
+
+    return { success: true, idMorador: morador.id, email, contaAtualizada: !!idUser };
   }
 
   /** Gera bloco × andar × unidade — ex.: bloco A, andar 3, unidade 2 → "302". */
