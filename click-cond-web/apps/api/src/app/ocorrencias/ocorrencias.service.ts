@@ -1,4 +1,11 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
@@ -512,7 +519,72 @@ export class OcorrenciasService {
     return msg;
   }
 
-  private async sendChatNotification(idOcorrencia: number, idUsuarioSender: number, mensagem: string) {
+  /**
+   * Mensagem escrita por um serviço interno — CRM (suporte da Prestare) ou a
+   * integração Kabania —, que não tem token de usuário. NÃO é rota: só esses
+   * serviços chamam, depois dos próprios guards (CrmAdminGuard /
+   * KabaniaApiKeyGuard). A `createMessage` pública segue exigindo autor ou
+   * equipe.
+   *
+   * `OcorrenciaMensagens.id_usuario` é FK obrigatória para Users e não há
+   * conta de sistema no banco. Fica o critério que esses serviços já usavam:
+   * o síndico do condomínio e, sem síndico, o autor da ocorrência — sem o
+   * antigo `1` fixo, que gravava em nome de quem tivesse esse id. A origem
+   * vai no início do texto (`[Suporte Prestare] ...`), para o chat não
+   * atribuir ao síndico o que veio da Prestare/Kabania.
+   */
+  async createMessageDoSistema(params: {
+    idOcorrencia: number;
+    mensagem: string;
+    autorRotulo: string;
+    origem: 'crm' | 'kabania';
+  }) {
+    const mensagem = typeof params.mensagem === 'string' ? params.mensagem.trim() : '';
+    if (!mensagem) throw new BadRequestException('Escreva a mensagem.');
+    const rotulo =
+      (params.autorRotulo ?? '').replace(/[[\]]/g, '').trim().slice(0, 60) ||
+      (params.origem === 'kabania' ? 'Kabania' : 'Suporte Prestare');
+
+    const oc = await this.prisma.ocorrencias.findUnique({
+      where: { id: params.idOcorrencia },
+      select: { id_condominio: true, user: true },
+    });
+    if (!oc) throw new NotFoundException(`Ocorrência ${params.idOcorrencia} não encontrada`);
+
+    const sindico = await this.prisma.users.findFirst({
+      where: { is_sindico: 1, sindicosCondominios: { some: { id_condominio: oc.id_condominio } } },
+      select: { id: true },
+    });
+    const idUsuario = sindico?.id ?? oc.user ?? null;
+    if (!idUsuario) {
+      throw new UnprocessableEntityException(
+        'Esta ocorrência não tem síndico nem autor para registrar a mensagem no chat.',
+      );
+    }
+
+    const msg = await this.prisma.ocorrenciaMensagens.create({
+      data: { id_ocorrencia: params.idOcorrencia, id_usuario: idUsuario, mensagem: `[${rotulo}] ${mensagem}` },
+      include: {
+        usuario: { select: { id: true, name: true, login_type: true, is_sindico: true } },
+      },
+    });
+    this.logger.log(`[ocorrencias] mensagem de ${params.origem} na ocorrência #${params.idOcorrencia}`);
+
+    try {
+      await this.sendChatNotification(params.idOcorrencia, idUsuario, mensagem, rotulo);
+    } catch (e: any) {
+      this.logger.error(`[ocorrencias.createMessageDoSistema] push falhou: ${e?.message ?? e}`);
+    }
+
+    return msg;
+  }
+
+  private async sendChatNotification(
+    idOcorrencia: number,
+    idUsuarioSender: number,
+    mensagem: string,
+    nomeRemetente?: string,
+  ) {
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id: idOcorrencia },
       include: {
@@ -525,7 +597,7 @@ export class OcorrenciasService {
       where: { id: idUsuarioSender },
       select: { name: true, is_sindico: true },
     });
-    const senderName = sender?.name || 'Sistema';
+    const senderName = nomeRemetente || sender?.name || 'Sistema';
 
     if (sender?.is_sindico === 1) {
       if (o.criadoPor?.fcm_token) {

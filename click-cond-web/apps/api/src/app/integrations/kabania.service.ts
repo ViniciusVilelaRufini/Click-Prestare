@@ -211,32 +211,14 @@ export class KabaniaService {
       return { id: 999, id_ocorrencia: id, mensagem, created_at: new Date() };
     }
 
-    const o = await this.prisma.ocorrencias.findUnique({
-      where: { id },
-      include: { condominio: true }
+    // Caminho interno: a createMessage pública exige autor ou equipe, e a
+    // chamada da Kabania (chave de API) não é nenhum dos dois (respondia 403).
+    // Ocorrência inexistente responde 404 (antes devolvia null com 201).
+    return this.ocorrenciasService.createMessageDoSistema({
+      idOcorrencia: id,
+      mensagem,
+      autorRotulo: 'Kabania',
+      origem: 'kabania',
     });
-
-    if (!o) return null;
-
-    // Tenta encontrar um usuário síndico ou admin do condomínio para representar o remetente,
-    // caso contrário usa o próprio criador ou ID de admin padrão (1).
-    let senderId = 1;
-    const sindico = await this.prisma.users.findFirst({
-      where: {
-        is_sindico: 1,
-        sindicosCondominios: {
-          some: { id_condominio: o.id_condominio }
-        }
-      },
-      select: { id: true }
-    });
-
-    if (sindico) {
-      senderId = sindico.id;
-    } else if (o.user) {
-      senderId = o.user;
-    }
-
-    return this.ocorrenciasService.createMessage(id, senderId, mensagem);
   }
 }

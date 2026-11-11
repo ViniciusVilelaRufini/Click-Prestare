@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { AgentBridgeService } from '../facial/agent-bridge.service';
@@ -106,6 +106,8 @@ export interface CrmOverview {
 
 @Injectable()
 export class CrmService {
+  private readonly logger = new Logger(CrmService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ocorrenciasService: OcorrenciasService,
@@ -1250,30 +1252,14 @@ export class CrmService {
       };
     }
 
-    const o = await this.prisma.ocorrencias.findUnique({
-      where: { id: idOcorrencia }
+    // Caminho interno: a createMessage pública exige autor ou equipe, e o
+    // token do CRM não é nenhum dos dois (respondia 403).
+    return this.ocorrenciasService.createMessageDoSistema({
+      idOcorrencia,
+      mensagem,
+      autorRotulo: 'Suporte Prestare',
+      origem: 'crm',
     });
-    if (!o) throw new NotFoundException('Ocorrência não encontrada');
-
-    // Busca o síndico do condomínio associado à ocorrência
-    let senderId = 1;
-    const sindico = await this.prisma.users.findFirst({
-      where: {
-        is_sindico: 1,
-        sindicosCondominios: {
-          some: { id_condominio: o.id_condominio }
-        }
-      },
-      select: { id: true }
-    });
-
-    if (sindico) {
-      senderId = sindico.id;
-    } else if (o.user) {
-      senderId = o.user;
-    }
-
-    return this.ocorrenciasService.createMessage(idOcorrencia, senderId, mensagem);
   }
 
   async reabrirOcorrencia(id: number, novasInformacoes: string) {
@@ -1317,28 +1303,20 @@ export class CrmService {
       }
     });
 
-    let senderId = 1;
-    const sindico = await this.prisma.users.findFirst({
-      where: {
-        is_sindico: 1,
-        sindicosCondominios: {
-          some: { id_condominio: o.id_condominio }
-        }
-      },
-      select: { id: true }
-    });
-
-    if (sindico) {
-      senderId = sindico.id;
-    } else if (o.user) {
-      senderId = o.user;
+    // A reabertura já está gravada na descrição; a mensagem no chat é aviso.
+    // Ocorrência sem síndico nem autor não tem em nome de quem registrá-la —
+    // não desfaz a reabertura por isso.
+    try {
+      await this.ocorrenciasService.createMessageDoSistema({
+        idOcorrencia: id,
+        mensagem: `[Chamado Reaberto] ${novasInformacoes}`,
+        autorRotulo: 'Suporte Prestare',
+        origem: 'crm',
+      });
+    } catch (e: any) {
+      if (!(e instanceof UnprocessableEntityException)) throw e;
+      this.logger.warn(`[crm.reabrirOcorrencia] #${id} reaberta sem mensagem no chat: ${e.message}`);
     }
-
-    await this.ocorrenciasService.createMessage(
-      id,
-      senderId,
-      `[Chamado Reaberto] ${novasInformacoes}`
-    );
 
     return atualizado;
   }
