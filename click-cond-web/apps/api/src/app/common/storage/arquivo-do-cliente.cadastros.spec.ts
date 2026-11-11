@@ -144,6 +144,7 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
         encomendas: {
           findUnique: jest.fn(async () => encomenda),
           findFirst: jest.fn(async () => null),
+          findMany: jest.fn(async () => []),
           update: jest.fn(async ({ data }: any) => ({ ...encomenda, ...data })),
           updateMany: jest.fn(async () => ({ count: 1 })),
           create: jest.fn(async ({ data }: any) => ({ id: 9, ...data })),

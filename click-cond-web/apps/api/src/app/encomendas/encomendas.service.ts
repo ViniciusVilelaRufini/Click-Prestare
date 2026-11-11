@@ -32,6 +32,9 @@ const PROMPT_ETIQUETA =
   'Use null quando não estiver legível. Não invente dados. ' +
   'Nunca comente a qualidade da foto em nenhum campo.';
 
+/** Retirada em lote: as encomendas seguintes reaproveitam a assinatura/foto da 1ª nesta janela. */
+const JANELA_LOTE_RETIRADA_MS = 15 * 60_000;
+
 @Injectable()
 export class EncomendasService implements OnModuleInit {
   constructor(
@@ -414,16 +417,35 @@ export class EncomendasService implements OnModuleInit {
 
     await this.assertEncomendaDoTenant(id, operador);
 
-    // Assinatura e foto da retirada: URL do bucket só se for a desta encomenda.
-    const gravados = umaVez(async () => {
-      const e = await this.prisma.encomendas.findUnique({
+    // Assinatura e foto da retirada: URL do bucket só se for a desta encomenda
+    // ou a de outra do MESMO condomínio retirada há no máximo 15 min — a
+    // retirada em lote da portaria-web reaproveita nas seguintes a URL que a
+    // 1ª devolveu.
+    const propria = umaVez(async () =>
+      this.prisma.encomendas.findUnique({
         where: { id: Number(id) },
+        select: { id_condominio: true, retirado_assinatura: true, retirado_foto: true },
+      }),
+    );
+    const gravadosPara = (valor: unknown) => async () => {
+      const e = await propria();
+      const atuais: unknown[] = [e?.retirado_assinatura, e?.retirado_foto];
+      if (!e || atuais.some((g) => this.storage.chaveDoArquivo(g) === this.storage.chaveDoArquivo(valor))) return atuais;
+      const url = this.storage.normalizarUrl(valor) as string;
+      const doLote = await this.prisma.encomendas.findMany({
+        where: {
+          id: { not: Number(id) },
+          id_condominio: e.id_condominio,
+          retirado_em: { gte: new Date(Date.now() - JANELA_LOTE_RETIRADA_MS) },
+          OR: [{ retirado_assinatura: url }, { retirado_foto: url }],
+        },
         select: { retirado_assinatura: true, retirado_foto: true },
+        take: 5,
       });
-      return [e?.retirado_assinatura, e?.retirado_foto];
-    });
-    await this.storage.exigirArquivoDoRegistro(retiradoAssinatura, gravados);
-    await this.storage.exigirArquivoDoRegistro(retiradoFoto, gravados);
+      return [...atuais, ...doLote.flatMap((o) => [o.retirado_assinatura, o.retirado_foto])];
+    };
+    await this.storage.exigirArquivoDoRegistro(retiradoAssinatura, gravadosPara(retiradoAssinatura));
+    await this.storage.exigirArquivoDoRegistro(retiradoFoto, gravadosPara(retiradoFoto));
 
     let assinaturaUrl: string | null = retiradoAssinatura ?? null;
     if (assinaturaUrl && this.storage.isDataUrl(assinaturaUrl)) {
