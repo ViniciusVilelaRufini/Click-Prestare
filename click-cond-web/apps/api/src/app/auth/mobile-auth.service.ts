@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
@@ -26,6 +26,11 @@ import { MfaService } from './mfa/mfa.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { parseLocalTimeToUTC } from '../visitantes/visitantes.service';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
+
+/** Senha atual errada na troca de e-mail do perfil: 10 falhas em 10 min travam a conta por 10 min. */
+const MAX_FALHAS_SENHA_PERFIL = 10;
+const JANELA_FALHAS_SENHA_PERFIL_MS = 10 * 60_000;
 
 /**
  * Foto do signup público de síndico (pentest P-09). Só data URL de imagem
@@ -83,6 +88,12 @@ export class MobileAuthService {
     private readonly superlogicaWrite: SuperlogicaWriteService,
     @Optional() private readonly mfa?: MfaService,
   ) {}
+
+  /** Estado entre instâncias (trava da senha do perfil); criado sob demanda. */
+  private estadoCompartilhado?: EstadoCompartilhado;
+  private get estado(): EstadoCompartilhado {
+    return (this.estadoCompartilhado ??= new EstadoCompartilhado(this.prisma));
+  }
 
   private readonly logger = new Logger(MobileAuthService.name);
 
@@ -431,11 +442,44 @@ export class MobileAuthService {
    * "esqueci a senha" para outro e-mail e tomar a conta.
    */
   private async exigirSenhaAtualParaTrocaDeEmail(idUser: number, senhaAtual?: string) {
+    // Trava POR CONTA (o moradores/update não tem limite por IP): com um token
+    // roubado, a senha atual não pode ser adivinhada sem fim.
+    const chave = `perfil-senha:${Number(idUser)}`;
+    try {
+      if (await this.estado.obter(`${chave}:trava`)) {
+        throw new HttpException('Muitas tentativas. Tente novamente em alguns minutos.', HttpStatus.TOO_MANY_REQUESTS);
+      }
+    } catch (e) {
+      if (e instanceof HttpException) throw e;
+      // Banco instável: não trava ninguém por isso.
+      this.logger.warn(`Trava da senha do perfil: falha ao consultar: ${(e as any)?.message ?? e}`);
+    }
     const conta = await this.prisma.users.findUnique({ where: { id: idUser } });
     const confere =
       !!senhaAtual && !!conta && (await this.verifyPassword(String(senhaAtual), conta.password, idUser));
     if (!confere) {
+      // Sem senha enviada não é palpite: não conta.
+      if (senhaAtual) await this.registrarFalhaSenhaPerfil(chave);
       throw new BadRequestException('Para trocar o e-mail de acesso, informe sua senha atual.');
+    }
+    // Mesmo padrão do lockout do login: acertou, zera as falhas.
+    try {
+      await this.estado.removerPorPrefixo(`${chave}:falha:`);
+    } catch (e: any) {
+      this.logger.warn(`Trava da senha do perfil: falha ao limpar: ${e?.message ?? e}`);
+    }
+  }
+
+  private async registrarFalhaSenhaPerfil(chave: string) {
+    try {
+      await this.estado.definir(`${chave}:falha:${randomUUID()}`, 1, JANELA_FALHAS_SENHA_PERFIL_MS);
+      const falhas = await this.estado.listarPorPrefixo(`${chave}:falha:`);
+      if (falhas.length >= MAX_FALHAS_SENHA_PERFIL) {
+        await this.estado.definir(`${chave}:trava`, 1, JANELA_FALHAS_SENHA_PERFIL_MS);
+        this.logger.warn(`Senha atual do perfil travada (${chave}) após ${falhas.length} falhas`);
+      }
+    } catch (e: any) {
+      this.logger.warn(`Trava da senha do perfil: falha ao registrar: ${e?.message ?? e}`);
     }
   }
 
@@ -473,7 +517,13 @@ export class MobileAuthService {
     const s = user.sindicos[0];
 
     const emailNormalized = body.email?.toLowerCase().trim();
-    const trocaEmail = !!emailNormalized && this.ehTrocaDoEmailDaConta(emailNormalized, user);
+    // Também não é troca reenviar o Sindicos.email desta conta: se ela trocou o
+    // e-mail por outro papel, Users mudou e Sindicos não — e a tela não tem
+    // campo de senha.
+    const trocaEmail =
+      !!emailNormalized &&
+      this.ehTrocaDoEmailDaConta(emailNormalized, user) &&
+      this.ehTrocaDoEmailDaConta(emailNormalized, { email: s.email });
     if (trocaEmail) {
       // Senha antes do conflito: sem ela, e-mail em uso e e-mail livre recebem
       // a mesma resposta (não vira oráculo de contas).
@@ -3397,7 +3447,10 @@ export class MobileAuthService {
         where: { id: idUser },
         select: { email: true, login: true },
       });
-      trocaEmail = this.ehTrocaDoEmailDaConta(email, contaAtual);
+      // Também não é troca reenviar o Funcionarios.email desta conta (a conta
+      // pode ter trocado o e-mail por outro papel sem atualizar Funcionarios).
+      trocaEmail =
+        this.ehTrocaDoEmailDaConta(email, contaAtual) && this.ehTrocaDoEmailDaConta(email, { email: atual.email });
       if (trocaEmail) {
         // Senha antes do conflito: sem ela, e-mail em uso e e-mail livre
         // recebem a mesma resposta (não vira oráculo de contas).

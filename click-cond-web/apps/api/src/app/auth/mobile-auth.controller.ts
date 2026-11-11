@@ -230,9 +230,10 @@ export class MoradoresMobileController {
 
   @Post('update')
   @HttpCode(200)
-  // Aceita senha_atual (troca de e-mail): sem limite próprio seria oráculo de
-  // senha. O app só chama no "salvar" do próprio perfil — não há rajada.
-  @Throttle({ medium: { limit: 10, ttl: 10 * 60_000 } })
+  // Sem @Throttle próprio: o app usa esta rota também quando síndico/porteiro
+  // editam moradores em sequência, de IP compartilhado (tablet da portaria,
+  // Wi-Fi do prédio). A senha_atual da autoedição é contida POR CONTA em
+  // exigirSenhaAtualParaTrocaDeEmail.
   updateMorador(@Body() body: any, @ReqUser() payload: JwtPayload) {
     return this.service.saveMorador(body, true, payload);
   }

@@ -23,7 +23,7 @@ describe('Perfil — e-mail reenviado sem troca real e oráculo de e-mail em uso
     hash = await bcrypt.hash(SENHA, 4);
   });
 
-  function build(conta: { email: string | null; login: string | null }, extra: { emailMorador?: string; emailSindico?: string } = {}) {
+  function build(conta: { email: string | null; login: string | null }, extra: { emailMorador?: string; emailSindico?: string; emailFuncionario?: string } = {}) {
     const tx: any = {
       moradores: { update: jest.fn(async () => ({})) },
       users: { update: jest.fn(async () => ({})) },
@@ -49,7 +49,7 @@ describe('Perfil — e-mail reenviado sem troca real e oráculo de e-mail em uso
           data_nascimento: null, extra2: null, user: { id: 40, email: conta.email, login: conta.login },
         })),
       },
-      funcionarios: { findFirst: jest.fn(async () => ({ id: 6, id_user: 40 })) },
+      funcionarios: { findFirst: jest.fn(async () => ({ id: 6, id_user: 40, email: extra.emailFuncionario ?? null })) },
       $transaction: jest.fn(async (fn: any) => fn(tx)),
     };
     const tenant: any = {
@@ -159,6 +159,74 @@ describe('Perfil — e-mail reenviado sem troca real e oráculo de e-mail em uso
       const { svc, prisma } = build({ email: 'conta@x.com', login: 'conta@x.com' });
       emailEmUso(prisma);
       await expect(svc.saveMorador(corpo('ocupado@x.com'), true, titular)).rejects.toThrow(MSG);
+    });
+  });
+
+  /*
+   * A conta trocou o e-mail por outro papel: Users mudou, Sindicos.email /
+   * Funcionarios.email não. O app reenvia o e-mail da tabela do papel e não
+   * tem campo de senha nessa tela — não é troca, salva sem mexer em Users.
+   */
+  describe('e-mail da tabela do papel diverge da conta', () => {
+    it('síndico reenviando Sindicos.email (≠ Users.email/login), sem senha -> salva e Users inalterado', async () => {
+      const { svc, tx } = build({ email: 'conta@x.com', login: 'conta@x.com' }, { emailSindico: 'antigo@x.com' });
+      await svc.updateSindico(40, { nome: 'N', email: ' Antigo@x.com' });
+      const dados = tx.users.update.mock.calls[0][0].data;
+      expect(dados.email).toBe('conta@x.com');
+      expect(dados.login).toBe('conta@x.com');
+    });
+
+    it('funcionário reenviando Funcionarios.email (≠ Users.email/login), sem senha -> salva e Users inalterado', async () => {
+      const { svc, tx } = build({ email: 'conta@x.com', login: 'conta@x.com' }, { emailFuncionario: 'antigo@x.com' });
+      await svc.updateInfosFuncionario({ funcionario: { email: 'ANTIGO@x.com', nome: 'N' } }, titular);
+      const dados = tx.users.update.mock.calls[0][0].data;
+      expect(dados).not.toHaveProperty('email');
+      expect(dados).not.toHaveProperty('login');
+    });
+  });
+
+  /*
+   * Sem limite por IP no moradores/update (o operador edita moradores em
+   * sequência do mesmo IP), a adivinhação da senha atual com um token roubado
+   * é contida POR CONTA: 10 falhas em 10 minutos travam a conta.
+   */
+  describe('senha atual errada repetida trava por conta', () => {
+    const MSG_TRAVA = 'Muitas tentativas. Tente novamente em alguns minutos.';
+    const tentar = (svc: MobileAuthService, idUser: number, senha: string) =>
+      svc.updateSindico(idUser, { email: 'novo@x.com', senha_atual: senha }).catch((e: any) => e);
+
+    it('10 erradas dão 400; a 11ª (mesmo com a senha certa) dá 429; outra conta não é afetada', async () => {
+      const { svc } = build({ email: 'conta@x.com', login: 'conta@x.com' });
+      for (let i = 0; i < 10; i++) {
+        const erro = await tentar(svc, 40, `errada${i}`);
+        expect(erro.getStatus()).toBe(400);
+        expect(erro.message).toBe(MSG);
+      }
+      const travada = await tentar(svc, 40, 'errada-11');
+      expect(travada.getStatus()).toBe(429);
+      expect(travada.message).toBe(MSG_TRAVA);
+      expect((await tentar(svc, 40, SENHA)).getStatus?.()).toBe(429);
+
+      const outra = await tentar(svc, 41, 'errada');
+      expect(outra.getStatus()).toBe(400);
+      expect(outra.message).toBe(MSG);
+    });
+
+    it('vale também para a autoedição do morador (mesma checagem)', async () => {
+      const { svc } = build({ email: 'conta@x.com', login: 'conta@x.com' });
+      const corpo = (senha: string) => ({ morador: { id: 10, nome: 'N', email: 'novo@x.com', senha_atual: senha } });
+      for (let i = 0; i < 10; i++) {
+        await expect(svc.saveMorador(corpo(`errada${i}`), true, titular)).rejects.toThrow(MSG);
+      }
+      await expect(svc.saveMorador(corpo('errada'), true, titular)).rejects.toMatchObject({ status: 429, message: MSG_TRAVA });
+    });
+
+    it('sem senha enviada não conta como tentativa', async () => {
+      const { svc } = build({ email: 'conta@x.com', login: 'conta@x.com' });
+      for (let i = 0; i < 12; i++) {
+        await expect(svc.updateSindico(40, { email: 'novo@x.com' })).rejects.toThrow(MSG);
+      }
+      expect((await tentar(svc, 40, 'errada')).getStatus()).toBe(400);
     });
   });
 });

@@ -81,10 +81,30 @@ describe('throttlers — overrides por rota', () => {
     expect(frouxas).toEqual([]);
   });
 
+  it('moradores/update: síndico/porteiro editando moradores em sequência (IP compartilhado) não toma 429', async () => {
+    // A mesma rota serve a edição de moradores pelo operador (tablet da
+    // portaria, Wi-Fi do prédio). A adivinhação de senha é contida por conta,
+    // em exigirSenhaAtualParaTrocaDeEmail — não por IP aqui.
+    const handler = MoradoresMobileController.prototype.updateMorador;
+    expect(Reflect.getMetadata('THROTTLER:LIMITmedium', handler)).toBeUndefined();
+    const mod = await Test.createTestingModule({
+      imports: [ThrottlerModule.forRoot(THROTTLERS)],
+      providers: [ThrottlerGuard],
+    }).compile();
+    const g = mod.get(ThrottlerGuard);
+    await g.onModuleInit();
+    try {
+      for (let i = 0; i < 11; i++) {
+        await expect(g.canActivate(contexto(handler, MoradoresMobileController, '198.51.100.10'))).resolves.toBe(true);
+      }
+    } finally {
+      await mod.close();
+    }
+  });
+
   it.each([
     [SindicoMobileController, 'updateSindico'],
     [FuncionariosMobileController, 'updateInfos'],
-    [MoradoresMobileController, 'updateMorador'],
   ] as Array<[Function, string]>)(
     'perfil que aceita senha_atual (%p.%s): 10 por 10 minutos por IP',
     async (classe, metodo) => {
