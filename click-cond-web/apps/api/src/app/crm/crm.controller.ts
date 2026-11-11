@@ -7,6 +7,7 @@ import { CrmFaturasService } from './crm-faturas.service';
 import { CrmAdminGuard } from './crm-admin.guard';
 import { MoradoresService } from '../moradores/moradores.service';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
+import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
@@ -27,7 +28,35 @@ export class CrmController {
     private readonly faturas: CrmFaturasService,
     private readonly moradores: MoradoresService,
     private readonly apartamentos: ApartamentosService,
+    private readonly categoriasOcorrencia: OcorrenciasService,
   ) {}
+
+  // ----- Categorias de ocorrência (globais; só a operadora escreve) -----
+  @UseGuards(CrmAdminGuard)
+  @Post('ocorrencias/categorias')
+  criarCategoria(
+    @Body() body: { nome: string; prioridade?: number; sla_horas?: number | null },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.categoriasOcorrencia.createCategoria(body, payload);
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Put('ocorrencias/categorias/:catId')
+  atualizarCategoria(
+    @Param('catId', ParseIntPipe) catId: number,
+    @Body() body: { nome?: string; prioridade?: number; sla_horas?: number | null },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.categoriasOcorrencia.updateCategoria(catId, body, payload);
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Delete('ocorrencias/categorias/:catId')
+  async removerCategoria(@Param('catId', ParseIntPipe) catId: number, @ReqUser() payload: JwtPayload) {
+    await this.categoriasOcorrencia.removeCategoria(catId, payload);
+    return { ok: true };
+  }
 
   private operador(payload?: JwtPayload): string {
     return (payload as any)?.nome ?? (payload as any)?.user?.name ?? (payload as any)?.email ?? 'Admin CRM';

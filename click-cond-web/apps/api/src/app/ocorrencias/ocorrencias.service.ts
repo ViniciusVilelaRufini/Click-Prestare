@@ -30,6 +30,13 @@ const CATEGORIAS_PADRAO = [
   { nome: 'Outros', prioridade: 4, sla_horas: null },
 ];
 
+/** Categorias são globais e definidas pela operadora, não pelo condomínio. */
+function assertAdminCrm(user?: JwtPayload): void {
+  if (user?.role !== 'crm_admin') {
+    throw new ForbiddenException('As categorias são definidas pela Prestare.');
+  }
+}
+
 @Injectable()
 export class OcorrenciasService {
   private readonly logger = new Logger(OcorrenciasService.name);
@@ -90,11 +97,11 @@ export class OcorrenciasService {
   }
 
   // ----- Categorias CRUD (mini-helpdesk: nome, prioridade, SLA em horas) -----
-  // Categorias são globais (tabela sem id_condominio) — não há tenant a
-  // checar aqui, só o papel: qualquer morador autenticado não pode mexer
-  // na taxonomia inteira do sistema.
+  // Categorias são globais (tabela sem id_condominio): não há dono por tenant,
+  // então síndico de um prédio não pode editá-las para todos. Só o administrador
+  // do CRM (role 'crm_admin', rotas sob CrmAdminGuard) escreve; os demais leem.
   async createCategoria(data: { nome: string; prioridade?: number; sla_horas?: number | null }, user?: JwtPayload) {
-    assertStaff(user, 'criar categoria de ocorrência');
+    assertAdminCrm(user);
     return this.prisma.ocorrencias_Categorias.create({
       data: {
         nome: data.nome,
@@ -105,7 +112,7 @@ export class OcorrenciasService {
   }
 
   async updateCategoria(id: number, data: { nome?: string; prioridade?: number; sla_horas?: number | null }, user?: JwtPayload) {
-    assertStaff(user, 'editar categoria de ocorrência');
+    assertAdminCrm(user);
     try {
       return await this.prisma.ocorrencias_Categorias.update({
         where: { id },
@@ -121,7 +128,7 @@ export class OcorrenciasService {
   }
 
   async removeCategoria(id: number, user?: JwtPayload) {
-    assertStaff(user, 'remover categoria de ocorrência');
+    assertAdminCrm(user);
     try {
       await this.prisma.ocorrencias_Categorias.delete({ where: { id } });
     } catch {

@@ -579,7 +579,7 @@ export class OcorrenciasMobileController {
     );
   }
 
-  // ----- Categorias (gestão pelo síndico no app) -----
+  // ----- Categorias: escrita só pelo CRM; aqui o service responde 403 -----
   @Post('categorias/insert')
   @HttpCode(200)
   insertCategoria(@Body() body: any, @ReqUser() payload: JwtPayload) {
@@ -604,8 +604,8 @@ export class OcorrenciasMobileController {
 
   @Post('categorias/remove')
   @HttpCode(200)
-  removeCategoria(@Body() body: { id: number }, @ReqUser() payload: JwtPayload) {
-    this.ocorrenciasService.removeCategoria(Number(body.id), payload);
+  async removeCategoria(@Body() body: { id: number }, @ReqUser() payload: JwtPayload) {
+    await this.ocorrenciasService.removeCategoria(Number(body.id), payload);
     return { ok: true };
   }
 
