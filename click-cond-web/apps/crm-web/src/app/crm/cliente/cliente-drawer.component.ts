@@ -447,6 +447,68 @@ export class ClienteDrawerComponent {
       .catch(() => this.toast.trigger('Não foi possível copiar.', 'error'));
   }
 
+  // ── E-mail de acesso do morador (suporte) ──
+  //
+  // Fora do CRM ninguém troca o login da conta de outra pessoa. Aqui o
+  // suporte corrige o e-mail digitado errado no cadastro; a API derruba as
+  // sessões da conta e não gera senha.
+
+  readonly moradorCorrecaoEmail = signal<Morador | null>(null);
+  readonly erroCorrecaoEmail = signal<string | null>(null);
+  readonly salvandoCorrecaoEmail = signal(false);
+  emailCorrigido = '';
+  motivoCorrecaoEmail = '';
+
+  abrirCorrecaoEmail(m: Morador): void {
+    this.emailCorrigido = m.email ?? '';
+    this.motivoCorrecaoEmail = '';
+    this.erroCorrecaoEmail.set(null);
+    this.moradorCorrecaoEmail.set(m);
+  }
+
+  fecharCorrecaoEmail(): void {
+    this.moradorCorrecaoEmail.set(null);
+  }
+
+  corrigirEmailAcesso(): void {
+    const c = this.store.clienteSelecionado();
+    const m = this.moradorCorrecaoEmail();
+    if (!c || !m) return;
+    const email = this.emailCorrigido.trim();
+    const motivo = this.motivoCorrecaoEmail.trim();
+    if (!email) {
+      this.erroCorrecaoEmail.set('Informe o novo e-mail.');
+      return;
+    }
+    if (!motivo) {
+      this.erroCorrecaoEmail.set('Informe o motivo da correção.');
+      return;
+    }
+
+    this.erroCorrecaoEmail.set(null);
+    this.salvandoCorrecaoEmail.set(true);
+    this.api.corrigirEmailAcessoMorador(c.id, m.id, email, motivo).subscribe({
+      next: (r) => {
+        this.salvandoCorrecaoEmail.set(false);
+        this.moradores.update((lista) => lista.map((x) => (x.id === m.id ? { ...x, email: r.email } : x)));
+        this.moradorCorrecaoEmail.set(null);
+        this.toast.trigger(
+          r.contaAtualizada
+            ? 'E-mail corrigido. As sessões do morador foram encerradas; ele entra com "Esqueci a senha".'
+            : 'E-mail do cadastro corrigido (morador ainda sem conta de acesso).',
+          'success',
+        );
+      },
+      error: (err) => {
+        this.salvandoCorrecaoEmail.set(false);
+        const msg = err?.error?.message;
+        this.erroCorrecaoEmail.set(
+          (Array.isArray(msg) ? msg.join(' ') : msg) ?? 'Não foi possível corrigir o e-mail.',
+        );
+      },
+    });
+  }
+
   // ── Zona de risco: desativar / reativar / excluir ──
 
   readonly modalDesativar = signal(false);

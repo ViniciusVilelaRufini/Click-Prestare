@@ -189,6 +189,23 @@ export class CrmApi {
     );
   }
 
+  /**
+   * Suporte: corrige o e-mail de acesso de um morador cadastrado com o e-mail
+   * errado. A API encerra as sessões da conta e não gera senha — depois o
+   * morador usa "Esqueci a senha" ou a portaria reenvia as credenciais.
+   */
+  corrigirEmailAcessoMorador(
+    idCondominio: number,
+    idMorador: number,
+    email: string,
+    motivo: string,
+  ): Observable<{ success: boolean; idMorador: number; email: string; contaAtualizada: boolean }> {
+    return this.http.patch<{ success: boolean; idMorador: number; email: string; contaAtualizada: boolean }>(
+      `${this.base}/clientes/${idCondominio}/moradores/${idMorador}/email-acesso`,
+      { email, motivo },
+    );
+  }
+
   // ── Ciclo de vida do condomínio ──
   // A exclusão é em duas fases no servidor: desativar corta o acesso (app,
   // portaria e facial) e é reversível; purgar apaga em cascata e exige o
