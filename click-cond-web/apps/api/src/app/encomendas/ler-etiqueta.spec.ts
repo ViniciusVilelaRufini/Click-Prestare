@@ -78,7 +78,7 @@ describe('EncomendasService.lerEtiqueta', () => {
   const img = 'data:image/jpeg;base64,/9j/AAAA';
 
   it('erro da IA -> leitura vazia, sem destinatario', async () => {
-    const svc = mk({ gerarComFerramentas: jest.fn(async () => { throw new Error('x'); }) });
+    const svc = mk({ isConfigured: true, gerarComFerramentas: jest.fn(async () => { throw new Error('x'); }) });
     expect(await svc.lerEtiqueta(1, user, img)).toEqual({ leitura: vazia, destinatario: null });
   });
   it('imagem que nao e data URL de imagem -> 400', async () => {
@@ -91,7 +91,7 @@ describe('EncomendasService.lerEtiqueta', () => {
     await expect(svc.lerEtiqueta(1, user, grande)).rejects.toBeInstanceOf(BadRequestException);
   });
   it('fluxo feliz casa o morador', async () => {
-    const ia: any = { gerarComFerramentas: jest.fn(async () => ({ texto: '{"nome":"Rafael Costa","apto":"106"}' })) };
+    const ia: any = { isConfigured: true, gerarComFerramentas: jest.fn(async () => ({ texto: '{"nome":"Rafael Costa","apto":"106"}' })) };
     const prisma: any = { moradores: { findMany: jest.fn(async () => [{ nome: 'Rafael Costa', apartamento: '106', bloco: 'A' }]) } };
     const svc = new EncomendasService(prisma, {} as any, {} as any, {} as any, tenantOk, ia);
     const r = await svc.lerEtiqueta(1, user, img);
@@ -141,7 +141,7 @@ describe('EncomendasService.lerEtiqueta - cota diária por condomínio', () => {
 
   it('estourou -> 429 e não chama a IA; outro condomínio segue livre', async () => {
     process.env['ETIQUETA_IA_COTA_CONDOMINIO_DIA'] = '2';
-    const ia: any = { gerarComFerramentas: jest.fn(async () => ({ texto: '{}' })) };
+    const ia: any = { isConfigured: true, gerarComFerramentas: jest.fn(async () => ({ texto: '{}' })) };
     const svc = mk(ia);
     await svc.lerEtiqueta(1, user, img);
     await svc.lerEtiqueta(1, user, img);
@@ -156,9 +156,22 @@ describe('EncomendasService.lerEtiqueta - cota diária por condomínio', () => {
 
   it('imagem inválida não consome cota', async () => {
     process.env['ETIQUETA_IA_COTA_CONDOMINIO_DIA'] = '1';
-    const ia: any = { gerarComFerramentas: jest.fn(async () => ({ texto: '{}' })) };
+    const ia: any = { isConfigured: true, gerarComFerramentas: jest.fn(async () => ({ texto: '{}' })) };
     const svc = mk(ia);
     await expect(svc.lerEtiqueta(1, user, 'lixo')).rejects.toBeInstanceOf(BadRequestException);
+    await svc.lerEtiqueta(1, user, img);
+    expect(ia.gerarComFerramentas).toHaveBeenCalledTimes(1);
+  });
+
+  it('IA presente mas não configurada: leitura vazia e não consome cota', async () => {
+    process.env['ETIQUETA_IA_COTA_CONDOMINIO_DIA'] = '1';
+    const ia: any = { isConfigured: false, gerarComFerramentas: jest.fn() };
+    const svc = mk(ia);
+    const r = await svc.lerEtiqueta(1, user, img);
+    expect(r.destinatario).toBeNull();
+    expect(ia.gerarComFerramentas).not.toHaveBeenCalled();
+    ia.isConfigured = true;
+    ia.gerarComFerramentas.mockResolvedValue({ texto: '{}' });
     await svc.lerEtiqueta(1, user, img);
     expect(ia.gerarComFerramentas).toHaveBeenCalledTimes(1);
   });

@@ -154,3 +154,27 @@ describe('ChatIaService - cota diária', () => {
     await expect(svc.responder(1, 'a', user())).resolves.toBeDefined();
   });
 });
+
+describe('ChatIaService - cota antes do trabalho pago', () => {
+  const env = { ...process.env };
+  afterEach(() => {
+    process.env = { ...env };
+  });
+
+  it('cota estourada não gera embedding pago nem consulta o banco de contexto', async () => {
+    process.env['CHAT_IA_COTA_USUARIO_DIA'] = '1';
+    const { svc, gerar, prisma } = criar();
+    const embedText = jest.fn(async () => [1, 0]);
+    (svc as any).ia.isConfigured = true;
+    (svc as any).ia.embedText = embedText;
+    prisma.rag_Embeddings = { findMany: jest.fn(async () => [{ chunk_text: 't', embedding: [1, 0] }]) };
+    await svc.responder(1, 'a', user());
+    embedText.mockClear();
+    prisma.rag_Embeddings.findMany.mockClear();
+    await expect(svc.responder(1, 'b', user())).rejects.toMatchObject({ status: 429 });
+    expect(embedText).not.toHaveBeenCalled();
+    expect(prisma.rag_Embeddings.findMany).not.toHaveBeenCalled();
+    expect(gerar).toHaveBeenCalledTimes(1);
+  });
+});
+

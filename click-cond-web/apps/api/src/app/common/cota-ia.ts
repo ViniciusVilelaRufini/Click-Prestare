@@ -41,11 +41,7 @@ export interface ItemCota {
   limite: number;
 }
 
-/**
- * Confere todos os itens e só então consome 1 de cada. Se qualquer um já
- * estourou, lança 429 sem consumir nenhum (negar por um não gasta o outro).
- */
-export async function consumirCotaDiaria(estado: EstadoCompartilhado, itens: ItemCota[]): Promise<void> {
+async function lerCotas(estado: EstadoCompartilhado, itens: ItemCota[]) {
   const { data, ttlMs } = diaAtual();
   const lidos: { chave: string; usado: number }[] = [];
   for (const item of itens) {
@@ -54,5 +50,19 @@ export async function consumirCotaDiaria(estado: EstadoCompartilhado, itens: Ite
     if (usado >= item.limite) throw new HttpException(MSG_COTA_IA, HttpStatus.TOO_MANY_REQUESTS);
     lidos.push({ chave, usado });
   }
+  return { lidos, ttlMs };
+}
+
+/** Só confere (429 se algum item estourou), sem consumir. Serve de porta de entrada barata. */
+export async function verificarCotaDiaria(estado: EstadoCompartilhado, itens: ItemCota[]): Promise<void> {
+  await lerCotas(estado, itens);
+}
+
+/**
+ * Confere todos os itens e só então consome 1 de cada. Se qualquer um já
+ * estourou, lança 429 sem consumir nenhum (negar por um não gasta o outro).
+ */
+export async function consumirCotaDiaria(estado: EstadoCompartilhado, itens: ItemCota[]): Promise<void> {
+  const { lidos, ttlMs } = await lerCotas(estado, itens);
   for (const { chave, usado } of lidos) await estado.definir(chave, usado + 1, ttlMs);
 }

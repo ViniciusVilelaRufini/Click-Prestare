@@ -65,7 +65,7 @@ export class EncomendasService implements OnModuleInit {
       throw new BadRequestException('A foto passa de 5 MB.');
     }
     const mimeType = m[1].toLowerCase().replace('image/jpg', 'image/jpeg');
-    if (!this.ia) return { leitura: leituraVazia(), destinatario: null };
+    if (!this.ia?.isConfigured) return { leitura: leituraVazia(), destinatario: null };
     // Cota só antes de chamar o modelo; fora do try para o 429 não virar leitura vazia.
     await consumirCotaDiaria(this.estado, [
       {

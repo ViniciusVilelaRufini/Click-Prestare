@@ -39,6 +39,8 @@ import {
   COTA_CHAT_CONDOMINIO_DIA,
   COTA_CHAT_USUARIO_DIA,
   consumirCotaDiaria,
+  verificarCotaDiaria,
+  type ItemCota,
   limiteCota,
 } from '../common/cota-ia';
 import { validarAnexo } from './anexo-ia';
@@ -163,6 +165,19 @@ export class ChatIaService {
     const idUser = Number(user?.user?.id ?? user?.sub);
     const papel = this.papelDe(user);
 
+    // Porta barata: cota estourada não deve gerar embedding pago nem consultas.
+    const cotas: ItemCota[] = [
+      {
+        prefixo: `chat-ia:cota:usuario:${idUser}`,
+        limite: limiteCota('CHAT_IA_COTA_USUARIO_DIA', COTA_CHAT_USUARIO_DIA),
+      },
+      {
+        prefixo: `chat-ia:cota:condominio:${idCondominio}`,
+        limite: limiteCota('CHAT_IA_COTA_CONDOMINIO_DIA', COTA_CHAT_CONDOMINIO_DIA),
+      },
+    ];
+    await verificarCotaDiaria(this.estado, cotas);
+
     // Conversa alheia ou inexistente vira conversa NOVA, não erro: assim não
     // se confirma para o cliente que um id de outra pessoa existe.
     const { conversaId, nova } = await this.resolverConversa(
@@ -199,16 +214,7 @@ export class ChatIaService {
 
     // Cota: só aqui, imediatamente antes do modelo — falha anterior não gasta.
     // Fica fora do try abaixo para o 429 não virar 503.
-    await consumirCotaDiaria(this.estado, [
-      {
-        prefixo: `chat-ia:cota:usuario:${idUser}`,
-        limite: limiteCota('CHAT_IA_COTA_USUARIO_DIA', COTA_CHAT_USUARIO_DIA),
-      },
-      {
-        prefixo: `chat-ia:cota:condominio:${idCondominio}`,
-        limite: limiteCota('CHAT_IA_COTA_CONDOMINIO_DIA', COTA_CHAT_CONDOMINIO_DIA),
-      },
-    ]);
+    await consumirCotaDiaria(this.estado, cotas);
 
     let resposta: string;
     try {
