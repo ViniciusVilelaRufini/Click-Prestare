@@ -66,6 +66,8 @@ describe('visitantes — arquivos recebidos do cliente', () => {
       if (where.id_apartamento?.in && !where.id_apartamento.in.includes(row.id_apartamento)) return false;
       if (where.doc_identificacao !== undefined && row.doc_identificacao !== where.doc_identificacao) return false;
       if (where.nome !== undefined && row.nome !== where.nome) return false;
+      if (where.foto_pessoa !== undefined && row.foto_pessoa !== where.foto_pessoa) return false;
+      if (where.foto_documento !== undefined && row.foto_documento !== where.foto_documento) return false;
       if (where.codigo_acesso !== undefined && row.codigo_acesso !== where.codigo_acesso) return false;
       if (where.bloqueado !== undefined && row.bloqueado !== where.bloqueado) return false;
       if (where.data_entrada === null && row.data_entrada !== null) return false;
@@ -185,6 +187,43 @@ describe('visitantes — arquivos recebidos do cliente', () => {
       expect(prisma.visitantes.create.mock.calls[0][0].data.foto_pessoa).toBe(FOTO_PROPRIA);
     });
 
+    /*
+     * "Liberar novamente" do app agrupa os registros por CPF só dígitos, nome
+     * sem caixa ou mesma foto, e reenvia a foto de um registro "irmão" — que
+     * pode ter o CPF gravado com máscara enquanto o corpo vem sem (ou o
+     * contrário). Vale a chave que já é foto de algum registro do condomínio
+     * nos apartamentos do morador (operador: o condomínio todo).
+     */
+    const FOTO_IRMAO = `${BASE}/visitantes/1700000000000-irmao.jpg`;
+    const MASCARA = '529.982.247-25';
+
+    it('morador: foto de registro irmão com CPF gravado COM máscara, corpo sem máscara: aceito', async () => {
+      const { service, prisma, rows } = build();
+      rows.push({ ...rows[0], id: 7, doc_identificacao: MASCARA, foto_pessoa: FOTO_IRMAO });
+      await service.create(visita({ foto_pessoa: FOTO_IRMAO }) as any, moradorA);
+      expect(prisma.visitantes.create.mock.calls[0][0].data.foto_pessoa).toBe(FOTO_IRMAO);
+    });
+
+    it('morador: foto de registro gravado SEM máscara, corpo com máscara: aceito', async () => {
+      const { service, prisma } = build();
+      await service.create(visita({ doc_identificacao: MASCARA, foto_pessoa: FOTO_PROPRIA }) as any, moradorA);
+      expect(prisma.visitantes.create.mock.calls[0][0].data.foto_pessoa).toBe(FOTO_PROPRIA);
+    });
+
+    it('morador: foto de registro do vizinho, mesmo com o CPF mascarado: 400', async () => {
+      const { service, prisma } = build();
+      await arquivoInvalido(service.create(visita({ doc_identificacao: MASCARA, foto_pessoa: FOTO_VIZINHO }) as any, moradorA));
+      expect(prisma.visitantes.create).not.toHaveBeenCalled();
+    });
+
+    it('operador: foto de registro de qualquer apartamento do condomínio: aceito; de outro condomínio: 400', async () => {
+      const { service, prisma, rows } = build();
+      rows.push({ ...rows[0], id: 8, id_condominio: 2, doc_identificacao: MASCARA, foto_pessoa: FOTO_IRMAO });
+      await arquivoInvalido(service.create(visita({ doc_identificacao: MASCARA, foto_pessoa: FOTO_IRMAO }) as any, porteiro));
+      await service.create(visita({ doc_identificacao: MASCARA, foto_pessoa: FOTO_VIZINHO }) as any, porteiro);
+      expect(prisma.visitantes.create.mock.calls[0][0].data.foto_pessoa).toBe(FOTO_VIZINHO);
+    });
+
     it('editar a visita com URL de outro registro: 400; com a foto dela: aceito', async () => {
       const { service, prisma } = build();
       await arquivoInvalido(service.update({ id: 6, foto_pessoa: ALHEIA } as any, moradorA));
@@ -292,6 +331,34 @@ describe('visitantes — arquivos recebidos do cliente', () => {
     it('app reaproveita a visita anterior (id_anterior) reenviando a foto da pessoa: aceito', async () => {
       const { service, prisma } = build();
       await service.create(visita({ foto_pessoa: FOTO_PROPRIA, id_anterior: 10 }) as any, moradorA);
+      expect(prisma.visitas.create).toHaveBeenCalled();
+    });
+
+    it('morador: foto de outra pessoa "irmã" (sem documento) com visita no apartamento dele: aceito; sem visita lá: 400', async () => {
+      const { service, prisma, pessoas } = build();
+      const FOTO_IRMA = `${BASE}/visitantes/1700000000000-irma.jpg`;
+      const FOTO_FORA = `${BASE}/visitantes/1700000000000-fora.jpg`;
+      pessoas.push(
+        { id: 2, id_condominio: 1, nome: 'ana', doc_identificacao: null, foto_pessoa: FOTO_IRMA, foto_documento: null, bloqueado: 0, aptos: [100] },
+        { id: 3, id_condominio: 1, nome: 'ana', doc_identificacao: null, foto_pessoa: FOTO_FORA, foto_documento: null, bloqueado: 0, aptos: [200] },
+      );
+      // Busca pela chave: pessoa com a foto e (morador) visita num apto dele.
+      const original = prisma.pessoas.findFirst.getMockImplementation();
+      prisma.pessoas.findFirst.mockImplementation(async (args: any) => {
+        const { where } = args;
+        if (!where.OR) return original(args);
+        const aptos: number[] | undefined = where.visitas?.some?.id_apartamento?.in;
+        return (
+          pessoas.find(
+            (p) =>
+              p.id_condominio === where.id_condominio &&
+              where.OR.some((o: any) => (o.foto_pessoa && p.foto_pessoa === o.foto_pessoa) || (o.foto_documento && p.foto_documento === o.foto_documento)) &&
+              (!aptos || (p.aptos ?? []).some((a: number) => aptos.includes(a))),
+          ) ?? null
+        );
+      });
+      await arquivoInvalido(service.create(visita({ foto_pessoa: FOTO_FORA }) as any, moradorA));
+      await service.create(visita({ foto_pessoa: FOTO_IRMA }) as any, moradorA);
       expect(prisma.visitas.create).toHaveBeenCalled();
     });
 

@@ -518,8 +518,29 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         });
         for (const r of mesmaPessoa) fotos.push(r.foto_pessoa, r.foto_documento);
       }
+      // "Liberar novamente" do app reenvia a foto de um registro "irmão" (CPF
+      // com/sem máscara, nome sem caixa, mesma foto): vale a chave que já é
+      // foto de algum registro do condomínio — do morador, nos aptos dele.
+      for (const url of this.urlsDoBucketEnviadas(dto)) {
+        const dono = await this.prisma.visitantes.findFirst({
+          where: {
+            id_condominio: Number(dto.id_condominio),
+            ...recorte,
+            OR: [{ foto_pessoa: url }, { foto_documento: url }],
+          },
+          select: { foto_pessoa: true, foto_documento: true },
+        });
+        if (dono) fotos.push(dono.foto_pessoa, dono.foto_documento);
+      }
       return fotos;
     });
+  }
+
+  /** Fotos do corpo que são URL do nosso bucket, na forma canônica gravada no banco. */
+  private urlsDoBucketEnviadas(dto: CreateVisitanteDto): string[] {
+    return [dto.foto_pessoa, dto.foto_documento]
+      .filter((v) => this.storage.ehArquivoDoBucket(v))
+      .map((v) => this.storage.normalizarUrl(v) as string);
   }
 
   /** Mesmo que `fotosReaproveitaveisLegado`, no caminho Pessoas/Visitas. */
@@ -548,6 +569,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           select: { foto_pessoa: true, foto_documento: true },
         });
         if (mesma) fotos.push(mesma.foto_pessoa, mesma.foto_documento);
+      }
+      for (const url of this.urlsDoBucketEnviadas(dto)) {
+        const dona = await this.prisma.pessoas.findFirst({
+          where: {
+            id_condominio: Number(dto.id_condominio),
+            OR: [{ foto_pessoa: url }, { foto_documento: url }],
+            ...(aptos ? { visitas: { some: { id_apartamento: { in: aptos } } } } : {}),
+          },
+          select: { foto_pessoa: true, foto_documento: true },
+        });
+        if (dona) fotos.push(dona.foto_pessoa, dona.foto_documento);
       }
       return fotos;
     });
