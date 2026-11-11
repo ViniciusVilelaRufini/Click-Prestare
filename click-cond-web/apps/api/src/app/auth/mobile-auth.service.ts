@@ -62,6 +62,10 @@ export function fotoDoSignup(photo: unknown, ehDataUrl: (v: string) => boolean):
   return photo;
 }
 
+// Mensagem única do signup público: não revela se foi o CPF ou o e-mail que já existe.
+const MSG_SIGNUP_GENERICA =
+  'Não foi possível concluir o cadastro com esses dados. Se você já tem conta, entre ou recupere a senha.';
+
 @Injectable()
 export class MobileAuthService {
   constructor(
@@ -298,7 +302,7 @@ export class MobileAuthService {
     });
 
     if (existing) {
-      throw new BadRequestException('Este e-mail já está sendo utilizado por outro usuário.');
+      throw new BadRequestException(MSG_SIGNUP_GENERICA);
     }
 
     const pwdRaw = body.password ?? body.senha ?? '';
@@ -316,7 +320,7 @@ export class MobileAuthService {
         where: { cpf: docId }
       });
       if (existingCpf) {
-        throw new BadRequestException('Este CPF já está cadastrado no sistema.');
+        throw new BadRequestException(MSG_SIGNUP_GENERICA);
       }
     }
 
@@ -2865,7 +2869,7 @@ export class MobileAuthService {
           ticket_id: ticketId,
           email_masked: this.maskEmail(emailNormalizado),
           expira_em_segundos: 600,
-          message: 'Código de verificação enviado com sucesso.',
+          message: defaultResponse.message,
         };
       }
     } catch (err: any) {
@@ -4043,7 +4047,7 @@ export class MobileAuthService {
         // Se o conflito é por CPF mas email é DIFERENTE → bloqueia (são pessoas distintas)
         if (cpf && existing.cpf === cpf && mor.email && existing.email && existing.email !== mor.email) {
           throw new BadRequestException(
-            'Já existe um morador cadastrado com este CPF (com outro e-mail). Verifique o documento informado.',
+            'Já existe uma conta com este CPF. Use o e-mail da conta existente ou fale com o suporte.',
           );
         }
 
