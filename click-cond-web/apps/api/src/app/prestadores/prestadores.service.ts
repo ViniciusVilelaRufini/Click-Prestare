@@ -5,7 +5,7 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import * as bcrypt from 'bcrypt';
-import { assertOperador } from '../auth/tenant.util';
+import { assertOperador, isOperador } from '../auth/tenant.util';
 import { assertApartamentoGravavel } from '../common/apartamento-gravavel.util';
 
 export interface CreatePrestadorDto {
@@ -219,10 +219,23 @@ export class PrestadoresService {
     });
     const loginSet = new Set(portariaLogins.map((f) => f.login.toLowerCase().trim()));
 
-    return prestadores.map((p) => ({
-      ...p,
-      hasPortariaAccess: p.email ? loginSet.has(p.email.toLowerCase().trim()) : false,
-    }));
+    // Morador (resposta recortada): sem foto do documento nem biometria, que
+    // são da portaria. Quem recebe `{}` de escopo é staff e vê tudo.
+    const recortar = !!user && !isOperador(user);
+    return prestadores.map((p) => {
+      const {
+        foto_documento: _fd,
+        face_id: _fi,
+        face_enrolled_at: _fe,
+        face_sync_status: _fs,
+        face_sync_error: _fx,
+        ...publico
+      } = p;
+      return {
+        ...(recortar ? publico : p),
+        hasPortariaAccess: p.email ? loginSet.has(p.email.toLowerCase().trim()) : false,
+      };
+    });
   }
 
   async findOne(id: number, idCondominio?: number, user?: JwtPayload) {

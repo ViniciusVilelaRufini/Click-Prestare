@@ -21,6 +21,7 @@ import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { isOperador } from '../auth/tenant.util';
 import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -1494,7 +1495,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       this.fireFacialSyncPessoa(visita.id_pessoa);
     }
 
-    return this.mapVisitaParaRespostaLegada(visita);
+    return this.mapVisitaParaRespostaLegada(visita, { recortar: this.respostaParaMorador(payload) });
   }
 
   /**
@@ -1887,6 +1888,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     let fotoDoc = await this.resolveFoto(dto.foto_documento);
     let fotoPes = await this.resolveFoto(dto.foto_pessoa);
+    // Foto que o próprio chamador mandou — é a única que a resposta a um
+    // morador pode devolver quando o cadastro achado não é dele.
+    const fotoEnviada = fotoPes;
+    const recortar = this.respostaParaMorador(operador);
+    const aptosDoChamador = recortar ? await this.aptosDoMoradorMobile(operador) : undefined;
+    let cadastroAlheio = false;
 
     // Se o usuário está liberando nova visita para um visitante existente e corrigiu o nome/dados,
     // atualiza o histórico anterior desse visitante para evitar duplicidade de "Vinicius dd" e "Vinicius Vilela".
@@ -1921,6 +1928,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         dto.nome_anterior || dto.nome,
       );
       if (anterior) {
+        // Cadastro de outro apartamento (a busca é do condomínio inteiro).
+        if (recortar) cadastroAlheio = true;
         if (!fotoPes && anterior.foto_pessoa) fotoPes = anterior.foto_pessoa;
         if (!fotoDoc && anterior.foto_documento) fotoDoc = anterior.foto_documento;
         if (anterior.face_id) {
@@ -1955,6 +1964,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         },
         orderBy: { id: 'desc' },
       });
+    }
+
+    if (
+      existingActive &&
+      recortar &&
+      !(aptosDoChamador ?? []).includes(Number(existingActive.id_apartamento))
+    ) {
+      cadastroAlheio = true;
     }
 
     if (existingActive) {
@@ -2033,7 +2050,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         this.fireFacialSync(updated.id);
       }
 
-      return updated;
+      return this.recortarCriacaoLegada(updated, recortar, cadastroAlheio, fotoEnviada);
     }
 
     // Mesma rotina do gerarPinUnico — antes era um laço duplicado aqui, e foi
@@ -2118,7 +2135,24 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       this.fireFacialSync(visitante.id);
     }
 
-    return visitante;
+    return this.recortarCriacaoLegada(visitante, recortar, cadastroAlheio, fotoEnviada);
+  }
+
+  /**
+   * Resposta do `create` legado a um morador: sem foto de documento nem face_*
+   * e, se o cadastro achado é de outro apartamento, só a foto que ele enviou.
+   */
+  private recortarCriacaoLegada(row: any, recortar: boolean, cadastroAlheio: boolean, fotoEnviada: string | null) {
+    if (!recortar) return row;
+    const {
+      foto_documento: _fd,
+      face_id: _fi,
+      face_enrolled_at: _fe,
+      face_sync_status: _fs,
+      face_sync_error: _fx,
+      ...resto
+    } = row;
+    return cadastroAlheio ? { ...resto, foto_pessoa: fotoEnviada ?? null } : resto;
   }
 
   /**
@@ -2231,7 +2265,20 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       this.fireFacialSyncPessoa(visita.id_pessoa);
     }
 
-    return this.mapVisitaParaRespostaLegada(visita);
+    // Morador: a Pessoa achada pelo documento pode ser de outro apartamento.
+    // A resposta ecoa o que ELE digitou, não a identidade (nome, rostos,
+    // documento) de quem o vizinho cadastrou. O vínculo interno segue igual.
+    const recortar = this.respostaParaMorador(operador);
+    const alheia =
+      recortar &&
+      !!aptosDoChamador &&
+      (await pessoaTemVisitaForaDosAptos(this.prisma, visita.id_pessoa, aptosDoChamador));
+    return this.mapVisitaParaRespostaLegada(visita, {
+      recortar,
+      digitado: alheia
+        ? { nome: dto.nome, doc_identificacao: dto.doc_identificacao ?? null, foto_pessoa: fotoPes ?? null }
+        : undefined,
+    });
   }
 
   /**
@@ -2391,8 +2438,36 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * contra `Visitantes` — ficam para a próxima task, e são o motivo de a
    * flag ainda não poder ser ligada em produção.
    */
-  private mapVisitaParaRespostaLegada(visita: any) {
-    const p = visita.pessoa;
+  /**
+   * Resposta destinada a quem NÃO é operador (morador no app): sem foto do
+   * documento nem dados de biometria. Sem payload (chamada interna) não recorta.
+   */
+  private respostaParaMorador(payload?: JwtPayload): boolean {
+    return !!payload && !isOperador(payload);
+  }
+
+  private mapVisitaParaRespostaLegada(
+    visita: any,
+    opts?: {
+      /** Morador: tira foto_documento e todo face_*. */
+      recortar?: boolean;
+      /** Pessoa de outro apartamento: devolve o que o chamador digitou. */
+      digitado?: { nome: string; doc_identificacao: string | null; foto_pessoa: string | null };
+    },
+  ) {
+    const p = opts?.digitado ? { ...visita.pessoa, ...opts.digitado } : visita.pessoa;
+    const resposta = this.montarRespostaLegada(visita, p);
+    if (opts?.recortar) {
+      delete (resposta as any).foto_documento;
+      delete (resposta as any).face_id;
+      delete (resposta as any).face_enrolled_at;
+      delete (resposta as any).face_sync_status;
+      delete (resposta as any).face_sync_error;
+    }
+    return resposta;
+  }
+
+  private montarRespostaLegada(visita: any, p: any) {
     return {
       id: visita.id,
       nome: p.nome,
@@ -2656,7 +2731,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       descricao: `Dados da visita de ${label} "${updatedVisita.pessoa?.nome ?? ref.pessoa?.nome ?? ''}" atualizados com sucesso.`,
     });
 
-    return this.mapVisitaParaRespostaLegada(updatedVisita);
+    return this.mapVisitaParaRespostaLegada(updatedVisita, { recortar: this.respostaParaMorador(payload) });
   }
 
   /**
@@ -3253,7 +3328,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
     if (!v) throw new NotFoundException('Visitante não encontrado.');
     return {
-      ...this.mapVisitaParaRespostaLegada(v),
+      ...this.mapVisitaParaRespostaLegada(v, { recortar: this.respostaParaMorador(payload) }),
       apartamento: v.apartamento,
     };
   }
@@ -3646,8 +3721,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       skip: offset,
     });
 
+    const recortar = !isOperador({ typeAccess: userType } as JwtPayload);
     return list.map((v: any) => ({
-      ...this.mapVisitaParaRespostaLegada(v),
+      ...this.mapVisitaParaRespostaLegada(v, { recortar }),
       // O PIN é uma credencial física: somente uma conta vinculada ao
       // apartamento exato da visita ativa pode recebê-lo no app.
       codigo_acesso: aptosPermitidos.includes(Number(v.id_apartamento)) && !v.data_saida
