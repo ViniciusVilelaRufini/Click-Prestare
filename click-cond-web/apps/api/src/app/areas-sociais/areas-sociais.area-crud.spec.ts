@@ -106,7 +106,10 @@ describe('AreasSociaisService — CRUD de área (get-all + update parcial)', () 
       });
       expect(data.precisa_pagamento).toBe(1);
       expect(data.capacidade).toBe(40);
-      expect(data.horarios).toBe(JSON.stringify(GRADE));
+      // A grade é gravada como veio; o dia sem `nome` (formato da portaria-web)
+      // ganha o nome pelo índice — o app precisa dele para editar a área.
+      const nomes = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+      expect(JSON.parse(data.horarios)).toEqual(GRADE.map((d, i) => ({ nome: nomes[i], ...d })));
     });
 
     it('`precisa_pagamento` (grafia longa) também é aceito e desligar é possível de propósito', async () => {

@@ -222,9 +222,28 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
     ];
     const saneado = [
       { nome: 'Segunda', horarios: [{ horarioDe: '08:00', horarioAte: '12:00' }, { horarioDe: '14:00', horarioAte: '18:00' }] },
-      { horarios: [] },
-      { horarios: [] },
+      // Dia sem `nome` ganha o nome pelo índice da semana (o app faz
+      // `nome.substring(0, 3)` e quebrava com a grade gravada pela portaria).
+      { nome: 'Terça', horarios: [] },
+      { nome: 'Quarta', horarios: [] },
     ];
+
+    it('o último bloco da noite terminando em 24:00 (gerado pelo app) é preservado', async () => {
+      const { service, prisma } = build();
+      const grade = [{ nome: 'Segunda', horarios: [{ horarioDe: '22:00', horarioAte: '23:00' }, { horarioDe: '23:00', horarioAte: '24:00' }] }];
+      await service.insert(1, { nome: 'Salão', horarios: grade }, porteiro);
+      expect(JSON.parse(prisma.areas_Sociais.create.mock.calls[0][0].data.horarios)).toEqual(grade);
+    });
+
+    it('dia sem nome (ou com nome inválido) ganha o nome do app pelo índice; nome válido é preservado', async () => {
+      const { service, prisma } = build();
+      const semNome = Array.from({ length: 7 }, () => ({ horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }] }));
+      semNome[1] = { nome: 'Tu', horarios: [] } as any; // curto demais para o substring(0, 3) do app
+      semNome[2] = { nome: 'Quarta-feira', horarios: [] } as any;
+      await service.insert(1, { nome: 'Salão', horarios: semNome }, porteiro);
+      const nomes = JSON.parse(prisma.areas_Sociais.create.mock.calls[0][0].data.horarios).map((d: any) => d.nome);
+      expect(nomes).toEqual(['Segunda', 'Terça', 'Quarta-feira', 'Quinta', 'Sexta', 'Sábado', 'Domingo']);
+    });
 
     it('criar: horarios é saneado para o formato da grade (chaves desconhecidas e horas inválidas caem)', async () => {
       const { service, prisma } = build();
