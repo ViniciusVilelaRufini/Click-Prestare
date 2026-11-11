@@ -7,6 +7,8 @@ import { BadRequestException, HttpException, UnauthorizedException } from '@nest
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
+const TOKEN = '3f2b8c1e-5a4d-4e7f-9b6a-1c2d3e4f5a6b';
+
 describe('MfaService', () => {
   let service: MfaService;
   let prisma: any;
@@ -21,6 +23,7 @@ describe('MfaService', () => {
         findFirst: jest.fn(),
         update: jest.fn().mockResolvedValue({ id: 1 }),
         delete: jest.fn().mockResolvedValue({ id: 1 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       user_Trusted_Devices: {
         create: jest.fn().mockResolvedValue({ id: 1 }),
@@ -81,7 +84,7 @@ describe('MfaService', () => {
     it('deve falhar com BadRequest se o desafio não existir ou estiver expirado', async () => {
       prisma.mfa_Challenges.findFirst.mockResolvedValue(null);
 
-      await expect(service.verifyChallenge('token-invalido', '123456', false)).rejects.toThrow(
+      await expect(service.verifyChallenge(TOKEN, '123456', false)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -95,7 +98,7 @@ describe('MfaService', () => {
         user: { id: 42, sindicos: [{ name: 'Carlos Síndico' }] },
       });
 
-      await expect(service.verifyChallenge('token-valido', '123456', false)).rejects.toThrow(
+      await expect(service.verifyChallenge(TOKEN, '123456', false)).rejects.toThrow(
         HttpException,
       );
       expect(prisma.mfa_Challenges.delete).toHaveBeenCalledWith({ where: { id: 1 } });
@@ -112,7 +115,7 @@ describe('MfaService', () => {
         user: { id: 42, sindicos: [{ name: 'Carlos Síndico' }] },
       });
 
-      await expect(service.verifyChallenge('token-valido', '999999', false)).rejects.toThrow(
+      await expect(service.verifyChallenge(TOKEN, '999999', false)).rejects.toThrow(
         UnauthorizedException,
       );
       expect(prisma.mfa_Challenges.update).toHaveBeenCalledWith({
@@ -136,7 +139,7 @@ describe('MfaService', () => {
         },
       });
 
-      const res = await service.verifyChallenge('token-valido', '123456', false);
+      const res = await service.verifyChallenge(TOKEN, '123456', false);
 
       expect(res.token).toBe('jwt-token-sindico-123');
       expect(res.user.name).toBe('Carlos Síndico');
@@ -159,7 +162,7 @@ describe('MfaService', () => {
         },
       });
 
-      const res = await service.verifyChallenge('token-valido', '123456', true, {
+      const res = await service.verifyChallenge(TOKEN, '123456', true, {
         userAgent: 'Flutter Mobile App',
         ip: '192.168.1.1',
       });
@@ -175,6 +178,107 @@ describe('MfaService', () => {
           }),
         }),
       );
+    });
+  });
+
+
+  describe('createChallenge: limpeza e erro de e-mail', () => {
+    it('apaga os desafios vencidos do mesmo usuário ao criar um novo', async () => {
+      await service.createChallenge({ id: 42, email: 'sindico@click.com', name: 'Carlos' });
+      expect(prisma.mfa_Challenges.deleteMany).toHaveBeenCalledWith({
+        where: { id_user: 42, expires_at: { lte: expect.any(Date) } },
+      });
+    });
+
+    it('falha de SMTP volta mensagem genérica, sem detalhe interno', async () => {
+      mail.sendMfaCode.mockRejectedValue(new Error('connect ECONNREFUSED smtp.interno:587'));
+      const erro = await service
+        .createChallenge({ id: 42, email: 'sindico@click.com', name: 'Carlos' })
+        .catch((e) => e);
+      expect(erro.message).toBe('Não foi possível enviar o código agora. Tente novamente em instantes.');
+      expect(JSON.stringify(erro.getResponse())).not.toMatch(/ECONNREFUSED|smtp|click\.com/);
+    });
+  });
+
+  describe('entrada: mfa_token e code só como string no formato do serviço', () => {
+    it.each([
+      [{ startsWith: 'a' }, '123456'],
+      ['token-qualquer', '123456'],
+      [TOKEN, { not: '' }],
+      [TOKEN, 123456],
+    ])('verify recusa (%p, %p) com 400 sem consultar o banco', async (tok: any, code: any) => {
+      await expect(service.verifyChallenge(tok, code, false)).rejects.toThrow(BadRequestException);
+      expect(prisma.mfa_Challenges.findFirst).not.toHaveBeenCalled();
+    });
+
+    it.each([[{ startsWith: 'a' }], ['abc'], [undefined]])(
+      'resend recusa %p com 400 sem consultar o banco',
+      async (tok: any) => {
+        await expect(service.resendChallenge(tok)).rejects.toThrow(BadRequestException);
+        expect(prisma.mfa_Challenges.findFirst).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  describe('verify: tentativas esgotadas', () => {
+    it('apaga o desafio quando o erro atual esgota as tentativas', async () => {
+      prisma.mfa_Challenges.findFirst.mockResolvedValue({
+        id: 1,
+        id_user: 42,
+        code_hash: await bcrypt.hash('123456', 10),
+        tentativas: 4,
+        expires_at: new Date(Date.now() + 100000),
+        user: { id: 42, sindicos: [] },
+      });
+      await expect(service.verifyChallenge(TOKEN, '999999', false)).rejects.toThrow(HttpException);
+      expect(prisma.mfa_Challenges.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+    });
+  });
+
+  describe('resendChallenge', () => {
+    const desafio = (extra: any = {}) => ({
+      id: 1,
+      id_user: 42,
+      tentativas: 3,
+      created_at: new Date(Date.now() - 120_000),
+      expires_at: new Date(Date.now() + 300_000),
+      user: { id: 42, email: 'sindico@click.com', login: 'x', sindicos: [{ name: 'Carlos', email: 'sindico@click.com' }] },
+      ...extra,
+    });
+
+    it('só procura desafio ainda válido (expires_at > agora)', async () => {
+      prisma.mfa_Challenges.findFirst.mockResolvedValue(null);
+      await expect(service.resendChallenge(TOKEN)).rejects.toThrow(BadRequestException);
+      expect(prisma.mfa_Challenges.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { token: TOKEN, expires_at: { gt: expect.any(Date) } },
+        }),
+      );
+    });
+
+    it('não zera tentativas nem estende a validade', async () => {
+      prisma.mfa_Challenges.findFirst.mockResolvedValue(desafio());
+      await service.resendChallenge(TOKEN);
+      const data = prisma.mfa_Challenges.update.mock.calls[0][0].data;
+      expect(data).not.toHaveProperty('tentativas');
+      expect(data).not.toHaveProperty('expires_at');
+      expect(mail.sendMfaCode).toHaveBeenCalledTimes(1);
+    });
+
+    it('recusa o quarto reenvio do mesmo desafio', async () => {
+      prisma.mfa_Challenges.findFirst.mockResolvedValue(desafio());
+      await service.resendChallenge(TOKEN);
+      await service.resendChallenge(TOKEN);
+      await service.resendChallenge(TOKEN);
+      await expect(service.resendChallenge(TOKEN)).rejects.toThrow(HttpException);
+      expect(mail.sendMfaCode).toHaveBeenCalledTimes(3);
+    });
+
+    it('falha de SMTP no reenvio volta mensagem genérica', async () => {
+      prisma.mfa_Challenges.findFirst.mockResolvedValue(desafio());
+      mail.sendMfaCode.mockRejectedValue(new Error('535 auth failed smtp.interno'));
+      const erro = await service.resendChallenge(TOKEN).catch((e) => e);
+      expect(erro.message).toBe('Não foi possível enviar o código agora. Tente novamente em instantes.');
     });
   });
 

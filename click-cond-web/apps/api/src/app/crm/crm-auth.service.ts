@@ -21,6 +21,11 @@ export class CrmAuthService {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
     }
 
+    // Corpo da rota sem DTO: objeto em `login` viraria filtro do Prisma.
+    if (typeof login !== 'string' || typeof senha !== 'string' || !login.trim()) {
+      throw new UnauthorizedException('Credenciais inválidas.');
+    }
+
     const admin = await this.prisma.crm_Admins.findFirst({
       where: { login, ativo: 1 },
     });

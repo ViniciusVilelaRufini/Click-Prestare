@@ -12,6 +12,7 @@ import { MailService } from '../../common/mail/mail.service';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
+import { EstadoCompartilhado } from '../../common/estado-compartilhado';
 
 export interface CreateChallengeResult {
   mfa_required: true;
@@ -26,15 +27,29 @@ export interface VerifyMfaResult {
   device_token?: string;
 }
 
+// Formato do mfa_token gerado em createChallenge (crypto.randomUUID, minúsculo).
+const MFA_TOKEN_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const MAX_TENTATIVAS = 5;
+const MAX_REENVIOS = 3;
+const MSG_ENVIO_FALHOU = 'Não foi possível enviar o código agora. Tente novamente em instantes.';
+
 @Injectable()
 export class MfaService {
   private readonly logger = new Logger(MfaService.name);
+  private readonly estado: EstadoCompartilhado;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly jwt: JwtService,
-  ) {}
+  ) {
+    this.estado = new EstadoCompartilhado(prisma);
+  }
+
+  /** O corpo das rotas é tipo inline: objeto em mfa_token viraria filtro do Prisma. */
+  private tokenValido(mfaToken: unknown): mfaToken is string {
+    return typeof mfaToken === 'string' && MFA_TOKEN_RE.test(mfaToken);
+  }
 
   maskEmail(email: string): string {
     if (!email || !email.includes('@')) return 'e-mail';
@@ -56,6 +71,11 @@ export class MfaService {
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
 
+    // Desafios vencidos nunca eram apagados: limpa os do mesmo usuário.
+    await this.prisma.mfa_Challenges
+      .deleteMany({ where: { id_user: user.id, expires_at: { lte: new Date() } } })
+      .catch(() => null);
+
     await this.prisma.mfa_Challenges.create({
       data: {
         id_user: user.id,
@@ -71,11 +91,7 @@ export class MfaService {
     } catch (err: any) {
       this.logger.error(`Falha ao disparar e-mail de 2FA para ${user.email}: ${err?.message ?? err}`);
       await this.prisma.mfa_Challenges.deleteMany({ where: { token } }).catch(() => null);
-      throw new ServiceUnavailableException(
-        `Não foi possível enviar o código para o e-mail cadastrado (${this.maskEmail(
-          user.email,
-        )}). Detalhes: ${err?.message ?? 'Serviço de e-mail indisponível'}`,
-      );
+      throw new ServiceUnavailableException(MSG_ENVIO_FALHOU);
     }
 
     return {
@@ -96,6 +112,10 @@ export class MfaService {
       throw new ServiceUnavailableException('Banco de dados indisponível.');
     }
 
+    if (!this.tokenValido(mfaToken) || typeof code !== 'string') {
+      throw new BadRequestException('Código expirado ou inválido. Solicite um novo.');
+    }
+
     const challenge = await this.prisma.mfa_Challenges.findFirst({
       where: {
         token: mfaToken,
@@ -112,7 +132,7 @@ export class MfaService {
       throw new BadRequestException('Código expirado ou inválido. Solicite um novo.');
     }
 
-    if (challenge.tentativas >= 5) {
+    if (challenge.tentativas >= MAX_TENTATIVAS) {
       await this.prisma.mfa_Challenges.delete({ where: { id: challenge.id } }).catch(() => null);
       throw new HttpException(
         'Muitas tentativas incorretas. O código foi invalidado por segurança.',
@@ -126,7 +146,15 @@ export class MfaService {
         where: { id: challenge.id },
         data: { tentativas: { increment: 1 } },
       });
-      const restam = Math.max(0, 5 - (challenge.tentativas + 1));
+      const restam = Math.max(0, MAX_TENTATIVAS - (challenge.tentativas + 1));
+      if (restam === 0) {
+        // Esgotou: apaga o desafio, o próximo passo é novo login com senha.
+        await this.prisma.mfa_Challenges.delete({ where: { id: challenge.id } }).catch(() => null);
+        throw new HttpException(
+          'Muitas tentativas incorretas. O código foi invalidado por segurança.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
       throw new UnauthorizedException(`Código incorreto. Restam ${restam} tentativa(s).`);
     }
 
@@ -180,8 +208,13 @@ export class MfaService {
       throw new ServiceUnavailableException('Banco de dados indisponível.');
     }
 
+    if (!this.tokenValido(mfaToken)) {
+      throw new BadRequestException('Desafio não encontrado ou expirado.');
+    }
+
+    // Só reenvia para desafio ainda válido: reenviar não ressuscita desafio vencido.
     const challenge = await this.prisma.mfa_Challenges.findFirst({
-      where: { token: mfaToken },
+      where: { token: mfaToken, expires_at: { gt: new Date() } },
       include: {
         user: {
           include: { sindicos: true },
@@ -203,16 +236,27 @@ export class MfaService {
       );
     }
 
+    // Teto de reenvios por desafio (sem coluna nova: contador no estado compartilhado,
+    // com a mesma validade do desafio).
+    const chaveReenvios = `mfa-reenvios:${mfaToken}`;
+    const feitos = (await this.estado.obter<{ n: number }>(chaveReenvios))?.valor?.n ?? 0;
+    if (feitos >= MAX_REENVIOS) {
+      throw new HttpException(
+        'Limite de reenvios atingido. Faça login novamente para receber um novo código.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    const restanteMs = Math.max(1000, new Date(challenge.expires_at).getTime() - Date.now());
+    await this.estado.definir(chaveReenvios, { n: feitos + 1 }, restanteMs);
+
     const novoCodigo = crypto.randomInt(100000, 999999).toString();
     const novoHash = await bcrypt.hash(novoCodigo, 10);
-    const novoExpires = new Date(Date.now() + 10 * 60 * 1000);
 
+    // Não zera `tentativas` nem estende `expires_at`: o reenvio troca o código, não dá fôlego novo.
     await this.prisma.mfa_Challenges.update({
       where: { id: challenge.id },
       data: {
         code_hash: novoHash,
-        tentativas: 0,
-        expires_at: novoExpires,
         created_at: new Date(),
       },
     });
@@ -235,11 +279,7 @@ export class MfaService {
       await this.mail.sendMfaCode(email, nome, novoCodigo);
     } catch (err: any) {
       this.logger.error(`Falha ao reenviar e-mail de 2FA para ${email}: ${err?.message ?? err}`);
-      throw new ServiceUnavailableException(
-        `Não foi possível reenviar o código para ${this.maskEmail(
-          email,
-        )}. Detalhes: ${err?.message ?? 'Falha no serviço de e-mail'}`,
-      );
+      throw new ServiceUnavailableException(MSG_ENVIO_FALHOU);
     }
 
     return { success: true, message: 'Novo código enviado com sucesso!' };

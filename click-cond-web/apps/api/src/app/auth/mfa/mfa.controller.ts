@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { MfaService } from './mfa.service';
 import { Public } from '../public.decorator';
 import { extractClientIp } from '../../common/context/request-context';
@@ -7,6 +8,8 @@ import { extractClientIp } from '../../common/context/request-context';
 export class MfaController {
   constructor(private readonly mfaService: MfaService) {}
 
+  // 10 por 10 minutos por IP: o código tem 6 dígitos, o limite por desafio sozinho não basta.
+  @Throttle({ medium: { limit: 10, ttl: 10 * 60_000 } })
   @Public()
   @Post('verify')
   @HttpCode(200)
@@ -25,6 +28,7 @@ export class MfaController {
     );
   }
 
+  @Throttle({ medium: { limit: 10, ttl: 10 * 60_000 } })
   @Public()
   @Post('resend')
   @HttpCode(200)

@@ -169,6 +169,11 @@ export class MobileAuthService {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
     }
 
+    // Corpo da rota sem DTO: objeto em `login` viraria filtro do Prisma.
+    if (typeof login !== 'string' || typeof senhaRaw !== 'string' || !login.trim()) {
+      throw new UnauthorizedException('Login ou Senha incorretos');
+    }
+
     const user = await this.prisma.users.findFirst({
       where: { login },
       include: { sindicos: true },
