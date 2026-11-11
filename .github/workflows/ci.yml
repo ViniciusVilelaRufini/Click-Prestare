@@ -110,7 +110,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Deploy no AWS Elastic Beanstalk
-        uses: einaregilsson/beanstalk-deploy@v22
+        uses: einaregilsson/beanstalk-deploy@v23
         with:
           aws_access_key: ${{ env.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ env.AWS_SECRET_ACCESS_KEY }}
