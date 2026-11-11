@@ -120,6 +120,15 @@ describe('Visita criada por morador não revela identidade de terceiros', () => 
             return comRelacoes(nova);
           }),
           updateMany: jest.fn(async () => ({ count: 0 })),
+          findMany: jest.fn(async ({ where }: any) => {
+            if (where.id_pessoa?.in) {
+              return visitas.filter(
+                (v) => where.id_pessoa.in.includes(v.id_pessoa) && !(where.id_apartamento?.notIn ?? []).includes(v.id_apartamento),
+              );
+            }
+            const aptos: number[] = where.AND.find((c: any) => c.id_apartamento)?.id_apartamento?.in ?? [];
+            return visitas.filter((v) => aptos.includes(v.id_apartamento)).map(comRelacoes);
+          }),
         },
         apartamentos: { findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, id_condominio: 1 })) },
         apartamentos_Users: {
@@ -176,96 +185,33 @@ describe('Visita criada por morador não revela identidade de terceiros', () => 
       for (const k of SENSIVEIS) expect(r).not.toHaveProperty(k);
     });
 
+    it('depois de criar, a lista e o detalhe do morador não mostram o rosto nem o documento da Pessoa do vizinho', async () => {
+      const { service } = build({ aptoDaVisitaExistente: 200 });
+      const criada: any = await service.create({ ...novaVisita } as any, moradorA);
+      const lista: any[] = await service.findAllMobile(1, undefined, undefined, 0, 2, 'Morador');
+      expect(lista.length).toBeGreaterThan(0);
+      for (const v of lista) {
+        for (const k of SENSIVEIS) expect(v).not.toHaveProperty(k);
+        expect(v.foto_pessoa ?? null).toBeNull();
+      }
+      const um: any = await service.findOne(criada.id, moradorA);
+      for (const k of SENSIVEIS) expect(um).not.toHaveProperty(k);
+      expect(um.foto_pessoa ?? null).toBeNull();
+    });
+
+    it('operador lê a lista com a foto e o documento da Pessoa', async () => {
+      const { service } = build({ aptoDaVisitaExistente: 100 });
+      const lista: any[] = await service.findAllMobile(1, undefined, undefined, 0, 2, 'Sindico');
+      expect(lista[0].foto_documento).toBe('DOC-REAL');
+      expect(lista[0].foto_pessoa).toBe('F1');
+    });
+
     it('operador continua vendo foto do documento e face_id', async () => {
       const { service } = build({ aptoDaVisitaExistente: 200 });
       const r: any = await service.create({ ...novaVisita } as any, porteiro);
       expect(r.foto_documento).toBe('DOC-REAL');
       expect(r.face_id).toBe('face-7');
       expect(r.face_sync_status).toBe('synced');
-    });
-  });
-
-  describe('caminho legado (Visitantes)', () => {
-    beforeEach(() => {
-      process.env['PESSOAS_MIGRATION_ENABLED'] = 'false';
-    });
-
-    function buildLegado() {
-      const existente: any = {
-        id: 5,
-        id_condominio: 1,
-        id_apartamento: 200,
-        nome: 'Real',
-        doc_identificacao: DOC,
-        foto_pessoa: 'F1',
-        foto_documento: 'DOC-REAL',
-        face_id: 'face-7',
-        face_sync_status: 'synced',
-        face_enrolled_at: new Date('2026-10-01T00:00:00Z'),
-        face_sync_error: null,
-        data_entrada: null,
-        data_saida: null,
-        is_visitante: 1,
-        is_prestador: 0,
-      };
-      const prisma: any = {
-        isConnected: true,
-        visitantes: {
-          findMany: jest.fn(async () => [existente]),
-          findFirst: jest.fn(async ({ where }: any) => (where.doc_identificacao === DOC ? existente : null)),
-          update: jest.fn(async ({ data }: any) => Object.assign(existente, data)),
-          updateMany: jest.fn(async () => ({ count: 0 })),
-          create: jest.fn(),
-        },
-        apartamentos: { findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, id_condominio: 1 })) },
-        apartamentos_Users: {
-          findFirst: jest.fn(async ({ where }: any) =>
-            where.id_user === 2 && where.id_apto === 100 ? { id_apto: 100 } : null,
-          ),
-          findMany: jest.fn(async ({ where }: any) => (where.id_user === 2 ? [{ id_apto: 100 }] : [])),
-        },
-        users: { findMany: jest.fn(async () => []) },
-      };
-      const tenant: any = {
-        assertCondominio: jest.fn(async () => undefined),
-        assertPermissaoFuncionario: jest.fn(async () => undefined),
-      };
-      const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
-      const notifications: any = { sendPushNotification: jest.fn(), sendWhatsApp: jest.fn() };
-      const facial: any = { syncVisitante: jest.fn().mockResolvedValue({}) };
-      const service = new VisitantesService(
-        prisma,
-        notifications,
-        storage,
-        facial,
-        { registrar: jest.fn() } as any,
-        tenant,
-        {} as any,
-        undefined as any,
-      );
-      return { service };
-    }
-
-    it('morador com CPF de visitante do vizinho recebe o que digitou, sem foto de documento nem face_*', async () => {
-      const { service } = buildLegado();
-      const r: any = await service.create({ ...novaVisita } as any, moradorA);
-      expect(r.nome).toBe('Digitado');
-      expect(r.foto_pessoa).toBe('F2');
-      for (const k of SENSIVEIS) expect(r).not.toHaveProperty(k);
-    });
-
-    it('morador sem foto enviada não recebe a foto herdada do cadastro do vizinho', async () => {
-      const { service } = buildLegado();
-      const r: any = await service.create({ ...novaVisita, foto_pessoa: undefined } as any, moradorA);
-      expect(r.foto_pessoa ?? null).toBeNull();
-      for (const k of SENSIVEIS) expect(r).not.toHaveProperty(k);
-    });
-
-    it('operador continua vendo foto do documento e face_id', async () => {
-      const { service } = buildLegado();
-      const r: any = await service.create({ ...novaVisita } as any, porteiro);
-      expect(r.foto_documento).toBe('DOC-REAL');
-      expect(r.face_id).toBe('face-7');
     });
   });
 });

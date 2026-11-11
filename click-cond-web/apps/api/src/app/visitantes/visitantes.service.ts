@@ -647,7 +647,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       include: { apartamento: { select: { bloco: true, apto: true } } },
     });
     if (!v) throw new NotFoundException('Visitante não encontrado.');
-    return v;
+    return this.semCamposSensiveis(v, this.respostaParaMorador(payload));
   }
 
   /**
@@ -657,7 +657,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * Retorna o registro mais informativo (com foto e face_id sincronizado de
    * preferência) para que possa ser reutilizado.
    */
-  async buscarPessoa(idCondominio: number, doc?: string, nome?: string) {
+  async buscarPessoa(idCondominio: number, doc?: string, nome?: string, aptos?: number[]) {
     if (!this.prisma.isConnected) return null;
 
     const docNorm = doc?.trim();
@@ -667,6 +667,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const candidatos = await this.prisma.visitantes.findMany({
       where: {
         id_condominio: Number(idCondominio),
+        ...(aptos ? { id_apartamento: { in: aptos } } : {}),
         OR: [
           ...(docNorm ? [{ doc_identificacao: docNorm }] : []),
           ...(nomeNorm && !docNorm ? [{ nome: nomeNorm }] : []),
@@ -1888,12 +1889,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     let fotoDoc = await this.resolveFoto(dto.foto_documento);
     let fotoPes = await this.resolveFoto(dto.foto_pessoa);
-    // Foto que o próprio chamador mandou — é a única que a resposta a um
-    // morador pode devolver quando o cadastro achado não é dele.
-    const fotoEnviada = fotoPes;
+    // Morador só enxerga, herda e reescreve cadastros dos apartamentos DELE:
+    // as buscas abaixo são do condomínio inteiro e, sem este recorte, traziam
+    // foto, documento e face_id do visitante do vizinho para a linha nova.
     const recortar = this.respostaParaMorador(operador);
-    const aptosDoChamador = recortar ? await this.aptosDoMoradorMobile(operador) : undefined;
-    let cadastroAlheio = false;
+    const aptosDoChamador: number[] | undefined = recortar
+      ? ((await this.aptosDoMoradorMobile(operador)) ?? [])
+      : undefined;
 
     // Se o usuário está liberando nova visita para um visitante existente e corrigiu o nome/dados,
     // atualiza o histórico anterior desse visitante para evitar duplicidade de "Vinicius dd" e "Vinicius Vilela".
@@ -1901,6 +1903,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.visitantes.updateMany({
         where: {
           id_condominio: Number(dto.id_condominio),
+          ...(aptosDoChamador ? { id_apartamento: { in: aptosDoChamador } } : {}),
           OR: [
             { nome: dto.nome_anterior.trim() },
             ...(dto.id_anterior ? [{ id: Number(dto.id_anterior) }] : []),
@@ -1926,10 +1929,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         dto.id_condominio,
         dto.doc_identificacao,
         dto.nome_anterior || dto.nome,
+        aptosDoChamador,
       );
       if (anterior) {
-        // Cadastro de outro apartamento (a busca é do condomínio inteiro).
-        if (recortar) cadastroAlheio = true;
         if (!fotoPes && anterior.foto_pessoa) fotoPes = anterior.foto_pessoa;
         if (!fotoDoc && anterior.foto_documento) fotoDoc = anterior.foto_documento;
         if (anterior.face_id) {
@@ -1948,6 +1950,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         where: {
           id_condominio: Number(dto.id_condominio),
           doc_identificacao: docNorm,
+          ...(aptosDoChamador ? { id_apartamento: { in: aptosDoChamador } } : {}),
           data_entrada: null,
           data_saida: null,
         },
@@ -1959,19 +1962,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           id_condominio: Number(dto.id_condominio),
           nome: dto.nome.trim(),
           doc_identificacao: null,
+          ...(aptosDoChamador ? { id_apartamento: { in: aptosDoChamador } } : {}),
           data_entrada: null,
           data_saida: null,
         },
         orderBy: { id: 'desc' },
       });
-    }
-
-    if (
-      existingActive &&
-      recortar &&
-      !(aptosDoChamador ?? []).includes(Number(existingActive.id_apartamento))
-    ) {
-      cadastroAlheio = true;
     }
 
     if (existingActive) {
@@ -2050,7 +2046,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         this.fireFacialSync(updated.id);
       }
 
-      return this.recortarCriacaoLegada(updated, recortar, cadastroAlheio, fotoEnviada);
+      return this.semCamposSensiveis(updated, recortar);
     }
 
     // Mesma rotina do gerarPinUnico — antes era um laço duplicado aqui, e foi
@@ -2135,14 +2131,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       this.fireFacialSync(visitante.id);
     }
 
-    return this.recortarCriacaoLegada(visitante, recortar, cadastroAlheio, fotoEnviada);
+    return this.semCamposSensiveis(visitante, recortar);
   }
 
-  /**
-   * Resposta do `create` legado a um morador: sem foto de documento nem face_*
-   * e, se o cadastro achado é de outro apartamento, só a foto que ele enviou.
-   */
-  private recortarCriacaoLegada(row: any, recortar: boolean, cadastroAlheio: boolean, fotoEnviada: string | null) {
+  /** Linha legada de Visitantes para morador: sem foto do documento nem face_*. */
+  private semCamposSensiveis<T extends Record<string, any>>(row: T, recortar: boolean): T {
     if (!recortar) return row;
     const {
       foto_documento: _fd,
@@ -2152,7 +2145,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       face_sync_error: _fx,
       ...resto
     } = row;
-    return cadastroAlheio ? { ...resto, foto_pessoa: fotoEnviada ?? null } : resto;
+    return resto as T;
   }
 
   /**
@@ -2453,9 +2446,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       recortar?: boolean;
       /** Pessoa de outro apartamento: devolve o que o chamador digitou. */
       digitado?: { nome: string; doc_identificacao: string | null; foto_pessoa: string | null };
+      /** Leitura de morador sobre Pessoa de outro apartamento: omite a foto. */
+      semFotoDaPessoa?: boolean;
     },
   ) {
-    const p = opts?.digitado ? { ...visita.pessoa, ...opts.digitado } : visita.pessoa;
+    const p = opts?.digitado
+      ? { ...visita.pessoa, ...opts.digitado }
+      : opts?.semFotoDaPessoa
+        ? { ...visita.pessoa, foto_pessoa: null }
+        : visita.pessoa;
     const resposta = this.montarRespostaLegada(visita, p);
     if (opts?.recortar) {
       delete (resposta as any).foto_documento;
@@ -3327,8 +3326,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       },
     });
     if (!v) throw new NotFoundException('Visitante não encontrado.');
+    const recortar = this.respostaParaMorador(payload);
+    const aptos = recortar ? await this.aptosDoMoradorMobile(payload) : undefined;
+    const alheia = !!aptos && (await pessoaTemVisitaForaDosAptos(this.prisma, v.id_pessoa, aptos));
     return {
-      ...this.mapVisitaParaRespostaLegada(v, { recortar: this.respostaParaMorador(payload) }),
+      ...this.mapVisitaParaRespostaLegada(v, { recortar, semFotoDaPessoa: alheia }),
       apartamento: v.apartamento,
     };
   }
@@ -3722,8 +3724,25 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
 
     const recortar = !isOperador({ typeAccess: userType } as JwtPayload);
+    // Pessoa compartilhada com outro apartamento: a lista não mostra o rosto
+    // dela ao morador (Visitas não guarda nome/foto próprios, então o nome
+    // segue sendo o da Pessoa).
+    const pessoasAlheias = new Set<number>();
+    if (recortar && list.length > 0) {
+      const fora = await this.prisma.visitas.findMany({
+        where: {
+          id_pessoa: { in: [...new Set(list.map((v: any) => Number(v.id_pessoa)))] },
+          id_apartamento: { notIn: aptosPermitidos.map(Number) },
+        },
+        select: { id_pessoa: true },
+      });
+      for (const f of fora) pessoasAlheias.add(Number(f.id_pessoa));
+    }
     return list.map((v: any) => ({
-      ...this.mapVisitaParaRespostaLegada(v, { recortar }),
+      ...this.mapVisitaParaRespostaLegada(v, {
+        recortar,
+        semFotoDaPessoa: pessoasAlheias.has(Number(v.id_pessoa)),
+      }),
       // O PIN é uma credencial física: somente uma conta vinculada ao
       // apartamento exato da visita ativa pode recebê-lo no app.
       codigo_acesso: aptosPermitidos.includes(Number(v.id_apartamento)) && !v.data_saida
@@ -3852,7 +3871,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         entidade_id: updated.id,
         descricao: `Dados da visita de ${label} "${updated.nome}" atualizados com sucesso.`,
       });
-      return updated;
+      return this.semCamposSensiveis(updated, this.respostaParaMorador(payload));
     } catch {
       throw new NotFoundException('Visitante não encontrado.');
     }
@@ -4805,8 +4824,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // em memória — antes era um update + re-fetch por visitante.
     // Listagem e somente leitura: PINs devem ser criados explicitamente no
     // fluxo de cadastro/liberacao, nunca como efeito colateral de um GET.
+    const recortarLista = !isOperador({ typeAccess: userType } as JwtPayload);
     return list.map((v: any) => ({
-      ...v,
+      ...this.semCamposSensiveis(v, recortarLista),
       // O PIN não é um dado de listagem geral: só segue para uma conta que
       // possui vínculo com o apartamento desta visita ainda ativa.
       codigo_acesso: aptosPermitidos.includes(Number(v.id_apartamento)) && !v.data_saida

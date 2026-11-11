@@ -102,3 +102,37 @@ describe('PrestadoresService — leitura não vaza prestador do vizinho', () => 
     });
   });
 });
+
+describe('PrestadoresService.findOne — morador não recebe documento nem face_*', () => {
+  const morador: JwtPayload = { sub: 50, nome: 'Morador', typeAccess: 'Morador' };
+  const porteiro: JwtPayload = { sub: 52, nome: 'Porteiro', id_condominio: 1 };
+  const SENS = ['foto_documento', 'face_id', 'face_sync_status', 'face_enrolled_at', 'face_sync_error'];
+
+  function build() {
+    const linha = {
+      id: 9, nome: 'Eletricista do prédio', id_condominio: 1, id_apartamento: null, email: null,
+      foto_pessoa: 'FP', foto_documento: 'FD', face_id: 'f-1', face_enrolled_at: new Date(),
+      face_sync_status: 'synced', face_sync_error: null,
+    };
+    const prisma: any = {
+      isConnected: true,
+      prestadores_servico: { findUnique: jest.fn(async () => ({ ...linha })) },
+      apartamentos_Users: { findMany: jest.fn(async () => []), findFirst: jest.fn(async () => null) },
+      funcionarios_Portaria: { findFirst: jest.fn(async () => null) },
+    };
+    const tenant: any = { assertCondominio: jest.fn(), assertEntidade: jest.fn(async () => undefined) };
+    return new PrestadoresService(prisma, {} as any, {} as any, tenant);
+  }
+
+  it('morador lendo prestador do diretório do prédio: sem foto_documento e face_*', async () => {
+    const p: any = await build().findOne(9, 1, morador);
+    for (const k of SENS) expect(p).not.toHaveProperty(k);
+    expect(p.foto_pessoa).toBe('FP');
+  });
+
+  it('operador continua vendo tudo', async () => {
+    const p: any = await build().findOne(9, 1, porteiro);
+    expect(p.foto_documento).toBe('FD');
+    expect(p.face_id).toBe('f-1');
+  });
+});

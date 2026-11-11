@@ -264,7 +264,8 @@ export class PrestadoresService {
         }).then((res) => !!res)
       : false;
 
-    return { ...p, hasPortariaAccess };
+    const { foto_documento: _fd, face_id: _fi, face_enrolled_at: _fe, face_sync_status: _fs, face_sync_error: _fx, ...publico } = p;
+    return { ...(user && !isOperador(user) ? publico : p), hasPortariaAccess };
   }
 
   /**
