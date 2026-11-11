@@ -161,6 +161,8 @@ legado por dispositivo (`DEVICE_TOKENS`, sem `AGENT_TOKEN`) também fica de
 fora — só o modo condomínio tem esse wiring hoje. Ver `src/core/atualizador.js`
 para o protocolo completo.
 
+**"Atualizar agora" e estado na tela:** quando o poll do condomínio traz `verificar_atualizacao: true` (botão do portal), o agente roda na hora a mesma verificação das 6h — uma por vez e no máximo uma forçada por minuto (`src/core/verificacao-forcada.js`) — e a telemetria leva `atualizacao: { estado, versao_alvo, erro, em }` (`ocioso`, `verificando`, `em_dia`, `baixando`, `instalando`, `falhou` ou `indisponivel`), enviada também a cada mudança de estado (no máximo uma por segundo), sem esperar os 60s.
+
 **Pré-requisito para a troca funcionar de verdade:** a instalação precisa ter
 um laço de reinício — `run-agent-service.cmd` com `goto loop` ao lado do exe,
 gerado pelo instalador (`install-windows.bat`, ver "Rodar como serviço"

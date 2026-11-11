@@ -144,6 +144,9 @@ export class AgentController {
       // Etapa 3: pedido de descoberta feito pelo portal (DescobertaService.pedirProcura).
       // Consumido aqui — true só uma vez por pedido — para o agente disparar a varredura da LAN.
       descobrir: await this.descoberta.consumirPedido(idCondominio),
+      // "Atualizar agora" do portal (AgentBridgeService.pedirVerificacaoDeAtualizacao):
+      // true só uma vez por pedido, para o agente conferir a versão já. Agente antigo ignora.
+      verificar_atualizacao: await this.bridge.consumirPedidoDeAtualizacao(idCondominio),
     };
   }
 

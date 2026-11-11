@@ -31,8 +31,16 @@ const INTERVALO_PADRAO_MS = 60000;
 
 /** Monta o payload no formato esperado por POST .../condo/:token/telemetria.
  *  `onlineDoDispositivo(id)` → true só quando o último heartbeat respondeu. */
-function montarPayload({ supervisor, pendentes, iniciadoEm, onlineDoDispositivo = () => false }) {
-  return {
+function montarPayload({
+  supervisor,
+  pendentes,
+  iniciadoEm,
+  onlineDoDispositivo = () => false,
+  // Getter do estado da atualização (`atualizador.estadoDaAtualizacao`):
+  // { estado, versao_alvo, erro, em }. Opcional — sem ele o campo não vai.
+  atualizacao,
+}) {
+  const payload = {
     versao: AGENT_VERSION,
     so: `${os.platform()} ${os.release()}`,
     iniciado_em: iniciadoEm,
@@ -41,6 +49,59 @@ function montarPayload({ supervisor, pendentes, iniciadoEm, onlineDoDispositivo 
       .map((s) => ({ ...s, online: onlineDoDispositivo(s.id) === true })),
     eventos_pendentes: pendentes(),
   };
+  if (typeof atualizacao === 'function') {
+    try {
+      const estado = atualizacao();
+      if (estado && typeof estado === 'object') payload.atualizacao = estado;
+    } catch {
+      /* estado da atualização é um extra: sem ele, o resto da telemetria segue */
+    }
+  }
+  return payload;
+}
+
+// No máximo um envio "imediato" por segundo (ver `criarEnvioSemRajada`).
+const INTERVALO_ENVIO_IMEDIATO_MS = 1000;
+
+/**
+ * Envio imediato com proteção contra rajada — usado para mandar a telemetria
+ * a cada MUDANÇA do estado da atualização (verificando → baixando →
+ * instalando…), sem esperar o envio periódico de 60 s. O 1º `pedir()` envia
+ * na hora; pedidos que chegam a menos de `intervaloMs` do último envio viram
+ * UM envio só, ao fim do intervalo — e como `enviar` monta o payload na hora
+ * em que roda, esse envio leva o estado mais recente (o último estado sempre
+ * acaba enviado). `enviar` que lança ou rejeita é engolido: quem pede (o
+ * atualizador) não pode ser atrapalhado por telemetria.
+ */
+function criarEnvioSemRajada(enviar, { intervaloMs = INTERVALO_ENVIO_IMEDIATO_MS, agora = Date.now } = {}) {
+  let ultimoEm = null;
+  let timer = null;
+
+  function disparar() {
+    ultimoEm = agora();
+    try {
+      const r = enviar();
+      if (r && typeof r.then === 'function') r.then(null, () => {});
+    } catch {
+      /* ver acima */
+    }
+  }
+
+  function pedir() {
+    if (timer) return; // já há um envio agendado: ele leva o estado mais novo
+    const falta = ultimoEm === null ? 0 : intervaloMs - (agora() - ultimoEm);
+    if (falta <= 0) {
+      disparar();
+      return;
+    }
+    timer = setTimeout(() => {
+      timer = null;
+      disparar();
+    }, falta);
+    timer.unref?.();
+  }
+
+  return { pedir };
 }
 
 /** Envia a telemetria uma vez. Erro de rede/HTTP fica só no log (ver acima). */
@@ -73,4 +134,11 @@ function iniciarTelemetria(token, { intervaloMs = INTERVALO_PADRAO_MS, ...opcoes
   return timer;
 }
 
-module.exports = { montarPayload, enviarTelemetria, iniciarTelemetria, INTERVALO_PADRAO_MS };
+module.exports = {
+  montarPayload,
+  enviarTelemetria,
+  iniciarTelemetria,
+  criarEnvioSemRajada,
+  INTERVALO_PADRAO_MS,
+  INTERVALO_ENVIO_IMEDIATO_MS,
+};

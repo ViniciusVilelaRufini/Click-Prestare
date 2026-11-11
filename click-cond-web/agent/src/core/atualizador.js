@@ -129,6 +129,42 @@ const HOSTS_CDN_GITHUB = Object.freeze([
   'release-assets.githubusercontent.com',
 ]);
 
+// Teto do texto de erro que vai para a tela (telemetria, campo
+// `atualizacao.erro`).
+const MAX_ERRO_ESTADO = 200;
+// Teto do texto que ENTRA nas regex de `erroParaEstado`: a mensagem de erro
+// vem de fora (rede, fs) e pode ter qualquer tamanho — sem o corte, 160 KB
+// seguravam o event loop por segundos. Só os primeiros 200 saem, de todo modo.
+const MAX_ENTRADA_ERRO = 2000;
+
+/**
+ * Texto de erro que pode ir para a telemetria: curto e sem segredo. Tira o
+ * token do condomínio (literal e como segmento `/condo/<token>`), o
+ * `usuario:senha@` de URLs, a query string/fragmento de qualquer URL (os
+ * redirecionamentos do CDN do GitHub carregam assinatura na query) e a pasta
+ * de caminhos absolutos do Windows/POSIX (erros de `fs` trazem o caminho da
+ * instalação, que pode ter o nome do usuário) — fica só o nome do arquivo.
+ */
+function erroParaEstado(texto, token) {
+  let t = String(texto == null ? '' : texto);
+  // O token sai antes do corte (split/join é linear): um corte no meio dele
+  // deixaria um pedaço que a troca literal não reconhece mais.
+  if (token) t = t.split(String(token)).join('***');
+  t = t.slice(0, MAX_ENTRADA_ERRO);
+  t = t
+    .replace(/\/condo\/[^/\s?#]+/gi, '/condo/***')
+    .replace(/(\b[a-z][a-z0-9+.-]*:\/\/)[^/\s@]*@/gi, '$1')
+    .replace(/(\bhttps?:\/\/[^\s?#]+)[?#]\S*/gi, '$1')
+    // caminho absoluto entre aspas simples (como o `fs` escreve; a pasta pode ter espaço)
+    .replace(/'(?:[a-z]:[\\/]|\\\\|\/)[^'\r\n]*[\\/]([^'\\/\r\n]*)'/gi, "'$1'")
+    // caminho absoluto solto no texto: letra de unidade, depois UNC ou POSIX
+    .replace(/(?<![a-z0-9])[a-z]:[\\/](?:[^\\/\s'"]+[\\/])*(?=[^\\/\s'"])/gi, '')
+    .replace(/(?<![^\s'"(=])(?:\\\\|\/)(?:[^\\/\s'"]+[\\/])+(?=[^\\/\s'"])/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return t.length > MAX_ERRO_ESTADO ? `${t.slice(0, MAX_ERRO_ESTADO - 1)}…` : t;
+}
+
 /**
  * Por que `urlStr` NÃO pode ser usada no download da atualização (string com
  * o motivo) — ou `null` se pode. `inicial` = é a URL que a nuvem mandou (não
@@ -354,7 +390,55 @@ function criarAtualizador(deps = {}) {
     log = console,
     // Teto de segurança da saída adiada (ver `sairSeReinicioPendente`).
     tetoReinicioMs = TETO_REINICIO_PENDENTE_MS,
+    // Chamado a cada MUDANÇA do estado da atualização (ver `mudarEstado`) —
+    // index.js liga isto a um envio imediato de telemetria.
+    aoMudarEstado = null,
+    agora = () => new Date(),
   } = deps;
+
+  // Estado da atualização que a tela mostra (vai na telemetria, campo
+  // `atualizacao`): { estado, versao_alvo, erro, em }. `estado` é um de
+  // 'ocioso' | 'verificando' | 'em_dia' | 'baixando' | 'instalando' |
+  // 'falhou' | 'indisponivel'. Só muda por `mudarEstado`.
+  let estadoAtual = { estado: 'ocioso', versao_alvo: null, erro: null, em: agora().toISOString() };
+
+  /** Cópia do estado atual (quem recebe não consegue alterar o de dentro). */
+  function estadoDaAtualizacao() {
+    return { ...estadoAtual };
+  }
+
+  /** Registra uma mudança de estado e avisa `aoMudarEstado`. Repetir o mesmo
+   *  estado (mesma versão alvo, mesmo erro) não é mudança: não mexe em `em`
+   *  nem avisa. Nunca lança — nem o callback (síncrono ou Promise) consegue
+   *  atrapalhar a atualização. */
+  function mudarEstado(estado, { versaoAlvo = null, erro = null, token } = {}) {
+    try {
+      const novo = {
+        estado,
+        versao_alvo: versaoAlvo ? String(versaoAlvo) : null,
+        erro: erro ? erroParaEstado(erro, token) : null,
+      };
+      if (
+        novo.estado === estadoAtual.estado &&
+        novo.versao_alvo === estadoAtual.versao_alvo &&
+        novo.erro === estadoAtual.erro
+      ) {
+        return;
+      }
+      estadoAtual = { ...novo, em: agora().toISOString() };
+      if (typeof aoMudarEstado === 'function') {
+        const r = aoMudarEstado({ ...estadoAtual });
+        if (r && typeof r.then === 'function') r.then(null, () => {});
+      }
+    } catch (err) {
+      log.error(`[agente] atualizador: falha ao avisar mudança de estado: ${err.message || err}`);
+    }
+  }
+
+  const ERRO_FORA_DE_SEA =
+    'este agente não roda como o executável empacotado (click-agent.exe) — não consegue se atualizar sozinho neste modo';
+  const erroRevertida = (versao) =>
+    `a versão ${versao} foi revertida automaticamente (não funcionou neste computador) — o agente segue na versão anterior até sair uma mais nova`;
 
   // Verificação em curso: o setInterval de agendarVerificacaoPeriodica não
   // pode empilhar uma segunda chamada por cima de um download ainda em
@@ -369,6 +453,11 @@ function criarAtualizador(deps = {}) {
   // Arquivos já trocados, esperando o laço de poll terminar a iteração em
   // curso para sair (ver `sairSeReinicioPendente`).
   let reinicioPendente = false;
+  // Este processo já concluiu uma troca de exe (nunca volta a false: nem
+  // depois de `sairSeReinicioPendente`). Daí em diante `click-agent.old.exe`
+  // é a imagem em execução e `atualizacao.json` é o controle da reversão —
+  // uma falha numa troca posterior não pode apagar nenhum dos dois.
+  let trocaConcluida = false;
 
   function hostApiAtual() {
     try {
@@ -432,6 +521,27 @@ function criarAtualizador(deps = {}) {
         `[agente] atualizador: falha inesperada ao verificar atualização pendente na partida: ${err.message || err} — seguindo em frente`,
       );
     }
+    estadoInicialAposPartida();
+  }
+
+  /** Estado com que o agente se apresenta à tela logo na partida: fora de SEA
+   *  é 'indisponivel'; se há uma versão recusada MAIS NOVA que a que roda
+   *  (este é o exe antigo, de volta depois de uma reversão), é 'falhou'
+   *  dizendo qual versão foi revertida. Nunca lança. */
+  function estadoInicialAposPartida() {
+    try {
+      if (!isSea()) {
+        mudarEstado('indisponivel', { erro: ERRO_FORA_DE_SEA });
+        return;
+      }
+      if (estadoAtual.estado !== 'ocioso') return; // a própria partida já definiu (reversão)
+      const rejeitada = lerJsonEm(diretorio(), ARQ_VERSAO_RECUSADA, null);
+      if (rejeitada && rejeitada.versao && compararVersoes(rejeitada.versao, AGENT_VERSION) > 0) {
+        mudarEstado('falhou', { versaoAlvo: rejeitada.versao, erro: erroRevertida(rejeitada.versao) });
+      }
+    } catch {
+      /* estado é diagnóstico — a partida segue */
+    }
   }
 
   function verificarInicializacaoInterna() {
@@ -488,6 +598,7 @@ function criarAtualizador(deps = {}) {
       } catch {
         /* já não existia */
       }
+      mudarEstado('falhou', { versaoAlvo: estado.para, erro: erroRevertida(estado.para) });
       sair(0);
       return;
     }
@@ -530,6 +641,14 @@ function criarAtualizador(deps = {}) {
    *  lança — falha de rede, hash divergente etc. só logam e devolvem sem
    *  efeito (a próxima verificação, em 6h, tenta de novo). */
   async function verificar(token) {
+    if (reinicioPendente) {
+      // Arquivos já trocados, só falta o processo sair. Um segundo ciclo
+      // baixaria de novo e tentaria renomear o exe por cima do .old.exe (a
+      // imagem em execução) — e a falha apagaria atualizacao.json, o controle
+      // da reversão automática. Nem o estado muda: segue 'instalando'.
+      log.log('[agente] atualizador: atualização já instalada, aguardando o reinício — pulando esta verificação');
+      return;
+    }
     if (emAndamento) {
       log.log('[agente] atualizador: já há uma verificação em andamento — pulando esta chamada');
       return;
@@ -539,27 +658,73 @@ function criarAtualizador(deps = {}) {
       await verificarInterna(token);
     } catch (err) {
       log.error(`[agente] atualizador: falha inesperada ao verificar atualização: ${err.message || err}`);
+      mudarEstado('falhou', {
+        versaoAlvo: estadoAtual.versao_alvo,
+        erro: `falha inesperada ao verificar atualização: ${err.message || err}`,
+        token,
+      });
     } finally {
       emAndamento = false;
     }
   }
 
+  /** Há uma verificação rodando agora — ou uma troca já feita esperando o
+   *  reinício? (a verificação forçada — "Atualizar agora",
+   *  core/verificacao-forcada.js — consulta isto antes de pedir outra) */
+  function verificacaoEmAndamento() {
+    return emAndamento || reinicioPendente;
+  }
+
   async function verificarInterna(token) {
     if (!isSea()) {
       log.log('[agente] atualizador: fora de um executável SEA — não verifica atualização automática');
+      mudarEstado('indisponivel', { erro: ERRO_FORA_DE_SEA });
       return;
     }
 
+    // Uma consulta que não consegue saber se há versão nova não pode apagar o
+    // aviso de uma falha real anterior (download/troca que falhou, versão
+    // revertida): guarda o estado de antes para devolvê-lo nesse caso.
+    const antesDaConsulta = estadoAtual;
+    const voltarDaConsultaSemResposta = () => {
+      if (antesDaConsulta.estado === 'falhou' && antesDaConsulta.versao_alvo) {
+        mudarEstado('falhou', {
+          versaoAlvo: antesDaConsulta.versao_alvo,
+          erro: antesDaConsulta.erro,
+          token,
+        });
+      } else {
+        mudarEstado('ocioso');
+      }
+    };
+    mudarEstado('verificando');
     let info;
     try {
       info = await buscarVersao(token);
     } catch (err) {
+      // Falha de CONSULTA não é 'falhou': não deu para saber se há versão
+      // nova, e o agente pode muito bem estar em dia — 'falhou' (alerta na
+      // tela até a próxima verificação, 6h) fica para quando havia uma
+      // versão-alvo conhecida. O motivo fica só no log.
       log.error(`[agente] falha ao consultar versão disponível: ${err.message || err}`);
+      voltarDaConsultaSemResposta();
       return;
     }
-    if (!info || !info.versao || !info.url || !info.sha256) return; // nada publicado, ou a nuvem falhou
+    if (!info || !info.versao || !info.url || !info.sha256) {
+      // nada publicado, ou a nuvem falhou (a rota devolve os campos nulos nos
+      // dois casos, p.ex. quando o GitHub falha por alguns minutos — daqui
+      // não dá para distinguir, então não vira "em_dia" nem "falhou")
+      log.error(
+        '[agente] a nuvem não informou uma versão publicada para download (nada publicado, ou a consulta falhou)',
+      );
+      voltarDaConsultaSemResposta();
+      return;
+    }
 
-    if (compararVersoes(info.versao, AGENT_VERSION) <= 0) return; // já está na versão mais nova (ou mais nova ainda)
+    if (compararVersoes(info.versao, AGENT_VERSION) <= 0) {
+      mudarEstado('em_dia'); // já está na versão mais nova (ou mais nova ainda)
+      return;
+    }
 
     const dir = diretorio();
     const rejeitada = lerJsonEm(dir, ARQ_VERSAO_RECUSADA, null);
@@ -570,6 +735,7 @@ function criarAtualizador(deps = {}) {
           `[agente] versão ${info.versao} já foi tentada e revertida antes (ver ${ARQ_VERSAO_RECUSADA}) — ignorando até uma versão mais nova ser publicada`,
         );
       }
+      mudarEstado('falhou', { versaoAlvo: info.versao, erro: erroRevertida(info.versao) });
       return;
     }
 
@@ -578,10 +744,16 @@ function criarAtualizador(deps = {}) {
       log.error(
         '[agente] instalação sem laço de reinício — reinstale pelo portal para receber atualizações automáticas',
       );
+      mudarEstado('indisponivel', {
+        versaoAlvo: info.versao,
+        erro: 'instalação sem laço de reinício — reinstale o agente pelo portal para receber atualizações automáticas',
+      });
       return;
     }
 
     log.log(`[agente] nova versão disponível: ${AGENT_VERSION} → ${info.versao} — baixando`);
+    mudarEstado('baixando', { versaoAlvo: info.versao });
+    const falhou = (erro) => mudarEstado('falhou', { versaoAlvo: info.versao, erro, token });
     const novo = path.join(dirExe, NOME_NEW);
 
     try {
@@ -593,6 +765,7 @@ function criarAtualizador(deps = {}) {
       } catch {
         /* nada baixado ainda */
       }
+      falhou(`falha ao baixar a atualização: ${err.message || err}`);
       return;
     }
 
@@ -606,6 +779,7 @@ function criarAtualizador(deps = {}) {
       } catch {
         /* nada a apagar */
       }
+      falhou(`falha ao conferir o SHA-256 do download: ${err.message || err}`);
       return;
     }
     if (hash.toLowerCase() !== String(info.sha256).toLowerCase()) {
@@ -617,9 +791,13 @@ function criarAtualizador(deps = {}) {
       } catch {
         /* nada a apagar */
       }
+      falhou('o SHA-256 do arquivo baixado não confere com o publicado — download descartado');
       return;
     }
 
+    // Download e SHA-256 conferidos: daqui em diante é trocar o exe e
+    // reiniciar (a saída espera o fim do ciclo de comandos em curso).
+    mudarEstado('instalando', { versaoAlvo: info.versao });
     const exeAtual = caminhoExe();
     try {
       gravarJsonAtomicoEm(dir, ARQ_ATUALIZACAO, {
@@ -631,12 +809,21 @@ function criarAtualizador(deps = {}) {
       renomear(novo, exeAtual);
     } catch (err) {
       log.error(`[agente] falha ao trocar o executável pela versão nova: ${err.message || err}`);
-      desfazerTrocaParcial(dirExe, exeAtual, NOME_OLD);
-      try {
-        fs.unlinkSync(path.join(dir, ARQ_ATUALIZACAO));
-      } catch {
-        /* pode nem ter chegado a gravar */
+      if (trocaConcluida) {
+        // Defesa em profundidade (`verificar` já barra com reinício
+        // pendente): este processo já trocou o exe antes. O .old.exe é a
+        // versão anterior (a imagem em execução) e atualizacao.json é o que
+        // conta tentativas e permite a reversão — ficam como estão.
+        log.error('[agente] já havia uma troca concluída neste processo — mantendo atualizacao.json e o .old.exe');
+      } else {
+        desfazerTrocaParcial(dirExe, exeAtual, NOME_OLD);
+        try {
+          fs.unlinkSync(path.join(dir, ARQ_ATUALIZACAO));
+        } catch {
+          /* pode nem ter chegado a gravar */
+        }
       }
+      falhou(`falha ao trocar o executável pela versão nova: ${err.message || err}`);
       return;
     }
 
@@ -644,6 +831,7 @@ function criarAtualizador(deps = {}) {
     // pode estar no meio de um comando no aparelho (enroll, remoção em
     // lote...). O laço chama `sairSeReinicioPendente()` no fim da iteração.
     reinicioPendente = true;
+    trocaConcluida = true;
     log.log(`[agente] atualizado para ${info.versao} — reiniciando ao fim do ciclo de comandos em curso`);
     // Teto de segurança: se o laço travar (nuvem pendurada etc.), sai mesmo
     // assim — os arquivos já foram trocados e só um reinício aplica a versão.
@@ -717,6 +905,8 @@ function criarAtualizador(deps = {}) {
     verificarInicializacao,
     confirmarSucesso,
     verificar,
+    verificacaoEmAndamento,
+    estadoDaAtualizacao,
     temReinicioPendente,
     sairSeReinicioPendente,
     agendarVerificacaoPeriodica,
@@ -736,4 +926,5 @@ module.exports = {
   PREFIXOS_RELEASE_GITHUB,
   HOSTS_CDN_GITHUB,
   motivoUrlRecusada,
+  erroParaEstado,
 };

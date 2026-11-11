@@ -165,3 +165,121 @@ test('iniciarTelemetria(): envia imediatamente e de novo a cada intervaloMs', as
     await fechar();
   }
 });
+
+// ---------- estado da atualização + envio imediato sem rajada ----------
+
+test('montarPayload(): leva `atualizacao` (lido do getter na hora de montar) quando informado', () => {
+  const { telemetria } = carregarModulosLimpos();
+  let estado = { estado: 'baixando', versao_alvo: '2026.12.01', erro: null, em: '2026-11-11T10:00:00.000Z' };
+  const opcoes = {
+    supervisor: supervisorFake([]),
+    pendentes: () => 0,
+    iniciadoEm: 'agora',
+    atualizacao: () => estado,
+  };
+  assert.deepEqual(telemetria.montarPayload(opcoes).atualizacao, {
+    estado: 'baixando',
+    versao_alvo: '2026.12.01',
+    erro: null,
+    em: '2026-11-11T10:00:00.000Z',
+  });
+  estado = { estado: 'instalando', versao_alvo: '2026.12.01', erro: null, em: '2026-11-11T10:00:05.000Z' };
+  assert.equal(telemetria.montarPayload(opcoes).atualizacao.estado, 'instalando');
+});
+
+test('montarPayload(): sem o getter, o campo `atualizacao` não existe (opcional)', () => {
+  const { telemetria } = carregarModulosLimpos();
+  const payload = telemetria.montarPayload({
+    supervisor: supervisorFake([]),
+    pendentes: () => 0,
+    iniciadoEm: 'agora',
+  });
+  assert.equal('atualizacao' in payload, false);
+});
+
+test('montarPayload(): getter de `atualizacao` que lança não derruba a telemetria (campo fica de fora)', () => {
+  const { telemetria } = carregarModulosLimpos();
+  const payload = telemetria.montarPayload({
+    supervisor: supervisorFake([]),
+    pendentes: () => 7,
+    iniciadoEm: 'agora',
+    atualizacao: () => {
+      throw new Error('quebrou');
+    },
+  });
+  assert.equal('atualizacao' in payload, false);
+  assert.equal(payload.eventos_pendentes, 7);
+});
+
+test('criarEnvioSemRajada(): 1º pedido envia na hora; rajada dentro do intervalo vira UM envio no fim (o último estado sempre sai)', async () => {
+  const { telemetria } = carregarModulosLimpos();
+  let estado = 'verificando';
+  const enviados = [];
+  const envio = telemetria.criarEnvioSemRajada(() => enviados.push(estado), { intervaloMs: 60 });
+  envio.pedir();
+  assert.deepEqual(enviados, ['verificando'], 'imediato');
+  estado = 'baixando';
+  envio.pedir();
+  estado = 'instalando';
+  envio.pedir();
+  envio.pedir();
+  assert.equal(enviados.length, 1, 'nada a mais dentro do intervalo');
+  await new Promise((r) => setTimeout(r, 150));
+  assert.deepEqual(enviados, ['verificando', 'instalando'], 'um envio só, com o estado mais recente');
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(enviados.length, 2, 'sem pedido novo, sem envio novo');
+  // Passado o intervalo, volta a enviar na hora.
+  estado = 'falhou';
+  envio.pedir();
+  assert.deepEqual(enviados, ['verificando', 'instalando', 'falhou']);
+});
+
+test('criarEnvioSemRajada(): intervalo padrão é 1 s (no máximo um envio por segundo)', () => {
+  const { telemetria } = carregarModulosLimpos();
+  assert.equal(telemetria.INTERVALO_ENVIO_IMEDIATO_MS, 1000);
+});
+
+test('criarEnvioSemRajada(): envio que lança ou rejeita não propaga (não atrapalha quem pediu)', async () => {
+  const { telemetria } = carregarModulosLimpos();
+  const sincrono = telemetria.criarEnvioSemRajada(
+    () => {
+      throw new Error('quebrou');
+    },
+    { intervaloMs: 20 },
+  );
+  assert.doesNotThrow(() => sincrono.pedir());
+  const assincrono = telemetria.criarEnvioSemRajada(() => Promise.reject(new Error('rede')), { intervaloMs: 20 });
+  assert.doesNotThrow(() => assincrono.pedir());
+  await new Promise((r) => setTimeout(r, 30)); // rejeição solta derrubaria o processo de teste
+});
+
+test('enviarTelemetria(): o corpo enviado leva `atualizacao`', async () => {
+  const { nuvem, telemetria } = carregarModulosLimpos();
+  let recebido;
+  const { url, fechar } = await comServidor((req, res) => {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      recebido = JSON.parse(raw);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    });
+  });
+  try {
+    nuvem.configurar({ apiUrl: url });
+    await telemetria.enviarTelemetria('token-abc', {
+      supervisor: supervisorFake([]),
+      pendentes: () => 0,
+      iniciadoEm: 'agora',
+      atualizacao: () => ({ estado: 'em_dia', versao_alvo: null, erro: null, em: '2026-11-11T10:00:00.000Z' }),
+    });
+    assert.deepEqual(recebido.atualizacao, {
+      estado: 'em_dia',
+      versao_alvo: null,
+      erro: null,
+      em: '2026-11-11T10:00:00.000Z',
+    });
+  } finally {
+    await fechar();
+  }
+});

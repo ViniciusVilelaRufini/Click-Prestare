@@ -66,8 +66,9 @@ const {
   agoraDaNuvem,
 } = require('./core/nuvem');
 const { Supervisor } = require('./core/supervisor');
-const { iniciarTelemetria } = require('./core/telemetria');
+const { iniciarTelemetria, enviarTelemetria, criarEnvioSemRajada } = require('./core/telemetria');
 const { criarAtualizador } = require('./core/atualizador');
+const { criarVerificacaoForcada } = require('./core/verificacao-forcada');
 const { descobrir } = require('./descoberta');
 const { criarAgendador } = require('./descoberta/agendador');
 const { lerTabelaArp } = require('./descoberta/arp');
@@ -180,7 +181,23 @@ const INICIADO_EM = new Date().toISOString();
 // `apiUrl` é uma função (não a string direto) porque API_URL pode mudar
 // depois de firstRunSetup() (configuração interativa na 1ª execução), que
 // roda depois deste `criarAtualizador()`.
-const atualizador = criarAtualizador({ apiUrl: () => API_URL });
+// `aoMudarEstado`: cada mudança do estado da atualização (verificando →
+// baixando → instalando…) dispara uma telemetria imediata, para a tela ver em
+// segundos. Quem sabe enviar telemetria é o laço do condomínio (tem o token e
+// o supervisor), que nasce depois — por isso passa por esta variável, que
+// `runCondoLoop` preenche; até lá (e no modo legado) é um no-op.
+let aoMudarEstadoDaAtualizacao = () => {};
+const atualizador = criarAtualizador({
+  apiUrl: () => API_URL,
+  aoMudarEstado: () => aoMudarEstadoDaAtualizacao(),
+});
+// "Atualizar agora" (flag `verificar_atualizacao` do poll): dispara a mesma
+// verificação das 6 h, uma por vez e no máximo uma forçada por minuto (ver
+// core/verificacao-forcada.js).
+const verificacaoForcada = criarVerificacaoForcada({
+  verificar: (token) => atualizador.verificar(token),
+  emAndamento: () => atualizador.verificacaoEmAndamento(),
+});
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
 const offlineDesde = new Map(); // deviceId → quando ficou offline (ms)
@@ -458,14 +475,20 @@ async function runCondoLoop(token) {
   // Supervisor) em vez de descartar o retorno — o loop do condomínio não para
   // sozinho hoje, mas o handle fica disponível para quem precisar (ex.: um
   // futuro shutdown gracioso), em vez de um `setInterval` solto e inacessível.
-  const telemetriaTimer = iniciarTelemetria(token, {
+  const opcoesTelemetria = {
     supervisor,
     pendentes,
     iniciadoEm: INICIADO_EM,
     // `online` por device = último heartbeat (ping), não o estado do ouvinte.
     onlineDoDispositivo: (id) => lastDeviceOnline.get(id) === true,
-    intervaloMs: TELEMETRIA_INTERVAL_MS,
-  });
+    // Estado da atualização (campo `atualizacao`), lido na hora de cada envio.
+    atualizacao: () => atualizador.estadoDaAtualizacao(),
+  };
+  const telemetriaTimer = iniciarTelemetria(token, { ...opcoesTelemetria, intervaloMs: TELEMETRIA_INTERVAL_MS });
+  // Mudou o estado da atualização → telemetria na hora (no máximo uma por
+  // segundo; o último estado sempre sai). Falha de envio só loga.
+  const telemetriaImediata = criarEnvioSemRajada(() => enviarTelemetria(token, opcoesTelemetria));
+  aoMudarEstadoDaAtualizacao = () => telemetriaImediata.pedir();
 
   // Etapa 3: descoberta na rede. Só lê (sem senha). O MAC dos devices
   // cadastrados que estão online vai junto: é assim que a nuvem aprende o MAC
@@ -521,6 +544,10 @@ async function runCondoLoop(token) {
       const body = avaliacao.body;
       // Intervalo vindo da nuvem: inválido mantém o atual; nunca abaixo do piso.
       pollMs = intervaloDePoll(body.poll_interval_ms, pollMs, POLL_MIN);
+      // "Atualizar agora" (botão do portal): verificação de atualização
+      // imediata, solta do laço (não é aguardada). Flag repetida ou
+      // verificação já em curso não empilham (core/verificacao-forcada.js).
+      if (body.verificar_atualizacao === true) verificacaoForcada.pedir(token);
       // Só entradas com device e id (o corpo vem de fora: uma entrada torta
       // derrubava a iteração inteira ao ler o id do device — nenhum comando
       // de nenhum aparelho era executado naquele poll).

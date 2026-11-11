@@ -23,6 +23,7 @@ const {
   ARQ_VERSAO_RECUSADA,
   NOME_LACO_SERVICO,
   motivoUrlRecusada,
+  erroParaEstado,
 } = require('../src/core/atualizador');
 const { AGENT_VERSION } = require('../src/versao');
 const { request } = require('../src/lib/http');
@@ -1069,4 +1070,502 @@ test('iniciarVigiaDeConfirmacao(): se confirmarSucesso() apagar o json antes do 
   f.atualizador.confirmarSucesso(); // confirma antes do timer dispar
   await new Promise((r) => setTimeout(r, 90));
   assert.equal(f.saidas.length, 0);
+});
+
+// ---------- estadoDaAtualizacao() + aoMudarEstado: o que a tela vê ----------
+
+/** Atualizador com TODOS os estados capturados pelo callback `aoMudarEstado`
+ *  (cada entrada é o objeto recebido). `extra` sobrescreve qualquer dep. */
+function atualizadorComEstados(f, extra = {}) {
+  const estados = [];
+  const at = criarAtualizador({
+    isSea: () => true,
+    diretorio: () => f.dir,
+    caminhoExe: () => f.caminhoExeVal,
+    sair: (c) => f.saidas.push(c),
+    log: f.logger,
+    aoMudarEstado: (e) => estados.push(e),
+    ...extra,
+  });
+  return { at, estados };
+}
+
+const CONTEUDO_NOVO = Buffer.from('conteudo-novo-exe-para-estado');
+const SHA_NOVO = crypto.createHash('sha256').update(CONTEUDO_NOVO).digest('hex');
+const versaoNova = (extra = {}) => async () => ({
+  versao: '9999.01.01',
+  url: 'https://exemplo.invalid/click-agent.exe',
+  sha256: SHA_NOVO,
+  ...extra,
+});
+const baixarOk = async (urlStr, destino) => fs.writeFileSync(destino, CONTEUDO_NOVO);
+
+test('estadoDaAtualizacao(): começa "ocioso", sem versão alvo nem erro, com `em` ISO', () => {
+  const f = montarFixture();
+  const e = f.atualizador.estadoDaAtualizacao();
+  assert.equal(e.estado, 'ocioso');
+  assert.equal(e.versao_alvo, null);
+  assert.equal(e.erro, null);
+  assert.equal(new Date(e.em).toISOString(), e.em);
+});
+
+test('estado: verificação sem versão nova passa por "verificando" e termina "em_dia"', async () => {
+  const f = montarFixture();
+  const instantes = ['2026-11-11T10:00:00.000Z', '2026-11-11T10:00:01.000Z', '2026-11-11T10:00:02.000Z'];
+  let i = 0;
+  const { at, estados } = atualizadorComEstados(f, {
+    agora: () => new Date(instantes[Math.min(i++, instantes.length - 1)]),
+    buscarVersao: async () => ({ versao: AGENT_VERSION, url: 'https://exemplo.invalid/x', sha256: 'x' }),
+  });
+  await at.verificar('token-x');
+  assert.deepEqual(estados.map((e) => e.estado), ['verificando', 'em_dia']);
+  assert.deepEqual(at.estadoDaAtualizacao(), {
+    estado: 'em_dia',
+    versao_alvo: null,
+    erro: null,
+    em: '2026-11-11T10:00:02.000Z', // instante da ÚLTIMA mudança (o 1º foi o estado inicial)
+  });
+  assert.equal(estados[0].em, '2026-11-11T10:00:01.000Z');
+});
+
+test('estado: caminho de sucesso — verificando → baixando → instalando, com a versão alvo', async () => {
+  const f = montarFixture();
+  const { at, estados } = atualizadorComEstados(f, { buscarVersao: versaoNova(), baixar: baixarOk });
+  await at.verificar('token-x');
+  assert.deepEqual(
+    estados.map((e) => [e.estado, e.versao_alvo, e.erro]),
+    [
+      ['verificando', null, null],
+      ['baixando', '9999.01.01', null],
+      ['instalando', '9999.01.01', null],
+    ],
+  );
+  assert.equal(at.temReinicioPendente(), true);
+  assert.equal(at.estadoDaAtualizacao().estado, 'instalando');
+});
+
+test('estado: "instalando" só depois do download e do SHA-256 conferidos, e antes da troca do exe', async () => {
+  const f = montarFixture();
+  const naHoraDeInstalar = [];
+  const { at } = atualizadorComEstados(f, {
+    buscarVersao: versaoNova(),
+    baixar: baixarOk,
+    aoMudarEstado: (e) => {
+      if (e.estado !== 'instalando') return;
+      naHoraDeInstalar.push({
+        baixado: fs.existsSync(path.join(f.dir, 'click-agent.new.exe')),
+        exeAindaAntigo: fs.readFileSync(f.caminhoExeVal, 'utf8') === 'binario-atual',
+      });
+    },
+  });
+  await at.verificar('token-x');
+  assert.deepEqual(naHoraDeInstalar, [{ baixado: true, exeAindaAntigo: true }]);
+});
+
+test('estado: SHA-256 divergente termina "falhou" com erro curto', async () => {
+  const f = montarFixture();
+  const { at, estados } = atualizadorComEstados(f, {
+    buscarVersao: versaoNova({ sha256: 'f'.repeat(64) }),
+    baixar: baixarOk,
+  });
+  await at.verificar('token-x');
+  assert.deepEqual(estados.map((e) => e.estado), ['verificando', 'baixando', 'falhou']);
+  const fim = at.estadoDaAtualizacao();
+  assert.equal(fim.versao_alvo, '9999.01.01');
+  assert.match(fim.erro, /SHA-256/);
+  assert.equal(at.temReinicioPendente(), false);
+});
+
+test('estado: falha de rede no download termina "falhou" — erro sem token, sem credencial de URL e com no máximo 200 caracteres', async () => {
+  const f = montarFixture();
+  const { at, estados } = atualizadorComEstados(f, {
+    buscarVersao: versaoNova(),
+    baixar: async () => {
+      throw new Error(
+        `ECONNRESET em https://usuario:senha-secreta@exemplo.invalid/api/facial/agent/condo/token-super-secreto/versao?X-Amz-Signature=assinatura-secreta ${'x'.repeat(400)}`,
+      );
+    },
+  });
+  await at.verificar('token-super-secreto');
+  assert.deepEqual(estados.map((e) => e.estado), ['verificando', 'baixando', 'falhou']);
+  const { erro } = at.estadoDaAtualizacao();
+  assert.match(erro, /ECONNRESET/);
+  assert.ok(erro.length <= 200, `erro com ${erro.length} caracteres`);
+  assert.ok(!erro.includes('token-super-secreto'), erro);
+  assert.ok(!erro.includes('senha-secreta'), erro);
+  assert.ok(!erro.includes('assinatura-secreta'), erro);
+});
+
+test('estado: falha ao CONSULTAR a nuvem (rede) volta para "ocioso" — não é "falhou"; o motivo fica só no log (I1)', async () => {
+  const f = montarFixture();
+  const { at, estados } = atualizadorComEstados(f, {
+    buscarVersao: async () => {
+      throw new Error('nuvem fora do ar');
+    },
+  });
+  await at.verificar('tok-123-abc');
+  assert.deepEqual(estados.map((e) => e.estado), ['verificando', 'ocioso']);
+  const fim = at.estadoDaAtualizacao();
+  assert.equal(fim.versao_alvo, null);
+  assert.equal(fim.erro, null, 'sem alerta na tela: o agente pode estar em dia');
+  assert.ok(f.logs.error.some((m) => m.includes('nuvem fora do ar')), JSON.stringify(f.logs.error));
+});
+
+test('estado: nuvem sem versão (campos nulos / consulta vazia) volta para "ocioso" — não é "falhou" nem finge "em_dia" (I1)', async () => {
+  const f = montarFixture();
+  for (const info of [null, { versao: null, url: null, sha256: null }]) {
+    f.logs.error.length = 0;
+    const { at, estados } = atualizadorComEstados(f, { buscarVersao: async () => info });
+    await at.verificar('token-x');
+    assert.deepEqual(estados.map((e) => e.estado), ['verificando', 'ocioso']);
+    assert.equal(at.estadoDaAtualizacao().erro, null);
+    assert.ok(f.logs.error.some((m) => m.includes('não informou')), JSON.stringify(f.logs.error));
+  }
+});
+
+test('estado: consulta que falha DEPOIS de uma falha real preserva o aviso (não apaga "falhou" com versão alvo)', async () => {
+  const f = montarFixture();
+  let consulta = versaoNova({ url: 'https://evil.example.com/click-agent.exe' });
+  const { at } = atualizadorComEstados(f, {
+    apiUrl: () => 'https://api.clickprestarecondominios.com.br',
+    buscarVersao: (t) => consulta(t),
+  });
+  await at.verificar('token-x');
+  const falha = at.estadoDaAtualizacao();
+  assert.equal(falha.estado, 'falhou');
+  assert.ok(falha.versao_alvo, 'a falha real tem versão alvo');
+
+  // A consulta seguinte nem chega a saber se há versão nova: o aviso da falha
+  // anterior continua valendo (é o que o dono precisa ver na tela).
+  consulta = async () => {
+    throw new Error('nuvem fora do ar');
+  };
+  await at.verificar('token-x');
+  const depois = at.estadoDaAtualizacao();
+  assert.equal(depois.estado, 'falhou');
+  assert.equal(depois.versao_alvo, falha.versao_alvo);
+  assert.equal(depois.erro, falha.erro);
+
+  consulta = async () => null;
+  await at.verificar('token-x');
+  assert.equal(at.estadoDaAtualizacao().estado, 'falhou');
+});
+
+test('estado: origem de download não permitida (baixar padrão) termina "falhou"', async () => {
+  const f = montarFixture();
+  const { at, estados } = atualizadorComEstados(f, {
+    apiUrl: () => 'https://api.clickprestarecondominios.com.br',
+    buscarVersao: versaoNova({ url: 'https://evil.example.com/click-agent.exe' }),
+  });
+  await at.verificar('token-x');
+  assert.deepEqual(estados.map((e) => e.estado), ['verificando', 'baixando', 'falhou']);
+  assert.match(at.estadoDaAtualizacao().erro, /host não permitido/);
+});
+
+test('estado: versão já recusada (revertida antes) termina "falhou" explicando, sem baixar', async () => {
+  const f = montarFixture();
+  fs.writeFileSync(
+    path.join(f.dir, ARQ_VERSAO_RECUSADA),
+    JSON.stringify({ versao: '9999.01.01', em: new Date().toISOString() }),
+  );
+  let baixou = false;
+  const { at, estados } = atualizadorComEstados(f, {
+    buscarVersao: versaoNova(),
+    baixar: async () => {
+      baixou = true;
+    },
+  });
+  await at.verificar('token-x');
+  assert.equal(baixou, false);
+  assert.deepEqual(estados.map((e) => e.estado), ['verificando', 'falhou']);
+  const fim = at.estadoDaAtualizacao();
+  assert.equal(fim.versao_alvo, '9999.01.01');
+  assert.match(fim.erro, /9999\.01\.01/);
+  assert.match(fim.erro, /revertida/);
+});
+
+test('estado: fora de SEA a verificação reporta "indisponivel" com o motivo (não falha em silêncio) e não consulta a nuvem', async () => {
+  const f = montarFixture({ isSea: false });
+  let consultou = false;
+  const { at, estados } = atualizadorComEstados(f, {
+    isSea: () => false,
+    buscarVersao: async () => {
+      consultou = true;
+      return null;
+    },
+  });
+  await at.verificar('token-x');
+  assert.equal(consultou, false);
+  assert.deepEqual(estados.map((e) => e.estado), ['indisponivel']);
+  const fim = at.estadoDaAtualizacao();
+  assert.equal(fim.versao_alvo, null);
+  assert.ok(fim.erro && fim.erro.length > 0 && fim.erro.length <= 200, String(fim.erro));
+  // Repetir a verificação não é mudança de estado: não dispara o callback de novo.
+  await at.verificar('token-x');
+  assert.equal(estados.length, 1);
+});
+
+test('estado: instalação sem laço de reinício reporta "indisponivel" com a versão alvo', async () => {
+  const f = montarFixture({ comLacoDeReinicio: false });
+  const { at, estados } = atualizadorComEstados(f, { buscarVersao: versaoNova(), baixar: baixarOk });
+  await at.verificar('token-x');
+  assert.deepEqual(estados.map((e) => e.estado), ['verificando', 'indisponivel']);
+  const fim = at.estadoDaAtualizacao();
+  assert.equal(fim.versao_alvo, '9999.01.01');
+  assert.match(fim.erro, /laço de reinício/);
+});
+
+test('estado: falha ao trocar o executável (depois de "instalando") termina "falhou"', async () => {
+  const f = montarFixture();
+  let chamadas = 0;
+  const { at, estados } = atualizadorComEstados(f, {
+    buscarVersao: versaoNova(),
+    baixar: baixarOk,
+    renomear: (de, para) => {
+      chamadas += 1;
+      if (chamadas === 2) throw new Error('EACCES: simulado');
+      fs.renameSync(de, para);
+    },
+  });
+  await at.verificar('token-x');
+  assert.deepEqual(estados.map((e) => e.estado), ['verificando', 'baixando', 'instalando', 'falhou']);
+  assert.match(at.estadoDaAtualizacao().erro, /EACCES/);
+  assert.equal(fs.readFileSync(f.caminhoExeVal, 'utf8'), 'binario-atual');
+});
+
+test('estado: falha inesperada no meio da verificação (dependência que lança) também termina "falhou"', async () => {
+  const f = montarFixture();
+  const { at, estados } = atualizadorComEstados(f, {
+    buscarVersao: versaoNova(),
+    diretorio: () => {
+      throw new Error('disco corrompido, simulado');
+    },
+  });
+  await assert.doesNotReject(at.verificar('token-x'));
+  assert.deepEqual(estados.map((e) => e.estado), ['verificando', 'falhou']);
+  assert.match(at.estadoDaAtualizacao().erro, /disco corrompido/);
+  assert.equal(at.verificacaoEmAndamento(), false);
+});
+
+test('estado: reversão automática (3 falhas) deixa "falhou" explicando qual versão foi revertida', () => {
+  const f = montarFixture();
+  const { at, estados } = atualizadorComEstados(f);
+  fs.writeFileSync(
+    path.join(f.dir, ARQ_ATUALIZACAO),
+    JSON.stringify({ de: '2026.01.01', para: AGENT_VERSION, tentativas: 2 }),
+  );
+  fs.writeFileSync(path.join(f.dir, 'click-agent.old.exe'), 'binario-antigo');
+  at.verificarInicializacao();
+  assert.deepEqual(f.saidas, [0]);
+  const fim = at.estadoDaAtualizacao();
+  assert.equal(fim.estado, 'falhou');
+  assert.equal(fim.versao_alvo, AGENT_VERSION);
+  assert.ok(fim.erro.includes(AGENT_VERSION), fim.erro);
+  assert.match(fim.erro, /revertida/);
+  assert.deepEqual(estados.map((e) => e.estado), ['falhou']);
+});
+
+test('estado: o exe ANTIGO, ao subir depois de uma reversão, já começa "falhou" dizendo que a versão X foi revertida', () => {
+  // Quem reverteu foi o processo da versão nova (3ª tentativa) ou o laço de
+  // serviço; os dois deixam a versão em versao-recusada.json. O exe antigo
+  // sobe em seguida e é ELE que fala com a tela.
+  const f = montarFixture();
+  fs.writeFileSync(
+    path.join(f.dir, ARQ_VERSAO_RECUSADA),
+    JSON.stringify({ versao: '9999.12.31', em: new Date().toISOString() }),
+  );
+  const { at } = atualizadorComEstados(f);
+  at.verificarInicializacao();
+  const e = at.estadoDaAtualizacao();
+  assert.equal(e.estado, 'falhou');
+  assert.equal(e.versao_alvo, '9999.12.31');
+  assert.match(e.erro, /9999\.12\.31/);
+  assert.match(e.erro, /revertida/);
+  assert.equal(f.saidas.length, 0);
+});
+
+test('estado: reversão pelo laço de serviço (atualizacao.json de outra versão) também começa "falhou"', () => {
+  const f = montarFixture();
+  fs.writeFileSync(
+    path.join(f.dir, ARQ_ATUALIZACAO),
+    JSON.stringify({ de: AGENT_VERSION, para: '9999.12.31', tentativas: 0 }),
+  );
+  const { at } = atualizadorComEstados(f);
+  at.verificarInicializacao();
+  const e = at.estadoDaAtualizacao();
+  assert.equal(e.estado, 'falhou');
+  assert.equal(e.versao_alvo, '9999.12.31');
+});
+
+test('estado: versão recusada ANTIGA (já superada pela que roda) não suja o estado inicial', () => {
+  const f = montarFixture();
+  fs.writeFileSync(
+    path.join(f.dir, ARQ_VERSAO_RECUSADA),
+    JSON.stringify({ versao: '2000.01.01', em: new Date().toISOString() }),
+  );
+  const { at, estados } = atualizadorComEstados(f);
+  at.verificarInicializacao();
+  assert.equal(at.estadoDaAtualizacao().estado, 'ocioso');
+  assert.equal(estados.length, 0);
+});
+
+test('aoMudarEstado: callback que lança ou rejeita não atrapalha a atualização', async () => {
+  for (const aoMudarEstado of [
+    () => {
+      throw new Error('telemetria quebrou (síncrono)');
+    },
+    () => Promise.reject(new Error('telemetria quebrou (assíncrono)')),
+  ]) {
+    const f = montarFixture();
+    const { at } = atualizadorComEstados(f, { buscarVersao: versaoNova(), baixar: baixarOk, aoMudarEstado });
+    await assert.doesNotReject(at.verificar('token-x'));
+    assert.equal(at.temReinicioPendente(), true, 'a troca aconteceu apesar do callback');
+    assert.equal(at.estadoDaAtualizacao().estado, 'instalando');
+    assert.deepEqual(fs.readFileSync(f.caminhoExeVal), CONTEUDO_NOVO);
+  }
+});
+
+test('estadoDaAtualizacao() e aoMudarEstado entregam CÓPIAS — mexer nelas não altera o estado interno', async () => {
+  const f = montarFixture();
+  const { at, estados } = atualizadorComEstados(f, {
+    buscarVersao: async () => ({ versao: AGENT_VERSION, url: 'https://exemplo.invalid/x', sha256: 'x' }),
+  });
+  await at.verificar('token-x');
+  at.estadoDaAtualizacao().estado = 'adulterado';
+  estados[estados.length - 1].estado = 'adulterado';
+  assert.equal(at.estadoDaAtualizacao().estado, 'em_dia');
+});
+
+test('verificacaoEmAndamento(): true só enquanto uma verificação roda', async () => {
+  const f = montarFixture();
+  let liberar;
+  const espera = new Promise((r) => {
+    liberar = r;
+  });
+  const { at } = atualizadorComEstados(f, {
+    buscarVersao: async () => {
+      await espera;
+      return { versao: AGENT_VERSION, url: 'https://exemplo.invalid/x', sha256: 'x' };
+    },
+  });
+  assert.equal(at.verificacaoEmAndamento(), false);
+  const p = at.verificar('token-x');
+  assert.equal(at.verificacaoEmAndamento(), true);
+  assert.equal(at.estadoDaAtualizacao().estado, 'verificando');
+  liberar();
+  await p;
+  assert.equal(at.verificacaoEmAndamento(), false);
+});
+
+// ---------- C1: troca concluída esperando o reinício — nada de segundo ciclo ----------
+
+test('C1: verificar() de novo com reinício pendente não faz nada — não baixa, não mexe em atualizacao.json nem no .old.exe, estado segue "instalando"', async () => {
+  const f = montarFixture();
+  let downloads = 0;
+  let consultas = 0;
+  const { at, estados } = atualizadorComEstados(f, {
+    buscarVersao: async () => {
+      consultas += 1;
+      return versaoNova()();
+    },
+    baixar: async (urlStr, destino) => {
+      downloads += 1;
+      fs.writeFileSync(destino, CONTEUDO_NOVO);
+    },
+  });
+  await at.verificar('token-x');
+  assert.equal(at.temReinicioPendente(), true);
+  const jsonAntes = fs.readFileSync(path.join(f.dir, ARQ_ATUALIZACAO), 'utf8');
+  const estadoAntes = at.estadoDaAtualizacao();
+  const mudancasAntes = estados.length;
+
+  await at.verificar('token-x'); // periódica/forçada ANTES de o laço de poll chamar sair
+
+  assert.equal(downloads, 1, 'não baixou de novo');
+  assert.equal(consultas, 1, 'nem consultou a nuvem de novo');
+  assert.equal(fs.readFileSync(path.join(f.dir, ARQ_ATUALIZACAO), 'utf8'), jsonAntes, 'atualizacao.json intacto');
+  assert.equal(
+    fs.readFileSync(path.join(f.dir, 'click-agent.old.exe'), 'utf8'),
+    'binario-atual',
+    '.old.exe continua sendo a versão anterior',
+  );
+  assert.equal(fs.existsSync(path.join(f.dir, 'click-agent.new.exe')), false);
+  assert.deepEqual(at.estadoDaAtualizacao(), estadoAntes, 'estado não mudou (segue "instalando")');
+  assert.equal(at.estadoDaAtualizacao().estado, 'instalando');
+  assert.equal(estados.length, mudancasAntes, 'nenhuma mudança de estado avisada');
+  assert.equal(at.temReinicioPendente(), true);
+  assert.equal(f.saidas.length, 0);
+});
+
+test('C1: verificacaoEmAndamento() é true com reinício pendente (a troca já foi feita)', async () => {
+  const f = montarFixture();
+  const { at } = atualizadorComEstados(f, { buscarVersao: versaoNova(), baixar: baixarOk });
+  await at.verificar('token-x');
+  assert.equal(at.temReinicioPendente(), true);
+  assert.equal(at.verificacaoEmAndamento(), true);
+});
+
+test('C1 (defesa em profundidade): falha na troca DEPOIS de uma troca já concluída neste processo não apaga atualizacao.json nem toca no .old.exe', async () => {
+  const f = montarFixture();
+  let trocaFeita = false;
+  const { at } = atualizadorComEstados(f, {
+    buscarVersao: versaoNova(),
+    baixar: baixarOk,
+    renomear: (de, para) => {
+      // Depois da 1ª troca, o .old.exe é a imagem em execução: o Windows
+      // recusa renomear por cima dele.
+      if (trocaFeita) throw new Error(`EPERM: operation not permitted, rename '${de}' -> '${para}'`);
+      fs.renameSync(de, para);
+    },
+  });
+  await at.verificar('token-x');
+  trocaFeita = true;
+  const jsonAntes = fs.readFileSync(path.join(f.dir, ARQ_ATUALIZACAO), 'utf8');
+  // Fura a trava de `verificar` de propósito: a saída foi pedida, mas o
+  // processo (aqui, o espião `sair`) segue vivo e uma verificação entra.
+  assert.equal(at.sairSeReinicioPendente(), true);
+  await at.verificar('token-x');
+
+  assert.ok(f.logs.error.some((m) => m.includes('falha ao trocar o executável')), JSON.stringify(f.logs.error));
+  assert.equal(fs.existsSync(path.join(f.dir, ARQ_ATUALIZACAO)), true, 'atualizacao.json não pode sumir');
+  assert.equal(fs.readFileSync(path.join(f.dir, ARQ_ATUALIZACAO), 'utf8'), jsonAntes);
+  assert.equal(fs.readFileSync(path.join(f.dir, 'click-agent.old.exe'), 'utf8'), 'binario-atual');
+  assert.deepEqual(fs.readFileSync(f.caminhoExeVal), CONTEUDO_NOVO);
+});
+
+// ---------- M1/M2: erroParaEstado ----------
+
+test('M1: erroParaEstado() com 200 KB de texto termina em menos de 100 ms', () => {
+  for (const texto of ['a'.repeat(200 * 1024), 'https://'.repeat(25 * 1024), `x://${'a.'.repeat(100 * 1024)}`]) {
+    const inicio = process.hrtime.bigint();
+    const saida = erroParaEstado(texto, 'token-x');
+    const ms = Number(process.hrtime.bigint() - inicio) / 1e6;
+    assert.ok(ms < 100, `levou ${ms.toFixed(1)} ms`);
+    assert.ok(saida.length <= 200);
+  }
+});
+
+test('M2: erroParaEstado() troca caminho absoluto do Windows pelo nome do arquivo (não vaza a pasta do usuário)', () => {
+  const saida = erroParaEstado(
+    "EPERM: operation not permitted, rename 'C:\\Users\\Fulano\\ClickAgente\\click-agent.exe' -> 'C:\\Users\\Fulano\\ClickAgente\\click-agent.old.exe'",
+  );
+  assert.equal(saida, "EPERM: operation not permitted, rename 'click-agent.exe' -> 'click-agent.old.exe'");
+  // pasta com espaço, barra normal e caminho sem aspas
+  assert.equal(
+    erroParaEstado("ENOENT: no such file or directory, open 'C:\\Users\\Fulano de Tal\\Click Agente\\atualizacao.json'"),
+    "ENOENT: no such file or directory, open 'atualizacao.json'",
+  );
+  assert.equal(erroParaEstado('falha em D:/Dados/Fulano/click-agent.new.exe agora'), 'falha em click-agent.new.exe agora');
+});
+
+test('M2: erroParaEstado() troca caminho absoluto POSIX pelo nome do arquivo e não estraga URL', () => {
+  assert.equal(
+    erroParaEstado("EACCES: permission denied, rename '/home/fulano/click agente/click-agent.exe' -> '/home/fulano/click agente/click-agent.old.exe'"),
+    "EACCES: permission denied, rename 'click-agent.exe' -> 'click-agent.old.exe'",
+  );
+  assert.equal(erroParaEstado('falha ao abrir /home/fulano/agente/atualizacao.json'), 'falha ao abrir atualizacao.json');
+  assert.equal(
+    erroParaEstado('HTTP 404 em https://github.com/Viniciusvile/Click-Prestare/releases/download/agent-v1/click-agent.exe'),
+    'HTTP 404 em https://github.com/Viniciusvile/Click-Prestare/releases/download/agent-v1/click-agent.exe',
+  );
 });

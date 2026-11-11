@@ -46,6 +46,14 @@ const CACHE_REFRESH_MS = 5_000;
 const HEARTBEAT_GRAVA_A_CADA_MS = 10_000;
 const FAXINA_MS = 60_000;
 const TELEMETRIA_TTL_MS = 24 * 60 * 60 * 1000;
+/** Pedido de "Atualizar agora" espera o próximo poll do agente por até 2 min. */
+const PEDIDO_ATUALIZACAO_TTL_MS = 2 * 60 * 1000;
+/**
+ * Primeira versão do agente que entende `verificar_atualizacao` no poll e
+ * reporta `atualizacao` na telemetria. As anteriores ignoram o campo e seguem
+ * no ciclo de 6 h.
+ */
+export const VERSAO_AGENTE_COM_ATUALIZAR_AGORA = '2026.11.11.1';
 /**
  * Folga descontada do `ttl_ms` entregue ao agente: o trajeto do poll até o
  * agente e do resultado de volta. Sem ela o agente poderia executar um
@@ -621,6 +629,21 @@ export class AgentBridgeService implements OnModuleDestroy {
     const e = await this.estado.obter<AgentTelemetria>(`agente:telemetria:${idCondominio}`);
     return e?.valor ?? null;
   }
+
+  /**
+   * "Atualizar agora" (portal): marca o pedido para o agente conferir a versão
+   * no próximo poll. Fica no estado compartilhado, como o pedido de descoberta
+   * (DescobertaService.pedirProcura): o portal pede numa instância e o agente
+   * faz poll na outra.
+   */
+  async pedirVerificacaoDeAtualizacao(idCondominio: number): Promise<void> {
+    await this.estado.definir(`agente:pedido-atualizacao:${idCondominio}`, true, PEDIDO_ATUALIZACAO_TTL_MS);
+  }
+
+  /** true uma vez por pedido, só enquanto válido (entrega única mesmo com as duas instâncias no poll). */
+  async consumirPedidoDeAtualizacao(idCondominio: number): Promise<boolean> {
+    return (await this.estado.consumirUmaVez<boolean>(`agente:pedido-atualizacao:${idCondominio}`)) !== null;
+  }
 }
 
 export type AgentCommandType =
@@ -731,6 +754,27 @@ export interface AgentTelemetriaPayload {
   iniciado_em: string;
   dispositivos: AgentTelemetriaDispositivo[];
   eventos_pendentes: number;
+  /** Em que pé está a auto-atualização. Ausente em agente anterior à VERSAO_AGENTE_COM_ATUALIZAR_AGORA. */
+  atualizacao?: AgentTelemetriaAtualizacao;
+}
+
+export const ESTADOS_ATUALIZACAO_AGENTE = [
+  'ocioso',
+  'verificando',
+  'em_dia',
+  'baixando',
+  'instalando',
+  'falhou',
+  'indisponivel',
+] as const;
+export type EstadoAtualizacaoAgente = (typeof ESTADOS_ATUALIZACAO_AGENTE)[number];
+
+export interface AgentTelemetriaAtualizacao {
+  estado: EstadoAtualizacaoAgente;
+  versao_alvo: string | null;
+  erro: string | null;
+  /** Quando o agente entrou neste estado (ISO). */
+  em: string;
 }
 
 /** O que fica guardado por condomínio: o payload do agente + quando chegou. */
@@ -747,6 +791,7 @@ const TELEMETRIA_MAX_DISPOSITIVOS = 200;
 const TELEMETRIA_MAX_DRIVER = 40;
 const TELEMETRIA_MAX_ULTIMO_EVENTO_EM = 40;
 const TELEMETRIA_MAX_ULTIMO_ERRO = 500;
+const TELEMETRIA_MAX_ERRO_ATUALIZACAO = 200;
 
 function strTruncada(v: unknown, max: number): string {
   return typeof v === 'string' ? v.slice(0, max) : '';
@@ -786,11 +831,32 @@ export function sanitizarTelemetria(raw: unknown): AgentTelemetriaPayload {
     .slice(0, TELEMETRIA_MAX_DISPOSITIVOS)
     .map(sanitizarDispositivo)
     .filter((d): d is AgentTelemetriaDispositivo => d !== null);
+  const atualizacao = sanitizarAtualizacao(body['atualizacao']);
   return {
     versao: strTruncada(body['versao'], TELEMETRIA_MAX_VERSAO),
     so: strTruncada(body['so'], TELEMETRIA_MAX_SO),
     iniciado_em: strTruncada(body['iniciado_em'], TELEMETRIA_MAX_INICIADO_EM),
     eventos_pendentes: Number.isFinite(eventosPendentes) && eventosPendentes >= 0 ? eventosPendentes : 0,
     dispositivos,
+    // Só entra quando o agente mandou um estado válido: agente antigo não manda.
+    ...(atualizacao ? { atualizacao } : {}),
+  };
+}
+
+/**
+ * `atualizacao` da telemetria: estado fora da lista descarta o objeto inteiro
+ * (não dá para mostrar um estado que a tela não conhece); o resto é texto
+ * truncado, montado campo a campo — nada do corpo passa como veio.
+ */
+function sanitizarAtualizacao(v: unknown): AgentTelemetriaAtualizacao | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const a = v as Record<string, unknown>;
+  const estado = ESTADOS_ATUALIZACAO_AGENTE.find((e) => e === a['estado']);
+  if (!estado) return null;
+  return {
+    estado,
+    versao_alvo: strOuNull(a['versao_alvo'], TELEMETRIA_MAX_VERSAO),
+    erro: strOuNull(a['erro'], TELEMETRIA_MAX_ERRO_ATUALIZACAO),
+    em: strTruncada(a['em'], TELEMETRIA_MAX_INICIADO_EM),
   };
 }

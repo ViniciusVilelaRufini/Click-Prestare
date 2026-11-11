@@ -135,3 +135,31 @@ test("index.js (I1): marca d'água que avança limpa a memória de eco até o FI
 test('index.js: prazo padrão do ping vem de PING_TIMEOUT_MS (core/despacho), sem número solto', () => {
   assert.match(fonte, /\? Number\(process\.env\.DEVICE_PING_TIMEOUT_MS\)\s*: PING_TIMEOUT_MS;/);
 });
+
+test('index.js: flag `verificar_atualizacao` do poll dispara a verificação forçada sem bloquear o laço', () => {
+  assert.match(fonte, /const \{ criarVerificacaoForcada \} = require\('\.\/core\/verificacao-forcada'\);/);
+  // Reaproveita o `verificar` e a proteção de "em andamento" do atualizador.
+  assert.match(
+    fonte,
+    /const verificacaoForcada = criarVerificacaoForcada\(\{\s*verificar: \(token\) => atualizador\.verificar\(token\),\s*emAndamento: \(\) => atualizador\.verificacaoEmAndamento\(\),\s*\}\);/,
+  );
+  const laco = fonte.slice(fonte.indexOf('async function runCondoLoop'), fonte.indexOf('async function runDeviceLoop'));
+  const iAval = laco.indexOf('const avaliacao = avaliarRespostaDoPoll(res);');
+  const iFlag = laco.indexOf('if (body.verificar_atualizacao === true) verificacaoForcada.pedir(token);');
+  assert.ok(iFlag > iAval, 'a flag só é lida de um poll aproveitável (depois da avaliação)');
+  assert.ok(!/await verificacaoForcada/.test(fonte), 'o laço não pode esperar a verificação');
+  assert.ok(!/await atualizador\.verificar/.test(fonte), 'o laço não pode esperar a verificação');
+});
+
+test('index.js: estado da atualização vai na telemetria e cada mudança dispara um envio imediato (sem rajada)', () => {
+  // O atualizador nasce antes do laço (que é quem tem supervisor/token): o
+  // callback passa por uma variável que o laço do condomínio preenche.
+  assert.match(fonte, /aoMudarEstado: \(\) => aoMudarEstadoDaAtualizacao\(\),/);
+  const laco = fonte.slice(fonte.indexOf('async function runCondoLoop'), fonte.indexOf('async function runDeviceLoop'));
+  assert.match(laco, /atualizacao: \(\) => atualizador\.estadoDaAtualizacao\(\),/);
+  assert.match(laco, /iniciarTelemetria\(token, \{ \.\.\.opcoesTelemetria, intervaloMs: TELEMETRIA_INTERVAL_MS \}\)/);
+  assert.match(
+    laco,
+    /const telemetriaImediata = criarEnvioSemRajada\(\(\) => enviarTelemetria\(token, opcoesTelemetria\)\);\s*aoMudarEstadoDaAtualizacao = \(\) => telemetriaImediata\.pedir\(\);/,
+  );
+});

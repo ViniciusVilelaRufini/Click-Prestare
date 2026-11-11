@@ -2,6 +2,7 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
+  AgentAtualizacao,
   AgentTelemetria,
   AgentTelemetriaDispositivo,
   AparelhoEncontrado,
@@ -70,15 +71,108 @@ function horaLocal(d: Date): string {
   return mesmoDia ? hora : `${hora} de ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
 }
 
+/** Primeira versão do agente que atende o "Atualizar agora" e reporta o estado
+ *  da atualização na telemetria (as anteriores seguem só no ciclo de 6 h). */
+export const VERSAO_AGENTE_COM_ATUALIZAR_AGORA = '2026.11.11.1';
+
+/** `verificando`/`baixando`/`instalando` reportado há mais que isso é agente
+ *  que travou ou caiu no meio: o estado deixa de valer em vez de ficar preso na tela. */
+export const ESTADO_ATUALIZACAO_VALIDO_MS = 10 * 60 * 1000;
+
+type TelemetriaParaAtualizacao = {
+  /** Quando a API recebeu esta telemetria (relógio do servidor, não o do PC da portaria). */
+  recebido_em?: string | null;
+  versao?: string | null;
+  versao_disponivel?: string | null;
+  iniciado_em?: string | null;
+  atualizacao?: AgentAtualizacao | null;
+};
+
+export interface EstadoAtualizacaoNaTela {
+  estado: AgentAtualizacao['estado'];
+  texto: string;
+  /** Pede destaque de alerta (a atualização falhou). */
+  alerta: boolean;
+  /** O agente está no meio da atualização: a tela reconsulta mais rápido. */
+  emAndamento: boolean;
+}
+
+/**
+ * O que o card diz a partir do estado que o agente reportou. `null` = sem
+ * estado a mostrar (agente antigo, `em_dia`/`ocioso`, estado desconhecido ou
+ * "em andamento" velho demais) — vale o texto padrão de `textoDaAtualizacaoDoAgente`.
+ */
+export function estadoDaAtualizacaoDoAgente(
+  t: TelemetriaParaAtualizacao | null | undefined,
+  agoraMs: number = Date.now(),
+): EstadoAtualizacaoNaTela | null {
+  const a = t?.atualizacao;
+  if (!a) return null;
+  const alvo = a.versao_alvo || t?.versao_disponivel;
+  const versao = alvo ? `a versão ${alvo}` : 'a versão nova';
+  // "falhou: <erro>." sem ponto dobrado nem ": null" quando o agente não diz o motivo.
+  const erro = (a.erro ?? '').trim().replace(/[.\s]+$/, '');
+  const motivo = erro ? `: ${erro}.` : '.';
+  switch (a.estado) {
+    case 'verificando':
+    case 'baixando':
+    case 'instalando': {
+      // `em` é do relógio do PC da portaria; `recebido_em` é carimbado pela API.
+      // Sem telemetria recente o agente pode estar morto: "baixando" não fica na tela.
+      if (!telemetriaChegouHaPouco(t?.recebido_em, agoraMs)) return null;
+      // `em` no futuro (relógio do PC adiantado) dá idade negativa e passa: quem
+      // garante que o estado é atual é a telemetria recente, conferida acima.
+      const idadeMs = agoraMs - new Date(a.em).getTime();
+      if (!a.em || !Number.isFinite(idadeMs) || idadeMs > ESTADO_ATUALIZACAO_VALIDO_MS) return null;
+      const texto =
+        a.estado === 'verificando'
+          ? 'Conferindo se há versão nova…'
+          : a.estado === 'baixando'
+            ? `Baixando ${versao}…`
+            : `Instalando ${versao}. O agente reinicia sozinho em instantes.`;
+      return { estado: a.estado, texto, alerta: false, emAndamento: true };
+    }
+    case 'falhou':
+      // Só é alerta enquanto a versão que falhou ainda está à frente da instalada:
+      // agente que já chegou nela (ou passou), ou que não diz o alvo, não tem o que avisar.
+      if (!a.versao_alvo || compararVersoesAgente(a.versao_alvo, t?.versao ?? '') <= 0) return null;
+      return {
+        estado: a.estado,
+        texto: `A atualização para ${versao} falhou${motivo} O agente continua funcionando na versão atual e tenta de novo no próximo ciclo.`,
+        alerta: true,
+        emAndamento: false,
+      };
+    case 'indisponivel':
+      return {
+        estado: a.estado,
+        texto: `Este agente não consegue se atualizar sozinho${motivo} Use "Reinstalar ou configurar".`,
+        alerta: false,
+        emAndamento: false,
+      };
+    default:
+      return null;
+  }
+}
+
+/** Ritmo da reconsulta da saúde do agente enquanto a atualização anda (o normal é 15 s). */
+const RECONSULTA_RAPIDA_MS = 3_000;
+/** Depois do clique em "Atualizar agora", fica no ritmo rápido por este tempo. */
+const JANELA_APOS_PEDIDO_MS = 2 * 60 * 1000;
+/** Quanto tempo a confirmação "Agente atualizado" fica na tela. */
+const CONFIRMACAO_ATUALIZADO_MS = 10_000;
+
 /**
  * Texto que acompanha o selo "Atualização disponível": o que vai acontecer,
  * quando, e o que fazer para adiantar. `null` quando não há versão mais nova.
  */
 export function textoDaAtualizacaoDoAgente(
-  t: { versao?: string | null; versao_disponivel?: string | null; iniciado_em?: string | null } | null | undefined,
+  t: TelemetriaParaAtualizacao | null | undefined,
   agoraMs: number = Date.now(),
   formatarHora: (d: Date) => string = horaLocal,
 ): string | null {
+  // O que o agente diz que está fazendo AGORA vale mais que a previsão.
+  const estado = estadoDaAtualizacaoDoAgente(t, agoraMs);
+  if (estado) return estado.texto;
   if (!t?.versao || !t.versao_disponivel) return null;
   if (compararVersoesAgente(t.versao_disponivel, t.versao) <= 0) return null;
   if (compararVersoesAgente(t.versao, PRIMEIRA_VERSAO_COM_AUTOATUALIZACAO) < 0) {
@@ -88,12 +182,23 @@ export function textoDaAtualizacaoDoAgente(
   const quando = proxima
     ? `por volta das ${formatarHora(proxima)}`
     : 'em até 6 horas';
-  return `Versão ${t.versao_disponivel} disponível. O agente baixa e instala sozinho ${quando} — não é preciso fazer nada. Para adiantar, reinicie o computador da portaria.`;
+  const adiantar =
+    compararVersoesAgente(t.versao, VERSAO_AGENTE_COM_ATUALIZAR_AGORA) >= 0
+      ? 'Para adiantar, use "Atualizar agora".'
+      : 'Para adiantar, reinicie o computador da portaria.';
+  return `Versão ${t.versao_disponivel} disponível. O agente baixa e instala sozinho ${quando} — não é preciso fazer nada. ${adiantar}`;
 }
 
 /** Telemetria mais velha que isso (o agente manda a cada 60s) não representa
  *  mais o estado dos aparelhos — os selos por device somem em vez de mentir. */
 export const TELEMETRIA_VALIDA_MS = 3 * 60 * 1000;
+
+/** A telemetria chegou à API há no máximo TELEMETRIA_VALIDA_MS. */
+function telemetriaChegouHaPouco(recebidoEm: string | null | undefined, agoraMs: number): boolean {
+  if (!recebidoEm) return false;
+  const idadeMs = agoraMs - new Date(recebidoEm).getTime();
+  return Number.isFinite(idadeMs) && idadeMs <= TELEMETRIA_VALIDA_MS;
+}
 
 /** Leitores cuja leitura chega por webhook e NÃO traz direção: "Automático"
  *  não tem o que alternar, então o cadastro novo já nasce como entrada. */
@@ -242,6 +347,114 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   /** Explicação que acompanha o selo "Atualização disponível" (avaliado na hora da chamada). */
   textoAtualizacaoAgente(): string | null {
     return textoDaAtualizacaoDoAgente(this.agentTelemetria());
+  }
+
+  /** O texto acima é de uma atualização que falhou: pede destaque de alerta. */
+  atualizacaoAgenteEmAlerta(): boolean {
+    return estadoDaAtualizacaoDoAgente(this.agentTelemetria())?.alerta === true;
+  }
+
+  /** "Atualizar agora" só existe para agente que entende o pedido; os mais antigos seguem no ciclo de 6 h. */
+  readonly podeAtualizarAgora = computed(() => {
+    const versao = this.agentTelemetria()?.versao;
+    return (
+      this.atualizacaoDisponivel() &&
+      !!versao &&
+      compararVersoesAgente(versao, VERSAO_AGENTE_COM_ATUALIZAR_AGORA) >= 0 &&
+      // Agente que declarou não conseguir se atualizar sozinho: o botão só
+      // criaria expectativa; o texto do card já manda reinstalar.
+      this.agentTelemetria()?.atualizacao?.estado !== 'indisponivel'
+    );
+  });
+
+  /** O agente está no meio da atualização (estado ainda válido): outro pedido agora não ajuda. */
+  atualizacaoAgenteEmAndamento(): boolean {
+    return estadoDaAtualizacaoDoAgente(this.agentTelemetria())?.emAndamento === true;
+  }
+
+  /** A chamada de "Atualizar agora" está no ar. */
+  readonly pedindoAtualizacao = signal(false);
+  /** Resposta do último "Atualizar agora" (erro = mensagem da API, lida como alerta). */
+  readonly pedidoAtualizacaoMsg = signal<{ texto: string; erro: boolean } | null>(null);
+  /** Confirmação breve de que o agente trocou de versão. */
+  readonly agenteAtualizadoMsg = signal<string | null>(null);
+  /** Momento do clique em "Atualizar agora": mantém a reconsulta rápida por JANELA_APOS_PEDIDO_MS. */
+  private atualizacaoPedidaEm: number | null = null;
+  private saudeRapidaInterval?: ReturnType<typeof setInterval>;
+  private agenteAtualizadoTimer?: ReturnType<typeof setTimeout>;
+  /** Depois do `ngOnDestroy`: resposta HTTP atrasada não pode agendar mais nada. */
+  private destruido = false;
+
+  /** Pede ao agente que confira a versão já; o andamento chega pela telemetria (`loadAgentTelemetria`). */
+  atualizarAgenteAgora() {
+    if (this.pedindoAtualizacao()) return;
+    this.pedindoAtualizacao.set(true);
+    this.pedidoAtualizacaoMsg.set(null);
+    this.api.atualizarAgenteAgora().subscribe({
+      next: (r) => {
+        if (this.destruido) return;
+        this.pedindoAtualizacao.set(false);
+        this.pedidoAtualizacaoMsg.set({
+          texto:
+            r?.suportado === false
+              ? 'Esta versão do agente ainda não aceita o pedido; ela se atualiza sozinha no próximo ciclo.'
+              : r?.agente_online === false
+                ? 'O agente não está conectado agora; ele atualiza assim que voltar.'
+                : 'Pedido enviado. O agente confere em instantes.',
+          erro: false,
+        });
+        this.atualizacaoPedidaEm = Date.now();
+        this.ajustarRitmoDaSaude();
+      },
+      error: (err) => {
+        if (this.destruido) return;
+        this.pedindoAtualizacao.set(false);
+        this.pedidoAtualizacaoMsg.set({
+          texto: err?.error?.message ?? 'Não foi possível pedir a atualização. Tente novamente.',
+          erro: true,
+        });
+      },
+    });
+  }
+
+  /**
+   * Liga a reconsulta rápida (3 s) da saúde do agente enquanto a atualização
+   * anda ou a janela do clique está aberta, e desliga fora disso — o intervalo
+   * de 15 s do `ngOnInit` continua sendo o ritmo normal.
+   */
+  private ajustarRitmoDaSaude() {
+    if (this.destruido) return;
+    const agora = Date.now();
+    if (this.atualizacaoPedidaEm != null && agora - this.atualizacaoPedidaEm >= JANELA_APOS_PEDIDO_MS) {
+      // A janela do clique fechou: o aviso "Pedido enviado" já não diz nada.
+      this.atualizacaoPedidaEm = null;
+      if (!this.pedidoAtualizacaoMsg()?.erro) this.pedidoAtualizacaoMsg.set(null);
+    }
+    const rapido =
+      this.atualizacaoPedidaEm != null ||
+      estadoDaAtualizacaoDoAgente(this.agentTelemetria(), agora)?.emAndamento === true;
+    if (rapido && !this.saudeRapidaInterval) {
+      this.saudeRapidaInterval = setInterval(() => this.loadAgentTelemetria(), RECONSULTA_RAPIDA_MS);
+    } else if (!rapido && this.saudeRapidaInterval) {
+      clearInterval(this.saudeRapidaInterval);
+      this.saudeRapidaInterval = undefined;
+    }
+  }
+
+  /** A versão instalada alcançou a que estava disponível: confirma e volta ao ritmo normal. */
+  private confirmarSeAtualizou(antes: AgentTelemetria | null, agora: AgentTelemetria | null) {
+    const alvo = antes?.versao_disponivel;
+    if (!alvo || !antes?.versao || !agora?.versao) return;
+    if (compararVersoesAgente(alvo, antes.versao) <= 0) return;
+    if (compararVersoesAgente(agora.versao, alvo) < 0) return;
+    this.atualizacaoPedidaEm = null;
+    this.pedidoAtualizacaoMsg.set(null);
+    this.agenteAtualizadoMsg.set(`Agente atualizado para a versão ${agora.versao}.`);
+    if (this.agenteAtualizadoTimer) clearTimeout(this.agenteAtualizadoTimer);
+    this.agenteAtualizadoTimer = setTimeout(() => {
+      this.agenteAtualizadoMsg.set(null);
+      this.agenteAtualizadoTimer = undefined;
+    }, CONFIRMACAO_ATUALIZADO_MS);
   }
 
   /** A telemetria chegou há no máximo TELEMETRIA_VALIDA_MS (avaliado na hora da chamada). */
@@ -394,8 +607,14 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   loadAgentTelemetria() {
     this.api.agentSaude().subscribe({
-      next: (t) => this.agentTelemetria.set(t),
-      error: () => {},
+      next: (t) => {
+        if (this.destruido) return;
+        this.confirmarSeAtualizou(this.agentTelemetria(), t);
+        this.agentTelemetria.set(t);
+        this.ajustarRitmoDaSaude();
+      },
+      // Mesmo sem resposta, a janela do clique precisa poder fechar.
+      error: () => this.ajustarRitmoDaSaude(),
     });
   }
 
@@ -694,9 +913,14 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destruido = true;
+    this.atualizacaoPedidaEm = null;
     if (this.statusInterval) clearInterval(this.statusInterval);
     if (this.hideProgressTimer) clearTimeout(this.hideProgressTimer);
     if (this.procuraTimer) clearTimeout(this.procuraTimer);
+    if (this.saudeRapidaInterval) clearInterval(this.saudeRapidaInterval);
+    this.saudeRapidaInterval = undefined;
+    if (this.agenteAtualizadoTimer) clearTimeout(this.agenteAtualizadoTimer);
   }
 
   loadSyncStatus() {

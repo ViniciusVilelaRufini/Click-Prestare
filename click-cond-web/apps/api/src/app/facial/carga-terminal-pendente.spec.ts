@@ -308,6 +308,8 @@ describe('carga pendente do terminal facial', () => {
         pollVarios: jest.fn(async () => new Map()),
         poll: jest.fn(async () => []),
         pollIntervalMs: 2000,
+        // condoPoll também consome o pedido de "Atualizar agora" (verificar_atualizacao).
+        consumirPedidoDeAtualizacao: jest.fn(async () => false),
       };
       const descoberta: any = { consumirPedido: jest.fn(async () => false) };
       return { ctrl: new AgentController(service, bridge, {} as any, descoberta), service };

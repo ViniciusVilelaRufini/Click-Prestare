@@ -171,6 +171,25 @@ export interface AgentTelemetria {
   dispositivos: AgentTelemetriaDispositivo[];
   eventos_pendentes: number | null;
   versao_disponivel: string | null;
+  /** Em que pé está a auto-atualização; ausente/null em agente anterior à 2026.11.11.1 (ou API antiga). */
+  atualizacao?: AgentAtualizacao | null;
+}
+
+export type EstadoAtualizacaoAgente =
+  | 'ocioso'
+  | 'verificando'
+  | 'em_dia'
+  | 'baixando'
+  | 'instalando'
+  | 'falhou'
+  | 'indisponivel';
+
+export interface AgentAtualizacao {
+  estado: EstadoAtualizacaoAgente;
+  versao_alvo: string | null;
+  erro: string | null;
+  /** Quando o agente entrou neste estado (ISO). */
+  em: string;
 }
 
 export interface SyncPessoa {
@@ -337,6 +356,16 @@ export class TerminaisFaciaisApi {
   agentSaude(): Observable<AgentTelemetria> {
     const params = new HttpParams().set('id_condominio', this.idCondominio);
     return this.http.get<AgentTelemetria>(`${this.base}/agent/saude`, { params });
+  }
+
+  /** Pede ao agente que confira a versão já, sem esperar o ciclo de 6 h (o andamento chega via `agentSaude()`). */
+  atualizarAgenteAgora(): Observable<{ ok: true; agente_online: boolean; suportado: boolean }> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    return this.http.post<{ ok: true; agente_online: boolean; suportado: boolean }>(
+      `${this.base}/agent/atualizar-agora`,
+      {},
+      { params },
+    );
   }
 
   /** Últimos aparelhos achados pela varredura da LAN do agente + avisos de IP corrigido. */

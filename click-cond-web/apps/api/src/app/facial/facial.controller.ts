@@ -27,7 +27,7 @@ import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador, assertSindicoEstrito, assertTenantStrict, isSindicoEstrito, requireTenant } from '../auth/tenant.util';
 import { timingSafeEqual } from 'crypto';
-import { AgentBridgeService } from './agent-bridge.service';
+import { AgentBridgeService, VERSAO_AGENTE_COM_ATUALIZAR_AGORA } from './agent-bridge.service';
 import { AgentVersionService, compararVersoesAgente } from './agent-version.service';
 import { DescobertaService } from './descoberta.service';
 import { listarFabricantes } from './fabricantes';
@@ -368,6 +368,30 @@ export class FacialController {
       dispositivos: telemetria?.dispositivos ?? [],
       eventos_pendentes: telemetria?.eventos_pendentes ?? null,
       versao_disponivel: versaoDisponivel,
+      // Em que pé está a auto-atualização; null quando o agente (antigo) não informa.
+      atualizacao: telemetria?.atualizacao ?? null,
+    };
+  }
+
+  /**
+   * "Atualizar agora": pede ao agente que confira a versão no próximo poll, em
+   * vez de esperar o ciclo de 6 h. `suportado` = a versão que o agente reportou
+   * entende o pedido (as anteriores ignoram o campo do poll).
+   */
+  @Post('agent/atualizar-agora')
+  async atualizarAgenteAgora(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertTenantStrict(idCondominio, user, `atualizar o agente do condomínio ${idCondominio}`);
+    assertOperador(user, 'atualizar o agente local');
+    await this.bridge.pedirVerificacaoDeAtualizacao(idCondominio);
+    const versao = (await this.bridge.getTelemetria(idCondominio))?.versao || null;
+    const devices = await this.service.getActiveDevices(idCondominio);
+    return {
+      ok: true,
+      agente_online: devices.some((d) => this.bridge.isOnline(d.id)),
+      suportado: !!versao && compararVersoesAgente(versao, VERSAO_AGENTE_COM_ATUALIZAR_AGORA) >= 0,
     };
   }
 
