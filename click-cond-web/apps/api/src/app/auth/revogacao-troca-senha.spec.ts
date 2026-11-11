@@ -141,7 +141,7 @@ describe('outras redefinições de senha de Users também gravam senha_alterada_
         update: jest.fn(async () => ({})),
         count: jest.fn(async () => 0),
       },
-      users: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn(async () => ({})) },
+      users: { findFirst: jest.fn(), findUnique: jest.fn(async () => ({ email: 'm@t', login: 'm@t' })), create: jest.fn(), update: jest.fn(async () => ({})) },
       apartamentos: { findUnique: jest.fn(async () => ({ id: 1, bloco: 'A', apto: '106' })) },
       apartamentos_Users: { create: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
       sindicos_Condominios: { count: jest.fn(async () => 0) },

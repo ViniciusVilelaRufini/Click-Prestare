@@ -22,6 +22,7 @@ describe('MoradoresService - Envio de Credenciais Aleatórias', () => {
       },
       users: {
         findFirst: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue({ email: 'vinicius.silva@mockemail.com', login: 'vinicius.silva@mockemail.com' }),
         create: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
       },
@@ -103,7 +104,6 @@ describe('MoradoresService - Envio de Credenciais Aleatórias', () => {
       expect.objectContaining({
         where: { id: 99 },
         data: expect.objectContaining({
-          login: emailMorador,
           password: expect.any(String),
         }),
       }),

@@ -105,6 +105,24 @@ describe('Credenciais da conta — edição por terceiros e autoedição', () =>
       expect(patch.login).toBe('atacante@x.com');
     });
 
+    it.each([[''], [null]])('titular apagar o e-mail (%p) sem senha atual -> 400 e Users intacto', async (vazio) => {
+      const { svc, tx } = build();
+      await expect(svc.saveMorador(corpo({ email: vazio }), true, titular)).rejects.toThrow(MSG);
+      expect(tx.users.update).not.toHaveBeenCalled();
+    });
+
+    it('síndico que mora no prédio (vítima) editado por funcionário: Users inalterado', async () => {
+      const { svc, prisma, tx } = build();
+      // a conta 40 também é síndico: tem perfil em Sindicos e cadastro em Moradores
+      prisma.sindicos_Condominios = { count: jest.fn(async () => 1), findFirst: jest.fn(async () => ({ id: 1 })) };
+      await svc.saveMorador(corpo(), true, funcionario);
+      expect(tx.moradores.update.mock.calls[0][0].data.email).toBe('atacante@x.com');
+      const patch = tx.users.update.mock.calls[0]?.[0].data ?? {};
+      expect(patch).not.toHaveProperty('email');
+      expect(patch).not.toHaveProperty('login');
+      expect(patch).not.toHaveProperty('cpf');
+    });
+
     it('titular sem trocar e-mail não precisa de senha', async () => {
       const { svc, tx } = build();
       await svc.saveMorador(corpo({ email: 'vitima@x.com' }), true, titular);

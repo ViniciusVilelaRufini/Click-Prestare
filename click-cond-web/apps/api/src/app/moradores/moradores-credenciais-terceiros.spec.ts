@@ -52,4 +52,54 @@ describe('MoradoresService.update — credenciais da conta', () => {
     expect(patch).not.toHaveProperty('cpf');
     expect(patch).toMatchObject({ name: 'N', phone: '1' });
   });
+
+  describe('sendCredentials', () => {
+    function buildEnvio() {
+      const mail: any = { sendWelcomeMorador: jest.fn(async () => ({})) };
+      const prisma: any = {
+        isConnected: true,
+        moradores: {
+          findUnique: jest.fn(async () => ({
+            id: 10, id_user: 40, id_condominio: 1, nome: 'V', email: 'atacante@x.com',
+            user: { id: 40 },
+          })),
+          update: jest.fn(),
+          count: jest.fn(async () => 0),
+        },
+        users: {
+          findUnique: jest.fn(async () => ({ email: 'vitima@x.com', login: 'vitima@x.com' })),
+          findFirst: jest.fn(),
+          update: jest.fn(async () => ({})),
+        },
+        sindicos_Condominios: { count: jest.fn(async () => 0) },
+        funcionarios: { count: jest.fn(async () => 0) },
+        apartamentos_Users: { count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },
+        facial_Devices: { findMany: jest.fn(async () => []) },
+      };
+      const svc = new MoradoresService(
+        prisma, mail, {} as any, {} as any, { registrar: jest.fn(async () => ({})) } as any, {} as any,
+      );
+      return { svc, prisma, mail };
+    }
+
+    it('e-mail do cadastro trocado pelo operador: login intacto e senha vai para o e-mail da conta', async () => {
+      const { svc, prisma, mail } = buildEnvio();
+      await svc.sendCredentials(10, operador);
+      await new Promise((r) => setImmediate(r));
+
+      const data = prisma.users.update.mock.calls[0][0].data;
+      expect(data).not.toHaveProperty('login');
+      expect(data).not.toHaveProperty('email');
+      expect(mail.sendWelcomeMorador).toHaveBeenCalledTimes(1);
+      expect(mail.sendWelcomeMorador.mock.calls[0][0]).toBe('vitima@x.com');
+    });
+
+    it('conta sem e-mail utilizável: recusa e não altera a senha', async () => {
+      const { svc, prisma, mail } = buildEnvio();
+      prisma.users.findUnique.mockResolvedValue({ email: null, login: '12345678900' });
+      await expect(svc.sendCredentials(10, operador)).rejects.toThrow(/não tem e-mail de acesso/);
+      expect(prisma.users.update).not.toHaveBeenCalled();
+      expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
+    });
+  });
 });

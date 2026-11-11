@@ -3829,7 +3829,7 @@ export class MobileAuthService {
         }
 
         // Autoedição do e-mail de acesso: prova de posse com a senha atual.
-        if (emailMudou && mor.email && atual.id_user && atual.id_user === callerId) {
+        if (emailMudou && atual.id_user && atual.id_user === callerId) {
           await this.exigirSenhaAtualParaTrocaDeEmail(atual.id_user, mor.senha_atual ?? body.senha_atual);
         }
 

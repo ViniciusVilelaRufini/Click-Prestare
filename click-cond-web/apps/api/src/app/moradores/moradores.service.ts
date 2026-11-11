@@ -1239,8 +1239,24 @@ export class MoradoresService {
     // Gera uma senha temporária aleatória de 8 caracteres alfanuméricos
     // (mesmo padrão da recuperação de senha), em vez de usar o CPF da pessoa.
     const senhaInicial = this.gerarSenhaAleatoria();
+    // Para onde a senha vai. Conta nova: o e-mail do cadastro. Conta existente:
+    // SEMPRE o e-mail da própria conta, porque Moradores.email pode ter sido
+    // editado por um operador e divergir de Users (mandar para lá entregaria a
+    // senha da conta a quem trocou o e-mail do cadastro).
+    let emailDestino: string = m.email;
     if (this.prisma.isConnected) {
       let userId = m.id_user;
+      if (userId) {
+        const conta = await this.prisma.users.findUnique({
+          where: { id: userId },
+          select: { email: true, login: true },
+        });
+        const candidato = [conta?.email, conta?.login].find((v) => !!v && String(v).includes('@'));
+        if (!candidato) {
+          throw new BadRequestException('Esta conta não tem e-mail de acesso cadastrado. Peça que a pessoa use "Esqueci a senha" no app.');
+        }
+        emailDestino = String(candidato);
+      }
       if (!userId) {
         const existingUser = await this.prisma.users.findFirst({
           where: { OR: [{ email: m.email }, { login: m.email }] },
@@ -1276,14 +1292,15 @@ export class MoradoresService {
       await this.prisma.users.update({
         where: { id: userId },
         data: {
-          login: m.email,
+          // Conta existente mantém o login; só a conta nova nasce com o e-mail do cadastro.
+          ...(!m.id_user && { login: m.email }),
           password: senhaHash,
           // Senha nova: derruba os tokens emitidos antes (JwtStrategy).
           senha_alterada_em: momentoTrocaSenha(),
         },
       });
     }
-    this.fireWelcomeEmail(m.email, m.nome, senhaInicial);
+    this.fireWelcomeEmail(emailDestino, m.nome, senhaInicial);
 
     const ctx = await this.carregarContextoMorador(id);
     await this.auditoria.registrar({
@@ -1292,7 +1309,7 @@ export class MoradoresService {
       acao: 'STATUS',
       modulo: 'moradores',
       entidade_id: id,
-      descricao: `Reenviou credenciais para "${m.nome}" (${m.email})`,
+      descricao: `Reenviou credenciais para "${m.nome}" (${emailDestino})`,
       detalhes: ctx ?? undefined,
     });
 
