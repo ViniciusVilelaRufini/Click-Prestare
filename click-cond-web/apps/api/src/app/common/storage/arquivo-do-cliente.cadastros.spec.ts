@@ -245,6 +245,15 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
       await arquivoInvalido(service.create({ descricao: 'Vazamento', id_condominio: 1, anexos: ALHEIA } as any));
       expect(prisma.ocorrencias.create).not.toHaveBeenCalled();
     });
+
+    it('anexo "externo;URL do bucket" também é recusado (cada parte é conferida)', async () => {
+      const prisma: any = { isConnected: true, ocorrencias: { create: jest.fn(async () => ({ id: 1 })) } };
+      const service = new OcorrenciasService(prisma, notifications, tenant, storageReal());
+      await arquivoInvalido(
+        service.create({ descricao: 'Vazamento', id_condominio: 1, anexos: `https://exemplo.com/a.jpg;${ALHEIA}` } as any),
+      );
+      expect(prisma.ocorrencias.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('PessoasController (POST /condominios/:id/pessoas)', () => {

@@ -242,6 +242,11 @@ export class StorageService {
     return this.keyDoBucket(valor) !== null;
   }
 
+  /** Chave do objeto quando o valor é URL do nosso bucket; null para o resto. */
+  chaveDoArquivo(valor: unknown): string | null {
+    return this.keyDoBucket(valor);
+  }
+
   /**
    * Regra de todo campo de arquivo que recebe valor do cliente. A saída da API
    * assina QUALQUER URL do bucket (ArquivosPrivadosInterceptor), então gravar

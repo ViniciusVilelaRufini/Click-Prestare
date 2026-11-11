@@ -97,9 +97,14 @@ describe('visitantes — arquivos recebidos do cliente', () => {
       const prisma: any = {
         isConnected: true,
         visitantes: {
-          findMany: jest.fn(async ({ where }: any) =>
-            rows.filter((r) => casa(r, where)).map((r) => ({ ...r, apartamento: { bloco: 'A', apto: String(r.id_apartamento) } })),
-          ),
+          findMany: jest.fn(async ({ where, orderBy, take }: any) => {
+            let achados = rows.filter((r) => casa(r, where));
+            if (orderBy?.created_at === 'desc') {
+              achados = [...achados].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
+            }
+            if (take) achados = achados.slice(0, take);
+            return achados.map((r) => ({ ...r, apartamento: { bloco: 'A', apto: String(r.id_apartamento) } }));
+          }),
           findFirst: jest.fn(async ({ where }: any) => rows.find((r) => casa(r, where)) ?? null),
           findUnique: jest.fn(async ({ where }: any) => {
             const r = rows.find((x) => x.id === where.id);
@@ -166,6 +171,18 @@ describe('visitantes — arquivos recebidos do cliente', () => {
         { arquivosDoServidor: true },
       );
       expect(prisma.visitantes.create.mock.calls[0][0].data.foto_pessoa).toBe(FOTO_CONVITE);
+    });
+
+    it('nova visita para pessoa (portaria): as fotos copiadas pelo servidor do registro de referência passam', async () => {
+      const { service, prisma, rows } = build();
+      // Mais de 20 registros mais novos da mesma pessoa, sem a foto da referência.
+      for (let i = 0; i < 21; i++) {
+        rows.push({
+          ...rows[0], id: 200 + i, foto_pessoa: null, created_at: new Date(`2026-10-${10 + (i % 15)}T00:00:00Z`),
+        });
+      }
+      await service.novaVisitaParaPessoa(6, { id_apartamento: 100 }, porteiro);
+      expect(prisma.visitantes.create.mock.calls[0][0].data.foto_pessoa).toBe(FOTO_PROPRIA);
     });
 
     it('editar a visita com URL de outro registro: 400; com a foto dela: aceito', async () => {

@@ -22,7 +22,14 @@ export class AssembleiasService {
   private async uploadDocs(docs: unknown, prefix: string, gravados: Gravados): Promise<string[]> {
     if (!Array.isArray(docs)) return [];
     const atuais = typeof gravados === 'function' ? umaVez(async () => gravados()) : gravados;
-    for (const doc of docs) await this.storage.exigirArquivoDoRegistro(doc, atuais);
+    // `anexos` é gravado com join(';'): um doc "externo;URL do bucket" passaria
+    // inteiro (host externo) e viraria dois anexos — cada parte é conferida.
+    for (const doc of docs) {
+      const partes: unknown[] = typeof doc === 'string' && !this.storage.isDataUrl(doc) ? doc.split(';') : [doc];
+      for (const parte of partes) {
+        await this.storage.exigirArquivoDoRegistro(typeof parte === 'string' ? parte.trim() : parte, atuais);
+      }
+    }
     const out: string[] = [];
     for (const doc of docs) {
       if (typeof doc !== 'string') continue;
@@ -36,13 +43,21 @@ export class AssembleiasService {
     return out;
   }
 
-  /** Anexos já gravados na assembleia (coluna `anexos`, separados por ';'). */
+  /**
+   * Anexos já gravados na assembleia (coluna `anexos`, separados por ';').
+   * Só conta como "gravado" o arquivo do bucket que está na pasta onde este
+   * serviço sobe anexo (`assembleias/`): um valor contaminado antes da trava
+   * do ';' (URL de outra pasta entrando como parte) não vira "da assembleia".
+   */
   private async anexosGravados(idAssembleia: number, idCondominio: number): Promise<string[]> {
     const atual = await this.prisma.assembleias.findFirst({
       where: { id: idAssembleia, id_condominio: idCondominio },
       select: { anexos: true },
     });
-    return (atual?.anexos ?? '').split(';').filter(Boolean);
+    return (atual?.anexos ?? '')
+      .split(';')
+      .map((parte) => parte.trim())
+      .filter((parte) => (this.storage.chaveDoArquivo(parte) ?? '').startsWith('assembleias/'));
   }
 
   // ==========================================

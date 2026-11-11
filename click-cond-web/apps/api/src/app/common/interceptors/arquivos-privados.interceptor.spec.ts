@@ -1,4 +1,4 @@
-import { StreamableFile } from '@nestjs/common';
+import { Logger, StreamableFile } from '@nestjs/common';
 import { lastValueFrom, of } from 'rxjs';
 import { ArquivosPrivadosInterceptor } from './arquivos-privados.interceptor';
 import { StorageService } from '../storage/storage.service';
@@ -14,10 +14,12 @@ describe('ArquivosPrivadosInterceptor', () => {
   const storage = {
     assinarUrl: jest.fn(async (u: string) => (u.startsWith('https://bucket.s3.amazonaws.com/') ? `${u}?X-Amz-Signature=ok` : u)),
     normalizarUrl: jest.fn((u: unknown) => (typeof u === 'string' ? u.split('?')[0] : u)),
+    ehArquivoDoBucket: jest.fn((u: unknown) => typeof u === 'string' && u.startsWith('https://bucket.s3.amazonaws.com/')),
   };
+  beforeEach(() => jest.clearAllMocks());
 
   function executar(resposta: unknown, body?: unknown) {
-    const req: any = { body };
+    const req: any = { body, method: 'GET', route: { path: '/ocorrencias' } };
     const ctx: any = { getType: () => 'http', switchToHttp: () => ({ getRequest: () => req }) };
     const interceptor = new ArquivosPrivadosInterceptor(storage as any);
     return { req, saida: lastValueFrom(interceptor.intercept(ctx, { handle: () => of(resposta) })) };
@@ -42,9 +44,82 @@ describe('ArquivosPrivadosInterceptor', () => {
     });
   });
 
-  it('assina quando a resposta é a própria string ou uma lista de strings', async () => {
-    expect(await executar(NOSSA).saida).toBe(`${NOSSA}?X-Amz-Signature=ok`);
-    expect(await executar([NOSSA, 'texto']).saida).toEqual([`${NOSSA}?X-Amz-Signature=ok`, 'texto']);
+  describe('só chaves de arquivo são assinadas (texto livre com URL do bucket não vira link)', () => {
+    // Antes, qualquer string do bucket em qualquer chave era assinada: um morador
+    // gravava a URL guardada de um arquivo alheio na `descricao` da ocorrência
+    // (ou no nome do visitante) e recebia o link assinado de volta.
+    let aviso: jest.SpyInstance;
+    beforeEach(() => {
+      aviso = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    });
+    afterEach(() => aviso.mockRestore());
+
+    it('chave de texto com URL do bucket sai como está e gera aviso (sem a URL)', async () => {
+      const { saida } = executar({ descricao: NOSSA, nome: NOSSA, link: NOSSA, mensagem: NOSSA });
+      expect(await saida).toEqual({ descricao: NOSSA, nome: NOSSA, link: NOSSA, mensagem: NOSSA });
+      expect(storage.assinarUrl).not.toHaveBeenCalledWith(NOSSA);
+      expect(aviso).toHaveBeenCalled();
+      const textos = aviso.mock.calls.map((c) => String(c[0]));
+      expect(textos.some((t) => t.includes('descricao') && t.includes('GET /ocorrencias'))).toBe(true);
+      expect(textos.every((t) => !t.includes(NOSSA))).toBe(true);
+    });
+
+    it('o aviso é amostrado: uma vez por chave a cada hora', async () => {
+      const interceptor = new ArquivosPrivadosInterceptor(storage as any);
+      const ctx: any = { getType: () => 'http', switchToHttp: () => ({ getRequest: () => ({ method: 'GET', route: { path: '/x' } }) }) };
+      const rodar = (corpo: unknown) => lastValueFrom(interceptor.intercept(ctx, { handle: () => of(corpo) }));
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+      try {
+        jest.setSystemTime(new Date('2026-11-11T10:00:00Z'));
+        await rodar({ observacoes: NOSSA });
+        await rodar({ observacoes: NOSSA });
+        expect(aviso).toHaveBeenCalledTimes(1);
+        await rodar({ outra_chave: NOSSA });
+        expect(aviso).toHaveBeenCalledTimes(2);
+        jest.setSystemTime(new Date('2026-11-11T11:00:01Z'));
+        await rodar({ observacoes: NOSSA });
+        expect(aviso).toHaveBeenCalledTimes(3);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('string solta (sem chave) do bucket não é assinada', async () => {
+      expect(await executar(NOSSA).saida).toBe(NOSSA);
+      expect(await executar([NOSSA, 'texto']).saida).toEqual([NOSSA, 'texto']);
+    });
+
+    it('todas as chaves de arquivo da lista assinam, em qualquer profundidade e dentro de arrays', async () => {
+      const chaves = [
+        'photo', 'profile_image', 'foto', 'foto_pessoa', 'foto_documento', 'fotoPessoa', 'fotoDocumento',
+        'foto_url', 'imagem', 'foto_volume', 'retirado_foto', 'retirado_assinatura', 'link_doc',
+        'url_boleto', 'url_comprovante', 'url',
+      ];
+      const corpo = Object.fromEntries(chaves.map((k) => [k, NOSSA]));
+      const saida: any = await executar({ dados: { lista: [corpo] }, fotos: { foto: [NOSSA, NOSSA] } }).saida;
+      for (const k of chaves) expect(saida.dados.lista[0][k]).toBe(`${NOSSA}?X-Amz-Signature=ok`);
+      expect(saida.fotos.foto).toEqual([`${NOSSA}?X-Amz-Signature=ok`, `${NOSSA}?X-Amz-Signature=ok`]);
+    });
+
+    it('anexos com várias URLs separadas por ";" assina cada uma', async () => {
+      const OUTRA = 'https://bucket.s3.amazonaws.com/assembleias/b.pdf';
+      const { saida } = executar({ anexos: `${NOSSA};${OUTRA};https://exemplo.com/c.pdf` });
+      expect(await saida).toEqual({
+        anexos: `${NOSSA}?X-Amz-Signature=ok;${OUTRA}?X-Amz-Signature=ok;https://exemplo.com/c.pdf`,
+      });
+    });
+
+    it('botão "abrir_url" do assistente (boleto) continua assinado; os outros botões não', async () => {
+      const { saida } = executar({
+        botoes: [
+          { rotulo: 'Abrir boleto', efeito: 'abrir_url', valor: NOSSA },
+          { rotulo: 'Copiar', efeito: 'copiar', valor: NOSSA },
+        ],
+      });
+      const r: any = await saida;
+      expect(r.botoes[0].valor).toBe(`${NOSSA}?X-Amz-Signature=ok`);
+      expect(r.botoes[1].valor).toBe(NOSSA);
+    });
   });
 
   it('não toca em arquivos binários nem em datas', async () => {
@@ -81,13 +156,13 @@ describe('ArquivosPrivadosInterceptor', () => {
       const req: any = { body: { foto: antiga, outra: `${nova}?X-Amz-Signature=velha` } };
       const ctx: any = { getType: () => 'http', switchToHttp: () => ({ getRequest: () => req }) };
       const interceptor = new ArquivosPrivadosInterceptor(real);
-      const saida: any = await lastValueFrom(interceptor.intercept(ctx, { handle: () => of({ antiga, nova }) }));
+      const saida: any = await lastValueFrom(interceptor.intercept(ctx, { handle: () => of({ photo: antiga, foto_pessoa: nova }) }));
 
       expect(req.body).toEqual({ foto: antiga, outra: nova });
-      expect(saida.antiga).toBe(antiga);
-      expect(saida.nova.startsWith(`${nova}?`)).toBe(true);
-      expect(new URL(saida.nova).searchParams.get('X-Amz-Signature')).toBeTruthy();
-      expect(new URL(saida.nova).searchParams.get('X-Amz-Expires')).toBe('3600');
+      expect(saida.photo).toBe(antiga);
+      expect(saida.foto_pessoa.startsWith(`${nova}?`)).toBe(true);
+      expect(new URL(saida.foto_pessoa).searchParams.get('X-Amz-Signature')).toBeTruthy();
+      expect(new URL(saida.foto_pessoa).searchParams.get('X-Amz-Expires')).toBe('3600');
     });
   });
 });

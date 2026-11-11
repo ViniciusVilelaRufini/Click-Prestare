@@ -128,6 +128,23 @@ describe('documentos e assembleias — arquivos recebidos do cliente', () => {
       expect(prisma.assembleias.updateMany.mock.calls[0][0].data.anexos).toBe(`${ANEXO};${NOVO}`);
     });
 
+    it('anexo "externo;URL do bucket" não contrabandeia a URL alheia pelo ";": 400', async () => {
+      const { service, prisma } = build();
+      await arquivoInvalido(service.insert(1, { titulo: 'AGO', docs: [`https://exemplo.com/x;${ALHEIO}`] }, 7, sindico));
+      expect(prisma.assembleias.create).not.toHaveBeenCalled();
+      await arquivoInvalido(service.update(1, { id: 2, titulo: 'AGO', docs: [`https://exemplo.com/x;${ALHEIO}`] }, 7, sindico));
+      expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('anexos já contaminados por ";" no banco não tornam a URL alheia "gravada"', async () => {
+      const { service, prisma } = build();
+      prisma.assembleias.findFirst.mockResolvedValue({ id: 2, id_condominio: 1, anexos: `https://exemplo.com/x;${ALHEIO}` });
+      await arquivoInvalido(service.update(1, { id: 2, titulo: 'AGO', docs: [ALHEIO] }, 7, sindico));
+      await arquivoInvalido(service.finish(1, { id: 2, titulo: 'AGO', data: '01/01/2026', doc: ALHEIO }, sindico));
+      expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
+      expect(prisma.documentos.create).not.toHaveBeenCalled();
+    });
+
     it('editar com anexo de outro registro: 400', async () => {
       const { service, prisma } = build();
       await arquivoInvalido(service.update(1, { id: 2, titulo: 'AGO', docs: [ALHEIO] }, 7, sindico));

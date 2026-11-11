@@ -1440,7 +1440,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data_hora_termino: dto.data_hora_termino,
       dias_semana: ref.dias_semana ?? undefined,
       categorias: ref.categorias ?? undefined,
-    }, payload);
+      // Fotos copiadas aqui, pelo servidor, do registro já autorizado acima —
+      // não vêm do cliente (a busca de reaproveitáveis pararia em 20 registros).
+    }, payload, { arquivosDoServidor: true });
   }
 
   /**
