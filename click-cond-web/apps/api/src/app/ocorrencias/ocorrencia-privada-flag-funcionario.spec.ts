@@ -22,7 +22,10 @@ describe('Ocorrências — flag ocorrencias do funcionário', () => {
       ocorrencias: {
         findUnique: jest.fn(async () => ({ ...oc, categoria: null, criadoPor: null, id_responsavel: null })),
         findMany: jest.fn(async () => []),
+        update: jest.fn(async ({ data }: any) => ({ id: 5, user: 100, ...data, categoria: null })),
+        delete: jest.fn(async () => ({})),
       },
+      funcionarios_Portaria: { findMany: jest.fn(async () => []) },
       ocorrenciaMensagens: {
         findMany: jest.fn(async () => []),
         create: jest.fn(async ({ data }: any) => ({ id: 1, ...data })),
@@ -79,6 +82,46 @@ describe('Ocorrências — flag ocorrencias do funcionário', () => {
   it('ocorrência pública: funcionário sem a flag lê o chat', async () => {
     const { svc } = montar(0, { ...privada, publica: true });
     await expect(svc.listMessages(5, funcionario)).resolves.toEqual([]);
+  });
+
+  /**
+   * Sem a flag, o funcionário tem o recorte do morador — e morador não escreve
+   * no chat de ocorrência pública alheia (lê, mas a conversa é do autor com o
+   * condomínio).
+   */
+  it('NEGA escrever no chat de ocorrência PÚBLICA alheia a funcionário sem a flag', async () => {
+    const { svc, prisma } = montar(0, { ...privada, publica: true });
+    await expect(svc.createMessage(5, 20, 'oi', funcionario)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.ocorrenciaMensagens.create).not.toHaveBeenCalled();
+  });
+
+  it('funcionário sem a flag escreve no chat da ocorrência que ele mesmo abriu', async () => {
+    const { svc } = montar(0, { ...privada, user: 20 });
+    await expect(svc.createMessage(5, 20, 'oi', funcionario)).resolves.toMatchObject({ mensagem: 'oi' });
+  });
+
+  /**
+   * Status, resposta, atribuição e remoção passam por `loadParaMutacaoStaff`,
+   * que exigia só "síndico ou funcionário": sem a flag, o funcionário ainda
+   * administrava a ocorrência privada que não pode nem ler.
+   */
+  it('NEGA mudar status, responder, atribuir e remover a funcionário sem a flag', async () => {
+    const { svc, prisma } = montar(0);
+    await expect(svc.updateStatus(5, 'Ciente', funcionario)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.updateResposta(5, 'ok', funcionario)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.atribuir(5, null, funcionario)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.updatePublica(5, true, funcionario)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.remove(5, funcionario)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.ocorrencias.update).not.toHaveBeenCalled();
+    expect(prisma.ocorrencias.delete).not.toHaveBeenCalled();
+  });
+
+  it('funcionário com a flag e o síndico administram a ocorrência', async () => {
+    const a = montar(1);
+    await expect(a.svc.updateStatus(5, 'Ciente', funcionario)).resolves.toMatchObject({ status: 'Ciente' });
+    const b = montar(0);
+    await expect(b.svc.updateStatus(5, 'Ciente', sindico)).resolves.toMatchObject({ status: 'Ciente' });
+    expect(b.prisma.funcionarios.findFirst).not.toHaveBeenCalled();
   });
 
   it('síndico e operador do console seguem sem depender de flag', async () => {

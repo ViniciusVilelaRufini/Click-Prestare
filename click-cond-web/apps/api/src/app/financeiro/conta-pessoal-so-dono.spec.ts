@@ -67,6 +67,48 @@ describe('Financeiro — conta pessoal só para o dono', () => {
     });
   });
 
+  /**
+   * `update`, `remove` e `updateStatus` passam por `getLancamentoForTenant`,
+   * que só conferia o condomínio: o síndico editava, apagava e dava baixa na
+   * conta pessoal do morador.
+   */
+  describe('mutações (getLancamentoForTenant)', () => {
+    function buildMut(registro: any) {
+      const prisma: any = {
+        isConnected: true,
+        financeiro: {
+          findUnique: jest.fn(async () => ({ ...registro })),
+          update: jest.fn(async () => ({ ...registro })),
+          delete: jest.fn(async () => ({ ...registro })),
+        },
+      };
+      const noop: any = { registrar: jest.fn(async () => undefined) };
+      const svc = new FinanceiroService(
+        prisma, { isDataUrl: () => false } as any, noop, noop, noop,
+        { assertPodeAlterar: jest.fn(async () => undefined) } as any,
+        { assertCondominio: jest.fn(async () => undefined), assertEntidade: jest.fn(async () => undefined) } as any,
+      );
+      jest.spyOn(svc as any, 'carregarContextoLancamento').mockResolvedValue(null);
+      return { svc, prisma };
+    }
+
+    it('NEGA ao síndico editar, apagar e dar baixa na conta pessoal do morador', async () => {
+      const { svc, prisma } = buildMut(contaPessoal);
+      await expect(svc.remove(1, sindico)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.updateStatus(1, '1', sindico)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.update(1, { id: 1, valor: '10', nome: 'Luz' }, 'Síndico', sindico)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.financeiro.update).not.toHaveBeenCalled();
+      expect(prisma.financeiro.delete).not.toHaveBeenCalled();
+    });
+
+    it('o dono passa pela checagem; cobrança do condomínio segue com o síndico', async () => {
+      const dono = buildMut(contaPessoal);
+      await expect(dono.svc.remove(1, morador)).resolves.toEqual({ success: true });
+      const cobranca = buildMut({ ...cobrancaComDono, origem: null });
+      await expect(cobranca.svc.remove(2, sindico)).resolves.toEqual({ success: true });
+    });
+  });
+
   describe('getByUser', () => {
     it('síndico consultando o morador NÃO recebe as contas pessoais dele', async () => {
       const { svc } = build([contaPessoal, cobrancaComDono, cobrancaDaUnidade]);

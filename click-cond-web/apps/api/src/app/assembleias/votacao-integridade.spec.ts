@@ -30,7 +30,7 @@ describe('Votação — integridade', () => {
     const prisma: any = {
       votacoes: {
         findMany: jest.fn(async () => [{
-          id: 5, titulo: 'QA', descricao: null, data_inicio: null, data_termino: null,
+          id: 5, id_condominio: 1, titulo: 'QA', descricao: null, data_inicio: null, data_termino: null,
           opcoes: [
             { id: 9, nome: 'Sim', votos: [
               { id: 1, id_user: 50, created_at: new Date('2026-09-23T12:00:00Z') },
@@ -42,6 +42,10 @@ describe('Votação — integridade', () => {
             ] },
           ],
         }]),
+      },
+      // 50 e 51 moram em apartamentos diferentes (a apuração conta por unidade).
+      apartamentos_Users: {
+        findMany: jest.fn(async () => [{ id_user: 50, id_apto: 1 }, { id_user: 51, id_apto: 2 }]),
       },
     };
     const svc = new AssembleiasService(prisma, {} as any, {} as any);

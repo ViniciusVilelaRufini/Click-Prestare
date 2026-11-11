@@ -61,6 +61,11 @@ export class OcorrenciasService {
     const o = await this.prisma.ocorrencias.findUnique({ where: { id }, select: { id_condominio: true } });
     if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${id}`);
+    // Administrar ocorrência é a área `ocorrencias`: funcionário do app sem a
+    // flag mudava status, respondia e atribuía a que não pode nem ler. Síndico
+    // não depende de flag; o operador da portaria-web, sem typeAccess, já para
+    // no assertStaff acima, como antes.
+    await this.exigirFlagOcorrencias(o.id_condominio, user);
     return o;
   }
 
@@ -477,8 +482,10 @@ export class OcorrenciasService {
       if (!this.ehEquipe(requester)) {
         throw new ForbiddenException('Acesso negado: ocorrência não pertence a você');
       }
-      // Conversa de ocorrência privada é da equipe com a flag `ocorrencias`.
-      if (!oc.publica) await this.exigirFlagOcorrencias(oc.id_condominio, requester);
+      // Falar no chat de ocorrência alheia — pública ou privada — é da equipe
+      // com a flag `ocorrencias`: sem ela o funcionário tem o recorte do
+      // morador, que lê a pública mas não conversa nela.
+      await this.exigirFlagOcorrencias(oc.id_condominio, requester);
     }
     // Autor da mensagem é FK para Users. O token da portaria-web não tem
     // Users.id — gravar o `sub` dele atribuía a mensagem a outra pessoa.

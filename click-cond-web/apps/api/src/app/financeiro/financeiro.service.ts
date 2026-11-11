@@ -342,6 +342,12 @@ export class FinanceiroService implements OnModuleInit {
     });
     if (!lanc) throw new NotFoundException(`Lançamento ${id} não encontrado`);
     await this.tenant.assertEntidade(lanc.id_condominio, user, `lançamento #${id}`);
+    // Conta pessoal (tipo 'D' com dono) não é do condomínio: só o dono mexe.
+    // Sem isto o síndico editava, apagava e dava baixa na conta do morador.
+    // Sem sessão (job interno) não há a quem barrar.
+    if (user && FinanceiroService.ehContaPessoal(lanc) && idUsuarioDoToken(user) !== Number(lanc.id_usuario)) {
+      throw new ForbiddenException('Acesso negado: lançamento pessoal não pertence a você');
+    }
     return lanc;
   }
 
