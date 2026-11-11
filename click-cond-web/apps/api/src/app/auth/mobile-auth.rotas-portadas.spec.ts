@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { ForbiddenException } from '@nestjs/common';
 import { MobileAuthService } from './mobile-auth.service';
 import { TenantAccessService } from './tenant-access.service';
@@ -143,7 +144,11 @@ describe('MobileAuthService — rotas portadas do Express', () => {
         },
         users: {
           findFirst: jest.fn(async () => null),
-          findUnique: jest.fn(async () => ({ id: 5, photo: '', funcionarios: [{ nome: 'Porteiro' }] })),
+          findUnique: jest.fn(async () => ({
+            id: 5, photo: '', email: 'antigo@x.com', login: 'antigo@x.com',
+            password: createHash('md5').update('segredo').digest('hex'),
+            funcionarios: [{ nome: 'Porteiro' }],
+          })),
           update: jest.fn(async () => ({})),
           updateMany: jest.fn(async () => ({ count: 0 })),
         },
@@ -169,7 +174,7 @@ describe('MobileAuthService — rotas portadas do Express', () => {
     it('devolve token e user novos (o login muda junto com o e-mail)', async () => {
       const { svc } = build(comFuncionario());
       const res: any = await svc.updateInfosFuncionario(
-        { funcionario: { nome: 'Porteiro', email: 'novo@x.com' } },
+        { funcionario: { nome: 'Porteiro', email: 'novo@x.com', senha_atual: 'segredo' } },
         funcionario,
       );
       expect(res.token).toBe('token-novo');

@@ -1113,14 +1113,13 @@ export class MoradoresService {
           userPatch.photo = fotoPessoaUrl;
           userPatch.profile_image = fotoPessoaUrl;
         }
-        // Conta compartilhada com outro condomínio: dados do cadastro mudam só no Moradores; login/e-mail/CPF
-        // do Users ficam (quem tem a conta é a pessoa, não este condomínio).
-        if (atual.id_user && atual.id_condominio != null &&
-            (await usuarioTemVinculoEmOutroCondominio(tx as any, atual.id_user, atual.id_condominio))) {
-          delete userPatch.email;
-          delete userPatch.login;
-          delete userPatch.cpf;
-        }
+        // O console edita o cadastro do condomínio (Moradores). Login/e-mail/CPF da
+        // conta (Users) só mudam pelo próprio titular, no app, com a senha atual:
+        // quem tem a conta é a pessoa, não o operador. (O console não tem o campo
+        // de senha atual, então aqui a credencial nunca é gravada.)
+        delete userPatch.email;
+        delete userPatch.login;
+        delete userPatch.cpf;
         if (Object.keys(userPatch).length > 0 && atual.id_user) {
           await tx.users.update({
             where: { id: atual.id_user },

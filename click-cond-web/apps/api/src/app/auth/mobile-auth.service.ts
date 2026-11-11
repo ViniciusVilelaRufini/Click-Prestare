@@ -386,9 +386,24 @@ export class MobileAuthService {
     };
   }
 
+  /**
+   * Trocar o e-mail/login da PRÓPRIA conta exige a senha atual: o JWT dura 365
+   * dias e, sem esta prova, um celular destravado bastaria para redirecionar o
+   * "esqueci a senha" para outro e-mail e tomar a conta.
+   */
+  private async exigirSenhaAtualParaTrocaDeEmail(idUser: number, senhaAtual?: string) {
+    const conta = await this.prisma.users.findUnique({ where: { id: idUser } });
+    const confere =
+      !!senhaAtual && !!conta && (await this.verifyPassword(String(senhaAtual), conta.password, idUser));
+    if (!confere) {
+      throw new BadRequestException('Para trocar o e-mail de acesso, informe sua senha atual.');
+    }
+  }
+
   async updateSindico(idUser: number, body: {
     nome?: string;
     email?: string;
+    senha_atual?: string;
     date_birth?: string;
     phone?: string;
     doc_identification?: string;
@@ -418,6 +433,7 @@ export class MobileAuthService {
       if (existing) {
         throw new BadRequestException('Este e-mail já está sendo utilizado por outro usuário.');
       }
+      await this.exigirSenhaAtualParaTrocaDeEmail(idUser, body.senha_atual);
     }
 
     let parsedBirth: Date | null = s.date_birth;
@@ -432,8 +448,9 @@ export class MobileAuthService {
       } catch (e) {}
     }
 
-    const docId = body.doc_identification?.trim() || null;
-    const phone = body.phone?.trim() || null;
+    // Só grava o que veio: campo ausente não pode apagar o dado já cadastrado.
+    const docId = body.doc_identification !== undefined ? body.doc_identification?.trim() || null : undefined;
+    const phone = body.phone !== undefined ? body.phone?.trim() || null : undefined;
     const nomeAtualizado = body.nome || user.name || '';
 
     // Fora da transação: o upload é rede, e segurá-lo dentro prenderia a
@@ -449,8 +466,8 @@ export class MobileAuthService {
           name: nomeAtualizado,
           email: emailNormalized || user.email,
           login: emailNormalized || user.login,
-          phone: phone,
-          cpf: docId,
+          ...(phone !== undefined && { phone }),
+          ...(docId !== undefined && { cpf: docId }),
           photo: fotoUrl !== undefined ? fotoUrl : user.photo,
         }
       });
@@ -461,8 +478,8 @@ export class MobileAuthService {
         data: {
           name: nomeAtualizado,
           email: emailNormalized || s.email,
-          phone: phone,
-          doc_identification: docId,
+          ...(phone !== undefined && { phone }),
+          ...(docId !== undefined && { doc_identification: docId }),
           date_birth: parsedBirth,
         }
       });
@@ -3288,6 +3305,13 @@ export class MobileAuthService {
         select: { id: true },
       });
       if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
+      const contaAtual = await this.prisma.users.findUnique({
+        where: { id: idUser },
+        select: { email: true, login: true },
+      });
+      if (email !== contaAtual?.email || email !== contaAtual?.login) {
+        await this.exigirSenhaAtualParaTrocaDeEmail(idUser, func.senha_atual ?? body?.senha_atual);
+      }
     }
 
     let photoUrl: string | null = null;
@@ -3804,6 +3828,11 @@ export class MobileAuthService {
           if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
         }
 
+        // Autoedição do e-mail de acesso: prova de posse com a senha atual.
+        if (emailMudou && mor.email && atual.id_user && atual.id_user === callerId) {
+          await this.exigirSenhaAtualParaTrocaDeEmail(atual.id_user, mor.senha_atual ?? body.senha_atual);
+        }
+
         // Cláusula 8.3: Bloqueio de menor de 18 anos para login e biometria
         const dnFinal = mor.data_nascimento ?? atual.data_nascimento;
         const ehMenorUpdate = dnFinal ? calcularIdade(dnFinal) < 18 : false;
@@ -3851,10 +3880,10 @@ export class MobileAuthService {
             userPatch.photo = photoUrl;
             userPatch.profile_image = photoUrl;
           }
-          // Editar o cadastro de OUTRA pessoa que também tem conta em outro condomínio não pode trocar
-          // o login/e-mail/CPF globais dela (era a porta para tomar a conta e redefinir a senha).
-          if (atual.id_user && atual.id_user !== callerId && atual.id_condominio != null &&
-              (await usuarioTemVinculoEmOutroCondominio(tx as any, atual.id_user, atual.id_condominio))) {
+          // Quem edita o cadastro de OUTRA pessoa nunca troca a credencial da conta
+          // (e-mail/login/CPF de Users): isso seria tomar a conta dela. Os campos
+          // seguem valendo no cadastro do condomínio (Moradores).
+          if (atual.id_user !== callerId) {
             delete userPatch.email;
             delete userPatch.login;
             delete userPatch.cpf;
