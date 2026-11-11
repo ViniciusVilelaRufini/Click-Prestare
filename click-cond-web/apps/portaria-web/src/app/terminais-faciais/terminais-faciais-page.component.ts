@@ -37,6 +37,60 @@ export function compararVersoesAgente(a: string, b: string): number {
   return 0;
 }
 
+/** O agente confere se há versão nova ao iniciar e depois a cada 6 horas
+ *  contadas da partida (INTERVALO_VERIFICACAO_MS em agent/src/core/atualizador.js). */
+const INTERVALO_VERIFICACAO_AGENTE_MS = 6 * 60 * 60 * 1000;
+
+/** Primeira versão do agente que se atualiza sozinha (as anteriores exigem
+ *  reinstalar uma vez pelo portal). */
+const PRIMEIRA_VERSAO_COM_AUTOATUALIZACAO = '2026.09.24';
+
+/**
+ * Quando o agente vai conferir a versão de novo: a partida + o próximo
+ * múltiplo de 6 h. `null` se a hora de início não for confiável (ausente,
+ * inválida ou no futuro — relógio do PC da portaria adiantado).
+ */
+export function proximaVerificacaoDoAgente(
+  iniciadoEm: string | null | undefined,
+  agoraMs: number = Date.now(),
+): Date | null {
+  const inicio = iniciadoEm ? new Date(iniciadoEm).getTime() : NaN;
+  if (!Number.isFinite(inicio) || inicio > agoraMs) return null;
+  const ciclos = Math.floor((agoraMs - inicio) / INTERVALO_VERIFICACAO_AGENTE_MS) + 1;
+  return new Date(inicio + ciclos * INTERVALO_VERIFICACAO_AGENTE_MS);
+}
+
+function horaLocal(d: Date): string {
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const hoje = new Date();
+  const mesmoDia =
+    d.getFullYear() === hoje.getFullYear() &&
+    d.getMonth() === hoje.getMonth() &&
+    d.getDate() === hoje.getDate();
+  return mesmoDia ? hora : `${hora} de ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
+}
+
+/**
+ * Texto que acompanha o selo "Atualização disponível": o que vai acontecer,
+ * quando, e o que fazer para adiantar. `null` quando não há versão mais nova.
+ */
+export function textoDaAtualizacaoDoAgente(
+  t: { versao?: string | null; versao_disponivel?: string | null; iniciado_em?: string | null } | null | undefined,
+  agoraMs: number = Date.now(),
+  formatarHora: (d: Date) => string = horaLocal,
+): string | null {
+  if (!t?.versao || !t.versao_disponivel) return null;
+  if (compararVersoesAgente(t.versao_disponivel, t.versao) <= 0) return null;
+  if (compararVersoesAgente(t.versao, PRIMEIRA_VERSAO_COM_AUTOATUALIZACAO) < 0) {
+    return `Versão ${t.versao_disponivel} disponível. Esta versão instalada não se atualiza sozinha: use "Reinstalar ou configurar" uma vez no computador da portaria.`;
+  }
+  const proxima = proximaVerificacaoDoAgente(t.iniciado_em, agoraMs);
+  const quando = proxima
+    ? `por volta das ${formatarHora(proxima)}`
+    : 'em até 6 horas';
+  return `Versão ${t.versao_disponivel} disponível. O agente baixa e instala sozinho ${quando} — não é preciso fazer nada. Para adiantar, reinicie o computador da portaria.`;
+}
+
 /** Telemetria mais velha que isso (o agente manda a cada 60s) não representa
  *  mais o estado dos aparelhos — os selos por device somem em vez de mentir. */
 export const TELEMETRIA_VALIDA_MS = 3 * 60 * 1000;
@@ -184,6 +238,11 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       compararVersoesAgente(t.versao_disponivel, t.versao) > 0
     );
   });
+
+  /** Explicação que acompanha o selo "Atualização disponível" (avaliado na hora da chamada). */
+  textoAtualizacaoAgente(): string | null {
+    return textoDaAtualizacaoDoAgente(this.agentTelemetria());
+  }
 
   /** A telemetria chegou há no máximo TELEMETRIA_VALIDA_MS (avaliado na hora da chamada). */
   telemetriaRecente(): boolean {

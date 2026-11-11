@@ -237,6 +237,9 @@
                     <span class="text-amber-600 dark:text-amber-400"> · {{ agentTelemetria()!.eventos_pendentes }} evento(s) pendente(s) na fila offline</span>
                   }
                 </p>
+                @if (textoAtualizacaoAgente(); as textoAtualizacao) {
+                  <p class="text-xs text-amber-700 dark:text-amber-400 mt-1" data-testid="agente-atualizacao" role="status">{{ textoAtualizacao }}</p>
+                }
               </div>
             </div>
             <button type="button" (click)="mostrarInstalacao.set(true)" class="text-xs font-semibold text-accent hover:underline self-start sm:self-auto">Reinstalar ou configurar</button>
