@@ -81,6 +81,36 @@ describe('throttlers — overrides por rota', () => {
     expect(frouxas).toEqual([]);
   });
 
+  it.each([
+    [SindicoMobileController, 'updateSindico'],
+    [FuncionariosMobileController, 'updateInfos'],
+    [MoradoresMobileController, 'updateMorador'],
+  ] as Array<[Function, string]>)(
+    'perfil que aceita senha_atual (%p.%s): 10 por 10 minutos por IP',
+    async (classe, metodo) => {
+      // A senha atual da troca de e-mail é um oráculo de senha: sem limite
+      // próprio, ficava no global (600/min/IP) com o JWT de 365 dias.
+      expect(Reflect.getMetadata('THROTTLER:TTLmedium', (classe as any).prototype[metodo])).toBe(10 * 60_000);
+      const mod = await Test.createTestingModule({
+        imports: [ThrottlerModule.forRoot(THROTTLERS)],
+        providers: [ThrottlerGuard],
+      }).compile();
+      const g = mod.get(ThrottlerGuard);
+      await g.onModuleInit();
+      const handler = (classe as any).prototype[metodo];
+      try {
+        for (let i = 0; i < 10; i++) {
+          await expect(g.canActivate(contexto(handler, classe, '198.51.100.9'))).resolves.toBe(true);
+        }
+        await expect(g.canActivate(contexto(handler, classe, '198.51.100.9'))).rejects.toBeInstanceOf(ThrottlerException);
+      } finally {
+        // O storage em memória arma timers de 10 min; fechar o módulo os limpa
+        // (sem isso o Jest não termina).
+        await mod.close();
+      }
+    },
+  );
+
   it('nenhum @Throttle/@SkipThrottle referencia throttler inexistente', () => {
     const nomes = new Set(THROTTLERS.map((t) => t.name));
     const raiz = join(__dirname, '..', '..');

@@ -94,6 +94,8 @@ export class SindicoMobileController {
 
   @Post('update')
   @HttpCode(200)
+  // Aceita senha_atual (troca de e-mail): sem limite próprio seria oráculo de senha.
+  @Throttle({ medium: { limit: 10, ttl: 10 * 60_000 } })
   updateSindico(@ReqUser() payload: JwtPayload, @Body() body: any) {
     // A resposta traz um token de síndico (365 dias). Sem conferir o papel de
     // quem chama, um token de morador/funcionário da mesma conta — emitido sem
@@ -228,6 +230,9 @@ export class MoradoresMobileController {
 
   @Post('update')
   @HttpCode(200)
+  // Aceita senha_atual (troca de e-mail): sem limite próprio seria oráculo de
+  // senha. O app só chama no "salvar" do próprio perfil — não há rajada.
+  @Throttle({ medium: { limit: 10, ttl: 10 * 60_000 } })
   updateMorador(@Body() body: any, @ReqUser() payload: JwtPayload) {
     return this.service.saveMorador(body, true, payload);
   }
@@ -337,6 +342,8 @@ export class FuncionariosMobileController {
   // Funcionário editando o próprio perfil. O alvo vem do JWT, não do corpo.
   @Post('update-infos')
   @HttpCode(200)
+  // Aceita senha_atual (troca de e-mail): sem limite próprio seria oráculo de senha.
+  @Throttle({ medium: { limit: 10, ttl: 10 * 60_000 } })
   updateInfos(@Body() body: any, @ReqUser() payload: JwtPayload) {
     return this.service.updateInfosFuncionario(body, payload);
   }
