@@ -1071,7 +1071,7 @@ export class MobileAuthService {
     if (type === 'sindico') {
       try {
         const rels = await this.prisma.sindicos_Condominios.findMany({
-          where: { id_user: idUser },
+          where: { id_user: idUser, condominio: { ativo: 1 } },
           select: { id_condominio: true },
         });
         const ids = rels.map(r => r.id_condominio);
@@ -1107,7 +1107,7 @@ export class MobileAuthService {
       try {
         let condId: number | undefined;
         const func = await this.prisma.funcionarios.findFirst({
-          where: { id_user: idUser },
+          where: { id_user: idUser, condominio: { ativo: 1 } },
           select: { id_condominio: true },
         });
         condId = func?.id_condominio;
@@ -1119,7 +1119,7 @@ export class MobileAuthService {
           });
           if (userObj?.email) {
             const port = await this.prisma.funcionarios_Portaria.findFirst({
-              where: { email: userObj.email },
+              where: { email: userObj.email, condominio: { ativo: 1 } },
               select: { id_condominio: true },
             });
             condId = port?.id_condominio;
@@ -1213,7 +1213,7 @@ export class MobileAuthService {
       hojeFim.setHours(23, 59, 59, 999);
 
       const aptoUsers = await this.prisma.apartamentos_Users.findMany({
-        where: { id_user: idUser },
+        where: { id_user: idUser, apartamento: { condominio: { ativo: 1 } } },
         select: { id_apto: true },
       });
       const aptoIds = aptoUsers.map(a => a.id_apto);
@@ -1251,7 +1251,7 @@ export class MobileAuthService {
         : await this.prisma.visitantes.count({ where: insideWhere });
 
       const moras = await this.prisma.moradores.findMany({
-        where: { id_user: idUser },
+        where: { id_user: idUser, condominio: { ativo: 1 } },
       });
 
       let packagesCount = 0;
@@ -1308,7 +1308,7 @@ export class MobileAuthService {
     let idCondominioFuncionario: number | null = null;
     if (typeAccess === 'Funcionario') {
       const func = await this.prisma.funcionarios.findFirst({
-        where: { id_user: idUser },
+        where: { id_user: idUser, condominio: { ativo: 1 } },
         select: { id_condominio: true },
       });
       if (func?.id_condominio) {
@@ -1510,10 +1510,10 @@ export class MobileAuthService {
 
     const [moras, aptoUsers] = await Promise.all([
       this.prisma.moradores.findMany({
-        where: { id_user: idUser },
+        where: { id_user: idUser, condominio: { ativo: 1 } },
         select: { id: true, foto_pessoa: true, user: { select: { photo: true } } },
       }),
-      this.prisma.apartamentos_Users.findMany({ where: { id_user: idUser }, select: { id_apto: true } }),
+      this.prisma.apartamentos_Users.findMany({ where: { id_user: idUser, apartamento: { condominio: { ativo: 1 } } }, select: { id_apto: true } }),
     ]);
     const moradorIds = moras.map((m) => m.id);
     const aptoIds = aptoUsers.map((a) => a.id_apto);
@@ -1753,7 +1753,7 @@ export class MobileAuthService {
           notif_visitantes: true,
         },
       }),
-      this.prisma.moradores.findMany({ where: { id_user: idUser } }),
+      this.prisma.moradores.findMany({ where: { id_user: idUser, condominio: { ativo: 1 } } }),
     ]);
 
     const quer = (flag: number | undefined | null) => flag !== 0;
@@ -1779,7 +1779,7 @@ export class MobileAuthService {
     // campo `apartamento` é texto ("101"), não a chave. É por Apartamentos_Users
     // que o resto do sistema resolve esse vínculo.
     const vinculosApto = await this.prisma.apartamentos_Users.findMany({
-      where: { id_user: idUser },
+      where: { id_user: idUser, apartamento: { condominio: { ativo: 1 } } },
       select: { id_apto: true },
     });
     const aptoIds = [
@@ -4534,13 +4534,14 @@ export class MobileAuthService {
     
     // Buscar o morador para descobrir o id_condominio
     const morador = await this.prisma.moradores.findFirst({
-      where: { id_user: idUser },
+      where: { id_user: idUser, condominio: { ativo: 1 } },
       select: { id_condominio: true },
     });
 
+    // Condomínio desativado no CRM: nem as ocorrências próprias saem pelo app.
     const where: any = {
       OR: [
-        { user: idUser },
+        { user: idUser, condominio: { ativo: 1 } },
       ]
     };
 
@@ -4706,12 +4707,12 @@ export class MobileAuthService {
           if (!condId) {
             if (type === 'funcionario') {
               const func = await this.prisma.funcionarios.findFirst({
-                where: { id_user: idUser },
+                where: { id_user: idUser, condominio: { ativo: 1 } },
               });
               condId = func?.id_condominio;
             } else {
               const sind = await this.prisma.sindicos_Condominios.findFirst({
-                where: { id_user: idUser },
+                where: { id_user: idUser, condominio: { ativo: 1 } },
               });
               condId = sind?.id_condominio;
             }
@@ -4733,7 +4734,7 @@ export class MobileAuthService {
 
         // Caso seja Morador, busca somente as encomendas do seu próprio apartamento/bloco
         const moras = await this.prisma.moradores.findMany({
-          where: { id_user: idUser },
+          where: { id_user: idUser, condominio: { ativo: 1 } },
         });
 
         let total: any[] = [];
@@ -4805,7 +4806,7 @@ export class MobileAuthService {
     const norm = (v?: string | null) => (v ?? '').trim().toLowerCase();
 
     const moras = await this.prisma.moradores.findMany({
-      where: { id_user: idUser },
+      where: { id_user: idUser, condominio: { ativo: 1 } },
     });
     const dono = moras.find(
       (m) =>
@@ -5000,7 +5001,7 @@ export class MobileAuthService {
 
   /** Resolve o Moradores.id do usuário no condomínio (ou o mais provável). */
   private async resolveMoradorId(idUser: number, idCondominio?: number): Promise<{ id: number; id_condominio: number } | null> {
-    const where: any = { id_user: idUser };
+    const where: any = { id_user: idUser, condominio: { ativo: 1 } };
     if (idCondominio) where.id_condominio = idCondominio;
     const morador = await this.prisma.moradores.findFirst({ where });
     if (!morador || !morador.id_condominio) return null;
@@ -5188,7 +5189,7 @@ export class MobileAuthService {
     // Preferimos o vínculo em Apartamentos_Users (id_apto direto); se não houver,
     // caímos no match por bloco/apto do registro de Moradores.
     const rel = await this.prisma.apartamentos_Users.findFirst({
-      where: { id_user: idUser, apartamento: { id_condominio: m.id_condominio } },
+      where: { id_user: idUser, apartamento: { id_condominio: m.id_condominio, condominio: { ativo: 1 } } },
       include: { apartamento: true },
     });
     let apto = rel?.apartamento ?? null;
