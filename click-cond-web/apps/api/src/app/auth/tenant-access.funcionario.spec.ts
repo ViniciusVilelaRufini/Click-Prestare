@@ -34,7 +34,7 @@ describe('TenantAccessService — vínculo do funcionário', () => {
 
     await expect(service.assertCondominio(4, funcionario)).resolves.toBeUndefined();
     expect(prisma.funcionarios.findFirst).toHaveBeenCalledWith({
-      where: { id_user: 46, id_condominio: 4 },
+      where: { id_user: 46, id_condominio: 4, condominio: { ativo: 1 } },
       select: { id: true },
     });
     // Não deve exigir vínculo de morador para liberar.

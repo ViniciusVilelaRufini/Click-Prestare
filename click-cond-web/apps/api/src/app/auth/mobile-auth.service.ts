@@ -161,6 +161,20 @@ export class MobileAuthService {
     return isMatch;
   }
 
+  /**
+   * Condomínio desativado no CRM não oferece acesso pelo app (a web já corta no login). Recebe os
+   * vínculos do usuário já com `condominio.ativo`: se há vínculos e TODOS são de condomínio inativo,
+   * recusa. Com ao menos um ativo entra — os inativos nem aparecem nas listas (list-condominios) e
+   * assertCondominio os nega. Sem vínculo algum, mantém o comportamento anterior.
+   */
+  private recusarSeSoCondominiosInativos(vinculos: Array<{ condominio?: { ativo: number } | null } | null | undefined> | undefined) {
+    const lista = (vinculos ?? []).filter((v): v is { condominio?: { ativo: number } | null } => !!v);
+    if (lista.length === 0) return;
+    if (lista.every((v) => v.condominio != null && Number(v.condominio.ativo) !== 1)) {
+      throw new UnauthorizedException('O acesso deste condomínio está suspenso. Fale com a administração.');
+    }
+  }
+
   // ==========================================
   // SÍNDICO
   // ==========================================
@@ -176,7 +190,10 @@ export class MobileAuthService {
 
     const user = await this.prisma.users.findFirst({
       where: { login },
-      include: { sindicos: true },
+      include: {
+        sindicos: true,
+        sindicosCondominios: { select: { condominio: { select: { ativo: true } } } },
+      },
     });
 
     if (!user || !user.sindicos || user.sindicos.length === 0) {
@@ -188,6 +205,8 @@ export class MobileAuthService {
     if (!isMatch) {
       throw new UnauthorizedException('Login ou Senha incorretos');
     }
+
+    this.recusarSeSoCondominiosInativos(user.sindicosCondominios);
 
     // Se o serviço de MFA estiver ativo, valida se o aparelho é confiável
     if (this.mfa) {
@@ -675,7 +694,10 @@ export class MobileAuthService {
 
     const user = await this.prisma.users.findFirst({
       where: { OR: [{ login }, { email: login }] },
-      include: { moradores: true },
+      include: {
+        moradores: { include: { condominio: { select: { ativo: true } } } },
+        apartamentosUsers: { select: { apartamento: { select: { condominio: { select: { ativo: true } } } } } },
+      },
     });
 
     if (!user || !user.moradores || user.moradores.length === 0) {
@@ -687,6 +709,11 @@ export class MobileAuthService {
     if (!isMatch) {
       throw new UnauthorizedException('Login ou Senha incorretos');
     }
+
+    this.recusarSeSoCondominiosInativos([
+      ...user.moradores,
+      ...(user.apartamentosUsers ?? []).map((a) => a.apartamento),
+    ]);
 
     const morador = user.moradores[0];
     const userObj = { id: user.id, nome: morador.nome, photo: user.photo ?? '' };
@@ -782,7 +809,7 @@ export class MobileAuthService {
           { email: cleanLogin },
         ],
       },
-      include: { funcionarios: true },
+      include: { funcionarios: { include: { condominio: { select: { ativo: true } } } } },
     });
 
     // Se o usuário não existe em Users ou não tem o vínculo na tabela Funcionarios,
@@ -795,6 +822,7 @@ export class MobileAuthService {
             { email: cleanLogin },
           ],
         },
+        include: { condominio: { select: { ativo: true } } },
       });
 
       if (!portaria) {
@@ -823,6 +851,8 @@ export class MobileAuthService {
       ) {
         throw new UnauthorizedException('Login ou Senha incorretos');
       }
+
+      this.recusarSeSoCondominiosInativos([portaria]);
 
       const senhaHash = portaria.password.startsWith('$2')
         ? portaria.password
@@ -865,7 +895,7 @@ export class MobileAuthService {
             is_sindico: 0,
             is_morador: 0,
           },
-          include: { funcionarios: true },
+          include: { funcionarios: { include: { condominio: { select: { ativo: true } } } } },
         });
       } else {
         await this.prisma.users.update({
@@ -959,7 +989,9 @@ export class MobileAuthService {
       throw new UnauthorizedException('Login ou Senha incorretos');
     }
 
-    const func = user.funcionarios[0];
+    this.recusarSeSoCondominiosInativos(user.funcionarios);
+
+    const func = user.funcionarios.find((f) => f.condominio?.ativo !== 0) ?? user.funcionarios[0];
     const userObj = {
       id: user.id,
       nome: func.nome,

@@ -67,6 +67,8 @@ export class TenantAccessService {
       throw new ForbiddenException('Acesso negado: não foi possível validar o vínculo.');
     }
 
+    // Condomínio desativado no CRM derruba o vínculo: as consultas de vínculo abaixo exigem
+    // `condominio.ativo = 1`, o mesmo corte que a web faz no login.
     const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? (payload as any).role ?? '').toString().toLowerCase();
 
     if (
@@ -81,7 +83,7 @@ export class TenantAccessService {
 
     if (tipo === 'sindico' || (payload as any).is_sindico === 1 || payload.user?.is_sindico === 1) {
       const vinc = await this.prisma.sindicos_Condominios.findFirst({
-        where: { id_user: userId, id_condominio: condId },
+        where: { id_user: userId, id_condominio: condId, condominio: { ativo: 1 } },
         select: { id: true },
       });
       if (vinc) return;
@@ -109,7 +111,7 @@ export class TenantAccessService {
       if (payload.id_condominio === condId) return;
 
       const vincFunc = await this.prisma.funcionarios.findFirst({
-        where: { id_user: userId, id_condominio: condId },
+        where: { id_user: userId, id_condominio: condId, condominio: { ativo: 1 } },
         select: { id: true },
       });
       if (vincFunc) return;
@@ -124,7 +126,7 @@ export class TenantAccessService {
 
     // Morador mobile: precisa ter ao menos um apartamento neste condomínio.
     const vinc = await this.prisma.apartamentos_Users.findFirst({
-      where: { id_user: userId, apartamento: { id_condominio: condId } },
+      where: { id_user: userId, apartamento: { id_condominio: condId, condominio: { ativo: 1 } } },
       select: { id_apto: true },
     });
     if (!vinc) {
