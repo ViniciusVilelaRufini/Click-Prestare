@@ -16,6 +16,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'anexo_ia.dart';
 import 'resposta_formatada.dart';
 import 'telas_app.dart';
 
@@ -390,16 +391,30 @@ class _ChatIaPageState extends State<ChatIaPage> {
   // Anexos (Câmera / Galeria / Arquivo)
   // ==========================================================================
 
-  Future<void> _processarArquivo(String caminho, String nome, String mimeType) async {
+  /// O tipo do anexo sai dos bytes (ver anexo_ia.dart), não do nome do arquivo.
+  Future<void> _processarArquivo(String caminho, String nome) async {
     try {
       final file = io.File(caminho);
       if (!await file.exists()) return;
       final bytes = await file.readAsBytes();
-      if (bytes.lengthInBytes > 10 * 1024 * 1024) {
+      if (bytes.lengthInBytes > kMaxAnexoIaBytes) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('O arquivo é muito grande (máximo 10MB).'),
+            content: Text('O arquivo é muito grande (máximo 5 MB).'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+      // O tipo vale pelos bytes, como na API: um GIF ou HEIC da galeria com
+      // rótulo de JPEG seria recusado lá de qualquer jeito.
+      final mimeType = mimeAceitoAnexoIa(bytes);
+      if (mimeType == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(kMsgAnexoIaRecusado),
             backgroundColor: AppColors.error,
           ),
         );
@@ -440,7 +455,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
         imageQuality: 85,
       );
       if (picked != null) {
-        await _processarArquivo(picked.path, picked.name, 'image/jpeg');
+        await _processarArquivo(picked.path, picked.name);
       }
     } catch (e) {
       if (!mounted) return;
@@ -460,9 +475,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
         imageQuality: 85,
       );
       if (picked != null) {
-        final ext = picked.name.split('.').last.toLowerCase();
-        final mime = ext == 'png' ? 'image/png' : (ext == 'webp' ? 'image/webp' : 'image/jpeg');
-        await _processarArquivo(picked.path, picked.name, mime);
+        await _processarArquivo(picked.path, picked.name);
       }
     } catch (e) {
       if (!mounted) return;
@@ -476,13 +489,11 @@ class _ChatIaPageState extends State<ChatIaPage> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
+        allowedExtensions: kExtensoesAnexoIa,
       );
       if (result != null && result.files.isNotEmpty && result.files.single.path != null) {
         final f = result.files.single;
-        final ext = (f.extension ?? '').toLowerCase();
-        final mime = ext == 'pdf' ? 'application/pdf' : (ext == 'png' ? 'image/png' : 'image/jpeg');
-        await _processarArquivo(f.path!, f.name, mime);
+        await _processarArquivo(f.path!, f.name);
       }
     } catch (e) {
       if (!mounted) return;

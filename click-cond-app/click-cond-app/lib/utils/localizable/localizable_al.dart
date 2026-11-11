@@ -541,6 +541,11 @@ class Localizable_Al {
     LocalizableModel(key: 'assinatura_anual', text: 'Jährlich'),
 
     LocalizableModel(key: 'meus_condominios', text: 'Meine Eigentumswohnungen'),
+    LocalizableModel(key: 'troca_email_titulo', text: 'Passwort bestätigen'),
+    LocalizableModel(key: 'troca_email_mensagem', text: 'Um die Anmelde-E-Mail zu ändern, geben Sie Ihr aktuelles Passwort ein.'),
+    LocalizableModel(key: 'btn_confirmar', text: 'Bestätigen'),
+    LocalizableModel(key: 'btn_cancelar', text: 'Abbrechen'),
+    LocalizableModel(key: 'categorias_definidas_prestare', text: 'Die Kategorien werden von Prestare festgelegt.'),
   ];
 
 }

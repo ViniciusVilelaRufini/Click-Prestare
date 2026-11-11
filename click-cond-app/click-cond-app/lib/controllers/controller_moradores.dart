@@ -6,6 +6,7 @@ import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/utils/troca_email.dart';
 
 final _kTimeout = ApiConfig.timeout;
 
@@ -105,25 +106,28 @@ getCondominiosMorador() async {
   }
 }
 
-updateMoradorApi(dynamic morador) async {
+/// Autoedição do perfil do morador. [senhaAtual] vai junto do e-mail quando
+/// ele troca o próprio e-mail de acesso — a API recusa a troca sem ela.
+/// Devolve "" no sucesso ou a mensagem de erro da API.
+updateMoradorApi(dynamic morador, {String? senhaAtual}) async {
   final url = _buildUri('/moradores/update');
   final body = json.encode({
     "id_condominio": Singleton.instance.id_condominio.toString(),
-    "morador": morador,
+    "morador": comSenhaAtual(morador, senhaAtual),
   });
+  http.Response response;
   try {
-    final response = await ApiClient.post(url, body: body)
+    response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
-    if (response.statusCode == 200) {
-      final parsed = jsonDecode(response.body) as Map<String, dynamic>;
-      storageMorador(parsed);
-      return "";
-    }
-    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
-    return parsed["message"] ?? "Houve um erro, tente novamente!";
   } catch (e) {
-    rethrow;
+    return "Houve um erro, tente novamente!";
   }
+  if (response.statusCode == 200) {
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    storageMorador(parsed);
+    return "";
+  }
+  return mensagemDeErroApi(response.body);
 }
 
 updatePasswordMoradorApi(String senhaAtual, String senha) async {

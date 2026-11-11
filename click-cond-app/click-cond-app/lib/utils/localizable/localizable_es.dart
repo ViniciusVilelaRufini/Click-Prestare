@@ -540,6 +540,11 @@ class Localizable_Es {
           LocalizableModel(key: 'assinatura_anual', text: 'Anual'),
 
           LocalizableModel(key: 'meus_condominios', text: 'Mis Condominios'),
+          LocalizableModel(key: 'troca_email_titulo', text: 'Confirme su contraseña'),
+          LocalizableModel(key: 'troca_email_mensagem', text: 'Para cambiar el correo de acceso, ingrese su contraseña actual.'),
+          LocalizableModel(key: 'btn_confirmar', text: 'Confirmar'),
+          LocalizableModel(key: 'btn_cancelar', text: 'Cancelar'),
+          LocalizableModel(key: 'categorias_definidas_prestare', text: 'Las categorías las define Prestare.'),
       
         ];
       

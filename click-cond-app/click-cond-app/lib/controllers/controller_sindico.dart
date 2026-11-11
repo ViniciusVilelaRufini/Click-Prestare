@@ -327,31 +327,34 @@ signupSindico(String nome, String documento, String dn, String email,
   }
 }
 
+/// [senhaAtual] vai junto do e-mail quando o síndico troca o próprio e-mail de
+/// acesso — a API recusa a troca sem ela.
 updateSindico(String nome, String documento, String dn, String email,
-    String telefone, String? photo) async {
+    String telefone, String? photo, {String? senhaAtual}) async {
   final url = _buildUri('/sindico/update');
   final body = json.encode({
     "nome": nome,
     "email": email,
+    if (senhaAtual != null && senhaAtual.isNotEmpty) "senha_atual": senhaAtual,
     "date_birth": dn,
     "phone": telefone,
     "doc_identification": documento,
     'photo': photo,
   });
+  http.Response response;
   try {
-    final response = await ApiClient
+    response = await ApiClient
         .post(url, body: body)
         .timeout(_kTimeout);
-    if (response.statusCode == 200) {
-      final parsed = jsonDecode(response.body) as Map<String, dynamic>;
-      storageLogin(parsed);
-      return;
-    }
-    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
-    throw parsed["message"] ?? "Houve um erro, tente novamente!";
   } catch (e) {
-    rethrow;
+    throw "Houve um erro, tente novamente!";
   }
+  if (response.statusCode == 200) {
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    storageLogin(parsed);
+    return;
+  }
+  throw mensagemDeErroApi(response.body);
 }
 
 updatePasswordSindicoApi(String senhaAtual, String senha) async {

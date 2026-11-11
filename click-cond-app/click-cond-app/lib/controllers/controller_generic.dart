@@ -516,13 +516,12 @@ Future<RespostaIa> apiPerguntarChatIa(
         conversaId: parsed["conversa_id"]?.toString(),
       );
     }
-    try {
-      final parsed = jsonDecode(response.body);
-      return RespostaIa(parsed["message"]?.toString() ??
-          "Não consegui responder agora. Tente novamente.");
-    } catch (_) {
-      return RespostaIa("Não consegui responder agora. Tente novamente.");
-    }
+    // A recusa da API vira a resposta do assistente na conversa: 400 do anexo
+    // ("Arquivo não aceito...") e 429 da cota diária ("Limite diário...").
+    return RespostaIa(mensagemDeErroApi(
+      response.body,
+      fallback: "Não consegui responder agora. Tente novamente.",
+    ));
   } catch (e) {
     logDebug('[apiPerguntarChatIa] Erro: $e');
     return RespostaIa("Falha de comunicação com o servidor. Verifique sua conexão.");

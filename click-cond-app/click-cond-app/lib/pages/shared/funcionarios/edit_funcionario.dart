@@ -4,6 +4,7 @@ import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/utils/troca_email.dart';
 import 'package:click/pages/shared/funcionarios/new_funcionario_1.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -14,6 +15,7 @@ import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/dialog_senha_atual.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -37,6 +39,9 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
   var changed = false;
   var myId = -1;
 
+  /// E-mail como veio do servidor: trocar por outro exige a senha atual.
+  String _emailCarregado = '';
+
   @override
   void dispose() {
     txtNome.dispose(); txtDocumento.dispose();
@@ -58,6 +63,7 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
       txtNome.text = obj["nome"] ?? "";
       txtDocumento.text = obj["documento"] ?? "";
       txtEmail.text = obj["email"] ?? "";
+      _emailCarregado = txtEmail.text;
       txtTelefone.text = obj["telefone"] ?? "";
       imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
       if (imageFile != null && imageFile.toString().startsWith('http')) {
@@ -72,6 +78,11 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
   }
 
   Future<void> save() async {
+    String? senhaAtual;
+    if (emailDeAcessoMudou(_emailCarregado, txtEmail.text)) {
+      senhaAtual = await pedirSenhaAtualParaTrocaDeEmail(context);
+      if (senhaAtual == null || !mounted) return;
+    }
     try {
       setState(() => _isSaving = true);
       String? base64;
@@ -84,7 +95,7 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
         id: myId, nome: txtNome.text, documento: txtDocumento.text,
         email: txtEmail.text, telefone: txtTelefone.text, photo: base64,
       );
-      var res = await updateFuncionarioApi(funcionario);
+      var res = await updateFuncionarioApi(funcionario, senhaAtual: senhaAtual);
       if (!mounted) return;
       if (res.toString().isEmpty) {
         await displayMessage(context, getText('alert_success'), getText('alert_dados_alterados'));

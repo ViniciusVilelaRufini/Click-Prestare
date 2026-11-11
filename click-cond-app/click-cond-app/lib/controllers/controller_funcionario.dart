@@ -5,6 +5,7 @@ import 'package:click/utils/local_storage.dart';
 
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
+import 'package:click/utils/troca_email.dart';
 
 
 loginFuncionario(String login, String password) async {  
@@ -46,25 +47,29 @@ getCondominiosFuncionario() async {
   }
 }
 
-updateFuncionarioApi(dynamic funcionario) async {
+/// [senhaAtual] vai junto do e-mail quando o funcionário troca o próprio
+/// e-mail de acesso — a API recusa a troca sem ela.
+updateFuncionarioApi(dynamic funcionario, {String? senhaAtual}) async {
   var url = ApiConfig.buildUri('/funcionarios/update-infos');
   Map data = {
-    "funcionario": funcionario
+    "funcionario": comSenhaAtual(funcionario, senhaAtual),
   };
   var body = json.encode(data);
-  try{
-    var response = await ApiClient.post(url,body: body,);
-    if (response.statusCode == 200) {
-      var parsed = jsonDecode(response.body) as Map<String, dynamic>;
-      storageFuncionario(parsed);
-      return "";
-    } else {
-      var parsed = jsonDecode(response.body) as Map<String, dynamic>;
-      throw(parsed["message"]);
-    }
-  }catch(e){
-    throw("Houve um erro, tente novamente!");
+  http.Response response;
+  try {
+    response = await ApiClient.post(url, body: body);
+  } catch (e) {
+    logDebug(e);
+    throw "Houve um erro, tente novamente!";
   }
+  if (response.statusCode == 200) {
+    var parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    storageFuncionario(parsed);
+    return "";
+  }
+  // Antes a mensagem da API era engolida e virava "Houve um erro": o
+  // funcionário não via "informe sua senha atual" nem "e-mail em uso".
+  throw mensagemDeErroApi(response.body);
 }
 
 updatePasswordFuncionarioApi(String senhaAtual, String senha) async {

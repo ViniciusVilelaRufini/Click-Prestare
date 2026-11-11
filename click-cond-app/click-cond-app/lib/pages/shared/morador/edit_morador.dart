@@ -10,11 +10,13 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/utils/troca_email.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/dialog_senha_atual.dart';
 import 'package:easy_mask/easy_mask.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -45,6 +47,9 @@ class _EditMoradorPageState extends State<EditMorador> {
   var changed = false;
   var myId = -1;
 
+  /// E-mail como veio do servidor: trocar por outro exige a senha atual.
+  String _emailCarregado = '';
+
   @override
   void dispose() {
     txtNome.dispose(); txtDocumento.dispose(); txtDN.dispose();
@@ -67,6 +72,7 @@ class _EditMoradorPageState extends State<EditMorador> {
       txtNome.text = obj["nome"] ?? "";
       txtDocumento.text = obj["documento"] ?? "";
       txtEmail.text = obj["email"] ?? "";
+      _emailCarregado = txtEmail.text;
       txtDN.text = obj["data_nascimento"] ?? "";
       txtTelefone.text = obj["telefone"] ?? "";
       txtExtra1.text = obj["extra1"] ?? '';
@@ -87,6 +93,11 @@ class _EditMoradorPageState extends State<EditMorador> {
   }
 
   Future<void> save() async {
+    String? senhaAtual;
+    if (emailDeAcessoMudou(_emailCarregado, txtEmail.text)) {
+      senhaAtual = await pedirSenhaAtualParaTrocaDeEmail(context);
+      if (senhaAtual == null || !mounted) return;
+    }
     try {
       setState(() => _isSaving = true);
       String? base64;
@@ -101,7 +112,7 @@ class _EditMoradorPageState extends State<EditMorador> {
         extra1: txtExtra1.text, extra2: txtExtra2.text,
         extra3: txtExtra3.text, extra4: txtExtra4.text, photo: base64,
       );
-      var res = await updateMoradorApi(morador);
+      var res = await updateMoradorApi(morador, senhaAtual: senhaAtual);
       if (!mounted) return;
       if (res.toString().isEmpty) {
         await displayMessage(context, getText('alert_success'), getText('alert_dados_alterados'));

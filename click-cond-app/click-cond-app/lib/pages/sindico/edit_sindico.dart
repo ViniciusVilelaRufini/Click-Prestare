@@ -7,6 +7,7 @@ import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/utils/troca_email.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -15,6 +16,7 @@ import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/dialog_senha_atual.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -38,6 +40,9 @@ class _EditSindicoPageState extends State<EditSindico> {
   final txtEmail = TextEditingController();
   final txtTelefone = TextEditingController();
 
+  /// E-mail como veio do servidor: trocar por outro exige a senha atual.
+  String _emailCarregado = '';
+
   @override
   void dispose() {
     txtNome.dispose();
@@ -60,6 +65,7 @@ class _EditSindicoPageState extends State<EditSindico> {
       var obj = await apiGetDetails("sindico", 0); 
       txtNome.text = obj["name"] ?? "";
       txtEmail.text = obj["email"] ?? "";
+      _emailCarregado = txtEmail.text;
       txtDN.text = obj["date_birth"] ?? "";
       txtTelefone.text = obj["phone"] ?? "";
       txtDocumento.text = obj["doc_identification"] ?? "";
@@ -100,6 +106,12 @@ class _EditSindicoPageState extends State<EditSindico> {
         displayMessage(context, getText('alert_error'), getText('signup_erro_dt_nascimento'));
         return;
       }
+
+      String? senhaAtual;
+      if (emailDeAcessoMudou(_emailCarregado, txtEmail.text)) {
+        senhaAtual = await pedirSenhaAtualParaTrocaDeEmail(context);
+        if (senhaAtual == null || !mounted) return;
+      }
       
       setState(() => _isSaving = true);
       
@@ -116,7 +128,8 @@ class _EditSindicoPageState extends State<EditSindico> {
         txtDN.text, 
         txtEmail.text.trim(), 
         txtTelefone.text, 
-        base64
+        base64,
+        senhaAtual: senhaAtual,
       );          
       
       if (mounted) {

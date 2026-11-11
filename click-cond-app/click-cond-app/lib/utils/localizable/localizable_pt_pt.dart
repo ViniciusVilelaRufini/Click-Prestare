@@ -540,6 +540,11 @@ class Localizable_PtPt {
     LocalizableModel(key: 'assinatura_anual', text: 'Anual'),
 
     LocalizableModel(key: 'meus_condominios', text: 'Meus Condomínios'),
+    LocalizableModel(key: 'troca_email_titulo', text: 'Confirme a sua palavra-passe'),
+    LocalizableModel(key: 'troca_email_mensagem', text: 'Para alterar o e-mail de acesso, introduza a sua palavra-passe atual.'),
+    LocalizableModel(key: 'btn_confirmar', text: 'Confirmar'),
+    LocalizableModel(key: 'btn_cancelar', text: 'Cancelar'),
+    LocalizableModel(key: 'categorias_definidas_prestare', text: 'As categorias são definidas pela Prestare.'),
   ];
 
 }
