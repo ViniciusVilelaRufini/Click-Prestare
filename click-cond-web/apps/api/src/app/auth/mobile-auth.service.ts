@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
@@ -63,6 +63,8 @@ export function fotoDoSignup(photo: unknown, ehDataUrl: (v: string) => boolean):
 }
 
 // Mensagem única do signup público: não revela se foi o CPF ou o e-mail que já existe.
+// Toda falha de validarCodigoRedefinicao responde igual (ticket falso, expirado, código errado, esgotado).
+const MSG_CODIGO_INVALIDO = 'Código incorreto ou expirado. Confira o código ou solicite um novo.';
 const MSG_SIGNUP_GENERICA =
   'Não foi possível concluir o cadastro com esses dados. Se você já tem conta, entre ou recupere a senha.';
 
@@ -2901,7 +2903,7 @@ export class MobileAuthService {
     });
 
     if (!registro || !registro.codigo_hash) {
-      throw new BadRequestException('Código expirado ou inválido. Solicite um novo.');
+      throw new BadRequestException(MSG_CODIGO_INVALIDO);
     }
 
     if (registro.tentativas >= 5) {
@@ -2911,10 +2913,7 @@ export class MobileAuthService {
           data: { usado_em: new Date() },
         });
       } catch (_) {}
-      throw new HttpException(
-        'Muitas tentativas incorretas. O código foi invalidado por segurança.',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+      throw new BadRequestException(MSG_CODIGO_INVALIDO);
     }
 
     const isMatch = await bcrypt.compare(cleanCode, registro.codigo_hash);
@@ -2923,8 +2922,7 @@ export class MobileAuthService {
         where: { id: registro.id },
         data: { tentativas: { increment: 1 } },
       });
-      const restam = Math.max(0, 5 - (registro.tentativas + 1));
-      throw new UnauthorizedException(`Código incorreto. Restam ${restam} tentativa(s).`);
+      throw new BadRequestException(MSG_CODIGO_INVALIDO);
     }
 
     // Código válido! Gera reset_token descartável com hash SHA-256

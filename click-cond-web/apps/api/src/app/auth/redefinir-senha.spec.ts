@@ -463,7 +463,7 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       );
     });
 
-    it('validarCodigoRedefinicao: bloqueia e lança 429 se tentativas >= 5', async () => {
+    it('validarCodigoRedefinicao: bloqueia (resposta igual às demais falhas) se tentativas >= 5', async () => {
       prisma.redefinicoes_Senha.findFirst.mockResolvedValue({
         id: 301,
         ticket_id: 'ticket-123',
@@ -472,11 +472,11 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       });
 
       await expect(service.validarCodigoRedefinicao('ticket-123', '123456')).rejects.toThrow(
-        'Muitas tentativas incorretas. O código foi invalidado por segurança.',
+        'Código incorreto ou expirado. Confira o código ou solicite um novo.',
       );
     });
 
-    it('validarCodigoRedefinicao: incrementa tentativas e informa restante se código incorreto', async () => {
+    it('validarCodigoRedefinicao: incrementa tentativas (sem informar o restante) se código incorreto', async () => {
       const hash = await bcrypt.hash('654321', 10);
       prisma.redefinicoes_Senha.findFirst.mockResolvedValue({
         id: 302,
@@ -486,7 +486,7 @@ describe('Recuperação de Senha Segura via Deep Link (F2)', () => {
       });
 
       await expect(service.validarCodigoRedefinicao('ticket-123', '000000')).rejects.toThrow(
-        'Código incorreto. Restam 3 tentativa(s).',
+        'Código incorreto ou expirado. Confira o código ou solicite um novo.',
       );
 
       expect(prisma.redefinicoes_Senha.update).toHaveBeenCalledWith({

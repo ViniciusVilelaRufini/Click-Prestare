@@ -80,3 +80,64 @@ describe('saveMorador — não revela CPF de outra conta', () => {
     ).rejects.toThrow(MSG_MORADOR);
   });
 });
+
+describe('validarCodigoRedefinicao — falhas indistinguíveis', () => {
+  const MSG = 'Código incorreto ou expirado. Confira o código ou solicite um novo.';
+  const bcrypt = require('bcrypt');
+
+  function montar(registro: any) {
+    const prisma: any = {
+      redefinicoes_Senha: {
+        findFirst: jest.fn(async () => registro),
+        update: jest.fn(async () => ({})),
+      },
+    };
+    const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    return { svc, prisma };
+  }
+  const capturar = async (p: Promise<any>) => {
+    try {
+      await p;
+    } catch (e: any) {
+      return { status: e.getStatus(), body: e.getResponse() };
+    }
+    return null;
+  };
+
+  it('ticket inexistente, código errado (com e sem tentativas) e esgotado: mesmo status e corpo', async () => {
+    const hash = bcrypt.hashSync('123456', 4);
+    const cenarios = [
+      null,
+      { id: 1, codigo_hash: hash, tentativas: 0 },
+      { id: 1, codigo_hash: hash, tentativas: 4 },
+      { id: 1, codigo_hash: hash, tentativas: 5 },
+    ];
+    const respostas = [];
+    for (const c of cenarios) {
+      const { svc } = montar(c);
+      respostas.push(await capturar(svc.validarCodigoRedefinicao('t', '000000')));
+    }
+    expect(respostas[0]).not.toBeNull();
+    expect(respostas[0]!.status).toBe(400);
+    expect(JSON.stringify(respostas[0]!.body)).toContain(MSG);
+    for (const r of respostas) expect(r).toEqual(respostas[0]);
+  });
+
+  it('ticket real ainda é invalidado com 5 erros e conta tentativas', async () => {
+    const hash = bcrypt.hashSync('123456', 4);
+    const { svc, prisma } = montar({ id: 1, codigo_hash: hash, tentativas: 2 });
+    await capturar(svc.validarCodigoRedefinicao('t', '000000'));
+    expect(prisma.redefinicoes_Senha.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { tentativas: { increment: 1 } } });
+    const esgotado = montar({ id: 1, codigo_hash: hash, tentativas: 5 });
+    await capturar(esgotado.svc.validarCodigoRedefinicao('t', '000000'));
+    expect(esgotado.prisma.redefinicoes_Senha.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { usado_em: expect.any(Date) } });
+  });
+
+  it('sucesso inalterado', async () => {
+    const hash = bcrypt.hashSync('123456', 4);
+    const { svc } = montar({ id: 1, codigo_hash: hash, tentativas: 0 });
+    const r = await svc.validarCodigoRedefinicao('t', '123456');
+    expect(r.success).toBe(true);
+    expect(r.reset_token).toBeDefined();
+  });
+});
