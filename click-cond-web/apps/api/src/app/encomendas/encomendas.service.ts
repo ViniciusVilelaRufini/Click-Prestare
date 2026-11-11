@@ -9,6 +9,8 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import axios from 'axios';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
+import { COTA_ETIQUETA_CONDOMINIO_DIA, consumirCotaDiaria, limiteCota } from '../common/cota-ia';
 
 import { rotuloBloco } from '../common/rotulo-bloco.util';
 export interface CreateEncomendaDto {
@@ -39,7 +41,11 @@ export class EncomendasService implements OnModuleInit {
     private readonly auditoria: AuditoriaService,
     private readonly tenant: TenantAccessService,
     @Optional() private readonly ia?: IaClient,
-  ) {}
+  ) {
+    this.estado = new EstadoCompartilhado(prisma);
+  }
+
+  private readonly estado: EstadoCompartilhado;
 
   /**
    * Lê a foto da etiqueta com IA e tenta casar o destinatário com os moradores
@@ -59,8 +65,15 @@ export class EncomendasService implements OnModuleInit {
       throw new BadRequestException('A foto passa de 5 MB.');
     }
     const mimeType = m[1].toLowerCase().replace('image/jpg', 'image/jpeg');
+    if (!this.ia) return { leitura: leituraVazia(), destinatario: null };
+    // Cota só antes de chamar o modelo; fora do try para o 429 não virar leitura vazia.
+    await consumirCotaDiaria(this.estado, [
+      {
+        prefixo: `etiqueta-ia:cota:condominio:${idCondominio}`,
+        limite: limiteCota('ETIQUETA_IA_COTA_CONDOMINIO_DIA', COTA_ETIQUETA_CONDOMINIO_DIA),
+      },
+    ]);
     try {
-      if (!this.ia) return { leitura: leituraVazia(), destinatario: null };
       const resp = await this.ia.gerarComFerramentas(
         [{ role: 'user', parts: [{ text: PROMPT_ETIQUETA }, { inlineData: { mimeType, data: base64 } }] }],
         [],

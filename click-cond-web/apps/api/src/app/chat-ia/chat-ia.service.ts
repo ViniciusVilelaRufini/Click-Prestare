@@ -34,6 +34,14 @@ import { AgendaService } from '../agenda/agenda.service';
 import type { CartaoAcao } from './acao-pendente.store';
 import { agentesSemRedeInterna, urlExternaSegura } from '../common/url-segura.util';
 import { StorageService } from '../common/storage/storage.service';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
+import {
+  COTA_CHAT_CONDOMINIO_DIA,
+  COTA_CHAT_USUARIO_DIA,
+  consumirCotaDiaria,
+  limiteCota,
+} from '../common/cota-ia';
+import { validarAnexo } from './anexo-ia';
 
 const CHUNK_SIZE = 1200; // caracteres por trecho
 const CHUNK_OVERLAP = 200; // sobreposição p/ não cortar contexto no meio
@@ -51,6 +59,9 @@ const TITULO_MAX = 120;
  * indefinidamente.
  */
 const MAX_RODADAS_FERRAMENTA = 5;
+
+/** O anexo só vai na primeira rodada; nas outras vira este texto. */
+const TEXTO_ANEXO_JA_ENVIADO = '[anexo enviado na primeira mensagem]';
 
 /** Módulo registrado na auditoria para cada tipo de ação confirmada. */
 const MODULO_POR_ACAO: Record<string, string> = {
@@ -79,6 +90,7 @@ const MODULO_POR_ACAO: Record<string, string> = {
 @Injectable()
 export class ChatIaService {
   private readonly logger = new Logger(ChatIaService.name);
+  private readonly estado: EstadoCompartilhado;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -95,7 +107,9 @@ export class ChatIaService {
     private readonly agenda: AgendaService,
     // Bucket privado: o PDF de documento é baixado por link assinado.
     private readonly storage?: StorageService,
-  ) {}
+  ) {
+    this.estado = new EstadoCompartilhado(prisma);
+  }
 
   // =========================================================================
   // Fluxo principal
@@ -137,10 +151,14 @@ export class ChatIaService {
       throw new BadRequestException('id_condominio é obrigatório.');
     }
     const texto = (pergunta ?? '').toString().trim();
+    // Anexo sem conteúdo é tratado como ausente (como sempre foi).
+    if (arquivo && !arquivo.base64) arquivo = undefined;
     if (!texto && !arquivo) {
       throw new BadRequestException('A pergunta ou anexo não pode ser vazio.');
     }
     await this.tenant.assertCondominio(idCondominio, user);
+    // O tipo vem dos bytes, não do mime/nome informados pelo cliente.
+    if (arquivo) arquivo = { ...arquivo, mime_type: validarAnexo(String(arquivo.base64)) };
 
     const idUser = Number(user?.user?.id ?? user?.sub);
     const papel = this.papelDe(user);
@@ -178,6 +196,19 @@ export class ChatIaService {
 
     // O laço registra aqui a ação proposta durante o turno, se houver.
     const propostas: AcaoPendente[] = [];
+
+    // Cota: só aqui, imediatamente antes do modelo — falha anterior não gasta.
+    // Fica fora do try abaixo para o 429 não virar 503.
+    await consumirCotaDiaria(this.estado, [
+      {
+        prefixo: `chat-ia:cota:usuario:${idUser}`,
+        limite: limiteCota('CHAT_IA_COTA_USUARIO_DIA', COTA_CHAT_USUARIO_DIA),
+      },
+      {
+        prefixo: `chat-ia:cota:condominio:${idCondominio}`,
+        limite: limiteCota('CHAT_IA_COTA_CONDOMINIO_DIA', COTA_CHAT_CONDOMINIO_DIA),
+      },
+    ]);
 
     let resposta: string;
     try {
@@ -305,6 +336,8 @@ export class ChatIaService {
     ];
 
     for (let rodada = 0; rodada < MAX_RODADAS_FERRAMENTA; rodada++) {
+      // Reenviar o anexo a cada rodada multiplicaria o custo da pergunta.
+      if (rodada === 1) this.removerAnexos(contents);
       const r = await this.ia.gerarComFerramentas(contents, declaracoes, instrucao);
 
       if (r.chamadas.length === 0) {
@@ -330,6 +363,12 @@ export class ChatIaService {
 
     this.logger.warn(`limite de ${MAX_RODADAS_FERRAMENTA} rodadas de ferramenta atingido`);
     return 'Não consegui concluir essa consulta. Tente reformular a pergunta.';
+  }
+
+  private removerAnexos(contents: ConteudoGemini[]) {
+    for (const c of contents) {
+      c.parts = c.parts.map((p: any) => (p?.inlineData ? { text: TEXTO_ANEXO_JA_ENVIADO } : p));
+    }
   }
 
   /**

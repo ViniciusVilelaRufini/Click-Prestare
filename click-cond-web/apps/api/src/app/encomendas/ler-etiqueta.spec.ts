@@ -125,3 +125,41 @@ describe('casarMorador - correcoes', () => {
     expect(casarMorador(leitura({ nome: 'Rafael Costa', apto: '106' }), ms)?.apto).toBe('106');
   });
 });
+
+describe('EncomendasService.lerEtiqueta - cota diária por condomínio', () => {
+  const env = { ...process.env };
+  afterEach(() => {
+    process.env = { ...env };
+  });
+  const tenantOk: any = { assertCondominio: jest.fn(async () => {}) };
+  const user: any = { sub: 1, id_condominio: 1 };
+  const img = 'data:image/jpeg;base64,/9j/AAAA';
+  const mk = (ia: any) => {
+    const prisma: any = { moradores: { findMany: jest.fn(async () => []) } };
+    return new EncomendasService(prisma, {} as any, {} as any, {} as any, tenantOk, ia);
+  };
+
+  it('estourou -> 429 e não chama a IA; outro condomínio segue livre', async () => {
+    process.env['ETIQUETA_IA_COTA_CONDOMINIO_DIA'] = '2';
+    const ia: any = { gerarComFerramentas: jest.fn(async () => ({ texto: '{}' })) };
+    const svc = mk(ia);
+    await svc.lerEtiqueta(1, user, img);
+    await svc.lerEtiqueta(1, user, img);
+    await expect(svc.lerEtiqueta(1, user, img)).rejects.toMatchObject({
+      status: 429,
+      message: 'Limite diário do assistente atingido. Tente novamente amanhã.',
+    });
+    expect(ia.gerarComFerramentas).toHaveBeenCalledTimes(2);
+    await svc.lerEtiqueta(2, user, img);
+    expect(ia.gerarComFerramentas).toHaveBeenCalledTimes(3);
+  });
+
+  it('imagem inválida não consome cota', async () => {
+    process.env['ETIQUETA_IA_COTA_CONDOMINIO_DIA'] = '1';
+    const ia: any = { gerarComFerramentas: jest.fn(async () => ({ texto: '{}' })) };
+    const svc = mk(ia);
+    await expect(svc.lerEtiqueta(1, user, 'lixo')).rejects.toBeInstanceOf(BadRequestException);
+    await svc.lerEtiqueta(1, user, img);
+    expect(ia.gerarComFerramentas).toHaveBeenCalledTimes(1);
+  });
+});
