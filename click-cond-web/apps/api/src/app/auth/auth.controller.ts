@@ -57,7 +57,7 @@ export class AuthController {
 
   // 2ª etapa do login de síndico no console (código enviado por e-mail).
   @Public()
-  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
+  @Throttle({ medium: { limit: 10, ttl: 10 * 60_000 } })
   @Post('login-portaria/mfa')
   @HttpCode(200)
   verificarMfaPortaria(

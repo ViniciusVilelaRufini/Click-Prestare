@@ -140,16 +140,26 @@ export class MfaService {
       );
     }
 
+    // Reserva a tentativa ANTES de conferir o código (atômico): requisições paralelas não leem o
+    // mesmo contador e cada uma só testa um código se conseguiu uma vaga.
+    const reserva = await this.prisma.mfa_Challenges.updateMany({
+      where: { id: challenge.id, tentativas: { lt: MAX_TENTATIVAS }, expires_at: { gt: new Date() } },
+      data: { tentativas: { increment: 1 } },
+    });
+    if (Number(reserva?.count ?? 0) !== 1) {
+      await this.prisma.mfa_Challenges.deleteMany({ where: { id: challenge.id } }).catch(() => null);
+      throw new HttpException(
+        'Muitas tentativas incorretas. O código foi invalidado por segurança.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const isMatch = await bcrypt.compare(String(code).trim(), challenge.code_hash);
     if (!isMatch) {
-      await this.prisma.mfa_Challenges.update({
-        where: { id: challenge.id },
-        data: { tentativas: { increment: 1 } },
-      });
       const restam = Math.max(0, MAX_TENTATIVAS - (challenge.tentativas + 1));
       if (restam === 0) {
         // Esgotou: apaga o desafio, o próximo passo é novo login com senha.
-        await this.prisma.mfa_Challenges.delete({ where: { id: challenge.id } }).catch(() => null);
+        await this.prisma.mfa_Challenges.deleteMany({ where: { id: challenge.id } }).catch(() => null);
         throw new HttpException(
           'Muitas tentativas incorretas. O código foi invalidado por segurança.',
           HttpStatus.TOO_MANY_REQUESTS,
@@ -158,8 +168,11 @@ export class MfaService {
       throw new UnauthorizedException(`Código incorreto. Restam ${restam} tentativa(s).`);
     }
 
-    // Código correto: apaga o desafio para evitar replay
-    await this.prisma.mfa_Challenges.delete({ where: { id: challenge.id } }).catch(() => null);
+    // Código correto: consome o desafio de forma exclusiva (só um chamador emite token).
+    const consumido = await this.prisma.mfa_Challenges.deleteMany({ where: { id: challenge.id } });
+    if (Number(consumido?.count ?? 0) !== 1) {
+      throw new BadRequestException('Código expirado ou inválido. Solicite um novo.');
+    }
 
     let deviceToken: string | undefined;
     if (rememberDevice) {
@@ -203,7 +216,7 @@ export class MfaService {
     };
   }
 
-  async resendChallenge(mfaToken: string): Promise<{ success: boolean; message: string }> {
+  async resendChallenge(mfaToken: string): Promise<{ success: boolean; message: string; expires_in_seconds: number }> {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível.');
     }
@@ -282,7 +295,9 @@ export class MfaService {
       throw new ServiceUnavailableException(MSG_ENVIO_FALHOU);
     }
 
-    return { success: true, message: 'Novo código enviado com sucesso!' };
+    // O app reinicia o contador da tela com este valor: o reenvio não estende a validade.
+    const expiresInSeconds = Math.max(0, Math.floor((new Date(challenge.expires_at).getTime() - Date.now()) / 1000));
+    return { success: true, message: 'Novo código enviado com sucesso!', expires_in_seconds: expiresInSeconds };
   }
 
   async checkMailHealth() {

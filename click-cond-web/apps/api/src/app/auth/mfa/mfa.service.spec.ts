@@ -23,7 +23,8 @@ describe('MfaService', () => {
         findFirst: jest.fn(),
         update: jest.fn().mockResolvedValue({ id: 1 }),
         delete: jest.fn().mockResolvedValue({ id: 1 }),
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       user_Trusted_Devices: {
         create: jest.fn().mockResolvedValue({ id: 1 }),
@@ -118,8 +119,8 @@ describe('MfaService', () => {
       await expect(service.verifyChallenge(TOKEN, '999999', false)).rejects.toThrow(
         UnauthorizedException,
       );
-      expect(prisma.mfa_Challenges.update).toHaveBeenCalledWith({
-        where: { id: 1 },
+      expect(prisma.mfa_Challenges.updateMany).toHaveBeenCalledWith({
+        where: { id: 1, tentativas: { lt: 5 }, expires_at: { gt: expect.any(Date) } },
         data: { tentativas: { increment: 1 } },
       });
     });
@@ -143,7 +144,7 @@ describe('MfaService', () => {
 
       expect(res.token).toBe('jwt-token-sindico-123');
       expect(res.user.name).toBe('Carlos Síndico');
-      expect(prisma.mfa_Challenges.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(prisma.mfa_Challenges.deleteMany).toHaveBeenCalledWith({ where: { id: 1 } });
       expect(prisma.user_Trusted_Devices.create).not.toHaveBeenCalled();
     });
 
@@ -220,6 +221,34 @@ describe('MfaService', () => {
     );
   });
 
+  describe('verify: concorrência', () => {
+    const desafioOk = async () => ({
+      id: 1,
+      id_user: 42,
+      code_hash: await bcrypt.hash('123456', 10),
+      tentativas: 0,
+      expires_at: new Date(Date.now() + 100000),
+      user: { id: 42, photo: '', sindicos: [{ name: 'Carlos' }] },
+    });
+
+    it('sem vaga de tentativa (updateMany count 0): recusa, apaga e nem chama bcrypt', async () => {
+      prisma.mfa_Challenges.findFirst.mockResolvedValue(await desafioOk());
+      prisma.mfa_Challenges.updateMany.mockResolvedValue({ count: 0 });
+      const spy = jest.spyOn(bcrypt, 'compare');
+      await expect(service.verifyChallenge(TOKEN, '123456', false)).rejects.toThrow(HttpException);
+      expect(spy).not.toHaveBeenCalled();
+      expect(prisma.mfa_Challenges.deleteMany).toHaveBeenCalledWith({ where: { id: 1 } });
+      spy.mockRestore();
+    });
+
+    it('acerto que perdeu a disputa pelo consumo (deleteMany count 0) não emite token', async () => {
+      prisma.mfa_Challenges.findFirst.mockResolvedValue(await desafioOk());
+      prisma.mfa_Challenges.deleteMany.mockResolvedValue({ count: 0 });
+      await expect(service.verifyChallenge(TOKEN, '123456', false)).rejects.toThrow(BadRequestException);
+      expect(jwt.sign).not.toHaveBeenCalled();
+    });
+  });
+
   describe('verify: tentativas esgotadas', () => {
     it('apaga o desafio quando o erro atual esgota as tentativas', async () => {
       prisma.mfa_Challenges.findFirst.mockResolvedValue({
@@ -231,7 +260,7 @@ describe('MfaService', () => {
         user: { id: 42, sindicos: [] },
       });
       await expect(service.verifyChallenge(TOKEN, '999999', false)).rejects.toThrow(HttpException);
-      expect(prisma.mfa_Challenges.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(prisma.mfa_Challenges.deleteMany).toHaveBeenCalledWith({ where: { id: 1 } });
     });
   });
 
@@ -263,6 +292,13 @@ describe('MfaService', () => {
       expect(data).not.toHaveProperty('tentativas');
       expect(data).not.toHaveProperty('expires_at');
       expect(mail.sendMfaCode).toHaveBeenCalledTimes(1);
+    });
+
+    it('devolve expires_in_seconds = segundos restantes do desafio', async () => {
+      prisma.mfa_Challenges.findFirst.mockResolvedValue(desafio());
+      const res = await service.resendChallenge(TOKEN);
+      expect(res.expires_in_seconds).toBeGreaterThanOrEqual(298);
+      expect(res.expires_in_seconds).toBeLessThanOrEqual(300);
     });
 
     it('recusa o quarto reenvio do mesmo desafio', async () => {
