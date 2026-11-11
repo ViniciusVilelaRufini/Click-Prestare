@@ -11,7 +11,7 @@ describe('EncomendasService.retirar', () => {
       },
     };
     const auditoria: any = { registrar: jest.fn() };
-    const storage: any = { isDataUrl: jest.fn(() => false) };
+    const storage: any = { isDataUrl: jest.fn(() => false), exigirArquivoDoRegistro: jest.fn(async () => undefined) };
     const tenant: any = { assertEntidade: jest.fn(async () => {}) };
     const service = new EncomendasService(
       prisma,

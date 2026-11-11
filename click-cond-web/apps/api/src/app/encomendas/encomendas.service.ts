@@ -4,7 +4,7 @@ import { casarMorador, extrairLeitura, leituraVazia, LeituraEtiqueta } from './l
 import { PrismaService } from '../prisma/prisma.service';
 import { executarComLock } from '../common/lock-distribuido';
 import { NotificationsService } from '../notifications/notifications.service';
-import { StorageService } from '../common/storage/storage.service';
+import { StorageService, umaVez } from '../common/storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
@@ -287,6 +287,8 @@ export class EncomendasService implements OnModuleInit {
     }
 
     let fotoUrl: string | null = dto.foto_volume ?? null;
+    // Encomenda nova não tem foto gravada: URL do bucket nunca é dela.
+    await this.storage.exigirArquivoDoRegistro(fotoUrl, []);
     if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
       fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? null;
     }
@@ -411,6 +413,17 @@ export class EncomendasService implements OnModuleInit {
     }
 
     await this.assertEncomendaDoTenant(id, operador);
+
+    // Assinatura e foto da retirada: URL do bucket só se for a desta encomenda.
+    const gravados = umaVez(async () => {
+      const e = await this.prisma.encomendas.findUnique({
+        where: { id: Number(id) },
+        select: { retirado_assinatura: true, retirado_foto: true },
+      });
+      return [e?.retirado_assinatura, e?.retirado_foto];
+    });
+    await this.storage.exigirArquivoDoRegistro(retiradoAssinatura, gravados);
+    await this.storage.exigirArquivoDoRegistro(retiradoFoto, gravados);
 
     let assinaturaUrl: string | null = retiradoAssinatura ?? null;
     if (assinaturaUrl && this.storage.isDataUrl(assinaturaUrl)) {
@@ -618,12 +631,13 @@ export class EncomendasService implements OnModuleInit {
     if (!this.prisma.isConnected) return { id, ...dto };
     const existing = await this.prisma.encomendas.findUnique({
       where: { id: Number(id) },
-      select: { id_condominio: true },
+      select: { id_condominio: true, foto_volume: true },
     });
     if (!existing) throw new NotFoundException(`Encomenda ${id} não encontrada`);
     await this.tenant.assertEntidade(existing.id_condominio, operador, `encomenda #${id}`);
 
     let fotoUrl = dto.foto_volume;
+    await this.storage.exigirArquivoDoRegistro(fotoUrl, [existing.foto_volume]);
     if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
       fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? undefined;
     }

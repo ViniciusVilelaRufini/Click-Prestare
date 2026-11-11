@@ -25,7 +25,7 @@ describe('DocumentosService — indexação para o assistente', () => {
         delete: jest.fn(async () => ({})),
       },
     };
-    const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
+    const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn(), exigirArquivoDoRegistro: jest.fn(async () => undefined) };
     const tenant: any = {
       assertCondominio: jest.fn(async () => undefined),
       assertEntidade: jest.fn(async () => undefined),

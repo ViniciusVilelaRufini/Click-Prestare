@@ -8,7 +8,7 @@ import type { Prisma } from '../prisma/generated';
 // bloco (ou fazem rollback juntas).
 type PrismaTx = Prisma.TransactionClient;
 import { NotificationsService } from '../notifications/notifications.service';
-import { StorageService } from '../common/storage/storage.service';
+import { type Gravados, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertOperador } from '../auth/tenant.util';
@@ -183,9 +183,11 @@ export class AreasSociaisService {
    * falhar ou o storage estiver desativado (e portanto devolver o próprio
    * data URL gigante), caímos na imagem padrão para nunca estourar a coluna.
    */
-  private async resolveImagem(imagem: unknown): Promise<string> {
+  private async resolveImagem(imagem: unknown, gravados: Gravados): Promise<string> {
     const valor = typeof imagem === 'string' ? imagem : '';
 
+    // URL do bucket só se for a imagem que a área já tem (exigirArquivoDoRegistro).
+    await this.storage.exigirArquivoDoRegistro(valor, gravados);
     if (this.storage.isDataUrl(valor)) {
       const uploaded = await this.storage.uploadDataUrl(valor, 'areas-sociais');
       if (uploaded && !this.storage.isDataUrl(uploaded)) {
@@ -212,7 +214,7 @@ export class AreasSociaisService {
     }
 
     // Upload do arquivo de imagem (data URL) ou validação da URL informada.
-    const imagemUrl = await this.resolveImagem(areaSocial.imagem);
+    const imagemUrl = await this.resolveImagem(areaSocial.imagem, []);
 
     const horariosStr = typeof areaSocial.horarios === 'string'
       ? areaSocial.horarios
@@ -251,7 +253,13 @@ export class AreasSociaisService {
       return { success: true };
     }
 
-    const imagemUrl = await this.resolveImagem(areaSocial.imagem);
+    const imagemUrl = await this.resolveImagem(areaSocial.imagem, async () => {
+      const atual = await this.prisma.areas_Sociais.findFirst({
+        where: { id: Number(areaSocial.id), id_condominio: Number(idCondominio) },
+        select: { imagem: true },
+      });
+      return [atual?.imagem];
+    });
 
     // Mesma regra de `regras`/`limite_mensal_apto` (ver abaixo): chave ausente
     // = "não mexe nessa coluna". Sem isto, qualquer cliente que não mandasse

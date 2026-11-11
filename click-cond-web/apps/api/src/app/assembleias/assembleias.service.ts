@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StorageService } from '../common/storage/storage.service';
+import { type Gravados, StorageService, umaVez } from '../common/storage/storage.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -14,8 +14,15 @@ export class AssembleiasService {
     private readonly tenant: TenantAccessService,
   ) {}
 
-  private async uploadDocs(docs: unknown, prefix: string): Promise<string[]> {
+  /**
+   * `gravados`: anexos que a assembleia já tem. URL do bucket que não é um
+   * deles é recusada (StorageService.exigirArquivoDoRegistro) — a API assina
+   * toda URL do bucket que devolve.
+   */
+  private async uploadDocs(docs: unknown, prefix: string, gravados: Gravados): Promise<string[]> {
     if (!Array.isArray(docs)) return [];
+    const atuais = typeof gravados === 'function' ? umaVez(async () => gravados()) : gravados;
+    for (const doc of docs) await this.storage.exigirArquivoDoRegistro(doc, atuais);
     const out: string[] = [];
     for (const doc of docs) {
       if (typeof doc !== 'string') continue;
@@ -29,6 +36,15 @@ export class AssembleiasService {
     return out;
   }
 
+  /** Anexos já gravados na assembleia (coluna `anexos`, separados por ';'). */
+  private async anexosGravados(idAssembleia: number, idCondominio: number): Promise<string[]> {
+    const atual = await this.prisma.assembleias.findFirst({
+      where: { id: idAssembleia, id_condominio: idCondominio },
+      select: { anexos: true },
+    });
+    return (atual?.anexos ?? '').split(';').filter(Boolean);
+  }
+
   // ==========================================
   // ASSEMBLEIAS
   // ==========================================
@@ -37,8 +53,9 @@ export class AssembleiasService {
     await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) return { success: true };
 
-    // Processar anexos (docs) — upload real para R2 quando vierem em base64
-    const listDocs = await this.uploadDocs(assembleia.docs, 'assembleias');
+    // Processar anexos (docs) — upload real para R2 quando vierem em base64.
+    // Assembleia nova não tem anexo gravado.
+    const listDocs = await this.uploadDocs(assembleia.docs, 'assembleias', []);
 
     // Datas no formato YYYY-MM-DD ou DD/MM/YYYY
     let dataObj: Date | undefined;
@@ -92,7 +109,9 @@ export class AssembleiasService {
     await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) return { success: true };
 
-    const listDocs = await this.uploadDocs(assembleia.docs, 'assembleias');
+    const listDocs = await this.uploadDocs(assembleia.docs, 'assembleias', () =>
+      this.anexosGravados(Number(assembleia.id), Number(idCondominio)),
+    );
 
     let dataObj: Date | undefined;
     if (assembleia.data) {
@@ -232,6 +251,10 @@ export class AssembleiasService {
     if (!alvo) throw new NotFoundException('Assembleia não encontrada');
     await this.tenant.assertEntidade(alvo.id_condominio, requester, `assembleia #${assembleia.id}`);
 
+    // A ATA pode ser um dos anexos da própria assembleia; outra URL do bucket, não.
+    await this.storage.exigirArquivoDoRegistro(assembleia.doc, () =>
+      this.anexosGravados(Number(assembleia.id), Number(idCondominio)),
+    );
     let linkDoc = '';
     if (this.storage.isDataUrl(assembleia.doc)) {
       linkDoc = (await this.storage.uploadDataUrl(assembleia.doc, 'atas')) ?? '';

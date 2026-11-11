@@ -172,7 +172,7 @@ describe('DeliveryService', () => {
     const notifications: any = { sendPushNotification: jest.fn(async () => undefined) };
     const tenant: any = { assertCondominio: jest.fn(async () => undefined), assertEntidade: jest.fn(async () => undefined) };
     return {
-      service: new DeliveryService(prisma, notifications, tenant),
+      service: new DeliveryService(prisma, notifications, tenant, { exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any),
       atendimentos,
       eventos,
       entregadores,

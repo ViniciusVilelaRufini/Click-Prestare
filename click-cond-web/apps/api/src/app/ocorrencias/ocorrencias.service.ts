@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
+import { StorageService } from '../common/storage/storage.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
@@ -45,6 +46,7 @@ export class OcorrenciasService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly tenant: TenantAccessService,
+    private readonly storage: StorageService,
   ) {}
 
   /**
@@ -244,6 +246,10 @@ export class OcorrenciasService {
   }
 
   async create(dto: CreateOcorrenciaDto) {
+    // Ocorrência nova: nenhuma URL do bucket é anexo dela (a API assina toda
+    // URL do bucket que devolve — ver StorageService.exigirArquivoDoRegistro).
+    await this.storage.exigirArquivoDoRegistro(dto.anexos, []);
+
     // Normaliza tipo: app Flutter pode enviar como string mas schema eh Int.
     const tipoNum = dto.tipo != null ? Number(dto.tipo) : null;
 

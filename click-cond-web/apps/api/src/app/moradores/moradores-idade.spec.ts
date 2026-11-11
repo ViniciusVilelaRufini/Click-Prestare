@@ -40,6 +40,7 @@ describe('MoradoresService - Validação de Menor de 18 Anos', () => {
     const mailMock: any = { sendWelcomeMorador: jest.fn().mockResolvedValue({}) };
     const storageMock: any = {
       isDataUrl: jest.fn().mockReturnValue(false),
+      exigirArquivoDoRegistro: jest.fn(async () => undefined),
       uploadDataUrl: jest.fn().mockResolvedValue('https://storage/foto.jpg'),
     };
     const facialMock: any = { syncMorador: jest.fn().mockResolvedValue({}) };
@@ -274,6 +275,7 @@ describe('MoradoresService.update - fecha o mesmo buraco de maioridade que exist
     const mailMock: any = { sendWelcomeMorador: jest.fn().mockResolvedValue({}) };
     const storageMock: any = {
       isDataUrl: jest.fn().mockReturnValue(true),
+      exigirArquivoDoRegistro: jest.fn(async () => undefined),
       uploadDataUrl: jest.fn().mockResolvedValue('https://storage/foto.jpg'),
     };
     const facialMock: any = { syncMorador: jest.fn().mockResolvedValue({}) };

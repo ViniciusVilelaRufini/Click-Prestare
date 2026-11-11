@@ -518,6 +518,9 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
           sem_facial: !biometriaAutorizada,
         } as any,
         user,
+        // A foto é a que este serviço gravou no convite (só aceita data URL),
+        // não um valor do cliente: a regra de arquivo do cliente não se aplica.
+        { arquivosDoServidor: true },
       );
 
       // `id_visitante` não tem FK (nunca teve) e serve só de marcador

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
@@ -64,6 +64,21 @@ export const PREFIXOS_FOTO_MORADOR: readonly string[] = ['moradores/'];
  */
 const VALIDADE_LINK_S = 60 * 60;
 const JANELA_ASSINATURA_MS = 15 * 60 * 1000;
+
+/** Resposta de `exigirArquivoDoRegistro` — sem detalhe de qual arquivo nem por quê. */
+export const MSG_ARQUIVO_INVALIDO = 'Arquivo inválido.';
+
+/** O que já está gravado na entidade: a lista, ou uma função que a carrega sob demanda. */
+export type Gravados = readonly unknown[] | (() => Promise<readonly unknown[]> | readonly unknown[]);
+
+/** Carrega uma vez só (dois campos da mesma entidade conferem contra a mesma consulta). */
+export function umaVez<T>(carregar: () => Promise<T>): () => Promise<T> {
+  let promessa: Promise<T> | undefined;
+  return () => {
+    if (!promessa) promessa = carregar();
+    return promessa;
+  };
+}
 
 @Injectable()
 export class StorageService {
@@ -220,6 +235,33 @@ export class StorageService {
   normalizarUrl<T>(url: T): T {
     const key = this.keyDoBucket(url);
     return (key ? `${this.publicUrl}/${key}` : url) as T;
+  }
+
+  /** true quando o valor é URL do NOSSO bucket (canônica, assinada ou outro host S3 dele). */
+  ehArquivoDoBucket(valor: unknown): boolean {
+    return this.keyDoBucket(valor) !== null;
+  }
+
+  /**
+   * Regra de todo campo de arquivo que recebe valor do cliente. A saída da API
+   * assina QUALQUER URL do bucket (ArquivosPrivadosInterceptor), então gravar
+   * uma URL do bucket qualquer era trocar uma URL guardada (de um ex-porteiro,
+   * por exemplo) por link novo para sempre. O campo só aceita:
+   *  (a) data URL nova — quem chama faz o upload;
+   *  (b) a MESMA chave já gravada naquela entidade (o cliente reenvia o que
+   *      recebeu, assinado ou não: a comparação é pela chave do objeto);
+   *  (c) vazio.
+   * Outra URL do bucket: 400. URL fora do bucket segue a regra de cada campo.
+   *
+   * `gravados` são os valores atuais da entidade; como função, só é carregada
+   * quando o valor de fato é URL do bucket (o caso comum não consulta o banco).
+   */
+  async exigirArquivoDoRegistro(valor: unknown, gravados: Gravados): Promise<void> {
+    const key = this.keyDoBucket(valor);
+    if (!key) return;
+    const atuais = typeof gravados === 'function' ? await gravados() : gravados;
+    if ((atuais ?? []).some((g) => this.keyDoBucket(g) === key)) return;
+    throw new BadRequestException(MSG_ARQUIVO_INVALIDO);
   }
 
   /**

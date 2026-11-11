@@ -51,7 +51,7 @@ describe('AreasSociaisService — flags areas_sociais e manutencoes_programadas'
       prisma,
       { enviarParaUsuario: jest.fn() } as any,
       // storage: o caminho de sucesso passa por isDataUrl ao salvar a foto da area.
-      { isDataUrl: jest.fn(() => false), uploadDataUrl: jest.fn(async () => null) } as any,
+      { isDataUrl: jest.fn(() => false), uploadDataUrl: jest.fn(async () => null), exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any,
       {} as any,
       tenant as any,
     );

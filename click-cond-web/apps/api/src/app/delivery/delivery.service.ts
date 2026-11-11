@@ -10,6 +10,7 @@ import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { isOperador } from '../auth/tenant.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../common/storage/storage.service';
 import {
   AtualizarEntregadorDto,
   AtualizarStatusDeliveryDto,
@@ -49,6 +50,7 @@ export class DeliveryService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly tenant: TenantAccessService,
+    private readonly storage: StorageService,
   ) {}
 
   async criarAviso(dto: CriarDeliveryDto, user: JwtPayload) {
@@ -307,6 +309,8 @@ export class DeliveryService {
     this.assertOperador(user, 'cadastrar entregador');
     if (!dto.nome?.trim()) throw new BadRequestException('Nome do entregador é obrigatório.');
     await this.tenant.assertCondominio(Number(dto.id_condominio), user);
+    // Entregador novo não tem foto gravada: URL do bucket nunca é dele.
+    await this.storage.exigirArquivoDoRegistro(dto.foto, []);
     return (this.prisma as any).$transaction(async (tx: any) => {
       const entregador = await tx.deliveryEntregadores.create({
         data: {
@@ -332,6 +336,7 @@ export class DeliveryService {
     if (dto.status === 'BLOQUEADO' && !dto.motivo_bloqueio?.trim()) {
       throw new BadRequestException('Bloqueio exige motivo.');
     }
+    await this.storage.exigirArquivoDoRegistro(dto.foto, [entregador.foto]);
     try {
       return await (this.prisma as any).$transaction(async (tx: any) => {
         await tx.deliveryEntregadores.update({

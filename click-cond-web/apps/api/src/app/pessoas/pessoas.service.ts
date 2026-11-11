@@ -109,6 +109,26 @@ export class PessoasService {
     return existente;
   }
 
+  /**
+   * Fotos da Pessoa que `obterOuCriar` reaproveitaria para este dto (mesma
+   * ordem: id_pessoa, documento, face_id) — é o que o cliente pode reenviar
+   * como URL do bucket. Pessoa nova: nenhuma.
+   */
+  async fotosDaPessoaExistente(idCondominio: number, dto: CriarPessoaDto): Promise<unknown[]> {
+    const select = { foto_pessoa: true, foto_documento: true } as const;
+    const docLimpo = PessoasService.normalizarDoc(dto.doc_identificacao);
+    const candidatos = [
+      dto.id_pessoa ? { id: Number(dto.id_pessoa) } : null,
+      docLimpo ? { doc_identificacao: docLimpo } : null,
+      dto.face_id ? { face_id: dto.face_id } : null,
+    ].filter(Boolean) as object[];
+    for (const where of candidatos) {
+      const p = await this.prisma.pessoas.findFirst({ where: { ...where, id_condominio: Number(idCondominio) }, select });
+      if (p) return [p.foto_pessoa, p.foto_documento];
+    }
+    return [];
+  }
+
   async obterOuCriar(idCondominio: number, dto: CriarPessoaDto, opts?: OpcoesObterOuCriar) {
     if (dto.id_pessoa) {
       const existente = await this.prisma.pessoas.findFirst({

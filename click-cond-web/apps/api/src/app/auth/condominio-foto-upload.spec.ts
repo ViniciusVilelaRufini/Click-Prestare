@@ -25,6 +25,7 @@ describe('updateInfosCondominio — nunca grava data URL na coluna photo', () =>
       isDataUrl: (v: unknown) =>
         typeof v === 'string' && v.startsWith('data:') && v.includes('base64,'),
       uploadDataUrl: jest.fn(async () => uploadRetorna),
+      exigirArquivoDoRegistro: jest.fn(async () => undefined),
     };
     const tenant: any = { assertCondominio: jest.fn(async () => undefined) };
 

@@ -141,7 +141,7 @@ describe('Pessoa compartilhada entre apartamentos — morador não reescreve ide
       assertCondominio: jest.fn(async () => undefined),
       assertPermissaoFuncionario: jest.fn(async () => undefined),
     };
-    const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
+    const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn(), exigirArquivoDoRegistro: jest.fn(async () => undefined) };
     const notifications: any = { sendPushNotification: jest.fn(), sendWhatsApp: jest.fn() };
     const service = new VisitantesService(
       prisma,

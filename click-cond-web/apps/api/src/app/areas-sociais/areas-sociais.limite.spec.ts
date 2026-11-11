@@ -70,7 +70,7 @@ describe('AreasSociaisService — limite mensal por apartamento', () => {
       $queryRaw: jest.fn(async () => []),
     };
     const notifications: any = { sendPushNotification: jest.fn() };
-    const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
+    const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn(), exigirArquivoDoRegistro: jest.fn(async () => undefined) };
     const facial: any = { syncReservaArea: jest.fn().mockResolvedValue({}) };
     const tenant = new TenantAccessService(prisma);
     const svc = new AreasSociaisService(prisma, notifications, storage, facial, tenant);

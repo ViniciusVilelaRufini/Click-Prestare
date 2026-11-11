@@ -16,7 +16,7 @@ import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { executarComLock } from '../common/lock-distribuido';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PREFIXOS_FOTO_VISITANTE, StorageService } from '../common/storage/storage.service';
+import { type Gravados, PREFIXOS_FOTO_VISITANTE, StorageService, umaVez } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -469,13 +469,88 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     await this.tenant.assertCondominio(Number(idCondominio), payload);
   }
 
-  private async resolveFoto(value: string | undefined | null): Promise<string | null> {
+  /**
+   * `gravados`: fotos que a pessoa já tem (ou o que o servidor deixaria
+   * herdar). URL do bucket fora disso é recusada — a API assina toda URL do
+   * bucket que devolve (StorageService.exigirArquivoDoRegistro).
+   */
+  private async resolveFoto(value: string | undefined | null, gravados: Gravados): Promise<string | null> {
     // Vazio (null/undefined/"") vira null — "" contaria como "tem foto".
     if (!value) return null;
     if (this.storage.isDataUrl(value)) {
       return (await this.storage.uploadDataUrl(value, 'visitantes')) ?? null;
     }
+    await this.storage.exigirArquivoDoRegistro(value, gravados);
     return value;
+  }
+
+  /**
+   * Fotos que o cliente pode reenviar ao CRIAR uma visita (caminho legado): as
+   * da visita anterior que ele reaproveita (`id_anterior`, o "liberar de novo"
+   * do app) e as da pessoa achada pelo documento (o "reutilizar" da portaria
+   * e a herança que o próprio `create()` faz). Morador só alcança registros
+   * dos apartamentos dele — o mesmo recorte das buscas do `create()`.
+   */
+  private fotosReaproveitaveisLegado(dto: CreateVisitanteDto, aptos: number[] | undefined): Gravados {
+    return umaVez(async () => {
+      const fotos: unknown[] = [];
+      const recorte = aptos ? { id_apartamento: { in: aptos } } : {};
+      if (dto.id_anterior) {
+        const anterior = await this.prisma.visitantes.findFirst({
+          where: { id: Number(dto.id_anterior), id_condominio: Number(dto.id_condominio), ...recorte },
+          select: { foto_pessoa: true, foto_documento: true },
+        });
+        if (anterior) fotos.push(anterior.foto_pessoa, anterior.foto_documento);
+      }
+      // Mesmos candidatos de `buscarPessoa` (documento; sem documento, o nome).
+      const docNorm = dto.doc_identificacao?.trim();
+      const nomeNorm = (dto.nome_anterior || dto.nome)?.trim();
+      if (docNorm || nomeNorm) {
+        const mesmaPessoa = await this.prisma.visitantes.findMany({
+          where: {
+            id_condominio: Number(dto.id_condominio),
+            ...recorte,
+            ...(docNorm ? { doc_identificacao: docNorm } : { nome: nomeNorm }),
+          },
+          select: { foto_pessoa: true, foto_documento: true },
+          orderBy: { created_at: 'desc' },
+          take: 20,
+        });
+        for (const r of mesmaPessoa) fotos.push(r.foto_pessoa, r.foto_documento);
+      }
+      return fotos;
+    });
+  }
+
+  /** Mesmo que `fotosReaproveitaveisLegado`, no caminho Pessoas/Visitas. */
+  private fotosReaproveitaveisPessoas(dto: CreateVisitanteDto, aptos: number[] | undefined): Gravados {
+    return umaVez(async () => {
+      const fotos: unknown[] = [];
+      if (dto.id_anterior) {
+        const anterior = await this.prisma.visitas.findFirst({
+          where: {
+            id: Number(dto.id_anterior),
+            id_condominio: Number(dto.id_condominio),
+            ...(aptos ? { id_apartamento: { in: aptos } } : {}),
+          },
+          select: { pessoa: { select: { foto_pessoa: true, foto_documento: true } } },
+        });
+        if (anterior?.pessoa) fotos.push(anterior.pessoa.foto_pessoa, anterior.pessoa.foto_documento);
+      }
+      const doc = PessoasService.normalizarDoc(dto.doc_identificacao);
+      if (doc) {
+        const mesma = await this.prisma.pessoas.findFirst({
+          where: {
+            id_condominio: Number(dto.id_condominio),
+            doc_identificacao: doc,
+            ...(aptos ? { visitas: { some: { id_apartamento: { in: aptos } } } } : {}),
+          },
+          select: { foto_pessoa: true, foto_documento: true },
+        });
+        if (mesma) fotos.push(mesma.foto_pessoa, mesma.foto_documento);
+      }
+      return fotos;
+    });
   }
 
   /**
@@ -1779,8 +1854,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
-    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
+    const fotosDaPessoa = [ref.foto_pessoa, ref.foto_documento, ...records.map((r) => r.foto_pessoa)];
+    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDaPessoa) : undefined;
+    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDaPessoa) : undefined;
 
     const data: any = {};
     if (dto.nome !== undefined) data.nome = dto.nome;
@@ -1843,7 +1919,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, atualizados: result.count };
   }
 
-  async create(dto: CreateVisitanteDto, operador?: JwtPayload) {
+  /**
+   * `opcoes.arquivosDoServidor`: as fotos do dto vêm do próprio servidor (a do
+   * convite, que só aceita data URL e foi gravada por `ConvitesService`), não
+   * do cliente — não passam pela regra de arquivo do cliente.
+   */
+  async create(dto: CreateVisitanteDto, operador?: JwtPayload, opcoes: { arquivosDoServidor?: boolean } = {}) {
     const erroDados = erroVisita(dto);
     if (erroDados) throw new BadRequestException(erroDados);
     if (!this.prisma.isConnected) {
@@ -1879,7 +1960,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // identidade por PessoasService.obterOuCriar / a autorização por
     // VisitasService.criarVisita — nunca as duas fontes ao mesmo tempo.
     if (pessoasMigrationEnabled(this.prisma)) {
-      return this.createViaPessoasVisitas(dto, operador);
+      return this.createViaPessoasVisitas(dto, operador, opcoes);
     }
 
     const blocked = await this.verificarSeBloqueado(dto.id_condominio, dto.nome, dto.doc_identificacao);
@@ -1887,8 +1968,6 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
 
-    let fotoDoc = await this.resolveFoto(dto.foto_documento);
-    let fotoPes = await this.resolveFoto(dto.foto_pessoa);
     // Morador só enxerga, herda e reescreve cadastros dos apartamentos DELE:
     // as buscas abaixo são do condomínio inteiro e, sem este recorte, traziam
     // foto, documento e face_id do visitante do vizinho para a linha nova.
@@ -1896,6 +1975,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const aptosDoChamador: number[] | undefined = recortar
       ? ((await this.aptosDoMoradorMobile(operador)) ?? [])
       : undefined;
+    const reaproveitaveis: Gravados = opcoes.arquivosDoServidor
+      ? [dto.foto_pessoa, dto.foto_documento]
+      : this.fotosReaproveitaveisLegado(dto, aptosDoChamador);
+    let fotoDoc = await this.resolveFoto(dto.foto_documento, reaproveitaveis);
+    let fotoPes = await this.resolveFoto(dto.foto_pessoa, reaproveitaveis);
 
     // Se o usuário está liberando nova visita para um visitante existente e corrigiu o nome/dados,
     // atualiza o histórico anterior desse visitante para evitar duplicidade de "Vinicius dd" e "Vinicius Vilela".
@@ -2162,21 +2246,28 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * de `obterOuCriar` (documento, depois face_id) já resolve estruturalmente
    * o problema que aquele remendo cobria por heurística de string.
    */
-  private async createViaPessoasVisitas(dto: CreateVisitanteDto, operador?: JwtPayload) {
+  private async createViaPessoasVisitas(
+    dto: CreateVisitanteDto,
+    operador?: JwtPayload,
+    opcoes: { arquivosDoServidor?: boolean } = {},
+  ) {
     const blocked = await this.verificarSeBloqueadoPessoa(dto.id_condominio, dto.nome, dto.doc_identificacao);
     if (blocked) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
 
-    const fotoDoc = await this.resolveFoto(dto.foto_documento);
-    const fotoPes = await this.resolveFoto(dto.foto_pessoa);
+    // Morador: a Pessoa (e o PIN) de outro apartamento não são dele — ver
+    // OpcoesObterOuCriar e desativarOutrosCodigosVisita.
+    const aptosDoChamador = await this.aptosDoMoradorMobile(operador);
+    const reaproveitaveis: Gravados = opcoes.arquivosDoServidor
+      ? [dto.foto_pessoa, dto.foto_documento]
+      : this.fotosReaproveitaveisPessoas(dto, aptosDoChamador);
+    const fotoDoc = await this.resolveFoto(dto.foto_documento, reaproveitaveis);
+    const fotoPes = await this.resolveFoto(dto.foto_pessoa, reaproveitaveis);
 
     // Mesma rotina do gerarPinUnico, mas escopada a `visitas` — gerarPinUnico
     // olha só `Visitantes`, que este caminho para de escrever.
     const pin = await this.gerarPinUnicoVisita();
-    // Morador: a Pessoa (e o PIN) de outro apartamento não são dele — ver
-    // OpcoesObterOuCriar e desativarOutrosCodigosVisita.
-    const aptosDoChamador = await this.aptosDoMoradorMobile(operador);
 
     const visita = await this.visitasService.criarVisita({
       id_condominio: Number(dto.id_condominio),
@@ -2640,8 +2731,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     await this.assertFlagCadastrarVisitante(ref.id_condominio, payload);
     await this.assertPodeUsarApartamento(dto.id_apartamento, payload);
 
-    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
-    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
+    const fotosDaPessoa = umaVez(async () => {
+      const p = await this.prisma.pessoas.findUnique({
+        where: { id: ref.id_pessoa },
+        select: { foto_pessoa: true, foto_documento: true },
+      });
+      return [p?.foto_pessoa, p?.foto_documento];
+    });
+    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDaPessoa) : undefined;
+    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDaPessoa) : undefined;
 
     const visitaData: any = {};
     if (dto.data_hora_inicio !== undefined) visitaData.data_hora_inicio = parseLocalTimeToUTC(dto.data_hora_inicio);
@@ -2813,8 +2911,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException('Cadastro do visitante não encontrado.');
     }
 
-    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
-    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
+    const fotosDaPessoa = [pessoa.foto_pessoa, pessoa.foto_documento];
+    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDaPessoa) : undefined;
+    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDaPessoa) : undefined;
 
     const pessoaData: any = {};
     if (dto.nome !== undefined) pessoaData.nome = dto.nome;
@@ -3809,8 +3908,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // senão dava para mover a visita (e o acesso) para a unidade do vizinho.
     await this.assertPodeUsarApartamento(dto.id_apartamento, payload);
 
-    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
-    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
+    const fotosDaVisita = [refLegado.foto_pessoa, refLegado.foto_documento];
+    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDaVisita) : undefined;
+    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDaVisita) : undefined;
 
     try {
       const updated = await this.prisma.visitantes.update({

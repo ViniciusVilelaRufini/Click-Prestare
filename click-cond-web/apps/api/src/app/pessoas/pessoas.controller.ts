@@ -4,6 +4,7 @@ import { CriarPessoaDto } from './dto/criar-pessoa.dto';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
+import { StorageService, umaVez } from '../common/storage/storage.service';
 
 /**
  * Como em `visitantes.controller.ts`: o TenantGuard só confere o
@@ -14,7 +15,10 @@ import { assertOperador } from '../auth/tenant.util';
  */
 @Controller('condominios/:idCondominio/pessoas')
 export class PessoasController {
-  constructor(private readonly service: PessoasService) {}
+  constructor(
+    private readonly service: PessoasService,
+    private readonly storage: StorageService,
+  ) {}
 
   @Get('busca')
   async buscar(
@@ -33,6 +37,12 @@ export class PessoasController {
     @ReqUser() payload: JwtPayload,
   ) {
     assertOperador(payload, 'cadastrar uma pessoa');
+    // Fotos vêm do cliente: URL do bucket só se for a da pessoa que este
+    // cadastro reaproveita (StorageService.exigirArquivoDoRegistro). As
+    // chamadas internas de obterOuCriar (visitas) não passam por aqui.
+    const gravados = umaVez(() => this.service.fotosDaPessoaExistente(idCondominio, dto));
+    await this.storage.exigirArquivoDoRegistro(dto.foto_pessoa, gravados);
+    await this.storage.exigirArquivoDoRegistro(dto.foto_documento, gravados);
     return this.service.obterOuCriar(idCondominio, dto);
   }
 

@@ -40,7 +40,7 @@ describe('VisitantesService.create — flag PESSOAS_MIGRATION_ENABLED', () => {
 
   const auditoria: any = { registrar: jest.fn() };
   const notifications: any = { sendPushNotification: jest.fn(), sendWhatsApp: jest.fn() };
-  const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
+  const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn(), exigirArquivoDoRegistro: jest.fn(async () => undefined) };
   const facial: any = {
     syncVisitante: jest.fn().mockResolvedValue({}),
     syncPessoa: jest.fn().mockResolvedValue({}),

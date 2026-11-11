@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
-import { StorageService } from '../common/storage/storage.service';
+import { type Gravados, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
@@ -134,13 +134,19 @@ export class MoradoresService {
     }
   }
 
-  private async resolveFoto(value: string | undefined | null): Promise<string | null> {
+  /**
+   * `gravados`: fotos que o cadastro já tem. URL do bucket fora disso é
+   * recusada — a API assina toda URL do bucket que devolve
+   * (StorageService.exigirArquivoDoRegistro).
+   */
+  private async resolveFoto(value: string | undefined | null, gravados: Gravados): Promise<string | null> {
     // Qualquer vazio (null/undefined/"") vira null — "" no banco contaria como
     // "tem foto" (foto_pessoa != null) e quebraria o status e o "Remover foto".
     if (!value) return null;
     if (this.storage.isDataUrl(value)) {
       return (await this.storage.uploadDataUrl(value, 'moradores')) ?? null;
     }
+    await this.storage.exigirArquivoDoRegistro(value, gravados);
     return value;
   }
 
@@ -746,8 +752,9 @@ export class MoradoresService {
     const tagRfid = this.tagRfidParaGravar(dto.tag_rfid);
     await this.assertCredencialDisponivel(dto.id_condominio, tagRfid, dto.qrcode_acesso, null);
 
-    const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa);
-    const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento);
+    // Cadastro novo não tem foto gravada: URL do bucket nunca é dele.
+    const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa, []);
+    const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento, []);
 
     // Senha inicial SEMPRE aleatória. Com sendCredentials ela vai no e-mail de boas-vindas;
     // sem, ninguém a conhece e a conta é ativada por "Enviar credenciais" ou "Esqueci a senha".
@@ -960,15 +967,19 @@ export class MoradoresService {
       throw new NotFoundException(`Morador ${id} não encontrado`);
     }
 
-    const fotoPessoaUrl = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
-    const fotoDocumentoUrl = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
-
     // Carrega o morador atual com seu Users vinculado
     const atual = await this.prisma.moradores.findUnique({
       where: { id },
       include: { user: true },
     });
     if (!atual) throw new NotFoundException(`Morador ${id} não encontrado`);
+
+    // Depois de carregar o atual: a tela reenvia a foto que recebeu (de
+    // Moradores ou de Users), e só ela vale como URL do bucket.
+    const fotosDoCadastro = [atual.foto_pessoa, atual.foto_documento, atual.user?.photo, atual.user?.profile_image];
+    const fotoPessoaUrl = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDoCadastro) : undefined;
+    const fotoDocumentoUrl =
+      dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDoCadastro) : undefined;
 
     // Valida duplicação de credenciais. Só dispara se o campo veio no dto e
     // mudou — não bloqueia edições que mantêm a credencial atual.

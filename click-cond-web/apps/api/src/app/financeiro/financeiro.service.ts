@@ -432,6 +432,9 @@ export class FinanceiroService implements OnModuleInit {
 
     valor = financeiro.tipo === 'D' ? -absValor : absValor;
 
+    // Lançamento novo não tem arquivo gravado: URL do bucket nunca é dele.
+    await this.storage.exigirArquivoDoRegistro(financeiro.photo, []);
+    await this.storage.exigirArquivoDoRegistro(financeiro.url_boleto, []);
     let photoUrl = financeiro.photo ?? '';
     if (this.storage.isDataUrl(photoUrl)) {
       const uploaded = await this.storage.uploadDataUrl(photoUrl, 'financeiro');
@@ -576,6 +579,15 @@ export class FinanceiroService implements OnModuleInit {
     valor = financeiro.tipo === 'D' ? -absValor : absValor;
 
     let photoUrl = financeiro.photo ?? undefined;
+    await this.storage.exigirArquivoDoRegistro(photoUrl, async () => {
+      const atual = financeiro?.id
+        ? await this.prisma.financeiro.findUnique({
+            where: { id: Number(financeiro.id) },
+            select: { photo: true, url_comprovante: true },
+          })
+        : null;
+      return [atual?.photo, atual?.url_comprovante];
+    });
     if (this.storage.isDataUrl(photoUrl)) {
       const uploaded = await this.storage.uploadDataUrl(photoUrl, 'financeiro');
       photoUrl = uploaded ?? undefined;

@@ -23,10 +23,18 @@ export class DocumentosService {
     if (!this.prisma.isConnected) return { success: true };
 
     let linkDoc = documento.link_doc ?? '';
+    const prefix = documento.is_ata ? 'atas' : 'documentos';
+
+    // Documento novo: nenhuma URL do bucket é "a dele". Sem isto, publicar a
+    // URL de um arquivo de outro registro fazia a API assiná-la em toda
+    // listagem e o indexador do chat baixá-la para o índice deste condomínio.
+    await this.storage.exigirArquivoDoRegistro(linkDoc, []);
+    if (this.storage.isDataUrl(linkDoc)) {
+      linkDoc = (await this.storage.uploadDataUrl(linkDoc, prefix)) ?? '';
+    }
 
     // Upload real para R2 se vier base64
     if (this.storage.isDataUrl(documento.doc)) {
-      const prefix = documento.is_ata ? 'atas' : 'documentos';
       const uploaded = await this.storage.uploadDataUrl(documento.doc, prefix);
       if (uploaded) linkDoc = uploaded;
     }

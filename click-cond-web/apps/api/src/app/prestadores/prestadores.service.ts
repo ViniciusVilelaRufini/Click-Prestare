@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StorageService } from '../common/storage/storage.service';
+import { type Gravados, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -55,11 +55,17 @@ export class PrestadoresService {
       );
   }
 
-  private async resolveFoto(value: string | undefined | null): Promise<string | null> {
+  /**
+   * `gravados`: fotos que o cadastro já tem. URL do bucket fora disso é
+   * recusada — a API assina toda URL do bucket que devolve
+   * (StorageService.exigirArquivoDoRegistro).
+   */
+  private async resolveFoto(value: string | undefined | null, gravados: Gravados): Promise<string | null> {
     if (!value) return value ?? null;
     if (this.storage.isDataUrl(value)) {
       return (await this.storage.uploadDataUrl(value, 'prestadores')) ?? null;
     }
+    await this.storage.exigirArquivoDoRegistro(value, gravados);
     return value;
   }
 
@@ -340,8 +346,10 @@ export class PrestadoresService {
       : (normalizarIdApartamento(dto.id_apartamento) ?? null);
     await assertApartamentoGravavel(this.prisma as any, idApartamento, Number(dto.id_condominio), user);
 
-    const fotoPes = await this.resolveFoto(dto.foto_pessoa);
-    const fotoDoc = await this.resolveFoto(dto.foto_documento);
+    // Mesmo nome = o mesmo cadastro: a foto dele pode voltar; outra URL do bucket, não.
+    const fotosDoCadastro = existing ? [existing.foto_pessoa, existing.foto_documento] : [];
+    const fotoPes = await this.resolveFoto(dto.foto_pessoa, fotosDoCadastro);
+    const fotoDoc = await this.resolveFoto(dto.foto_documento, fotosDoCadastro);
 
     let criado;
     if (existing) {
@@ -459,7 +467,10 @@ export class PrestadoresService {
     // Carrega e valida tenant antes de qualquer escrita (IDOR).
     const atual = await this.prisma.prestadores_servico.findUnique({
       where: { id: Number(id) },
-      select: { id: true, id_condominio: true, id_apartamento: true, email: true, nome: true, telefone: true },
+      select: {
+        id: true, id_condominio: true, id_apartamento: true, email: true, nome: true, telefone: true,
+        foto_pessoa: true, foto_documento: true,
+      },
     });
     if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
@@ -490,8 +501,9 @@ export class PrestadoresService {
       if (emailAcesso) await this.assertContaLivreParaPortaria(emailAcesso, atual.id_condominio);
     }
 
-    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
-    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
+    const fotosDoCadastro = [atual.foto_pessoa, atual.foto_documento];
+    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDoCadastro) : undefined;
+    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDoCadastro) : undefined;
 
     try {
       const atualizado = await this.prisma.prestadores_servico.update({

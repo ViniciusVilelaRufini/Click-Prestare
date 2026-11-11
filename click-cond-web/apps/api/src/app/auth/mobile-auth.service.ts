@@ -9,7 +9,7 @@ import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
 import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
-import { StorageService } from '../common/storage/storage.service';
+import { type Gravados, StorageService } from '../common/storage/storage.service';
 import { somenteDigitos } from '../common/documento.util';
 import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
@@ -258,14 +258,22 @@ export class MobileAuthService {
    *
    * Devolve `undefined` quando não há nada a alterar, para o chamador manter a
    * foto atual em vez de apagá-la.
+   *
+   * URL do bucket só passa se for a foto já gravada (`gravados`): a saída da
+   * API assina qualquer URL do bucket, e aceitar uma qualquer daria link novo
+   * para o arquivo de outra pessoa (StorageService.exigirArquivoDoRegistro).
    */
   private async normalizarFoto(
     photo: string | undefined,
     prefix: string,
+    gravados: Gravados,
   ): Promise<string | undefined> {
     if (photo === undefined) return undefined;
     if (photo === null || photo === '') return '';
-    if (!this.storage.isDataUrl(photo)) return photo; // já é URL
+    if (!this.storage.isDataUrl(photo)) {
+      await this.storage.exigirArquivoDoRegistro(photo, gravados);
+      return photo; // já é URL
+    }
 
     const url = await this.storage.uploadDataUrl(photo, prefix, 'profile');
 
@@ -369,7 +377,8 @@ export class MobileAuthService {
     // derruba o cadastro: a conta fica sem foto e o síndico troca no perfil.
     let photo = user.photo ?? '';
     if (fotoSignup) {
-      const fotoUrl = await this.normalizarFoto(fotoSignup, 'sindicos');
+      // fotoDoSignup só deixa passar data URL; conta nova não tem foto gravada.
+      const fotoUrl = await this.normalizarFoto(fotoSignup, 'sindicos', []);
       if (fotoUrl) {
         await this.prisma.users.update({ where: { id: user.id }, data: { photo: fotoUrl } });
         photo = fotoUrl;
@@ -485,7 +494,7 @@ export class MobileAuthService {
 
     // Fora da transação: o upload é rede, e segurá-lo dentro prenderia a
     // transação do banco pelo tempo da subida da imagem.
-    const fotoUrl = await this.normalizarFoto(body.photo, 'sindicos');
+    const fotoUrl = await this.normalizarFoto(body.photo, 'sindicos', [user.photo, user.profile_image]);
     const fotoAtualizada = fotoUrl !== undefined ? fotoUrl : (user.photo ?? '');
 
     await this.prisma.$transaction(async (tx) => {
@@ -2470,6 +2479,11 @@ export class MobileAuthService {
     if (!this.prisma.isConnected) return { success: true };
 
     let photoUrl = data.photo;
+    // URL do bucket só se for a foto que o condomínio já tem (exigirArquivoDoRegistro).
+    await this.storage.exigirArquivoDoRegistro(photoUrl, async () => {
+      const atual = await this.prisma.condominios.findUnique({ where: { id }, select: { photo: true } });
+      return [atual?.photo];
+    });
     if (photoUrl && this.storage.isDataUrl(photoUrl)) {
       const enviada = await this.storage.uploadDataUrl(photoUrl, `condominios/${id}`, 'profile');
 
@@ -3355,6 +3369,14 @@ export class MobileAuthService {
 
     let photoUrl: string | null = null;
     if (func.photo) {
+      // URL do bucket só se for a foto que a conta já tem (exigirArquivoDoRegistro).
+      await this.storage.exigirArquivoDoRegistro(func.photo, async () => {
+        const conta = await this.prisma.users.findUnique({
+          where: { id: idUser },
+          select: { photo: true, profile_image: true },
+        });
+        return [conta?.photo, conta?.profile_image];
+      });
       photoUrl = this.storage.isDataUrl(func.photo)
         ? await this.storage.uploadDataUrl(func.photo, 'funcionarios')
         : func.photo;
@@ -3421,14 +3443,14 @@ export class MobileAuthService {
     const func = body.funcionario || body.funcionarios || {};
     const idCondominio = Number(body.id_condominio);
 
-    let photoUrl: string | null = null;
-    if (func.photo) {
-      if (this.storage.isDataUrl(func.photo)) {
-        photoUrl = await this.storage.uploadDataUrl(func.photo, 'funcionarios');
-      } else {
-        photoUrl = func.photo;
-      }
-    }
+    // Resolvida em cada ramo, depois da autorização: URL do bucket só passa se
+    // for a foto que a conta do porteiro já tem (exigirArquivoDoRegistro).
+    const resolverFoto = async (gravados: Gravados): Promise<string | null> => {
+      if (!func.photo) return null;
+      if (this.storage.isDataUrl(func.photo)) return this.storage.uploadDataUrl(func.photo, 'funcionarios');
+      await this.storage.exigirArquivoDoRegistro(func.photo, gravados);
+      return func.photo;
+    };
 
     // Função auxiliar para sincronizar com as tabelas de Users e Funcionarios do app mobile
     const sincronizarUsuarioMobile = async (fp: any, senhaPlana?: string, uploadedPhotoUrl?: string | null) => {
@@ -3518,6 +3540,13 @@ export class MobileAuthService {
       const atual = await this.prisma.funcionarios_Portaria.findUnique({ where: { id } });
       if (!atual) throw new NotFoundException('Funcionário não encontrado.');
       await this.tenant.assertEntidade(atual.id_condominio, user, `funcionário #${id}`);
+      const photoUrl = await resolverFoto(async () => {
+        const conta = await this.prisma.users.findFirst({
+          where: { login: atual.login },
+          select: { photo: true, profile_image: true },
+        });
+        return [conta?.photo, conta?.profile_image];
+      });
 
       const data: any = {};
       if (func.nome !== undefined) data.nome = func.nome;
@@ -3550,6 +3579,8 @@ export class MobileAuthService {
     const conflito = await this.prisma.funcionarios_Portaria.findUnique({ where: { login: loginFinal } });
     if (conflito) throw new BadRequestException('Já existe um funcionário com este e-mail.');
     await this.assertLoginLivreParaPortaria(loginFinal, idCondominio, idUsuarioDoToken(user));
+    // Porteiro novo não tem foto gravada: URL do bucket nunca é dele.
+    const photoUrl = await resolverFoto([]);
 
     // Senha inicial = senha recebida, documento (só dígitos) ou '123456'.
     // A senha escolhida no formulário passa intacta — normalizar ali
@@ -3823,14 +3854,15 @@ export class MobileAuthService {
       .toLowerCase()
       .trim();
 
+    // Resolvida em cada ramo, depois da autorização: URL do bucket só passa se
+    // for a foto que o cadastro já tem (exigirArquivoDoRegistro).
     let photoUrl: string | null = null;
-    if (mor.photo) {
-      if (this.storage.isDataUrl(mor.photo)) {
-        photoUrl = await this.storage.uploadDataUrl(mor.photo, 'moradores');
-      } else {
-        photoUrl = mor.photo;
-      }
-    }
+    const resolverFoto = async (gravados: Gravados): Promise<string | null> => {
+      if (!mor.photo) return null;
+      if (this.storage.isDataUrl(mor.photo)) return this.storage.uploadDataUrl(mor.photo, 'moradores');
+      await this.storage.exigirArquivoDoRegistro(mor.photo, gravados);
+      return mor.photo;
+    };
 
     try {
       // ===== EDIÇÃO =====
@@ -3848,6 +3880,7 @@ export class MobileAuthService {
         // ação de síndico/funcionário.
         const callerId = user?.user?.id ?? user?.sub;
         if (atual.id_user !== callerId) assertStaff(user, 'editar dados de outro morador');
+        photoUrl = await resolverFoto([atual.foto_pessoa, atual.user?.photo, atual.user?.profile_image]);
 
         // Menor não tem conta no app (Cláusula 8.3). A versão do app nas lojas
         // manda o "e-mail do responsável" no campo de e-mail do menor — era
@@ -4000,6 +4033,9 @@ export class MobileAuthService {
       if (duplicationCheck) {
         throw new BadRequestException('Este morador já está cadastrado neste condomínio (e-mail, documento ou nome/apartamento duplicado).');
       }
+
+      // Cadastro novo não tem foto gravada: URL do bucket nunca é dele.
+      photoUrl = await resolverFoto([]);
 
       // Cria/reutiliza Users por email OU cpf — senha inicial aleatória
       const cpf = mor.documento ? String(mor.documento).trim() : null;
@@ -4826,6 +4862,7 @@ export class MobileAuthService {
 
     // Foto chega como data URL do app; o storage devolve a URL pública.
     let fotoUrl: string | null = fotoDataUrl ?? null;
+    await this.storage.exigirArquivoDoRegistro(fotoUrl, [encomenda.retirado_foto]);
     if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
       const uploaded = await this.storage.uploadDataUrl(fotoUrl, 'encomendas');
       if (uploaded) {
