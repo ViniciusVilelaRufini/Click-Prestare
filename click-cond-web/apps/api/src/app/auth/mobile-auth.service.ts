@@ -13,7 +13,7 @@ import { type Gravados, StorageService } from '../common/storage/storage.service
 import { somenteDigitos } from '../common/documento.util';
 import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
-import { TenantAccessService } from './tenant-access.service';
+import { TenantAccessService, ehFuncionarioDoApp, type PermissaoFuncionario } from './tenant-access.service';
 import { usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio } from '../common/vinculos-usuario.util';
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
@@ -2023,16 +2023,28 @@ export class MobileAuthService {
       return { success: false, message: 'Usuário inválido' };
     }
     // Login web de funcionário (Funcionarios_Portaria) não tem FK para Users;
-    // remove pelo e-mail do usuário para não deixar acesso órfão.
+    // remove pelo e-mail do usuário para não deixar acesso órfão — mas só nos
+    // condomínios em que a pessoa é da equipe (Funcionarios ou
+    // Sindicos_Condominios). O e-mail do Users não é verificado: só pelo
+    // e-mail, uma conta criada com o e-mail do porteiro de outro prédio
+    // apagava o acesso dele ao console. Os vínculos são lidos antes do DELETE,
+    // que os leva em cascata.
     const user = await this.prisma.users.findUnique({
       where: { id: idUser },
       select: { login: true, email: true },
     });
-    const emails = [user?.login, user?.email].filter((e): e is string => !!e);
+    const emails = [...new Set([user?.login, user?.email].filter((e): e is string => !!e))];
     if (emails.length > 0) {
-      await this.prisma.funcionarios_Portaria.deleteMany({
-        where: { login: { in: emails } },
-      });
+      const [comoFuncionario, comoSindico] = await Promise.all([
+        this.prisma.funcionarios.findMany({ where: { id_user: idUser }, select: { id_condominio: true } }),
+        this.prisma.sindicos_Condominios.findMany({ where: { id_user: idUser }, select: { id_condominio: true } }),
+      ]);
+      const condominios = [...new Set([...comoFuncionario, ...comoSindico].map((v) => v.id_condominio))];
+      if (condominios.length > 0) {
+        await this.prisma.funcionarios_Portaria.deleteMany({
+          where: { login: { in: emails }, id_condominio: { in: condominios } },
+        });
+      }
     }
     // O rosto do morador também está gravado nos terminais. A cascata apaga as linhas de Moradores,
     // que são o único lugar com o face_id, e o template biométrico ficava no aparelho. Mesmo caminho
@@ -3238,6 +3250,8 @@ export class MobileAuthService {
   // ==========================================
 
   async getAllFuncionarios(idCond: number, user?: JwtPayload) {
+    // E-mail e telefone da equipe: a lista é das telas de staff, não do morador.
+    assertOperador(user, 'listar os funcionários do condomínio');
     await this.tenant.assertCondominio(idCond, user);
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
@@ -3879,7 +3893,12 @@ export class MobileAuthService {
         // O próprio morador pode editar o próprio cadastro; editar o de outro é
         // ação de síndico/funcionário.
         const callerId = user?.user?.id ?? user?.sub;
-        if (atual.id_user !== callerId) assertStaff(user, 'editar dados de outro morador');
+        if (atual.id_user !== callerId) {
+          assertStaff(user, 'editar dados de outro morador');
+          // Cadastro de morador é da área "apartamentos" — a flag com que o
+          // síndico limita a equipe no console vale também pelo app.
+          await this.exigirFlagFuncionario(atual.id_condominio, 'apartamentos', user);
+        }
         photoUrl = await resolverFoto([atual.foto_pessoa, atual.user?.photo, atual.user?.profile_image]);
 
         // Menor não tem conta no app (Cláusula 8.3). A versão do app nas lojas
@@ -3997,6 +4016,10 @@ export class MobileAuthService {
 
       const idCondominio = Number(body.id_condominio) || apto.id_condominio;
       await this.tenant.assertCondominio(idCondominio, user);
+      // O familiar (insertFamiliar) é do proprietário, não da equipe: sem flag.
+      if (!opts.permitirSemStaff) {
+        await this.exigirFlagFuncionario(idCondominio, 'apartamentos', user);
+      }
       // O apto tem de ser do condomínio informado: senão o vínculo (autoridade de morador) caía em outro prédio.
       if (apto.id_condominio !== idCondominio) {
         throw new BadRequestException('Apartamento não pertence a este condomínio.');
@@ -4293,6 +4316,7 @@ export class MobileAuthService {
     const atual = await this.prisma.moradores.findUnique({ where: { id: Number(id) } });
     if (!atual) throw new NotFoundException('Morador não encontrado.');
     await this.tenant.assertEntidade(atual.id_condominio, user, `morador #${id}`);
+    await this.exigirFlagFuncionario(atual.id_condominio, 'apartamentos', user);
     // Mesma regra do painel web (MoradoresService.remove): apagar só a linha
     // de Moradores deixava o vínculo Apartamentos_Users — o usuário seguia
     // com acesso à unidade, e a lista do apto o mostrava com o Users.id no
@@ -4464,6 +4488,8 @@ export class MobileAuthService {
         const atual = await this.prisma.apartamentos.findUnique({ where: { id }, select: { id_condominio: true } });
         if (!atual) throw new NotFoundException('Apartamento não encontrado.');
         await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
+        // Mesma flag que o ApartamentosService do console cobra.
+        await this.exigirFlagFuncionario(atual.id_condominio, 'apartamentos', user);
         return await this.prisma.apartamentos.update({
           where: { id },
           data: {
@@ -4476,6 +4502,7 @@ export class MobileAuthService {
       }
       if (!idCond) throw new BadRequestException('id_condominio é obrigatório.');
       await this.tenant.assertCondominio(idCond, user);
+      await this.exigirFlagFuncionario(idCond, 'apartamentos', user);
       return await this.prisma.apartamentos.create({
         data: {
           id_condominio: idCond,
@@ -4607,7 +4634,7 @@ export class MobileAuthService {
   async listOcorrenciasTodos(idCondominio: number, idUser: number, typeAccess: string, user?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return [];
-    const isPrivileged = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
+    const isPrivileged = await this.vePrivadasDoCondominio(idCondominio, typeAccess, user);
     const where: any = { id_condominio: Number(idCondominio) };
     if (!isPrivileged) {
       where.OR = [
@@ -4630,7 +4657,7 @@ export class MobileAuthService {
   async listOcorrenciasPendentes(idCondominio: number, idUser: number, typeAccess: string, user?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return [];
-    const isPrivileged = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
+    const isPrivileged = await this.vePrivadasDoCondominio(idCondominio, typeAccess, user);
     const where: any = {
       id_condominio: Number(idCondominio),
       status: { notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] },
@@ -4648,6 +4675,34 @@ export class MobileAuthService {
       orderBy: { created_at: 'desc' },
     });
     return this.mapOcorrenciasComResp(list);
+  }
+
+  /**
+   * Flag de área da tabela `Funcionarios`. Só o token de funcionário do app
+   * depende dela — síndico, morador e o console seguem as próprias regras.
+   */
+  private async exigirFlagFuncionario(idCondominio: number | null, flag: PermissaoFuncionario, user?: JwtPayload) {
+    if (!ehFuncionarioDoApp(user)) return;
+    // Sem condomínio não há linha em Funcionarios que case: nega.
+    await this.tenant.assertPermissaoFuncionario(Number(idCondominio), flag, user);
+  }
+
+  /**
+   * Quem recebe a lista inteira do condomínio, privadas inclusive: síndico e
+   * funcionário com a flag `ocorrencias`. Funcionário sem a flag recebe o
+   * mesmo recorte do morador (as dele + as públicas) — é a regra que o
+   * `getOcorrenciaById` já aplicava ao abrir a ocorrência.
+   */
+  private async vePrivadasDoCondominio(idCondominio: number, typeAccess: string, user?: JwtPayload) {
+    if (typeAccess === 'Sindico') return true;
+    if (typeAccess !== 'Funcionario') return false;
+    try {
+      await this.exigirFlagFuncionario(Number(idCondominio), 'ocorrencias', user);
+      return true;
+    } catch (e) {
+      if (e instanceof ForbiddenException) return false;
+      throw e;
+    }
   }
 
   /** Resolve os nomes dos responsáveis (Users.name) em lote e mapeia a lista. */
@@ -5434,6 +5489,20 @@ export class MobileAuthService {
       throw new BadRequestException('Não há vagas livres neste apartamento.');
     }
 
+    // O carro vinha do corpo sem conferência: a vaga do apto ficava presa ao
+    // veículo de outra unidade. Tem de ser de um morador deste apartamento —
+    // conferido antes de liberar o visitante, que já grava.
+    const idVeiculo = Number(body?.id_veiculo) || null;
+    if (idVeiculo) {
+      const veiculo = moradorIdsLiberar.length
+        ? await this.prisma.veiculos.findFirst({
+            where: { id: idVeiculo, id_condominio: ctx.idCondominio, id_morador: { in: moradorIdsLiberar } },
+            select: { id: true },
+          })
+        : null;
+      if (!veiculo) throw new BadRequestException('Veículo não encontrado neste apartamento.');
+    }
+
     // O app manda data local sem fuso ("2026-09-23T10:00:00.000"); o servidor
     // roda em UTC e `new Date()` lia isso como UTC — janela 3h adiantada.
     const inicio = body?.inicio ? parseLocalTimeToUTC(body.inicio) : null;
@@ -5526,10 +5595,17 @@ export class MobileAuthService {
     } else {
       idBeneficiario = Number(body?.id_morador_beneficiario) || null;
       if (!idBeneficiario) throw new BadRequestException('Selecione um inquilino.');
+      // Morador DESTE apartamento (mesmo critério bloco/apto de moradoresDoApto):
+      // só o condomínio era conferido, e a vaga ia para morador de outra unidade.
       const inq = await this.prisma.moradores.findFirst({
-        where: { id: idBeneficiario, id_condominio: ctx.idCondominio },
+        where: {
+          id: idBeneficiario,
+          id_condominio: ctx.idCondominio,
+          bloco: ctx.apto.bloco,
+          apartamento: ctx.apto.apto,
+        },
       });
-      if (!inq) throw new BadRequestException('Inquilino não encontrado.');
+      if (!inq) throw new BadRequestException('Inquilino não encontrado neste apartamento.');
     }
 
     const vaga = await this.prisma.vagas.create({
@@ -5541,7 +5617,7 @@ export class MobileAuthService {
         id_visitante: idVisitante,
         id_visita: idVisita,
         id_morador_beneficiario: idBeneficiario,
-        id_veiculo: Number(body?.id_veiculo) || null,
+        id_veiculo: idVeiculo,
         placa,
         inicio,
         fim,

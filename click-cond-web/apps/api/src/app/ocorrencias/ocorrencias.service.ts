@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { TenantAccessService } from '../auth/tenant-access.service';
+import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
 import { StorageService } from '../common/storage/storage.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -64,11 +64,37 @@ export class OcorrenciasService {
     return o;
   }
 
-  /** Só a equipe (síndico/funcionário), o autor, ou qualquer um se a ocorrência é pública. */
-  private assertPodeVer(o: { user: number | null; publica: boolean }, requester?: JwtPayload) {
-    if (this.ehEquipe(requester) || o.publica) return;
-    if (!this.ehAutor(o, requester)) {
+  /**
+   * Qualquer um se a ocorrência é pública; o autor; e a equipe — síndico,
+   * operador do console e funcionário do app COM a flag `ocorrencias`, a
+   * mesma regra do `getOcorrenciaById` do app. Sem a flag, o funcionário via
+   * o chat e a ficha da ocorrência privada que lá tomava 403.
+   */
+  private async assertPodeVer(
+    o: { id_condominio: number; user: number | null; publica: boolean },
+    requester?: JwtPayload,
+  ) {
+    if (o.publica || this.ehAutor(o, requester)) return;
+    if (!this.ehEquipe(requester)) {
       throw new ForbiddenException('Acesso negado: ocorrência não pertence a você');
+    }
+    await this.exigirFlagOcorrencias(o.id_condominio, requester);
+  }
+
+  /** Só o funcionário do app depende da flag; síndico e console, não. */
+  private async exigirFlagOcorrencias(idCondominio: number, requester?: JwtPayload) {
+    if (!ehFuncionarioDoApp(requester)) return;
+    await this.tenant.assertPermissaoFuncionario(idCondominio, 'ocorrencias', requester);
+  }
+
+  /** Funcionário do app sem a flag `ocorrencias` lê só o que o morador leria. */
+  private async semFlagOcorrencias(idCondominio: number, requester?: JwtPayload): Promise<boolean> {
+    try {
+      await this.exigirFlagOcorrencias(idCondominio, requester);
+      return false;
+    } catch (e) {
+      if (e instanceof ForbiddenException) return true;
+      throw e;
     }
   }
 
@@ -190,7 +216,10 @@ export class OcorrenciasService {
     const isStaff = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
     const callerId = Number(requester?.user?.id ?? requester?.sub) || -1;
     // Operador do console (token com id_condominio) também administra.
-    const podeVerTudo = isStaff || !!requester?.id_condominio || !requester;
+    // Funcionário sem a flag `ocorrencias` fica com o recorte do morador.
+    const podeVerTudo =
+      (isStaff || !!requester?.id_condominio || !requester) &&
+      !(await this.semFlagOcorrencias(idCondominio, requester));
 
     const list = await this.prisma.ocorrencias.findMany({
       where: {
@@ -234,7 +263,7 @@ export class OcorrenciasService {
     });
     if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     await this.tenant.assertEntidade(o.id_condominio, requester, `ocorrência #${id}`);
-    this.assertPodeVer(o, requester);
+    await this.assertPodeVer(o, requester);
     const nomes = await this.responsavelNomes([o.id_responsavel]);
     return {
       ...o,
@@ -425,7 +454,7 @@ export class OcorrenciasService {
     await this.tenant.assertEntidade(o.id_condominio, requester, `ocorrência #${idOcorrencia}`);
     // Só o condomínio era conferido: qualquer morador lia o chat da ocorrência
     // privada do vizinho. Mesma regra do findOne.
-    this.assertPodeVer(o, requester);
+    await this.assertPodeVer(o, requester);
     return this.prisma.ocorrenciaMensagens.findMany({
       where: { id_ocorrencia: idOcorrencia },
       include: {
@@ -444,8 +473,12 @@ export class OcorrenciasService {
     await this.tenant.assertEntidade(oc.id_condominio, requester, `ocorrência #${idOcorrencia}`);
     // Escrever no chat é da equipe ou de quem abriu — ocorrência pública se
     // lê, mas a conversa é entre o autor e o condomínio.
-    if (!this.ehEquipe(requester) && !this.ehAutor(oc, requester)) {
-      throw new ForbiddenException('Acesso negado: ocorrência não pertence a você');
+    if (!this.ehAutor(oc, requester)) {
+      if (!this.ehEquipe(requester)) {
+        throw new ForbiddenException('Acesso negado: ocorrência não pertence a você');
+      }
+      // Conversa de ocorrência privada é da equipe com a flag `ocorrencias`.
+      if (!oc.publica) await this.exigirFlagOcorrencias(oc.id_condominio, requester);
     }
     // Autor da mensagem é FK para Users. O token da portaria-web não tem
     // Users.id — gravar o `sub` dele atribuía a mensagem a outra pessoa.

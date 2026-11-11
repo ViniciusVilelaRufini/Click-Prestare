@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
-import { assertStaff } from '../auth/tenant.util';
+import { assertStaff, isOperador } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertApartamentoGravavel, ehMoradorMobile } from '../common/apartamento-gravavel.util';
 
@@ -102,7 +102,10 @@ export class MudancasService {
     }>,
     user?: JwtPayload,
   ) {
-    const atual = await this.prisma.mudancas.findUnique({ where: { id: Number(id) }, select: { id_condominio: true, user: true } });
+    const atual = await this.prisma.mudancas.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true, user: true, status: true, data: true, hora_inicio: true, id_apartamento: true },
+    });
     if (!atual) throw new NotFoundException(`Mudança ${id} não encontrada`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
     const callerId = user?.user?.id ?? user?.sub;
@@ -114,10 +117,14 @@ export class MudancasService {
     if (dto.id_apartamento !== undefined) {
       await assertApartamentoGravavel(this.prisma as any, Number(dto.id_apartamento), atual.id_condominio, user);
     }
+    // A aprovação vale para o dia, a hora e a unidade que a equipe viu: o
+    // morador que remarca uma mudança aprovada (ou recusada) a devolve à fila.
+    const voltaAPendente = !isOperador(user) && atual.status !== 'pendente' && this.remarcou(atual, dto);
     try {
       return await this.prisma.mudancas.update({
         where: { id: Number(id) },
         data: {
+          ...(voltaAPendente && { status: 'pendente', motivo_recusa: null }),
           ...(dto.data !== undefined && { data: dto.data ? new Date(dto.data) : null }),
           ...(dto.hora_inicio !== undefined && {
             hora_inicio: dto.hora_inicio ? new Date(`1970-01-01T${dto.hora_inicio}:00`) : null,
@@ -165,6 +172,27 @@ export class MudancasService {
     } catch {
       throw new NotFoundException(`Mudança ${id} não encontrada`);
     }
+  }
+
+  /**
+   * Data, hora ou unidade diferentes das gravadas. Comparadas como o app as
+   * lê (`flatten`): data em AAAA-MM-DD e hora em HH:MM, ambas em UTC.
+   */
+  private remarcou(
+    atual: { data: Date | null; hora_inicio: Date | null; id_apartamento: number | null },
+    dto: Partial<{ data: string | null; hora_inicio: string | null; id_apartamento: number }>,
+  ): boolean {
+    const dia = (v: Date | string | null | undefined) => {
+      if (!v) return null;
+      const d = new Date(v);
+      return Number.isNaN(d.getTime()) ? String(v) : d.toISOString().slice(0, 10);
+    };
+    const hora = (v: Date | null | undefined) => (v ? new Date(v).toISOString().substring(11, 16) : null);
+    if (dto.data !== undefined && dia(dto.data) !== dia(atual.data)) return true;
+    if (dto.hora_inicio !== undefined && (dto.hora_inicio ? dto.hora_inicio.slice(0, 5) : null) !== hora(atual.hora_inicio)) {
+      return true;
+    }
+    return dto.id_apartamento !== undefined && Number(dto.id_apartamento) !== atual.id_apartamento;
   }
 
   /** Achata apartamento em apto / apto_bloco e formata as datas para string */

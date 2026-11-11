@@ -785,6 +785,11 @@ export class FinanceiroService implements OnModuleInit {
     return { success: true };
   }
 
+  /** Conta pessoal do usuário: lançada por ele para si (tipo 'D' com dono), não é do condomínio. */
+  private static ehContaPessoal(l: { tipo: string | null; id_usuario: number | null }): boolean {
+    return l.tipo === 'D' && l.id_usuario != null;
+  }
+
   async get(idCondominio: number, id: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return {
@@ -814,10 +819,13 @@ export class FinanceiroService implements OnModuleInit {
     const isSindico = typeAccess === 'Sindico' || typeAccess === 'Admin' || typeAccess === 'Administradora';
     const userId = user?.sub ?? user?.user?.id;
 
-    // 1. Conta pessoal de usuário (id_usuario preenchido: luz, água, internet, etc.)
+    // 1. Lançamento com dono (id_usuario preenchido). A conta PESSOAL (tipo 'D':
+    //    luz, água, internet que o morador lança para si) é só do dono — o
+    //    síndico a lia por aqui. Cobrança 'C' com id_usuario segue da
+    //    administração também.
     if (result.id_usuario != null) {
       const isDono = userId != null && Number(result.id_usuario) === Number(userId);
-      if (!isDono && !isSindico) {
+      if (!isDono && (FinanceiroService.ehContaPessoal(result) || !isSindico)) {
         throw new ForbiddenException('Acesso negado: lançamento pessoal não pertence a você');
       }
     }
@@ -1904,7 +1912,13 @@ export class FinanceiroService implements OnModuleInit {
       orderBy: { data_vencimento: 'desc' },
     });
 
+    // Conta pessoal (tipo 'D' + id_usuario) só sai para o próprio dono: o
+    // síndico que consulta o morador (?id_user=) recebe as cobranças do
+    // condomínio, não as contas que o morador lança para si.
+    const consultaPropria = idUsuarioDoToken(user) === Number(idUser);
+
     const filteredList = list.filter(item => {
+      if (!consultaPropria && FinanceiroService.ehContaPessoal(item)) return false;
       // id_usuario pode ser number do Prisma vs number JS — usa Number() para garantir
       if (item.id_usuario != null && Number(item.id_usuario) === Number(idUser)) return true;
       if (item.tipo === 'C') {

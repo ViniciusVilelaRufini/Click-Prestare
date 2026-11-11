@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { type Gravados, StorageService, umaVez } from '../common/storage/storage.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
@@ -382,7 +382,17 @@ export class AssembleiasService {
     return { success: true };
   }
 
-  async registerVoto(votacaoId: number, opcaoId: number, userId: number, requester?: JwtPayload) {
+  /**
+   * Um voto por APARTAMENTO, de quem tem vínculo (`Apartamentos_Users`, qualquer
+   * tipo) com uma unidade do condomínio da votação. Antes era um por conta:
+   * cada familiar cadastrado pesava mais um voto, e síndico/funcionário sem
+   * unidade também votavam. O voto novo de qualquer conta do apartamento
+   * substitui o anterior — a mesma troca que já valia para a própria conta.
+   *
+   * Quem tem mais de um apartamento no condomínio vota pelo `idApto`
+   * informado, se for dele; senão, pelo primeiro.
+   */
+  async registerVoto(votacaoId: number, opcaoId: number, userId: number, requester?: JwtPayload, idApto?: number) {
     if (!this.prisma.isConnected) return { success: true };
 
     const votacao = await this.prisma.votacoes.findUnique({
@@ -401,10 +411,25 @@ export class AssembleiasService {
       throw new BadRequestException('Opção inválida para esta votação');
     }
 
+    const meusAptos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_user: Number(userId), apartamento: { id_condominio: votacao.id_condominio } },
+      select: { id_apto: true },
+      orderBy: { id_apto: 'asc' },
+    });
+    if (meusAptos.length === 0) {
+      throw new ForbiddenException('Somente moradores com unidade no condomínio podem votar.');
+    }
+    const aptoDoVoto = meusAptos.some((v) => v.id_apto === Number(idApto)) ? Number(idApto) : meusAptos[0].id_apto;
+    const contasDoApto = await this.prisma.apartamentos_Users.findMany({
+      where: { id_apto: aptoDoVoto },
+      select: { id_user: true },
+    });
+    const idsQueSubstitui = [...new Set([Number(userId), ...contasDoApto.map((v) => v.id_user)])];
+
     await this.prisma.$transaction(async (tx) => {
       await tx.votacoes_Usuarios.deleteMany({
         where: {
-          id_user: Number(userId),
+          id_user: { in: idsQueSubstitui },
           id_opcao: { in: idsOpcoes },
         },
       });

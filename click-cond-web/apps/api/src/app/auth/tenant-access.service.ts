@@ -17,6 +17,16 @@ export type PermissaoFuncionario =
   | 'apartamentos';
 
 /**
+ * Token de funcionário do APP — o único papel que as flags de `Funcionarios`
+ * limitam (ver `assertPermissaoFuncionario`). Síndico, morador e o operador
+ * do console não dependem delas.
+ */
+export function ehFuncionarioDoApp(payload?: JwtPayload | null): payload is JwtPayload {
+  if (!payload) return false;
+  return (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase() === 'funcionario';
+}
+
+/**
  * Autorização de tenant "mobile-aware".
  *
  * Diferente do helper `assertSameTenant` (tenant.util.ts), que se auto-desliga
@@ -172,10 +182,7 @@ export class TenantAccessService {
     permissao: PermissaoFuncionario,
     payload?: JwtPayload,
   ): Promise<void> {
-    if (!payload) return;
-
-    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
-    if (tipo !== 'funcionario') return;
+    if (!ehFuncionarioDoApp(payload)) return;
     if (!this.prisma.isConnected) return;
 
     const userId = Number(payload.user?.id ?? payload.sub);

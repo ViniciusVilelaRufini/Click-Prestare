@@ -12,6 +12,8 @@ describe('MobileAuthService.deleteAccount — rosto nos terminais', () => {
       isConnected: true,
       users: { findUnique: jest.fn(async () => ({ login: 'm@t', email: 'm@t' })) },
       funcionarios_Portaria: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+      funcionarios: { findMany: jest.fn(async () => []) },
+      sindicos_Condominios: { findMany: jest.fn(async () => []) },
       moradores: {
         findMany: jest.fn(async () => [
           { id: 11, face_id: 'morador_11', id_condominio: 1 },

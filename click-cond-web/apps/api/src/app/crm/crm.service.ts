@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { AgentBridgeService } from '../facial/agent-bridge.service';
+import { csvCelula } from '../common/csv.util';
 
 
 /**
@@ -316,9 +317,11 @@ export class CrmService {
       ['Ultima Atividade', c.ultimaAtividade ? new Date(c.ultimaAtividade).toLocaleString('pt-BR') : '—'],
     ];
 
+    // Nome do condomínio e dados do síndico são texto do cliente: `csvCelula`
+    // neutraliza fórmula (= + - @) além de escapar aspas e vírgulas.
     const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+      headers.map(csvCelula).join(','),
+      ...rows.map(row => row.map(csvCelula).join(','))
     ].join('\r\n');
 
     return csvContent;

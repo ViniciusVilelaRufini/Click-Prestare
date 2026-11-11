@@ -96,7 +96,7 @@ export class AssembleiasController {
   @Post('votacoes/voto/insert')
   @HttpCode(200)
   registerVoto(
-    @Body() body: { voto?: { votacao_id?: string | number; opcao_id?: string | number } },
+    @Body() body: { voto?: { votacao_id?: string | number; opcao_id?: string | number; id_apto?: string | number } },
     @ReqUser() payload: JwtPayload,
   ) {
     const userId = exigirUsuario(payload);
@@ -104,12 +104,16 @@ export class AssembleiasController {
     if (!voto || voto.votacao_id == null || voto.opcao_id == null) {
       throw new BadRequestException('Payload inválido: { voto: { votacao_id, opcao_id } } é obrigatório.');
     }
-    return this.service.registerVoto(
+    // `id_apto` (opcional): por qual unidade vota quem tem mais de uma no condomínio.
+    const args: [number, number, number, JwtPayload] = [
       Number(voto.votacao_id),
       Number(voto.opcao_id),
       Number(userId),
       payload,
-    );
+    ];
+    return voto.id_apto != null
+      ? this.service.registerVoto(...args, Number(voto.id_apto))
+      : this.service.registerVoto(...args);
   }
 
   @Get('votacoes/enquetes/get-all')

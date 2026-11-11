@@ -48,7 +48,11 @@ describe('Credenciais da conta — edição por terceiros e autoedição', () =>
       funcionarios: { findFirst: jest.fn(async () => ({ id: 6, id_user: 40 })) },
       $transaction: jest.fn(async (fn: any) => fn(tx)),
     };
-    const tenant: any = { assertEntidade: jest.fn(async () => undefined) };
+    // Funcionário com a flag `apartamentos` (editar morador alheio exige a flag).
+    const tenant: any = {
+      assertEntidade: jest.fn(async () => undefined),
+      assertPermissaoFuncionario: jest.fn(async () => undefined),
+    };
     const storage: any = { isDataUrl: jest.fn(() => false), uploadDataUrl: jest.fn() };
     const svc = new MobileAuthService(
       prisma, { sign: jest.fn(() => 'tok') } as any, {} as any, storage, {} as any, tenant,
