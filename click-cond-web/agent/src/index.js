@@ -17,7 +17,7 @@
  * Sem dependências externas: usa só módulos nativos do Node 18+.
  *
  * Configuração (variáveis de ambiente ou arquivo .env ao lado deste arquivo):
- *   API_URL        Base da API na nuvem. Ex.: https://api.clickprestarecondominios.com.br
+ *   API_URL        Base da API na nuvem. Ex.: https://api.prestarecondominios.com.br
  *   DEVICE_TOKENS  Tokens dos devices (o webhook_token de cada um), separados
  *                  por vírgula. Copie do portal: botão "Copiar URL Webhook" —
  *                  o token é o trecho final da URL.
@@ -36,14 +36,30 @@ const {
   lanRequest: lanRequestComTimeout,
   okFrom,
   sleep,
+  classificarFalha,
 } = require('./lib/http');
+const { normalizarFabricante } = require('./lib/fabricante');
+const { criarDespachante, criarCicloDePing, PING_TIMEOUT_MS } = require('./core/despacho');
+const { criarMemoriaDeEco, avancarMarcaCobrindoEco } = require('./core/eco-replay');
+const {
+  intervaloDePoll,
+  entradasValidas,
+  avaliarRespostaDoPoll,
+  POLL_MIN_MS,
+} = require('./core/entrada-nuvem');
+const { criarExclusivoPorChave } = require('./core/exclusivo');
 const {
   configDir,
   deviceBaselines,
   loadBaselines,
   setBaseline,
 } = require('./core/estado');
-const { enqueueOfflineEvent, flushOfflineEvents, pendentes } = require('./core/fila-offline');
+const {
+  enqueueOfflineEvent,
+  flushOfflineEvents,
+  pendentes,
+  respostaTransitoria,
+} = require('./core/fila-offline');
 const {
   configurar: configurarNuvem,
   cloudRequest,
@@ -55,7 +71,7 @@ const { criarAtualizador } = require('./core/atualizador');
 const { descobrir } = require('./descoberta');
 const { criarAgendador } = require('./descoberta/agendador');
 const { lerTabelaArp } = require('./descoberta/arp');
-const { resolverDriver, resolverDriverDeEventos } = require('./drivers/registro');
+const { resolverDriver, resolverDriverDeEventos, replayEmTodaReconexao } = require('./drivers/registro');
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
 const controlidFacial = require('./drivers/controlid-facial');
@@ -87,13 +103,30 @@ let DEVICE_TOKENS = (process.env.DEVICE_TOKENS || '')
   .split(',')
   .map((t) => t.trim())
   .filter(Boolean);
-const DEFAULT_POLL_MS = Number(process.env.POLL_INTERVAL_MS || 2000);
+// Piso do intervalo de polling (ver core/entrada-nuvem.js): nem o .env nem a
+// nuvem conseguem baixar disto — `poll_interval_ms` torto ou minúsculo virava
+// laço apertado. POLL_INTERVAL_MIN_MS só existe para o harness (que roda com
+// 300 ms de propósito); em produção fica no padrão de 1000 ms.
+const POLL_MIN = intervaloDePoll(process.env.POLL_INTERVAL_MIN_MS, POLL_MIN_MS, 1);
+const DEFAULT_POLL_MS = intervaloDePoll(process.env.POLL_INTERVAL_MS, 2000, POLL_MIN);
 const LAN_TIMEOUT_MS = Number(process.env.LAN_TIMEOUT_MS || 8000);
 // lib/http.js não conhece LAN_TIMEOUT_MS (é config de módulo, carregada do
 // .env aqui). Este wrapper fecha sobre o valor configurado e mantém todas as
 // chamadas a lanRequest(...) espalhadas pelo arquivo inalteradas.
+//
+// `permitirBasic`: este wrapper só é usado pelo fallback REST GENÉRICO
+// (fabricante sem driver: botoeira/relé HTTP comum), o único caminho em que
+// um aparelho pode legitimamente pedir Basic. Os drivers Dahua/Intelbras,
+// Hikvision e Control iD têm o próprio lanRequest, sem a opção — a senha
+// deles nunca sai em Basic (ver request() em lib/http.js).
 function lanRequest(device, method, pathname, opts) {
-  return lanRequestComTimeout(device, method, pathname, opts, LAN_TIMEOUT_MS);
+  return lanRequestComTimeout(
+    device,
+    method,
+    pathname,
+    { permitirBasic: true, ...opts },
+    LAN_TIMEOUT_MS,
+  );
 }
 // Os drivers também falam LAN e não leem `process.env` (ficam testáveis
 // isolados) — recebem o mesmo timeout por configurar(), assim como
@@ -105,6 +138,12 @@ controlidFacial.configurar({ lanTimeoutMs: LAN_TIMEOUT_MS });
 const DEVICE_STATUS_INTERVAL_MS = Number(
   process.env.DEVICE_STATUS_INTERVAL_MS || 5000,
 );
+// Prazo do ping do heartbeat, por aparelho. Curto de propósito e separado do
+// LAN_TIMEOUT_MS (8 s, que vale para os COMANDOS): o heartbeat só responde
+// "está vivo?", e um aparelho mudo não pode segurar o status dos outros.
+const DEVICE_PING_TIMEOUT_MS = Number(process.env.DEVICE_PING_TIMEOUT_MS) > 0
+  ? Number(process.env.DEVICE_PING_TIMEOUT_MS)
+  : PING_TIMEOUT_MS;
 // Intervalo da telemetria (versão + saúde por device + fila offline) —
 // produção usa o default de 60s; o harness passa um valor curto via env
 // para não esperar um minuto inteiro pelo cenário (ver core/telemetria.js).
@@ -158,6 +197,52 @@ loadBaselines();
 // concorrentes (heartbeat vs. `aoConectar` do stream). Genérico por device
 // id: não pertence a driver nenhum, para tarefas 5/6 usarem sem mudança.
 const offlineSyncBusy = new Set();
+// O replay do log offline roda em TODA reconexão do stream e também na
+// transição offline→online do heartbeat. Por aparelho, nunca dois ao mesmo
+// tempo; um pedido que chega com um replay em curso vira uma execução a mais
+// quando ele terminar (ver core/exclusivo.js) — não é descartado, senão a
+// janela da reconexão que acabou de acontecer ficaria sem cobertura.
+const replayOffline = criarExclusivoPorChave();
+function agendarReplayOffline(token, device) {
+  return replayOffline
+    .rodar(device.id, () => syncDeviceOfflineLogs(token, device))
+    .catch((e) =>
+      console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e),
+    );
+}
+
+// Eco do replay (core/eco-replay.js): eventos AO VIVO recentes por aparelho,
+// para o replay não reenviar como backlog a passagem que o stream já
+// entregou. O instante é o relógio desta máquina CORRIGIDO pela nuvem
+// (`agoraDaNuvem`), não o `Date.now()` cru: é com essa mesma hora que o
+// agente acerta o relógio do aparelho (`acertarRelogio`), então é ela que se
+// compara com o `CreateTime` do log — o PC da portaria pode estar minutos
+// fora, e a janela do eco é de 15 s.
+const ecoReplay = criarMemoriaDeEco();
+function instanteDoEco() {
+  return agoraDaNuvem().getTime();
+}
+
+/**
+ * Avança a marca d'água de um aparelho online (só driver que tem
+ * `advanceBaselineWhileOnline`). Se a marca andou, tudo o que chegou ao vivo
+ * até o FIM da busca já está abaixo dela e nunca volta num replay — sai da
+ * memória de eco, senão consumiria uma passagem nova da mesma pessoa. A
+ * regra (instante do fim, não do início; replay em curso não limpa) mora e é
+ * testada em core/eco-replay.js (`avancarMarcaCobrindoEco`). Nunca rejeita.
+ */
+function avancarMarcaOnline(device, force) {
+  const driver = resolverDriverDeEventos(device);
+  if (!driver || typeof driver.advanceBaselineWhileOnline !== 'function') return;
+  void avancarMarcaCobrindoEco({
+    eco: ecoReplay,
+    deviceId: device.id,
+    lerMarca: () => deviceBaselines.get(device.id),
+    avancar: () => driver.advanceBaselineWhileOnline(device, force),
+    agora: instanteDoEco,
+    ocupado: () => offlineSyncBusy.has(device.id) || replayOffline.ocupado(device.id),
+  });
+}
 
 // Devices do último poll (p/ o servidor de live view achar IP/credencial).
 let lastDevices = [];
@@ -228,7 +313,7 @@ async function firstRunSetup() {
 
   console.log('\n=== Configuração inicial do Agente Local ===');
   console.log('(você só faz isso uma vez; depois é automático)\n');
-  const urlIn = await ask('1) URL da API na nuvem (ex.: https://api.clickprestarecondominios.com.br): ');
+  const urlIn = await ask('1) URL da API na nuvem (ex.: https://api.prestarecondominios.com.br): ');
   console.log('\n2) No portal, em Terminais de Dispositivos, clique "Copiar URL Webhook"');
   console.log('   em QUALQUER dispositivo e cole aqui (pode colar a URL inteira):');
   const tokenIn = await ask('   Token/URL: ');
@@ -264,27 +349,105 @@ async function runCondoLoop(token) {
   // Um SupervisorDispositivo por device: resolve o driver, assina `escutar`
   // (uma vez) e reconecta sozinho (espera crescente) se a assinatura falhar.
   // `aoRecuperarOffline` é chamado pelo Supervisor toda vez que o driver
-  // conecta (é o fast-path já existente) — o STREAM reabre periodicamente
-  // por conta própria (não é sinal de queda de verdade — ver comentário no
-  // driver Dahua/Intelbras), então este callback só age quando o HEARTBEAT
-  // (abaixo) já tinha marcado o device como offline.
+  // conecta. Dahua/Intelbras (`replayEmTodaReconexao`): o replay do log
+  // interno roda em TODA reconexão — não só quando o heartbeat já tinha
+  // marcado o device como offline. Entre o stream fechar e reabrir (o
+  // aparelho fecha periodicamente por conta própria, e uma queda curta de
+  // rede nem chega a virar "offline" no heartbeat de 5 s) existe uma janela
+  // em que um acesso só fica no log do aparelho; sem o replay aqui essa
+  // passagem nunca chegava à nuvem (e o próximo evento ao vivo ainda
+  // empurrava a marca d'água por cima dela). O que o stream já tinha mandado
+  // e reaparece no replay vai como `backlog` e a nuvem deduplica (runWebhook:
+  // "Dedup de backlog" ±5 s + guardas de eco). Demais marcas: como antes, só
+  // quando o heartbeat tinha marcado offline (ver `replayEmTodaReconexao`).
+  // `agendarReplayOffline` garante um replay por vez por aparelho.
   // Ouvinte de eventos: só tipo 'facial' (`resolverDriverDeEventos`) — uma
   // câmera LPR ou catraca da mesma marca não assina o stream de rostos.
   const supervisor = new Supervisor({
     resolverDriver: resolverDriverDeEventos,
     aoEvento: (device, data) => forwardAccessEvent(token, device, data),
     aoRecuperarOffline: (device) => {
-      if (lastDeviceOnline.get(device.id) === false) {
+      const estavaOffline = lastDeviceOnline.get(device.id) === false;
+      if (estavaOffline) {
         lastDeviceOnline.set(device.id, true);
+        offlineDesde.delete(device.id);
         console.log(
           `[agente] ${device.nome}: aparelho ONLINE (stream reconectou) — recuperando acessos offline`,
         );
-        syncDeviceOfflineLogs(token, device).catch((e) =>
-          console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e),
-        );
       }
+      if (estavaOffline || replayEmTodaReconexao(device)) agendarReplayOffline(token, device);
     },
   });
+
+  // Comandos: uma fila por aparelho, aparelhos em paralelo (core/despacho.js).
+  // Um facial desligado (8 s de timeout por chamada) não segura mais a
+  // abertura do portão ao lado nem o próximo poll.
+  const despachante = criarDespachante({
+    executar: executeOnDevice,
+    postarResultado: (device, cmd, result) =>
+      cloudRequest('POST', `/api/facial/agent/condo/${token}/result`, {
+        commandId: cmd.id,
+        ...result,
+      }),
+  });
+
+  // Heartbeat: pings em paralelo, prazo curto próprio, fora do caminho dos
+  // comandos e sem empilhar ping no mesmo aparelho (core/despacho.js).
+  const cicloDePing = criarCicloDePing({ pingar: doPing, timeoutMs: DEVICE_PING_TIMEOUT_MS });
+
+  /** Um ciclo do heartbeat de status: pinga, aplica as transições
+   *  online/offline e reporta à nuvem. Roda solto (não é aguardado pelo laço
+   *  do poll); nunca rejeita. */
+  async function rodarHeartbeat(devices) {
+    try {
+      const resultados = await cicloDePing.rodar(devices);
+      const statuses = [];
+      for (const { device, online, motivo } of resultados) {
+        // `motivo` (credencial | sem_resposta | recusado | protocolo_inesperado
+        // | null): campo a mais no corpo — a API atual lê só deviceId/online
+        // (reportDeviceStatuses) e ignora o resto sem erro.
+        statuses.push({ deviceId: device.id, online, motivo });
+        // Loga só na MUDANÇA de estado (evita spam a cada ciclo).
+        if (lastDeviceOnline.get(device.id) !== online) {
+          lastDeviceOnline.set(device.id, online);
+          console.log(
+            `[agente] ${device.nome}: aparelho ${online ? 'ONLINE' : `OFFLINE (${motivo})`}`,
+          );
+          if (online) {
+            // Voltou: some do mapa (a descoberta olha `offlineDesde` para
+            // saber quem está caído há muito tempo — ver descoberta/agendador.js).
+            offlineDesde.delete(device.id);
+            // Transição offline→online: recupera a janela que a stream perdeu
+            // e acerta o relógio (ele deriva; ver dahuaFacial.acertarRelogio).
+            agendarReplayOffline(token, device);
+            resolverDriverDeEventos(device)?.acertarRelogio?.(device, true)?.catch(() => {});
+          } else {
+            // Ficou offline agora: marca o instante para o agendador de
+            // descoberta considerar varredura se persistir por muito tempo.
+            offlineDesde.set(device.id, Date.now());
+          }
+        } else if (online) {
+          // Online estável: só mantém a marca d'água atual (a stream já cobre
+          // os eventos); assim o próximo reconnect só reprocessa a janela real.
+          // Fora da janela de recovery em curso (evita corrida com ela).
+          const driverDoDevice = resolverDriverDeEventos(device);
+          if (!offlineSyncBusy.has(device.id) && !replayOffline.ocupado(device.id)) {
+            avancarMarcaOnline(device);
+          }
+          driverDoDevice?.acertarRelogio?.(device)?.catch(() => {});
+        }
+      }
+      if (statuses.length > 0) {
+        await cloudRequest(
+          'POST',
+          `/api/facial/agent/condo/${token}/device-status`,
+          { statuses },
+        ).catch(() => {});
+      }
+    } catch (err) {
+      console.error(`[agente] erro no heartbeat de status: ${err.message || err}`);
+    }
+  }
 
   // Telemetria (tarefa 7): versão + SO + saúde por device (supervisor.saudeTodos()
   // + `online` do heartbeat)
@@ -330,8 +493,8 @@ async function runCondoLoop(token) {
   while (true) {
     try {
       const res = await cloudRequest('GET', `/api/facial/agent/condo/${token}/poll`);
-      errBackoff = 0;
       if (res.status === 401 || res.status === 404) {
+        errBackoff = 0;
         console.error(
           `[agente] token inválido/inativo (HTTP ${res.status}). Nova tentativa em 30s (confira o token no portal).`,
         );
@@ -346,10 +509,25 @@ async function runCondoLoop(token) {
         atualizador.confirmarSucesso();
         atualizador.agendarVerificacaoPeriodica(token);
       }
-      const body = res.data || {};
-      if (body.poll_interval_ms) pollMs = Number(body.poll_interval_ms);
+      // Resposta que não é 2xx (5xx, 429, HTML do balanceador) ou cujo corpo
+      // não é o JSON esperado NÃO é "nenhum aparelho": vira erro do laço — o
+      // catch abaixo loga e aplica o backoff — e o resto da iteração é
+      // pulado, sem tocar em supervisor, `lastDevices`, `offlineDesde`,
+      // comandos ou heartbeat. Antes o corpo ruim virava `{}` → lista vazia →
+      // TODOS os ouvintes eram derrubados (ver core/entrada-nuvem.js).
+      const avaliacao = avaliarRespostaDoPoll(res);
+      if (!avaliacao.ok) throw new Error(avaliacao.motivo);
+      errBackoff = 0;
+      const body = avaliacao.body;
+      // Intervalo vindo da nuvem: inválido mantém o atual; nunca abaixo do piso.
+      pollMs = intervaloDePoll(body.poll_interval_ms, pollMs, POLL_MIN);
+      // Só entradas com device e id (o corpo vem de fora: uma entrada torta
+      // derrubava a iteração inteira ao ler o id do device — nenhum comando
+      // de nenhum aparelho era executado naquele poll).
+      const entradas = entradasValidas(body);
+      const devicesAtuais = entradas.map((e) => e.device);
       // Cache p/ o servidor de live view (localhost) saber IP/credenciais.
-      lastDevices = (body.devices || []).map((e) => e.device).filter(Boolean);
+      lastDevices = devicesAtuais;
 
       // Poll respondeu = nuvem alcançável → reenvia eventos guardados durante
       // a queda de internet (store-and-forward). Roda em background.
@@ -358,12 +536,12 @@ async function runCondoLoop(token) {
       // Mantém um SupervisorDispositivo por device da lista atual — cria o
       // que é novo (resolve driver, assina `escutar`), para (`parar()`) o
       // que saiu da lista (removido/desativado no portal).
-      supervisor.atualizar((body.devices || []).map((entry) => entry.device));
+      supervisor.atualizar(devicesAtuais);
 
       // offlineDesde: tira os ids que saíram da lista atual (device removido/
       // desativado no portal) — senão ficariam presos como "offline há muito
       // tempo" para sempre e continuariam empurrando varredura na descoberta.
-      const idsAtuais = new Set((body.devices || []).map((entry) => entry.device.id));
+      const idsAtuais = new Set(devicesAtuais.map((d) => d.id));
       for (const id of offlineDesde.keys()) if (!idsAtuais.has(id)) offlineDesde.delete(id);
 
       // Descoberta na rede (etapa 3): dispara sem bloquear o laço do poll —
@@ -376,76 +554,19 @@ async function runCondoLoop(token) {
         // derrubaria o processo inteiro (poll, comandos, heartbeat).
         .catch((err) => console.error(`[agente] descoberta: ${err.message || err}`));
 
-      for (const entry of body.devices || []) {
-        const device = entry.device;
-        for (const cmd of entry.commands || []) {
-          const result = await executeOnDevice(device, cmd);
-          await cloudRequest('POST', `/api/facial/agent/condo/${token}/result`, {
-            commandId: cmd.id,
-            ...result,
-          });
-          console.log(
-            `[agente] ${device.nome} ◂ ${cmd.type} → ${result.ok ? 'OK' : 'FALHA'}${
-              result.error ? ' (' + result.error + ')' : ''
-            }`,
-          );
-        }
-      }
+      // Comandos: enfileira e SEGUE (não espera). Cada aparelho tem a sua
+      // fila — ordem estrita dentro do aparelho, paralelo entre aparelhos —
+      // e a falha de um comando (ao executar ou ao devolver o resultado) não
+      // descarta os demais. O log "◂ tipo → OK/FALHA" sai do despachante.
+      void despachante.despachar(entradas);
 
-      // Heartbeat de status do aparelho (throttled ~20s): pinga cada device na
-      // LAN e reporta, para o portal mostrar online/offline automaticamente.
+      // Heartbeat de status do aparelho (a cada DEVICE_STATUS_INTERVAL_MS):
+      // pinga cada device na LAN e reporta, para o portal mostrar
+      // online/offline automaticamente. Roda solto: não segura os comandos
+      // nem o próximo poll (`rodarHeartbeat` nunca rejeita).
       if (Date.now() - lastStatusAt >= DEVICE_STATUS_INTERVAL_MS) {
         lastStatusAt = Date.now();
-        const statuses = [];
-        for (const entry of body.devices || []) {
-          const device = entry.device;
-          let online = false;
-          try {
-            const r = await doPing(device);
-            online = !!r.ok;
-          } catch {
-            online = false;
-          }
-          statuses.push({ deviceId: device.id, online });
-          // Loga só na MUDANÇA de estado (evita spam a cada 20s).
-          if (lastDeviceOnline.get(device.id) !== online) {
-            lastDeviceOnline.set(device.id, online);
-            console.log(
-              `[agente] ${device.nome}: aparelho ${online ? 'ONLINE' : 'OFFLINE'}`,
-            );
-            if (online) {
-              // Voltou: some do mapa (a descoberta olha `offlineDesde` para
-              // saber quem está caído há muito tempo — ver descoberta/agendador.js).
-              offlineDesde.delete(device.id);
-              // Transição offline→online: recupera a janela que a stream perdeu
-              // e acerta o relógio (ele deriva; ver dahuaFacial.acertarRelogio).
-              syncDeviceOfflineLogs(token, device).catch((e) =>
-                console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e)
-              );
-              resolverDriverDeEventos(device)?.acertarRelogio?.(device, true)?.catch(() => {});
-            } else {
-              // Ficou offline agora: marca o instante para o agendador de
-              // descoberta considerar varredura se persistir por muito tempo.
-              offlineDesde.set(device.id, Date.now());
-            }
-          } else if (online) {
-            // Online estável: só mantém a marca d'água atual (a stream já cobre
-            // os eventos); assim o próximo reconnect só reprocessa a janela real.
-            // Fora da janela de recovery em curso (evita corrida com ela).
-            const driverDoDevice = resolverDriverDeEventos(device);
-            if (!offlineSyncBusy.has(device.id)) {
-              driverDoDevice?.advanceBaselineWhileOnline?.(device)?.catch(() => {});
-            }
-            driverDoDevice?.acertarRelogio?.(device)?.catch(() => {});
-          }
-        }
-        if (statuses.length > 0) {
-          await cloudRequest(
-            'POST',
-            `/api/facial/agent/condo/${token}/device-status`,
-            { statuses },
-          ).catch(() => {});
-        }
+        void rodarHeartbeat(devicesAtuais);
       }
     } catch (err) {
       errBackoff = Math.min(errBackoff + 1, 10);
@@ -453,9 +574,11 @@ async function runCondoLoop(token) {
     }
     // Auto-atualização: `verificar` roda em paralelo a este laço e, se trocou
     // o exe, NÃO sai na hora (cortaria um enroll/remoção em curso) — a
-    // saída acontece aqui, no fim da iteração, com os comandos já
-    // respondidos à nuvem.
-    atualizador.sairSeReinicioPendente();
+    // saída acontece aqui, no fim da iteração, e só com as filas de comando
+    // vazias (os comandos agora rodam soltos do laço: sem esta checagem a
+    // saída poderia cortar um cadastro no meio). O teto de segurança do
+    // atualizador continua valendo se as filas nunca esvaziarem.
+    if (despachante.ocioso()) atualizador.sairSeReinicioPendente();
     await sleep(errBackoff > 0 ? pollMs * (1 + errBackoff) : pollMs);
   }
 }
@@ -464,6 +587,18 @@ async function runDeviceLoop(token) {
   let pollMs = DEFAULT_POLL_MS;
   // backoff simples quando a nuvem está inacessível, pra não martelar
   let errBackoff = 0;
+  // Mesmo despacho do modo condomínio (core/despacho.js). Aqui há um device
+  // só e o laço ESPERA o lote, então a execução segue em série como antes; o
+  // que muda é que falhar ao devolver o resultado de um comando não descarta
+  // mais os comandos seguintes do lote.
+  const despachante = criarDespachante({
+    executar: executeOnDevice,
+    postarResultado: (device, cmd, result) =>
+      cloudRequest('POST', `/api/facial/agent/${token}/result`, {
+        commandId: cmd.id,
+        ...result,
+      }),
+  });
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -480,23 +615,11 @@ async function runDeviceLoop(token) {
         await sleep(30000);
         continue;
       }
-      const body = res.data || {};
-      if (body.poll_interval_ms) pollMs = Number(body.poll_interval_ms);
+      const body = res.data && typeof res.data === 'object' ? res.data : {};
+      pollMs = intervaloDePoll(body.poll_interval_ms, pollMs, POLL_MIN);
 
-      const device = body.device;
-      const commands = body.commands || [];
-      for (const cmd of commands) {
-        const result = await executeOnDevice(device, cmd);
-        await cloudRequest('POST', `/api/facial/agent/${token}/result`, {
-          commandId: cmd.id,
-          ...result,
-        });
-        console.log(
-          `[agente] ${device.nome} ◂ ${cmd.type} → ${result.ok ? 'OK' : 'FALHA'}${
-            result.error ? ' (' + result.error + ')' : ''
-          }`,
-        );
-      }
+      // Entrada sem device/id é ignorada pelo despachante (não lança).
+      await despachante.despachar([{ device: body.device, commands: body.commands }]);
     } catch (err) {
       errBackoff = Math.min(errBackoff + 1, 10);
       console.error(
@@ -518,10 +641,12 @@ async function runDeviceLoop(token) {
  * Mantenha em sincronia com facial-device-client.service.ts (modo direto).
  */
 async function executeOnDevice(device, cmd) {
-  if (SEM_COMANDO_HTTP[device.fabricante]) {
+  // Mesma normalização do registro de drivers ("ZKTeco" = "zkteco").
+  const fabricante = normalizarFabricante(device.fabricante);
+  if (Object.prototype.hasOwnProperty.call(SEM_COMANDO_HTTP, fabricante)) {
     return {
       ok: false,
-      error: `${device.fabricante} usa ${SEM_COMANDO_HTTP[device.fabricante]} — não aceita comando via HTTP. Use uma botoeira/relé HTTP genérico ou um bridge SDK.`,
+      error: `${device.fabricante} usa ${SEM_COMANDO_HTTP[fabricante]} — não aceita comando via HTTP. Use uma botoeira/relé HTTP genérico ou um bridge SDK.`,
     };
   }
   // Dahua/Intelbras, Hikvision e Control iD já falam pelo contrato de driver
@@ -530,19 +655,15 @@ async function executeOnDevice(device, cmd) {
   const driver = resolverDriver(device);
   if (driver) {
     try {
-      return await driver.executar(device, cmd);
+      return comMotivoDoPing(cmd, await driver.executar(device, cmd));
     } catch (err) {
-      return {
-        ok: false,
-        statusCode: err.statusCode,
-        error: err.message || String(err),
-      };
+      return falhaDeComando(cmd, err);
     }
   }
   try {
     switch (cmd.type) {
       case 'ping':
-        return await doPing(device);
+        return comMotivoDoPing(cmd, await doPing(device));
       case 'open_door':
         return await doOpenDoor(device);
       case 'enroll':
@@ -560,12 +681,31 @@ async function executeOnDevice(device, cmd) {
         return { ok: false, error: `comando desconhecido: ${cmd.type}` };
     }
   } catch (err) {
-    return {
-      ok: false,
-      statusCode: err.statusCode,
-      error: err.message || String(err),
-    };
+    return falhaDeComando(cmd, err);
   }
+}
+
+/**
+ * Resultado `ok:false` de um comando que LANÇOU. No `ping` vai junto o
+ * `motivo` (ver `classificarFalha` em lib/http.js) — classificado a partir
+ * do erro original, porque depois de virar `{ statusCode, error }` o código
+ * de rede (ECONNREFUSED, ETIMEDOUT...) já se perdeu. Campo a mais no
+ * resultado: a nuvem guarda o resultado inteiro e lê `motivo` se existir.
+ */
+function falhaDeComando(cmd, err) {
+  const falha = {
+    ok: false,
+    statusCode: err && err.statusCode,
+    error: (err && err.message) || String(err),
+  };
+  if (cmd && cmd.type === 'ping') falha.motivo = classificarFalha(err);
+  return falha;
+}
+
+/** Ping que voltou `ok:false` SEM lançar (ex.: HTTP 401): acrescenta o motivo. */
+function comMotivoDoPing(cmd, result) {
+  if (!cmd || cmd.type !== 'ping' || !result || result.ok || result.motivo) return result;
+  return { ...result, motivo: classificarFalha(result) };
 }
 
 /** Captura um quadro (JPEG) da câmera do facial e devolve em base64. Dahua,
@@ -811,12 +951,16 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
 
   // Debounce por (device, UserID): colapsa a rajada de frames de uma aproximação
   // num único evento. Síncrono antes do await → imune à corrida da rajada.
+  // `recebidoEm`: instante da CHEGADA do evento ao vivo, para a memória de eco
+  // (o registro nela só acontece depois do desfecho do envio — ver abaixo).
+  let recebidoEm;
   if (!opts.backlog) {
     const key = `${device.id}:${userId}`;
     const agora = Date.now();
     const ultimo = lastAccessForwardedAt.get(key) || 0;
     if (agora - ultimo < AGENT_EVENT_DEBOUNCE_MS) return;
     lastAccessForwardedAt.set(key, agora);
+    recebidoEm = instanteDoEco();
   }
 
   // Sem timestamp do aparelho, carimba com a hora da NUVEM — não a desta
@@ -854,10 +998,20 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
     // 5xx = nuvem fora do ar. 401/404 = token piscando (device reativando no
     // portal). 408/429 = timeout e throttle. Todos transitórios: guarda para
     // reenvio. Só o 4xx de validação (400/403/422) é definitivo — reenviar daria
-    // o mesmo erro para sempre, e o log acima já registra o motivo.
-    const valeReenviar =
-      res.status >= 500 || [401, 404, 408, 429].includes(res.status);
+    // o mesmo erro para sempre, e o log acima já registra o motivo. O critério
+    // é o MESMO do flush da fila (`respostaTransitoria`, core/fila-offline.js).
+    const valeReenviar = respostaTransitoria(res.status);
     if (valeReenviar) enqueueOfflineEvent(body, device.nome);
+    // Memória de eco (ver core/eco-replay.js): se o stream reabrir antes de a
+    // marca d'água cobrir este acesso, o replay o encontra no log e NÃO
+    // reenvia. Só entra DEPOIS do desfecho, e só com a entrega garantida — a
+    // nuvem aceitou ou o evento foi para a fila offline. Recusado de vez não
+    // entra: o replay tem de tratá-lo como passagem real e tentar de novo
+    // (antes ele virava "eco", a marca passava por cima e o evento se perdia
+    // duas vezes).
+    if (!opts.backlog) {
+      ecoReplay.registrarAposEnvio(device.id, userId, recebidoEm, { aceito: ok, enfileirado: valeReenviar });
+    }
     // Evento AO VIVO (não backlog): avança a marca d'água para incluir o RecNo
     // deste acesso ANTES de um eventual offline. Assim a recuperação reenviará
     // só os eventos realmente perdidos, sem sobrepor os que a stream já pegou.
@@ -865,8 +1019,8 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
     // Só avança se a nuvem ACEITOU. Avançar após uma recusa apagava o evento
     // duas vezes: ele não entrou na nuvem e a marca d'água passava por cima
     // dele, então o replay do próximo reconnect também não o veria.
-    if (!opts.backlog && ok && !offlineSyncBusy.has(device.id)) {
-      resolverDriverDeEventos(device)?.advanceBaselineWhileOnline?.(device, true)?.catch(() => {});
+    if (!opts.backlog && ok && !offlineSyncBusy.has(device.id) && !replayOffline.ocupado(device.id)) {
+      avancarMarcaOnline(device, true);
     }
     return ok;
   } catch (err) {
@@ -875,6 +1029,9 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
     );
     // Sem internet: guarda em disco e reenvia quando a nuvem voltar.
     enqueueOfflineEvent(body, device.nome);
+    if (!opts.backlog) {
+      ecoReplay.registrarAposEnvio(device.id, userId, recebidoEm, { aceito: false, enfileirado: true });
+    }
     return false;
   }
 }
@@ -938,6 +1095,9 @@ async function syncDeviceOfflineLogs(token, device) {
   const rotulo = `${device.nome} (${driver.id})`;
   try {
     const baseline = deviceBaselines.get(device.id);
+    // Instante desta leitura do log: o que chegou AO VIVO até aqui ou está
+    // na lista abaixo (e casa como eco) ou já estava sob a marca d'água.
+    const lidoEm = instanteDoEco();
     const { eventos, novaMarca, logVazio } = await driver.buscarDesde(device, baseline);
 
     if (logVazio) {
@@ -947,10 +1107,12 @@ async function syncDeviceOfflineLogs(token, device) {
     if (baseline === undefined) {
       // Primeira vez: estabelece a marca d'água SEM reprocessar o histórico.
       setBaseline(device.id, novaMarca);
+      ecoReplay.cobrirAte(device.id, lidoEm);
       console.log(`[agente] ${rotulo}: baseline de acessos inicializada em ${novaMarca}.`);
       return;
     }
     if (novaMarca <= baseline) {
+      ecoReplay.cobrirAte(device.id, lidoEm);
       console.log(
         `[agente] ${rotulo}: recovery sem novidade (marca atual ${novaMarca} <= baseline ${baseline}).`,
       );
@@ -959,14 +1121,36 @@ async function syncDeviceOfflineLogs(token, device) {
 
     let enviados = 0;
     let falhas = 0;
+    let ecos = 0;
     // Até onde é seguro avançar a marca d'água: a última marca confirmada
     // pela nuvem antes do primeiro envio que falhar (esses não voltam mesmo,
     // não adianta represá-los).
     let ultimoConfirmado = baseline;
+    // Ecos decididos sobre a LISTA inteira, antes de enviar qualquer coisa:
+    // cada evento ao vivo casa com o registro da mesma pessoa mais próximo no
+    // tempo (ver `separarEcos`). Decidir registro a registro deixava um
+    // registro antigo REAL casar com um evento ao vivo posterior.
+    const separados = ecoReplay.separarEcos(
+      device.id,
+      eventos.map((ev) => ({ pessoa: ev.UserID, instanteMs: Date.parse(ev.timestamp), marca: ev._marca, ev })),
+      instanteDoEco(),
+    );
+    const ecosDoReplay = new Set(separados.ecos.map((r) => r.ev));
     for (const ev of eventos) {
       console.log(
         `[agente] ${rotulo}: replay marca ${ev._marca} UserID ${ev.UserID} timestamp ${ev.timestamp}`,
       );
+      // Eco: o stream já entregou esta passagem ao vivo (a marca d'água ainda
+      // não tinha andado). Não reenvia, mas CONTA como confirmado — a marca
+      // avança por cima dele, senão seria relido para sempre.
+      if (ecosDoReplay.has(ev)) {
+        ecos++;
+        if (falhas === 0) ultimoConfirmado = ev._marca;
+        console.log(
+          `[agente] ${rotulo}: marca ${ev._marca} UserID ${ev.UserID} já enviada ao vivo — eco do replay descartado.`,
+        );
+        continue;
+      }
       const ok = await forwardAccessEvent(token, device, ev, { backlog: true });
       if (ok) {
         enviados++;
@@ -982,10 +1166,15 @@ async function syncDeviceOfflineLogs(token, device) {
     // histórico para sempre. Represar o watermark faz o próximo ciclo tentar
     // de novo; o `backlog: true` e a deduplicação na nuvem cuidam de reenvio
     // repetido.
+    const sufixoEcos = ecos > 0 ? `, ${ecos} eco(s) do stream descartado(s)` : '';
     if (falhas > 0) {
       setBaseline(device.id, ultimoConfirmado);
+      // Marca represada: os registros serão relidos. Quem já casou como eco
+      // fica na memória (o mesmo registro continua eco); o resto do que
+      // chegou até a leitura não tem registro acima da marca — sai.
+      ecoReplay.cobrirAte(device.id, lidoEm, { manterConsumidos: true });
       console.error(
-        `[agente] ${rotulo}: recuperados ${enviados} acesso(s), ${falhas} FALHARAM. ` +
+        `[agente] ${rotulo}: recuperados ${enviados} acesso(s)${sufixoEcos}, ${falhas} FALHARAM. ` +
         `Baseline represada em ${ultimoConfirmado} (não avançou até ${novaMarca}) — ` +
         `nova tentativa no próximo ciclo.`,
       );
@@ -994,7 +1183,10 @@ async function syncDeviceOfflineLogs(token, device) {
       // do array `eventos` o que foi filtrado por UserID vazio/negado, mas
       // `novaMarca` cobre esses registros também — nunca virariam evento).
       setBaseline(device.id, novaMarca);
-      console.log(`[agente] ${rotulo}: recuperados ${enviados} acesso(s) offline (${baseline}→${novaMarca}).`);
+      ecoReplay.cobrirAte(device.id, lidoEm);
+      console.log(
+        `[agente] ${rotulo}: recuperados ${enviados} acesso(s) offline${sufixoEcos} (${baseline}→${novaMarca}).`,
+      );
     }
   } catch (err) {
     console.error(`[agente] ${rotulo}: falha ao ler log de acesso offline:`, err.message || err);
@@ -1006,4 +1198,18 @@ async function syncDeviceOfflineLogs(token, device) {
 process.on('SIGINT', () => {
   console.log('\n[agente] encerrando.');
   process.exit(0);
+});
+
+// Rede de segurança: sem este handler, QUALQUER Promise rejeitada sem catch
+// (uma chamada com `void`, um `.then` esquecido) encerra o processo — no
+// Node 15+ rejeição não tratada é fatal. Este processo abre portas; um bug
+// lateral (ex.: disco cheio ao gravar a fila offline) não pode desligar o
+// controle de acesso. Só loga: quem rejeitou continua com defeito e o log
+// diz onde. Exceção SÍNCRONA não capturada continua fatal (estado
+// imprevisível) — o laço de serviço reinicia o agente.
+process.on('unhandledRejection', (motivo) => {
+  console.error(
+    '[agente] rejeição não tratada (o agente segue rodando):',
+    motivo && motivo.stack ? motivo.stack : motivo,
+  );
 });

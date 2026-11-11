@@ -5,6 +5,7 @@ import * as https from 'https';
 import * as crypto from 'crypto';
 import { AgentBridgeService } from './agent-bridge.service';
 import { agentesSemRedeInterna, lookupSeguro, urlExternaSegura } from '../common/url-segura.util';
+import { FABRICANTE_GENERICO, protocoloSemHttp } from './fabricantes';
 
 export interface FacialDeviceConfig {
   id: number;
@@ -29,12 +30,67 @@ export interface EnrollResult {
   faceId: string;
 }
 
+/** Por que o "Testar conexão" falhou (null = não falhou). */
+export type MotivoDiagnostico =
+  /** O Agente Local não está conectado e o terminal só é alcançável por ele. */
+  | 'agente_offline'
+  /** O aparelho respondeu 401/403: usuário ou senha errados. */
+  | 'credencial_invalida'
+  /** Ninguém respondeu no endereço (timeout / sem rota): IP errado, aparelho desligado. */
+  | 'sem_resposta'
+  /** Há um host no IP, mas a porta recusou a conexão: porta errada. */
+  | 'recusado'
+  /** Respondeu, mas não como a marca cadastrada responderia: provável marca errada. */
+  | 'protocolo_inesperado'
+  /** A marca não aceita comando HTTP (ver fabricantes.ts, família 'sem_http'). */
+  | 'marca_sem_http';
+
+export interface DiagnosticoConexao {
+  ok: boolean;
+  motivo: MotivoDiagnostico | null;
+  /** Texto curto para o operador/suporte. Nunca contém a senha do aparelho. */
+  detalhe?: string;
+}
+
+/** `motivo` que o Agente Local manda no resultado do ping → motivo da nuvem. */
+const MOTIVOS_DO_AGENTE = new Map<string, MotivoDiagnostico>([
+  ['credencial', 'credencial_invalida'],
+  ['credencial_invalida', 'credencial_invalida'],
+  ['sem_resposta', 'sem_resposta'],
+  ['recusado', 'recusado'],
+  ['protocolo_inesperado', 'protocolo_inesperado'],
+]);
+
+const DETALHE_MAX = 200;
+
 /**
- * Fabricantes que NÃO falam HTTP para comandos (abrir porta / cadastrar rosto).
- * Usam protocolo binário em porta própria ou SDK — não dá para acionar via
- * requisição HTTP. Validado contra documentação pública (jun/2026). Para esses
- * casos, use uma botoeira/relé HTTP genérico no acionamento ou um bridge SDK.
+ * Deriva o motivo da falha a partir do que sobrou dela: o status HTTP do
+ * aparelho, ou — sem status — o código/mensagem do erro de rede. Vale para o
+ * modo direto e para o agente que ainda não manda `motivo`.
  */
+export function motivoDaFalha(
+  statusCode?: number | null,
+  erro?: string | null,
+  codigo?: string | null,
+): MotivoDiagnostico {
+  if (typeof statusCode === 'number' && Number.isFinite(statusCode)) {
+    if (statusCode === 401 || statusCode === 403) return 'credencial_invalida';
+    // 404/outro 4xx: o caminho da marca não existe ali. 2xx sem sucesso, 3xx
+    // e 5xx: respondeu, mas não como a marca cadastrada responderia.
+    return 'protocolo_inesperado';
+  }
+  const texto = `${codigo ?? ''} ${erro ?? ''}`;
+  if (/ECONNREFUSED/i.test(texto)) return 'recusado';
+  if (/agente local n.o est. conectado|resolve para endere.o interno/i.test(texto)) {
+    return 'agente_offline';
+  }
+  if (/ECONNRESET|EPROTO|HPE_|parse error|socket hang up|wrong version number|n.o retornou session/i.test(texto)) {
+    return 'protocolo_inesperado';
+  }
+  // timeout, ETIMEDOUT, EHOSTUNREACH, ENETUNREACH, ENOTFOUND, sem informação.
+  return 'sem_resposta';
+}
+
 /**
  * Identificador que NÓS gravamos no aparelho ("morador_42", "visitante_9",
  * "prestador_servico_3", "pessoa_10"). Usado para a varredura de fantasmas não encostar em
@@ -42,11 +98,12 @@ export interface EnrollResult {
  */
 const NOSSO_EXTERNAL_ID = /^(morador|visitante|prestador_servico|pessoa)_\d+$/;
 
-const SEM_COMANDO_HTTP: Record<string, string> = {
-  zkteco: 'protocolo TCP/UDP na porta 4370 (PULL/PUSH SDK)',
-  topdata: 'protocolo TCP na porta 3570 (SDK Inner)',
-  henry: 'protocolo proprietário (SDK Henry)',
-};
+/**
+ * Fabricantes que NÃO falam HTTP para comandos (abrir porta / cadastrar rosto)
+ * usam protocolo binário em porta própria ou SDK. A lista mora no registro de
+ * fabricantes (fabricantes.ts, família 'sem_http'); aqui só se consulta, por
+ * protocoloSemHttp().
+ */
 
 /**
  * Cliente que conversa com o hardware de controle de acesso.
@@ -62,7 +119,7 @@ const SEM_COMANDO_HTTP: Record<string, string> = {
  *   - hikvision:  ISAPI + Digest auth — VALIDADO
  *   - intelbras:  comando via CGI fica atrás do suporte — NÃO VALIDADO
  *   - genérico:   HTTP simples (botoeira/relé)
- *   - zkteco/topdata/henry: não usam HTTP (ver SEM_COMANDO_HTTP)
+ *   - zkteco/topdata/henry: não usam HTTP (ver fabricantes.ts, família 'sem_http')
  *
  * O Agente Local tem cópia equivalente (deploy independente, ver agent/).
  * Mantenha os dois em sincronia ao ajustar um fabricante.
@@ -97,9 +154,14 @@ export class FacialDeviceClientService {
     return process.env.FACIAL_HTTP_DIRETO_REDE_INTERNA === 'true';
   }
 
+  /** false = endereço de rede interna, só alcançável pelo Agente Local. */
+  private async destinoPermitido(device: FacialDeviceConfig): Promise<boolean> {
+    if (this.redeInternaLiberada()) return true;
+    return urlExternaSegura(this.baseUrl(device));
+  }
+
   private async exigirDestinoPermitido(device: FacialDeviceConfig): Promise<void> {
-    if (this.redeInternaLiberada()) return;
-    if (!(await urlExternaSegura(this.baseUrl(device)))) {
+    if (!(await this.destinoPermitido(device))) {
       throw new Error(
         `Endereço do terminal (${device.ip}) é de rede interna: só o Agente Local alcança. Verifique se o agente está conectado.`,
       );
@@ -239,47 +301,110 @@ export class FacialDeviceClientService {
     return h;
   }
 
+  /** "Está alcançável?" — só o sim/não. O porquê está em {@link diagnosticar}. */
   async ping(device: FacialDeviceConfig): Promise<boolean> {
-    if (this.isSim(device)) return true;
+    return (await this.diagnosticar(device)).ok;
+  }
+
+  /**
+   * Testa a conexão com o aparelho e, se falhar, diz POR QUÊ (ver
+   * MotivoDiagnostico). Mesmo caminho que o ping sempre fez: simulador →
+   * Agente Local (se online) → HTTP direto. Nunca lança.
+   */
+  async diagnosticar(device: FacialDeviceConfig): Promise<DiagnosticoConexao> {
+    if (this.isSim(device)) return { ok: true, motivo: null };
+    const semHttp = protocoloSemHttp(device.fabricante);
+    const detalheSemHttp = `${device.fabricante} usa ${semHttp} — não aceita comando via HTTP.`;
+
     if (this.agent.isOnline(device.id)) {
       const r = await this.agent.enqueue(device.id, { type: 'ping' });
-      return r.ok;
+      if (r.ok) return { ok: true, motivo: null };
+      if (semHttp) return this.falha(device, 'marca_sem_http', detalheSemHttp);
+      // Agente novo já classifica a falha; o antigo só manda statusCode/error.
+      const doAgente = typeof r.motivo === 'string' ? MOTIVOS_DO_AGENTE.get(r.motivo) : undefined;
+      return this.falha(
+        device,
+        doAgente ?? motivoDaFalha(r.statusCode, r.error),
+        r.error ?? (typeof r.statusCode === 'number' ? `HTTP ${r.statusCode}` : undefined),
+      );
     }
-    if (SEM_COMANDO_HTTP[device.fabricante]) return false;
+
+    if (semHttp) return this.falha(device, 'marca_sem_http', detalheSemHttp);
     try {
+      if (!(await this.destinoPermitido(device))) {
+        return this.falha(
+          device,
+          'agente_offline',
+          `Agente Local não está conectado e o endereço do terminal (${device.ip}) é de rede interna: só o agente alcança.`,
+        );
+      }
       // Control iD não tem /status: um login bem-sucedido prova conectividade.
       if (device.fabricante === 'control_id') {
         await this.controlIdLogin(device);
-        return true;
+        return { ok: true, motivo: null };
       }
       // Intelbras SS (Dahua): cgi com Digest prova conectividade SEM criar uma
       // sessão RPC2 (que vazaria e estouraria "too many connections" no aparelho).
-      if (device.fabricante === 'intelbras') {
-        const r = await this.send(
-          device,
-          'GET',
-          '/cgi-bin/magicBox.cgi?action=getDeviceType',
-        );
-        return r.status >= 200 && r.status < 300;
-      }
-      if (device.fabricante === 'hikvision') {
-        const r = await this.send(device, 'GET', '/ISAPI/System/deviceInfo');
-        return r.status >= 200 && r.status < 300;
-      }
-      const res = await this.send(device, 'GET', '/status');
-      return res.status >= 200 && res.status < 300;
+      const caminho =
+        device.fabricante === 'intelbras'
+          ? '/cgi-bin/magicBox.cgi?action=getDeviceType'
+          : device.fabricante === 'hikvision'
+            ? '/ISAPI/System/deviceInfo'
+            : '/status';
+      const res = await this.send(device, 'GET', caminho);
+      if (res.status >= 200 && res.status < 300) return { ok: true, motivo: null };
+      return this.falha(device, motivoDaFalha(res.status), `HTTP ${res.status}`);
     } catch (err: any) {
       this.logger.warn(
         `Ping falhou no device ${device.id} (${device.ip}): ${err?.message ?? err}`,
       );
-      return false;
+      const status: number | undefined = err?.response?.status;
+      return this.falha(
+        device,
+        motivoDaFalha(status, err?.message, err?.code),
+        typeof status === 'number' ? `HTTP ${status}` : String(err?.message ?? err),
+      );
     }
+  }
+
+  private falha(
+    device: FacialDeviceConfig,
+    motivo: MotivoDiagnostico,
+    detalhe?: string,
+  ): DiagnosticoConexao {
+    const limpo = detalhe ? this.semSegredo(device, detalhe) : '';
+    return limpo ? { ok: false, motivo, detalhe: limpo } : { ok: false, motivo };
+  }
+
+  /**
+   * O detalhe do diagnóstico vai para a tela: tira a senha do aparelho em
+   * todas as formas em que ela poderia aparecer num erro (crua, na URL, no
+   * header Basic/Digest) e corta o texto.
+   */
+  private semSegredo(device: FacialDeviceConfig, texto: string): string {
+    let s = String(texto);
+    const senha = device.api_password ?? '';
+    if (senha) {
+      const formas = new Set<string>([
+        senha,
+        encodeURIComponent(senha),
+        Buffer.from(senha).toString('base64'),
+        Buffer.from(`${device.api_user ?? ''}:${senha}`).toString('base64'),
+      ]);
+      // Mais longas primeiro: a forma codificada pode conter a crua.
+      for (const f of [...formas].sort((a, b) => b.length - a.length)) s = s.split(f).join('***');
+    }
+    s = s
+      .replace(/\b(Basic|Digest|Bearer)\s+[^\n)]*/gi, '$1 ***')
+      .replace(/\/\/[^/\s:@]*:[^@\s]*@/g, '//***@')
+      .replace(/\b(password|passwd|senha|pass|session)=[^&\s]*/gi, '$1=***');
+    return s.trim().slice(0, DETALHE_MAX);
   }
 
   /**
    * Endpoints de "abrir porta/catraca" por fabricante que falam HTTP (modo
    * DIRETO). control_id é tratado à parte (sessão). zkteco/topdata/henry não
-   * entram aqui — não usam HTTP (ver SEM_COMANDO_HTTP).
+   * entram aqui — não usam HTTP (ver fabricantes.ts, família 'sem_http').
    */
   private readonly relayEndpoints: Record<
     string,
@@ -294,7 +419,7 @@ export class FacialDeviceClientService {
       body: '<RemoteControlDoor><cmd>open</cmd></RemoteControlDoor>',
       contentType: 'application/xml',
     },
-    genérico: { method: 'POST', path: '/open_door' },
+    [FABRICANTE_GENERICO]: { method: 'POST', path: '/open_door' },
   };
 
   /**
@@ -335,10 +460,10 @@ export class FacialDeviceClientService {
     }
 
     // Fabricante que não fala HTTP — não há como acionar por requisição.
-    if (SEM_COMANDO_HTTP[device.fabricante]) {
+    if (protocoloSemHttp(device.fabricante)) {
       return {
         ok: false,
-        error: `${device.fabricante} usa ${SEM_COMANDO_HTTP[device.fabricante]} — não aceita acionamento via HTTP. Use uma botoeira/relé HTTP genérico ou um bridge SDK.`,
+        error: `${device.fabricante} usa ${protocoloSemHttp(device.fabricante)} — não aceita acionamento via HTTP. Use uma botoeira/relé HTTP genérico ou um bridge SDK.`,
       };
     }
 
@@ -367,7 +492,7 @@ export class FacialDeviceClientService {
       }
       const endpoint =
         this.relayEndpoints[device.fabricante] ??
-        this.relayEndpoints['genérico'];
+        this.relayEndpoints[FABRICANTE_GENERICO];
       const res = await this.send(
         device,
         endpoint.method,
@@ -423,9 +548,9 @@ export class FacialDeviceClientService {
       return { faceId: r.faceId ?? payload.externalId };
     }
 
-    if (SEM_COMANDO_HTTP[device.fabricante]) {
+    if (protocoloSemHttp(device.fabricante)) {
       throw new Error(
-        `${device.fabricante} usa ${SEM_COMANDO_HTTP[device.fabricante]} — cadastro de rosto não é possível via HTTP direto. Use o Agente Local com bridge SDK.`,
+        `${device.fabricante} usa ${protocoloSemHttp(device.fabricante)} — cadastro de rosto não é possível via HTTP direto. Use o Agente Local com bridge SDK.`,
       );
     }
     if (device.fabricante === 'control_id') {
@@ -479,9 +604,9 @@ export class FacialDeviceClientService {
       return;
     }
 
-    if (SEM_COMANDO_HTTP[device.fabricante]) {
+    if (protocoloSemHttp(device.fabricante)) {
       throw new Error(
-        `${device.fabricante} usa ${SEM_COMANDO_HTTP[device.fabricante]} — atualização de rosto não é possível via HTTP direto.`,
+        `${device.fabricante} usa ${protocoloSemHttp(device.fabricante)} — atualização de rosto não é possível via HTTP direto.`,
       );
     }
     if (device.fabricante === 'control_id') {
@@ -527,7 +652,7 @@ export class FacialDeviceClientService {
       return;
     }
 
-    if (SEM_COMANDO_HTTP[device.fabricante]) return; // nada a fazer via HTTP
+    if (protocoloSemHttp(device.fabricante)) return; // nada a fazer via HTTP
     try {
       if (device.fabricante === 'control_id') {
         const session = await this.controlIdLogin(device);

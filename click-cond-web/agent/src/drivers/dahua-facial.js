@@ -49,6 +49,8 @@ const {
 } = require('../lib/http');
 const { deviceBaselines, setBaseline, lerJson, gravarJsonAtomico } = require('../core/estado');
 const { agoraDaNuvem } = require('../core/nuvem');
+const { criarAvisoDeQueda } = require('./comum/queda');
+const { idDoCadastro } = require('./comum/cadastro');
 
 // lib/http.js não conhece o timeout da LAN — é config injetada por quem monta
 // o agente (index.js lê LAN_TIMEOUT_MS do .env). Guardamos aqui um valor com
@@ -56,8 +58,16 @@ const { agoraDaNuvem } = require('../core/nuvem');
 // boot para sobrepor. Evita o driver ler `process.env`/globais soltos de
 // index.js — fica testável isolado, só recebendo a config que precisa.
 let lanTimeoutMs = 8000;
-function configurar({ lanTimeoutMs: t } = {}) {
+// Reabertura do stream de eventos (ver `escutar`/`pausaAntesDeReabrir`).
+// Configuráveis só para os testes não esperarem 5 s reais; index.js não mexe.
+const PAUSA_APOS_ERRO_MS = 5000;
+const DURACAO_MINIMA_STREAM_MS = 1000;
+let pausaAposErroMs = PAUSA_APOS_ERRO_MS;
+let duracaoMinimaStreamMs = DURACAO_MINIMA_STREAM_MS;
+function configurar({ lanTimeoutMs: t, pausaAposErroMs: p, duracaoMinimaStreamMs: d } = {}) {
   if (t) lanTimeoutMs = t;
+  if (Number.isFinite(p) && p > 0) pausaAposErroMs = p;
+  if (Number.isFinite(d) && d >= 0) duracaoMinimaStreamMs = d;
 }
 function lanRequest(device, method, pathname, opts) {
   return lanRequestComTimeout(device, method, pathname, opts, lanTimeoutMs);
@@ -167,7 +177,12 @@ async function abrirPorta(device) {
 }
 
 async function dahuaEnroll(device, cmd) {
-  const userId = String(cmd.externalId || cmd.faceId);
+  // Sem identificador, `String(undefined)` cadastrava no aparelho um usuário
+  // chamado "undefined" (e o próximo comando torto o sobrescrevia).
+  const userId = idDoCadastro(cmd);
+  if (!userId) {
+    return { ok: false, error: 'cadastro sem externalId/faceId — comando recusado, nada foi enviado ao aparelho' };
+  }
   const userBody = {
     UserList: [
       {
@@ -273,6 +288,16 @@ async function capturarSnapshot(device) {
   return { ok: true, imageBase64: res.buffer.toString('base64') };
 }
 
+/**
+ * A varredura de fantasmas na nuvem usa esta lista para decidir REMOÇÕES.
+ * Por isso a regra aqui é: só `ok:true` quando a resposta do aparelho foi
+ * lida de verdade. O RPC2 responde JSON SEM Content-Type (ver `parseJson` em
+ * lib/http.js) — `resp.data` chega como string; ler `resp.data.result` /
+ * `resp.data.params` direto dava sempre `undefined` e a função devolvia
+ * "ok, lista vazia" sem nunca ter lido nada. Resposta que não dá para
+ * interpretar (HTML de login, corpo vazio, JSON sem os campos) vira
+ * `ok:false` com erro claro — nunca lista vazia.
+ */
 async function listarUsuarios(device) {
   const countResp = await lanRequest(
     device,
@@ -280,10 +305,22 @@ async function listarUsuarios(device) {
     '/RPC2',
     { json: { method: 'UserInfo.getCount', params: { Conditions: {} } } }
   );
-  if (countResp.status !== 200 || !countResp.data || countResp.data.result === false) {
-    return { ok: false, error: `Falha ao obter quantidade de usuários: status ${countResp.status}` };
+  const countData = parseJson(countResp);
+  if (countResp.status !== 200 || countData.result === false) {
+    return {
+      ok: false,
+      statusCode: countResp.status,
+      error: `Falha ao obter quantidade de usuários: status ${countResp.status}${erroRpc2(countData)}`,
+    };
   }
-  const total = countResp.data.params?.Count ?? 0;
+  const total = countData.params && countData.params.Count;
+  if (!Number.isInteger(total) || total < 0) {
+    return {
+      ok: false,
+      statusCode: countResp.status,
+      error: `Resposta não interpretável do aparelho ao contar usuários (UserInfo.getCount): ${trecho(countResp)}`,
+    };
+  }
   if (total === 0) {
     return { ok: true, userIds: [] };
   }
@@ -304,12 +341,26 @@ async function listarUsuarios(device) {
         }
       }
     );
-    if (resp.status !== 200 || !resp.data || resp.data.result === false) {
-      return { ok: false, error: `Falha ao obter lista de usuários (startNo: ${startNo})` };
+    const data = parseJson(resp);
+    if (resp.status !== 200 || data.result === false) {
+      return {
+        ok: false,
+        statusCode: resp.status,
+        error: `Falha ao obter lista de usuários (startNo: ${startNo}): status ${resp.status}${erroRpc2(data)}`,
+      };
     }
-    const list = resp.data.params?.UserList ?? [];
+    const list = data.params && data.params.UserList;
+    if (!Array.isArray(list)) {
+      // Lista parcial com ok:true faria a varredura tratar como "fantasma"
+      // (ou como inexistente) quem só não foi lido.
+      return {
+        ok: false,
+        statusCode: resp.status,
+        error: `Resposta não interpretável do aparelho ao listar usuários (UserInfo.getMulti, startNo: ${startNo}): ${trecho(resp)}`,
+      };
+    }
     for (const u of list) {
-      if (u.UserID && u.UserID !== 'FFFFFF') {
+      if (u && u.UserID && u.UserID !== 'FFFFFF') {
         ids.push(u.UserID);
       }
     }
@@ -337,10 +388,37 @@ async function removerUsuarios(device, cmd) {
       }
     }
   );
-  if (res.status !== 200 || !res.data || res.data.result === false) {
-    return { ok: false, error: `Falha ao remover lista de usuários: status ${res.status}` };
+  // Mesmo cuidado de `listarUsuarios`: o RPC2 responde sem Content-Type, então
+  // o corpo é lido com `parseJson`. `result:false` é recusa; resposta sem
+  // `result:true` não confirma nada — não dá para afirmar que removeu.
+  const data = parseJson(res);
+  if (res.status !== 200 || data.result === false) {
+    return {
+      ok: false,
+      statusCode: res.status,
+      error: `Falha ao remover lista de usuários: status ${res.status}${erroRpc2(data)}`,
+    };
+  }
+  if (data.result !== true) {
+    return {
+      ok: false,
+      statusCode: res.status,
+      error: `Resposta não interpretável do aparelho ao remover usuários (UserInfo.removeMulti): ${trecho(res)}`,
+    };
   }
   return { ok: true };
+}
+
+/** " — <mensagem de erro do RPC2>" quando o aparelho mandou uma, senão ''. */
+function erroRpc2(data) {
+  const msg = data && data.error && (data.error.message || data.error.code);
+  return msg ? ` — ${String(msg).slice(0, 120)}` : '';
+}
+
+/** Começo do corpo cru, para o log/erro dizer o que o aparelho respondeu. */
+function trecho(res) {
+  const raw = String((res && res.raw) || '').replace(/\s+/g, ' ').trim();
+  return raw ? `"${raw.slice(0, 80)}"` : '(corpo vazio)';
 }
 
 // ---------- Iluminação / snapshot com Digest (preview ao vivo) ----------
@@ -451,38 +529,82 @@ function snapshotComDigest(device, st) {
 const ledRestaurado = new Set();
 
 function escutar(device, aoEvento, opcoes = {}) {
-  const aoConectar = opcoes.aoConectar;
+  const aoConectarDeQuemChama = opcoes.aoConectar;
   if (!ledRestaurado.has(device.id)) {
     ledRestaurado.add(device.id);
     setDeviceLightingMode(device, 'Auto').catch(() => {});
   }
   let parado = false;
-  let streamCaida = false;
+  // Com o aparelho fora do ar o laço tenta de novo a cada 5 s: a queda é
+  // logada UMA vez e a recuperação UMA vez (ver comum/queda.js). Antes a
+  // flag era zerada logo depois do catch e a mesma linha saía a cada 5 s.
+  const aviso = criarAvisoDeQueda();
+  const aoConectar = () => {
+    aviso.voltou(`[agente] ${device.nome}: stream de eventos restabelecido`);
+    if (aoConectarDeQuemChama) aoConectarDeQuemChama();
+  };
+  // Conexão em curso, para `parar()` poder encerrá-la (ver abaixo).
+  const controle = { req: null };
   (async () => {
     while (!parado) {
+      const inicio = Date.now();
+      let fim = { erro: false, recebeuDados: false };
       try {
-        await dahuaAttachOnce(device, aoEvento, aoConectar);
+        const r = await dahuaAttachOnce(device, aoEvento, aoConectar, controle);
+        fim.recebeuDados = !!(r && r.recebeuDados);
       } catch (err) {
-        if (!streamCaida) {
-          console.error(
-            `[agente] ${device.nome}: stream de eventos caiu (${err.message || err}); reabrindo em 5s`,
+        fim.erro = true;
+        if (!parado) {
+          aviso.caiu(
+            `[agente] ${device.nome}: stream de eventos caiu (${err.message || err}); ` +
+              `tentando reabrir a cada ${Math.round(pausaAposErroMs / 1000)}s (novo aviso só quando voltar)`,
           );
         }
-        streamCaida = true;
       }
       if (parado) break;
-      streamCaida = false;
-      await sleep(5000); // o aparelho fecha o stream periodicamente — reabre
+      // Fim limpo de um stream que durou (o fechamento periódico normal do
+      // aparelho): reabre NA HORA (cada segundo de pausa é uma janela em que
+      // um acesso não chega ao vivo). Fim limpo logo após abrir: espera o que
+      // falta para 5 s desde a abertura. Erro: pausa de 5 s.
+      const pausa = pausaAntesDeReabrir({ ...fim, duracaoMs: Date.now() - inicio });
+      if (pausa > 0) await sleep(pausa);
     }
   })();
   return () => {
     parado = true;
+    // Encerra a conexão em curso: sem isso o stream antigo seguia aberto até
+    // o APARELHO fechar — ao recriar o ouvinte (IP/senha trocados no portal)
+    // ficavam dois streams no mesmo terminal por um tempo.
+    try {
+      controle.req?.destroy();
+    } catch {
+      /* já tinha fechado */
+    }
   };
 }
 
-/** Abre UMA conexão de streaming (resolve quando o aparelho a encerra).
- *  `aoConectar`, se passado, é chamado uma única vez no primeiro byte. */
-function dahuaAttachOnce(device, aoEvento, aoConectar) {
+/**
+ * Quanto esperar antes de reabrir o stream. Depois de um fim LIMPO de um
+ * stream que funcionou (recebeu dados e durou ao menos
+ * `duracaoMinimaStreamMs`), espera só o que FALTA para `pausaAposErroMs`
+ * desde a abertura: o fechamento periódico normal (stream de minutos) reabre
+ * na hora, mas um firmware que aceita o attach e fecha limpo logo em seguida
+ * não vira uma reconexão por segundo — a taxa fica limitada a uma abertura a
+ * cada 5 s. Erro, "fim limpo" imediato ou sem nunca ter recebido nada: pausa
+ * cheia.
+ */
+function pausaAntesDeReabrir({ erro, recebeuDados, duracaoMs }) {
+  if (erro) return pausaAposErroMs;
+  if (recebeuDados && duracaoMs >= duracaoMinimaStreamMs) {
+    return Math.max(0, pausaAposErroMs - duracaoMs);
+  }
+  return pausaAposErroMs;
+}
+
+/** Abre UMA conexão de streaming (resolve com `{ recebeuDados }` quando o
+ *  aparelho a encerra). `aoConectar`, se passado, é chamado uma única vez no
+ *  primeiro byte. `controle.req` aponta para a requisição em curso. */
+function dahuaAttachOnce(device, aoEvento, aoConectar, controle = {}) {
   return new Promise((resolve, reject) => {
     const user = device.api_user || 'admin';
     const pass = device.api_password || 'admin';
@@ -515,27 +637,34 @@ function dahuaAttachOnce(device, aoEvento, aoConectar) {
               return reject(new Error(`attach HTTP ${sres.statusCode}`));
             }
             let buf = '';
-            let aoConectarDisparado = false;
+            let recebeuDados = false;
             sres.setEncoding('utf8');
             sres.on('data', (chunk) => {
-              if (!aoConectarDisparado && aoConectar) {
-                aoConectarDisparado = true;
-                aoConectar();
+              if (!recebeuDados) {
+                recebeuDados = true;
+                if (aoConectar) aoConectar();
               }
               buf += chunk;
               buf = consumeDahuaEvents(buf, aoEvento);
               // Trava de segurança contra evento gigante/parcial sem fim.
               if (buf.length > 1_000_000) buf = buf.slice(-100_000);
             });
-            sres.on('end', resolve);
+            sres.on('end', () => resolve({ recebeuDados }));
             sres.on('error', reject);
+            // Conexão fechada sem `end` nem `error` (ex.: `parar()` destruiu
+            // a requisição): sem isto a Promise nunca resolvia e o laço de
+            // `escutar` ficava pendurado para sempre. Depois de `end`/`error`
+            // este reject não tem efeito (a Promise já está decidida).
+            sres.on('close', () => reject(new Error('conexão do stream fechada')));
           },
         );
+        controle.req = stream;
         stream.on('error', reject);
         stream.setTimeout(0);
         stream.end();
       },
     );
+    controle.req = challenge;
     challenge.on('error', reject);
     challenge.setTimeout(lanTimeoutMs, () =>
       challenge.destroy(new Error('timeout no desafio')),
@@ -855,4 +984,6 @@ module.exports = {
   setDeviceLightingMode,
   snapshotComDigest,
   advanceBaselineWhileOnline,
+  // Exposto para teste (decisão de pausa do laço de `escutar`).
+  pausaAntesDeReabrir,
 };

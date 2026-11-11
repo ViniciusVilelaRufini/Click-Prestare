@@ -43,7 +43,7 @@ describe('FacialService — caminho de leitores (roteamento)', () => {
       caminhos_Etapas: { findFirst: jest.fn(async () => opts.etapa ?? null) },
       regras_Acesso: { findMany: jest.fn(async () => []) },
       veiculos: {
-        findFirst: jest.fn(async () => ({ id: 5, placa: 'ABC1D23', morador: MORADOR })),
+        findMany: jest.fn(async () => [{ id: 5, placa: 'ABC1D23', morador: MORADOR }]),
       },
       vagas: { findFirst: jest.fn(async () => null) },
       acessos_Facial: {

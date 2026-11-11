@@ -45,9 +45,14 @@ export class AgentController {
     const reconectou = !this.bridge.isOnline(device.id);
     const commands = await this.bridge.poll(device.id);
     if (reconectou && device.tipo === 'facial') {
-      void this.service.syncAllForCondominio(device.id_condominio, {
-        onlyPending: true,
-      });
+      // Terminal com CARGA PENDENTE (`ultima_sincr` nulo: novo, reativado ou
+      // reendereçado que ainda não recebeu todo mundo): carga completa só dele.
+      // "Pendente" do back-fill é por pessoa — quem já está 'synced' pelos
+      // outros terminais nunca chegaria neste.
+      void this.service.syncAllForCondominio(
+        device.id_condominio,
+        device.ultima_sincr === null ? { deviceIds: [device.id] } : { onlyPending: true },
+      );
     }
     return {
       device: {
@@ -74,9 +79,11 @@ export class AgentController {
     @Body() body: { commandId: string } & AgentResult,
   ) {
     // Valida o token (lança se inválido) antes de aceitar o resultado.
-    await this.service.findDeviceByToken(token);
+    const device = await this.service.findDeviceByToken(token);
     const { commandId, ...result } = body ?? ({} as any);
-    if (commandId) await this.bridge.submitResult(commandId, result);
+    // O token é DESTE device: só resolve comando dele. Comando de outro device
+    // é tratado como desconhecido (mesma resposta, sem efeito).
+    if (commandId) await this.bridge.submitResult(commandId, result, [device.id]);
     return { ok: true };
   }
 
@@ -91,10 +98,28 @@ export class AgentController {
   async condoPoll(@Param('token') token: string) {
     const idCondominio = await this.service.resolveCondominioForAgent(token);
     const devices = await this.service.getActiveDevices(idCondominio);
-    const out = await Promise.all(devices.map(async (d) => {
-      const reconectou = !this.bridge.isOnline(d.id);
-      const commands = await this.bridge.poll(d.id);
-      if (reconectou && d.tipo === 'facial') {
+    // Antes do poll (que marca o heartbeat): quem estava offline até agora.
+    const reconectados = new Set(devices.filter((d) => !this.bridge.isOnline(d.id)).map((d) => d.id));
+    // Uma leitura da fila para o condomínio inteiro, em vez de uma por device.
+    const comandos = await this.bridge.pollVarios(devices.map((d) => d.id));
+    // Faciais reconectados com CARGA PENDENTE (`ultima_sincr` nulo — ver
+    // FacialService.agendarCargaDoTerminal): carga completa restrita a eles.
+    // Uma chamada só, porque cabe uma sincronização em massa por condomínio;
+    // o back-fill dos demais reconectados vem em seguida.
+    const faciaisReconectados = devices.filter((d) => reconectados.has(d.id) && d.tipo === 'facial');
+    const cargaPendente = faciaisReconectados.filter((d) => d.ultima_sincr === null).map((d) => d.id);
+    if (cargaPendente.length > 0) {
+      const haOutros = faciaisReconectados.length > cargaPendente.length;
+      void Promise.resolve(this.service.syncAllForCondominio(idCondominio, { deviceIds: cargaPendente }))
+        .catch(() => undefined)
+        .then(() =>
+          haOutros ? this.service.syncAllForCondominio(idCondominio, { onlyPending: true }) : undefined,
+        )
+        .catch(() => undefined);
+    }
+    const out = devices.map((d) => {
+      const commands = comandos.get(d.id) ?? [];
+      if (cargaPendente.length === 0 && reconectados.has(d.id) && d.tipo === 'facial') {
         void this.service.syncAllForCondominio(idCondominio, {
           onlyPending: true,
         });
@@ -112,7 +137,7 @@ export class AgentController {
         },
         commands,
       };
-    }));
+    });
     return {
       devices: out,
       poll_interval_ms: this.bridge.pollIntervalMs,
@@ -128,9 +153,14 @@ export class AgentController {
     @Param('token') token: string,
     @Body() body: { commandId: string } & AgentResult,
   ) {
-    await this.service.resolveCondominioForAgent(token);
+    const idCondominio = await this.service.resolveCondominioForAgent(token);
     const { commandId, ...result } = body ?? ({} as any);
-    if (commandId) await this.bridge.submitResult(commandId, result);
+    if (commandId) {
+      // Só resolve comando de device DESTE condomínio; de outro é tratado como
+      // comando desconhecido (mesma resposta, sem efeito).
+      const devices = await this.service.getActiveDevices(idCondominio);
+      await this.bridge.submitResult(commandId, result, devices.map((d) => d.id));
+    }
     return { ok: true };
   }
 

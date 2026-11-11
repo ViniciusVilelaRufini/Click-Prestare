@@ -19,7 +19,8 @@ export interface TerminalFacial {
   porta: number;
   api_user: string | null;
   api_password: string | null;
-  webhook_token: string;
+  /** Só vem para o síndico: a API omite o token para os demais operadores. */
+  webhook_token?: string;
   ativo: number;
   ultima_sincr: string | null;
   /** Área de lazer monitorada por este terminal (opcional); conta a ocupação. */
@@ -52,6 +53,26 @@ export interface CreateTerminalFacial {
   controle_acesso_facial?: number | boolean;
   mac?: string | null;
   numero_serie?: string | null;
+}
+
+/** Por que o "Testar Conexão" falhou (null = não falhou). */
+export type MotivoTesteConexao =
+  | 'agente_offline'
+  | 'credencial_invalida'
+  | 'sem_resposta'
+  | 'recusado'
+  | 'protocolo_inesperado'
+  | 'marca_sem_http';
+
+/** Resposta de `POST /facial/devices/:id/test`. A API antiga devolvia só
+ *  `{ online }` — por isso o diagnóstico é todo opcional. */
+export interface TesteConexao {
+  online: boolean;
+  motivo?: MotivoTesteConexao | null;
+  /** Detalhe técnico (ex.: o erro de rede), quando houver. */
+  detalhe?: string;
+  /** Texto pronto para o operador. */
+  mensagem?: string;
 }
 
 /** Um aparelho achado pela varredura da LAN do Agente Local (etapa 3). */
@@ -206,8 +227,8 @@ export class TerminaisFaciaisApi {
     return this.http.delete<{ ok: boolean }>(`${this.base}/devices/${id}`);
   }
 
-  test(id: number): Observable<{ online: boolean }> {
-    return this.http.post<{ online: boolean }>(
+  test(id: number): Observable<TesteConexao> {
+    return this.http.post<TesteConexao>(
       `${this.base}/devices/${id}/test`,
       {},
     );

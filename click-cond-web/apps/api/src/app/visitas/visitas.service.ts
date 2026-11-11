@@ -2,6 +2,8 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../prisma/prisma.service';
 import { OpcoesObterOuCriar, PessoasService } from '../pessoas/pessoas.service';
 import { CriarVisitaDto } from './dto/criar-visita.dto';
+import { validarCodigoTag } from '../common/tag-codigo.util';
+import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
 
 @Injectable()
 export class VisitasService {
@@ -40,12 +42,63 @@ export class VisitasService {
 
   async criarVisita(dto: CriarVisitaDto, opts?: OpcoesObterOuCriar) {
     await this.assertApartamentoDoCondominio(Number(dto.id_apartamento), Number(dto.id_condominio));
+
+    // Tag RFID gravada NORMALIZADA (ver tag-codigo.util) — é a forma comparada
+    // com a leitura do leitor; mesmo padrão de VisitantesService. Vazio/null
+    // = sem tag; código inválido é recusado antes de qualquer gravação.
+    // 50 = tamanho da coluna Visitas.tag_rfid.
+    //
+    // Exceção: tag IGUAL à já gravada numa visita da própria pessoa (a nova
+    // visita herda a tag dela) fica como está, sem revalidar — cadastro antigo
+    // fora do padrão não pode travar o registro de uma nova visita.
+    let tagRfid: string | null = null;
+    const tagDigitada = (dto.tag_rfid ?? '').toString().trim();
+    let erroTag: string | null = null;
+    if (tagDigitada) {
+      const validado = validarCodigoTag(tagDigitada, 50);
+      if (validado.erro !== undefined) {
+        // Só segue se esse texto exato já está gravado em alguma visita do
+        // condomínio (a conferência de que é da MESMA pessoa vem abaixo).
+        const gravadaAssim = await this.prisma.visitas.findFirst({
+          where: { id_condominio: Number(dto.id_condominio), tag_rfid: tagDigitada },
+          select: { id: true },
+        });
+        if (!gravadaAssim) throw new BadRequestException(validado.erro);
+        erroTag = validado.erro;
+        tagRfid = tagDigitada;
+      } else {
+        tagRfid = validado.codigo;
+      }
+    }
+
     // `opts` só chega quando quem registra é morador (VisitantesService). Sem
     // ele a chamada fica idêntica à anterior (visitas.service.spec confere os
     // argumentos exatos).
     const pessoa = opts
       ? await this.pessoasService.obterOuCriar(Number(dto.id_condominio), dto.pessoa, opts)
       : await this.pessoasService.obterOuCriar(Number(dto.id_condominio), dto.pessoa);
+
+    if (tagDigitada && tagRfid) {
+      const jaDaPessoa = await this.prisma.visitas.findFirst({
+        where: {
+          id_pessoa: pessoa.id,
+          id_condominio: Number(dto.id_condominio),
+          tag_rfid: tagDigitada,
+        },
+        select: { id: true },
+      });
+      if (jaDaPessoa) {
+        tagRfid = tagDigitada;
+      } else {
+        if (erroTag) throw new BadRequestException(erroTag);
+        // Unicidade por variantes: a mesma tag em outro formato, com outra
+        // pessoa/veículo, é recusada. As visitas da própria pessoa não contam.
+        await assertTagNaoEmUso(this.prisma, Number(dto.id_condominio), tagRfid, {
+          ignorar: { idPessoa: pessoa.id },
+          tabelaVisitas: 'visitas',
+        });
+      }
+    }
 
     const inicio = dto.data_hora_inicio ? new Date(dto.data_hora_inicio) : null;
     const termino = dto.data_hora_termino ? new Date(dto.data_hora_termino) : null;
@@ -63,7 +116,7 @@ export class VisitasService {
         codigo_acesso: dto.codigo_acesso ?? null,
         liberado: dto.liberado ?? 1,
         avisar: dto.avisar ?? 1,
-        tag_rfid: dto.tag_rfid ?? null,
+        tag_rfid: tagRfid,
         dias_semana: dto.dias_semana ?? null,
         categorias: dto.categorias ?? null,
         auth_status: dto.auth_status ?? null,

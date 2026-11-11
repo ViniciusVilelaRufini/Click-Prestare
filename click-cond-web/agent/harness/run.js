@@ -311,6 +311,9 @@ async function main() {
       API_URL: `http://127.0.0.1:${PORTA_NUVEM}`,
       AGENT_TOKEN: TOKEN,
       POLL_INTERVAL_MS: '300',
+      // O agente impõe piso de 1000 ms no intervalo de poll; sem baixar o
+      // piso, o POLL_INTERVAL_MS acima não valeria.
+      POLL_INTERVAL_MIN_MS: '300',
       DEVICE_STATUS_INTERVAL_MS: '1000',
       TELEMETRIA_INTERVAL_MS: '1000',
       LAN_TIMEOUT_MS: '5000',

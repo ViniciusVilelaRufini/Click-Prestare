@@ -34,6 +34,8 @@ const {
 } = require('../lib/http');
 const { deviceBaselines, setBaseline } = require('../core/estado');
 const { NOSSO_EXTERNAL_ID, removerUsuariosPorLoop } = require('./comum/fantasmas');
+const { criarAvisoDeQueda } = require('./comum/queda');
+const { idDoCadastro } = require('./comum/cadastro');
 
 // lib/http.js não conhece o timeout da LAN — é config injetada por quem monta
 // o agente (index.js lê LAN_TIMEOUT_MS do .env e chama configurar() cedo no
@@ -115,8 +117,12 @@ async function abrirPorta(device) {
  * user_id). VALIDADO contra a doc oficial da API Linha de Acesso.
  */
 async function controlIdCreate(device, cmd) {
+  // Sem identificador, `String(undefined)` criava a matrícula "undefined".
+  const registration = idDoCadastro(cmd);
+  if (!registration) {
+    return { ok: false, error: 'cadastro sem externalId/faceId — comando recusado, nada foi enviado ao aparelho' };
+  }
   const session = await controlIdLogin(device);
-  const registration = String(cmd.externalId || cmd.faceId);
   const created = await lanRequest(
     device,
     'POST',
@@ -128,26 +134,26 @@ async function controlIdCreate(device, cmd) {
       },
     },
   );
+  const recusaCreate = recusa('create_objects', created);
+  if (recusaCreate) return recusaCreate;
   const userId = created.data && created.data.ids && created.data.ids[0];
   if (userId == null)
-    return { ok: false, error: 'Control iD: create_objects não retornou id' };
+    return { ok: false, statusCode: created.status, error: 'Control iD: create_objects não retornou id' };
   if (cmd.fotoBase64) {
-    await lanRequest(
-      device,
-      'POST',
-      `/user_set_image.fcgi?session=${session}&user_id=${userId}&match=1&timestamp=${Math.floor(Date.now() / 1000)}`,
-      { binary: Buffer.from(cmd.fotoBase64, 'base64') },
-    );
+    const recusaFoto = recusa('user_set_image', await enviarFoto(device, session, userId, cmd.fotoBase64));
+    // O usuário JÁ existe no aparelho (sem rosto): o id volta junto.
+    if (recusaFoto) return { ...recusaFoto, faceId: String(userId) };
   }
   return { ok: true, faceId: String(userId) };
 }
 
 /** Atualiza nome/foto pelo user_id interno (= faceId salvo). */
 async function controlIdUpdate(device, cmd) {
+  const userId = idInterno(cmd.faceId);
+  if (userId === null) return recusaFaceId(cmd.faceId);
   const session = await controlIdLogin(device);
-  const userId = Number(cmd.faceId);
   if (cmd.nome) {
-    await lanRequest(
+    const modificado = await lanRequest(
       device,
       'POST',
       `/modify_objects.fcgi?session=${session}`,
@@ -159,27 +165,78 @@ async function controlIdUpdate(device, cmd) {
         },
       },
     );
+    const recusaNome = recusa('modify_objects', modificado);
+    if (recusaNome) return { ...recusaNome, faceId: String(userId) };
   }
   if (cmd.fotoBase64) {
-    await lanRequest(
-      device,
-      'POST',
-      `/user_set_image.fcgi?session=${session}&user_id=${userId}&match=1&timestamp=${Math.floor(Date.now() / 1000)}`,
-      { binary: Buffer.from(cmd.fotoBase64, 'base64') },
-    );
+    const recusaFoto = recusa('user_set_image', await enviarFoto(device, session, userId, cmd.fotoBase64));
+    if (recusaFoto) return { ...recusaFoto, faceId: String(userId) };
   }
   return { ok: true, faceId: String(userId) };
 }
 
 async function removerUsuario(device, cmd) {
+  const userId = idInterno(cmd.faceId);
+  if (userId === null) return recusaFaceId(cmd.faceId);
   const session = await controlIdLogin(device);
   const res = await lanRequest(
     device,
     'POST',
     `/destroy_objects.fcgi?session=${session}`,
-    { json: { object: 'users', where: { users: { id: Number(cmd.faceId) } } } },
+    { json: { object: 'users', where: { users: { id: userId } } } },
   );
   return okFrom(res);
+}
+
+function enviarFoto(device, session, userId, fotoBase64) {
+  return lanRequest(
+    device,
+    'POST',
+    `/user_set_image.fcgi?session=${session}&user_id=${userId}&match=1&timestamp=${Math.floor(Date.now() / 1000)}`,
+    { binary: Buffer.from(fotoBase64, 'base64') },
+  );
+}
+
+/**
+ * `null` se o aparelho aceitou a chamada; senão o resultado `ok:false` com o
+ * motivo. Antes o driver ignorava a resposta de user_set_image /
+ * modify_objects e devolvia `ok:true` cego — a nuvem marcava "sincronizado"
+ * um rosto que o aparelho tinha recusado. Recusa = HTTP fora de 2xx, ou 2xx
+ * com `success:false` explícito no corpo (é como o user_set_image avisa que
+ * não aceitou a imagem). Só LÊ a resposta: não muda o que é enviado.
+ */
+function recusa(chamada, res) {
+  const corpo = res && res.data && typeof res.data === 'object' ? res.data : null;
+  const httpOk = res.status >= 200 && res.status < 300;
+  if (httpOk && !(corpo && corpo.success === false)) return null;
+  const detalhe = String((res && res.raw) || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  return {
+    ok: false,
+    statusCode: res.status,
+    error: `Control iD: ${chamada} recusado pelo aparelho (HTTP ${res.status})${detalhe ? `: ${detalhe}` : ''}`,
+  };
+}
+
+/**
+ * faceId → id interno numérico do usuário, ou `null` se não for um inteiro
+ * não negativo. `Number('morador_42')` é NaN, e NaN vira `null` no JSON: o
+ * filtro ia para o aparelho como `where: { users: { id: null } }` — não
+ * sabemos o que cada firmware faz com isso (num destroy_objects, o pior caso
+ * é apagar mais do que um usuário). Na dúvida, não chama o aparelho.
+ */
+function idInterno(faceId) {
+  if (typeof faceId !== 'string' && typeof faceId !== 'number') return null;
+  const s = String(faceId).trim();
+  if (!/^\d+$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isSafeInteger(n) ? n : null;
+}
+
+function recusaFaceId(faceId) {
+  return {
+    ok: false,
+    error: `Control iD: faceId inválido (${JSON.stringify(faceId) ?? String(faceId)}) — esperado o id numérico do usuário no aparelho; nada foi enviado ao aparelho`,
+  };
 }
 
 /** O face_id gravado é o id INTERNO do usuário (ver controlIdCreate); quem
@@ -272,10 +329,14 @@ function escutar(device, aoEvento, opcoes = {}) {
   // genérica "assinando eventos de acesso (<driver>)" (emitida por quem
   // orquestra antes de chamar `escutar`) não deixa isso claro sozinha.
   console.log(`[agente] ${device.nome}: monitorando acessos (Control iD, polling)`);
+  // Aparelho fora do ar = uma leitura falhando a cada 3 s: loga a queda UMA
+  // vez e a recuperação UMA vez (ver comum/queda.js).
+  const aviso = criarAvisoDeQueda();
   (async () => {
     while (!parado) {
       try {
         const logs = await controlIdFetchNewLogs(device);
+        aviso.voltou(`[agente] ${device.nome}: leitura de acessos restabelecida (Control iD)`);
         // Poll bem-sucedido depois de uma falha: sinal equivalente ao
         // aoConectar do stream Dahua/Hikvision (ver comentário no topo).
         if (falhouAntes) {
@@ -296,9 +357,12 @@ function escutar(device, aoEvento, opcoes = {}) {
         }
       } catch (err) {
         falhouAntes = true;
-        console.error(
-          `[agente] ${device.nome}: falha ao ler acessos (Control iD): ${err.message || err}`,
-        );
+        if (!parado) {
+          aviso.caiu(
+            `[agente] ${device.nome}: falha ao ler acessos (Control iD): ${err.message || err}; ` +
+              `tentando de novo a cada ${Math.round(CONTROLID_POLL_MS / 1000)}s (novo aviso só quando voltar)`,
+          );
+        }
       }
       if (parado) break;
       await sleep(CONTROLID_POLL_MS);

@@ -14,7 +14,8 @@ describe('FacialService.updateDevice — desativar/reativar terminal', () => {
     const prisma: any = {
       facial_Devices: {
         findUnique: jest.fn(async () => ({ ...device })),
-        findFirst: jest.fn(async () => ({ ...device })),
+        // Consulta de duplicado (mesmo ip:porta / MAC): nenhum outro dispositivo.
+        findFirst: jest.fn(async () => null),
         update: jest.fn(async ({ data }: any) => Object.assign(device, data)),
       },
     };

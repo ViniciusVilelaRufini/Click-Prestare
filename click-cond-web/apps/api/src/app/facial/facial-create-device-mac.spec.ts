@@ -9,6 +9,8 @@ describe('FacialService.createDevice — grava mac normalizado e numero_serie', 
           Object.assign(created, { id: 1 }, data);
           return created;
         }),
+        // Consulta de duplicado (mesmo ip:porta / MAC): nenhum outro dispositivo.
+        findFirst: jest.fn(async () => null),
       },
     };
     const auditoria: any = { registrar: jest.fn(async () => undefined) };

@@ -30,6 +30,7 @@ import { timingSafeEqual } from 'crypto';
 import { AgentBridgeService } from './agent-bridge.service';
 import { AgentVersionService, compararVersoesAgente } from './agent-version.service';
 import { DescobertaService } from './descoberta.service';
+import { listarFabricantes } from './fabricantes';
 
 /**
  * Confere o token compartilhado das rotas server-to-server (`internal/*`).
@@ -90,6 +91,21 @@ export class FacialController {
     return this.service
       .listDevices(idCondominio)
       .then((ds) => ds.map((d) => semSegredosSeNaoSindico(d, user)));
+  }
+
+  /**
+   * Marcas do registro único (fabricantes.ts) com rótulo, porta/usuário padrão
+   * e capacidades — para a tela montar o seletor de fabricante. A lista é a
+   * mesma para todo condomínio; o `id_condominio` segue o padrão das demais
+   * leituras (sessão vinculada ao condomínio).
+   */
+  @Get('fabricantes')
+  fabricantes(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertTenantStrict(idCondominio, user, `fabricantes de terminal do condomínio ${idCondominio}`);
+    return listarFabricantes();
   }
 
   @Get('health')

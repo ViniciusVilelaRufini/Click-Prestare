@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { MailService } from '../common/mail/mail.service';
 import { validarPlaca } from '../common/placa.util';
+import { validarCodigoTag } from '../common/tag-codigo.util';
+import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
 import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
@@ -5001,14 +5003,54 @@ export class MobileAuthService {
    * isso um morador "roubaria" a tag de acesso de outro.
    */
   private async vincularTagAoVeiculo(idCondominio: number, idVeiculo: number, codigoRaw: any) {
-    const codigo = (codigoRaw ?? '').toString().trim();
+    const digitado = (codigoRaw ?? '').toString().trim();
 
-    if (!codigo) {
+    if (!digitado) {
       await this.prisma.veiculos.update({
         where: { id: idVeiculo },
         data: { id_tag: null },
       });
       return;
+    }
+
+    // Grava a forma NORMALIZADA: é com ela que a leitura do leitor é comparada
+    // (o leitor manda hex/decimal/Wiegand; o morador digita o que está impresso).
+    const validado = validarCodigoTag(digitado, 100);
+    if (validado.erro !== undefined) throw new BadRequestException(validado.erro);
+    const codigo = validado.codigo;
+
+    // Tag bloqueada pela portaria (perdida/roubada): o morador não a reativa.
+    // O `update: { ativo: 1 }` abaixo desfazia o bloqueio só de salvar o
+    // veículo com o código. Se ela já é a tag DESTE veículo, a edição segue
+    // sem mexer nela (o app reenvia o código a cada edição).
+    const existente = await this.prisma.tags.findUnique({
+      where: { id_condominio_codigo: { id_condominio: idCondominio, codigo } },
+      select: { id: true, ativo: true },
+    });
+    if (existente && existente.ativo !== 1) {
+      const jaVinculada = await this.prisma.veiculos.findFirst({
+        where: { id: idVeiculo, id_tag: existente.id },
+        select: { id: true },
+      });
+      if (jaVinculada) return;
+      throw new BadRequestException('Esta tag está bloqueada. Procure a portaria.');
+    }
+
+    // A mesma tag física em outro formato ("12345678" x "BC614E") — em outra
+    // Tag, como tag pessoal de alguém ou de visitante — não pode ser cadastrada
+    // de novo: o morador passaria a ser registrado no lugar do dono. A Tag de
+    // código exato é tratada pelo "em outro veículo" abaixo; se ela já é a
+    // DESTE veículo, a edição segue (o app reenvia o código a cada edição).
+    const jaDesteVeiculo = existente
+      ? await this.prisma.veiculos.findFirst({
+          where: { id: idVeiculo, id_tag: existente.id },
+          select: { id: true },
+        })
+      : null;
+    if (!jaDesteVeiculo) {
+      await assertTagNaoEmUso(this.prisma, idCondominio, codigo, {
+        ignorar: { idTag: existente?.id ?? null },
+      });
     }
 
     const tag = await this.prisma.tags.upsert({

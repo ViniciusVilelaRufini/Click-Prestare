@@ -199,7 +199,7 @@
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
       <!-- Agente local -->
-      <section class="p-6 rounded-3xl bg-white dark:bg-graphite-200/60 border border-slate-200/70 dark:border-white/10 space-y-5">
+      <section id="agente-local" class="p-6 rounded-3xl bg-white dark:bg-graphite-200/60 border border-slate-200/70 dark:border-white/10 space-y-5">
         <header class="flex items-start justify-between gap-3">
           <div class="flex items-start gap-3">
             <div class="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0">
@@ -661,6 +661,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       @for (t of terminais(); track t.id) {
         <div
+          [attr.data-terminal]="t.id"
           class="p-5 rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 space-y-4 shadow-sm dark:shadow-none"
         >
           <!-- Status & Nome & Tipo -->
@@ -898,6 +899,39 @@
             </div>
           </div>
 
+          <!-- Resultado do último "Testar Conexão" deste dispositivo -->
+          @if (diagnosticos()[t.id]; as dg) {
+            <div
+              role="status"
+              [attr.data-diagnostico]="dg.ok ? 'ok' : 'falha'"
+              class="p-3 rounded-xl text-xs font-medium flex items-start gap-2.5"
+              [ngClass]="dg.ok
+                ? 'bg-green-550/10 border border-green-550/20 text-green-600 dark:text-green-400'
+                : 'bg-rose-550/10 border border-rose-550/20 text-rose-600 dark:text-rose-400'"
+            >
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                @if (dg.ok) {
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                } @else {
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                }
+              </svg>
+              <div class="min-w-0 space-y-1">
+                <p>{{ dg.mensagem }}</p>
+                @if (dg.detalhe) {
+                  <p class="text-[10px] font-mono text-slate-500 dark:text-slate-400 break-words">{{ dg.detalhe }}</p>
+                }
+                @if (dg.motivo === 'credencial_invalida') {
+                  <button type="button" (click)="openEdit(t)" class="text-xs font-semibold text-accent hover:underline">Editar credenciais</button>
+                } @else if (dg.motivo === 'protocolo_inesperado') {
+                  <button type="button" (click)="openEdit(t)" class="text-xs font-semibold text-accent hover:underline">Editar fabricante</button>
+                } @else if (dg.motivo === 'agente_offline') {
+                  <button type="button" (click)="abrirInstalacaoAgente()" class="text-xs font-semibold text-accent hover:underline">Instalar ou reconectar o agente</button>
+                }
+              </div>
+            </div>
+          }
+
           <!-- Ações -->
           <div
             class="flex items-center gap-2 pt-3 border-t border-slate-200/60 dark:border-white/5 flex-wrap"
@@ -969,8 +1003,9 @@
             </a>
             <button
               (click)="copyToken(t)"
-              class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5 transition shadow-sm dark:shadow-none"
-              title="Copia a URL completa do webhook"
+              [disabled]="!t.webhook_token"
+              class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5 transition shadow-sm dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
+              [title]="t.webhook_token ? 'Copia a URL completa do webhook' : 'Somente o síndico vê a URL do webhook'"
             >
               Copiar URL Webhook
             </button>
@@ -1019,10 +1054,10 @@
         <div class="flex items-start justify-between">
           <div>
             <h2 class="text-lg font-bold text-slate-800 dark:text-white">
-              {{ editingId() ? 'Editar Dispositivo' : 'Novo Dispositivo' }}
+              {{ webhookCriado() ? 'Dispositivo cadastrado' : editingId() ? 'Editar Dispositivo' : 'Novo Dispositivo' }}
             </h2>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Configure o endereço IP, tipo e credenciais do dispositivo
+              {{ webhookCriado() ? 'Falta um passo: apontar o equipamento para a Prestare' : 'Configure o endereço IP, tipo e credenciais do dispositivo' }}
             </p>
           </div>
           <button
@@ -1045,6 +1080,47 @@
           </button>
         </div>
 
+        @if (webhookCriado(); as criado) {
+          <!-- Passo final do leitor por webhook: sem isto o cadastro fica pronto
+               na Prestare, mas o equipamento não sabe para onde mandar a leitura. -->
+          <div class="space-y-4">
+            <p class="text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
+              <b>{{ criado.nome }}</b> foi cadastrado. Configure o equipamento
+              para enviar as leituras por <b>HTTP POST</b> para esta URL:
+            </p>
+            <div class="flex items-stretch gap-2">
+              <input
+                type="text"
+                readonly
+                [value]="criado.url"
+                aria-label="URL do webhook"
+                (focus)="$any($event.target).select()"
+                class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs font-mono focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
+              <button
+                type="button"
+                (click)="copiarWebhookCriado()"
+                class="px-4 py-2.5 rounded-xl text-xs font-semibold text-accent bg-accent/10 hover:bg-accent/15 border border-accent/20 transition shrink-0"
+              >
+                {{ webhookCriadoCopiado() ? 'Copiada' : 'Copiar' }}
+              </button>
+            </div>
+            <ul class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed list-disc pl-4 space-y-1">
+              <li>Cole a URL no campo de envio HTTP (notificação de evento / "HTTP listening") do equipamento ou do conversor.</li>
+              <li>A URL funciona como senha deste dispositivo: não compartilhe.</li>
+              <li>Depois você pode copiá-la de novo em "Copiar URL Webhook", na lista de dispositivos.</li>
+            </ul>
+            <div class="pt-4 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-end">
+              <button
+                type="button"
+                (click)="closeModal()"
+                class="px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 transition active:scale-95 shadow-lg shadow-accent/5"
+              >
+                Concluir
+              </button>
+            </div>
+          </div>
+        } @else {
         <form (submit)="save(); $event.preventDefault()" class="space-y-4">
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1.5">
@@ -1112,9 +1188,15 @@
                 <option value="saida">Saída (todo acesso dá baixa)</option>
               </select>
               <p class="text-[10px] text-slate-400 dark:text-slate-500">
-                Use <b>Entrada</b> e <b>Saída</b> quando houver terminais
-                separados para cada direção. <b>Automático</b> assume entrada
-                quando o aparelho não informa o sentido.
+                @if (leituraPorWebhook) {
+                  Este equipamento não informa a direção: escolha
+                  <b>Entrada</b> ou <b>Saída</b> conforme o lugar onde ele está
+                  instalado.
+                } @else {
+                  Use <b>Entrada</b> e <b>Saída</b> quando houver terminais
+                  separados para cada direção. No <b>Automático</b>, um terminal
+                  único alterna entrada e saída pela última passagem da pessoa.
+                }
               </p>
             </div>
           }
@@ -1228,6 +1310,17 @@
             </div>
           </div>
 
+          <!-- Nem toda marca da lista fala direto com a Prestare: o leitor de tag
+               só é entendido pelo envio HTTP (formato próprio ou evento Hikvision). -->
+          @if (form.tipo === 'tag_reader') {
+            <p data-nota-marca class="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed">
+              O leitor precisa enviar cada leitura por HTTP para a URL de webhook
+              deste dispositivo. <b>Hikvision</b> é reconhecida no formato nativo
+              do aparelho; nas demais marcas, configure o envio HTTP (ou um
+              conversor Wiegand→IP) no formato da Prestare.
+            </p>
+          }
+
           <div class="grid grid-cols-3 gap-3">
             <div class="col-span-2 space-y-1.5">
               <label
@@ -1264,7 +1357,7 @@
               <div class="space-y-1.5">
                 <label
                   class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
-                  >Usuário API</label
+                  >Usuário API{{ credenciaisObrigatorias ? '' : ' (opcional)' }}</label
                 >
                 <input
                   [(ngModel)]="form.api_user"
@@ -1279,9 +1372,10 @@
               <div class="space-y-1.5">
                 <label
                   class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
-                  >Senha API</label
+                  >Senha API{{ credenciaisObrigatorias ? '' : ' (opcional)' }}</label
                 >
                 <input
+                  #senhaInput
                   [(ngModel)]="form.api_password"
                   name="api_password"
                   type="password"
@@ -1294,6 +1388,17 @@
           } @else {
             <div class="text-[11px] text-slate-500 dark:text-slate-400 italic">
               Este tipo de dispositivo normalmente não requer autenticação HTTP.
+            </div>
+          }
+
+          <!-- Erro do cadastro aqui dentro: o aviso do topo da página fica
+               escondido atrás do modal. -->
+          @if (modalError(); as erro) {
+            <div
+              role="alert"
+              class="p-3 rounded-xl bg-rose-550/10 border border-rose-550/20 text-rose-600 dark:text-rose-400 text-xs font-medium"
+            >
+              {{ erro }}
             </div>
           }
 
@@ -1323,6 +1428,7 @@
             </button>
           </div>
         </form>
+        }
       </div>
     </div>
   }

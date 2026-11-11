@@ -17,6 +17,7 @@ const {
   baselinesPath,
   loadBaselines,
   setBaseline,
+  RENAME_TENTATIVAS,
 } = require('../src/core/estado');
 
 // Arquivos usados pelos testes ficam em configDir() (mesma pasta do módulo,
@@ -102,6 +103,66 @@ test('gravarJsonAtomico(): sobrescreve o destino já existente (não concatena)'
     gravarJsonAtomico(nome, { versao: 2 });
     assert.deepEqual(lerJson(nome, null), { versao: 2 });
   } finally {
+    limpar(nome);
+  }
+});
+
+// ---------- rename com EPERM/EBUSY/EACCES intermitente (Windows) ----------
+
+function erroFs(code) {
+  return Object.assign(new Error(`${code}: operation not permitted, rename`), { code });
+}
+
+for (const code of ['EPERM', 'EBUSY', 'EACCES']) {
+  test(`gravarJsonAtomico(): ${code} no rename (antivírus/indexador segurando o arquivo) → tenta de novo e grava`, (t) => {
+    const nome = `estado-teste-retry-${code}.json`;
+    limpar(nome);
+    try {
+      const real = fs.renameSync;
+      let chamadas = 0;
+      t.mock.method(fs, 'renameSync', (...args) => {
+        chamadas++;
+        if (chamadas <= 2) throw erroFs(code);
+        return real(...args);
+      });
+      gravarJsonAtomico(nome, { tentativa: 3 });
+      assert.equal(chamadas, 3);
+      t.mock.restoreAll();
+      assert.deepEqual(lerJson(nome, null), { tentativa: 3 });
+    } finally {
+      t.mock.restoreAll();
+      limpar(nome);
+    }
+  });
+}
+
+test('gravarJsonAtomico(): EPERM persistente → desiste após RENAME_TENTATIVAS e propaga o erro', (t) => {
+  const nome = 'estado-teste-retry-esgotado.json';
+  limpar(nome);
+  try {
+    const renomear = t.mock.method(fs, 'renameSync', () => {
+      throw erroFs('EPERM');
+    });
+    assert.throws(() => gravarJsonAtomico(nome, { x: 1 }), { code: 'EPERM' });
+    assert.equal(RENAME_TENTATIVAS, 5);
+    assert.equal(renomear.mock.callCount(), RENAME_TENTATIVAS);
+  } finally {
+    t.mock.restoreAll();
+    limpar(nome);
+  }
+});
+
+test('gravarJsonAtomico(): outro erro no rename (ex.: ENOSPC) propaga na hora, sem nova tentativa', (t) => {
+  const nome = 'estado-teste-retry-outro.json';
+  limpar(nome);
+  try {
+    const renomear = t.mock.method(fs, 'renameSync', () => {
+      throw erroFs('ENOSPC');
+    });
+    assert.throws(() => gravarJsonAtomico(nome, { x: 1 }), { code: 'ENOSPC' });
+    assert.equal(renomear.mock.callCount(), 1);
+  } finally {
+    t.mock.restoreAll();
     limpar(nome);
   }
 });

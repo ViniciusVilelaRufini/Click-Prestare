@@ -26,6 +26,7 @@ import { parserDeCorpo } from './app/common/limite-corpo';
 import { resolveJwtSecret } from './app/auth/jwt-secret';
 import { requestContext, extractClientIp } from './app/common/context/request-context';
 import { caminhoEstaticoBloqueado } from './app/common/assets-estaticos.util';
+import { paginaSimuladorBloqueada } from './app/common/simulador-estatico.util';
 import { ROTAS_HARDWARE, origensConfiaveis } from './app/common/cors-origins';
 import { instalarXRay } from './app/common/xray';
 
@@ -91,8 +92,10 @@ async function bootstrap() {
   // Serve arquivos estáticos copiados de src/assets (simulador facial em /simulator.html)
   // Só HTML dos simuladores. Nenhum .json/credencial pode sair por aqui — e o
   // filtro olha o caminho DECODIFICADO, igual ao que o serve-static abre.
+  // E o HTML de simulador só sai com FACIAL_SIMULATOR_ENABLED=true, a mesma
+  // variável que monta os controllers dele (facial.module.ts).
   app.use((req: any, res: any, next: any) => {
-    if (caminhoEstaticoBloqueado(req.path)) {
+    if (caminhoEstaticoBloqueado(req.path) || paginaSimuladorBloqueada(req.path)) {
       return res.status(404).end();
     }
     next();

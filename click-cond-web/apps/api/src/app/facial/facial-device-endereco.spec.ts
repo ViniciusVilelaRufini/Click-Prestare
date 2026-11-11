@@ -44,7 +44,8 @@ describe('FacialService.createDevice / updateDevice — endereço do terminal', 
       facial_Devices: {
         create: jest.fn(async ({ data }: any) => ({ id: 1, ...data })),
         findUnique: jest.fn(async () => ({ ...device })),
-        findFirst: jest.fn(async () => ({ ...device })),
+        // Consulta de duplicado (mesmo ip:porta / MAC): nenhum outro dispositivo.
+        findFirst: jest.fn(async () => null),
         update: jest.fn(async ({ data }: any) => Object.assign(device, data)),
       },
     };

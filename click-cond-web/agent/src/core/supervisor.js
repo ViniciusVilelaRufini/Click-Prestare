@@ -209,6 +209,10 @@ class SupervisorDispositivo {
  *  (`parar()`) o que saiu da lista. */
 const OPCOES_CONHECIDAS = new Set(['resolverDriver', 'aoRecuperarOffline', 'aoEvento', 'log']);
 
+// Campos do device que o ouvinte usa para conectar/autenticar/escolher o
+// protocolo — mudou qualquer um, o ouvinte é recriado (ver `atualizar`).
+const CAMPOS_DA_CONEXAO = ['ip', 'porta', 'api_user', 'api_password', 'fabricante', 'tipo'];
+
 class Supervisor {
   constructor(opcoes = {}) {
     // Rede de segurança contra erro de digitação na chave (ex.: `aoConectar`
@@ -240,12 +244,15 @@ class Supervisor {
     for (const device of devices || []) {
       vistos.add(device.id);
       const existente = this._porId.get(device.id);
-      const enderecoMudou =
-        existente && (existente.device.ip !== device.ip || existente.device.porta !== device.porta);
-      if (existente && !enderecoMudou) {
-        // Atualiza a referência (credencial/nome podem ter mudado no portal) —
-        // não reinicia o ouvinte: trocar a senha em cima de uma conexão viva
-        // é raro, e o próprio reconectar (ao cair) já pega a versão nova.
+      // O laço de `escutar` do driver captura o objeto `device` no fechamento
+      // e reabre o stream com ELE para sempre: trocar `existente.device` não
+      // chega lá. Então qualquer campo que o ouvinte usa para conectar,
+      // autenticar ou escolher o protocolo recria o supervisor.
+      const conexaoMudou =
+        existente && CAMPOS_DA_CONEXAO.some((campo) => existente.device[campo] !== device[campo]);
+      if (existente && !conexaoMudou) {
+        // Só o que não afeta a conexão mudou (ex.: nome): atualiza a
+        // referência sem mexer no ouvinte vivo.
         existente.device = device;
         continue;
       }
@@ -253,7 +260,10 @@ class Supervisor {
         // IP/porta mudou (correção automática da etapa 3 quando o DHCP troca
         // o endereço, ou edição no portal): o ouvinte velho pode ficar preso
         // tentando o endereço antigo — ou, pior, conversando com OUTRO
-        // aparelho que herdou aquele IP. Para e cria um supervisor novo.
+        // aparelho que herdou aquele IP. Usuário/senha mudou: o ouvinte velho
+        // ficaria tentando a credencial antiga para sempre (antes só um
+        // restart do agente resolvia). Fabricante/tipo mudou: o driver (ou a
+        // existência de ouvinte) é outro. Para e cria um supervisor novo.
         existente.parar();
         this._porId.delete(device.id);
       }

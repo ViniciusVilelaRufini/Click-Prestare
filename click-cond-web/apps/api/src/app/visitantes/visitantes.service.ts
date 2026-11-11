@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { randomInt } from 'crypto';
 import { erroDocumento, erroVisita } from '../common/documento.util';
+import { validarCodigoTag } from '../common/tag-codigo.util';
+import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { executarComLock } from '../common/lock-distribuido';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -1667,6 +1669,36 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * A tag digitada é exatamente a que já está gravada para esta pessoa? Com a
+   * migração ligada a tag mora em `Visitas` (por `id_pessoa`); no legado, no
+   * próprio registro de `Visitantes`.
+   */
+  private async tagIgualAGravada(
+    idCondominio: number,
+    idPessoaRef: number,
+    digitada: string,
+  ): Promise<boolean> {
+    const achada = pessoasMigrationEnabled(this.prisma)
+      ? await this.prisma.visitas.findFirst({
+          where: {
+            id_pessoa: Number(idPessoaRef),
+            id_condominio: Number(idCondominio),
+            tag_rfid: digitada,
+          },
+          select: { id: true },
+        })
+      : await this.prisma.visitantes.findFirst({
+          where: {
+            id: Number(idPessoaRef),
+            id_condominio: Number(idCondominio),
+            tag_rfid: digitada,
+          },
+          select: { id: true },
+        });
+    return !!achada;
+  }
+
+  /**
    * Atualiza dados de IDENTIDADE de uma pessoa em TODOS os seus registros
    * (mesmo doc/nome no condomínio). Usado pelo "Editar" da lista. Não mexe
    * em apartamento, datas de visita ou PIN — esses pertencem a cada visita.
@@ -1687,9 +1719,41 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const erroDoc = erroDocumento(dto.doc_identificacao);
     if (erroDoc) throw new BadRequestException(erroDoc);
 
+    // Tag RFID gravada NORMALIZADA (ver tag-codigo.util) — é a forma comparada
+    // com a leitura do leitor. Vazio/null continua limpando a credencial;
+    // código inválido é recusado antes de qualquer gravação. 50 = tamanho da
+    // coluna tag_rfid.
+    //
+    // A tela reenvia a tag a cada edição: se veio IGUAL à já gravada (cadastro
+    // antigo, fora do padrão), fica como está, sem revalidar — mesma isenção
+    // do morador. Tag nova/alterada é validada e conferida por variantes
+    // contra as outras pessoas e veículos (`tagNovaParaConferir`).
+    let tagNovaParaConferir: string | null = null;
+    if (dto.tag_rfid !== undefined) {
+      const digitada = (dto.tag_rfid ?? '').toString().trim();
+      let tagRfid: string | null = null;
+      if (digitada) {
+        if (await this.tagIgualAGravada(idCondominio, idPessoaRef, digitada)) {
+          tagRfid = digitada;
+        } else {
+          const validado = validarCodigoTag(digitada, 50);
+          if (validado.erro !== undefined) throw new BadRequestException(validado.erro);
+          tagRfid = validado.codigo;
+          tagNovaParaConferir = validado.codigo;
+        }
+      }
+      dto = { ...dto, tag_rfid: tagRfid };
+    }
+
     // Mesmo motivo do `removerPessoa`: com a flag ligada, nunca resolve
     // `idPessoaRef` contra `Visitantes`.
     if (pessoasMigrationEnabled(this.prisma)) {
+      if (tagNovaParaConferir) {
+        await assertTagNaoEmUso(this.prisma, Number(idCondominio), tagNovaParaConferir, {
+          ignorar: { idPessoa: Number(idPessoaRef) },
+          tabelaVisitas: 'visitas',
+        });
+      }
       return this.atualizarPessoaViaPessoasVisitas(idCondominio, idPessoaRef, dto);
     }
 
@@ -1700,13 +1764,21 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException('Cadastro do visitante não encontrado.');
     }
 
-    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
-    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
-
     // Mesma regra da lista e da exclusão: sem a peneira por chave, editar a
     // pessoa sem documento reescrevia o nome/foto de um homônimo que tem
     // documento — e sem nenhum aviso, porque a edição não falha.
     const records = await this.registrosDaPessoa(ref);
+
+    // Os registros da própria pessoa não contam como conflito de tag.
+    if (tagNovaParaConferir) {
+      await assertTagNaoEmUso(this.prisma, Number(idCondominio), tagNovaParaConferir, {
+        ignorar: { idsVisitantes: records.map((r) => r.id) },
+        tabelaVisitas: 'visitantes',
+      });
+    }
+
+    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
+    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
 
     const data: any = {};
     if (dto.nome !== undefined) data.nome = dto.nome;

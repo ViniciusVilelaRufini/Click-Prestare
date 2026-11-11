@@ -14,6 +14,8 @@ import { randomBytes } from 'crypto';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 
 import { rotuloBloco } from '../common/rotulo-bloco.util';
+import { validarCodigoTag } from '../common/tag-codigo.util';
+import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
 export interface CreateMoradorDto {
   nome: string;
   documento?: string;
@@ -150,6 +152,18 @@ export class MoradoresService {
    *
    * Suporta excluir o próprio morador via `excluirMoradorId` (no update).
    */
+  /**
+   * Tag RFID como vai para o banco: NORMALIZADA (ver tag-codigo.util), que é a
+   * forma comparada com a leitura do leitor. Vazio vira null; código inválido
+   * é recusado. 50 = tamanho da coluna Moradores.tag_rfid.
+   */
+  private tagRfidParaGravar(bruto: unknown): string | null {
+    if (bruto == null || String(bruto).trim() === '') return null;
+    const validado = validarCodigoTag(bruto, 50);
+    if (validado.erro !== undefined) throw new BadRequestException(validado.erro);
+    return validado.codigo;
+  }
+
   private async assertCredencialDisponivel(
     idCondominio: number,
     tag: string | undefined | null,
@@ -161,31 +175,12 @@ export class MoradoresService {
     const checks: Array<Promise<void>> = [];
 
     if (tag) {
+      // Por VARIANTES e em todas as fontes (Tags, Moradores, visita/visitante
+      // não encerrado): a mesma tag em outro formato é a mesma tag.
       checks.push(
-        (async () => {
-          const conflitoMorador = await this.prisma.moradores.findFirst({
-            where: {
-              id_condominio: idCondominio,
-              tag_rfid: tag,
-              ...(excluirMoradorId ? { NOT: { id: excluirMoradorId } } : {}),
-            },
-            select: { id: true, nome: true },
-          });
-          if (conflitoMorador) {
-            throw new BadRequestException(
-              `Tag RFID já cadastrada para o morador "${conflitoMorador.nome}"`,
-            );
-          }
-          const conflitoVisitante = await this.prisma.visitantes.findFirst({
-            where: { id_condominio: idCondominio, tag_rfid: tag },
-            select: { id: true, nome: true },
-          });
-          if (conflitoVisitante) {
-            throw new BadRequestException(
-              `Tag RFID já em uso pelo visitante "${conflitoVisitante.nome}"`,
-            );
-          }
-        })(),
+        assertTagNaoEmUso(this.prisma, idCondominio, tag, {
+          ignorar: { idMorador: excluirMoradorId },
+        }),
       );
     }
 
@@ -748,7 +743,8 @@ export class MoradoresService {
     // Garante que tag/QR não estão em uso por outro morador OU visitante no
     // mesmo condomínio. Duas pessoas com a mesma credencial é o pior bug
     // possível em controle de acesso — "quem é quem?".
-    await this.assertCredencialDisponivel(dto.id_condominio, dto.tag_rfid, dto.qrcode_acesso, null);
+    const tagRfid = this.tagRfidParaGravar(dto.tag_rfid);
+    await this.assertCredencialDisponivel(dto.id_condominio, tagRfid, dto.qrcode_acesso, null);
 
     const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa);
     const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento);
@@ -895,7 +891,7 @@ export class MoradoresService {
           apartamento: aptoNum || null,
           foto_pessoa: fotoPessoaUrl,
           foto_documento: fotoDocumentoUrl,
-          tag_rfid: dto.tag_rfid ? dto.tag_rfid.trim() : null,
+          tag_rfid: tagRfid,
           qrcode_acesso: dto.qrcode_acesso ? dto.qrcode_acesso.trim() : null,
         },
       });
@@ -976,7 +972,15 @@ export class MoradoresService {
 
     // Valida duplicação de credenciais. Só dispara se o campo veio no dto e
     // mudou — não bloqueia edições que mantêm a credencial atual.
-    const novaTag = dto.tag_rfid !== undefined ? dto.tag_rfid?.trim() : undefined;
+    // A tela reenvia a tag a cada edição: se veio igual à gravada (cadastro
+    // antigo, ainda não normalizado), fica como está, sem revalidar.
+    const tagDigitada = dto.tag_rfid !== undefined ? (dto.tag_rfid ?? '').toString().trim() : undefined;
+    const novaTag =
+      tagDigitada === undefined
+        ? undefined
+        : tagDigitada === ((atual as any).tag_rfid ?? '')
+          ? tagDigitada
+          : (this.tagRfidParaGravar(tagDigitada) ?? '');
     const novoQr = dto.qrcode_acesso !== undefined ? dto.qrcode_acesso?.trim() : undefined;
     await this.assertCredencialDisponivel(
       atual.id_condominio ?? -1,

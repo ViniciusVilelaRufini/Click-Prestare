@@ -58,12 +58,35 @@ function lerJson(nome, padrao) {
  * íntegro (rename é atômico no SO) — um `writeFileSync` direto interrompido
  * no meio, em vez disso, corrompe o arquivo do qual os drivers dependem para
  * não reprocessar (ou pular) histórico de acesso.
+ *
+ * No Windows o rename falha de forma intermitente com EPERM/EBUSY/EACCES
+ * quando um antivírus ou o indexador ainda segura o arquivo recém-escrito
+ * (ou o destino). É passageiro: tenta de novo algumas vezes, com espera
+ * curta crescente. Qualquer outro erro (e o mesmo erro após a última
+ * tentativa) propaga como antes.
  */
+const RENAME_TENTATIVAS = 5;
+const RENAME_ESPERA_BASE_MS = 5; // 5, 10, 15, 20 ms entre as tentativas
+const RENAME_ERROS_PASSAGEIROS = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+/** Espera SÍNCRONA (o chamador é síncrono e a espera é de poucos ms). */
+function esperarSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 function gravarJsonAtomico(nome, obj) {
   const destino = path.join(configDir(), nome);
   const tmp = `${destino}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(obj), 'utf8');
-  fs.renameSync(tmp, destino);
+  for (let tentativa = 1; ; tentativa++) {
+    try {
+      fs.renameSync(tmp, destino);
+      return;
+    } catch (e) {
+      if (tentativa >= RENAME_TENTATIVAS || !RENAME_ERROS_PASSAGEIROS.has(e && e.code)) throw e;
+      esperarSync(RENAME_ESPERA_BASE_MS * tentativa);
+    }
+  }
 }
 
 // ---------- Marca d'água (baseline) de cada device ----------
@@ -103,4 +126,5 @@ module.exports = {
   baselinesPath,
   loadBaselines,
   setBaseline,
+  RENAME_TENTATIVAS,
 };

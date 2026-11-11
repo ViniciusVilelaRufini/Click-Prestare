@@ -417,3 +417,55 @@ test('IP ou porta mudou (correção por DHCP): para o ouvinte velho e reconecta 
   assert.equal(parados, 2);
   assert.equal(supervisor.saudeTodos().length, 1);
 });
+
+test('usuário, senha, fabricante ou tipo mudou no portal: recria o ouvinte com o device NOVO (o laço de escutar não fica com a credencial antiga)', () => {
+  const escutas = [];
+  let parados = 0;
+  const driver = {
+    id: 'fake-facial',
+    escutar(device) {
+      // O driver captura o `device` no fechamento do laço — é ESTE objeto que
+      // ele usa para autenticar em toda reabertura do stream.
+      escutas.push({
+        api_user: device.api_user,
+        api_password: device.api_password,
+        fabricante: device.fabricante,
+        tipo: device.tipo,
+      });
+      return () => {
+        parados++;
+      };
+    },
+  };
+  const supervisor = new Supervisor({ resolverDriver: () => driver, log: logMudo });
+  const base = {
+    ...deviceFacial(8),
+    ip: '192.168.3.175',
+    porta: 80,
+    api_user: 'admin',
+    api_password: 'antiga',
+    fabricante: 'intelbras',
+  };
+  supervisor.atualizar([base]);
+  // Mesmo conteúdo em objeto novo (é o que cada poll entrega): não recria.
+  supervisor.atualizar([{ ...base }]);
+  assert.equal(escutas.length, 1);
+  assert.equal(parados, 0);
+
+  const passos = [
+    { api_password: 'nova' },
+    { api_user: 'operador' },
+    { fabricante: 'hikvision' },
+    { tipo: 'catraca' },
+  ];
+  let atual = base;
+  passos.forEach((mudanca, i) => {
+    atual = { ...atual, ...mudanca };
+    supervisor.atualizar([atual]);
+    const [campo, valor] = Object.entries(mudanca)[0];
+    assert.equal(escutas.length, i + 2, `mudança de ${campo} recria o ouvinte`);
+    assert.equal(parados, i + 1, `mudança de ${campo} para o ouvinte velho`);
+    assert.equal(escutas[escutas.length - 1][campo], valor, `ouvinte novo recebe ${campo} novo`);
+  });
+  assert.equal(supervisor.saudeTodos().length, 1);
+});

@@ -13,6 +13,16 @@ import { MobileAuthService } from './mobile-auth.service';
  * quase no mesmo instante.
  */
 describe('MobileAuthService.getMeusEventos — entrada registrada na portaria', () => {
+  // getMeusEventos só devolve os últimos 30 dias. Os dados deste arquivo usam
+  // datas fixas de 04/09/2026, então o relógio é fixado no dia seguinte — sem
+  // isso os testes passaram a falhar sozinhos quando a data real saiu da janela.
+  beforeAll(() => {
+    jest.useFakeTimers({ now: new Date('2026-09-05T12:00:00Z'), doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+  });
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   const ID_USER = 20;
   const ID_APTO = 10;
   const ID_VISITANTE = 5;

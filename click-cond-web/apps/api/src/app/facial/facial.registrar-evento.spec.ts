@@ -125,7 +125,13 @@ describe('FacialService.runWebhook — ponte leitor→abertura grava o dispositi
           nome: 'Fulano',
           tag_rfid: 'TAG-1',
         })),
+        // A leitura de tag confere TODOS os moradores com o código exato
+        // (ambiguidade) — por isso findMany.
+        findMany: jest.fn(async () => [
+          { id: 10, tipo: 'morador', nome: 'Fulano', tag_rfid: 'TAG-1' },
+        ]),
       },
+      tags: { findMany: jest.fn(async () => []) },
       regras_Acesso: {
         // Nenhuma regra ativa: nem bloqueia por horário/categoria, nem
         // mapeia o leitor a uma abertura específica (cai no fallback).

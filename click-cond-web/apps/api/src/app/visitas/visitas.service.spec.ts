@@ -21,6 +21,10 @@ describe('VisitasService', () => {
     vagas: {
       updateMany: jest.fn(),
     },
+    // Unicidade de tag por variantes (assertTagNaoEmUso): sem conflito aqui.
+    // A regra em si está em common/tag-em-uso.util.spec.ts.
+    tags: { findFirst: jest.fn() },
+    moradores: { findFirst: jest.fn() },
   };
 
   const mockPessoasService = {
@@ -68,6 +72,45 @@ describe('VisitasService', () => {
     expect(mockPrisma.apartamentos.findUnique).toHaveBeenCalledWith({
       where: { id: 101 },
       select: { id: true, id_condominio: true },
+    });
+  });
+
+  describe('tag_rfid normalizada no cadastro da visita', () => {
+    const base = { id_condominio: 1, id_apartamento: 101, pessoa: { nome: 'Visitante Teste' } };
+    beforeEach(() => {
+      mockPessoasService.obterOuCriar.mockResolvedValue({ id: 50, nome: 'Visitante Teste' });
+      mockPrisma.visitas.create.mockResolvedValue({ id: 100 });
+    });
+    const tagGravada = () => mockPrisma.visitas.create.mock.calls[0][0].data.tag_rfid;
+
+    it('grava o código na forma canônica (maiúsculas, sem separador nem zeros à esquerda)', async () => {
+      await service.criarVisita({ ...base, tag_rfid: ' 00bc-61:4e ' });
+      expect(tagGravada()).toBe('BC614E');
+    });
+
+    it('Wiegand 26 com separador vira o decimal do valor', async () => {
+      await service.criarVisita({ ...base, tag_rfid: '188,24910' });
+      expect(tagGravada()).toBe('12345678');
+    });
+
+    it.each([[undefined], [null], [''], ['   ']])('sem tag (%p) grava null', async (tag) => {
+      await service.criarVisita({ ...base, tag_rfid: tag as any });
+      expect(tagGravada()).toBeNull();
+    });
+
+    it('código inválido é recusado com 400 antes de qualquer gravação', async () => {
+      await expect(service.criarVisita({ ...base, tag_rfid: 'ABC#123' })).rejects.toThrow(
+        /Código de tag inválido/,
+      );
+      expect(mockPessoasService.obterOuCriar).not.toHaveBeenCalled();
+      expect(mockPrisma.visitas.create).not.toHaveBeenCalled();
+    });
+
+    it('código maior que a coluna (50) é recusado', async () => {
+      await expect(service.criarVisita({ ...base, tag_rfid: 'A'.repeat(51) })).rejects.toThrow(
+        /muito longo/,
+      );
+      expect(mockPrisma.visitas.create).not.toHaveBeenCalled();
     });
   });
 

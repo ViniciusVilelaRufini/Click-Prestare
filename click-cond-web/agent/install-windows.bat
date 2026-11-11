@@ -30,7 +30,11 @@ REM run-agent-service.cmd: o cmd.exe le o .cmd em execucao pelo deslocamento
 REM no arquivo, e reescreve-lo com o laco rodando embaralha os comandos.
 schtasks /End /TN "%TASK%" >nul 2>&1
 taskkill /F /IM click-agent.exe >nul 2>&1
-for /f "tokens=2" %%p in ('tasklist /FI "IMAGENNAME eq node.exe" /V /FO LIST 2^>nul ^| findstr /I "click-agent.cjs"') do taskkill /F /PID %%p >nul 2>&1
+REM Agente antigo rodando via node (start-agent.cmd): encerra SOMENTE o
+REM node.exe cuja linha de comando contem click-agent.cjs - nunca outro
+REM node.exe da maquina. O tasklist nao mostra a linha de comando; quem
+REM mostra e o Win32_Process (CIM).
+powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -like '*click-agent.cjs*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 REM Da um tempo para o Windows liberar o arquivo/porta.
 timeout /t 2 /nobreak >nul
 REM Instalacao manual substitui qualquer auto-atualizacao pendente: sem
@@ -150,7 +154,7 @@ schtasks /Run /TN "%TASK%" >nul 2>&1
 
 echo === 4/4  Conferindo ===
 timeout /t 3 /nobreak >nul
-tasklist /FI "IMAGENNAME eq click-agent.exe" | findstr /I click-agent.exe >nul 2>&1
+tasklist /FI "IMAGENAME eq click-agent.exe" | findstr /I click-agent.exe >nul 2>&1
 if errorlevel 1 (
   echo [AVISO] Nao vi o click-agent.exe rodando ainda. Verifique o .env e rode:
   echo         schtasks /Run /TN "%TASK%"

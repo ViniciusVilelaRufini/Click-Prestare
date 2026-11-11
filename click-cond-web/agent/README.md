@@ -50,7 +50,7 @@ npm run build:exe        # gera click-agent.exe (Windows) / click-agent (Linux/m
 **3. Configure (só 2 valores).** Você **não** precisa editar arquivo: rode o
 `click-agent.exe` por uma **janela de terminal** uma vez e ele pergunta e salva
 o `.env` sozinho. Ele pede:
-- **URL da API** (ex.: `https://api.clickprestarecondominios.com.br`).
+- **URL da API** (ex.: `https://api.prestarecondominios.com.br`).
 - **Um token** — no portal, **Terminais de Dispositivos** → **"Copiar URL Webhook"**
   em **qualquer** dispositivo e cole (pode colar a URL inteira). Esse único token
   gerencia **todos** os dispositivos do condomínio (modo condomínio).
@@ -102,13 +102,43 @@ sudo systemctl enable --now click-agent
 journalctl -u click-agent -f   # acompanhar logs
 ```
 
-## Como funciona o webhook (eventos do aparelho → nuvem)
+## Como os eventos chegam à nuvem (aparelho → agente → nuvem)
 
-O acionamento (nuvem → aparelho) passa pelo agente. Já os **eventos** que o
-aparelho gera (rosto reconhecido, tag lida) continuam indo **direto do aparelho
-para a nuvem** via webhook — configure a URL do webhook no próprio aparelho
-(a mesma URL do botão "Copiar URL Webhook"). Isso só exige que o aparelho tenha
-internet de saída, o que normalmente já existe.
+Nos **terminais faciais**, os eventos (rosto reconhecido) **também passam pelo
+agente** — o aparelho **não** manda nada direto para a nuvem e **não** precisa
+de internet nem de URL de webhook configurada nele:
+
+- **Intelbras / Dahua**: o agente mantém aberto o stream de eventos do aparelho
+  (`/cgi-bin/eventManager.cgi?action=attach`) e repassa cada acesso.
+- **Hikvision**: idem, pelo `alertStream` do ISAPI.
+- **Control iD**: o agente consulta o `access_logs` do aparelho a cada poucos
+  segundos (polling).
+
+Cada acesso é enviado pelo agente para a API (`POST
+/api/facial/agent/condo/<token>/event`). Se a internet cair, o agente guarda
+os eventos em disco (`events-queue.jsonl`) e reenvia quando a nuvem voltar; se
+o agente perder o aparelho (queda de rede/energia, ou o stream fechar e
+reabrir), ele relê o log interno do terminal e reenvia o que faltou, marcado
+como histórico (`backlog`) — a nuvem audita com o horário original, sem
+reacionar a porta.
+
+A URL do botão **"Copiar URL Webhook"** continua servindo para duas coisas: é
+de onde sai o **token** do agente (o trecho final) e é o endpoint para
+aparelhos de outro tipo que saibam fazer push HTTP por conta própria. Para os
+faciais das três marcas acima ela **não** deve ser configurada no aparelho.
+
+### Status online/offline e motivo da falha
+
+O agente pinga cada aparelho a cada ~5 s (em paralelo, prazo de 5 s por
+aparelho) e reporta o status. Quando o aparelho não responde, vai junto o
+**motivo**: `credencial` (usuário/senha recusados), `sem_resposta` (desligado,
+IP errado, cabo), `recusado` (há uma máquina no IP, mas a porta está fechada)
+ou `protocolo_inesperado` (respondeu, mas não como a marca cadastrada
+responderia — marca/modelo errado ou outro equipamento naquele IP).
+
+Os comandos (abrir porta, cadastrar rosto...) rodam **em paralelo entre
+aparelhos** e **em ordem dentro do mesmo aparelho**: um terminal desligado não
+atrasa a abertura do portão ao lado.
 
 ## Auto-atualização
 
@@ -174,7 +204,7 @@ físico no piloto.
 | **control_id** | ✅ validado | REST com sessão (`/login.fcgi`, `/execute_actions.fcgi`, `/user_set_image.fcgi`). Recomendado. |
 | **hikvision** | ✅ validado | ISAPI (`/ISAPI/AccessControl/RemoteControl/door/1`) com **Digest auth** (automático). |
 | **genérico** | ✅ | `POST /open_door` e `/persons` — para botoeiras/relés HTTP comuns. |
-| **intelbras** | ⚠️ não validado | API de comando fica atrás do suporte técnico. O **webhook (evento → nuvem) funciona**; só o acionamento/cadastro via HTTP é incerto. |
+| **intelbras / dahua** | ✅ validado em campo (SS 3530 MF FACE W) | CGIs com **Digest auth** (`accessControl.cgi`, `AccessUser.cgi`, `AccessFace.cgi`); eventos pelo stream `eventManager.cgi?action=attach`, lidos pelo agente (não é webhook). Outros modelos/firmwares: confirmar no piloto. |
 | **zkteco** | ❌ não é HTTP | Usa TCP/UDP 4370 (PULL/PUSH SDK). |
 | **topdata** | ❌ não é HTTP | Usa TCP 3570 (SDK Inner). |
 | **henry** | ❌ não é HTTP | Protocolo proprietário (SDK Henry). |

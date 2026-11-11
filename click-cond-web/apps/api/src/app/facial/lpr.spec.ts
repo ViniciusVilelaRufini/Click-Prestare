@@ -39,6 +39,7 @@ describe('FacialService — LPR (leitura de placa)', () => {
 
   function build(opts: {
     veiculo?: any;
+    veiculos?: any[];
     vaga?: any;
     device?: any;
   } = {}) {
@@ -49,7 +50,9 @@ describe('FacialService — LPR (leitura de placa)', () => {
         findFirst: jest.fn(async () => device),
         findMany: jest.fn(async () => []),
       },
-      veiculos: { findFirst: jest.fn(async () => opts.veiculo ?? null) },
+      veiculos: {
+        findMany: jest.fn(async () => opts.veiculos ?? (opts.veiculo ? [opts.veiculo] : [])),
+      },
       vagas: { findFirst: jest.fn(async () => opts.vaga ?? null) },
       acessos_Facial: {
         create: jest.fn(async () => ({ id: 1 })),
@@ -157,6 +160,32 @@ describe('FacialService — LPR (leitura de placa)', () => {
 
     // A placa vem da câmera sem separador e no banco está como o morador
     // digitou; sem normalizar, o casamento falharia.
+    it('placa que casa com veículos de moradores DIFERENTES não abre para ninguém', async () => {
+      const { svc, prisma } = build({
+        veiculos: [
+          { id: 5, placa: 'ABC1D23', morador: MORADOR },
+          { id: 6, placa: 'ABC-1D23', morador: { ...MORADOR, id: 999, nome: 'Outro Morador' } },
+        ],
+      });
+
+      await expect(svc.processWebhook('tok-lpr', evento('ABC1D23'))).rejects.toThrow();
+
+      const gravados = prisma.acessos_Facial.create.mock.calls.map((c: any) => c[0].data);
+      expect(gravados.some((g: any) => g.evento === 'entrada')).toBe(false);
+    });
+
+    it('leitura com caractere trocado pelo OCR em posição de dígito é corrigida e identifica o dono', async () => {
+      const { svc, prisma } = build({
+        veiculo: { id: 5, placa: 'ABC1003', morador: MORADOR },
+      });
+
+      await svc.processWebhook('tok-lpr', evento('ABC10O3'));
+
+      const variantes = prisma.veiculos.findMany.mock.calls[0][0].where.placa.in;
+      expect(variantes).toEqual(expect.arrayContaining(['ABC1003']));
+      expect(variantes).not.toEqual(expect.arrayContaining(['ABC10O3']));
+    });
+
     it('casa placa com hífen no cadastro e sem hífen na leitura', async () => {
       const { svc, prisma } = build({
         veiculo: { id: 5, placa: 'ABC-1D23', morador: MORADOR },
@@ -164,7 +193,7 @@ describe('FacialService — LPR (leitura de placa)', () => {
 
       await svc.processWebhook('tok-lpr', evento('abc1d23'));
 
-      const variantes = prisma.veiculos.findFirst.mock.calls[0][0].where.placa.in;
+      const variantes = prisma.veiculos.findMany.mock.calls[0][0].where.placa.in;
       expect(variantes).toEqual(
         expect.arrayContaining(['ABC1D23', 'ABC-1D23']),
       );
@@ -304,7 +333,7 @@ describe('FacialService — LPR (leitura de placa)', () => {
 
         expect(res).toEqual({ ok: true, ignored: 'placa_invalida' });
         expect(prisma.acessos_Facial.create).not.toHaveBeenCalled();
-        expect(prisma.veiculos.findFirst).not.toHaveBeenCalled();
+        expect(prisma.veiculos.findMany).not.toHaveBeenCalled();
       },
     );
   });
@@ -322,7 +351,7 @@ describe('FacialService — LPR (leitura de placa)', () => {
         svc.processWebhook('tok-lpr', { event: 'entrada', placa: 'ABC1D23' }),
       ).rejects.toThrow();
 
-      expect(prisma.veiculos.findFirst).not.toHaveBeenCalled();
+      expect(prisma.veiculos.findMany).not.toHaveBeenCalled();
     });
   });
 

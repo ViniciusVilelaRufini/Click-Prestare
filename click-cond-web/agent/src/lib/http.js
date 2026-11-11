@@ -4,6 +4,7 @@ const http = require('http');
 const https = require('https');
 const { URL } = require('url');
 const { buildDigestHeader } = require('./digest');
+const { familiaDoFabricante } = require('./fabricante');
 
 // Timeout default das chamadas ao aparelho quando o chamador não informa um
 // LAN_TIMEOUT_MS explícito (ver 5º parâmetro de lanRequest). Mesmo valor que
@@ -23,7 +24,10 @@ function okFrom(res) {
 function parseJson(res) {
   if (res && res.data && typeof res.data === 'object') return res.data;
   try {
-    return JSON.parse((res && res.raw) || '');
+    const lido = JSON.parse((res && res.raw) || '');
+    // `null`, número ou string são JSON válido mas não são a resposta que o
+    // chamador vai ler campo a campo (`d.params`, `d.result`) — sempre objeto.
+    return lido && typeof lido === 'object' ? lido : {};
   } catch {
     return {};
   }
@@ -81,8 +85,13 @@ function request(urlStr, opts = {}) {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
-        // 401 com desafio: Digest (Hikvision/Dahua) se oferecido; Basic só se
-        // o aparelho pedir Basic. Repete uma vez com a credencial.
+        // 401 com desafio: Digest (Hikvision/Dahua) se oferecido. Basic só se
+        // o aparelho pedir Basic E o chamador tiver autorizado com
+        // `permitirBasic`: Basic é a senha em Base64 (texto claro) — qualquer
+        // coisa que responda naquele IP pedindo Basic levaria a senha de
+        // admin do terminal. Os três drivers usam Digest ou sessão; só o
+        // fallback REST genérico (index.js) liga a opção. Repete uma vez com
+        // a credencial.
         const wa = res.headers['www-authenticate'] || '';
         if (res.statusCode === 401 && opts.auth && !opts._retry) {
           let authorization = null;
@@ -98,7 +107,7 @@ function request(urlStr, opts = {}) {
             } catch (e) {
               /* cai para a resposta 401 normal */
             }
-          } else if (/^\s*basic\b/i.test(wa)) {
+          } else if (opts.permitirBasic === true && /^\s*basic\b/i.test(wa)) {
             authorization = `Basic ${Buffer.from(`${opts.auth.user}:${opts.auth.pass}`).toString('base64')}`;
           }
           if (authorization) {
@@ -148,11 +157,12 @@ function lanRequest(device, method, pathname, opts = {}, defaultTimeoutMs = DEFA
   const isHttps = device.porta === 443;
   const scheme = isHttps ? 'https' : 'http';
   const url = `${scheme}://${device.ip}:${device.porta}${pathname}`;
-  // control_id usa sessão (na query), não auth por header. Para os demais,
-  // request() manda a credencial só depois do 401: Digest se o aparelho
-  // oferecer, Basic só se ele pedir Basic.
+  // control_id usa sessão (na query), não auth por header (família
+  // normalizada: "Control iD"/"controlid" também — ver lib/fabricante.js).
+  // Para os demais, request() manda a credencial só depois do 401: Digest se
+  // o aparelho oferecer; Basic só com `permitirBasic` em opts.
   const auth =
-    device.api_user && device.api_password && device.fabricante !== 'control_id'
+    device.api_user && device.api_password && familiaDoFabricante(device.fabricante) !== 'control_id'
       ? { user: device.api_user, pass: device.api_password }
       : undefined;
   return request(url, {
@@ -168,4 +178,64 @@ function lanRequest(device, method, pathname, opts = {}, defaultTimeoutMs = DEFA
   });
 }
 
-module.exports = { request, lanRequest, okFrom, parseJson, sleep };
+// ---------- Motivo da falha de conexão ----------
+
+const CODIGOS_SEM_RESPOSTA = new Set([
+  'ETIMEDOUT',
+  'ESOCKETTIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'EHOSTDOWN',
+  'ENETDOWN',
+]);
+
+function motivoPorStatus(status) {
+  if (status === 401 || status === 403) return 'credencial';
+  return 'protocolo_inesperado';
+}
+
+/**
+ * Por que o aparelho não respondeu "ok"? Aceita o que os drivers devolvem
+ * (`{ ok, statusCode }`), uma resposta crua (`{ status }`) ou o erro lançado
+ * (rede: `err.code`; driver: `err.statusCode`). Devolve:
+ *
+ *   null                    deu certo
+ *   'credencial'            HTTP 401/403 — usuário/senha do aparelho
+ *   'sem_resposta'          timeout / sem rota até o IP (aparelho desligado,
+ *                           IP errado, cabo)
+ *   'recusado'              ECONNREFUSED — há uma máquina no IP, mas nada
+ *                           escutando na porta (porta errada, serviço parado)
+ *   'protocolo_inesperado'  respondeu, mas não como o driver espera (404,
+ *                           outro status, corpo irreconhecível) — marca/modelo
+ *                           errado no cadastro, ou outro equipamento no IP
+ */
+function classificarFalha(resOuErr) {
+  if (resOuErr instanceof Error) {
+    const err = resOuErr;
+    // AggregateError (tentativas em mais de um endereço): vale a 1ª causa.
+    const causa = Array.isArray(err.errors) && err.errors.length > 0 ? err.errors[0] : err;
+    const code = String((causa && causa.code) || err.code || '');
+    const msg = String((causa && causa.message) || err.message || '');
+    if (code === 'ECONNREFUSED' || /ECONNREFUSED/.test(msg)) return 'recusado';
+    if (CODIGOS_SEM_RESPOSTA.has(code)) return 'sem_resposta';
+    if (/\btimeout\b|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH/i.test(msg)) return 'sem_resposta';
+    if (typeof err.statusCode === 'number') return motivoPorStatus(err.statusCode);
+    return 'protocolo_inesperado';
+  }
+  if (!resOuErr || typeof resOuErr !== 'object') return 'protocolo_inesperado';
+  const status =
+    typeof resOuErr.statusCode === 'number'
+      ? resOuErr.statusCode
+      : typeof resOuErr.status === 'number'
+        ? resOuErr.status
+        : undefined;
+  // Resultado de driver: `ok` manda. Resposta crua (sem `ok`): 2xx é ok.
+  const ok =
+    typeof resOuErr.ok === 'boolean'
+      ? resOuErr.ok
+      : status !== undefined && status >= 200 && status < 300;
+  if (ok) return null;
+  return status === undefined ? 'protocolo_inesperado' : motivoPorStatus(status);
+}
+
+module.exports = { request, lanRequest, okFrom, parseJson, sleep, classificarFalha };

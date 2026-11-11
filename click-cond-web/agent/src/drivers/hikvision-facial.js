@@ -32,6 +32,8 @@ const {
 } = require('../lib/http');
 const { agoraDaNuvem } = require('../core/nuvem');
 const { NOSSO_EXTERNAL_ID, removerUsuariosPorLoop } = require('./comum/fantasmas');
+const { criarAvisoDeQueda } = require('./comum/queda');
+const { idDoCadastro } = require('./comum/cadastro');
 
 // lib/http.js não conhece o timeout da LAN — é config injetada por quem monta
 // o agente (index.js lê LAN_TIMEOUT_MS do .env e chama configurar() cedo no
@@ -111,7 +113,11 @@ async function capturarSnapshot(device) {
 
 /** ISAPI: cria/atualiza o usuário e sobe o rosto. employeeNo = externalId. */
 async function hikvisionEnroll(device, cmd) {
-  const employeeNo = String(cmd.externalId || cmd.faceId);
+  // Sem identificador, `String(undefined)` cadastrava o employeeNo "undefined".
+  const employeeNo = idDoCadastro(cmd);
+  if (!employeeNo) {
+    return { ok: false, error: 'cadastro sem externalId/faceId — comando recusado, nada foi enviado ao aparelho' };
+  }
   const nome = cmd.nome || employeeNo;
   // Hikvision quer ISO 8601 local; default permanente. Converte "YYYY-MM-DD HH:MM:SS" -> "YYYY-MM-DDTHH:MM:SS".
   const toIso = (s, fb) => (s ? s.replace(' ', 'T') : fb);
@@ -242,16 +248,28 @@ async function removerUsuarios(device, cmd) {
  * loop reabre sempre (com uma pausa curta) até ser parado.
  */
 function escutar(device, aoEvento, opcoes = {}) {
-  const aoConectar = opcoes.aoConectar;
+  const aoConectarDeQuemChama = opcoes.aoConectar;
   let parado = false;
+  // Aparelho fora do ar = uma tentativa a cada 5 s: loga a queda UMA vez e a
+  // recuperação UMA vez (ver comum/queda.js), não a mesma linha para sempre.
+  const aviso = criarAvisoDeQueda();
+  const aoConectar = () => {
+    aviso.voltou(`[agente] ${device.nome}: stream Hikvision restabelecido`);
+    if (aoConectarDeQuemChama) aoConectarDeQuemChama();
+  };
+  // Conexão em curso, para `parar()` poder encerrá-la.
+  const controle = { req: null };
   (async () => {
     while (!parado) {
       try {
-        await hikvisionAlertOnce(device, aoEvento, aoConectar);
+        await hikvisionAlertOnce(device, aoEvento, aoConectar, controle);
       } catch (err) {
-        console.error(
-          `[agente] ${device.nome}: stream Hikvision caiu (${err.message || err}); reabrindo em 5s`,
-        );
+        if (!parado) {
+          aviso.caiu(
+            `[agente] ${device.nome}: stream Hikvision caiu (${err.message || err}); ` +
+              `tentando reabrir a cada 5s (novo aviso só quando voltar)`,
+          );
+        }
       }
       if (parado) break;
       await sleep(5000);
@@ -259,12 +277,21 @@ function escutar(device, aoEvento, opcoes = {}) {
   })();
   return () => {
     parado = true;
+    // Encerra a conexão em curso: sem isso o stream antigo seguia aberto até
+    // o APARELHO fechar — ao recriar o ouvinte (IP/senha trocados no portal)
+    // ficavam dois streams no mesmo terminal por um tempo.
+    try {
+      controle.req?.destroy();
+    } catch {
+      /* já tinha fechado */
+    }
   };
 }
 
 /** Abre UMA conexão alertStream (Digest) e processa enquanto o aparelho mantém.
- *  `aoConectar`, se passado, é chamado uma única vez no primeiro byte. */
-function hikvisionAlertOnce(device, aoEvento, aoConectar) {
+ *  `aoConectar`, se passado, é chamado uma única vez no primeiro byte.
+ *  `controle.req` aponta para a requisição em curso. */
+function hikvisionAlertOnce(device, aoEvento, aoConectar, controle = {}) {
   return new Promise((resolve, reject) => {
     const user = device.api_user || 'admin';
     const pass = device.api_password || 'admin';
@@ -295,13 +322,19 @@ function hikvisionAlertOnce(device, aoEvento, aoConectar) {
             });
             sres.on('end', resolve);
             sres.on('error', reject);
+            // Fechou sem `end` nem `error` (ex.: `parar()` destruiu a
+            // requisição): sem isto a Promise nunca resolvia. Depois de
+            // `end`/`error` este reject não tem efeito.
+            sres.on('close', () => reject(new Error('conexão do stream fechada')));
           },
         );
+        controle.req = stream;
         stream.on('error', reject);
         stream.setTimeout(0);
         stream.end();
       },
     );
+    controle.req = challenge;
     challenge.on('error', reject);
     challenge.setTimeout(lanTimeoutMs, () => challenge.destroy(new Error('timeout no desafio')));
     challenge.end();

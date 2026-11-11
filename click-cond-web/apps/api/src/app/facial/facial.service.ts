@@ -14,7 +14,13 @@ import { NotificationsService } from '../notifications/notifications.service';
 import {
   FacialDeviceClientService,
   FacialDeviceConfig,
+  MotivoDiagnostico,
 } from './facial-device-client.service';
+import {
+  FABRICANTES_SUPORTADOS,
+  normalizarFabricante as normalizarFabricanteDoRegistro,
+  valoresGravadosCom,
+} from './fabricantes';
 import { EnrollSessionService } from './enroll-session.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
@@ -29,8 +35,15 @@ import {
   confiancaInsuficiente,
   RegraAcessoLike,
 } from './access-rules.util';
-import { normalizarPlaca, placaValida, variantesPlaca } from './placa.util';
+import {
+  corrigirPlacaOcr,
+  normalizarPlaca,
+  placaValida,
+  variantesPlaca,
+} from './placa.util';
 import { normalizarPayloadNativo } from './webhook-payload.util';
+import { gruposCodigoTag } from '../common/tag-codigo.util';
+import { VISITA_NAO_ENCERRADA } from '../common/tag-em-uso.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
 import { normalizarMac } from './descoberta.service';
@@ -64,22 +77,17 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
 }
 
 /**
- * Capacidades por fabricante — um só lugar para responder "esta marca sabe
- * fazer X?", em vez de espalhar `fabricante === 'intelbras'` pelo módulo.
- * Ao adicionar uma marca nova, inclua-a aqui e implemente o comando
- * correspondente nos DOIS clientes (facial-device-client.service.ts e agent/).
+ * Capacidades por fabricante — vêm do registro único (fabricantes.ts), em vez
+ * de espalhar `fabricante === 'intelbras'` pelo módulo. Ao adicionar uma marca
+ * nova, inclua-a LÁ e implemente o comando correspondente nos DOIS clientes
+ * (facial-device-client.service.ts e agent/).
  */
 
 /** Marcas que sabem listar/remover pessoas gravadas no aparelho (varredura de fantasmas). */
-export const FABRICANTES_COM_LISTAGEM = [
-  'intelbras',
-  'dahua',
-  'hikvision',
-  'control_id',
-] as const;
+export const FABRICANTES_COM_LISTAGEM: readonly string[] = valoresGravadosCom('listagem');
 
 /** Marcas cuja câmera devolve um quadro JPEG para usar como foto de cadastro. */
-export const FABRICANTES_COM_CAMERA = ['intelbras', 'dahua', 'hikvision'] as const;
+export const FABRICANTES_COM_CAMERA: readonly string[] = valoresGravadosCom('camera');
 
 /**
  * A Intelbras é OEM da Dahua: mesmo firmware, mesmo protocolo (RPC2 + cgi).
@@ -87,9 +95,107 @@ export const FABRICANTES_COM_CAMERA = ['intelbras', 'dahua', 'hikvision'] as con
  * `'intelbras'`, então um device gravado como `dahua` caía no caminho HTTP
  * genérico `/persons` e o cadastro nunca chegava ao aparelho. Normalizar na
  * borda mantém UM caminho de código para as duas grafias.
+ *
+ * Delega ao registro (que também aceita caixa, espaços e aliases de grafia);
+ * marca que o registro não conhece volta como veio.
  */
 export function normalizarFabricante(fabricante: string): string {
-  return fabricante === 'dahua' ? 'intelbras' : fabricante;
+  return normalizarFabricanteDoRegistro(fabricante) ?? fabricante;
+}
+
+/**
+ * Forma em que o fabricante é GRAVADO no cadastro do dispositivo: a que os
+ * drivers esperam, quando o registro reconhece a marca ("Intelbras",
+ * " HIKVISION ", "Control iD" → chave canônica). Um valor que o banco já
+ * guarda como distinto (`dahua`, opção própria na tela) NÃO é trocado pela
+ * chave canônica — só perde caixa/espaços. Marca fora do registro é aceita
+ * como veio, sem os espaços das pontas.
+ */
+function fabricanteParaGravar(bruto: string): string {
+  const limpo = bruto.trim();
+  const chave = normalizarFabricanteDoRegistro(limpo);
+  if (chave === null) return limpo;
+  const minusculo = limpo.toLowerCase();
+  const gravados: readonly string[] = FABRICANTES_SUPORTADOS[chave].valoresGravados;
+  return gravados.includes(minusculo) ? minusculo : chave;
+}
+
+/** Texto pronto para o operador, por motivo do diagnóstico do "Testar conexão". */
+const MENSAGEM_DIAGNOSTICO_OK = 'Aparelho respondeu normalmente.';
+const MENSAGENS_DIAGNOSTICO: Record<MotivoDiagnostico, string> = {
+  agente_offline:
+    'O Agente Local deste condomínio não está conectado. Verifique se o computador da portaria está ligado e com internet.',
+  credencial_invalida:
+    'O aparelho respondeu, mas recusou o usuário ou a senha. Confira as credenciais cadastradas.',
+  sem_resposta:
+    'O aparelho não respondeu nesse endereço. Confira o IP, o cabo de rede e se ele está ligado.',
+  recusado:
+    'Há um equipamento nesse IP, mas a porta informada está fechada. Confira a porta.',
+  protocolo_inesperado:
+    'O equipamento respondeu de um jeito inesperado para esta marca. Confira se o fabricante selecionado está correto.',
+  marca_sem_http:
+    'Esta marca não é controlada pela rede por aqui; o teste de conexão não se aplica.',
+};
+
+/**
+ * Leitores que ficam de UM lado do portão e só informam a credencial lida
+ * (tag, QR, placa) — nunca a direção. Diferente do terminal facial único
+ * bidirecional, para eles:
+ *   - `sentido: 'auto'` sem direção no payload é ENTRADA para morador e
+ *     funcionário (não alterna pelo último acesso — alternar fazia a cancela
+ *     abrir uma vez sim, outra não); visitante/prestador seguem o estado real
+ *     da visita (dentro → saída, fora → entrada);
+ *   - o anti-passback por histórico não se aplica (antena só na entrada com
+ *     saída livre negaria a segunda entrada para sempre), salvo
+ *     ANTI_PASSBACK_MODE=hard.
+ */
+export const TIPOS_LEITOR_SEM_DIRECAO = ['tag_reader', 'qrcode_reader', 'lpr'] as const;
+
+export function ehLeitorSemDirecao(tipo: string | null | undefined): boolean {
+  return (TIPOS_LEITOR_SEM_DIRECAO as readonly string[]).includes(tipo ?? '');
+}
+
+/**
+ * Anti-passback em modo "hard"? Mesma variável e mesmo padrão lidos pelo
+ * AccessStateService (`ANTI_PASSBACK_MODE`, ausente = 'soft').
+ */
+function antiPassbackHard(): boolean {
+  return (process.env.ANTI_PASSBACK_MODE ?? 'soft') === 'hard';
+}
+
+/** Tipos de dispositivo que o módulo conhece (os mesmos da tela de terminais). */
+export const TIPOS_DISPOSITIVO = [
+  'facial',
+  'botoeira',
+  'catraca',
+  'tag_reader',
+  'qrcode_reader',
+  'lpr',
+] as const;
+
+/** Intervalo mínimo entre avisos de "payload sem credencial" do mesmo dispositivo. */
+const AVISO_SEM_CREDENCIAL_MS = 10 * 60 * 1000;
+
+/** Valores de `Facial_Devices.sentido`. */
+export const SENTIDOS_DISPOSITIVO = ['auto', 'entrada', 'saida'] as const;
+
+/** Limites das colunas de Facial_Devices (prisma/schema.prisma). */
+const DEVICE_NOME_MAX = 100;
+const DEVICE_FABRICANTE_MAX = 50;
+
+/** Intervalo mínimo entre avisos de "agente autenticou com token de dispositivo", por token. */
+const AVISO_TOKEN_DISPOSITIVO_MS = 60 * 60 * 1000;
+
+/** Quem é o agente que autenticou — ver `FacialService.resolveAgente`. */
+export interface AgenteResolvido {
+  idCondominio: number;
+  /**
+   * true quando o token apresentado NÃO é o agent_token do condomínio e sim o
+   * webhook_token de um dispositivo (compatibilidade com agente antigo).
+   */
+  viaTokenDispositivo?: boolean;
+  /** Dispositivo dono do token, quando `viaTokenDispositivo`. */
+  idDispositivo?: number;
 }
 
 export interface CreateDeviceDto {
@@ -344,9 +450,26 @@ export function montarInstaladorBat(apiBase: string, token: string, downloadUrl:
   return linhas.join('\r\n') + '\r\n';
 }
 
+/**
+ * Filtro da credencial de visitante/prestador (PIN ou tag). A tag vem como
+ * lista de variantes do código lido — ver `gruposCodigoTag`.
+ */
+type CredencialVisitaWhere = {
+  id_condominio: number;
+  codigo_acesso?: string;
+  tag_rfid?: string | { in: string[] };
+  /** Só visita NÃO encerrada — ver `VISITA_NAO_ENCERRADA`. */
+  OR?: Array<{ data_saida: null } | { liberado: number }>;
+};
+
+
 @Injectable()
 export class FacialService {
   private readonly logger = new Logger(FacialService.name);
+  /** Condomínios cuja última passada do `tickSyncRetry` foi a carga de terminal pendente. */
+  private readonly tickCargaPendenteFeita = new Set<number>();
+  /** Último aviso de "payload sem credencial" por dispositivo (amostragem do log). */
+  private readonly avisoSemCredencialEm = new Map<number, number>();
   /**
    * Estado compartilhado entre as instâncias da API: marca de bulk sync em
    * andamento por condomínio (`facial:bulk:<id>`, evita rodar em paralelo nas
@@ -431,16 +554,35 @@ export class FacialService {
     try {
       const devices = await this.prisma.facial_Devices.findMany({
         where: { ativo: 1, tipo: 'facial' },
-        select: { id: true, id_condominio: true },
+        select: { id: true, id_condominio: true, ultima_sincr: true },
       });
       const porCondominio = new Map<number, number[]>();
+      const cargaPendente = new Map<number, number[]>();
       for (const d of devices) {
         const ids = porCondominio.get(d.id_condominio) ?? [];
         ids.push(d.id);
         porCondominio.set(d.id_condominio, ids);
+        // Terminal ONLINE que nunca recebeu a carga completa (ou cuja carga
+        // falhou no meio): `ultima_sincr` nulo — ver agendarCargaDoTerminal.
+        if (d.ultima_sincr === null && this.agent.isOnline(d.id)) {
+          cargaPendente.set(d.id_condominio, [
+            ...(cargaPendente.get(d.id_condominio) ?? []),
+            d.id,
+          ]);
+        }
       }
       for (const [idCond, ids] of porCondominio) {
         if (!ids.some((id) => this.agent.isOnline(id))) continue;
+        // Só cabe uma sincronização em massa por condomínio de cada vez: a
+        // carga do terminal pendente e o back-fill se ALTERNAM a cada passada,
+        // para um terminal que não responde não deixar o back-fill sem rodar.
+        const pendentes = cargaPendente.get(idCond);
+        if (pendentes?.length && !this.tickCargaPendenteFeita.has(idCond)) {
+          this.tickCargaPendenteFeita.add(idCond);
+          await this.syncAllForCondominio(idCond, { deviceIds: pendentes });
+          continue;
+        }
+        this.tickCargaPendenteFeita.delete(idCond);
         await this.syncAllForCondominio(idCond, { onlyPending: true });
       }
     } catch (e: any) {
@@ -918,17 +1060,51 @@ export class FacialService {
    * cliente já foi desligado do sistema.
    */
   async resolveCondominioForAgent(token: string): Promise<number> {
+    return (await this.resolveAgente(token)).idCondominio;
+  }
+
+  /**
+   * Mesma resolução de `resolveCondominioForAgent`, dizendo também SE a
+   * autenticação veio pelo token de um dispositivo (e de qual). Esse caminho
+   * é compatibilidade com agente antigo: o token de UM aparelho passa a valer
+   * para as rotas `condo/:token/*`, que enxergam o condomínio inteiro. Fica
+   * registrado em log (uma vez por token a cada hora) para sabermos se ainda
+   * há alguém dependendo dele antes de restringir.
+   */
+  async resolveAgente(token: string): Promise<AgenteResolvido> {
     const cond = await this.prisma.condominios.findFirst({
       where: { agent_token: token, ativo: 1 },
       select: { id: true },
     });
-    if (cond) return cond.id;
+    if (cond) return { idCondominio: cond.id };
     const device = await this.prisma.facial_Devices.findFirst({
       where: { webhook_token: token, ativo: 1, condominio: { ativo: 1 } },
-      select: { id_condominio: true },
+      select: { id: true, id_condominio: true },
     });
-    if (device) return device.id_condominio;
+    if (device) {
+      this.avisarTokenDeDispositivo(token, device.id, device.id_condominio);
+      return {
+        idCondominio: device.id_condominio,
+        viaTokenDispositivo: true,
+        idDispositivo: device.id,
+      };
+    }
     throw new UnauthorizedException('Token do agente inválido');
+  }
+
+  /** Último aviso por token (hash, nunca o token em si). Em memória, por instância. */
+  private readonly avisosTokenDispositivo = new Map<string, number>();
+
+  private avisarTokenDeDispositivo(token: string, idDispositivo: number, idCondominio: number) {
+    const chave = crypto.createHash('sha256').update(token).digest('hex');
+    const agora = Date.now();
+    const ultimo = this.avisosTokenDispositivo.get(chave);
+    if (ultimo !== undefined && agora - ultimo < AVISO_TOKEN_DISPOSITIVO_MS) return;
+    if (this.avisosTokenDispositivo.size > 5000) this.avisosTokenDispositivo.clear();
+    this.avisosTokenDispositivo.set(chave, agora);
+    this.logger.warn(
+      `Agente autenticou com token de dispositivo (dispositivo ${idDispositivo}, condomínio ${idCondominio}) em vez do agent_token do condomínio — caminho de compatibilidade.`,
+    );
   }
 
   /** Garante (e devolve) o agent_token estável do condomínio, gerando se faltar. */
@@ -1007,19 +1183,231 @@ export class FacialService {
     if (!area) throw new BadRequestException('Área social não pertence a este condomínio.');
   }
 
+  /**
+   * Validação mínima dos campos do dispositivo (os DTOs são interfaces, sem
+   * class-validator): devolve só os campos PRESENTES no dto, já limpos. Sem
+   * isto o erro chegava ao operador como 500 cru do Prisma.
+   *
+   * `tipoAtual` (edição): a tela reenvia o form inteiro, então o tipo que o
+   * dispositivo já tem nunca é recusado — só a troca para um tipo desconhecido.
+   */
+  private validarCamposDispositivo(
+    dto: Partial<CreateDeviceDto>,
+    opts: { criando: boolean; tipoAtual?: string },
+  ): { nome?: string; tipo?: string; sentido?: string; fabricante?: string; confianca_minima?: number } {
+    const out: { nome?: string; tipo?: string; sentido?: string; fabricante?: string; confianca_minima?: number } = {};
+
+    if (opts.criando || dto.nome !== undefined) {
+      const nome = typeof dto.nome === 'string' ? dto.nome.trim() : '';
+      if (!nome) throw new BadRequestException('Campo "nome" é obrigatório.');
+      if (nome.length > DEVICE_NOME_MAX) {
+        throw new BadRequestException(`Campo "nome" deve ter no máximo ${DEVICE_NOME_MAX} caracteres.`);
+      }
+      out.nome = nome;
+    }
+
+    if (dto.tipo !== undefined && dto.tipo !== null) {
+      const conhecido = (TIPOS_DISPOSITIVO as readonly string[]).includes(dto.tipo);
+      if (!conhecido && dto.tipo !== opts.tipoAtual) {
+        throw new BadRequestException(
+          `Campo "tipo" inválido. Use um destes: ${TIPOS_DISPOSITIVO.join(', ')}.`,
+        );
+      }
+      out.tipo = dto.tipo;
+    }
+
+    if (dto.sentido !== undefined && dto.sentido !== null) {
+      if (!(SENTIDOS_DISPOSITIVO as readonly string[]).includes(dto.sentido)) {
+        throw new BadRequestException(
+          `Campo "sentido" inválido. Use um destes: ${SENTIDOS_DISPOSITIVO.join(', ')}.`,
+        );
+      }
+      out.sentido = dto.sentido;
+    }
+
+    if (opts.criando || dto.fabricante !== undefined) {
+      const fabricante = typeof dto.fabricante === 'string' ? dto.fabricante.trim() : '';
+      if (!fabricante) throw new BadRequestException('Campo "fabricante" é obrigatório.');
+      if (fabricante.length > DEVICE_FABRICANTE_MAX) {
+        throw new BadRequestException(
+          `Campo "fabricante" deve ter no máximo ${DEVICE_FABRICANTE_MAX} caracteres.`,
+        );
+      }
+      out.fabricante = fabricanteParaGravar(fabricante);
+    }
+
+    if (dto.confianca_minima !== undefined && dto.confianca_minima !== null) {
+      const bruto: unknown = dto.confianca_minima;
+      const n =
+        typeof bruto === 'number'
+          ? bruto
+          : typeof bruto === 'string' && bruto.trim() !== ''
+            ? Number(bruto)
+            : NaN;
+      if (!Number.isInteger(n) || n < 0 || n > 100) {
+        throw new BadRequestException(
+          'Campo "confianca_minima" deve ser um número inteiro de 0 a 100.',
+        );
+      }
+      out.confianca_minima = n;
+    }
+
+    return out;
+  }
+
+  /**
+   * Dois cadastros ATIVOS do MESMO TIPO apontando para o mesmo aparelho (mesmo
+   * ip:porta, ou mesmo MAC) no condomínio: os comandos e os eventos se
+   * misturam. Recusa.
+   *
+   * Tipo diferente no mesmo endereço/MAC é permitido de propósito: é como se
+   * cadastra o relé do próprio terminal facial como botoeira/catraca, para um
+   * leitor de tag acioná-lo.
+   *
+   * Vale SÓ para terminal facial. Em leitor e abertura o endereço não
+   * identifica o aparelho: duas antenas (entrada e saída) da mesma
+   * controladora só fazem push, com o mesmo ip:porta/MAC e tokens diferentes;
+   * dois relés da mesma placa idem. O "IP" de simulador ('sim'/'simulador')
+   * também não é endereço — vários simuladores usam o mesmo valor.
+   */
+  private async assertDispositivoNaoDuplicado(alvo: {
+    idCondominio: number;
+    tipo: string;
+    ip?: string;
+    porta?: number;
+    mac?: string | null;
+    ignorarId?: number;
+  }) {
+    if (alvo.tipo !== 'facial') return;
+    const outro = alvo.ignorarId !== undefined ? { id: { not: alvo.ignorarId } } : {};
+    const ipDeSimulador = alvo.ip === 'sim' || alvo.ip === 'simulador';
+    if (alvo.ip !== undefined && alvo.porta !== undefined && !ipDeSimulador) {
+      const mesmoEndereco = await this.prisma.facial_Devices.findFirst({
+        where: {
+          id_condominio: alvo.idCondominio,
+          ativo: 1,
+          tipo: alvo.tipo,
+          ip: alvo.ip,
+          porta: alvo.porta,
+          ...outro,
+        },
+        select: { nome: true },
+      });
+      if (mesmoEndereco) {
+        throw new BadRequestException(
+          `Já existe o dispositivo "${mesmoEndereco.nome}" do tipo ${alvo.tipo} nesse endereço (${alvo.ip}:${alvo.porta}).`,
+        );
+      }
+    }
+    if (alvo.mac) {
+      const mesmoMac = await this.prisma.facial_Devices.findFirst({
+        where: {
+          id_condominio: alvo.idCondominio,
+          ativo: 1,
+          tipo: alvo.tipo,
+          mac: alvo.mac,
+          ...outro,
+        },
+        select: { nome: true },
+      });
+      if (mesmoMac) {
+        throw new BadRequestException(
+          `Já existe o dispositivo "${mesmoMac.nome}" do tipo ${alvo.tipo} com esse MAC (${alvo.mac}).`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Carga completa de rostos SÓ do terminal informado, em segundo plano.
+   *
+   * "Pendente" é por pessoa, não por aparelho: sem isto o 2º facial do
+   * condomínio (ou um reativado/reendereçado) ficava vazio até alguém clicar
+   * em "Sincronizar rostos", porque todo mundo já estava 'synced' pelo 1º.
+   * Nunca bloqueia nem derruba o cadastro: erro só vai para o log.
+   *
+   * O terminal fica marcado com CARGA PENDENTE (`ultima_sincr = null`, que é
+   * "nunca recebeu carga" e vale para todas as instâncias). Só inicia agora se
+   * o agente já está em contato com ele — no cadastro de um terminal novo
+   * nunca está (o heartbeat por device só chega no próximo poll): a carga
+   * falhava para todos e rebaixava para 'pending' quem seguia válido nos
+   * outros terminais. Offline, quem dispara é a reconexão (AgentController) ou
+   * o `tickSyncRetry`. Quem tira a marca é a carga concluída
+   * (`syncAllForCondominio` restrito).
+   */
+  private agendarCargaDoTerminal(
+    device: {
+      id: number;
+      id_condominio: number;
+      tipo: string;
+      ativo: number;
+      ultima_sincr?: Date | null;
+    },
+    motivo: string,
+  ) {
+    if (device.tipo !== 'facial' || device.ativo !== 1) return;
+    const online = !!this.agent?.isOnline?.(device.id);
+    void Promise.resolve()
+      .then(async () => {
+        // Terminal recém-criado já nasce com ultima_sincr nulo.
+        if (device.ultima_sincr != null) {
+          await this.prisma.facial_Devices.update({
+            where: { id: device.id },
+            data: { ultima_sincr: null },
+          });
+        }
+        if (!online) {
+          this.logger.log(
+            `Carga de rostos do terminal ${device.id} (${motivo}) fica PENDENTE: o agente ainda não está em contato com ele — inicia sozinha na reconexão.`,
+          );
+          return { adiada: true };
+        }
+        return this.syncAllForCondominio(device.id_condominio, { deviceIds: [device.id] });
+      })
+      .then((r: any) => {
+        if (r?.started) {
+          this.logger.log(
+            `Carga de rostos do terminal ${device.id} iniciada (${motivo}): ${r.total} pessoa(s)`,
+          );
+        } else if (r?.alreadyRunning) {
+          this.logger.warn(
+            `Carga de rostos do terminal ${device.id} (${motivo}) NÃO iniciada: já há uma sincronização em massa rodando no condomínio ${device.id_condominio}. Use "Sincronizar rostos" depois que ela terminar.`,
+          );
+        } else if (r?.skipped) {
+          this.logger.warn(
+            `Carga de rostos do terminal ${device.id} (${motivo}) não iniciada: ${r.reason}`,
+          );
+        }
+      })
+      .catch((e: any) =>
+        this.logger.warn(
+          `Carga de rostos do terminal ${device.id} (${motivo}) falhou: ${e?.message ?? e}`,
+        ),
+      );
+  }
+
   async createDevice(dto: CreateDeviceDto, operador?: JwtPayload) {
+    const campos = this.validarCamposDispositivo(dto, { criando: true });
     const ip = validarIpDispositivo(dto.ip);
     const porta = validarPortaDispositivo(dto.porta ?? 80);
     await this.assertAreaDoCondominio(dto.id_area_social, dto.id_condominio);
+    const mac = normalizarMac(dto.mac ?? null);
+    await this.assertDispositivoNaoDuplicado({
+      idCondominio: dto.id_condominio,
+      tipo: campos.tipo ?? 'facial',
+      ip,
+      porta,
+      mac,
+    });
     const token = crypto.randomBytes(32).toString('hex');
     const created = await this.prisma.facial_Devices.create({
       data: {
         id_condominio: dto.id_condominio,
-        nome: dto.nome,
-        tipo: dto.tipo ?? 'facial',
-        sentido: dto.sentido ?? 'auto',
-        confianca_minima: dto.confianca_minima ?? 0,
-        fabricante: dto.fabricante,
+        nome: campos.nome as string,
+        tipo: campos.tipo ?? 'facial',
+        sentido: campos.sentido ?? 'auto',
+        confianca_minima: campos.confianca_minima ?? 0,
+        fabricante: campos.fabricante as string,
         modelo: dto.modelo ?? null,
         ip,
         porta,
@@ -1027,7 +1415,7 @@ export class FacialService {
         api_password: encryptSecret(dto.api_password ?? null),
         id_area_social: dto.id_area_social ?? null,
         webhook_token: token,
-        mac: normalizarMac(dto.mac ?? null),
+        mac,
         numero_serie:
           typeof dto.numero_serie === 'string' && dto.numero_serie.trim()
             ? dto.numero_serie.trim().slice(0, 64)
@@ -1047,6 +1435,24 @@ export class FacialService {
         ip: created.ip,
       },
     });
+
+    // Controle de acesso por reserva, como no updateDevice — mas na criação só
+    // LIGA. A tela manda `false` por padrão; aplicar o "desligado" aqui tiraria
+    // o controle de uma área que já o tinha por outro terminal (e re-enrolaria
+    // todos os moradores nela). Desligar continua sendo pela edição.
+    if (dto.controle_acesso_facial && created.id_area_social != null) {
+      const idArea = created.id_area_social;
+      await this.prisma.areas_Sociais.update({
+        where: { id: idArea },
+        data: { controle_acesso_facial: 1 },
+      });
+      this.reconcileAreaGating(idArea).catch((e) =>
+        this.logger.warn(`reconcileAreaGating ${idArea}: ${e?.message ?? e}`),
+      );
+    }
+
+    this.agendarCargaDoTerminal(created, 'terminal cadastrado');
+
     return { ...created, api_password: decryptSecret(created.api_password) };
   }
 
@@ -1078,19 +1484,44 @@ export class FacialService {
 
   async updateDevice(id: number, dto: UpdateDeviceDto, operador?: JwtPayload) {
     const antes = await this.getDevice(id);
+    const campos = this.validarCamposDispositivo(dto, { criando: false, tipoAtual: antes.tipo });
     const ip = dto.ip !== undefined ? validarIpDispositivo(dto.ip) : undefined;
     const porta = dto.porta !== undefined ? validarPortaDispositivo(dto.porta ?? 80) : undefined;
     await this.assertAreaDoCondominio(dto.id_area_social, antes.id_condominio);
+
+    // Duplicado: só confere quando o endereço ou o TIPO muda, ou o dispositivo
+    // é reativado. A tela reenvia o form inteiro a cada edição — conferir
+    // sempre travaria a edição de cadastros antigos que já estavam duplicados.
+    // (A regra é por tipo: trocar o tipo pode criar um duplicado sem mexer no
+    // endereço.)
+    const ipFinal = ip ?? antes.ip;
+    const portaFinal = porta ?? antes.porta;
+    const tipoFinal = campos.tipo ?? antes.tipo;
+    const ativoFinal = dto.ativo !== undefined ? (dto.ativo ? 1 : 0) : antes.ativo;
+    const reativou = antes.ativo !== 1 && ativoFinal === 1;
+    const mudouEndereco = ipFinal !== antes.ip || portaFinal !== antes.porta;
+    const mudouTipo = tipoFinal !== antes.tipo;
+    if (ativoFinal === 1 && (mudouEndereco || mudouTipo || reativou)) {
+      await this.assertDispositivoNaoDuplicado({
+        idCondominio: antes.id_condominio,
+        tipo: tipoFinal,
+        ip: ipFinal,
+        porta: portaFinal,
+        mac: reativou || mudouTipo ? antes.mac : null,
+        ignorarId: id,
+      });
+    }
+
     const atual = await this.prisma.facial_Devices.update({
       where: { id },
       data: {
-        ...(dto.nome !== undefined && { nome: dto.nome }),
-        ...(dto.tipo !== undefined && { tipo: dto.tipo }),
-        ...(dto.sentido !== undefined && { sentido: dto.sentido }),
-        ...(dto.confianca_minima !== undefined && {
-          confianca_minima: dto.confianca_minima,
+        ...(campos.nome !== undefined && { nome: campos.nome }),
+        ...(campos.tipo !== undefined && { tipo: campos.tipo }),
+        ...(campos.sentido !== undefined && { sentido: campos.sentido }),
+        ...(campos.confianca_minima !== undefined && {
+          confianca_minima: campos.confianca_minima,
         }),
-        ...(dto.fabricante !== undefined && { fabricante: dto.fabricante }),
+        ...(campos.fabricante !== undefined && { fabricante: campos.fabricante }),
         ...(dto.modelo !== undefined && { modelo: dto.modelo }),
         ...(ip !== undefined && { ip }),
         ...(porta !== undefined && { porta }),
@@ -1144,6 +1575,25 @@ export class FacialService {
       });
       this.reconcileAreaGating(atual.id_area_social).catch((e) =>
         this.logger.warn(`reconcileAreaGating ${atual.id_area_social}: ${e?.message ?? e}`),
+      );
+    }
+
+    // Terminal facial reativado, que passou a ser OUTRO aparelho (endereço ou
+    // fabricante trocado), ou que VIROU facial agora (tipo trocado): precisa
+    // receber todo mundo de novo.
+    if (
+      reativou ||
+      (mudouTipo && atual.tipo === 'facial') ||
+      atual.ip !== antes.ip ||
+      atual.porta !== antes.porta ||
+      // Só a troca REAL de marca conta: regravar "Intelbras" como "intelbras"
+      // (forma padronizada) não é outro aparelho.
+      normalizarFabricante(atual.fabricante) !==
+        normalizarFabricante(antes.fabricante)
+    ) {
+      this.agendarCargaDoTerminal(
+        atual,
+        reativou ? 'terminal reativado' : 'endereço/fabricante/tipo alterado',
       );
     }
 
@@ -1285,11 +1735,33 @@ export class FacialService {
     return { ok: true };
   }
 
-  async testDevice(id: number) {
+  /**
+   * "Testar conexão": além do sim/não (`online`, que a tela já usa), diz POR
+   * QUÊ falhou (`motivo`/`detalhe`) e traz a `mensagem` pronta para o operador.
+   *
+   * Agente Local fora do ar (ou marca que nem fala HTTP) não diz nada sobre o
+   * APARELHO: nesses casos não grava a transição de status — marcar o aparelho
+   * como offline abriria ocorrência indevida.
+   */
+  async testDevice(id: number): Promise<{
+    online: boolean;
+    motivo: MotivoDiagnostico | null;
+    detalhe?: string;
+    mensagem: string;
+  }> {
     const device = await this.getDevice(id);
-    const online = await this.client.ping(this.toConfig(device));
-    await this.handleDeviceStatusTransition(device, online, true);
-    return { online };
+    const diagnostico = await this.client.diagnosticar(this.toConfig(device));
+    const online = diagnostico.ok === true;
+    const motivo = online ? null : (diagnostico.motivo ?? 'sem_resposta');
+    if (motivo !== 'agente_offline' && motivo !== 'marca_sem_http') {
+      await this.handleDeviceStatusTransition(device, online, true);
+    }
+    return {
+      online,
+      motivo,
+      ...(diagnostico.detalhe ? { detalhe: diagnostico.detalhe } : {}),
+      mensagem: motivo === null ? MENSAGEM_DIAGNOSTICO_OK : MENSAGENS_DIAGNOSTICO[motivo],
+    };
   }
 
   /**
@@ -1563,7 +2035,7 @@ export class FacialService {
     return permitidas === null || permitidas.has(categoria);
   }
 
-  async syncMorador(idMorador: number, opts: { deviceIds?: number[] } = {}) {
+  async syncMorador(idMorador: number, opts: { deviceIds?: number[]; cargaRestrita?: boolean } = {}) {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
@@ -1748,6 +2220,9 @@ export class FacialService {
     }
 
     const status = this.classificarSync(allOk, ultimoErro);
+    if (this.preservarStatusGlobal(opts, allOk, morador.face_sync_status)) {
+      return { ok: allOk, face_id: faceId, status, error: ultimoErro };
+    }
     await this.prisma.moradores.update({
       where: { id: idMorador },
       data: {
@@ -1759,6 +2234,21 @@ export class FacialService {
     });
 
     return { ok: allOk, face_id: faceId, status, error: ultimoErro };
+  }
+
+  /**
+   * Carga restrita a alguns terminais (terminal novo/reativado) que FALHOU para
+   * quem já está 'synced': o status é global (por pessoa, não por aparelho) e
+   * a pessoa continua válida nos outros terminais — rebaixá-la para 'pending'
+   * fazia o back-fill recarregar todo mundo em todos os terminais. O que fica
+   * pendente é o TERMINAL (`ultima_sincr = null`, ver syncAllForCondominio).
+   */
+  private preservarStatusGlobal(
+    opts: { cargaRestrita?: boolean },
+    allOk: boolean,
+    statusAtual: string | null | undefined,
+  ): boolean {
+    return !!opts.cargaRestrita && !allOk && statusAtual === 'synced';
   }
 
   /**
@@ -2021,7 +2511,7 @@ export class FacialService {
     }
   }
 
-  async syncVisitante(idVisitante: number, opts: { deviceIds?: number[] } = {}) {
+  async syncVisitante(idVisitante: number, opts: { deviceIds?: number[]; cargaRestrita?: boolean } = {}) {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
@@ -2313,6 +2803,9 @@ export class FacialService {
     }
 
     const status = this.classificarSync(allOk, ultimoErro);
+    if (this.preservarStatusGlobal(opts, allOk, visitante.face_sync_status)) {
+      return { ok: allOk, face_id: faceId, status, error: ultimoErro };
+    }
     await this.prisma.visitantes.update({
       where: { id: idVisitante },
       data: {
@@ -2438,7 +2931,7 @@ export class FacialService {
    * Sincroniza a Pessoa (visitante/prestador unificado) com os terminais faciais.
    * O rosto só permanece ativo no terminal se houver pelo menos uma visita válida no momento.
    */
-  async syncPessoa(idPessoa: number, opts: { deviceIds?: number[] } = {}) {
+  async syncPessoa(idPessoa: number, opts: { deviceIds?: number[]; cargaRestrita?: boolean } = {}) {
     if (FACIAL_DISABLED) return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
 
@@ -2614,7 +3107,7 @@ export class FacialService {
    * pode ganhar e travar a pessoa fora mais cedo do que qualquer uma das
    * visitas isoladamente permitiria.
    */
-  async pushPessoaToDevices(pessoa: any, opts: { deviceIds?: number[] } = {}) {
+  async pushPessoaToDevices(pessoa: any, opts: { deviceIds?: number[]; cargaRestrita?: boolean } = {}) {
     const devices = await this.prisma.facial_Devices.findMany({
       where: {
         id_condominio: pessoa.id_condominio,
@@ -2782,6 +3275,9 @@ export class FacialService {
     }
 
     const status = this.classificarSync(allOk, ultimoErro);
+    if (this.preservarStatusGlobal(opts, allOk, pessoa.face_sync_status)) {
+      return { ok: allOk, face_id: faceId, status, error: ultimoErro };
+    }
     await this.prisma.pessoas.update({
       where: { id: pessoa.id },
       data: {
@@ -2805,7 +3301,7 @@ export class FacialService {
    * o tickDiasSemanaSync reenrola na virada do dia. dias_semana VAZIO = nenhum
    * dia permitido (mesma semântica da tela: "Nenhum dia permitido").
    */
-  async syncPrestadorServico(idPrestador: number, opts: { deviceIds?: number[] } = {}) {
+  async syncPrestadorServico(idPrestador: number, opts: { deviceIds?: number[]; cargaRestrita?: boolean } = {}) {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
@@ -2975,6 +3471,9 @@ export class FacialService {
     }
 
     const status = this.classificarSync(allOk, ultimoErro);
+    if (this.preservarStatusGlobal(opts, allOk, prest.face_sync_status)) {
+      return { ok: allOk, face_id: faceId, status, error: ultimoErro };
+    }
     await this.prisma.prestadores_servico.update({
       where: { id: idPrestador },
       data: {
@@ -3182,7 +3681,13 @@ export class FacialService {
     ]);
 
     const total = moradores.length + visitantes.length + prestadores.length + pessoas.length;
-    if (total === 0) return { total: 0, started: false };
+    // Carga restrita a terminais (terminal novo/reativado/reendereçado).
+    const cargaRestrita = !!opts.deviceIds?.length;
+    if (total === 0) {
+      // Ninguém para carregar: o terminal não tem carga a esperar.
+      if (cargaRestrita) await this.concluirCargaDosTerminais(opts.deviceIds as number[], false);
+      return { total: 0, started: false };
+    }
 
     if (!(await this.estado.criarSeAusente(`facial:bulk:${idCondominio}`, true, BULK_SYNC_TTL_MS))) {
       return { alreadyRunning: true };
@@ -3198,12 +3703,21 @@ export class FacialService {
       // `skipped` agora conta à parte, e o log/retorno distingue os dois.
       let skipped = 0;
       let falhou = 0;
+      // Falha TRANSITÓRIA (agente/terminal fora): a carga do terminal não
+      // terminou. Foto recusada ('error') é problema da pessoa, não do terminal.
+      let transitorias = 0;
+      const contar = (r: any) => {
+        if (r?.skipped) skipped++;
+        else ok++;
+        if (r?.ok === false && r?.status === 'pending') transitorias++;
+      };
       try {
         const deviceIds = opts.deviceIds;
+        // Na carga restrita, falha não rebaixa quem já está 'synced' (6c).
+        const optsPessoa = cargaRestrita ? { deviceIds, cargaRestrita: true } : { deviceIds };
         for (const m of moradores) {
           try {
-            const r: any = await this.syncMorador(m.id, { deviceIds });
-            if (r?.skipped) skipped++; else ok++;
+            contar(await this.syncMorador(m.id, optsPessoa));
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync morador ${m.id}: ${e?.message ?? e}`);
@@ -3211,8 +3725,7 @@ export class FacialService {
         }
         for (const v of visitantes) {
           try {
-            const r: any = await this.syncVisitante(v.id, { deviceIds });
-            if (r?.skipped) skipped++; else ok++;
+            contar(await this.syncVisitante(v.id, optsPessoa));
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync visitante ${v.id}: ${e?.message ?? e}`);
@@ -3220,8 +3733,7 @@ export class FacialService {
         }
         for (const p of prestadores) {
           try {
-            const r: any = await this.syncPrestadorServico(p.id, { deviceIds });
-            if (r?.skipped) skipped++; else ok++;
+            contar(await this.syncPrestadorServico(p.id, optsPessoa));
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync prestador ${p.id}: ${e?.message ?? e}`);
@@ -3229,8 +3741,7 @@ export class FacialService {
         }
         for (const pes of pessoas) {
           try {
-            const r: any = await this.syncPessoa(pes.id, { deviceIds });
-            if (r?.skipped) skipped++; else ok++;
+            contar(await this.syncPessoa(pes.id, optsPessoa));
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync pessoa ${pes.id}: ${e?.message ?? e}`);
@@ -3239,12 +3750,48 @@ export class FacialService {
         this.logger.log(
           `Bulk sync condomínio ${idCondominio}: ${ok} sincronizado(s), ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${total}`,
         );
+        if (cargaRestrita) {
+          await this.concluirCargaDosTerminais(
+            deviceIds as number[],
+            transitorias > 0 || falhou > 0,
+          );
+        }
       } finally {
         await this.estado.remover(`facial:bulk:${idCondominio}`).catch(() => undefined);
       }
     })();
 
     return { total, started: true };
+  }
+
+  /**
+   * Fecha uma carga restrita a terminais. Com falha transitória o terminal
+   * VOLTA a "carga pendente" (`ultima_sincr = null`) — a reconexão do agente ou
+   * o `tickSyncRetry` refazem a carga só dele. Sem falha, sai de pendente (só
+   * quem ainda está nulo: o sync por pessoa já grava a data a cada sucesso).
+   * Nunca derruba a sincronização: erro vai para o log.
+   */
+  private async concluirCargaDosTerminais(deviceIds: number[], incompleta: boolean) {
+    try {
+      if (incompleta) {
+        await this.prisma.facial_Devices.updateMany({
+          where: { id: { in: deviceIds } },
+          data: { ultima_sincr: null },
+        });
+        this.logger.warn(
+          `Carga de rostos do(s) terminal(is) ${deviceIds.join(', ')} ficou INCOMPLETA (falha transitória): segue pendente e será refeita.`,
+        );
+      } else {
+        await this.prisma.facial_Devices.updateMany({
+          where: { id: { in: deviceIds }, ultima_sincr: null },
+          data: { ultima_sincr: new Date() },
+        });
+      }
+    } catch (e: any) {
+      this.logger.warn(
+        `Falha ao gravar o estado da carga do(s) terminal(is) ${deviceIds.join(', ')}: ${e?.message ?? e}`,
+      );
+    }
   }
 
   async unsyncAllForCondominio(
@@ -4162,14 +4709,28 @@ export class FacialService {
     const variantes = variantesPlaca(placaNormalizada);
     if (variantes.length === 0) return null;
 
-    const veiculo = await this.prisma.veiculos.findFirst({
+    const veiculos = await this.prisma.veiculos.findMany({
       where: {
         id_condominio: idCondominio,
         ativo: 1,
         placa: { in: variantes },
       },
       include: { morador: true },
+      take: 5,
     });
+    // A mesma placa escrita de dois jeitos ("ABC1D23" e "ABC-1D23") pode estar
+    // em veículos de moradores diferentes: não dá para dizer quem chegou, então
+    // não abre para "o primeiro que o banco devolver".
+    const donos = new Set(
+      veiculos.filter((v) => v.morador).map((v) => v.morador!.id),
+    );
+    if (donos.size > 1) {
+      this.logger.warn(
+        `LPR: placa ${placaNormalizada} casa com veículos de ${donos.size} moradores no condomínio ${idCondominio} — acesso negado por ambiguidade`,
+      );
+      return null;
+    }
+    const veiculo = veiculos.find((v) => v.morador);
     if (veiculo?.morador) {
       const m = veiculo.morador;
       return {
@@ -4223,6 +4784,172 @@ export class FacialService {
     };
   }
 
+  /**
+   * Descobre de quem é a tag lida (RFID/UHF). Fontes, nesta ordem:
+   *  1. Moradores.tag_rfid — tag pessoal;
+   *  2. Tags               — tag do veículo: precisa estar ATIVA e ligada a um
+   *                          veículo ativo; vale para o morador dono do carro;
+   *  3. Visitantes/Visitas — tag entregue ao visitante/prestador.
+   *
+   * O código é comparado por variantes (`gruposCodigoTag`), porque o leitor e o
+   * cadastro escrevem o mesmo cartão de jeitos diferentes. A igualdade exata
+   * tem prioridade; as formas convertidas (decimal x hex x Wiegand 26) só
+   * valem se a exata não achar ninguém — e, se casarem com mais de um
+   * cadastro diferente, o acesso é negado por ambiguidade.
+   *
+   * Código exato que existe mas não vale (Tag bloqueada ou sem veículo ativo)
+   * é NEGADO ali (`negada`, com o motivo): seguir para as formas convertidas
+   * abria o portão como o dono de OUTRA tag ("1234" bloqueada → hex 0x1234 =
+   * "4660" de outro morador). Código exato em pessoas diferentes (tag pessoal
+   * de um e tag do carro de outro, ou dois moradores) também é ambiguidade.
+   */
+  private async resolverTag(
+    tagLida: string,
+    idCondominio: number,
+    evento: string,
+  ): Promise<
+    | { ambigua: true }
+    | { negada: string }
+    | {
+        tipoPessoa: 'morador' | 'visitante' | 'prestador' | 'funcionario';
+        idPessoa: number;
+        nomePessoa: string;
+        visita: any | null;
+        whereVisita: CredencialVisitaWhere | null;
+      }
+    | null
+  > {
+    const { exatas, convertidas } = gruposCodigoTag(tagLida);
+    if (exatas.length === 0) return null;
+
+    const comoMorador = (m: { id: number; nome: string; tipo?: string | null }) => ({
+      tipoPessoa:
+        m.tipo?.toLowerCase() === 'funcionario'
+          ? ('funcionario' as const)
+          : ('morador' as const),
+      idPessoa: m.id,
+      nomePessoa: m.nome,
+      visita: null,
+      whereVisita: null,
+    });
+    const donosDeVeiculo = async (codigos: string[]) => {
+      const tags = await this.prisma.tags.findMany({
+        where: {
+          id_condominio: idCondominio,
+          ativo: 1,
+          codigo: { in: codigos },
+          veiculos: { some: { ativo: 1, id_condominio: idCondominio } },
+        },
+        include: {
+          veiculos: {
+            where: { ativo: 1, id_condominio: idCondominio },
+            include: { morador: true },
+          },
+        },
+      });
+      const donos = new Map<number, { id: number; nome: string; tipo?: string | null }>();
+      for (const tag of tags) {
+        for (const veiculo of tag.veiculos) {
+          // Defesa em profundidade: Veiculos.id_tag/id_morador referenciam só
+          // por id — o dono tem de ser deste condomínio.
+          if (veiculo.morador && veiculo.morador.id_condominio === idCondominio) {
+            donos.set(veiculo.morador.id, veiculo.morador);
+          }
+        }
+      }
+      return [...donos.values()];
+    };
+    const comoVisitante = async (codigos: string[], soNaoEncerrada = false) => {
+      const whereVisita: CredencialVisitaWhere = {
+        tag_rfid: { in: codigos },
+        id_condominio: idCondominio,
+        ...(soNaoEncerrada ? { OR: VISITA_NAO_ENCERRADA } : {}),
+      };
+      const r = await this.resolverVisitantePorCredencial(whereVisita, evento);
+      if (!r) return null;
+      return {
+        tipoPessoa: r.isPrestador ? ('prestador' as const) : ('visitante' as const),
+        idPessoa: r.idPessoa,
+        nomePessoa: r.nome,
+        visita: r.visita,
+        whereVisita,
+      };
+    };
+
+    // --- 1ª passada: igualdade exata (normalizado ou o texto como chegou).
+    // Tag pessoal e tag de veículo são conferidas JUNTAS: o mesmo código em
+    // pessoas diferentes (dois moradores; tag pessoal de um e tag do carro de
+    // outro) não diz quem passou — nega, em vez de "vence o primeiro".
+    const moradoresExatos = await this.prisma.moradores.findMany({
+      where: { tag_rfid: { in: exatas }, id_condominio: idCondominio },
+    });
+    const donos = await donosDeVeiculo(exatas);
+    const pessoasExatas = new Map<number, { id: number; nome: string; tipo?: string | null }>();
+    for (const m of moradoresExatos) pessoasExatas.set(m.id, m);
+    for (const d of donos) if (!pessoasExatas.has(d.id)) pessoasExatas.set(d.id, d);
+    if (pessoasExatas.size > 1) return { ambigua: true };
+    if (pessoasExatas.size === 1) return comoMorador([...pessoasExatas.values()][0]);
+
+    const visitante = await comoVisitante(exatas);
+    if (visitante) return visitante;
+
+    // O código EXATO existe em Tags mas não identificou ninguém acima: está
+    // bloqueada ou sem veículo ativo. Nega aqui — a 2ª passada casaria as
+    // formas convertidas com o cadastro de outra pessoa.
+    const tagsExatas = await this.prisma.tags.findMany({
+      where: { id_condominio: idCondominio, codigo: { in: exatas } },
+      select: { ativo: true },
+    });
+    if (tagsExatas.length > 0) {
+      return {
+        negada: tagsExatas.some((t) => t.ativo !== 1)
+          ? 'Tag bloqueada'
+          : 'Tag sem veículo ativo',
+      };
+    }
+
+    // --- 2ª passada: formas convertidas, só se forem inequívocas.
+    if (convertidas.length === 0) return null;
+
+    const moradoresConv = await this.prisma.moradores.findMany({
+      where: { tag_rfid: { in: convertidas }, id_condominio: idCondominio },
+    });
+    const donosConv = await donosDeVeiculo(convertidas);
+    // Visitante: a mesma tag fica gravada em várias visitas (e é reaproveitada
+    // entre pessoas), então a identidade aqui é o CÓDIGO gravado, não a linha.
+    // Só visita NÃO encerrada conta como cadastro: a tag devolvida por quem já
+    // saiu não pode identificar (nem tornar ambígua) uma leitura convertida.
+    const whereConv = {
+      tag_rfid: { in: convertidas },
+      id_condominio: idCondominio,
+      OR: VISITA_NAO_ENCERRADA,
+    };
+    const linhasVisita: Array<{ tag_rfid: string | null }> = pessoasMigrationEnabled(
+      this.prisma,
+    )
+      ? await this.prisma.visitas.findMany({
+          where: whereConv,
+          select: { tag_rfid: true },
+        })
+      : await this.prisma.visitantes.findMany({
+          where: whereConv,
+          select: { tag_rfid: true },
+        });
+
+    const cadastros = new Set<string>();
+    for (const m of moradoresConv) cadastros.add(`morador:${m.id}`);
+    for (const d of donosConv) cadastros.add(`morador:${d.id}`);
+    for (const v of linhasVisita) {
+      cadastros.add(`visita:${(v.tag_rfid ?? '').trim().toUpperCase()}`);
+    }
+    if (cadastros.size > 1) return { ambigua: true };
+
+    if (moradoresConv.length > 0) return comoMorador(moradoresConv[0]);
+    if (donosConv.length > 0) return comoMorador(donosConv[0]);
+    if (linhasVisita.length > 0) return comoVisitante(convertidas, true);
+    return null;
+  }
+
   private async runWebhook(
     device: NonNullable<
       Awaited<ReturnType<PrismaService['facial_Devices']['findFirst']>>
@@ -4254,16 +4981,25 @@ export class FacialService {
     // resolução acima — necessários para reresolver mais abaixo, se o
     // `isAmbiguousAuto` flipar `evento` DEPOIS que a credencial já escolheu a
     // Visita pelo palpite inicial. Ver bloco após o `isAmbiguousAuto`.
-    let credencialWhereParaVisita: {
-      id_condominio: number;
-      codigo_acesso?: string;
-      tag_rfid?: string;
-    } | null = null;
+    let credencialWhereParaVisita: CredencialVisitaWhere | null = null;
+    // Leitura de tag cujas variantes convertidas (decimal x hex x Wiegand)
+    // casam com mais de um cadastro: nega, com o motivo no registro.
+    let tagAmbigua = false;
+    // Código exato cadastrado mas sem valer (Tag bloqueada / sem veículo
+    // ativo): nega com o motivo no registro, sem tentar conversão.
+    let tagNegadaMotivo: string | null = null;
     let eventoParaResolucaoCredencial: string | null = null;
     const confianca = payload.confidence ?? null;
-    const timestamp = payload.timestamp
+    // Data ilegível no payload vira a hora de chegada (mesmo critério do
+    // `isoValido` dos conversores nativos) — `Invalid Date` quebrava a gravação
+    // do acesso e as comparações de janela mais abaixo.
+    const timestampInformado = payload.timestamp
       ? new Date(payload.timestamp)
-      : new Date();
+      : null;
+    const timestamp =
+      timestampInformado && !Number.isNaN(timestampInformado.getTime())
+        ? timestampInformado
+        : new Date();
     let evento = this.resolveEvento(device.sentido, payload);
 
     const qrCodeLido =
@@ -4279,7 +5015,9 @@ export class FacialService {
       device.tipo === 'lpr'
         ? (payload.placa ?? payload.external_id)
         : undefined;
-    const placaNormalizada = normalizarPlaca(placaCrua);
+    // Troca posicional de caractere parecido do OCR (0/O, 1/I, 8/B...): só
+    // corrige quando o resultado é uma placa válida; leitura já válida não muda.
+    const placaNormalizada = corrigirPlacaOcr(normalizarPlaca(placaCrua));
     const placaLida =
       placaNormalizada && placaValida(placaNormalizada) ? placaNormalizada : '';
     const externalId = payload.external_id ?? payload.person_id ?? '';
@@ -4292,6 +5030,39 @@ export class FacialService {
         `LPR: leitura ignorada no device ${device.id} (placa ilegível: "${placaCrua ?? ''}")`,
       );
       return { ok: true, ignored: 'placa_invalida' };
+    }
+
+    // Aparelho também posta o que NÃO é tentativa de acesso: heartbeat, evento
+    // de porta/alarme, corpo em formato desconhecido. Sem NENHUMA credencial
+    // no payload não há o que negar — gravar "negado" só enchia o histórico de
+    // ruído. Ignora em silêncio, como a placa ilegível acima.
+    // Continua virando "negado" + 400 mais abaixo: credencial presente e
+    // desconhecida, e negação explícita do aparelho (ex.: Control iD com
+    // user_id 0 → `access_denied`), que é um desconhecido tentando entrar.
+    const semCredencial = ![
+      payload.qrcode,
+      payload.card_uid,
+      payload.placa,
+      payload.external_id,
+      payload.person_id,
+    ].some((v) => v != null && String(v).trim() !== '');
+    if (semCredencial && evento !== 'negado') {
+      // Em `warn`, com amostragem (1 por dispositivo a cada 10 min, em
+      // memória): heartbeat é ruído, mas leitor mal configurado — mandando um
+      // corpo que os conversores não entendem — não pode sumir em `debug`.
+      const agoraMs = Date.now();
+      const ultimoAviso = this.avisoSemCredencialEm.get(device.id);
+      if (ultimoAviso === undefined || agoraMs - ultimoAviso >= AVISO_SEM_CREDENCIAL_MS) {
+        this.avisoSemCredencialEm.set(device.id, agoraMs);
+        this.logger.warn(
+          `Webhook ignorado no device ${device.id} ("${device.nome}", ${device.tipo}): payload sem credencial reconhecida. Se este aparelho deveria estar enviando leituras, confira o formato/URL do push. (aviso limitado a 1 a cada 10 min por dispositivo)`,
+        );
+      } else {
+        this.logger.debug(
+          `Webhook ignorado no device ${device.id}: payload sem credencial reconhecida`,
+        );
+      }
+      return { ok: true, ignored: 'payload_nao_reconhecido' };
     }
 
     // Evento reenviado pelo store-and-forward do agente: aconteceu no passado,
@@ -4356,37 +5127,24 @@ export class FacialService {
         }
       }
     } else if (tagRfidLida) {
-      const morador = await this.prisma.moradores.findFirst({
-        where: { tag_rfid: tagRfidLida, id_condominio: device.id_condominio },
-      });
-      if (morador) {
-        tipoPessoa =
-          morador.tipo?.toLowerCase() === 'funcionario'
-            ? 'funcionario'
-            : 'morador';
-        idPessoa = morador.id;
-        nomePessoa = morador.nome;
+      const resolvido = await this.resolverTag(
+        tagRfidLida,
+        device.id_condominio,
+        evento,
+      );
+      if (resolvido && 'ambigua' in resolvido) {
+        tagAmbigua = true;
+      } else if (resolvido && 'negada' in resolvido) {
+        tagNegadaMotivo = resolvido.negada;
+      } else if (resolvido) {
+        tipoPessoa = resolvido.tipoPessoa;
+        idPessoa = resolvido.idPessoa;
+        nomePessoa = resolvido.nomePessoa;
         faceIdSalvo = tagRfidLida;
-      } else {
-        // Critical 1 (Lote B): mesmo dispatch, para a tag RFID.
-        const whereCredencialTag = {
-          tag_rfid: tagRfidLida,
-          id_condominio: device.id_condominio,
-        };
-        const resolvido = await this.resolverVisitantePorCredencial(
-          whereCredencialTag,
-          evento,
-        );
-        if (resolvido) {
-          tipoPessoa = resolvido.isPrestador ? 'prestador' : 'visitante';
-          idPessoa = resolvido.idPessoa;
-          nomePessoa = resolvido.nome;
-          faceIdSalvo = tagRfidLida;
-          visitaResolvidaPorCredencial = resolvido.visita;
-          if (resolvido.visita) {
-            credencialWhereParaVisita = whereCredencialTag;
-            eventoParaResolucaoCredencial = evento;
-          }
+        visitaResolvidaPorCredencial = resolvido.visita;
+        if (resolvido.visita) {
+          credencialWhereParaVisita = resolvido.whereVisita;
+          eventoParaResolucaoCredencial = evento;
         }
       }
     } else if (placaLida) {
@@ -4539,11 +5297,27 @@ export class FacialService {
           qrCodeLido ?? tagRfidLida ?? (placaLida || externalId) ?? 'desconhecido',
         tipo_pessoa: 'desconhecido',
         id_pessoa: null,
-        nome_pessoa: 'Não identificado ou expirado',
+        nome_pessoa: tagAmbigua
+          ? 'Não identificado (tag ambígua: o código casa com mais de um cadastro)'
+          : (tagNegadaMotivo ?? 'Não identificado ou expirado'),
         evento: 'negado',
         confianca,
         timestamp,
       });
+      if (tagAmbigua) {
+        this.logger.warn(
+          `Tag ambígua no device ${device.id}: "${tagRfidLida}" casa com mais de um cadastro — acesso negado`,
+        );
+        throw new BadRequestException(
+          'Acesso negado: tag ambígua (o código casa com mais de um cadastro)',
+        );
+      }
+      if (tagNegadaMotivo) {
+        this.logger.warn(
+          `${tagNegadaMotivo} no device ${device.id}: "${tagRfidLida}" — acesso negado`,
+        );
+        throw new BadRequestException(`Acesso negado: ${tagNegadaMotivo}`);
+      }
       throw new BadRequestException(
         'Acesso negado: Credencial não encontrada ou inválida',
       );
@@ -4595,7 +5369,25 @@ export class FacialService {
     // Exceção: se a alternância produziria 'saida' mas nenhuma regra ativa do
     // terminal permite saída para esta categoria (ex.: visitante/prestador num
     // leitor compartilhado com regra "Apenas Entrada"), trata como 'entrada'.
-    if (this.isAmbiguousAuto(device.sentido, payload)) {
+    //
+    // Só vale para terminal que fica nos DOIS sentidos (facial). Leitor de tag,
+    // QR e câmera LPR ficam de um lado só: sem direção, a leitura é a que o
+    // `resolveEvento` já deu (entrada) — ver TIPOS_LEITOR_SEM_DIRECAO.
+    //
+    // Isso vale para MORADOR/FUNCIONÁRIO. VISITANTE/PRESTADOR num leitor em
+    // `auto` continuam sendo resolvidos pelo estado REAL da visita (dentro →
+    // saída/baixa; fora → entrada): é a credencial apresentada no leitor que
+    // dá a baixa de quem está dentro. Nunca pelo histórico de eventos.
+    const leitorSemDirecao = ehLeitorSemDirecao(device.tipo);
+    if (
+      (!leitorSemDirecao ||
+        tipoPessoa === 'visitante' ||
+        tipoPessoa === 'prestador') &&
+      // Negação informada pelo próprio aparelho nunca é reclassificada: sem
+      // isto, um "denied" de pessoa conhecida virava entrada/saída no histórico.
+      evento !== 'negado' &&
+      this.isAmbiguousAuto(device.sentido, payload)
+    ) {
       // Para visitante/prestador a fonte de verdade é o estado REAL da pessoa
       // (Visitantes.data_entrada/data_saida), não o histórico de Acessos_Facial.
       // data_saida pode ser setada por outro caminho (checkOut manual da
@@ -4637,6 +5429,10 @@ export class FacialService {
       let eventoAlternado: string;
       if (dentroAgora !== null) {
         eventoAlternado = dentroAgora ? 'saida' : 'entrada';
+      } else if (leitorSemDirecao) {
+        // Leitor não alterna pelo histórico: sem visita com entrada ativa a
+        // pessoa está FORA → entrada (a autorização é conferida mais abaixo).
+        eventoAlternado = 'entrada';
       } else {
         const ultimo = await this.prisma.acessos_Facial.findFirst({
           where: {
@@ -5041,8 +5837,14 @@ export class FacialService {
     // visitante estando DENTRO (data_saida=null) — agravado por registros
     // duplicados da mesma pessoa. Por isso só aplicamos este anti-passback a
     // morador/funcionário, que não têm data_entrada/data_saida persistidas.
+    //
+    // Também não vale para leitura de tag/QR/LPR (TIPOS_LEITOR_SEM_DIRECAO):
+    // com antena só na entrada e saída livre não existe evento de saída, e a
+    // segunda entrada ficaria negada para sempre. Quem quer esse bloqueio nos
+    // leitores liga ANTI_PASSBACK_MODE=hard.
     const aplicarAntiPassbackEvento =
-      tipoPessoa === 'morador' || tipoPessoa === 'funcionario';
+      (tipoPessoa === 'morador' || tipoPessoa === 'funcionario') &&
+      (!ehLeitorSemDirecao(device.tipo) || antiPassbackHard());
     if (
       aplicarAntiPassbackEvento &&
       (evento === 'entrada' || evento === 'saida')
@@ -5144,7 +5946,17 @@ export class FacialService {
           `Acesso negado: ${sentidoLabel} repetida detectada (Anti-passback). Procure a portaria.`,
         );
       }
-      if (apb === 'allow_with_warning') {
+      // Leitor de tag/QR/LPR com antena só na entrada (saída livre): a entrada
+      // repetida de morador/funcionário é o normal — no modo soft a marca
+      // cairia em quase toda entrada. Só a marca é dispensada: o estado de
+      // presença já foi atualizado acima e o modo hard ('deny') segue negando
+      // (ou, em backlog, marcando).
+      const entradaRepetidaEsperada =
+        apbBruto === 'allow_with_warning' &&
+        evento === 'entrada' &&
+        ehLeitorSemDirecao(device.tipo) &&
+        (tipoPessoa === 'morador' || tipoPessoa === 'funcionario');
+      if (apb === 'allow_with_warning' && !entradaRepetidaEsperada) {
         // Modo soft: o acesso passa, mas o registro fica marcado para auditoria.
         nomePessoa = `${nomePessoa} (Suspeita de anti-passback)`;
       }
@@ -5400,7 +6212,10 @@ export class FacialService {
     // fallback: aciona todas as aberturas ativas do condomínio (comportamento
     // legado, útil pra condomínios simples com 1 entrada).
     //
-    // Apenas eventos de ENTRADA disparam acionamento — saídas não precisam.
+    // SAÍDA só aciona quando o destino é explícito: o leitor é etapa de um
+    // caminho (1º) ou está mapeado numa regra que vale para saída (2º). O
+    // fallback "aciona tudo" (3º) é exclusivo de ENTRADA — um leitor de saída
+    // sem mapeamento não pode abrir todos os portões do condomínio.
     //
     // A câmera LPR entra aqui pelo mesmo caminho: ela só LÊ a placa, quem abre
     // o portão é a botoeira/catraca acionada por esta ponte.
@@ -5410,7 +6225,20 @@ export class FacialService {
       device.tipo === 'lpr';
     // Backlog NUNCA aciona abertura: o evento é antigo (a pessoa já passou
     // enquanto a nuvem estava fora) — abrir a porta agora seria um furo.
-    if (isLeitor && evento === 'entrada' && !isBacklog) {
+    const ehSaida = evento === 'saida';
+    // Saída só aciona abertura com direção EXPLÍCITA: leitor configurado como
+    // `saida` ou direção de saída informada no payload. Saída INFERIDA pelo
+    // estado da visita (leitor em `auto`: "está dentro → saída") só registra a
+    // baixa — ela não passa por validade/dias/liberado/bloqueio, e abrir aqui
+    // deixava quem ficou "dentro" para sempre entrar com a autorização vencida.
+    const saidaExplicita =
+      device.sentido === 'saida' ||
+      this.normalizeEvento(payload.event, payload.direction) === 'saida';
+    if (
+      isLeitor &&
+      (evento === 'entrada' || (ehSaida && saidaExplicita)) &&
+      !isBacklog
+    ) {
       // 1º) Caminho de leitores: se este leitor é etapa de um caminho ativo,
       // ele aciona SOMENTE a abertura daquela etapa.
       //
@@ -5458,6 +6286,10 @@ export class FacialService {
 
         const aberturasMapeadas = new Map<number, typeof device>();
         for (const regra of regrasDoLeitor) {
+          // Regra "só entrada" não roteia a abertura de uma saída.
+          if (ehSaida && regra.sentido !== 'ambos' && regra.sentido !== 'saida') {
+            continue;
+          }
           for (const link of regra.dispositivos) {
             const d = link.dispositivo;
             if (
@@ -5475,15 +6307,17 @@ export class FacialService {
         aberturasParaAcionar =
           aberturasMapeadas.size > 0
             ? Array.from(aberturasMapeadas.values())
-            : await this.prisma.facial_Devices.findMany({
-                where: {
-                  id_condominio: device.id_condominio,
-                  ativo: 1,
-                  tipo: { in: ['botoeira', 'catraca'] },
-                },
-              });
+            : ehSaida
+              ? []
+              : await this.prisma.facial_Devices.findMany({
+                  where: {
+                    id_condominio: device.id_condominio,
+                    ativo: 1,
+                    tipo: { in: ['botoeira', 'catraca'] },
+                  },
+                });
 
-        if (aberturasMapeadas.size === 0) {
+        if (aberturasMapeadas.size === 0 && !ehSaida) {
           this.logger.warn(
             `Ponte usando FALLBACK (sem mapeamento): leitor ${device.id} acionando todas as aberturas do condomínio`,
           );
@@ -5831,7 +6665,7 @@ export class FacialService {
    *   (a visita "agendada/pronta"); senão o registro mais recente.
    */
   private async findVisitanteByCredencial(
-    where: { id_condominio: number; codigo_acesso?: string; tag_rfid?: string },
+    where: CredencialVisitaWhere,
     evento: string,
   ) {
     const candidatos = await this.prisma.visitantes.findMany({ where });
@@ -5869,7 +6703,7 @@ export class FacialService {
    * ainda não usado na entrada.
    */
   private async findVisitaByCredencial(
-    where: { id_condominio: number; codigo_acesso?: string; tag_rfid?: string },
+    where: CredencialVisitaWhere,
     evento: string,
   ) {
     const candidatos = await this.prisma.visitas.findMany({
@@ -5913,7 +6747,7 @@ export class FacialService {
    * `visita` diretamente como `v`, sem reeleger.
    */
   private async resolverVisitantePorCredencial(
-    where: { id_condominio: number; codigo_acesso?: string; tag_rfid?: string },
+    where: CredencialVisitaWhere,
     evento: string,
   ): Promise<{ idPessoa: number; nome: string; isPrestador: boolean; visita: any | null } | null> {
     if (pessoasMigrationEnabled(this.prisma)) {

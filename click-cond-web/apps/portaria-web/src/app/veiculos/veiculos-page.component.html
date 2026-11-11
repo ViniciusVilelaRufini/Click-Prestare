@@ -90,8 +90,11 @@
                 <td>
                   @if (v.id_tag) {
                     <span class="ps-tag font-mono">
-                      {{ tagLabel(v.id_tag) }}
+                      {{ tagLabel(v) }}
                     </span>
+                    @if (tagBloqueada(v)) {
+                      <span class="ps-tag ml-1" title="Tag bloqueada: não abre no leitor"><span class="ps-dot ps-dot-danger"></span>Bloqueada</span>
+                    }
                   } @else {
                     <span class="text-slate-500 text-xs">Sem tag</span>
                   }
@@ -130,22 +133,72 @@
   } @else {
 
     <!-- Tags -->
-    @if (tags().length === 0) {
+    @if (erroAcaoTag()) {
+      <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroAcaoTag() }}</div>
+    }
+
+    @if (erroTags()) {
+      <div class="ps-panel ps-empty">
+        <p role="alert" class="text-sm text-[var(--signal-danger)] font-medium">{{ erroTags() }}</p>
+        <button type="button" (click)="carregar()" class="ps-btn ps-btn-sec ps-btn-sm mt-3">Tentar novamente</button>
+      </div>
+    } @else if (tags().length === 0) {
       <div class="ps-panel ps-empty">
         <p class="text-sm text-slate-300 font-medium">Nenhuma tag cadastrada</p>
         <p class="text-xs text-slate-500 mt-1">Cadastre uma tag RFID para vincular a um veículo</p>
       </div>
     } @else {
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        @for (t of tags(); track t.id) {
-          <div class="ps-panel p-4 flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <p class="font-mono font-semibold tracking-wider truncate">{{ t.codigo }}</p>
-              <p class="text-xs text-slate-500 mt-0.5">{{ t.tipo }}{{ t.descricao ? ' · ' + t.descricao : '' }}</p>
-            </div>
-            <span class="ps-tag shrink-0"><span class="ps-dot ps-dot-ok"></span>Ativa</span>
-          </div>
-        }
+      <div class="ps-tablewrap">
+        <table class="w-full text-sm !min-w-[720px]">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Veículo</th>
+              <th>Situação</th>
+              <th class="!text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of tags(); track t.id) {
+              <tr>
+                <td>
+                  <span class="font-mono font-semibold tracking-wider">{{ t.codigo }}</span>
+                  <span class="block text-xs text-slate-500 mt-0.5">{{ t.tipo }}{{ t.descricao ? ' · ' + t.descricao : '' }}</span>
+                </td>
+                <td>
+                  @if (veiculoDaTag(t); as v) {
+                    <span class="font-mono font-semibold tracking-wider">{{ v.placa }}</span>
+                    @if (v.morador?.nome) {
+                      <span class="text-slate-500 text-xs"> · {{ v.morador?.nome }}</span>
+                    }
+                  } @else {
+                    <span class="text-slate-500 text-xs">Sem veículo</span>
+                  }
+                </td>
+                <td>
+                  @if (t.ativo === 0) {
+                    <span class="ps-tag"><span class="ps-dot ps-dot-danger"></span>Bloqueada</span>
+                  } @else {
+                    <span class="ps-tag"><span class="ps-dot ps-dot-ok"></span>Ativa</span>
+                  }
+                </td>
+                <td class="text-right">
+                  <div class="flex items-center justify-end gap-2">
+                    @if (t.ativo === 0) {
+                      <button type="button" (click)="definirTagAtiva(t, true)" [disabled]="tagEmAcao() === t.id"
+                        class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Reativar</button>
+                    } @else {
+                      <button type="button" (click)="definirTagAtiva(t, false)" [disabled]="tagEmAcao() === t.id"
+                        class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Bloquear</button>
+                    }
+                    <button type="button" (click)="excluirTag(t)" [disabled]="tagEmAcao() === t.id"
+                      class="ps-btn ps-btn-danger ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Excluir</button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
       </div>
     }
   }
@@ -244,14 +297,35 @@
                      focus:outline-none focus:border-accent transition"
             >
               <option [ngValue]="null">Sem tag</option>
-              @for (t of tags(); track t.id) {
-                <option [ngValue]="t.id">{{ t.codigo }}{{ t.descricao ? ' — ' + t.descricao : '' }}</option>
+              @for (t of tagsParaSelecao(); track t.id) {
+                <option [ngValue]="t.id">{{ t.codigo }}{{ t.descricao ? ' — ' + t.descricao : '' }}{{ t.ativo === 0 ? ' (bloqueada)' : '' }}</option>
               }
             </select>
           </div>
 
+          <div>
+            <label class="ps-label block mb-1.5" for="veiculos-page-codigo-tag">Ou informe o código de uma tag nova</label>
+            <div class="flex items-center gap-2">
+              <input id="veiculos-page-codigo-tag" name="codigo_tag"
+                [(ngModel)]="codigoTag"
+                type="text"
+                autocomplete="off"
+                placeholder="Digite o código"
+                aria-describedby="veiculos-page-codigo-tag-dica"
+                class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono
+                       focus:outline-none focus:border-accent transition placeholder:text-slate-600 placeholder:font-sans"
+              />
+              <div class="shrink-0">
+                <app-enroll-capture tipoLeitor="tag_reader"
+                  [idCondominio]="idCondominioAtual()"
+                  (captured)="onTagCapturada($event)"></app-enroll-capture>
+              </div>
+            </div>
+            <p id="veiculos-page-codigo-tag-dica" class="text-xs text-slate-500 mt-1.5">Aceita o número impresso (decimal), hexadecimal ou facility,número. Preenchido, vale no lugar da tag escolhida acima.</p>
+          </div>
+
           @if (erroVeiculo()) {
-            <div class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroVeiculo() }}</div>
+            <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroVeiculo() }}</div>
           }
         </div>
 
@@ -311,7 +385,7 @@
           </div>
 
           @if (erroTag()) {
-            <div class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroTag() }}</div>
+            <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroTag() }}</div>
           }
         </div>
 

@@ -56,6 +56,26 @@ export class VeiculosService {
     if (!tag) throw new BadRequestException('Tag inválida para este condomínio.');
   }
 
+  /**
+   * Uma tag, um veículo ativo — mesma regra (e mensagem) do app do morador
+   * (`vincularTagAoVeiculo`). Sem isto a portaria ligava a mesma tag a dois
+   * carros e a leitura não tinha como dizer de quem era a passagem.
+   */
+  private async assertTagLivre(idTag: number | null, idVeiculo: number | null): Promise<void> {
+    if (idTag == null) return;
+    const emOutro = await this.prisma.veiculos.findFirst({
+      where: {
+        id_tag: Number(idTag),
+        ativo: 1,
+        ...(idVeiculo != null ? { id: { not: idVeiculo } } : {}),
+      },
+      select: { id: true },
+    });
+    if (emOutro) {
+      throw new BadRequestException('Esta tag já está vinculada a outro veículo.');
+    }
+  }
+
   async create(idCondominio: number, idMorador: number, dto: VeiculoDto) {
     const data = this.normalizar(dto);
     data.placa = validarPlaca(data.placa);
@@ -68,6 +88,7 @@ export class VeiculosService {
     });
     if (!morador) throw new NotFoundException(`Morador ${idMorador} não encontrado`);
     await this.assertTagDoCondominio(idCondominio, data.id_tag);
+    await this.assertTagLivre(data.id_tag, null);
     try {
       return await this.prisma.veiculos.create({
         data: { ...data, id_condominio: idCondominio, id_morador: idMorador },
@@ -89,6 +110,12 @@ export class VeiculosService {
     const data = this.normalizar(dto);
     data.placa = validarPlaca(data.placa);
     await this.assertTagDoCondominio(idCondominio, data.id_tag);
+    // A tela reenvia o formulário inteiro: se o veículo já tem esta tag e ela
+    // não mudou, não há o que conferir — dado antigo (a mesma tag em dois
+    // veículos) não pode travar a edição dos outros campos.
+    if (data.id_tag == null || Number(data.id_tag) !== existing.id_tag) {
+      await this.assertTagLivre(data.id_tag, Number(id));
+    }
     try {
       return await this.prisma.veiculos.update({
         where: { id: Number(id) },

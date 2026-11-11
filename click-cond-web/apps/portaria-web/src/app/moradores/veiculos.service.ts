@@ -10,6 +10,8 @@ export interface Tag {
   codigo: string;
   tipo: string;
   descricao: string | null;
+  /** 1 = ativa, 0 = bloqueada (não abre no leitor, mas segue vinculada). */
+  ativo?: number;
 }
 
 export interface Veiculo {
@@ -67,13 +69,28 @@ export class VeiculosApi {
     return this.http.delete<{ ok: boolean }>(`${this.base}/veiculos/${id}`);
   }
 
-  listTags(livres = false): Observable<Tag[]> {
+  /**
+   * Tags do condomínio. `livres` traz só as sem veículo ativo; `inativas`
+   * inclui as bloqueadas (por padrão a API devolve só as ativas).
+   */
+  listTags(livres = false, inativas = false): Observable<Tag[]> {
     let params = new HttpParams();
     if (livres) params = params.set('livres', 'true');
+    if (inativas) params = params.set('inativas', 'true');
     return this.http.get<Tag[]>(`${this.base}/tags`, { params });
   }
 
   createTag(dto: { codigo: string; tipo?: string; descricao?: string }): Observable<Tag> {
     return this.http.post<Tag>(`${this.base}/tags`, dto);
+  }
+
+  /** Bloqueia (`false`) ou reativa (`true`) a tag. */
+  setTagAtivo(id: number, ativo: boolean): Observable<Tag> {
+    return this.http.patch<Tag>(`${this.base}/tags/${id}`, { ativo });
+  }
+
+  /** Exclui a tag; a API a desvincula do veículo antes. */
+  removeTag(id: number): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.base}/tags/${id}`);
   }
 }

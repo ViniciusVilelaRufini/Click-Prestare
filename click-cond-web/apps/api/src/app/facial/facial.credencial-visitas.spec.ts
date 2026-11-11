@@ -110,8 +110,11 @@ describe('FacialService — webhook, credencial (PIN/tag) em Visitas (Lote B, Cr
       },
       moradores: {
         findFirst: jest.fn(async () => null),
+        findMany: jest.fn(async () => []),
         findUnique: jest.fn(async () => null),
       },
+      // Tag de veículo (tabela Tags) é consultada antes do visitante.
+      tags: { findMany: jest.fn(async () => []) },
       visitantes: {
         findUnique: visitantesDelegate,
         findFirst: visitantesDelegate,
@@ -164,7 +167,10 @@ describe('FacialService — webhook, credencial (PIN/tag) em Visitas (Lote B, Cr
 
       expect(prisma.visitas.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ tag_rfid: 'TAG-1', id_condominio: 1 }),
+          where: expect.objectContaining({
+            tag_rfid: { in: expect.arrayContaining(['TAG-1']) },
+            id_condominio: 1,
+          }),
         }),
       );
       expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
@@ -352,7 +358,12 @@ describe('FacialService — webhook, credencial (PIN/tag) em Visitas (Lote B, Cr
       const prisma: any = {
         isConnected: true,
         facial_Devices: { findFirst: jest.fn(async () => DEVICE_TAG), findMany: jest.fn(async () => []) },
-        moradores: { findFirst: jest.fn(async () => null), findUnique: jest.fn(async () => null) },
+        moradores: {
+          findFirst: jest.fn(async () => null),
+          findMany: jest.fn(async () => []),
+          findUnique: jest.fn(async () => null),
+        },
+        tags: { findMany: jest.fn(async () => []) },
         visitantes: (() => {
           const visitanteLegado = {
             id: 10,
@@ -421,8 +432,17 @@ describe('FacialService — webhook, credencial (PIN/tag) em Visitas (Lote B, Cr
     });
 
     const DEVICE_TAG_AUTO = { ...DEVICE_TAG, sentido: 'auto' };
+    // Para VISITANTE/PRESTADOR a direção em "auto" sem direção no payload vem
+    // do estado real da visita (dentro → saída; fora → entrada), tanto no
+    // leitor de tag/QR/LPR quanto no terminal facial (que também lê cartão).
+    // Só MORADOR/FUNCIONÁRIO em leitor é sempre entrada — ver
+    // TIPOS_LEITOR_SEM_DIRECAO e leitor-sem-direcao.spec.
+    const DEVICE_FACIAL_AUTO = { ...DEVICE_TAG, tipo: 'facial', sentido: 'auto' };
 
-    it('pessoa DENTRO apresenta a tag: reresolve e dá saída na Visita correta (não nega por falta de entrada)', async () => {
+    it.each([
+      ['no leitor de tag', DEVICE_TAG_AUTO, { external_id: 'TAG-AUTO' }],
+      ['no terminal facial', DEVICE_FACIAL_AUTO, { card_uid: 'TAG-AUTO' }],
+    ])('pessoa DENTRO apresenta a tag %s: reresolve e dá saída na Visita correta (não nega por falta de entrada)', async (_onde, deviceAuto, leitura) => {
       const agora = Date.now();
       const idPessoa = 66;
       const visitaNaoUsada = {
@@ -462,7 +482,7 @@ describe('FacialService — webhook, credencial (PIN/tag) em Visitas (Lote B, Cr
       const { prisma } = buildPrisma({
         visitasCandidatos: [visitaNaoUsada, visitaDentro],
       });
-      prisma.facial_Devices.findFirst.mockResolvedValue(DEVICE_TAG_AUTO);
+      prisma.facial_Devices.findFirst.mockResolvedValue(deviceAuto);
       // Checagem "dentroAgora" do isAmbiguousAuto: a pessoa está de fato dentro.
       prisma.visitas.findFirst.mockResolvedValue(visitaDentro);
       const { svc } = buildService(prisma);
@@ -470,11 +490,13 @@ describe('FacialService — webhook, credencial (PIN/tag) em Visitas (Lote B, Cr
       // Sem `direction` e sem palavra de entrada/saída no `event` — mesmo
       // formato ambíguo usado no teste de Critical 3 — para exercitar o
       // palpite inicial 'entrada' seguido do flip para 'saida'.
-      await svc.processWebhook('tok-tag', {
+      const res = await svc.processWebhook('tok-tag', {
         event: 'access',
-        external_id: 'TAG-AUTO',
+        ...leitura,
         timestamp: new Date().toISOString(),
       });
+
+      expect(res).toEqual(expect.objectContaining({ evento: 'saida' }));
 
       // Prova da reresolução: `findVisitaByCredencial` (via
       // `prisma.visitas.findMany`) foi chamado 2x — uma vez com o palpite
@@ -492,6 +514,52 @@ describe('FacialService — webhook, credencial (PIN/tag) em Visitas (Lote B, Cr
             data_saida: null,
           }),
           data: expect.objectContaining({ data_saida: expect.any(Date) }),
+        }),
+      );
+    });
+
+    it('LEITOR DE TAG em "auto": visitante FORA (sem visita com entrada ativa) é "entrada" mesmo com o último acesso do histórico sendo uma entrada', async () => {
+      const agora = Date.now();
+      const idPessoa = 68;
+      const visitaNaoUsada = {
+        id: 904,
+        id_pessoa: idPessoa,
+        id_condominio: 1,
+        id_apartamento: 101,
+        is_prestador: 0,
+        liberado: 1,
+        bloqueado: 0,
+        tag_rfid: 'TAG-AUTO-3',
+        codigo_acesso: null,
+        data_hora_inicio: new Date(agora - 3_600_000),
+        data_hora_termino: new Date(agora + 3_600_000),
+        data_entrada: null,
+        data_saida: null,
+        dias_semana: null,
+        pessoa: { id: idPessoa, nome: 'Fulano Leitor', bloqueado: 0 },
+      };
+      const { prisma } = buildPrisma({ visitasCandidatos: [visitaNaoUsada] });
+      prisma.facial_Devices.findFirst.mockResolvedValue(DEVICE_TAG_AUTO);
+      // Ninguém dentro...
+      prisma.visitas.findFirst.mockResolvedValue(null);
+      // ...mas o histórico diz "entrada" (baixa feita por outro caminho, ex.:
+      // checkout manual da portaria). No leitor a decisão é o estado da
+      // visita, nunca o histórico: se alternasse, viraria "saida" e negaria.
+      prisma.acessos_Facial.findFirst.mockResolvedValue({ evento: 'entrada' });
+      const { svc } = buildService(prisma);
+
+      const res = await svc.processWebhook('tok-tag', {
+        event: 'access',
+        external_id: 'TAG-AUTO-3',
+        timestamp: new Date().toISOString(),
+      });
+
+      expect(res).toEqual(expect.objectContaining({ evento: 'entrada' }));
+      expect(prisma.visitas.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 904, liberado: 1 }),
+          data: expect.objectContaining({ data_entrada: expect.any(Date) }),
         }),
       );
     });

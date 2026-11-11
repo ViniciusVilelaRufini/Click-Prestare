@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { TagsService } from './tags.service';
 import type { TagDto } from './tags.service';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
@@ -27,9 +27,10 @@ export class TagsController {
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @ReqUser() user: JwtPayload,
     @Query('livres') livres?: string,
+    @Query('inativas') inativas?: string,
   ) {
     assertOperador(user, 'listar as tags de acesso');
-    return this.service.findAll(idCondominio, livres === 'true');
+    return this.service.findAll(idCondominio, livres === 'true', inativas === 'true');
   }
 
   @SkipAudit()
@@ -41,5 +42,28 @@ export class TagsController {
   ) {
     assertOperador(user, 'cadastrar ou reativar tag de acesso');
     return this.service.upsert(idCondominio, body);
+  }
+
+  /** Bloqueia (`ativo: false`) ou reativa (`ativo: true`) a tag. */
+  @Patch(':id')
+  update(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { ativo: boolean | number },
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'bloquear ou reativar tag de acesso');
+    return this.service.definirAtivo(idCondominio, id, body?.ativo);
+  }
+
+  /** Exclui a tag e a desvincula do veículo. */
+  @Delete(':id')
+  remove(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'excluir tag de acesso');
+    return this.service.remove(idCondominio, id);
   }
 }

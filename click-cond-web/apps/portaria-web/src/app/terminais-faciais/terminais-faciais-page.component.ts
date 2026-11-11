@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal, Input } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -9,6 +9,7 @@ import {
   CreateTerminalFacial,
   FacialHealth,
   FacialSyncStatus,
+  MotivoTesteConexao,
   SyncPessoa,
   TerminaisFaciaisApi,
   TerminalFacial,
@@ -40,6 +41,10 @@ export function compararVersoesAgente(a: string, b: string): number {
  *  mais o estado dos aparelhos — os selos por device somem em vez de mentir. */
 export const TELEMETRIA_VALIDA_MS = 3 * 60 * 1000;
 
+/** Leitores cuja leitura chega por webhook e NÃO traz direção: "Automático"
+ *  não tem o que alternar, então o cadastro novo já nasce como entrada. */
+const TIPOS_LEITURA_POR_WEBHOOK = ['tag_reader', 'qrcode_reader', 'lpr'];
+
 @Component({
   selector: 'app-terminais-faciais-page',
   standalone: true,
@@ -62,6 +67,10 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   readonly successMessage = signal<string | null>(null);
   readonly testingId = signal<number | null>(null);
   readonly statusMap = signal<Record<number, boolean | null>>({});
+  /** Resultado do último "Testar Conexão" de cada dispositivo, mostrado no card dele. */
+  readonly diagnosticos = signal<
+    Record<number, { ok: boolean; motivo: MotivoTesteConexao | null; mensagem: string; detalhe: string | null }>
+  >({});
 
   // Sincronização em massa de rostos (back-fill)
   readonly syncing = signal(false);
@@ -367,17 +376,39 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   /** Abre o cadastro já preenchido com o que a varredura achou (sem senha — nunca vem da LAN). */
   abrirCadastroDe(a: AparelhoEncontrado) {
     this.editingId.set(null);
+    this.limparEstadoDoModal();
+    // Só vira LPR o que se declara câmera/gravador; sem classe (Control iD,
+    // Hikvision) pode ser controle de acesso e continua como terminal facial.
+    const tipo = this.rotuloClasse(a.classe) === 'Câmera/gravador' ? 'lpr' : 'facial';
+    const base = this.emptyForm();
+    const octeto = String(a.ip ?? '').split('.').pop();
+    const marca = this.rotuloFabricante(a.fabricante);
     this.form = {
-      ...this.emptyForm(),
-      tipo: 'facial',
+      ...base,
+      nome: `${a.modelo ? `${marca} ${a.modelo}` : marca} (.${octeto})`,
+      tipo,
+      sentido: this.sentidoPadrao(tipo),
       fabricante: a.fabricante,
       modelo: a.modelo ?? '',
       ip: a.ip,
       porta: a.porta,
+      api_user: base.api_user || 'admin',
       mac: a.mac,
       numero_serie: a.numero_serie,
     };
+    this.sentidoPreSelecionado = tipo !== 'facial';
+    // Tudo o mais já veio da rede: o operador só digita a senha.
+    this.focarSenhaAoAbrir = true;
     this.showModal.set(true);
+  }
+
+  /** Rótulo de vitrine da marca ("control_id" → "Control iD"); cai no valor cru se não conhecer. */
+  rotuloFabricante(valor: string): string {
+    for (const t of this.tiposDispositivo) {
+      const f = t.fabricantes.find((x) => x.value === valor);
+      if (f) return f.label;
+    }
+    return valor;
   }
 
   /** Pede ao agente uma nova varredura da LAN; o resultado chega pelo polling de `loadDescobertos()`. */
@@ -414,6 +445,22 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   readonly editingId = signal<number | null>(null);
   readonly saving = signal(false);
   readonly triggeringId = signal<number | null>(null);
+  /** Erro do cadastro, desenhado DENTRO do modal (o aviso do topo fica atrás dele). */
+  readonly modalError = signal<string | null>(null);
+  /** Passo final do cadastro de leitor por webhook: a URL que o equipamento precisa chamar. */
+  readonly webhookCriado = signal<{ nome: string; url: string } | null>(null);
+  readonly webhookCriadoCopiado = signal(false);
+  /** O sentido "entrada" foi posto pela tela (e não pelo operador) ao escolher um leitor. */
+  private sentidoPreSelecionado = false;
+  private focarSenhaAoAbrir = false;
+
+  /** O campo de senha só existe com o modal aberto; foca assim que ele é criado. */
+  @ViewChild('senhaInput') set senhaInput(el: ElementRef<HTMLInputElement> | undefined) {
+    if (el && this.focarSenhaAoAbrir) {
+      this.focarSenhaAoAbrir = false;
+      el.nativeElement.focus();
+    }
+  }
 
   form: CreateTerminalFacial = this.emptyForm();
 
@@ -470,7 +517,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     {
       value: 'tag_reader',
       label: 'Leitor de Tags RFID',
-      hint: 'Lê tags Mifare/EM-Marin e envia o UID via webhook. Identifica pela coluna tag_rfid do morador.',
+      hint: 'Lê a tag (Mifare/EM-Marin) e envia a leitura para a Prestare. Reconhece a tag cadastrada no morador, no visitante ou no veículo.',
       requerAuth: false,
       fabricantes: [
         { value: 'hid', label: 'HID' },
@@ -487,7 +534,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     {
       value: 'qrcode_reader',
       label: 'Leitor de QR Code',
-      hint: 'Lê o código QR do morador via app e envia via webhook. Identifica pela coluna qrcode_acesso.',
+      hint: 'Lê o QR Code de acesso que o morador mostra no app e envia a leitura para a Prestare, que reconhece de quem é o código.',
       requerAuth: false,
       fabricantes: [
         { value: 'genérico', label: 'Genérico' },
@@ -501,6 +548,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       value: 'lpr',
       label: 'Câmera LPR (leitor de placa)',
       hint: 'Lê a placa do veículo e identifica pelo cadastro: carro do morador (Veículos) ou liberação temporária (Vagas). Placa não cadastrada fica registrada como negada para a portaria avaliar.',
+      // Mostra os campos, mas não cobra: a placa chega por webhook e a API
+      // aceita a câmera sem credenciais (ver `credenciaisObrigatorias`).
       requerAuth: true,
       fabricantes: [
         { value: 'intelbras', label: 'Intelbras' },
@@ -539,6 +588,32 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       this.form.api_user = '';
       this.form.api_password = '';
     }
+    // Só no cadastro novo: na edição o sentido é escolha de quem cadastrou.
+    if (this.editingId() == null) {
+      if (this.sentidoPadrao(this.form.tipo) === 'entrada') {
+        if (this.form.sentido !== 'entrada') this.sentidoPreSelecionado = true;
+        this.form.sentido = 'entrada';
+      } else if (this.sentidoPreSelecionado) {
+        // A "entrada" tinha sido posta pela tela, não pelo operador: desfaz.
+        this.form.sentido = 'auto';
+        this.sentidoPreSelecionado = false;
+      }
+    }
+  }
+
+  /** Leitor de tag, de QR ou câmera LPR: a leitura chega por webhook, sem direção. */
+  get leituraPorWebhook(): boolean {
+    return TIPOS_LEITURA_POR_WEBHOOK.includes(this.form.tipo ?? '');
+  }
+
+  private sentidoPadrao(tipo: string | undefined): string {
+    return TIPOS_LEITURA_POR_WEBHOOK.includes(tipo ?? '') ? 'entrada' : 'auto';
+  }
+
+  /** Usuário e senha são cobrados só de quem a Prestare precisa abrir/comandar
+   *  (facial, catraca). A câmera LPR mostra os campos, mas eles são opcionais. */
+  get credenciaisObrigatorias(): boolean {
+    return this.tipoSelecionado.requerAuth && this.form.tipo !== 'lpr';
   }
 
   ngOnInit(): void {
@@ -938,12 +1013,14 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   openCreate() {
     this.editingId.set(null);
+    this.limparEstadoDoModal();
     this.form = this.emptyForm();
     this.showModal.set(true);
   }
 
   openEdit(t: TerminalFacial) {
     this.editingId.set(t.id);
+    this.limparEstadoDoModal();
     this.form = {
       nome: t.nome,
       tipo: t.tipo || 'facial',
@@ -964,29 +1041,42 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   closeModal() {
     this.showModal.set(false);
     this.editingId.set(null);
+    this.limparEstadoDoModal();
+  }
+
+  /** Zera o que pertence a UMA abertura do modal (erro, passo do webhook, foco). */
+  private limparEstadoDoModal() {
+    this.modalError.set(null);
+    this.webhookCriado.set(null);
+    this.webhookCriadoCopiado.set(false);
+    this.sentidoPreSelecionado = false;
+    this.focarSenhaAoAbrir = false;
   }
 
   save() {
-    if (!this.form.nome || !this.form.ip) {
-      this.errorMessage.set('Nome e IP são obrigatórios.');
+    if (!this.form.nome?.trim()) {
+      this.modalError.set('Informe o nome do dispositivo.');
       return;
     }
-    // Tipos que exigem auth (facial/catraca) precisam de usuário e senha — sem
-    // eles o terminal recusa as chamadas (401). Na edição, senha em branco
-    // significa "manter a atual", então só cobramos no cadastro.
-    if (this.tipoSelecionado.requerAuth) {
-      const senhaObrigatoria = this.editingId() == null;
-      if (
-        !this.form.api_user ||
-        (senhaObrigatoria && !this.form.api_password)
-      ) {
-        this.errorMessage.set(
-          'Usuário e senha da API são obrigatórios para este tipo de dispositivo.',
-        );
+    if (!this.form.ip?.trim()) {
+      this.modalError.set('Informe o endereço IP do dispositivo.');
+      return;
+    }
+    // Facial e catraca precisam de usuário e senha — sem eles o terminal
+    // recusa as chamadas (401). Na edição, senha em branco significa "manter a
+    // atual", então só cobramos no cadastro.
+    if (this.credenciaisObrigatorias) {
+      if (!this.form.api_user) {
+        this.modalError.set('Informe o usuário da API do dispositivo.');
+        return;
+      }
+      if (this.editingId() == null && !this.form.api_password) {
+        this.modalError.set('Informe a senha da API do dispositivo.');
         return;
       }
     }
     this.saving.set(true);
+    this.modalError.set(null);
     this.errorMessage.set(null);
 
     const payload: CreateTerminalFacial = {
@@ -1018,18 +1108,40 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     const obs =
       id != null ? this.api.update(id, payload) : this.api.create(payload);
     obs.subscribe({
-      next: () => {
+      next: (salvo) => {
         this.saving.set(false);
+        this.load();
+        // Leitor novo só funciona depois de configurado para chamar a nossa
+        // URL: em vez de fechar, o modal termina mostrando esse passo.
+        if (
+          id == null &&
+          salvo?.webhook_token &&
+          TIPOS_LEITURA_POR_WEBHOOK.includes(payload.tipo ?? '')
+        ) {
+          this.webhookCriado.set({
+            nome: payload.nome,
+            url: this.urlWebhook(salvo.webhook_token),
+          });
+          return;
+        }
         this.successMessage.set(
           id != null ? 'Dispositivo atualizado.' : 'Dispositivo cadastrado.',
         );
         setTimeout(() => this.successMessage.set(null), 4000);
         this.closeModal();
-        this.load();
+        if (id != null) {
+          // O que o teste anterior disse pode não valer mais (senha/marca/IP mudaram).
+          this.limparDiagnostico(id);
+        } else if (payload.tipo === 'facial' && salvo?.id != null) {
+          // Terminal facial novo: testa na hora, para o operador saber se a
+          // senha e a marca estão certas. Vem depois de fechar o modal: o
+          // teste nunca segura o cadastro.
+          this.test(salvo, true);
+        }
       },
       error: (err) => {
         this.saving.set(false);
-        this.errorMessage.set(err?.error?.message ?? 'Falha ao salvar.');
+        this.modalError.set(err?.error?.message ?? 'Falha ao salvar.');
       },
     });
   }
@@ -1094,27 +1206,84 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  test(t: TerminalFacial) {
+  /**
+   * Testa a conexão e guarda o diagnóstico para o card do dispositivo.
+   * `automatico` = disparado pelo cadastro (ninguém clicou): se a própria
+   * chamada falhar, fica em silêncio em vez de assustar o operador.
+   */
+  test(t: Pick<TerminalFacial, 'id'>, automatico = false) {
     this.testingId.set(t.id);
     this.api.test(t.id).subscribe({
       next: (r) => {
-        this.testingId.set(null);
-        this.statusMap.update((m) => ({ ...m, [t.id]: r.online }));
+        if (this.testingId() === t.id) this.testingId.set(null);
+        const motivo = r.motivo ?? null;
+        // Agente fora ou marca sem HTTP: o aparelho nem foi consultado, então
+        // o selo dele não vira "Offline" — fica como estava sem teste.
+        const naoConsultado = motivo === 'agente_offline' || motivo === 'marca_sem_http';
+        this.statusMap.update((m) => ({ ...m, [t.id]: naoConsultado ? null : r.online }));
+        this.diagnosticos.update((d) => ({
+          ...d,
+          [t.id]: {
+            ok: r.online,
+            motivo,
+            // API antiga devolve só { online }.
+            mensagem: r.mensagem || (r.online ? 'Dispositivo online.' : 'Dispositivo offline.'),
+            detalhe: r.detalhe || null,
+          },
+        }));
       },
-      error: () => {
-        this.testingId.set(null);
-        this.statusMap.update((m) => ({ ...m, [t.id]: false }));
+      error: (err) => {
+        if (this.testingId() === t.id) this.testingId.set(null);
+        // A chamada do teste falhou (rede/servidor): isso não diz nada sobre o
+        // aparelho, então o selo dele não muda.
+        if (automatico) return;
+        this.diagnosticos.update((d) => ({
+          ...d,
+          [t.id]: {
+            ok: false,
+            motivo: null,
+            mensagem: err?.error?.message ?? 'Não foi possível concluir o teste. Tente novamente.',
+            detalhe: null,
+          },
+        }));
       },
     });
   }
 
+  private limparDiagnostico(id: number) {
+    this.diagnosticos.update((d) => {
+      const { [id]: _descartado, ...resto } = d;
+      return resto;
+    });
+  }
+
+  /** Ação do diagnóstico "agente offline": abre o passo a passo de instalação do agente. */
+  abrirInstalacaoAgente() {
+    this.mostrarInstalacao.set(true);
+    document.getElementById('agente-local')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }
+
+  /** URL completa do webhook de um dispositivo. Usa o protocolo atual do
+   *  console (https em produção): forçar http:// quebrava o simulador servido
+   *  por HTTPS (Mixed Content → "Failed to fetch"). */
+  private urlWebhook(token: string): string {
+    return `${window.location.origin}/api/facial/webhook/${token}`;
+  }
+
   copyToken(t: TerminalFacial) {
-    // Usa o protocolo atual do console (https em produção). Forçar http:// aqui
-    // quebrava o simulador servido por HTTPS (Mixed Content → "Failed to fetch").
-    const url = `${window.location.origin}/api/facial/webhook/${t.webhook_token}`;
-    navigator.clipboard?.writeText(url);
+    // Quem não é síndico recebe o terminal sem o token: não há URL para copiar.
+    if (!t.webhook_token) return;
+    navigator.clipboard?.writeText(this.urlWebhook(t.webhook_token));
     this.successMessage.set('URL do webhook copiada.');
     setTimeout(() => this.successMessage.set(null), 3000);
+  }
+
+  /** Copia a URL mostrada no passo final do cadastro de leitor. */
+  copiarWebhookCriado() {
+    const criado = this.webhookCriado();
+    if (!criado) return;
+    navigator.clipboard?.writeText(criado.url);
+    this.webhookCriadoCopiado.set(true);
   }
 
   /**
@@ -1133,8 +1302,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.api.rotateToken(t.id).subscribe({
       next: (res) => {
         t.webhook_token = res.webhook_token;
-        const url = `${window.location.origin}/api/facial/webhook/${res.webhook_token}`;
-        navigator.clipboard?.writeText(url);
+        navigator.clipboard?.writeText(this.urlWebhook(res.webhook_token));
         this.successMessage.set(
           'Token rotacionado — a NOVA URL do webhook já está na área de transferência.',
         );

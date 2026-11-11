@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const https = require('node:https');
 const { EventEmitter } = require('node:events');
-const { request, lanRequest, okFrom, parseJson, sleep } = require('../src/lib/http');
+const { request, lanRequest, okFrom, parseJson, sleep, classificarFalha } = require('../src/lib/http');
 
 /**
  * Substitui `https.request` por um espião que nunca conecta de verdade —
@@ -134,6 +134,14 @@ test('parseJson(): raw inválido devolve objeto vazio em vez de lançar', () => 
   assert.deepEqual(parseJson(undefined), {});
 });
 
+test('parseJson(): JSON válido que não é objeto (null, número, string) também devolve objeto vazio', () => {
+  // `JSON.parse('null')` não lança: sem isto o chamador recebia null e
+  // quebrava em `d.params`/`d.result`.
+  for (const raw of ['null', '42', '"texto"', 'true']) {
+    assert.deepEqual(parseJson({ data: raw, raw }), {}, raw);
+  }
+});
+
 test('sleep(): resolve depois de ao menos o tempo pedido', async () => {
   const antes = Date.now();
   await sleep(30);
@@ -212,7 +220,7 @@ test('request(): sem Basic preventivo — aparelho Digest nunca vê a senha em B
   }
 });
 
-test('request(): Basic só depois de um 401 com desafio Basic', async () => {
+test('request(): com permitirBasic, Basic só depois de um 401 com desafio Basic', async () => {
   const vistos = [];
   const esperado = `Basic ${Buffer.from('admin:segredo').toString('base64')}`;
   const { url, fechar } = await comServidor((req, res) => {
@@ -225,11 +233,118 @@ test('request(): Basic só depois de um 401 com desafio Basic', async () => {
     res.end('ok');
   });
   try {
-    const res = await request(`${url}/x`, { auth: { user: 'admin', pass: 'segredo' } });
+    const res = await request(`${url}/x`, {
+      auth: { user: 'admin', pass: 'segredo' },
+      permitirBasic: true,
+    });
     assert.equal(res.status, 200);
     assert.deepEqual(vistos, ['', esperado]);
   } finally {
     await fechar();
+  }
+});
+
+test('request(): SEM permitirBasic, quem pede Basic no IP do aparelho NÃO recebe a senha em claro', async () => {
+  const vistos = [];
+  const { url, fechar } = await comServidor((req, res) => {
+    vistos.push(req.headers.authorization || '');
+    res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="r"' });
+    res.end();
+  });
+  try {
+    const res = await request(`${url}/x`, { auth: { user: 'admin', pass: 'segredo' } });
+    assert.equal(res.status, 401);
+    assert.deepEqual(vistos, [''], 'uma única requisição, sem Authorization');
+  } finally {
+    await fechar();
+  }
+});
+
+test('lanRequest(): driver (sem permitirBasic) não entrega a senha a um desafio Basic; o fallback genérico (permitirBasic) entrega', async () => {
+  const vistos = [];
+  const esperado = `Basic ${Buffer.from('admin:segredo').toString('base64')}`;
+  const { port, fechar } = await comServidor((req, res) => {
+    vistos.push(req.headers.authorization || '');
+    if (req.headers.authorization !== esperado) {
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="r"' });
+      return res.end();
+    }
+    res.writeHead(200);
+    res.end('ok');
+  });
+  try {
+    const device = { ip: '127.0.0.1', porta: port, fabricante: 'intelbras', api_user: 'admin', api_password: 'segredo' };
+    const semOpcao = await lanRequest(device, 'GET', '/cgi-bin/magicBox.cgi', {}, 5000);
+    assert.equal(semOpcao.status, 401);
+    assert.deepEqual(vistos, ['']);
+    const generico = { ...device, fabricante: 'generico' };
+    const comOpcao = await lanRequest(generico, 'GET', '/status', { permitirBasic: true }, 5000);
+    assert.equal(comOpcao.status, 200);
+    assert.deepEqual(vistos, ['', '', esperado]);
+  } finally {
+    await fechar();
+  }
+});
+
+test('lanRequest(): Control iD escrito de outro jeito ("Control iD", "controlid") continua sem auth por header (usa sessão)', async () => {
+  for (const fabricante of ['control_id', 'Control iD', 'controlid', 'control-id']) {
+    const vistos = [];
+    const { port, fechar } = await comServidor((req, res) => {
+      vistos.push(req.headers.authorization || '');
+      res.writeHead(401, { 'WWW-Authenticate': 'Digest realm="r", nonce="n3", qop="auth"' });
+      res.end();
+    });
+    try {
+      const device = { ip: '127.0.0.1', porta: port, fabricante, api_user: 'admin', api_password: 'segredo' };
+      const res = await lanRequest(device, 'POST', '/login.fcgi', { json: {} }, 5000);
+      assert.equal(res.status, 401);
+      assert.deepEqual(vistos, [''], fabricante);
+    } finally {
+      await fechar();
+    }
+  }
+});
+
+test('classificarFalha(): tabela — resultado de driver, resposta crua e erro de rede', () => {
+  const erro = (message, extra = {}) => Object.assign(new Error(message), extra);
+  const casos = [
+    // ok → null
+    [{ ok: true, statusCode: 200 }, null],
+    [{ ok: true }, null],
+    [{ status: 200 }, null],
+    [{ status: 204 }, null],
+    // credencial
+    [{ ok: false, statusCode: 401 }, 'credencial'],
+    [{ ok: false, statusCode: 403 }, 'credencial'],
+    [{ status: 401 }, 'credencial'],
+    [erro('Control iD: login não retornou session', { statusCode: 401 }), 'credencial'],
+    [erro('Dahua: login negado', { statusCode: 403 }), 'credencial'],
+    // sem_resposta
+    [erro('timeout'), 'sem_resposta'],
+    [erro('timeout no desafio'), 'sem_resposta'],
+    [erro('connect ETIMEDOUT 10.0.0.9:80', { code: 'ETIMEDOUT' }), 'sem_resposta'],
+    [erro('connect EHOSTUNREACH 10.0.0.9:80', { code: 'EHOSTUNREACH' }), 'sem_resposta'],
+    [erro('connect ENETUNREACH 10.0.0.9:80', { code: 'ENETUNREACH' }), 'sem_resposta'],
+    [erro('connect EHOSTUNREACH 10.0.0.9:80'), 'sem_resposta'],
+    [Object.assign(new Error('varios'), { errors: [erro('x', { code: 'ETIMEDOUT' })] }), 'sem_resposta'],
+    // recusado
+    [erro('connect ECONNREFUSED 10.0.0.9:80', { code: 'ECONNREFUSED' }), 'recusado'],
+    [erro('connect ECONNREFUSED 10.0.0.9:80'), 'recusado'],
+    // protocolo_inesperado
+    [{ ok: false, statusCode: 404 }, 'protocolo_inesperado'],
+    [{ status: 404 }, 'protocolo_inesperado'],
+    [{ ok: false, statusCode: 500 }, 'protocolo_inesperado'],
+    [{ ok: false }, 'protocolo_inesperado'],
+    [{ ok: false, statusCode: 200, error: 'resposta não interpretável' }, 'protocolo_inesperado'],
+    [erro('Control iD: login não retornou session', { statusCode: 200 }), 'protocolo_inesperado'],
+    [erro('socket hang up', { code: 'ECONNRESET' }), 'protocolo_inesperado'],
+    [erro('qualquer outra coisa'), 'protocolo_inesperado'],
+    [null, 'protocolo_inesperado'],
+    [undefined, 'protocolo_inesperado'],
+  ];
+  for (const [entrada, esperado] of casos) {
+    const rotulo = entrada instanceof Error ? `Error(${entrada.message}, ${entrada.code || entrada.statusCode || ''})` : JSON.stringify(entrada);
+    assert.equal(classificarFalha(entrada), esperado, rotulo);
   }
 });
 

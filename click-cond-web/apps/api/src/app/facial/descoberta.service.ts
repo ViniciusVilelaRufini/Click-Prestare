@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
+import { FABRICANTES_COM_DESCOBERTA, FabricanteComDescoberta, normalizarFabricante } from './fabricantes';
 
 /** Última descoberta e avisos valem 24h (o portal só mostra avisos das últimas 24h). */
 const DESCOBERTA_TTL_MS = 24 * 3600 * 1000;
@@ -21,7 +22,6 @@ const PEDIDO_TTL_MS = 10 * 60 * 1000;
  *    frequência e com auditoria.
  */
 
-const FABRICANTES = ['intelbras', 'hikvision', 'control_id'] as const;
 const MAX_ACHADOS = 200;
 // Octetos canônicos: 0 ou 1–255 sem zero à esquerda ("010" é lido como octal
 // por alguns clientes HTTP e apontaria para outro host). O agente sempre manda
@@ -34,7 +34,7 @@ export interface Achado {
   mac: string | null;
   ip: string;
   porta: number;
-  fabricante: (typeof FABRICANTES)[number];
+  fabricante: FabricanteComDescoberta;
   modelo: string | null;
   numero_serie: string | null;
   dhcp: boolean | null;
@@ -90,8 +90,8 @@ function prefixo24(ip: unknown): string | null {
 
 /** Intelbras é OEM da Dahua (mesmo protocolo): as duas grafias são a mesma família. */
 function familiaFabricante(f: unknown): string {
-  const s = String(f ?? '').trim().toLowerCase();
-  return s === 'dahua' ? 'intelbras' : s;
+  // Marca fora do registro continua comparada pela própria grafia.
+  return normalizarFabricante(f) ?? String(f ?? '').trim().toLowerCase();
 }
 
 function texto(s: unknown, max: number): string | null {
@@ -115,7 +115,7 @@ export function sanitizarDescobertos(raw: unknown): {
     if (achados.length >= MAX_ACHADOS) break;
     if (!a || typeof a !== 'object') continue;
     const o = a as Record<string, unknown>;
-    if (!ipPrivadoCanonico(o['ip']) || !FABRICANTES.includes(o['fabricante'] as any)) continue;
+    if (!ipPrivadoCanonico(o['ip']) || !FABRICANTES_COM_DESCOBERTA.includes(o['fabricante'] as any)) continue;
     const porta = Number(o['porta']);
     achados.push({
       mac: normalizarMac(o['mac']),

@@ -104,3 +104,50 @@ test('driver controlid-facial expõe o contrato (sem acertarRelogio — não exi
   assert.equal(typeof controlidFacial.buscarDesde, 'function');
   assert.equal(controlidFacial.acertarRelogio, undefined);
 });
+
+test('resolverDriver(): fabricante normalizado (caixa, espaços, acento) e aliases por marca', () => {
+  const casos = [
+    ['intelbras', dahuaFacial],
+    ['Intelbras', dahuaFacial],
+    ['  INTELBRAS ', dahuaFacial],
+    ['Íntelbras', dahuaFacial],
+    ['dahua', dahuaFacial],
+    ['Dahua', dahuaFacial],
+    ['hikvision', hikvisionFacial],
+    ['Hikvision', hikvisionFacial],
+    ['HIKVISION', hikvisionFacial],
+    ['hik', hikvisionFacial],
+    [' Hik ', hikvisionFacial],
+    ['control_id', controlidFacial],
+    ['Control_ID', controlidFacial],
+    ['controlid', controlidFacial],
+    ['ControlID', controlidFacial],
+    ['control id', controlidFacial],
+    ['Control iD', controlidFacial],
+    ['control-id', controlidFacial],
+    ['Control-iD', controlidFacial],
+  ];
+  for (const [fabricante, esperado] of casos) {
+    assert.equal(resolverDriver({ tipo: 'facial', fabricante }), esperado, `comando: "${fabricante}"`);
+    assert.equal(resolverDriverDeEventos({ tipo: 'facial', fabricante }), esperado, `eventos: "${fabricante}"`);
+  }
+});
+
+test('replayEmTodaReconexao(): só para driver que mantém a marca d\'água em dia enquanto online (Dahua/Intelbras)', () => {
+  const { replayEmTodaReconexao } = require('../src/drivers/registro');
+  assert.equal(replayEmTodaReconexao({ tipo: 'facial', fabricante: 'intelbras' }), true);
+  assert.equal(replayEmTodaReconexao({ tipo: 'facial', fabricante: 'Dahua' }), true);
+  assert.equal(replayEmTodaReconexao({ fabricante: 'intelbras' }), true);
+  // Hikvision não avança a marca ao vivo: replay a cada reconexão reenviaria tudo como backlog.
+  assert.equal(replayEmTodaReconexao({ tipo: 'facial', fabricante: 'hikvision' }), false);
+  assert.equal(replayEmTodaReconexao({ tipo: 'facial', fabricante: 'control_id' }), false);
+  assert.equal(replayEmTodaReconexao({ tipo: 'lpr', fabricante: 'intelbras' }), false);
+  assert.equal(replayEmTodaReconexao({ tipo: 'facial', fabricante: 'zkteco' }), false);
+  assert.equal(replayEmTodaReconexao(null), false);
+});
+
+test('resolverDriver(): normalizar não inventa driver (desconhecido, vazio, não-string, propriedade herdada)', () => {
+  for (const fabricante of ['zkteco', 'ZKTeco', 'generico', '   ', 'toString', 'constructor', '__proto__', 'hikvisionx', 'control', 42, {}]) {
+    assert.equal(resolverDriver({ tipo: 'facial', fabricante }), null, String(fabricante));
+  }
+});
