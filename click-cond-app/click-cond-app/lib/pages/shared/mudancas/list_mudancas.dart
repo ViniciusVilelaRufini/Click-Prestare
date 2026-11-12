@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/mudancas/new_mudanca.dart';
 import 'package:click/theme/app_colors.dart';
@@ -207,15 +208,7 @@ class _MudancaCard extends StatelessWidget {
 
     final String apto = item['apto']?.toString() ?? '';
     final String blocoRaw = item['bloco']?.toString() ?? '';
-    String blocoText = '';
-    if (blocoRaw.isNotEmpty) {
-      final bLower = blocoRaw.toLowerCase();
-      if (bLower.contains('bloco') || bLower.contains('bloque') || bLower.contains('block')) {
-        blocoText = blocoRaw;
-      } else {
-        blocoText = 'Bloco $blocoRaw';
-      }
-    }
+    final String blocoText = rotuloBloco(blocoRaw);
     final String aptoBloco = apto.isNotEmpty
         ? 'Apto $apto ${blocoText.isNotEmpty ? "- $blocoText" : ""}'
         : (blocoText.isNotEmpty ? blocoText : 'Mudança');

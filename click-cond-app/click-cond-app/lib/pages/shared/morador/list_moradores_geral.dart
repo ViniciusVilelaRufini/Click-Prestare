@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_tipo_morador.dart';
 import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/pages/singleton.dart';
@@ -77,7 +78,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
           apto.contains(_searchQuery.toLowerCase());
 
       if (_selectedCategory == 'Todos') return matchesSearch;
-      final tipo = (item['tipo'] ?? '').toString().toLowerCase();
+      final tipo = tipoMoradorNormalizado(item['tipo']?.toString());
       final targetTipo = _selectedCategory.toLowerCase().replaceAll('proprietários', 'proprietario').replaceAll('inquilinos', 'inquilino').replaceAll('dependentes', 'dependente');
       return matchesSearch && tipo == targetTipo;
     }).toList();
@@ -86,7 +87,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
   Map<String, int> get _stats {
     int prop = 0; int inq = 0; int dep = 0;
     for (var m in _allMoradores) {
-      final t = (m['tipo'] ?? '').toString().toLowerCase();
+      final t = tipoMoradorNormalizado(m['tipo']?.toString());
       if (t == 'proprietario') prop++;
       else if (t == 'inquilino') inq++;
       else if (t == 'dependente') dep++;
@@ -332,7 +333,7 @@ class _MoradorGeralCard extends StatelessWidget {
 
   /// Só o tipo diferencia o morador, sem cor: tons de tinta do tema.
   Color _getTipoColor(BuildContext context, String tipo) {
-    final t = tipo.toLowerCase();
+    final t = tipoMoradorNormalizado(tipo);
     if (t == 'proprietario') return AppColors.textPrimary(context);
     if (t == 'inquilino') return AppColors.textSecondary(context);
     return AppColors.textTertiary(context);
@@ -418,7 +419,7 @@ class _MoradorGeralCard extends StatelessWidget {
                 border: Border.all(color: AppColors.borderStrong(context)),
               ),
               child: Text(
-                tipo.toUpperCase(),
+                rotuloTipoMorador(tipo).toUpperCase(),
                 style: AppTypography.label(context).copyWith(color: tipoColor, fontSize: 10),
               ),
             ),

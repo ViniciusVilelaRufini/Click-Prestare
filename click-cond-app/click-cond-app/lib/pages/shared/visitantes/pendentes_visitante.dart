@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/utils/autorizacoes_controle.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -283,7 +284,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage>
     final bloco = (item['apto_bloco'] ?? '').toString();
     final isPrestador = item['is_prestador'] == 1 || item['is_prestador'] == true;
     final photo = (item['photo'] ?? item['foto_pessoa'])?.toString();
-    final aptoLabel = bloco.isNotEmpty ? 'Bloco $bloco, Apto $apto' : 'Apto $apto';
+    final aptoLabel = bloco.isNotEmpty ? '${rotuloBloco(bloco)}, Apto $apto' : 'Apto $apto';
     final respondendo = _respondendoId == item['id'];
 
     return Container(

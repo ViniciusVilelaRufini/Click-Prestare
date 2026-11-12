@@ -1,3 +1,4 @@
+import 'package:click/utils/telefone_exibicao.dart';
 import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/pages/singleton.dart';
@@ -408,7 +409,7 @@ class _MoradorSection extends StatelessWidget {
                                 if (telefone.isNotEmpty) ...[
                                   const SizedBox(height: 2),
                                   Text(
-                                    telefone,
+                                    formatarTelefoneExibicao(telefone),
                                     style: AppTypography.caption(context).copyWith(
                                       color: AppColors.textSecondary(context),
                                     ),

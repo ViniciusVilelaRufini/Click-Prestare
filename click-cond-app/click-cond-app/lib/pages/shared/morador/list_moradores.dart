@@ -64,7 +64,7 @@ class _ListMoradoresPageState extends State<ListMoradores> {
       child: AppScaffold(
         title: selectedBlock == null 
             ? getText('lb_apartamentos') 
-            : (selectedBlock!.isEmpty ? 'Sem Bloco' : 'Bloco $selectedBlock'),
+            : (selectedBlock!.isEmpty ? 'Sem Bloco' : rotuloBloco(selectedBlock)),
         showBackButton: true,
         onBack: selectedBlock == null
             ? () => Navigator.pop(context)
@@ -138,7 +138,7 @@ class _ListMoradoresPageState extends State<ListMoradores> {
                                     ),
                                   ),
                                   Text(
-                                    selectedBlock!.isEmpty ? 'Sem Bloco' : 'Bloco $selectedBlock',
+                                    selectedBlock!.isEmpty ? 'Sem Bloco' : rotuloBloco(selectedBlock),
                                     style: AppTypography.caption(context).copyWith(color: AppColors.textPrimary(context), fontWeight: FontWeight.w600),
                                   ),
                                 ],
@@ -197,7 +197,7 @@ class _BlockCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    blockName.isEmpty ? 'Sem Bloco' : 'Bloco $blockName',
+                    blockName.isEmpty ? 'Sem Bloco' : rotuloBloco(blockName),
                     style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w600),
                   ),
                   Text(

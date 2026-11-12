@@ -241,7 +241,7 @@ class _NewMoradorPageState extends State<NewMorador> {
         _erroDN = 'Informe a data de nascimento.';
       }
 
-      if (_sendCredentials && !_isMenor && txtEmail.text.trim().isEmpty) {
+      if (!widget.isEdit && _sendCredentials && !_isMenor && txtEmail.text.trim().isEmpty) {
         _erroEmail = 'Informe o e-mail para enviar o acesso ao app.';
       }
     });
@@ -294,7 +294,7 @@ class _NewMoradorPageState extends State<NewMorador> {
         photo: imageFile != null && imageChanged
             ? convertToBase64(imageFile, "image/jpeg")
             : (imageFile is String ? imageFile : null),
-        sendCredentials: _isMenor ? false : _sendCredentials,
+        sendCredentials: (_isMenor || widget.isEdit) ? false : _sendCredentials,
       );
 
       // Quando é o próprio morador cadastrando um familiar (tipo "Membro"),
@@ -522,7 +522,7 @@ class _NewMoradorPageState extends State<NewMorador> {
                     subtitle: Text(
                       _isMenor
                           ? 'A biometria é capturada no app dos pais mediante termo de consentimento.'
-                          : 'Ative caso este familiar tenha menos de 18 anos.',
+                          : 'Ative caso esta pessoa tenha menos de 18 anos.',
                       style: AppTypography.caption(context),
                     ),
                     value: _isMenor,
@@ -599,7 +599,10 @@ class _NewMoradorPageState extends State<NewMorador> {
                     keyboard: TextInputType.phone,
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  if (!_isMenor) ...[
+                  if (widget.isEdit) ...[
+                    // Na edição a API não envia credenciais; há a ação própria
+                    // "Enviar credenciais" na lista de moradores.
+                  ] else if (!_isMenor) ...[
                     SwitchListTile(
                       title: Text(
                         'Enviar credenciais e acesso por e-mail',

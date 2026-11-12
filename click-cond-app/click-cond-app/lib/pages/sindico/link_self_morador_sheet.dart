@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/theme/app_colors.dart';
@@ -58,7 +59,7 @@ class _LinkSelfMoradorSheetState extends State<_LinkSelfMoradorSheet> {
   String _aptoLabel(dynamic a) {
     final bloco = (a['bloco'] ?? '').toString();
     final apto = (a['apto'] ?? a['numero'] ?? '').toString();
-    return bloco.isNotEmpty ? 'Bloco $bloco - Apto $apto' : 'Apto $apto';
+    return bloco.isNotEmpty ? '${rotuloBloco(bloco)} - Apto $apto' : 'Apto $apto';
   }
 
   Future<void> _submit() async {

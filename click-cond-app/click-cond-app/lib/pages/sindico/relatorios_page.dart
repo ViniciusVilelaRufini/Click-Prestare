@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -545,9 +546,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                           const SizedBox(height: 4),
                           Text(
                             _selectedBloco != null
-                                ? (_selectedBloco!.toLowerCase().startsWith('bloco')
-                                    ? _selectedBloco!
-                                    : 'Bloco $_selectedBloco')
+                                ? rotuloBloco(_selectedBloco)
                                 : 'Todos os blocos',
                             style: AppTypography.body(context).copyWith(
                               color: _selectedBloco != null

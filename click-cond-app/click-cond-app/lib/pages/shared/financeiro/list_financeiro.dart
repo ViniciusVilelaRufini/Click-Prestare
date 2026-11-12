@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_bloco.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:click/utils/financeiro_constants.dart';
@@ -2335,7 +2336,7 @@ class _InadEventoTile extends StatelessWidget {
     }
     final apto = (evento['apto'] ?? '').toString();
     final bloco = (evento['bloco'] ?? '').toString();
-    final unidade = bloco.isNotEmpty ? 'Apto $apto · Bloco $bloco' : (apto.isNotEmpty ? 'Apto $apto' : '');
+    final unidade = bloco.isNotEmpty ? 'Apto $apto · ${rotuloBloco(bloco)}' : (apto.isNotEmpty ? 'Apto $apto' : '');
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -2387,7 +2388,7 @@ class _InadBlocoTile extends StatelessWidget {
             decoration: BoxDecoration(color: AppColors.accentGhost(context), borderRadius: BorderRadius.zero),
             child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 18),
           ),
-          title: Text('Bloco $nomeBloco', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
+          title: Text(rotuloBloco(nomeBloco), style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.zero),
@@ -2459,7 +2460,7 @@ class InadimplenciaListaPage extends StatelessWidget {
                     ),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(bloco.isNotEmpty ? 'Apto $apto · Bloco $bloco' : 'Apto $apto',
+                      Text(bloco.isNotEmpty ? 'Apto $apto · ${rotuloBloco(bloco)}' : 'Apto $apto',
                         style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
                       if ((item['data_vencimento'] ?? '').toString().isNotEmpty)
                         Text('Vencimento: ${item['data_vencimento']}',
@@ -2540,7 +2541,7 @@ class InadimplenciaAptosPage extends StatelessWidget {
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailInadimplente(bloco: bloco, apto: apto))),
                       behavior: HitTestBehavior.opaque,
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(bloco.isNotEmpty ? 'Apto $apto · Bloco $bloco' : 'Apto $apto',
+                        Text(bloco.isNotEmpty ? 'Apto $apto · ${rotuloBloco(bloco)}' : 'Apto $apto',
                           style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
                         Text('$qtd ${qtd == 1 ? 'cobrança' : 'cobranças'} · ${a['totalString'] ?? ''}',
                           style: AppTypography.tiny(context).copyWith(color: AppColors.error)),

@@ -1,3 +1,5 @@
+import 'package:click/utils/telefone_exibicao.dart';
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/theme/app_colors.dart';
@@ -196,7 +198,7 @@ class _NewAptoPageState extends State<NewApto> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Bloco ${txtBloco.text}',
+                                  rotuloBloco(txtBloco.text),
                                   style: AppTypography.bodySecondary(context),
                                 ),
                               ],
@@ -545,7 +547,7 @@ class _MoradorSection extends StatelessWidget {
                                 if (telefone.isNotEmpty) ...[
                                   const SizedBox(height: 2),
                                   Text(
-                                    telefone,
+                                    formatarTelefoneExibicao(telefone),
                                     style: AppTypography.caption(context).copyWith(
                                       color: AppColors.textSecondary(context),
                                     ),

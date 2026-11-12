@@ -1,3 +1,4 @@
+import 'package:click/utils/relatorio_exportar.dart';
 import 'dart:io';
 import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/pages/singleton.dart';
@@ -93,7 +94,11 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
       final file = File('${dir.path}/livro_caixa_$mes-$ano.csv');
       await file.writeAsBytes(bytes);
       if (mounted) setState(() => _isExporting = false);
-      await OpenFilex.open(file.path);
+      final aberto = await OpenFilex.open(file.path);
+      final aviso = avisoRelatorioNaoAbriu(aberto.type);
+      if (aviso != null && mounted) {
+        displayMessage(context, getText('alert'), aviso);
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isExporting = false);
@@ -272,6 +277,11 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                       const SizedBox(height: AppSpacing.lg),
                       Text(getText('lb_categorias').toUpperCase(), style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary)),
                       const SizedBox(height: AppSpacing.md),
+                      if (categorias.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: Text('Sem lançamentos por categoria neste período.', style: AppTypography.bodySecondary(context)),
+                        ),
                       for (final categ in categorias)
                         Padding(
                           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
