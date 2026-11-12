@@ -601,6 +601,33 @@ export class MobileAuthService {
   }
 
 
+  /**
+   * Blocos reais por condomínio: distintos entre os apartamentos (trim + minúsculas,
+   * ignorando vazio). Uma única consulta para a lista toda. Condomínio sem nenhum
+   * bloco preenchido fica fora do mapa (o chamador cai na coluna num_blocos).
+   */
+  private async contarBlocosReais(ids: number[]): Promise<Map<number, number>> {
+    const porCond = new Map<number, Set<string>>();
+    if (ids.length === 0) return new Map<number, number>();
+    try {
+      const grupos = await this.prisma.apartamentos.groupBy({
+        by: ['id_condominio', 'bloco'],
+        where: { id_condominio: { in: ids } },
+      });
+      for (const g of grupos as Array<{ id_condominio: number; bloco: string | null }>) {
+        const b = (g.bloco ?? '').trim().toLowerCase();
+        if (!b) continue;
+        if (!porCond.has(g.id_condominio)) porCond.set(g.id_condominio, new Set());
+        porCond.get(g.id_condominio)!.add(b);
+      }
+    } catch (e) {
+      console.error('[contarBlocosReais] falha, usando a coluna num_blocos:', e);
+    }
+    const out = new Map<number, number>();
+    for (const [id, set] of porCond) out.set(id, set.size);
+    return out;
+  }
+
   async listCondominiosSindico(idUser: number) {
     if (!this.prisma.isConnected) {
       return [{
@@ -642,6 +669,10 @@ export class MobileAuthService {
         if (cid != null && !linkByCond.has(cid)) linkByCond.set(cid, l);
       }
 
+      const blocosReais = await this.contarBlocosReais(
+        rels.map(r => r.condominio?.id).filter((x): x is number => x != null),
+      );
+
       const resultList = rels.map(r => {
         const c = r.condominio;
         if (!c || c.ativo === 0) return null;
@@ -658,7 +689,7 @@ export class MobileAuthService {
         return {
           id: c.id,
           nome: c.nome,
-          num_blocos: c.num_blocos ?? 1,
+          num_blocos: blocosReais.get(c.id) ?? c.num_blocos ?? 1,
           num_aptos: totalAptos > 0 ? totalAptos : (c.num_aptos ?? 0),
           moeda: c.moeda ?? 'R$',
           updatedAt: c.updated_at ? c.updated_at.toLocaleDateString('pt-BR') : '',
@@ -833,6 +864,10 @@ export class MobileAuthService {
         },
       });
 
+      const blocosReais = await this.contarBlocosReais(
+        rels.map(r => r.apartamento?.condominio?.id).filter((x): x is number => x != null),
+      );
+
       const resultList = rels.map(r => {
         const apto = r.apartamento;
         if (!apto) return null;
@@ -843,7 +878,7 @@ export class MobileAuthService {
         return {
           id: c.id,
           nome: c.nome,
-          num_blocos: c.num_blocos,
+          num_blocos: blocosReais.get(c.id) ?? c.num_blocos,
           num_aptos: c.num_aptos,
           moeda: c.moeda ?? 'R$',
           updatedAt: c.updated_at ? c.updated_at.toLocaleDateString('pt-BR') : '',
@@ -1154,7 +1189,7 @@ export class MobileAuthService {
   async getSummary(idUser: number, typeAccess: string) {
     if (!this.prisma.isConnected) {
       return typeAccess === 'Sindico'
-        ? { debts: { count: 2, total: 450.0 }, occurrences: 1 }
+        ? { debts: { count: 2, total: 450.0 }, occurrences: 1, packages: 2 }
         : { visits: 1, packages: 2 };
     }
 
@@ -1167,7 +1202,7 @@ export class MobileAuthService {
           select: { id_condominio: true },
         });
         const ids = rels.map(r => r.id_condominio);
-        if (ids.length === 0) return { debts: { count: 0, total: 0.0 }, occurrences: 0 };
+        if (ids.length === 0) return { debts: { count: 0, total: 0.0 }, occurrences: 0, packages: 0 };
 
         const fins = await this.prisma.financeiro.findMany({
           where: {
@@ -1188,12 +1223,22 @@ export class MobileAuthService {
           },
         });
 
+        // Encomendas ainda não retiradas (mesmo filtro do resumo do funcionário):
+        // alimenta o atalho "Encomendas" da home do síndico.
+        const packagesCount = await this.prisma.encomendas.count({
+          where: {
+            id_condominio: { in: ids },
+            status: { notIn: ['Retirada', 'retirada', 'Retirado', 'retirado', 'Cancelado', 'recusado'] },
+          },
+        });
+
         return {
           debts: { count: fins.length, total: debtsTotal },
           occurrences: occurrencesCount,
+          packages: packagesCount,
         };
       } catch (e) {
-        return { debts: { count: 0, total: 0.0 }, occurrences: 0 };
+        return { debts: { count: 0, total: 0.0 }, occurrences: 0, packages: 0 };
       }
     } else if (type === 'funcionario') {
       try {

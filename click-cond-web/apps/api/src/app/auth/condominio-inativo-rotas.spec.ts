@@ -56,7 +56,7 @@ describe('rotas do app por vínculo — condomínio inativo', () => {
 
   it('resumo, eventos e notificações: ignoram vínculos inativos', async () => {
     const { svc, prisma } = build();
-    expect(await svc.getSummary(1, 'Sindico')).toEqual({ debts: { count: 0, total: 0 }, occurrences: 0 });
+    expect(await svc.getSummary(1, 'Sindico')).toEqual({ debts: { count: 0, total: 0 }, occurrences: 0, packages: 0 });
     expect(await svc.getSummary(1, 'Funcionario')).toMatchObject({ packages: 0, occurrences: 0 });
     expect(await svc.getSummary(1, 'Morador')).toMatchObject({ packages: 0 });
     expect(await svc.getMeusEventos(1, 15, 'Morador')).toEqual([]);

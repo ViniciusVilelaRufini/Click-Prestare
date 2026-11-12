@@ -42,6 +42,7 @@ describe('MobileAuthService.getSummary — card de inadimplência do síndico', 
         }),
       },
       ocorrencias: { count: jest.fn(async () => 0) },
+      encomendas: { count: jest.fn(async () => 0) },
     };
 
     const svc = new MobileAuthService(
