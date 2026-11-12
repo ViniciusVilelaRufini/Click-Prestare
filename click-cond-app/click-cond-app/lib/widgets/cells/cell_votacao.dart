@@ -75,6 +75,10 @@ class _CellVotacaoState extends State<CellVotacao> {
   /// Unidade escolhida (`id_apto`) de quem tem mais de uma.
   int? _unidade;
 
+  /// Unidade pela qual o último voto foi enviado: quando o dado novo mostra
+  /// que ela votou (voto aceito), o seletor avança para a próxima sem voto.
+  int? _unidadeVotada;
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +93,11 @@ class _CellVotacaoState extends State<CellVotacao> {
     if (!identical(oldWidget.item, widget.item)) {
       _escolhida = null;
       _alterando = false;
+      final votada = _unidadeVotada;
+      _unidadeVotada = null;
+      if (votada != null && widget.unidades.any((u) => u.idApto == votada && u.votou)) {
+        _unidade = null;
+      }
     }
     _unidade = unidadePadrao(widget.unidades, atual: _unidade);
   }
@@ -126,6 +135,7 @@ class _CellVotacaoState extends State<CellVotacao> {
   void _votar() {
     final id = int.tryParse(_escolhida ?? '');
     if (id == null) return;
+    if (_variasUnidades) _unidadeVotada = _unidade;
     widget.onPressedChoice(id, _idAptoDoVoto);
   }
 
@@ -320,7 +330,9 @@ class _CellVotacaoState extends State<CellVotacao> {
     } else if (status == 1 && _jaVotou) {
       icone = PhosphorIcons.checkCircle;
       cor = statusVotacaoInfo(1).corTexto(context);
-      texto = 'Você já votou. Seu voto está destacado.';
+      texto = _variasUnidades
+          ? '${getText('votacao_unidade_ja_votou')}. ${getText('votacao_unidade_ja_votou_detalhe')}'
+          : 'Você já votou. Seu voto está destacado.';
     } else if (status == 1) {
       icone = PhosphorIcons.handPointing;
       cor = statusVotacaoInfo(1).corTexto(context);

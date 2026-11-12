@@ -307,6 +307,8 @@ class Localizable_Al {
     LocalizableModel(key: 'votacao_unidade_ajuda', text: 'Sie haben mehr als eine Einheit in dieser Wohnanlage. Jede Einheit hat eine Stimme: Wählen Sie, für welche Sie abstimmen.'), 
     LocalizableModel(key: 'votacao_unidade_sem_voto', text: 'Noch nicht abgestimmt'), 
     LocalizableModel(key: 'votacao_unidade_voto_atual', text: 'Aktuelle Stimme'), 
+    LocalizableModel(key: 'votacao_unidade_ja_votou', text: 'Diese Einheit hat bereits abgestimmt'), 
+    LocalizableModel(key: 'votacao_unidade_ja_votou_detalhe', text: 'Die Stimme dieser Einheit ist hervorgehoben. Sie können sie bis zum Ende der Abstimmung ändern.'), 
 
     //COMUNICADO
     LocalizableModel(key: 'comunicado_nav_edit', text: 'Ankündigung bearbeiten'), 

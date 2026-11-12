@@ -307,6 +307,8 @@ class Localizable_PtPt {
     LocalizableModel(key: 'votacao_unidade_ajuda', text: 'Tem mais de uma fração neste condomínio. Cada fração tem um voto: escolha por qual vai votar.'), 
     LocalizableModel(key: 'votacao_unidade_sem_voto', text: 'Ainda não votou'), 
     LocalizableModel(key: 'votacao_unidade_voto_atual', text: 'Voto atual'), 
+    LocalizableModel(key: 'votacao_unidade_ja_votou', text: 'Esta fração já votou'), 
+    LocalizableModel(key: 'votacao_unidade_ja_votou_detalhe', text: 'O voto desta fração está destacado. Pode alterá-lo até ao encerramento.'), 
 
     //COMUNICADO
     LocalizableModel(key: 'comunicado_nav_edit', text: 'Editar declaração'), 

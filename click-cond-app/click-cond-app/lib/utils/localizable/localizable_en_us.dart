@@ -307,6 +307,8 @@ class Localizable_EnUs {
           LocalizableModel(key: 'votacao_unidade_ajuda', text: 'You have more than one unit in this condominium. Each unit has one vote: choose which one you are voting for.'), 
           LocalizableModel(key: 'votacao_unidade_sem_voto', text: 'Not voted yet'), 
           LocalizableModel(key: 'votacao_unidade_voto_atual', text: 'Current vote'), 
+          LocalizableModel(key: 'votacao_unidade_ja_votou', text: 'This unit has already voted'), 
+          LocalizableModel(key: 'votacao_unidade_ja_votou_detalhe', text: 'The vote of this unit is highlighted. You can change it until voting closes.'), 
       
           //COMUNICADO
           LocalizableModel(key: 'comunicado_nav_edit', text: 'Edit Announcement'), 

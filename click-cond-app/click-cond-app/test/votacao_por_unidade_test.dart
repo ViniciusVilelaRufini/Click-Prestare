@@ -109,6 +109,7 @@ void main() {
     test('textos novos existem em pt_BR', () {
       expect(getText('votacao_unidade_titulo'), 'Votar pela unidade');
       expect(getText('votacao_unidade_sem_voto'), 'Ainda não votou');
+      expect(getText('votacao_unidade_ja_votou'), 'Esta unidade já votou');
     });
   });
 
@@ -194,7 +195,9 @@ void main() {
 
       await tocar(tester, find.byKey(SeletorUnidadeVoto.chaveUnidade(7, 200)));
       expect(tester.widget<SeletorUnidadeVoto>(find.byType(SeletorUnidadeVoto)).selecionada, 200);
-      expect(find.text('Você já votou'), findsOneWidget);
+      // Com várias unidades o aviso fala da unidade, não da pessoa.
+      expect(find.text('Esta unidade já votou'), findsOneWidget);
+      expect(find.text('Você já votou'), findsNothing);
       final barras = tester.widgetList<OpcaoResultadoBar>(find.byType(OpcaoResultadoBar)).toList();
       expect(barras.map((b) => b.meuVoto), [true, false]);
 
@@ -205,6 +208,24 @@ void main() {
       expect(votosEnviados, [
         {'votacao_id': 7, 'opcao_id': 13, 'id_apto': 200},
       ]);
+    });
+
+    testWidgets('depois de votar, o seletor avança para a próxima unidade que ainda não votou', (tester) async {
+      servir([
+        enquete(unidades: unidadesDuas, votosPorUnidade: votosDuasUnidades(7, opcao200: null)),
+        enquete(unidades: unidadesDuas, votosPorUnidade: votosDuasUnidades(7, opcao200: '13')),
+      ]);
+      await abrir(tester, const DetailEnquete(id: 7));
+      expect(tester.widget<SeletorUnidadeVoto>(find.byType(SeletorUnidadeVoto)).selecionada, 200);
+
+      await tocar(tester, find.text('Branco'));
+      await tocar(tester, find.byKey(DetailEnquete.chaveBotaoVotar));
+      expect(votosEnviados, [
+        {'votacao_id': 7, 'opcao_id': 13, 'id_apto': 200},
+      ]);
+      expect(tester.widget<SeletorUnidadeVoto>(find.byType(SeletorUnidadeVoto)).selecionada, 300);
+      expect(find.text('Votação aberta'), findsOneWidget);
+      expect(find.byType(OpcaoSelecionavel), findsNWidgets(2));
     });
 
     testWidgets('uma unidade: sem seletor, tela igual, voto leva o id_apto', (tester) async {
@@ -255,6 +276,32 @@ void main() {
       expect(votosEnviados, [
         {'votacao_id': 7, 'opcao_id': 13, 'id_apto': 300},
       ]);
+    });
+
+    testWidgets('unidade que já votou: aviso fala da unidade', (tester) async {
+      servir([assembleia(unidades: unidadesDuas, votosPorUnidade: votosDuasUnidades(7))]);
+      await abrir(tester, const DetailAssembleia(id: 5));
+
+      await tocar(tester, find.byKey(SeletorUnidadeVoto.chaveUnidade(7, 200)));
+      expect(find.textContaining('Esta unidade já votou'), findsOneWidget);
+      expect(find.textContaining('Você já votou'), findsNothing);
+    });
+
+    testWidgets('depois de votar, a votação avança para a próxima unidade que ainda não votou', (tester) async {
+      servir([
+        assembleia(unidades: unidadesDuas, votosPorUnidade: votosDuasUnidades(7, opcao200: null)),
+        assembleia(unidades: unidadesDuas, votosPorUnidade: votosDuasUnidades(7, opcao200: '13')),
+      ]);
+      await abrir(tester, const DetailAssembleia(id: 5));
+      expect(tester.widget<SeletorUnidadeVoto>(find.byType(SeletorUnidadeVoto)).selecionada, 200);
+
+      await tocar(tester, find.text('Reprovo'));
+      await tocar(tester, find.byKey(CellVotacao.chaveVotar(7)));
+      expect(votosEnviados, [
+        {'votacao_id': 7, 'opcao_id': 13, 'id_apto': 200},
+      ]);
+      expect(tester.widget<SeletorUnidadeVoto>(find.byType(SeletorUnidadeVoto)).selecionada, 300);
+      expect(find.byType(OpcaoSelecionavel), findsNWidgets(2));
     });
 
     testWidgets('uma unidade: sem seletor e o voto leva o id_apto', (tester) async {

@@ -44,6 +44,10 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
   /// Unidade pela qual vota quem tem mais de uma no condomínio (`id_apto`).
   int? _unidade;
 
+  /// Voto aceito: na próxima carga o seletor vai para a próxima unidade sem
+  /// voto. Se a carga falhar, a unidade escolhida continua a mesma.
+  bool _avancarUnidade = false;
+
   @override
   void initState() {
     super.initState();
@@ -57,8 +61,10 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
       // Dado novo (ex.: depois de votar): volta ao estado de leitura.
       _escolhida = null;
       _alterando = false;
-      // Mantém a unidade escolhida entre recargas (ex.: depois de votar).
-      _unidade = unidadePadrao(_unidades, atual: _unidade);
+      // Mantém a unidade escolhida entre recargas; depois de um voto aceito,
+      // avança para a próxima que ainda não votou.
+      _unidade = unidadePadrao(_unidades, atual: _avancarUnidade ? null : _unidade);
+      _avancarUnidade = false;
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -88,6 +94,9 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
       var voto = VotoModel(opcao_id: opcao_id, votacao_id: votacao_id, id_apto: id_apto);
       var res = await apiSaveObject("assembleias/votacoes/voto", "voto", voto, false);
       if (res.toString().isEmpty) {
+        // Votou: com várias unidades, o seletor avança para a próxima que
+        // ainda não votou (unidadePadrao sem a escolha atual).
+        _avancarUnidade = _variasUnidades;
         await load();
       } else {
         if (mounted) displayMessage(context, getText('alert_error'), res.toString());
@@ -350,8 +359,10 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     } else if (status == 1 && _jaVotou) {
       icone = PhosphorIcons.checkCircle;
       cor = statusVotacaoInfo(1).cor;
-      titulo = 'Você já votou';
-      texto = 'Seu voto está destacado abaixo. Você pode alterá-lo até o encerramento.';
+      titulo = _variasUnidades ? getText('votacao_unidade_ja_votou') : 'Você já votou';
+      texto = _variasUnidades
+          ? getText('votacao_unidade_ja_votou_detalhe')
+          : 'Seu voto está destacado abaixo. Você pode alterá-lo até o encerramento.';
     } else if (status == 1) {
       icone = PhosphorIcons.handPointing;
       cor = statusVotacaoInfo(1).cor;
