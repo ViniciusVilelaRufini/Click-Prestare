@@ -26,6 +26,7 @@ describe('AssembleiasService.insertVotacao — validação', () => {
   it('recusa título vazio ou só espaços', async () => {
     await recusa({ ...base, titulo: '   ' }, 'Informe o título da votação.');
     await recusa({ ...base, titulo: undefined }, 'Informe o título da votação.');
+    await recusa({ ...base, titulo: '  ', is_enquete: true }, 'Informe o título da enquete.');
   });
 
   it('recusa menos de duas opções diferentes (vazias e repetidas não contam)', async () => {

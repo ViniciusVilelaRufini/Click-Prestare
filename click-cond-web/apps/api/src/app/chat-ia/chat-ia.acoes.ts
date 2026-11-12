@@ -604,6 +604,14 @@ FERRAMENTAS_ACAO.push({
     const horaIni = args.hora_inicio ? lerHora(args.hora_inicio) : null;
     const horaFim = args.hora_termino ? lerHora(args.hora_termino) : null;
 
+    // Término antes do início (data; e hora quando há nas duas pontas) não vira proposta.
+    if (dataFim) {
+      const dia = dataFim.dia.getTime() - dataIni.dia.getTime();
+      const usaHora = horaIni !== null && horaFim !== null;
+      const dif = dia + (usaHora ? (horaFim - horaIni) * 60000 : 0);
+      if (dif < 0) return { erro: 'O término da manutenção precisa ser depois do início.' };
+    }
+
     const itens: ItemResumo[] = [
       { rotulo: 'Manutenção', valor: titulo },
       { rotulo: 'Data', valor: dataIni.br + (dataFim && dataFim.br !== dataIni.br ? ` até ${dataFim.br}` : '') },

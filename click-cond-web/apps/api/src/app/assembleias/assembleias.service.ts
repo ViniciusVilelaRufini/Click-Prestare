@@ -339,7 +339,9 @@ export class AssembleiasService {
     if (!this.prisma.isConnected) return { success: true };
 
     const titulo = String(votacao?.titulo ?? '').trim();
-    if (!titulo) throw new BadRequestException('Informe o título da votação.');
+    if (!titulo) throw new BadRequestException(
+      votacao?.is_enquete ? 'Informe o título da enquete.' : 'Informe o título da votação.',
+    );
 
     // Opções: trim, sem vazias e sem repetidas (maiúsculas não diferenciam).
     const vistas = new Set<string>();

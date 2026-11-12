@@ -1465,35 +1465,49 @@ export class AreasSociaisService {
     }
   }
 
+  // Área da manutenção: precisa ser um inteiro positivo. Roda ANTES do
+  // findUnique (precisamos dela para tenant/permissão): "abc" virava
+  // `findUnique({ id: NaN })` e estourava 500.
+  private assertAreaManutencaoInformada(m: any) {
+    const id = m?.id_area_social;
+    const vazio = id === undefined || id === null || String(id).trim() === '';
+    if (vazio || !Number.isInteger(Number(id)) || Number(id) <= 0) {
+      throw new BadRequestException('Informe a área, as datas e os horários da manutenção.');
+    }
+  }
+
   // Valida e converte os campos da janela de manutenção ANTES de qualquer
-  // consulta ou escrita: campo ausente estourava 500 (`.split` de undefined),
-  // data/hora inválida virava NaN e fim antes do início era gravado sem
-  // detectar conflito. `exigirArea` é false no update (a área vem do registro).
-  private parseJanelaManutencao(m: any, exigirArea: boolean) {
+  // consulta ou escrita de manutenção: campo ausente estourava 500 (`.split`
+  // de undefined), data/hora inválida virava NaN e fim antes do início era
+  // gravado sem detectar conflito. A área é validada à parte
+  // (`assertAreaManutencaoInformada`, só no insert; no update vem do registro).
+  private parseJanelaManutencao(m: any) {
     const vazio = (v: unknown) => v === undefined || v === null || String(v).trim() === '';
-    if (
-      !m ||
-      (exigirArea && vazio(m.id_area_social)) ||
-      vazio(m.data_inicio) ||
-      vazio(m.data_termino) ||
-      vazio(m.hora_inicio) ||
-      vazio(m.hora_termino)
-    ) {
+    if (!m || vazio(m.data_inicio) || vazio(m.data_termino) || vazio(m.hora_inicio) || vazio(m.hora_termino)) {
       throw new BadRequestException('Informe a área, as datas e os horários da manutenção.');
     }
     const invalido = () => new BadRequestException('Data ou horário da manutenção inválido.');
-    if (exigirArea && !Number.isInteger(Number(m.id_area_social))) throw invalido();
 
+    // Aceita dd/MM/yyyy e o ISO/Dart ("2026-11-12", "2026-11-12T00:00:00",
+    // "2026-11-12 00:00:00.000") que o app Flutter envia. Data impossível
+    // (31/02) segue recusada.
     const lerData = (raw: unknown): Date => {
-      const mt = String(raw).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (!mt) throw invalido();
-      const [d, mo, a] = [Number(mt[1]), Number(mt[2]), Number(mt[3])];
+      const s = String(raw).trim();
+      const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      const iso = br ? null : s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/);
+      if (!br && !iso) throw invalido();
+      const [d, mo, a] = br
+        ? [Number(br[1]), Number(br[2]), Number(br[3])]
+        : [Number(iso![3]), Number(iso![2]), Number(iso![1])];
       const dt = new Date(a, mo - 1, d);
       if (dt.getFullYear() !== a || dt.getMonth() !== mo - 1 || dt.getDate() !== d) throw invalido();
       return dt;
     };
+    // Aceita HH:mm(:ss) e "1970-01-01 09:00:00.000" / "...T09:00:00".
     const lerHora = (raw: unknown): Date => {
-      const mt = String(raw).trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      const mt = String(raw)
+        .trim()
+        .match(/^(?:\d{4}-\d{2}-\d{2}[T ])?(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/);
       if (!mt) throw invalido();
       const [h, mi] = [Number(mt[1]), Number(mt[2])];
       if (h > 23 || mi > 59) throw invalido();
@@ -1518,9 +1532,7 @@ export class AreasSociaisService {
     if (!this.prisma.isConnected) return { success: true };
     // Sem a área não há como checar tenant/permissão; o resto da janela é
     // validado logo depois deles (a ordem de 403/404 não muda).
-    if (manutencao?.id_area_social === undefined || manutencao?.id_area_social === null || String(manutencao.id_area_social).trim() === '') {
-      throw new BadRequestException('Informe a área, as datas e os horários da manutenção.');
-    }
+    this.assertAreaManutencaoInformada(manutencao);
 
     const area = await this.prisma.areas_Sociais.findUnique({
       where: { id: Number(manutencao.id_area_social) },
@@ -1530,7 +1542,7 @@ export class AreasSociaisService {
     await this.tenant.assertPermissaoFuncionario(area.id_condominio, 'manutencoes_programadas', user);
 
     const { dIni, dFim, horaInicioObj, horaTerminoObj, inicioJanela, fimJanela } =
-      this.parseJanelaManutencao(manutencao, true);
+      this.parseJanelaManutencao(manutencao);
 
     // Reservas já existentes que caem na janela nova — sem isso a manutenção
     // entrava "por cima" de reservas ativas: morador nunca era avisado e, em
@@ -1583,9 +1595,10 @@ export class AreasSociaisService {
     });
     if (!atual) throw new NotFoundException('Manutenção não encontrada.');
     await this.tenant.assertEntidade(atual.area?.id_condominio, user, `manutenção #${manutencao.id}`);
+    await this.tenant.assertPermissaoFuncionario(atual.area?.id_condominio, 'manutencoes_programadas', user);
 
     const { dIni, dFim, horaInicioObj, horaTerminoObj, inicioJanela, fimJanela } =
-      this.parseJanelaManutencao(manutencao, false);
+      this.parseJanelaManutencao(manutencao);
 
     const conflitantes = await this.detectarAgendamentosAtingidos(atual.id_area_social, inicioJanela, fimJanela);
 

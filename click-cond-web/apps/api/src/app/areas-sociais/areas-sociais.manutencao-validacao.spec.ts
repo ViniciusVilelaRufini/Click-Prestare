@@ -1,9 +1,9 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AreasSociaisService } from './areas-sociais.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
-describe('AreasSociaisService — manutenção valida a janela antes de tudo', () => {
+describe('AreasSociaisService — manutenção valida a janela antes de consultar conflito ou gravar', () => {
   const sindico: JwtPayload = { sub: 9, nome: 'Síndico Z', typeAccess: 'Sindico', is_sindico: 1 } as any;
   const base = {
     id: 900,
@@ -45,7 +45,7 @@ describe('AreasSociaisService — manutenção valida a janela antes de tudo', (
     ['sem data_inicio', { data_inicio: undefined }, MSG_FALTA],
     ['sem hora_termino', { hora_termino: '' }, MSG_FALTA],
     ['data inexistente', { data_inicio: '31/02/2026' }, MSG_INVALIDO],
-    ['data fora do formato', { data_termino: '2026-06-10' }, MSG_INVALIDO],
+    ['data fora do formato', { data_termino: '2026/06/10' }, MSG_INVALIDO],
     ['hora inválida', { hora_inicio: '25:00' }, MSG_INVALIDO],
     ['hora texto', { hora_termino: 'abc' }, MSG_INVALIDO],
     ['término antes do início (horas)', { hora_inicio: '18:00', hora_termino: '09:00' }, MSG_ORDEM],
@@ -88,5 +88,45 @@ describe('AreasSociaisService — manutenção valida a janela antes de tudo', (
     await svc.updateManutencao(base, sindico);
     expect(prisma.areas_Sociais_Manutencoes.create).toHaveBeenCalledTimes(1);
     expect(prisma.areas_Sociais_Manutencoes.update).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['abc', '0', '-3', '1.5'])('insertManutencao com id_area_social %j -> 400 sem consultar a área', async (id) => {
+    const { svc, prisma } = build();
+    const p = svc.insertManutencao({ ...base, id_area_social: id }, sindico);
+    await expect(p).rejects.toBeInstanceOf(BadRequestException);
+    await expect(p).rejects.toThrow(MSG_FALTA);
+    expect(prisma.areas_Sociais.findUnique).not.toHaveBeenCalled();
+    expect(prisma.areas_Sociais_Manutencoes.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['ISO com espaço (Dart)', '2026-06-10 00:00:00.000', '1970-01-01 09:00:00.000', '1970-01-01 18:00:00.000'],
+    ['ISO com T', '2026-06-10T00:00:00', '1970-01-01T09:00:00', '1970-01-01T18:00:00'],
+    ['ISO só data + HH:mm:ss', '2026-06-10', '09:00:00', '18:00:00'],
+  ])('formato %s grava como dd/MM/yyyy', async (_n, data, hi, ht) => {
+    const { svc, prisma } = build();
+    await svc.insertManutencao({ ...base, data_inicio: data, data_termino: data, hora_inicio: hi, hora_termino: ht }, sindico);
+    await svc.updateManutencao({ ...base, data_inicio: data, data_termino: data, hora_inicio: hi, hora_termino: ht }, sindico);
+    const esperado = (d: any) => {
+      expect([d.data_inicio.getFullYear(), d.data_inicio.getMonth(), d.data_inicio.getDate()]).toEqual([2026, 5, 10]);
+      expect([d.hora_inicio.getHours(), d.hora_inicio.getMinutes()]).toEqual([9, 0]);
+      expect([d.hora_termino.getHours(), d.hora_termino.getMinutes()]).toEqual([18, 0]);
+    };
+    esperado(prisma.areas_Sociais_Manutencoes.create.mock.calls[0][0].data);
+    esperado(prisma.areas_Sociais_Manutencoes.update.mock.calls[0][0].data);
+  });
+
+  it('data ISO impossível (2026-02-31) segue recusada', async () => {
+    const { svc } = build();
+    await expect(svc.insertManutencao({ ...base, data_inicio: '2026-02-31 00:00:00.000' }, sindico)).rejects.toThrow(MSG_INVALIDO);
+  });
+
+  it('updateManutencao: funcionário sem a flag manutencoes_programadas -> 403 e nada gravado', async () => {
+    const { svc, prisma } = build();
+    prisma.funcionarios = { findFirst: jest.fn(async () => ({ manutencoes_programadas: 0 })) };
+    const func: JwtPayload = { sub: 5, nome: 'F', typeAccess: 'Funcionario', user: { id: 5 } } as any;
+    await expect(svc.updateManutencao(base, func)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.areas_Sociais_Manutencoes.update).not.toHaveBeenCalled();
+    expect(prisma.areas_Sociais_Agendamentos.update).not.toHaveBeenCalled();
   });
 });

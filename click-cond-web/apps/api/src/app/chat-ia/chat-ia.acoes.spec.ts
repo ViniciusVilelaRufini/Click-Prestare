@@ -122,6 +122,23 @@ describe('Ações do Assistente IA', () => {
   });
 
   // -----------------------------------------------------------------------
+  describe('propor_manutencao_programada', () => {
+    const MSG = 'O término da manutenção precisa ser depois do início.';
+    const base = { titulo: 'Pintura', data_inicio: '2026-06-10', hora_inicio: '09:00', hora_termino: '18:00' };
+    it('término em data anterior -> erro', async () => {
+      const r = await pegar('propor_manutencao_programada').propor({ ...base, data_termino: '2026-06-09' }, ctx());
+      expect(r).toEqual({ erro: MSG });
+    });
+    it('mesmo dia com hora de término anterior -> erro', async () => {
+      const r = await pegar('propor_manutencao_programada').propor({ ...base, hora_inicio: '18:00', hora_termino: '09:00' }, ctx());
+      expect(r).toEqual({ erro: MSG });
+    });
+    it('janela válida gera proposta', async () => {
+      const r = await pegar('propor_manutencao_programada').propor({ ...base, data_termino: '2026-06-11', hora_termino: '08:00' }, ctx());
+      expect(r.proposta).toBeDefined();
+    });
+  });
+
   describe('propor_ocorrencia', () => {
     it('recusa descrição curta demais', async () => {
       const r = await pegar('propor_ocorrencia').propor({ descricao: 'vazou' }, ctx());
