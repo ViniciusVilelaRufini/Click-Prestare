@@ -32,6 +32,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/utils/cond_cache.dart';
 import 'package:click/utils/datas.dart';
 import 'package:click/utils/eventos_utils.dart';
+import 'package:click/utils/eventos_agrupamento.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_button.dart';
@@ -1203,8 +1204,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   Widget _buildMeusEventos(BuildContext context) {
     if (_eventos.isEmpty) return const SizedBox.shrink();
     const maxLinhas = 4;
-    final mostrar = _eventos.take(maxLinhas).toList();
-    final restantes = _eventos.length - mostrar.length;
+    final grupos = agruparEventosPorDia(_eventos,
+        agora: DateTime.now(), maxLinhas: maxLinhas);
+    final restantes = _eventos.length - _eventos.take(maxLinhas).length;
     final linha = AppColors.border(context);
 
     return Column(
@@ -1246,68 +1248,79 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             ),
           ],
         ),
-        Padding(
-          padding: const EdgeInsets.only(top: 4, bottom: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'HOJE',
-                style: _dTxt(context, 11,
-                    lh: 14, ls: 0.2, color: AppColors.textTertiary(context)),
+        for (final g in grupos) ...[
+          if (g.rotuloEsquerdo.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    g.rotuloEsquerdo,
+                    style: _dTxt(context, 11,
+                        lh: 14, ls: 0.2, color: AppColors.textTertiary(context)),
+                  ),
+                  Text(
+                    g.rotuloDireito,
+                    style: _bTxt(context, 12,
+                        lh: 16, color: AppColors.textTertiary(context)),
+                  ),
+                ],
               ),
-              Text(
-                _formatDateToday(),
-                style: _bTxt(context, 12,
-                    lh: 16, color: AppColors.textTertiary(context)),
-              ),
-            ],
-          ),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: linha,
-            border: Border.all(color: linha),
-          ),
-          child: Column(
-            children: [
-              for (var i = 0; i < mostrar.length; i++) ...[
-                if (i > 0) SizedBox(height: 1, width: double.infinity, child: ColoredBox(color: linha)),
-                _buildEventoRow(context, mostrar[i]),
+            )
+          else
+            const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: linha,
+              border: Border.all(color: linha),
+            ),
+            child: Column(
+              children: [
+                for (var i = 0; i < g.eventos.length; i++) ...[
+                  if (i > 0) SizedBox(height: 1, width: double.infinity, child: ColoredBox(color: linha)),
+                  _buildEventoRow(context, g.eventos[i]),
+                ],
               ],
-              if (restantes > 0) ...[
-                SizedBox(height: 1, width: double.infinity, child: ColoredBox(color: linha)),
-                Material(
-                  color: AppColors.bg100(context),
-                  child: InkWell(
-                    onTap: () => _abrirHistoricoAcessos(),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '+ $restantes ${restantes == 1 ? 'evento recente' : 'eventos recentes'}'
-                                  .toUpperCase(),
-                              style: _dTxt(context, 11, lh: 14, ls: 0.2),
-                            ),
-                            const SizedBox(width: 6),
-                            Icon(
-                              PhosphorIcons.arrowRight,
-                              size: 13,
-                              color: AppColors.textPrimary(context),
-                            ),
-                          ],
+            ),
+          ),
+        ],
+        if (restantes > 0) ...[
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: linha,
+              border: Border.all(color: linha),
+            ),
+            child: Material(
+              color: AppColors.bg100(context),
+              child: InkWell(
+                onTap: () => _abrirHistoricoAcessos(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '+ $restantes ${restantes == 1 ? 'evento recente' : 'eventos recentes'}'
+                              .toUpperCase(),
+                          style: _dTxt(context, 11, lh: 14, ls: 0.2),
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        Icon(
+                          PhosphorIcons.arrowRight,
+                          size: 13,
+                          color: AppColors.textPrimary(context),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ],
+              ),
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -1352,16 +1365,6 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     if (d == null) return '--:--';
     String pad(int n) => n.toString().padLeft(2, '0');
     return '${pad(d.hour)}:${pad(d.minute)}';
-  }
-
-  /// Formata a data de hoje como "12 de setembro".
-  String _formatDateToday() {
-    final now = DateTime.now();
-    const meses = [
-      'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
-    ];
-    return '${now.day} de ${meses[now.month - 1]}';
   }
 
   /// Formata o timestamp como "15/07/2026 às 18:24" no fuso local do aparelho.

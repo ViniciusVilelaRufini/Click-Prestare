@@ -6,6 +6,7 @@ import 'package:click/pages/sindico/mfa_verification_page.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/utils/navegacao_login.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
@@ -212,13 +213,11 @@ class _LoginSindicoPageState extends State<LoginSindico> {
 
       _updateFcmToken();
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        // Passa pela PortaDeEntrada, não direto: é ela que decide entre a
-        // tela de aceite de privacidade e o app. Os dois caminhos de entrada
-        // (login e auto-login) precisam do mesmo gate.
-        MaterialPageRoute(builder: (_) => const PortaDeEntrada()),
-      );
+      // Passa pela PortaDeEntrada, não direto: é ela que decide entre a
+      // tela de aceite de privacidade e o app. Os dois caminhos de entrada
+      // (login e auto-login) precisam do mesmo gate. Limpa a pilha para o
+      // Voltar do início não cair na escolha de perfil.
+      entrarLimpandoPilha(context, const PortaDeEntrada());
     } else {
       showAppDialog(
         context,
