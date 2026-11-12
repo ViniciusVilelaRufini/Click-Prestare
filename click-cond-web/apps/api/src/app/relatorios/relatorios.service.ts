@@ -167,7 +167,7 @@ export class RelatoriosService {
       const excelData = list.map((v) => ({
         Nome: v.nome,
         Documento: v.doc_identificacao || 'Não informado',
-        Apartamento: v.apartamento ? `${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : 'Não informado',
+        Apartamento: v.apartamento ? formatarApto(v.apartamento.apto, v.apartamento.bloco) || 'Não informado' : 'Não informado',
         Entrada: v.data_entrada ? formatDateTime(v.data_entrada) : 'Pendente',
         Saída: v.data_entrada ? (v.data_saida ? formatDateTime(v.data_saida) : 'No local') : '-',
         'Autorizado Por': v.criadoPor?.name || 'Morador',
@@ -200,7 +200,7 @@ export class RelatoriosService {
               ...list.map((v) => [
                 v.nome,
                 v.doc_identificacao || '-',
-                v.apartamento ? `${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : '-',
+                v.apartamento ? formatarApto(v.apartamento.apto, v.apartamento.bloco) || '-' : '-',
                 v.data_entrada ? formatDateTime(v.data_entrada) : '-',
                 v.data_entrada ? (v.data_saida ? formatDateTime(v.data_saida) : 'No local') : '-',
                 v.criadoPor?.name || 'Morador',
@@ -242,7 +242,7 @@ export class RelatoriosService {
 
       const excelData = list.map((e) => ({
         Descrição: e.descricao,
-        Destinatário: `Apto ${e.destinatario_apto}${e.destinatario_bloco ?? ''}`,
+        Destinatário: formatarApto(e.destinatario_apto, e.destinatario_bloco) || '-',
         Remetente: e.recebido_de || 'Não informado',
         // `Esperando`: o morador só avisou, ainda não chegou na portaria.
         Recebido: (e.status || '').toLowerCase() === 'esperando' ? '-' : formatDateTime(e.recebido_em),
@@ -277,7 +277,7 @@ export class RelatoriosService {
               })),
               ...list.map((e) => [
                 e.descricao,
-                `Apto ${e.destinatario_apto}${e.destinatario_bloco ?? ''}`,
+                formatarApto(e.destinatario_apto, e.destinatario_bloco) || '-',
                 (e.status || '').toLowerCase() === 'esperando' ? '-' : formatDateTime(e.recebido_em),
                 e.retirado_em ? formatDateTime(e.retirado_em) : 'Aguardando',
                 e.status,
