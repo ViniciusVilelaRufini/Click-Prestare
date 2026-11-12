@@ -13,6 +13,14 @@ import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+/// Mensagem do servidor que o controller lança (String ou `Exception(msg)`),
+/// sem o prefixo "Exception: ". Erros de rede/timeout caem no [fallback].
+String mensagemDaExcecao(Object e, String fallback) {
+  var t = e is String ? e : (e.toString().startsWith('Exception:') ? e.toString() : '');
+  t = t.replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
+  return t.isEmpty ? fallback : t;
+}
+
 class ListMudancas extends StatefulWidget {
   const ListMudancas({super.key});
   @override
@@ -50,7 +58,7 @@ class _ListMudancasPageState extends State<ListMudancas> {
         if (mounted) displayMessage(context, getText('alert_error'), res.toString());
       }
     } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+      if (mounted) displayMessage(context, getText('alert_error'), mensagemDaExcecao(e, getText('alert_generic_error')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

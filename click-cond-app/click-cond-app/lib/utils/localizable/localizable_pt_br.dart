@@ -284,7 +284,7 @@ class Localizable_PtBr {
 
     LocalizableModel(key: 'assembleia_alert_ata', text: 'Insira a ATA para finalizar essa Assembleia'), 
     LocalizableModel(key: 'assembleia_encerrada', text: 'A assembleia foi encerrada!\nA ATA se encontra disponível para consulta no menu "Docs" do seu condomínio.'), 
-    LocalizableModel(key: 'assembleia_finalize_upload', text: 'Finalize a assembéia.\nFaça o upload da Ata'), 
+    LocalizableModel(key: 'assembleia_finalize_upload', text: 'Finalize a assembleia.\nFaça o upload da Ata'), 
     LocalizableModel(key: 'assembleia_upload_ata', text: 'Insira aqui a Ata da Assembleia'), 
     
 

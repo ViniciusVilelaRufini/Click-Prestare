@@ -329,7 +329,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
               Expanded(
                 flex: 1,
                 child: AppInput(
-                  label: 'Apartamento *',
+                  label: 'Apto *',
                   controller: txtApto,
                   prefixIcon: PhosphorIcons.door,
                   readOnly: true,

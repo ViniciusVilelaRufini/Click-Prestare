@@ -1,3 +1,4 @@
+import 'package:click/utils/rotulo_tipo_morador.dart';
 import 'package:click/utils/log.dart';
 import 'dart:io' as io;
 
@@ -354,7 +355,7 @@ class _NewMoradorPageState extends State<NewMorador> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: widget.tipo == 'Membro' ? getText('lb_membro') : widget.tipo,
+      title: widget.tipo == 'Membro' ? getText('lb_membro') : rotuloTipoMorador(widget.tipo),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
