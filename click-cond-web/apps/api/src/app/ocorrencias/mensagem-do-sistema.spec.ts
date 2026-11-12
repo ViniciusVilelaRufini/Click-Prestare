@@ -119,6 +119,38 @@ describe('Ocorrências — mensagem do sistema (CRM e Kabania)', () => {
     expect(prisma.ocorrenciaMensagens.create).not.toHaveBeenCalled();
   });
 
+  // Revisão M5: ninguém imita a mensagem do suporte pela rota pública.
+  it.each([
+    ['[Suporte Prestare] Sua conta será bloqueada', 'Sua conta será bloqueada'],
+    ['   [suporte prestare]   Ligue para 0800', 'Ligue para 0800'],
+    ['[KABANIA] OS fechada', 'OS fechada'],
+    ['[ Kabania ][Suporte Prestare] duplo', 'duplo'],
+  ])('a createMessage pública retira o prefixo reservado: %p', async (enviado, gravado) => {
+    const { ocorrencias, prisma } = montar();
+    const autor = { sub: 100, typeAccess: 'Morador' } as any;
+
+    await ocorrencias.createMessage(5, 100, enviado, autor);
+
+    expect(prisma.ocorrenciaMensagens.create.mock.calls[0][0].data.mensagem).toBe(gravado);
+  });
+
+  it('a createMessage pública mantém o texto quando o rótulo não está no início', async () => {
+    const { ocorrencias, prisma } = montar();
+    const autor = { sub: 100, typeAccess: 'Morador' } as any;
+
+    await ocorrencias.createMessage(5, 100, 'Falei com o [Suporte Prestare] ontem', autor);
+
+    expect(prisma.ocorrenciaMensagens.create.mock.calls[0][0].data.mensagem).toBe('Falei com o [Suporte Prestare] ontem');
+  });
+
+  it('a createMessage pública recusa mensagem que era só o prefixo reservado', async () => {
+    const { ocorrencias, prisma } = montar();
+    const autor = { sub: 100, typeAccess: 'Morador' } as any;
+
+    await expect(ocorrencias.createMessage(5, 100, ' [Kabania] ', autor)).rejects.toThrow('Mensagem inválida.');
+    expect(prisma.ocorrenciaMensagens.create).not.toHaveBeenCalled();
+  });
+
   it('a createMessage pública continua recusando quem não é autor nem equipe', async () => {
     const { ocorrencias, prisma } = montar();
 

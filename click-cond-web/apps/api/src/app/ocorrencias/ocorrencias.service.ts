@@ -25,6 +25,12 @@ export interface CreateOcorrenciaDto {
   user?: number;
 }
 
+/**
+ * Rótulos que só o createMessageDoSistema escreve no início da mensagem
+ * (um ou mais, ignorando maiúsculas e espaços). A rota pública os retira.
+ */
+const PREFIXO_RESERVADO = /^\s*(?:\[\s*(?:suporte\s+prestare|kabania)\s*\]\s*)+/i;
+
 /** Categoria criada pelo monitor de dispositivos (facial.service), não pela portaria. */
 const CATEGORIA_AUTOMATICA = 'Dispositivos';
 
@@ -498,6 +504,12 @@ export class OcorrenciasService {
     // Users.id — gravar o `sub` dele atribuía a mensagem a outra pessoa.
     if (!idUsuario) {
       throw new BadRequestException('Envie a mensagem com um login de síndico ou morador.');
+    }
+    // "[Suporte Prestare]" e "[Kabania]" no início marcam a mensagem que vem
+    // do createMessageDoSistema; ninguém imita o suporte por aqui.
+    if (typeof mensagem === 'string' && PREFIXO_RESERVADO.test(mensagem)) {
+      mensagem = mensagem.replace(PREFIXO_RESERVADO, '');
+      if (!mensagem.trim()) throw new BadRequestException('Mensagem inválida.');
     }
     const msg = await this.prisma.ocorrenciaMensagens.create({
       data: {
