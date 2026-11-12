@@ -4,6 +4,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/validacao_formularios.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
@@ -43,16 +44,25 @@ class _NewVotacaoPageState extends State<NewVotacao> {
   Future<void> save() async {
     try {
       setState(() => _isSaving = true);
-      List<String> ops = [];
-      if (txtOpcao1.text.isNotEmpty) ops.add(txtOpcao1.text);
-      if (txtOpcao2.text.isNotEmpty) ops.add(txtOpcao2.text);
-      if (txtOpcao3.text.isNotEmpty) ops.add(txtOpcao3.text);
-      if (txtOpcao4.text.isNotEmpty) ops.add(txtOpcao4.text);
+      final ops = [txtOpcao1, txtOpcao2, txtOpcao3, txtOpcao4]
+          .map((c) => c.text.trim())
+          .where((o) => o.isNotEmpty)
+          .toList();
 
-      if (ops.isEmpty) throw getText('votacao_signup_informe_opcoes');
+      final erro = validarVotacao(
+        titulo: txtNome.text,
+        opcoes: ops,
+        dataInicio: txtDataInicio.text,
+        dataTermino: txtDataTermino.text,
+        enquete: widget.isEnquete == true,
+      );
+      if (erro != null) {
+        if (mounted) displayMessage(context, getText('alert_ops'), erro);
+        return;
+      }
 
       var obj = VotacaoModel(
-        titulo: txtNome.text,
+        titulo: txtNome.text.trim(),
         descricao: txtDescricao.text,
         data_inicio: convertStringToDate(txtDataInicio.text),
         data_termino: convertStringToDate(txtDataTermino.text),
@@ -77,7 +87,7 @@ class _NewVotacaoPageState extends State<NewVotacao> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: getText('votacao_signup_nav'),
+      title: widget.isEnquete == true ? 'Criar Enquete' : getText('votacao_signup_nav'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
@@ -94,7 +104,7 @@ class _NewVotacaoPageState extends State<NewVotacao> {
               children: [
                 Expanded(
                   child: AppInput(
-                    label: getText('data_inicio'),
+                    label: 'Início',
                     controller: txtDataInicio,
                     prefixIcon: PhosphorIcons.calendarBlank,
                     readOnly: true,
@@ -110,7 +120,7 @@ class _NewVotacaoPageState extends State<NewVotacao> {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppInput(
-                    label: getText('votacao_signup_dt_encerramento'),
+                    label: 'Término',
                     controller: txtDataTermino,
                     prefixIcon: PhosphorIcons.calendarCheck,
                     readOnly: true,

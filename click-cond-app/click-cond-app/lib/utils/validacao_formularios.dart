@@ -15,6 +15,26 @@ String? validarComunicado({String? titulo, String? descricao}) {
   return null;
 }
 
+/// Votação/enquete: título, ao menos duas opções distintas (sem vazias, sem
+/// diferenciar maiúsculas) e as duas datas preenchidas.
+String? validarVotacao({
+  String? titulo,
+  required List<String> opcoes,
+  String? dataInicio,
+  String? dataTermino,
+  bool enquete = false,
+}) {
+  if ((titulo ?? '').trim().isEmpty) {
+    return 'Informe o título da ${enquete ? 'enquete' : 'votação'}.';
+  }
+  final distintas = opcoes.map((o) => o.trim().toLowerCase()).where((o) => o.isNotEmpty).toSet();
+  if (distintas.length < 2) return 'Informe pelo menos duas opções diferentes.';
+  if ((dataInicio ?? '').trim().isEmpty || (dataTermino ?? '').trim().isEmpty) {
+    return 'Informe as datas de início e término.';
+  }
+  return null;
+}
+
 /// Data da mudança ("dd/MM/aaaa", como a API devolve, ou "aaaa-MM-dd") anterior
 /// a hoje (dia local). Data ilegível ou vazia não conta como passada.
 bool mudancaDataPassada(String? data, {DateTime? hoje}) {

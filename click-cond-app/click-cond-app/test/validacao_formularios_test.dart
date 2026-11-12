@@ -43,4 +43,32 @@ void main() {
       expect(mudancaDataPassada('abc', hoje: hoje), isFalse);
     });
   });
+
+  group('validarVotacao', () {
+    String? v({String? t = 'Pintura', List<String> o = const ['Sim', 'Não'], String? i = '01/12/2026', String? f = '10/12/2026'}) =>
+        validarVotacao(titulo: t, opcoes: o, dataInicio: i, dataTermino: f);
+
+    test('título vazio', () {
+      expect(v(t: '  '), 'Informe o título da votação.');
+      expect(v(t: null), 'Informe o título da votação.');
+    });
+    test('título vazio em enquete', () {
+      expect(validarVotacao(titulo: '', opcoes: ['a', 'b'], dataInicio: 'x', dataTermino: 'y', enquete: true),
+          'Informe o título da enquete.');
+    });
+    test('menos de duas opções distintas', () {
+      const msg = 'Informe pelo menos duas opções diferentes.';
+      expect(v(o: ['Sim', ' ']), msg);
+      expect(v(o: ['Sim', ' sim ']), msg);
+      expect(v(o: []), msg);
+    });
+    test('datas ausentes', () {
+      const msg = 'Informe as datas de início e término.';
+      expect(v(i: ''), msg);
+      expect(v(f: null), msg);
+    });
+    test('tudo certo', () {
+      expect(v(), isNull);
+    });
+  });
 }
