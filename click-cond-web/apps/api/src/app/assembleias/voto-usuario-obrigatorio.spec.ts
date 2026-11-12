@@ -36,7 +36,8 @@ describe('AssembleiasController — id do usuário é obrigatório', () => {
   it('registra o voto com o id que veio do JWT', () => {
     const { ctrl, service } = build();
     ctrl.registerVoto({ voto: { votacao_id: 5, opcao_id: 9 } }, morador);
-    expect(service.registerVoto).toHaveBeenCalledWith(5, 9, 42, morador);
+    // 5º argumento: id_apto (opcional; o app antigo não manda).
+    expect(service.registerVoto).toHaveBeenCalledWith(5, 9, 42, morador, undefined);
   });
 
   it('payload inválido continua sendo 400, não 403', () => {

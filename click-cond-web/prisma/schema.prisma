@@ -265,6 +265,7 @@ model Apartamentos {
   prestadores         Prestadores_servico[]
   vagas               Vagas[]
   deliveryAtendimentos DeliveryAtendimentos[]
+  votos               Votacoes_Usuarios[]
 
   @@unique([id_condominio, bloco, apto], map: "un_apto_cond")
   // Impede dois apartamentos do mesmo condomínio carregarem o mesmo
@@ -607,15 +608,24 @@ model Votacoes_Opcoes {
 }
 
 model Votacoes_Usuarios {
-  id         Int             @id @default(autoincrement())
-  id_opcao   Int
-  id_user    Int
-  created_at DateTime        @default(now()) @db.DateTime(0)
-  opcao      Votacoes_Opcoes @relation(fields: [id_opcao], references: [id], onDelete: Cascade, map: "fk_vu_op")
-  user       Users           @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_vu_user")
+  id          Int             @id @default(autoincrement())
+  id_opcao    Int
+  id_user     Int
+  // Unidade pela qual o voto foi dado (um voto por votação e unidade). Nulo
+  // nos votos anteriores a 2026-11-11: esses contam pela unidade atribuída da
+  // conta (menor id_apto). SET NULL ao apagar o apartamento — nunca cascata.
+  // Sem índice único: a coluna tem nulos antigos e a apuração deduplica.
+  id_apto     Int?
+  created_at  DateTime        @default(now()) @db.DateTime(0)
+  opcao       Votacoes_Opcoes @relation(fields: [id_opcao], references: [id], onDelete: Cascade, map: "fk_vu_op")
+  user        Users           @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_vu_user")
+  apartamento Apartamentos?   @relation(fields: [id_apto], references: [id], onDelete: SetNull, map: "fk_vu_apto")
 
   @@index([id_opcao], map: "fk_vu_op")
   @@index([id_user], map: "fk_vu_user")
+  // A tabela não tem id_votacao (a votação vem pela opção): o índice é
+  // (id_apto, id_opcao) — id_apto à esquerda serve também à FK.
+  @@index([id_apto, id_opcao], map: "idx_vu_apto_opcao")
 }
 
 model Comunicados {

@@ -96,7 +96,7 @@ export class AssembleiasController {
   @Post('votacoes/voto/insert')
   @HttpCode(200)
   registerVoto(
-    @Body() body: { voto?: { votacao_id?: string | number; opcao_id?: string | number } },
+    @Body() body: { voto?: { votacao_id?: string | number; opcao_id?: string | number; id_apto?: string | number | null } },
     @ReqUser() payload: JwtPayload,
   ) {
     const userId = exigirUsuario(payload);
@@ -104,11 +104,14 @@ export class AssembleiasController {
     if (!voto || voto.votacao_id == null || voto.opcao_id == null) {
       throw new BadRequestException('Payload inválido: { voto: { votacao_id, opcao_id } } é obrigatório.');
     }
+    // `id_apto` é opcional: o app antigo não manda (o serviço decide a unidade).
+    const idApto = voto.id_apto == null || voto.id_apto === '' ? undefined : Number(voto.id_apto);
     return this.service.registerVoto(
       Number(voto.votacao_id),
       Number(voto.opcao_id),
       Number(userId),
       payload,
+      idApto,
     );
   }
 

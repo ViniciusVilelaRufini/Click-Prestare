@@ -5,6 +5,16 @@ import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { hojeBrasilia } from '../common/hora-brasilia.util';
+import { rotuloBloco } from '../common/rotulo-bloco.util';
+
+/** Unidade do usuário no condomínio, para votar e mostrar o voto dela. */
+export type UnidadeVoto = { id_apto: number; rotulo: string };
+
+/** Voto que vale hoje numa unidade do usuário (`opcao` nulo: a unidade não votou). */
+export type VotoDaUnidade = { id_votacao: number; id_apto: number; rotulo: string; opcao: string | null };
+
+/** Voto apurado de uma unidade: o mais recente dela. */
+type VotoApurado = { id: number; id_opcao: number; t: number };
 
 @Injectable()
 export class AssembleiasService {
@@ -221,6 +231,8 @@ export class AssembleiasService {
         },
         votacoes: [],
         meusVotos: [],
+        unidades: [],
+        votosPorUnidade: [],
       };
     }
 
@@ -242,13 +254,20 @@ export class AssembleiasService {
     };
 
     // Buscar votações da assembleia
-    const votacoes = await this.getVotacoesFormatadas(Number(idAssembleia), false, Number(idCondominio));
+    const { formatadas: votacoes, apuracao } = await this.consultarVotacoes(
+      Number(idAssembleia), false, Number(idCondominio),
+    );
+    // Campo antigo (app até 1.2.41): opções em que a própria conta votou.
     const meusVotos = await this.getMyVotosAssembleia(Number(idAssembleia), Number(userId));
+    // Novo: as unidades do usuário e o voto que vale em cada uma.
+    const unidades = await this.unidadesDoUsuario(Number(idCondominio), Number(userId));
 
     return {
       assembleia: assembleiaFormatada,
       votacoes,
       meusVotos,
+      unidades,
+      votosPorUnidade: this.votosPorUnidade(votacoes.map((v) => v.id), unidades, apuracao),
     };
   }
 
@@ -383,18 +402,26 @@ export class AssembleiasService {
   }
 
   /**
-   * Um voto por APARTAMENTO, de quem tem vínculo (`Apartamentos_Users`, qualquer
-   * tipo) com uma unidade do condomínio da votação. Antes era um por conta:
-   * cada familiar cadastrado pesava mais um voto, e síndico/funcionário sem
-   * unidade também votavam.
+   * Um voto por UNIDADE (votação × apartamento), de quem tem vínculo
+   * (`Apartamentos_Users`, qualquer tipo) com a unidade, no condomínio da
+   * votação. O voto grava a unidade em `id_apto` — antes não gravava, e quem
+   * tinha duas unidades votava só pela de menor `id_apto`.
    *
-   * O voto não grava o apartamento (sem mudar o schema), então cada conta vota
-   * pela sua unidade atribuída — a de menor `id_apto` (ver `unidadesAtribuidas`).
-   * O voto novo substitui só o das contas com a MESMA unidade atribuída: quem
-   * tem os aptos A e B vota por A, e o voto do vizinho que só mora em B não
-   * apaga o dele.
+   * Qual unidade:
+   *  - `idApto` informado (app novo): tem de ser uma unidade do usuário neste
+   *    condomínio, senão 403;
+   *  - sem `idApto` (app antigo): a única unidade, ou a de menor `id_apto`
+   *    quando há várias — a mesma "unidade atribuída" de antes, para o app
+   *    antigo continuar votando como votava.
+   *
+   * O voto novo substitui o da MESMA unidade: os votos com `id_apto = U` e os
+   * antigos (`id_apto` nulo, anteriores à coluna) das contas cuja unidade
+   * atribuída é U. Nunca o de outra unidade. A transação trava a linha do
+   * apartamento (FOR UPDATE) para que dois votos simultâneos da unidade não
+   * gravem duas linhas; se ainda sobrar duplicata (não há índice único — a
+   * coluna tem nulos antigos), a apuração fica com a mais recente.
    */
-  async registerVoto(votacaoId: number, opcaoId: number, userId: number, requester?: JwtPayload) {
+  async registerVoto(votacaoId: number, opcaoId: number, userId: number, requester?: JwtPayload, idApto?: number) {
     if (!this.prisma.isConnected) return { success: true };
 
     const votacao = await this.prisma.votacoes.findUnique({
@@ -413,31 +440,50 @@ export class AssembleiasService {
       throw new BadRequestException('Opção inválida para esta votação');
     }
 
-    const minhaUnidade = (await this.unidadesAtribuidas(votacao.id_condominio, [Number(userId)])).get(Number(userId));
-    if (minhaUnidade == null) {
+    if (idApto != null && !(Number.isInteger(idApto) && idApto > 0)) {
+      throw new BadRequestException('Unidade inválida.');
+    }
+
+    const minhasUnidades = await this.unidadesDoUsuario(votacao.id_condominio, Number(userId));
+    if (minhasUnidades.length === 0) {
       throw new ForbiddenException('Somente moradores com unidade no condomínio podem votar.');
     }
-    // Quem tem a mesma unidade atribuída tem vínculo com ela: os candidatos são
-    // as contas do apto, filtradas pela unidade que cada uma recebe.
+    let unidade: number;
+    if (idApto != null) {
+      if (!minhasUnidades.some((u) => u.id_apto === idApto)) {
+        throw new ForbiddenException('Você não tem vínculo com esta unidade.');
+      }
+      unidade = idApto;
+    } else {
+      // App antigo: a menor id_apto (a lista vem ordenada).
+      unidade = minhasUnidades[0].id_apto;
+    }
+
+    // Votos antigos (sem id_apto) contam pela unidade atribuída da conta: os
+    // que caem em U são os das contas do apto cuja menor unidade é U.
     const contasDoApto = await this.prisma.apartamentos_Users.findMany({
-      where: { id_apto: minhaUnidade },
+      where: { id_apto: unidade },
       select: { id_user: true },
     });
     const candidatos = [...new Set([Number(userId), ...contasDoApto.map((v) => v.id_user)])];
-    const unidades = await this.unidadesAtribuidas(votacao.id_condominio, candidatos);
-    const idsQueSubstitui = candidatos.filter((id) => unidades.get(id) === minhaUnidade);
+    const atribuidas = await this.unidadesAtribuidas(votacao.id_condominio, candidatos);
+    const antigosDe = candidatos.filter((id) => atribuidas.get(id) === unidade);
 
     await this.prisma.$transaction(async (tx) => {
+      // Serializa os votos da unidade: o segundo espera o primeiro confirmar
+      // e então apaga a linha que ele gravou.
+      await tx.$queryRaw`SELECT id FROM Apartamentos WHERE id = ${unidade} FOR UPDATE`;
       await tx.votacoes_Usuarios.deleteMany({
         where: {
-          id_user: { in: idsQueSubstitui },
           id_opcao: { in: idsOpcoes },
+          OR: [{ id_apto: unidade }, { id_apto: null, id_user: { in: antigosDe } }],
         },
       });
       await tx.votacoes_Usuarios.create({
         data: {
           id_opcao: Number(opcaoId),
           id_user: Number(userId),
+          id_apto: unidade,
         },
       });
     });
@@ -469,6 +515,8 @@ export class AssembleiasService {
           opcoes: ['1;Esteira;5', '2;Bicicleta;3'],
         },
         meuVoto: ['1'],
+        unidades: [],
+        votosPorUnidade: [],
       };
     }
 
@@ -479,7 +527,7 @@ export class AssembleiasService {
     if (!raw) throw new NotFoundException('Enquete não encontrada');
     await this.tenant.assertEntidade(raw.id_condominio, requester, `enquete #${idVotacao}`);
 
-    const list = await this.getVotacoesFormatadas(undefined, true, undefined, Number(idVotacao));
+    const { formatadas: list, apuracao } = await this.consultarVotacoes(undefined, true, undefined, Number(idVotacao));
     const votacao = list[0];
 
     if (!votacao) throw new NotFoundException('Enquete não encontrada');
@@ -495,15 +543,31 @@ export class AssembleiasService {
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
     });
 
+    // Campo antigo (app até 1.2.41): o voto mais recente da própria conta.
     const meuVoto = vu ? [String(vu.id_opcao)] : [];
+    // Novo: as unidades do usuário e o voto que vale em cada uma.
+    const unidades = await this.unidadesDoUsuario(raw.id_condominio, Number(userId));
 
-    return { votacao, meuVoto };
+    return { votacao, meuVoto, unidades, votosPorUnidade: this.votosPorUnidade([votacao.id], unidades, apuracao) };
   }
 
   // ==========================================
   // FUNÇÕES DE FORMATACÃO E CÁLCULO
   // ==========================================
   private async getVotacoesFormatadas(
+    idAssembleia?: number,
+    isEnquete: boolean = false,
+    idCondominio?: number,
+    idVotacaoEspecifica?: number,
+  ) {
+    return (await this.consultarVotacoes(idAssembleia, isEnquete, idCondominio, idVotacaoEspecifica)).formatadas;
+  }
+
+  /**
+   * Votações no formato da API mais a apuração por unidade
+   * (`apuracao.get(idVotacao).get(idApto)` = voto que vale na unidade).
+   */
+  private async consultarVotacoes(
     idAssembleia?: number,
     isEnquete: boolean = false,
     idCondominio?: number,
@@ -520,7 +584,7 @@ export class AssembleiasService {
       include: {
         opcoes: {
           include: {
-            votos: { select: { id: true, id_user: true, created_at: true } },
+            votos: { select: { id: true, id_user: true, id_apto: true, created_at: true } },
           },
           orderBy: { id: 'asc' },
         },
@@ -528,25 +592,27 @@ export class AssembleiasService {
       orderBy: { created_at: 'desc' },
     });
 
-    // Unidade atribuída de cada votante, por condomínio (uma consulta cada).
-    const unidadePorCond = new Map<number, Map<number, number>>();
+    // Vínculos de cada votante, por condomínio (uma consulta cada).
+    const vinculosPorCond = new Map<number, Map<number, number[]>>();
     for (const idCond of new Set(votacoesDb.map((v) => v.id_condominio))) {
       const votantes = votacoesDb
         .filter((v) => v.id_condominio === idCond)
         .flatMap((v) => v.opcoes.flatMap((op) => op.votos.map((voto) => voto.id_user)));
-      unidadePorCond.set(idCond, await this.unidadesAtribuidas(idCond, [...new Set(votantes)]));
+      vinculosPorCond.set(idCond, await this.vinculosNoCondominio(idCond, [...new Set(votantes)]));
     }
 
-    return votacoesDb.map(v => {
-      // Um voto por UNIDADE atribuída (ver registerVoto): vale o mais recente.
-      // Sem índice único, dois toques simultâneos — da mesma conta ou de duas
-      // contas do apto — gravam duas linhas; aqui contam uma. Votante sem
-      // unidade no condomínio (voto anterior à regra) não conta.
-      const unidadeDe = unidadePorCond.get(v.id_condominio) ?? new Map<number, number>();
-      const ultimoVoto = new Map<number, { id: number; id_opcao: number; t: number }>();
+    const apuracao = new Map<number, Map<number, VotoApurado>>();
+    const formatadas = votacoesDb.map(v => {
+      // Um voto por UNIDADE (ver registerVoto): vale o mais recente. A unidade
+      // é a gravada no voto (`id_apto`) ou, no voto antigo sem ela, a
+      // atribuída da conta (menor id_apto). Sem índice único, dois votos
+      // simultâneos da unidade podem gravar duas linhas; aqui contam uma.
+      // Votante sem vínculo com a unidade (ou sem unidade no condomínio) não conta.
+      const vinculosDe = vinculosPorCond.get(v.id_condominio) ?? new Map<number, number[]>();
+      const ultimoVoto = new Map<number, VotoApurado>();
       for (const op of v.opcoes) {
         for (const voto of op.votos) {
-          const unidade = unidadeDe.get(voto.id_user);
+          const unidade = this.unidadeDoVoto(voto.id_apto, vinculosDe.get(voto.id_user));
           if (unidade == null) continue;
           const t = new Date(voto.created_at).getTime();
           const atual = ultimoVoto.get(unidade);
@@ -555,6 +621,7 @@ export class AssembleiasService {
           }
         }
       }
+      apuracao.set(v.id, ultimoVoto);
       const votosPorOpcao = new Map<number, number>();
       for (const { id_opcao } of ultimoVoto.values()) {
         votosPorOpcao.set(id_opcao, (votosPorOpcao.get(id_opcao) ?? 0) + 1);
@@ -579,24 +646,84 @@ export class AssembleiasService {
         opcoes: opcoesStrArray,
       };
     });
+    return { formatadas, apuracao };
   }
 
   /**
-   * Unidade pela qual cada conta vota no condomínio: o menor `id_apto` entre
-   * os vínculos dela em `Apartamentos_Users`. Determinística, para que o voto
-   * e a apuração concordem sem gravar o apartamento no voto. Conta sem
-   * vínculo no condomínio fica fora do mapa.
+   * Unidade em que um voto conta: a gravada (`id_apto`), se o votante ainda
+   * tem vínculo com ela; no voto antigo (nulo), a menor unidade do votante.
+   * `vinculos` vem ordenado (ver vinculosNoCondominio).
    */
-  private async unidadesAtribuidas(idCondominio: number, idsUsuarios: number[]): Promise<Map<number, number>> {
-    const unidade = new Map<number, number>();
-    if (idsUsuarios.length === 0) return unidade;
+  private unidadeDoVoto(idApto: number | null | undefined, vinculos: number[] | undefined): number | undefined {
+    if (!vinculos || vinculos.length === 0) return undefined;
+    if (idApto != null) return vinculos.includes(idApto) ? idApto : undefined;
+    return vinculos[0];
+  }
+
+  /** Para cada votação × unidade do usuário, a opção que vale nela (ou nulo). */
+  private votosPorUnidade(
+    idsVotacoes: number[],
+    unidades: UnidadeVoto[],
+    apuracao: Map<number, Map<number, VotoApurado>>,
+  ): VotoDaUnidade[] {
+    return idsVotacoes.flatMap((idVotacao) =>
+      unidades.map((u) => {
+        const voto = apuracao.get(idVotacao)?.get(u.id_apto);
+        return { id_votacao: idVotacao, id_apto: u.id_apto, rotulo: u.rotulo, opcao: voto ? String(voto.id_opcao) : null };
+      }),
+    );
+  }
+
+  /**
+   * Unidades do usuário no condomínio (vínculo em `Apartamentos_Users`, sem
+   * repetir), em ordem de `id_apto` — a primeira é a unidade atribuída. Serve
+   * ao voto (qual unidade) e ao app (escolher a unidade e mostrar o voto dela).
+   */
+  private async unidadesDoUsuario(idCondominio: number, userId: number): Promise<UnidadeVoto[]> {
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_user: Number(userId), apartamento: { id_condominio: Number(idCondominio) } },
+      select: { id_apto: true, apartamento: { select: { bloco: true, apto: true } } },
+    });
+    const porApto = new Map<number, UnidadeVoto>();
+    for (const { id_apto, apartamento } of vinculos) {
+      if (porApto.has(id_apto)) continue;
+      const apto = (apartamento?.apto ?? '').trim();
+      const bloco = rotuloBloco(apartamento?.bloco);
+      const rotulo = apto ? (bloco ? `Apto ${apto} ${bloco}` : `Apto ${apto}`) : bloco || `Unidade ${id_apto}`;
+      porApto.set(id_apto, { id_apto, rotulo });
+    }
+    return [...porApto.values()].sort((a, b) => a.id_apto - b.id_apto);
+  }
+
+  /**
+   * Unidades de cada conta no condomínio (`Apartamentos_Users`), em ordem de
+   * `id_apto`. Conta sem vínculo no condomínio fica fora do mapa.
+   */
+  private async vinculosNoCondominio(idCondominio: number, idsUsuarios: number[]): Promise<Map<number, number[]>> {
+    const porUsuario = new Map<number, number[]>();
+    if (idsUsuarios.length === 0) return porUsuario;
     const vinculos = await this.prisma.apartamentos_Users.findMany({
       where: { id_user: { in: idsUsuarios }, apartamento: { id_condominio: Number(idCondominio) } },
       select: { id_user: true, id_apto: true },
     });
     for (const { id_user, id_apto } of vinculos) {
-      const atual = unidade.get(id_user);
-      if (atual == null || id_apto < atual) unidade.set(id_user, id_apto);
+      const lista = porUsuario.get(id_user) ?? [];
+      if (!lista.includes(id_apto)) lista.push(id_apto);
+      porUsuario.set(id_user, lista);
+    }
+    for (const lista of porUsuario.values()) lista.sort((a, b) => a - b);
+    return porUsuario;
+  }
+
+  /**
+   * Unidade atribuída de cada conta no condomínio: o menor `id_apto` entre os
+   * vínculos dela. É por ela que conta o voto antigo, gravado sem `id_apto`,
+   * e é a unidade do voto do app antigo (que não manda `id_apto`).
+   */
+  private async unidadesAtribuidas(idCondominio: number, idsUsuarios: number[]): Promise<Map<number, number>> {
+    const unidade = new Map<number, number>();
+    for (const [idUser, aptos] of await this.vinculosNoCondominio(idCondominio, idsUsuarios)) {
+      unidade.set(idUser, aptos[0]);
     }
     return unidade;
   }

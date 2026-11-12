@@ -6,14 +6,13 @@ import { AssembleiasService } from './assembleias.service';
  * votavam separado — o apartamento com cinco contas pesava cinco vezes —, e
  * síndico/funcionário sem unidade no condomínio também votavam.
  *
- * Regra (sem mudar o schema, que não grava o apartamento no voto): cada conta
- * pertence a UMA unidade determinística no condomínio — a de menor `id_apto`
- * entre os vínculos dela em `Apartamentos_Users`.
- *  - Só vota quem tem unidade atribuída.
- *  - Votar apaga só os votos das contas com a MESMA unidade atribuída.
- *  - A apuração conta um voto por unidade atribuída (o mais recente) e
- *    descarta votante sem unidade — o que também resolve a corrida entre duas
- *    contas do mesmo apto e os votos gravados antes desta regra.
+ * Regra: um voto por unidade. Desde 2026-11-11 o voto grava a unidade
+ * (`id_apto`, ver voto-por-unidade.spec.ts); os votos antigos, sem ela, contam
+ * pela unidade atribuída da conta — a de menor `id_apto` entre os vínculos
+ * dela em `Apartamentos_Users`.
+ *  - Só vota quem tem unidade no condomínio.
+ *  - A apuração conta um voto por unidade (o mais recente) e descarta votante
+ *    sem unidade.
  */
 describe('Votação — um voto por apartamento', () => {
   const ID_COND = 1;
@@ -74,8 +73,7 @@ describe('Votação — um voto por apartamento', () => {
   }
 
   const token = (id: number, typeAccess = 'Morador') => ({ sub: id, nome: `U${id}`, typeAccess, user: { id } }) as any;
-  const apagouDe = (prisma: any) => new Set(prisma.votacoes_Usuarios.deleteMany.mock.calls[0][0].where.id_user.in);
-
+  
   it('síndico/funcionário sem unidade no condomínio NÃO vota', async () => {
     const { svc, prisma } = build();
     await expect(svc.registerVoto(5, 9, 80, token(80, 'Sindico'))).rejects.toThrow(
@@ -85,25 +83,9 @@ describe('Votação — um voto por apartamento', () => {
     expect(prisma.votacoes_Usuarios.create).not.toHaveBeenCalled();
   });
 
-  it('o voto de outra conta do mesmo apartamento substitui o anterior', async () => {
-    const { svc, prisma } = build();
-    await svc.registerVoto(5, 10, 51, token(51));
-    expect(apagouDe(prisma)).toEqual(new Set([50, 51]));
-    expect(prisma.votacoes_Usuarios.deleteMany.mock.calls[0][0].where.id_opcao).toEqual({ in: [9, 10] });
-    expect(prisma.votacoes_Usuarios.create).toHaveBeenCalledWith({ data: { id_opcao: 10, id_user: 51 } });
-  });
-
-  it('X (aptos 200 e 300) e Y (só 300): o voto de Y não apaga o de X', async () => {
-    const { svc, prisma } = build();
-    await svc.registerVoto(5, 9, 61, token(61));
-    expect(apagouDe(prisma)).toEqual(new Set([61]));
-  });
-
-  it('X vota pela unidade atribuída (menor id_apto) e não apaga o voto de Y', async () => {
-    const { svc, prisma } = build();
-    await svc.registerVoto(5, 9, 60, token(60));
-    expect(apagouDe(prisma)).toEqual(new Set([60]));
-  });
+  // Substituição do voto (mesma unidade, outra unidade, voto antigo sem
+  // id_apto, pessoa com duas unidades): ver voto-por-unidade.spec.ts, que
+  // confere o que fica gravado num banco em memória.
 
   it('apuração: duas contas do mesmo apto contam 1, o voto mais recente', async () => {
     const { svc } = build([
