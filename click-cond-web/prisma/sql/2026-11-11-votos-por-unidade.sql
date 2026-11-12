@@ -24,7 +24,16 @@
 -- Idempotente: cada passo confere o information_schema e vira no-op se já foi
 -- aplicado, então pode rodar de novo (inteiro ou depois de parar no meio).
 -- Rodar numa única sessão (usa variável @sql). Coluna anulável sem default:
--- não reescreve linhas; índice e FK são criados online no InnoDB.
+-- não reescreve linhas; o índice é criado online no InnoDB. A FK NÃO é online:
+-- com foreign_key_checks ligado o MySQL cria a constraint copiando a tabela
+-- (ALGORITHM=COPY), bloqueando escrita em Votacoes_Usuarios durante a cópia —
+-- com a tabela pequena de hoje (dados de teste) leva segundos.
+--
+-- lock_wait_timeout de 10 s: se outra sessão segurar o metadata lock da
+-- tabela, o ALTER desiste em vez de enfileirar (e travar) os votos atrás
+-- dele. Basta rodar de novo depois.
+
+SET SESSION lock_wait_timeout = 10;
 
 SET @sql = IF(
   (SELECT COUNT(*) FROM information_schema.COLUMNS

@@ -300,6 +300,56 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
     });
   });
 
+  /**
+   * Em REPEATABLE READ (padrão do InnoDB) o DELETE que não acha linhas deixa
+   * gap lock no idx_vu_apto_opcao: duas unidades DIFERENTES votando pela
+   * primeira vez ao mesmo tempo podiam dar deadlock (1213 / Prisma P2034 →
+   * 500). A transação roda em READ COMMITTED (o FOR UPDATE na linha do
+   * apartamento continua serializando a mesma unidade) e é refeita até 2
+   * vezes em P2034.
+   */
+  describe('transação: isolamento e deadlock', () => {
+    const deadlock = () => Object.assign(new Error('Transaction failed due to a write conflict or a deadlock'), { code: 'P2034' });
+
+    it('roda em READ COMMITTED', async () => {
+      const { svc, prisma } = build();
+      await votar(svc, 60, 9, 300);
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'ReadCommitted' });
+    });
+
+    it('P2034 na 1ª tentativa: refaz e grava um voto só', async () => {
+      const { svc, prisma, votos } = build();
+      const real = prisma.$transaction;
+      let tentativas = 0;
+      prisma.$transaction = jest.fn(async (fn: any, opts: any) => {
+        tentativas++;
+        if (tentativas === 1) throw deadlock();
+        return real(fn, opts);
+      });
+      await expect(votar(svc, 60, 9, 300)).resolves.toEqual({ success: true });
+      expect(tentativas).toBe(2);
+      expect(votos.map((v) => [v.id_user, v.id_apto, v.id_opcao])).toEqual([[60, 300, 9]]);
+    });
+
+    it('P2034 em todas: desiste depois de 2 novas tentativas e propaga o erro', async () => {
+      const { svc, prisma } = build();
+      prisma.$transaction = jest.fn(async () => {
+        throw deadlock();
+      });
+      await expect(votar(svc, 60, 9, 300)).rejects.toMatchObject({ code: 'P2034' });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(3);
+    });
+
+    it('outro erro não é refeito', async () => {
+      const { svc, prisma } = build();
+      prisma.$transaction = jest.fn(async () => {
+        throw Object.assign(new Error('falha'), { code: 'P2002' });
+      });
+      await expect(votar(svc, 60, 9, 300)).rejects.toMatchObject({ code: 'P2002' });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('apuração', () => {
     it('duas linhas da mesma unidade (corrida) contam 1, a mais recente', async () => {
       const { svc } = build({

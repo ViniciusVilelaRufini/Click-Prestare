@@ -1,5 +1,6 @@
 -- Verificação de 2026-11-11-votos-por-unidade.sql. SÓ LEITURA.
 -- Esperado: cada linha com ok = 1 (e as contagens do fim só informativas).
+-- Todo ok sai 0 ou 1, nunca NULL (COUNT, ou COALESCE onde há agregação de texto).
 
 -- 1. Coluna id_apto: INT, anulável, sem default.
 SELECT 'coluna id_apto' AS item,
@@ -11,7 +12,8 @@ SELECT 'coluna id_apto' AS item,
 
 -- 2. Índice idx_vu_apto_opcao = (id_apto, id_opcao), nessa ordem, não único.
 SELECT 'indice idx_vu_apto_opcao' AS item,
-       GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) = 'id_apto,id_opcao' AND MAX(NON_UNIQUE) = 1 AS ok,
+       -- Sem o índice o GROUP_CONCAT é NULL: COALESCE para o ok sair 0, não NULL.
+       COALESCE(GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) = 'id_apto,id_opcao' AND MAX(NON_UNIQUE) = 1, 0) AS ok,
        GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS colunas
   FROM information_schema.STATISTICS
  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Votacoes_Usuarios' AND INDEX_NAME = 'idx_vu_apto_opcao';

@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '../prisma/generated';
 import { type Gravados, StorageService, umaVez } from '../common/storage/storage.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
@@ -469,27 +470,44 @@ export class AssembleiasService {
     const atribuidas = await this.unidadesAtribuidas(votacao.id_condominio, candidatos);
     const antigosDe = candidatos.filter((id) => atribuidas.get(id) === unidade);
 
-    await this.prisma.$transaction(async (tx) => {
-      // Serializa os votos da unidade: o segundo espera o primeiro confirmar
-      // e então apaga a linha que ele gravou.
-      await tx.$queryRaw`SELECT id FROM Apartamentos WHERE id = ${unidade} FOR UPDATE`;
-      await tx.votacoes_Usuarios.deleteMany({
-        where: {
-          id_opcao: { in: idsOpcoes },
-          OR: [{ id_apto: unidade }, { id_apto: null, id_user: { in: antigosDe } }],
-        },
-      });
-      await tx.votacoes_Usuarios.create({
-        data: {
-          id_opcao: Number(opcaoId),
-          id_user: Number(userId),
-          id_apto: unidade,
-        },
-      });
-    });
+    // READ COMMITTED: em REPEATABLE READ o DELETE que não acha linhas deixa
+    // gap lock no idx_vu_apto_opcao, e duas unidades DIFERENTES votando pela
+    // primeira vez ao mesmo tempo podiam dar deadlock. A mesma unidade segue
+    // serializada pelo FOR UPDATE. Deadlock residual (P2034): refaz até 2 vezes.
+    for (let tentativa = 0; ; tentativa++) {
+      try {
+        await this.prisma.$transaction(
+          async (tx) => {
+            // Serializa os votos da unidade: o segundo espera o primeiro
+            // confirmar e então apaga a linha que ele gravou.
+            await tx.$queryRaw`SELECT id FROM Apartamentos WHERE id = ${unidade} FOR UPDATE`;
+            await tx.votacoes_Usuarios.deleteMany({
+              where: {
+                id_opcao: { in: idsOpcoes },
+                OR: [{ id_apto: unidade }, { id_apto: null, id_user: { in: antigosDe } }],
+              },
+            });
+            await tx.votacoes_Usuarios.create({
+              data: {
+                id_opcao: Number(opcaoId),
+                id_user: Number(userId),
+                id_apto: unidade,
+              },
+            });
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+        );
+        break;
+      } catch (e) {
+        if ((e as { code?: string })?.code !== 'P2034' || tentativa >= AssembleiasService.NOVAS_TENTATIVAS_VOTO) throw e;
+      }
+    }
 
     return { success: true };
   }
+
+  /** Quantas vezes o voto é refeito depois de um deadlock (P2034). */
+  private static readonly NOVAS_TENTATIVAS_VOTO = 2;
 
   async enqueteGetAll(idCondominio: number, requester?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, requester);
