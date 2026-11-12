@@ -25,6 +25,17 @@ void main() {
     expect(r.situacao, SituacaoVencimento.futuro);
   });
 
+  test('vencido de outro ano mostra o ano', () {
+    final r = proximoVencimentoPendente([conta('15/12/2025')], hoje: hoje)!;
+    expect(r.rotulo, 'Vencido desde 15/12/2025');
+  });
+
+  test('vencimento futuro de outro ano mostra o ano', () {
+    final r = proximoVencimentoPendente([conta('05/01/2027')], hoje: hoje)!;
+    expect(r.rotulo, 'Vence 05/01/2027');
+    expect(r.situacao, SituacaoVencimento.futuro);
+  });
+
   test('aceita yyyy-MM-dd e yyyy-MM-ddTHH:mm:ss', () {
     expect(proximoVencimentoPendente([conta('2026-11-07')], hoje: hoje)!.rotulo,
         'Vencido desde 07/11');

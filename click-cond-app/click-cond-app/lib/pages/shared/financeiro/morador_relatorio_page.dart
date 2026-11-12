@@ -146,7 +146,12 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
     } catch (e) {
       debugPrint('Erro ao carregar dados para relatório: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        // Com a página aberta carregando, a fileira de meses ainda não existia
+        // no primeiro frame: rola agora que o spinner saiu.
+        WidgetsBinding.instance.addPostFrameCallback((_) => _rolarAteMesSelecionado());
+      }
     }
   }
 
@@ -945,7 +950,13 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
     final isSelected = _selectedPeriodoType == value;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedPeriodoType = value),
+        onTap: () {
+          setState(() => _selectedPeriodoType = value);
+          // A fileira de meses é recriada ao voltar para "Mês Específico".
+          if (value == 'mes') {
+            WidgetsBinding.instance.addPostFrameCallback((_) => _rolarAteMesSelecionado());
+          }
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 8),

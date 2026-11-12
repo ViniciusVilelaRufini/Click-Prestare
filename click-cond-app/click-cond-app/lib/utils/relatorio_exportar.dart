@@ -6,9 +6,18 @@ import 'package:open_filex/open_filex.dart';
 /// `OpenFilex.open` não lança quando não há app para o tipo do arquivo: só
 /// devolve um [OpenResult] com `type` diferente de [ResultType.done].
 String? avisoRelatorioNaoAbriu(ResultType type) {
-  if (type == ResultType.done) return null;
-  return 'Relatório gerado, mas nenhum aplicativo deste aparelho abre '
-      'planilhas (CSV). Instale um leitor de planilhas e tente novamente.';
+  switch (type) {
+    case ResultType.done:
+      return null;
+    case ResultType.noAppToOpen:
+      return 'Relatório gerado, mas nenhum aplicativo deste aparelho abre '
+          'planilhas (CSV). Instale um leitor de planilhas e tente novamente.';
+    case ResultType.permissionDenied:
+      return 'Relatório gerado, mas o aparelho negou permissão para abri-lo.';
+    case ResultType.fileNotFound:
+    case ResultType.error:
+      return 'Relatório gerado, mas não foi possível abri-lo. Tente novamente.';
+  }
 }
 
 /// Posição de rolagem que deixa o item [index] visível (centralizado quando

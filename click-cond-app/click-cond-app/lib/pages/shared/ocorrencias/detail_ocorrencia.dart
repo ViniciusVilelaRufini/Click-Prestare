@@ -9,6 +9,7 @@ import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/utils/ocorrencia_permissoes.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_button.dart';
@@ -464,7 +465,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                     ),
                   ),
                 ),
-      floatingActionButton: isMorador && obj != null && obj['status'] == 'Pendente'
+      floatingActionButton: isMorador && podeEditarOcorrencia(obj, myId)
           ? FloatingActionButton(
               backgroundColor: AppColors.brand,
               onPressed: () async {

@@ -43,13 +43,23 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
   // Sem o body: ele carrega nome, email, documento e telefone das rotas
   // de morador/funcionario/prestador, e print vai pro logcat em release.
   logDebug('[apiSaveObject] HTTP ${response.statusCode}');
+  return mensagemErroSalvar(response.statusCode, response.body);
+}
+
+/// Mensagem de erro de um POST de salvar que não deu 2xx. Um 404 é rota que o
+/// servidor ainda não tem (API mais antiga que o app): vira texto amigável em
+/// vez de `Erro HTTP 404: {json cru}`. Os demais usam a `message` da API.
+String mensagemErroSalvar(int statusCode, String responseBody) {
+  if (statusCode == 404) {
+    return 'Esta função ainda não está disponível no servidor. Tente novamente mais tarde.';
+  }
   // Bodyzinho cru pra debug visivel ao usuario quando algo eh estranho
   // (vai pra dialog quando dev mode).
-  final shortBody = response.body.length > 200
-      ? '${response.body.substring(0, 200)}...'
-      : response.body;
+  final shortBody = responseBody.length > 200
+      ? '${responseBody.substring(0, 200)}...'
+      : responseBody;
   try {
-    final parsed = jsonDecode(response.body);
+    final parsed = jsonDecode(responseBody);
     if (parsed is Map && parsed["message"] != null) {
       final msg = parsed["message"];
       String msgStr;
@@ -68,12 +78,12 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
               logDebug('[apiSaveObject] backend devolveu erro JS interno: $msgStr');
         // Inclui inicio do body no proprio erro pra dar pista ao usuario,
         // que vai poder mandar print pra mim em vez de precisar de F12.
-        return 'Erro interno no servidor (HTTP ${response.statusCode}). Detalhes: $shortBody';
+        return 'Erro interno no servidor (HTTP $statusCode). Detalhes: $shortBody';
       }
       return msgStr;
     }
   } catch (_) {}
-  return "Erro HTTP ${response.statusCode}: $shortBody";
+  return "Erro HTTP $statusCode: $shortBody";
 }
 
 /// Salva uma manutenção de área social tratando o 409 de conflito à parte:

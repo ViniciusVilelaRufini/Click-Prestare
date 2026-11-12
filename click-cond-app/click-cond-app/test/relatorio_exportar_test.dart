@@ -19,7 +19,12 @@ void main() {
   test('avisa quando o relatório não abre', () {
     expect(avisoRelatorioNaoAbriu(ResultType.done), isNull);
     expect(avisoRelatorioNaoAbriu(ResultType.noAppToOpen), contains('nenhum aplicativo'));
-    expect(avisoRelatorioNaoAbriu(ResultType.error), isNotNull);
+    expect(avisoRelatorioNaoAbriu(ResultType.permissionDenied),
+        'Relatório gerado, mas o aparelho negou permissão para abri-lo.');
+    for (final t in [ResultType.fileNotFound, ResultType.error]) {
+      expect(avisoRelatorioNaoAbriu(t),
+          'Relatório gerado, mas não foi possível abri-lo. Tente novamente.');
+    }
   });
 
   test('offset leva o mês selecionado para a área visível', () {

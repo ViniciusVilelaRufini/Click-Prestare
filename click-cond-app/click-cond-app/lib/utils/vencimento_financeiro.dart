@@ -8,7 +8,7 @@ class ProximoVencimento {
   final DateTime data;
   final SituacaoVencimento situacao;
 
-  /// "Vencido desde 07/11", "Vence hoje" ou "Vence 07/11".
+  /// "Vencido desde 07/11", "Vence hoje" ou "Vence 07/11" (com /ano se for de outro ano).
   final String rotulo;
 
   const ProximoVencimento(this.data, this.situacao, this.rotulo);
@@ -57,7 +57,10 @@ ProximoVencimento? proximoVencimentoPendente(List<dynamic> itens, {DateTime? hoj
   }
 
   if (menor == null) return null;
-  final dm = '${_dd(menor.day)}/${_dd(menor.month)}';
+  // Do ano corrente só dd/MM; de outro ano, com o ano (senão "05/01" é ambíguo).
+  final dm = menor.year == agora.year
+      ? '${_dd(menor.day)}/${_dd(menor.month)}'
+      : '${_dd(menor.day)}/${_dd(menor.month)}/${menor.year}';
   if (menor.isBefore(diaHoje)) {
     return ProximoVencimento(menor, SituacaoVencimento.vencido, 'Vencido desde $dm');
   }
