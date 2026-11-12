@@ -480,7 +480,7 @@ class Localizable_Es {
           LocalizableModel(key: 'ocorrencia_status', text: 'Seleccionar estado:'), 
           LocalizableModel(key: 'ocorrencia_abertura_nav', text: 'Apertura de sucesos'), 
           LocalizableModel(key: 'ocorrencia_erro_tipo', text: '¡Seleccione el tipo de ocurrencia!'),     
-          LocalizableModel(key: 'ocorrencia_nav_edit', text: '¡Seleccione el tipo de ocurrencia!'),   
+          LocalizableModel(key: 'ocorrencia_nav_edit', text: 'Editar Ocurrencia'),   
           LocalizableModel(key: 'ocorrencia_tipo', text: 'Tipo de ocurrencia'),   
       
           //PRESTADORES

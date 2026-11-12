@@ -480,7 +480,7 @@ class Localizable_EnUs {
           LocalizableModel(key: 'ocorrencia_status', text: 'Select the status:'), 
           LocalizableModel(key: 'ocorrencia_abertura_nav', text: 'Opening Incidents'), 
           LocalizableModel(key: 'ocorrencia_erro_tipo', text: 'Select the type of incident!'),     
-          LocalizableModel(key: 'ocorrencia_nav_edit', text: 'Select the type of incident!'),   
+          LocalizableModel(key: 'ocorrencia_nav_edit', text: 'Edit Incident'),   
           LocalizableModel(key: 'ocorrencia_tipo', text: 'Type of occurrence'),   
       
           //PRESTADORES

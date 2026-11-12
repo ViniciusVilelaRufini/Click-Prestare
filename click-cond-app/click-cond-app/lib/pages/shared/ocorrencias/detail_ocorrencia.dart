@@ -54,7 +54,10 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
       if (obj['anexos'] != null && obj['anexos'].toString().isNotEmpty) {
         for (var item in obj['anexos'].split(';')) {
           if (item.toString().isNotEmpty) {
-            list.add(await fileFromImageUrl(item));
+            // fileFromImageUrl devolve null quando não há arquivo local; null
+            // na lista estourava em `f.path` no build.
+            final arquivo = await fileFromImageUrl(item);
+            if (arquivo != null) list.add(arquivo);
           }
         }
       }
@@ -464,9 +467,17 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
       floatingActionButton: isMorador && obj != null && obj['status'] == 'Pendente'
           ? FloatingActionButton(
               backgroundColor: AppColors.brand,
-              onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => NewOcorrencia(isEdit: true, myId: widget.id)))
-                  .then((_) => load()),
+              onPressed: () async {
+                final removida = await Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => NewOcorrencia(isEdit: true, myId: widget.id)));
+                if (!context.mounted) return;
+                // Excluída na edição (pop(true)): não há o que recarregar aqui.
+                if (removida == true) {
+                  Navigator.pop(context, true);
+                } else {
+                  load();
+                }
+              },
               child: Icon(PhosphorIcons.pencil, color: AppColors.onBrand),
             )
           : null,

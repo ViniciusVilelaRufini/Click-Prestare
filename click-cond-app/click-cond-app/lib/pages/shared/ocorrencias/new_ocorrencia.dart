@@ -1,5 +1,6 @@
 
 import 'package:click/controllers/controller_generic.dart';
+import 'package:click/pages/shared/ocorrencias/ocorrencia_form_utils.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -29,6 +30,7 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
   var currentTipo = '';
   List<dynamic> categorias = [];
   var _publica = false;
+  var _anexosAtuais = 0;
 
   @override
   void dispose() {
@@ -54,9 +56,10 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
       txtDescricao.text = obj["descricao"] ?? '';
       currentTipo = obj["tipoId"].toString();
       _publica = obj["publica"] == true;
-      for (var item in obj['anexos'].split(';')) {
-        list.add(await fileFromImageUrl(item));
-      }
+      // Os anexos atuais ficam no servidor: o app não baixa o arquivo
+      // (fileFromImageUrl devolve sempre null), e null na lista derrubava o
+      // uploadFile. Fotos novas escolhidas aqui substituem as atuais.
+      _anexosAtuais = contarAnexos(obj['anexos']);
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -79,17 +82,19 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
 
   Future<void> save() async {
     try {
+      final erroDescricao = validarDescricaoOcorrencia(txtDescricao.text);
+      if (erroDescricao != null) {
+        displayMessage(context, getText('alert_ops'), erroDescricao);
+        return;
+      }
       if (currentTipo.isEmpty) {
         displayMessage(context, getText('alert_ops'), getText('ocorrencia_erro_tipo'));
         return;
       }
-      List<String> base64 = [];
-      for (var item in list) {
-        base64.add(convertToBase64(item, 'image/png'));
-      }
+      final base64 = anexosParaEnvio(list, (item) => convertToBase64(item, 'image/png'));
       var doc = OcorrenciaModel(
         id: widget.myId ?? -1,
-        descricao: txtDescricao.text,
+        descricao: txtDescricao.text.trim(),
         docs: base64,
         tipo: currentTipo,
         isResposta: false,
@@ -146,6 +151,10 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
                       onPressed: (listFiles) => setState(() => list = listFiles),
                     ),
                   ),
+                  if (widget.isEdit && _anexosAtuais > 0) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(avisoAnexosMantidos(_anexosAtuais), style: AppTypography.caption(context)),
+                  ],
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('lb_descricao')),
                   AppInput(

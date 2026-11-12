@@ -59,7 +59,11 @@ class _NewAssembleiaPageState extends State<NewAssembleia> {
       txtLocal.text = obj["assembleia"]["local"] ?? '';
       txtLink.text = obj["assembleia"]["link"] ?? '';
       for (var item in obj["assembleia"]['anexos'].split(';')) {
-        if (item.toString().isNotEmpty) list.add(await fileFromPdfUrl(item));
+        if (item.toString().isEmpty) continue;
+        // fileFromPdfUrl devolve null sem arquivo local: null na lista
+        // quebrava o uploadFile e o convertToBase64 ao salvar.
+        final arquivo = await fileFromPdfUrl(item);
+        if (arquivo != null) list.add(arquivo);
       }
       if (mounted) setState(() {});
     } catch (e) {

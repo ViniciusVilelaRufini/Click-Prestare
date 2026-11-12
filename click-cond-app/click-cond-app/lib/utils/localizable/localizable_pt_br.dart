@@ -480,7 +480,7 @@ class Localizable_PtBr {
     LocalizableModel(key: 'ocorrencia_status', text: 'Selecione o status:'), 
     LocalizableModel(key: 'ocorrencia_abertura_nav', text: 'Abertura de Ocorrências'), 
     LocalizableModel(key: 'ocorrencia_erro_tipo', text: 'Selecione o tipo da ocorrência!'),     
-    LocalizableModel(key: 'ocorrencia_nav_edit', text: 'Selecione o tipo da ocorrência!'),   
+    LocalizableModel(key: 'ocorrencia_nav_edit', text: 'Editar Ocorrência'),   
     LocalizableModel(key: 'ocorrencia_tipo', text: 'Tipo da ocorrência'),   
 
     //PRESTADORES

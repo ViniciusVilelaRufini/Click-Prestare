@@ -481,7 +481,7 @@ class Localizable_Al {
     LocalizableModel(key: 'ocorrencia_status', text: 'Status auswählen:'), 
     LocalizableModel(key: 'ocorrencia_abertura_nav', text: 'Öffnung von Vorkommnissen'), 
     LocalizableModel(key: 'ocorrencia_erro_tipo', text: 'Wählen Sie die Art des Ereignisses aus!'),     
-    LocalizableModel(key: 'ocorrencia_nav_edit', text: 'Wählen Sie die Art des Ereignisses aus!'),   
+    LocalizableModel(key: 'ocorrencia_nav_edit', text: 'Vorkommnis bearbeiten'),   
     LocalizableModel(key: 'ocorrencia_tipo', text: 'Art des Ereignisses'),   
 
     //PRESTADORES
