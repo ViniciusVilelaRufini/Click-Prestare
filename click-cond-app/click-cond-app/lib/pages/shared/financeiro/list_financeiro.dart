@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:click/utils/financeiro_constants.dart';
+import 'package:click/utils/vencimento_financeiro.dart';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
@@ -565,56 +566,6 @@ class ListFinanceiroState extends State<ListFinanceiro> {
 
   bool _temValor(dynamic v) => v != null && v.toString().trim().isNotEmpty;
 
-  String? _getProximoVencimento(List<dynamic> activeItems) {
-    DateTime? menorData;
-    String? menorDataStr;
-
-    for (var item in activeItems) {
-      if (_isPago(item['pago'])) continue;
-
-      String raw = (item['data_vencimento'] ?? item['vencimento'] ?? item['data'] ?? '').toString().trim();
-      if (raw.isEmpty) continue;
-
-      DateTime? parsed;
-      String formatted = '';
-
-      if (raw.contains('/')) {
-        var parts = raw.split('/');
-        if (parts.length >= 2) {
-          int d = int.tryParse(parts[0]) ?? 1;
-          int m = int.tryParse(parts[1]) ?? 1;
-          int y = parts.length >= 3 ? (int.tryParse(parts[2]) ?? DateTime.now().year) : DateTime.now().year;
-          if (y < 100) y += 2000;
-          parsed = DateTime(y, m, d);
-          formatted = "${parts[0].padLeft(2, '0')}/${parts[1].padLeft(2, '0')}";
-        }
-      } else if (raw.contains('-')) {
-        var parts = raw.split('-');
-        if (parts.length >= 3) {
-          int y = int.tryParse(parts[0]) ?? DateTime.now().year;
-          int m = int.tryParse(parts[1]) ?? 1;
-          String dayPart = parts[2].split('T').first.trim();
-          int d = int.tryParse(dayPart) ?? 1;
-          parsed = DateTime(y, m, d);
-          formatted = "${d.toString().padLeft(2, '0')}/${m.toString().padLeft(2, '0')}";
-        }
-      }
-
-      if (formatted.isNotEmpty) {
-        if (parsed != null) {
-          if (menorData == null || parsed.isBefore(menorData)) {
-            menorData = parsed;
-            menorDataStr = formatted;
-          }
-        } else {
-          menorDataStr ??= formatted;
-        }
-      }
-    }
-
-    return menorDataStr;
-  }
-
   void _abrirPixSheet({
     required BuildContext context,
     required String payload,
@@ -1022,11 +973,13 @@ class ListFinanceiroState extends State<ListFinanceiro> {
 
     String badgeText = "Tudo em dia";
     IconData badgeIcon = PhosphorIcons.checkCircleFill;
+    bool vencido = false;
     if (contasPendentes > 0) {
-      String? proxVenc = _getProximoVencimento(activeItems);
-      if (proxVenc != null && proxVenc.isNotEmpty) {
-        badgeText = "Vence $proxVenc";
-        badgeIcon = PhosphorIcons.clock;
+      final proxVenc = proximoVencimentoPendente(activeItems);
+      if (proxVenc != null) {
+        badgeText = proxVenc.rotulo;
+        vencido = proxVenc.situacao == SituacaoVencimento.vencido;
+        badgeIcon = vencido ? PhosphorIcons.warningCircle : PhosphorIcons.clock;
       } else {
         badgeText = "Pendente";
         badgeIcon = PhosphorIcons.clock;
@@ -1049,7 +1002,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               ),
               AppTag(
                 label: badgeText,
-                signal: contasPendentes > 0 ? AppSignal.warn : AppSignal.ok,
+                signal: vencido ? AppSignal.danger : (contasPendentes > 0 ? AppSignal.warn : AppSignal.ok),
               ),
             ],
           ),

@@ -21,6 +21,7 @@ import 'package:click/widgets/app/app_segmented_control.dart';
 import 'package:click/widgets/app/app_tag.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:click/utils/financeiro_constants.dart';
+import 'package:click/utils/vencimento_financeiro.dart';
 import 'package:click/widgets/cells/cell_financeiro_card.dart';
 import 'package:click/pages/shared/financeiro/morador_relatorio_page.dart';
 
@@ -353,57 +354,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         AppSegment(label: 'CONDOMÍNIO'),
       ],
     );
-  }
-
-  String? _getProximoVencimento(List<dynamic> activeItems) {
-    DateTime? menorData;
-    String? menorDataStr;
-
-    for (var item in activeItems) {
-      int pago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
-      if (pago == 1) continue;
-
-      String raw = (item['data_vencimento'] ?? item['vencimento'] ?? item['data'] ?? '').toString().trim();
-      if (raw.isEmpty) continue;
-
-      DateTime? parsed;
-      String formatted = '';
-
-      if (raw.contains('/')) {
-        var parts = raw.split('/');
-        if (parts.length >= 2) {
-          int d = int.tryParse(parts[0]) ?? 1;
-          int m = int.tryParse(parts[1]) ?? 1;
-          int y = parts.length >= 3 ? (int.tryParse(parts[2]) ?? DateTime.now().year) : DateTime.now().year;
-          if (y < 100) y += 2000;
-          parsed = DateTime(y, m, d);
-          formatted = "${parts[0].padLeft(2, '0')}/${parts[1].padLeft(2, '0')}";
-        }
-      } else if (raw.contains('-')) {
-        var parts = raw.split('-');
-        if (parts.length >= 3) {
-          int y = int.tryParse(parts[0]) ?? DateTime.now().year;
-          int m = int.tryParse(parts[1]) ?? 1;
-          String dayPart = parts[2].split('T').first.trim();
-          int d = int.tryParse(dayPart) ?? 1;
-          parsed = DateTime(y, m, d);
-          formatted = "${d.toString().padLeft(2, '0')}/${m.toString().padLeft(2, '0')}";
-        }
-      }
-
-      if (formatted.isNotEmpty) {
-        if (parsed != null) {
-          if (menorData == null || parsed.isBefore(menorData)) {
-            menorData = parsed;
-            menorDataStr = formatted;
-          }
-        } else {
-          menorDataStr ??= formatted;
-        }
-      }
-    }
-
-    return menorDataStr;
   }
 
   void _abrirPixSheet({
@@ -823,11 +773,13 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     // Badge de vencimento / status
     String badgeText = "Tudo em dia";
     IconData badgeIcon = PhosphorIcons.checkCircleFill;
+    bool vencido = false;
     if (contasPendentes > 0) {
-      String? proxVenc = _getProximoVencimento(activeItems);
-      if (proxVenc != null && proxVenc.isNotEmpty) {
-        badgeText = "Vence $proxVenc";
-        badgeIcon = PhosphorIcons.clock;
+      final proxVenc = proximoVencimentoPendente(activeItems);
+      if (proxVenc != null) {
+        badgeText = proxVenc.rotulo;
+        vencido = proxVenc.situacao == SituacaoVencimento.vencido;
+        badgeIcon = vencido ? PhosphorIcons.warningCircle : PhosphorIcons.clock;
       } else {
         badgeText = "Pendente";
         badgeIcon = PhosphorIcons.clock;
@@ -876,7 +828,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               ),
               AppTag(
                 label: badgeText,
-                signal: contasPendentes > 0 ? AppSignal.warn : AppSignal.ok,
+                signal: vencido ? AppSignal.danger : (contasPendentes > 0 ? AppSignal.warn : AppSignal.ok),
               ),
             ],
           ),

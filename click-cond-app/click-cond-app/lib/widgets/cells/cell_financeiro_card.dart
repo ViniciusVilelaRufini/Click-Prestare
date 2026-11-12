@@ -37,6 +37,11 @@ class FinanceiroCard extends StatelessWidget {
 
   static bool _temValor(dynamic v) => v != null && v.toString().trim().isNotEmpty;
 
+  /// Conta que o próprio morador lançou: tipo 'D' + id_usuario. A cobrança do
+  /// condomínio também pode trazer id_usuario (tipo 'C'), por isso só o id não basta.
+  static bool _ehContaPessoal(dynamic item) =>
+      item['tipo']?.toString() == 'D' && item['id_usuario'] != null;
+
   static int _paraInt(dynamic v) =>
       v is int ? v : (int.tryParse(v?.toString() ?? '') ?? 0);
 
@@ -410,7 +415,8 @@ class FinanceiroCard extends StatelessWidget {
                     ],
 
                     // Aviso quando não há dados de pagamento
-                    if (!temPix && !temBoletoOuCodigo && !temChavePix) ...[
+                    // (só cobrança do condomínio: conta pessoal não tem o que aguardar)
+                    if (!temPix && !temBoletoOuCodigo && !temChavePix && !_ehContaPessoal(item)) ...[
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
