@@ -1310,13 +1310,11 @@ export class MobileAuthService {
 
       // Conta visitantes E prestadores: o card "Visitas Hoje" abre a lista
       // conjunta do app, então o número precisa bater com o que ela mostra.
+      // Só o dia de hoje: quem entrou em dias anteriores e segue dentro já
+      // aparece em `insideCount` (selo "X no local"), não em "agendadas hoje".
       const visitsCountWhere = {
         id_apartamento: { in: aptoIds },
         OR: [
-          {
-            data_entrada: { not: null },
-            data_saida: null,
-          },
           {
             data_entrada: { gte: hojeIni, lte: hojeFim },
           },

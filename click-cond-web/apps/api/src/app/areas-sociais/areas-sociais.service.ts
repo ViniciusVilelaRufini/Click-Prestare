@@ -426,7 +426,6 @@ export class AreasSociaisService {
       },
     });
 
-    const defaultImage = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
     const ocupacaoMap = await this.getOcupacaoPorArea(Number(idCondominio));
 
     return areas.map(a => {
@@ -443,7 +442,7 @@ export class AreasSociaisService {
       return {
         ...rest,
         horarios: Array.isArray(horariosObj) ? horariosObj : [],
-        imagem: a.imagem && a.imagem.trim() !== '' ? a.imagem : defaultImage,
+        imagem: a.imagem && a.imagem.trim() !== '' ? a.imagem : DEFAULT_AREA_IMAGE,
         tem_monitoramento: temMonitoramento,
         ocupacao: temMonitoramento ? (ocupacaoMap.get(a.id) ?? 0) : 0,
       };
@@ -681,7 +680,7 @@ export class AreasSociaisService {
     return {
       id: area.id,
       nome: area.nome,
-      imagem: area.imagem ?? '',
+      imagem: area.imagem && area.imagem.trim() !== '' ? area.imagem : DEFAULT_AREA_IMAGE,
       precisa_agendar: area.precisa_agendar,
       precisa_autorizacao: area.precisa_autorizacao,
       precisa_pagamento: area.precisa_pagamento,
