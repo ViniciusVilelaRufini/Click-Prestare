@@ -8,8 +8,8 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0a0e1a;
-      color: #e2e8f0;
+      background: #000000;
+      color: #ffffff;
       min-height: 100vh;
       padding: 20px;
     }
@@ -23,7 +23,7 @@
       gap: 16px;
       margin-bottom: 24px;
       padding-bottom: 20px;
-      border-bottom: 1px solid #1e293b;
+      border-bottom: 1px solid #242424;
     }
     header h1 {
       font-size: 22px;
@@ -31,20 +31,20 @@
       color: #fff;
     }
     header .subtitle {
-      color: #64748b;
+      color: #8a8a8a;
       font-size: 13px;
       margin-top: 4px;
     }
     header .icon {
       width: 44px;
       height: 44px;
-      border-radius: 12px;
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 2px;
+      background: rgba(255, 200, 61, 0.1);
+      border: 1px solid rgba(255, 200, 61, 0.3);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #3b82f6;
+      color: #ffc83d;
       font-size: 22px;
     }
 
@@ -55,9 +55,9 @@
     }
 
     .panel {
-      background: #131b2e;
-      border: 1px solid #1e293b;
-      border-radius: 16px;
+      background: #141414;
+      border: 1px solid #242424;
+      border-radius: 2px;
       padding: 20px;
     }
 
@@ -66,7 +66,7 @@
       font-weight: 600;
       letter-spacing: 0.5px;
       text-transform: uppercase;
-      color: #94a3b8;
+      color: #a3a3a3;
       margin-bottom: 16px;
     }
 
@@ -79,7 +79,7 @@
     .setup-row label {
       display: block;
       font-size: 11px;
-      color: #64748b;
+      color: #8a8a8a;
       margin-bottom: 4px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -88,34 +88,34 @@
     input[type="text"], input[type="number"] {
       width: 100%;
       padding: 10px 12px;
-      background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 10px;
+      background: #0b0b0b;
+      border: 1px solid #666666;
+      border-radius: 2px;
       color: #fff;
       font-size: 13px;
       font-family: monospace;
     }
-    input:focus { outline: none; border-color: #3b82f6; }
+    input:focus { outline: none; border-color: #ffc83d; }
     button {
       padding: 10px 16px;
-      background: #3b82f6;
-      color: #fff;
+      background: #ffc83d;
+      color: #000000;
       border: none;
-      border-radius: 10px;
+      border-radius: 2px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       transition: background 0.15s;
     }
-    button:hover:not(:disabled) { background: #2563eb; }
+    button:hover:not(:disabled) { background: #e6b437; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     button.secondary {
-      background: #1e293b;
-      color: #cbd5e1;
+      background: #242424;
+      color: #d4d4d4;
     }
-    button.secondary:hover:not(:disabled) { background: #334155; }
-    button.danger { background: #dc2626; }
-    button.danger:hover:not(:disabled) { background: #b91c1c; }
+    button.secondary:hover:not(:disabled) { background: #666666; }
+    button.danger { background: #ff6b6b; }
+    button.danger:hover:not(:disabled) { background: #e05555; }
 
     /* Webcam */
     .video-wrap {
@@ -123,7 +123,7 @@
       width: 100%;
       aspect-ratio: 4/3;
       background: #000;
-      border-radius: 12px;
+      border-radius: 2px;
       overflow: hidden;
       margin-bottom: 16px;
     }
@@ -141,14 +141,14 @@
       left: 12px;
       padding: 6px 10px;
       background: rgba(0,0,0,0.6);
-      border-radius: 8px;
+      border-radius: 2px;
       font-size: 11px;
       font-weight: 600;
       backdrop-filter: blur(8px);
     }
-    .video-status.detecting { color: #fbbf24; }
-    .video-status.match { color: #10b981; }
-    .video-status.no-face { color: #64748b; }
+    .video-status.detecting { color: #e3b04b; }
+    .video-status.match { color: #5ec28a; }
+    .video-status.no-face { color: #8a8a8a; }
 
     .controls {
       display: flex;
@@ -161,25 +161,25 @@
       display: flex;
       justify-content: space-between;
       padding: 8px 0;
-      border-bottom: 1px solid #1e293b;
+      border-bottom: 1px solid #242424;
       font-size: 13px;
     }
     .info-row:last-child { border-bottom: none; }
-    .info-row .label { color: #64748b; }
+    .info-row .label { color: #8a8a8a; }
     .info-row .value { color: #fff; font-weight: 500; font-family: monospace; }
 
     .badge {
       display: inline-block;
       padding: 3px 8px;
-      border-radius: 6px;
+      border-radius: 2px;
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.3px;
     }
-    .badge.green { background: rgba(16, 185, 129, 0.15); color: #10b981; }
-    .badge.amber { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
-    .badge.red { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
-    .badge.gray { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+    .badge.green { background: rgba(94, 194, 138, 0.15); color: #5ec28a; }
+    .badge.amber { background: rgba(227, 176, 75, 0.15); color: #e3b04b; }
+    .badge.red { background: rgba(255, 107, 107, 0.15); color: #ff6b6b; }
+    .badge.gray { background: rgba(255, 255, 255, 0.15); color: #a3a3a3; }
 
     /* Log de eventos */
     .events {
@@ -188,18 +188,18 @@
     }
     .event-item {
       padding: 10px 12px;
-      background: #0f172a;
-      border-radius: 8px;
+      background: #0b0b0b;
+      border-radius: 2px;
       margin-bottom: 8px;
       font-size: 12px;
-      border-left: 3px solid #334155;
+      border-left: 3px solid #666666;
     }
-    .event-item.success { border-left-color: #10b981; }
-    .event-item.warn { border-left-color: #fbbf24; }
-    .event-item.error { border-left-color: #ef4444; }
+    .event-item.success { border-left-color: #5ec28a; }
+    .event-item.warn { border-left-color: #e3b04b; }
+    .event-item.error { border-left-color: #ff6b6b; }
     .event-item .when {
       font-family: monospace;
-      color: #64748b;
+      color: #8a8a8a;
       font-size: 10px;
       margin-bottom: 2px;
     }
@@ -213,11 +213,11 @@
     }
     .person-thumb {
       aspect-ratio: 1;
-      border-radius: 8px;
-      background: #0f172a;
+      border-radius: 2px;
+      background: #0b0b0b;
       overflow: hidden;
       position: relative;
-      border: 2px solid #1e293b;
+      border: 2px solid #242424;
     }
     .person-thumb img {
       width: 100%;
@@ -225,8 +225,8 @@
       object-fit: cover;
     }
     .person-thumb.matched {
-      border-color: #10b981;
-      box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+      border-color: #5ec28a;
+      box-shadow: 0 0 12px rgba(94, 194, 138, 0.4);
     }
     .person-thumb .name {
       position: absolute;
@@ -244,7 +244,7 @@
     }
 
     .empty {
-      color: #64748b;
+      color: #8a8a8a;
       font-size: 12px;
       text-align: center;
       padding: 20px;
@@ -252,25 +252,25 @@
 
     .alert {
       padding: 12px 14px;
-      border-radius: 10px;
+      border-radius: 2px;
       font-size: 12px;
       margin-bottom: 12px;
     }
-    .alert.info { background: rgba(59, 130, 246, 0.1); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
-    .alert.error { background: rgba(239, 68, 68, 0.1); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .alert.info { background: rgba(255, 200, 61, 0.1); color: #ffc83d; border: 1px solid rgba(255, 200, 61, 0.3); }
+    .alert.error { background: rgba(255, 107, 107, 0.1); color: #ff6b6b; border: 1px solid rgba(255, 107, 107, 0.3); }
 
     .threshold-control {
       margin-top: 12px;
     }
     .threshold-control input[type="range"] {
       width: 100%;
-      accent-color: #3b82f6;
+      accent-color: #ffc83d;
     }
     .threshold-control .threshold-row {
       display: flex;
       justify-content: space-between;
       font-size: 11px;
-      color: #94a3b8;
+      color: #a3a3a3;
       margin-bottom: 4px;
     }
 
@@ -281,7 +281,7 @@
     .direction-control label.field-label {
       display: block;
       font-size: 11px;
-      color: #64748b;
+      color: #8a8a8a;
       margin-bottom: 6px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -290,9 +290,9 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 4px;
-      background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 10px;
+      background: #0b0b0b;
+      border: 1px solid #666666;
+      border-radius: 2px;
       padding: 4px;
     }
     .segmented input[type="radio"] {
@@ -303,9 +303,9 @@
       text-align: center;
       font-size: 12px;
       font-weight: 600;
-      color: #94a3b8;
+      color: #a3a3a3;
       cursor: pointer;
-      border-radius: 7px;
+      border-radius: 2px;
       transition: all 0.15s;
       user-select: none;
       display: flex;
@@ -314,24 +314,36 @@
       gap: 6px;
     }
     .segmented input[type="radio"]:checked + label {
-      background: #1e293b;
+      background: #242424;
       color: #fff;
       box-shadow: 0 0 0 1px rgba(255,255,255,0.05);
     }
     .segmented input[type="radio"][value="entrada"]:checked + label {
-      background: rgba(16, 185, 129, 0.15);
-      color: #10b981;
-      box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.3);
+      background: rgba(94, 194, 138, 0.15);
+      color: #5ec28a;
+      box-shadow: 0 0 0 1px rgba(94, 194, 138, 0.3);
     }
     .segmented input[type="radio"][value="saida"]:checked + label {
-      background: rgba(239, 68, 68, 0.15);
-      color: #ef4444;
-      box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
+      background: rgba(255, 107, 107, 0.15);
+      color: #ff6b6b;
+      box-shadow: 0 0 0 1px rgba(255, 107, 107, 0.3);
     }
 
     @media (max-width: 900px) {
       .grid { grid-template-columns: 1fr; }
     }
+  </style>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+  <style id="prestare-tema">
+    /* Prestare Dark: tipografia e cantos do console (portaria-web/src/styles.css) */
+    body { font-family: Barlow, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif !important; }
+    h1, h2, h3, button, .btn, label {
+      font-family: 'Barlow Condensed', 'Arial Narrow', Barlow, sans-serif;
+      letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+    }
+    h1 { letter-spacing: 0.06em; }
   </style>
 </head>
 <body>
@@ -534,7 +546,7 @@
       div.innerHTML = `
         <div class="when">${hh}:${mm}:${ss}</div>
         <div><strong>${title}</strong></div>
-        ${detail ? `<div style="color:#94a3b8;margin-top:2px">${detail}</div>` : ''}
+        ${detail ? `<div style="color:#a3a3a3;margin-top:2px">${detail}</div>` : ''}
       `;
       el.events.prepend(div);
     }
@@ -753,7 +765,7 @@
 
         // Desenha o box do rosto
         const box = det.detection.box;
-        ctx.strokeStyle = '#3b82f6';
+        ctx.strokeStyle = '#ffc83d';
         ctx.lineWidth = 3;
         // Espelhado horizontalmente porque o vídeo está flipado
         const x = el.overlay.width - box.x - box.width;

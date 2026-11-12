@@ -16,6 +16,7 @@ import {
   montarSqlTotal,
   resolverPeriodoEventos,
 } from './eventos-espinha';
+import { cabecalhoMarca, fileteMarca, PDF_COR, temaPdf, travarAcessosPdf } from './pdf-tema';
 
 /**
  * Módulos do log que só o síndico lê: os detalhes trazem valores, nomes e
@@ -492,27 +493,24 @@ export class RelatoriosService {
     metrics: { label: string; value: string }[];
     table: { widths: any[]; body: any[][] };
   }): Promise<Buffer> {
-    const fonts = {
-      Helvetica: {
-        normal: 'Helvetica',
-        bold: 'Helvetica-Bold',
-        italics: 'Helvetica-Oblique',
-        bolditalics: 'Helvetica-BoldOblique',
-      },
-    };
+    // Visual Prestare Dark na versão para papel (ver pdf-tema.ts).
+    const tema = temaPdf();
+    const rotulo = { font: tema.display, fontSize: 8, characterSpacing: 1.6, color: PDF_COR.subtle };
 
     const docDefinition: TDocumentDefinitions = {
       defaultStyle: {
-        font: 'Helvetica',
+        font: tema.texto,
+        color: PDF_COR.texto,
       },
       content: [
-        // Cabeçalho Premium
-        { text: params.headerText, style: 'header' },
-        ...(params.unidade ? [{ text: `Unidade: ${params.unidade}`, style: 'subheader', bold: true }] : []),
-        { text: `Período: ${params.periodo}`, style: 'subheader' },
-        { text: `Gerado em: ${getGeradoEmStr()}`, style: 'meta' },
-        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1.5, lineColor: '#E2E8F0' }] },
-        { text: '', margin: [0, 15] },
+        cabecalhoMarca('Relatório'),
+        fileteMarca(10),
+        { text: params.headerText.toUpperCase(), style: 'header' },
+        ...(params.unidade
+          ? [{ text: [{ text: 'UNIDADE  ', ...rotulo }, { text: params.unidade, bold: true, color: PDF_COR.tinta }], style: 'subheader' }]
+          : []),
+        { text: [{ text: 'PERÍODO  ', ...rotulo }, { text: params.periodo }], style: 'subheader' },
+        { text: [{ text: 'GERADO EM  ', ...rotulo }, { text: getGeradoEmStr() }], style: 'meta' },
 
         // Cards de métricas
         {
@@ -520,24 +518,23 @@ export class RelatoriosService {
             widths: params.metrics.map(() => '*'),
             body: [
               params.metrics.map((m) => ({
-                fillColor: '#F8FAFC',
-                borderColor: ['#E2E8F0', '#E2E8F0', '#E2E8F0', '#E2E8F0'],
+                fillColor: PDF_COR.painel,
                 stack: [
-                  { text: m.label.toUpperCase(), fontSize: 8, color: '#64748B', bold: true },
-                  { text: m.value, fontSize: 16, color: '#0F172A', bold: true, margin: [0, 4, 0, 0] },
+                  { text: m.label.toUpperCase(), ...rotulo },
+                  { text: m.value, font: tema.displayLeve, fontSize: 26, lineHeight: 0.95, color: PDF_COR.tinta, margin: [0, 4, 0, 0] },
                 ],
-                margin: [12, 10],
+                margin: [12, 10, 12, 8],
               })),
             ],
           },
           layout: {
-            hLineWidth: () => 1,
+            hLineWidth: (i: number) => (i === 0 ? 2 : 1),
             vLineWidth: () => 1,
-            hLineColor: () => '#E2E8F0',
-            vLineColor: () => '#E2E8F0',
+            hLineColor: (i: number) => (i === 0 ? PDF_COR.marca : PDF_COR.linha),
+            vLineColor: () => PDF_COR.linha,
           },
+          margin: [0, 0, 0, 18],
         },
-        { text: '', margin: [0, 15] },
 
         // Tabela de registros
         {
@@ -546,64 +543,88 @@ export class RelatoriosService {
             widths: params.table.widths,
             body: params.table.body.map((row, rIdx) =>
               row.map((cell) => {
-                if (rIdx === 0) return cell; // Se for o header, mantém o estilo do header
+                if (rIdx === 0) {
+                  // Cabeçalho em caixa alta, como os rótulos do console.
+                  return cell && typeof cell.text === 'string' ? { ...cell, text: cell.text.toUpperCase() } : cell;
+                }
                 return {
                   text: cell,
                   style: 'tableCell',
-                  fillColor: rIdx % 2 === 0 ? '#F8FAFC' : '#FFFFFF',
+                  fillColor: rIdx % 2 === 0 ? PDF_COR.zebra : PDF_COR.papel,
                 };
               })
             ),
           },
           layout: {
-            hLineWidth: () => 0.5,
+            hLineWidth: (i: number) => (i === 0 ? 0 : 0.5),
             vLineWidth: () => 0,
-            hLineColor: () => '#E2E8F0',
+            hLineColor: () => PDF_COR.linha,
+            paddingTop: () => 0,
+            paddingBottom: () => 0,
           },
         },
       ],
       footer: (currentPage, pageCount) => {
         return {
           columns: [
-            { text: 'Gerado pelo Sistema Click com Prestare', alignment: 'left', fontSize: 8, color: '#94A3B8' },
-            { text: `Página ${currentPage} de ${pageCount}`, alignment: 'right', fontSize: 8, color: '#94A3B8' },
+            {
+              text: [
+                { text: 'PRESTARE CONDOMÍNIOS', font: tema.display, characterSpacing: 1.2, color: PDF_COR.muted },
+                { text: '  ·  prestarecondominios.com.br' },
+              ],
+              alignment: 'left',
+              fontSize: 8,
+              color: PDF_COR.subtle,
+            },
+            {
+              text: `PÁGINA ${currentPage} DE ${pageCount}`,
+              alignment: 'right',
+              font: tema.display,
+              fontSize: 8,
+              characterSpacing: 1.2,
+              color: PDF_COR.subtle,
+            },
           ],
-          margin: [40, 15, 40, 0],
+          margin: [40, 20, 40, 0],
         };
       },
       styles: {
         header: {
-          fontSize: 20,
-          bold: true,
-          color: '#0F172A',
+          font: tema.display,
+          fontSize: 22,
+          characterSpacing: 0.8,
+          color: PDF_COR.tinta,
+          margin: [0, 14, 0, 6],
         },
         subheader: {
-          fontSize: 11,
-          color: '#475569',
-          margin: [0, 4, 0, 0],
+          fontSize: 10,
+          color: PDF_COR.muted,
+          margin: [0, 3, 0, 0],
         },
         meta: {
           fontSize: 9,
-          color: '#94A3B8',
-          margin: [0, 2, 0, 8],
+          color: PDF_COR.subtle,
+          margin: [0, 3, 0, 16],
         },
         tableHeader: {
-          fontSize: 10,
-          bold: true,
-          color: '#FFFFFF',
-          fillColor: '#0F172A',
-          margin: [6, 8],
+          font: tema.display,
+          fontSize: 9,
+          characterSpacing: 1.2,
+          color: PDF_COR.papel,
+          fillColor: PDF_COR.tinta,
+          margin: [6, 7],
         },
         tableCell: {
           fontSize: 9,
-          color: '#334155',
-          margin: [6, 6],
+          color: PDF_COR.texto,
+          margin: [6, 5],
         },
       },
       pageMargins: [40, 40, 40, 60],
     };
 
-    pdfmake.setFonts(fonts);
+    pdfmake.setFonts(tema.fontes);
+    travarAcessosPdf(pdfmake);
     const doc = pdfmake.createPdf(docDefinition);
     return await doc.getBuffer();
   }
