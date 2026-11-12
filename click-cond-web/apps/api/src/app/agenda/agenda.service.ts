@@ -48,15 +48,21 @@ export class AgendaService {
     const titulo = String(agenda?.titulo ?? '').trim();
     if (!titulo) throw new BadRequestException('O título é obrigatório.');
 
+    const dataInicio = this.parseData(agenda?.data_inicio);
+    const dataTermino = this.parseData(agenda?.data_termino);
+    const horaInicio = this.parseHora(agenda?.hora_inicio);
+    const horaTermino = this.parseHora(agenda?.hora_termino);
+    this.assertTerminoDepoisDoInicio(dataInicio, dataTermino, horaInicio, horaTermino);
+
     const idUser = user?.user?.id ?? user?.sub;
     return this.prisma.agenda.create({
       data: {
         titulo,
         descricao: agenda?.descricao ?? null,
-        data_inicio: this.parseData(agenda?.data_inicio),
-        data_termino: this.parseData(agenda?.data_termino),
-        hora_inicio: this.parseHora(agenda?.hora_inicio),
-        hora_termino: this.parseHora(agenda?.hora_termino),
+        data_inicio: dataInicio,
+        data_termino: dataTermino,
+        hora_inicio: horaInicio,
+        hora_termino: horaTermino,
         alertar_moradores: this.parseAlertar(agenda),
         id_condominio: Number(idCondominio),
         user: idUser ? Number(idUser) : null,
@@ -73,11 +79,19 @@ export class AgendaService {
 
     const atual = await this.prisma.agenda.findUnique({
       where: { id },
-      select: { id_condominio: true },
+      select: { id_condominio: true, data_inicio: true, data_termino: true, hora_inicio: true, hora_termino: true },
     });
     if (!atual) throw new NotFoundException(`Manutenção ${id} não encontrada`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `manutenção #${id}`);
     await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'manutencoes_programadas', user);
+
+    // Só um lado pode vir no payload: o outro vem do registro atual.
+    this.assertTerminoDepoisDoInicio(
+      agenda.data_inicio !== undefined ? this.parseData(agenda.data_inicio) : (atual.data_inicio ?? null),
+      agenda.data_termino !== undefined ? this.parseData(agenda.data_termino) : (atual.data_termino ?? null),
+      agenda.hora_inicio !== undefined ? this.parseHora(agenda.hora_inicio) : (atual.hora_inicio ?? null),
+      agenda.hora_termino !== undefined ? this.parseHora(agenda.hora_termino) : (atual.hora_termino ?? null),
+    );
 
     return this.prisma.agenda.update({
       where: { id },
@@ -148,6 +162,26 @@ export class AgendaService {
     const min = Number(m[2]);
     if (h > 23 || min > 59) return null;
     return new Date(Date.UTC(1970, 0, 1, h, min));
+  }
+
+  /**
+   * Quando início e término (data e, se houver nos dois lados, hora) estão
+   * presentes, o término não pode ser anterior ao início.
+   */
+  private assertTerminoDepoisDoInicio(
+    dataInicio: Date | null,
+    dataTermino: Date | null,
+    horaInicio: Date | null,
+    horaTermino: Date | null,
+  ) {
+    if (!dataInicio || !dataTermino) return;
+    const minutos = (h: Date | null) => (h ? h.getUTCHours() * 60 + h.getUTCMinutes() : 0);
+    const usaHora = !!horaInicio && !!horaTermino;
+    const ini = dataInicio.getTime() + (usaHora ? minutos(horaInicio) * 60000 : 0);
+    const fim = dataTermino.getTime() + (usaHora ? minutos(horaTermino) * 60000 : 0);
+    if (fim < ini) {
+      throw new BadRequestException('O término da manutenção precisa ser depois do início.');
+    }
   }
 
   /** O app manda `alertar` (bool); o banco guarda `alertar_moradores` (tinyint). */

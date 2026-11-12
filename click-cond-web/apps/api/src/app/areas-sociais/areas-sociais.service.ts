@@ -1465,10 +1465,62 @@ export class AreasSociaisService {
     }
   }
 
+  // Valida e converte os campos da janela de manutenção ANTES de qualquer
+  // consulta ou escrita: campo ausente estourava 500 (`.split` de undefined),
+  // data/hora inválida virava NaN e fim antes do início era gravado sem
+  // detectar conflito. `exigirArea` é false no update (a área vem do registro).
+  private parseJanelaManutencao(m: any, exigirArea: boolean) {
+    const vazio = (v: unknown) => v === undefined || v === null || String(v).trim() === '';
+    if (
+      !m ||
+      (exigirArea && vazio(m.id_area_social)) ||
+      vazio(m.data_inicio) ||
+      vazio(m.data_termino) ||
+      vazio(m.hora_inicio) ||
+      vazio(m.hora_termino)
+    ) {
+      throw new BadRequestException('Informe a área, as datas e os horários da manutenção.');
+    }
+    const invalido = () => new BadRequestException('Data ou horário da manutenção inválido.');
+    if (exigirArea && !Number.isInteger(Number(m.id_area_social))) throw invalido();
+
+    const lerData = (raw: unknown): Date => {
+      const mt = String(raw).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!mt) throw invalido();
+      const [d, mo, a] = [Number(mt[1]), Number(mt[2]), Number(mt[3])];
+      const dt = new Date(a, mo - 1, d);
+      if (dt.getFullYear() !== a || dt.getMonth() !== mo - 1 || dt.getDate() !== d) throw invalido();
+      return dt;
+    };
+    const lerHora = (raw: unknown): Date => {
+      const mt = String(raw).trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if (!mt) throw invalido();
+      const [h, mi] = [Number(mt[1]), Number(mt[2])];
+      if (h > 23 || mi > 59) throw invalido();
+      return new Date(1970, 0, 1, h, mi, 0);
+    };
+
+    const dIni = lerData(m.data_inicio);
+    const dFim = lerData(m.data_termino);
+    const horaInicioObj = lerHora(m.hora_inicio);
+    const horaTerminoObj = lerHora(m.hora_termino);
+    const inicioJanela = this.combineDateTime(dIni, horaInicioObj);
+    const fimJanela = this.combineDateTime(dFim, horaTerminoObj);
+    if (fimJanela.getTime() <= inicioJanela.getTime()) {
+      throw new BadRequestException('O término da manutenção precisa ser depois do início.');
+    }
+    return { dIni, dFim, horaInicioObj, horaTerminoObj, inicioJanela, fimJanela };
+  }
+
   async insertManutencao(manutencao: any, user?: JwtPayload) {
     assertOperador(user, 'agendar manutenção');
     // Bloquear a area para manutencao cancela reservas de morador: flag propria.
     if (!this.prisma.isConnected) return { success: true };
+    // Sem a área não há como checar tenant/permissão; o resto da janela é
+    // validado logo depois deles (a ordem de 403/404 não muda).
+    if (manutencao?.id_area_social === undefined || manutencao?.id_area_social === null || String(manutencao.id_area_social).trim() === '') {
+      throw new BadRequestException('Informe a área, as datas e os horários da manutenção.');
+    }
 
     const area = await this.prisma.areas_Sociais.findUnique({
       where: { id: Number(manutencao.id_area_social) },
@@ -1477,23 +1529,12 @@ export class AreasSociaisService {
     await this.tenant.assertEntidade(area.id_condominio, user, 'área social');
     await this.tenant.assertPermissaoFuncionario(area.id_condominio, 'manutencoes_programadas', user);
 
-    // Converter datas
-    const pIni = manutencao.data_inicio.split('/');
-    const dIni = new Date(Number(pIni[2]), Number(pIni[1]) - 1, Number(pIni[0]));
-
-    const pFim = manutencao.data_termino.split('/');
-    const dFim = new Date(Number(pFim[2]), Number(pFim[1]) - 1, Number(pFim[0]));
-
-    const [hI, mI] = this.parseTime(manutencao.hora_inicio);
-    const [hF, mF] = this.parseTime(manutencao.hora_termino);
-    const horaInicioObj = new Date(1970, 0, 1, hI, mI, 0);
-    const horaTerminoObj = new Date(1970, 0, 1, hF, mF, 0);
+    const { dIni, dFim, horaInicioObj, horaTerminoObj, inicioJanela, fimJanela } =
+      this.parseJanelaManutencao(manutencao, true);
 
     // Reservas já existentes que caem na janela nova — sem isso a manutenção
     // entrava "por cima" de reservas ativas: morador nunca era avisado e, em
     // área com facial, a catraca continuava abrindo pra ele.
-    const inicioJanela = this.combineDateTime(dIni, horaInicioObj);
-    const fimJanela = this.combineDateTime(dFim, horaTerminoObj);
     const conflitantes = await this.detectarAgendamentosAtingidos(Number(manutencao.id_area_social), inicioJanela, fimJanela);
 
     if (conflitantes.length > 0 && manutencao.confirmar_cancelamentos !== true) {
@@ -1543,19 +1584,9 @@ export class AreasSociaisService {
     if (!atual) throw new NotFoundException('Manutenção não encontrada.');
     await this.tenant.assertEntidade(atual.area?.id_condominio, user, `manutenção #${manutencao.id}`);
 
-    const pIni = manutencao.data_inicio.split('/');
-    const dIni = new Date(Number(pIni[2]), Number(pIni[1]) - 1, Number(pIni[0]));
+    const { dIni, dFim, horaInicioObj, horaTerminoObj, inicioJanela, fimJanela } =
+      this.parseJanelaManutencao(manutencao, false);
 
-    const pFim = manutencao.data_termino.split('/');
-    const dFim = new Date(Number(pFim[2]), Number(pFim[1]) - 1, Number(pFim[0]));
-
-    const [hI, mI] = this.parseTime(manutencao.hora_inicio);
-    const [hF, mF] = this.parseTime(manutencao.hora_termino);
-    const horaInicioObj = new Date(1970, 0, 1, hI, mI, 0);
-    const horaTerminoObj = new Date(1970, 0, 1, hF, mF, 0);
-
-    const inicioJanela = this.combineDateTime(dIni, horaInicioObj);
-    const fimJanela = this.combineDateTime(dFim, horaTerminoObj);
     const conflitantes = await this.detectarAgendamentosAtingidos(atual.id_area_social, inicioJanela, fimJanela);
 
     if (conflitantes.length > 0 && manutencao.confirmar_cancelamentos !== true) {
