@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { hojeBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
+import { normalizarBloco } from '../common/rotulo-bloco.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { MailService } from '../common/mail/mail.service';
@@ -615,7 +616,7 @@ export class MobileAuthService {
         where: { id_condominio: { in: ids } },
       });
       for (const g of grupos as Array<{ id_condominio: number; bloco: string | null }>) {
-        const b = (g.bloco ?? '').trim().toLowerCase();
+        const b = normalizarBloco(g.bloco);
         if (!b) continue;
         if (!porCond.has(g.id_condominio)) porCond.set(g.id_condominio, new Set());
         porCond.get(g.id_condominio)!.add(b);
@@ -3882,10 +3883,11 @@ export class MobileAuthService {
       ? await this.prisma.apartamentos_Users.findMany({
           where: { id_user: { in: idsUser }, apartamento: { id_condominio: Number(idCond) } },
           include: { apartamento: { select: { bloco: true, apto: true } } },
+          orderBy: { id: 'desc' },
         })
       : [];
     const chaveUnidade = (b: string | null | undefined, a: string | null | undefined) =>
-      `${(b ?? '').trim().toLowerCase()}|${(a ?? '').trim().toLowerCase()}`;
+      `${normalizarBloco(b)}|${(a ?? '').trim().toLowerCase()}`;
     const tipoPorVinculo = new Map<string, string | null>();
     for (const v of vinculos) {
       const k = `${v.id_user}|${chaveUnidade(v.apartamento?.bloco, v.apartamento?.apto)}`;

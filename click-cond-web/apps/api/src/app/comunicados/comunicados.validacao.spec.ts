@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ComunicadosService } from './comunicados.service';
 
 /** Salvar vazio criava comunicado sem título e empurrava push em branco. */
-describe('ComunicadosService — título e descrição obrigatórios', () => {
+describe('ComunicadosService — título obrigatório, descrição opcional', () => {
   const sindico: any = { sub: 1, typeAccess: 'Sindico', user: { id: 1 } };
 
   function build() {
@@ -28,9 +28,6 @@ describe('ComunicadosService — título e descrição obrigatórios', () => {
   it.each([
     [{ titulo: '', descricao: 'x' }, 'Informe o título do comunicado.'],
     [{ titulo: '   ', descricao: 'x' }, 'Informe o título do comunicado.'],
-    [{ titulo: 'Obra', descricao: '' }, 'Informe a descrição do comunicado.'],
-    [{ titulo: 'Obra', descricao: '  ' }, 'Informe a descrição do comunicado.'],
-    [{ titulo: 'Obra' }, 'Informe a descrição do comunicado.'],
   ])('create %j → 400 sem gravar nem notificar', async (dto, msg) => {
     const { service, prisma, notifications } = build();
     await expect(service.create({ ...dto, id_condominio: 1 } as any, sindico)).rejects.toThrow(
@@ -39,6 +36,16 @@ describe('ComunicadosService — título e descrição obrigatórios', () => {
     await new Promise((r) => setImmediate(r));
     expect(prisma.comunicados.create).not.toHaveBeenCalled();
     expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ titulo: 'Obra', descricao: '' }],
+    [{ titulo: 'Obra', descricao: '  ' }],
+    [{ titulo: 'Obra' }],
+  ])('create %j → salva só com título (descricao null)', async (dto) => {
+    const { service, prisma } = build();
+    await service.create({ ...dto, id_condominio: 1 } as any, sindico);
+    expect(prisma.comunicados.create.mock.calls[0][0].data).toMatchObject({ titulo: 'Obra', descricao: null });
   });
 
   it('create grava trimado', async () => {
@@ -50,8 +57,13 @@ describe('ComunicadosService — título e descrição obrigatórios', () => {
   it('update com campo enviado vazio → 400 sem gravar', async () => {
     const { service, prisma } = build();
     await expect(service.update(11, { titulo: ' ' }, sindico)).rejects.toThrow('Informe o título do comunicado.');
-    await expect(service.update(11, { descricao: '' }, sindico)).rejects.toThrow('Informe a descrição do comunicado.');
     expect(prisma.comunicados.update).not.toHaveBeenCalled();
+  });
+
+  it('update com descricao vazia salva null', async () => {
+    const { service, prisma } = build();
+    await service.update(11, { titulo: 'Obra', descricao: '' }, sindico);
+    expect(prisma.comunicados.update.mock.calls[0][0].data).toEqual({ titulo: 'Obra', descricao: null });
   });
 
   it('update só valida o que veio e grava trimado', async () => {

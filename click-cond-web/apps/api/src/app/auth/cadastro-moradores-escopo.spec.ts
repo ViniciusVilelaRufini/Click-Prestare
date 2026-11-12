@@ -90,6 +90,20 @@ describe('Cadastro de moradores — escopo por papel e por apartamento', () => {
       expect(r.tipo).toBe('dependente');
       expect(r.vinculo).toBe('dependente');
       expect(prisma.apartamentos_Users.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.apartamentos_Users.findMany.mock.calls[0][0]).toMatchObject({
+        where: { id_user: { in: [10] }, apartamento: { id_condominio: 1 } },
+        orderBy: { id: 'desc' },
+      });
+    });
+
+    it('morador "A" casa com apartamento "Bloco A" (prefixo ignorado)', async () => {
+      const { svc, prisma } = build();
+      prisma.moradores.findMany = jest.fn(async () => [moradorRow({ bloco: 'A' })]);
+      prisma.apartamentos_Users.findMany = jest.fn(async () => [
+        { id_user: 10, tipo: 'Inquilino', apartamento: { bloco: 'Bloco A', apto: '106' } },
+      ]);
+      const [r] = await svc.getAllMoradores(1, sindico);
+      expect(r.tipo).toBe('inquilino');
     });
 
     it('sem vínculo no apartamento usa o cadastro do morador', async () => {

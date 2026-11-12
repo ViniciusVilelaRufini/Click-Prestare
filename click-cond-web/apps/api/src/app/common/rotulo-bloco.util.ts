@@ -11,3 +11,11 @@ export function rotuloBloco(bloco: string | null | undefined): string {
   if (!s) return '';
   return /^bloco\b/i.test(s) ? s : `Bloco ${s}`;
 }
+
+/**
+ * Chave de comparação do bloco: sem espaços nas pontas, minúsculas e sem o
+ * prefixo "bloco" ("Bloco A", "bloco a" e "A" são o mesmo bloco).
+ */
+export function normalizarBloco(bloco: string | null | undefined): string {
+  return (bloco ?? '').trim().toLowerCase().replace(/^bloco\s*/, '');
+}

@@ -43,6 +43,8 @@ describe('listagem de condomínios — número de blocos real', () => {
     { id_condominio: 1, bloco: 'Bloco A' },
     { id_condominio: 1, bloco: 'Bloco a ' },
     { id_condominio: 1, bloco: 'Bloco B' },
+    { id_condominio: 1, bloco: 'A' },
+    { id_condominio: 1, bloco: 'bloco a' },
     { id_condominio: 1, bloco: '' },
     { id_condominio: 1, bloco: null },
     { id_condominio: 2, bloco: null },

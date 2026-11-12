@@ -104,10 +104,11 @@ export class ComunicadosService {
     // assertStaff so garante "nao e morador": publicar comunicado e comunicacao
     // oficial do condominio, e a flag existe para o sindico controlar isso.
     await this.tenant.assertPermissaoFuncionario(dto.id_condominio, 'comunicados', operador);
-    // Sem título/descrição nada é gravado nem notificado (antes um Salvar vazio
+    // Sem título nada é gravado nem notificado (antes um Salvar vazio
     // empurrava "Novo comunicado" em branco para todos os moradores).
     const titulo = textoObrigatorio(dto.titulo, 'Informe o título do comunicado.');
-    const descricao = textoObrigatorio(dto.descricao, 'Informe a descrição do comunicado.');
+    // Descrição é opcional (a portaria-web manda '' quando vazia): grava null.
+    const descricao = String(dto.descricao ?? '').trim() || null;
     const criado = await this.prisma.comunicados.create({
       data: {
         titulo,
@@ -141,7 +142,7 @@ export class ComunicadosService {
       dto.titulo !== undefined ? textoObrigatorio(dto.titulo, 'Informe o título do comunicado.') : undefined;
     const descricao =
       dto.descricao !== undefined
-        ? textoObrigatorio(dto.descricao, 'Informe a descrição do comunicado.')
+        ? String(dto.descricao ?? '').trim() || null
         : undefined;
 
     try {
