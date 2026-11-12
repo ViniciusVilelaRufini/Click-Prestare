@@ -437,6 +437,31 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
   .fone-loja .phone{position:relative;width:min(300px,100%)}
 
   /* Instagram */
+  .mo{margin:56px 0 0;border:1px solid var(--line-100);background:linear-gradient(var(--grid) 1px,transparent 1px) 0 0/48px 48px,linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/48px 48px,var(--bg-100);padding:clamp(12px,3vw,40px)}
+  .mo svg{display:block;width:100%;height:auto;max-width:1040px;margin:0 auto;overflow:visible}
+  .mo figcaption{font-size:13px;color:var(--ink-subtle);margin:16px auto 0;max-width:1040px}
+  .mo-aws{margin-top:40px;padding:clamp(12px,2vw,24px)}
+  .mo .s{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .mo .s2{fill:none;stroke:var(--line-200);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .mo .f{fill:var(--bg-000);stroke:var(--ink);stroke-width:1.5;stroke-linejoin:round}
+  .mo .b{fill:var(--brand)}.mo .bs{fill:none;stroke:var(--brand);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+  .mo .m{fill:var(--line-200)}
+  .mo text{font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:.14em;fill:var(--ink-muted);text-anchor:middle}
+  .mo text.n{font-weight:300;font-size:26px;letter-spacing:.06em;fill:var(--ink-subtle)}
+  .mo .dash{stroke-dasharray:6 10;animation:mo-dash 1.1s linear infinite}
+  .mo .pulse{animation:mo-pulse 2.4s ease-in-out infinite}
+  .mo .d1{animation-delay:.4s}.mo .d2{animation-delay:.8s}.mo .d3{animation-delay:1.2s}.mo .d4{animation-delay:1.6s}
+  .mo .scan{animation:mo-scan 2.2s ease-in-out infinite alternate}
+  .mo .knob{animation:mo-knob 4s ease-in-out infinite}
+  .mo .draw{stroke-dasharray:40;stroke-dashoffset:40;animation:mo-draw 4s ease-in-out infinite}
+  .mo .spin{transform-box:fill-box;transform-origin:center;animation:mo-spin 6s linear infinite}
+  @keyframes mo-dash{to{stroke-dashoffset:-32}}
+  @keyframes mo-pulse{0%,100%{opacity:.25}50%{opacity:1}}
+  @keyframes mo-scan{from{transform:translateY(0)}to{transform:translateY(62px)}}
+  @keyframes mo-knob{0%,20%{transform:translateX(0);fill:var(--line-200)}35%,85%{transform:translateX(26px);fill:var(--brand)}100%{transform:translateX(0);fill:var(--line-200)}}
+  @keyframes mo-draw{0%,30%{stroke-dashoffset:40}50%,90%{stroke-dashoffset:0}100%{stroke-dashoffset:40}}
+  @keyframes mo-spin{to{transform:rotate(360deg)}}
+  @media (max-width:900px){.mo{margin-top:40px}}
   .insta{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:center}
   .insta-foto{display:block;position:relative;width:100%;aspect-ratio:2/1;overflow:hidden;border:1px solid var(--line-200)}
   .insta-foto img{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover;transition:transform .3s}
@@ -694,6 +719,16 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
         <p class="lead">É uma ferramenta para o condomínio usar com o próprio porteiro. A Prestare não opera uma central de atendimento à distância.</p>
       </div>
     </div>
+    <figure class="mo rv"><svg viewBox="0 0 840 330" role="img" aria-labelledby="mo1t"><title id="mo1t">O morador cadastra o visitante no app, a portaria confirma no console e a entrada fica registrada com data e hora</title>
+<text class="n" x="150" y="40">01</text><text class="n" x="420" y="40">02</text><text class="n" x="690" y="40">03</text>
+<rect class="f" x="110" y="70" width="80" height="150" rx="10"/><path class="s2" d="M124 96h52M124 112h36M124 128h44"/><rect class="b pulse" x="124" y="172" width="52" height="22"/><path class="s" d="M146 206h8"/>
+<path class="s2 dash" d="M206 145H332"/><path class="s2" d="m326 139 6 6-6 6"/>
+<rect class="f" x="350" y="82" width="140" height="96" rx="6"/><path class="s" d="M396 204h48M420 178v26"/><path class="s2" d="M364 102h70M364 122h112M364 158h90"/><rect class="b pulse d2" x="364" y="133" width="112" height="14"/>
+<path class="s2 dash" d="M506 145H624"/><path class="s2" d="m618 139 6 6-6 6"/>
+<rect class="f" x="640" y="70" width="100" height="150" rx="4"/><path class="s2" d="M656 96h50M656 116h68M656 136h40"/><circle class="s" cx="672" cy="180" r="14"/><path class="s" d="M672 172v8l5 4"/><path class="bs draw" d="m700 178 8 8 16-18"/>
+<text x="150" y="270">MORADOR CADASTRA</text><text x="420" y="270">PORTARIA CONFIRMA</text><text x="690" y="270">ENTRADA REGISTRADA</text>
+<path class="s2" d="M60 300h720" opacity=".5"/><rect class="b" x="60" y="298" width="90" height="4"/>
+</svg><figcaption>Ilustração do fluxo: o morador cadastra no app, a portaria confirma no console e a entrada fica no histórico com data e hora.</figcaption></figure>
     <div class="cards3 rv">
       <div class="card"><span class="icobox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></span><h3 class="h3">Simples para o morador</h3><p>Telas diretas para liberar visitante, ver a encomenda e conferir a conta do condomínio.</p></div>
       <div class="card"><span class="icobox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg></span><h3 class="h3">Completo para o síndico</h3><p>Controle de visitantes, encomendas e financeiro no mesmo console e no app para síndico, com relatório por período.</p></div>
@@ -704,9 +739,9 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
   <section id="solucoes"><div class="wrap">
     <div class="eyebrow">Plataforma</div><h2 class="h2 rv">Aplicativo para condomínio, <span>console web e app da portaria</span></h2>
     <div class="cards3 rv">
-      <a class="card" href="#app"><span class="n">01</span><h3 class="h3">App do Morador</h3><p>Visitantes liberados antes de chegar, aviso de encomenda no app e a conta do condomínio na tela.</p><span class="more">Conheça o app <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
-      <a class="card" href="#console"><span class="n">02</span><h3 class="h3">Console Web</h3><p>Portaria e administração no navegador: quem está no local, baixa por apartamento e inadimplência por bloco.</p><span class="more">Conheça o console <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
-      <a class="card" href="#portaria-app"><span class="n">03</span><h3 class="h3">App da Portaria</h3><p>O turno no celular de quem está no posto: mudanças, comunicados e ocorrências.</p><span class="more">Conheça o app da portaria <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
+      <a class="card" href="#app"><span class="n">01</span><span class="icobox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></span><h3 class="h3">App do Morador</h3><p>Visitantes liberados antes de chegar, aviso de encomenda no app e a conta do condomínio na tela.</p><span class="more">Conheça o app <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
+      <a class="card" href="#console"><span class="n">02</span><span class="icobox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg></span><h3 class="h3">Console Web</h3><p>Portaria e administração no navegador: quem está no local, baixa por apartamento e inadimplência por bloco.</p><span class="more">Conheça o console <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
+      <a class="card" href="#portaria-app"><span class="n">03</span><span class="icobox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="m9 11 2 2 4-4"/><path d="M12 18h.01"/></svg></span><h3 class="h3">App da Portaria</h3><p>O turno no celular de quem está no posto: mudanças, comunicados e ocorrências.</p><span class="more">Conheça o app da portaria <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></a>
     </div>
   </div></section>
 
@@ -859,6 +894,16 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
         <p class="lead">Na LGPD, a imagem do rosto é dado pessoal sensível. O condomínio é o controlador dos dados e a Prestare é a operadora.</p>
       </div>
     </div>
+    <figure class="mo rv"><svg viewBox="0 0 840 330" role="img" aria-labelledby="mo2t"><title id="mo2t">O morador dá o consentimento no app, o terminal identifica o rosto na entrada e a liberação vai para o histórico</title>
+<text class="n" x="150" y="40">01</text><text class="n" x="420" y="40">02</text><text class="n" x="690" y="40">03</text>
+<rect class="f" x="70" y="80" width="160" height="130" rx="6"/><path class="s2" d="M88 104h90M88 122h124M88 140h70"/><rect class="s" x="88" y="166" width="52" height="26" rx="13"/><circle class="knob m" cx="101" cy="179" r="9"/><path class="s2" d="M152 179h56"/>
+<path class="s2 dash" d="M246 145H344"/><path class="s2" d="m338 139 6 6-6 6"/>
+<rect class="f" x="368" y="56" width="104" height="184" rx="12"/><circle class="m" cx="420" cy="74" r="4"/><path class="s" d="M392 108v-12h12M448 108v-12h-12M392 172v12h12M448 172v12h-12"/><ellipse class="s2" cx="420" cy="134" rx="17" ry="22"/><path class="s2" d="M398 178c4-12 40-12 44 0"/><path class="bs scan" d="M388 104h64"/><rect class="b pulse" x="402" y="212" width="36" height="5"/>
+<path class="s2 dash" d="M488 145H586"/><path class="s2" d="m580 139 6 6-6 6"/>
+<rect class="f" x="610" y="80" width="160" height="130" rx="6"/><path class="s2" d="M660 106h92M660 145h76M660 184h84"/><circle class="b pulse" cx="636" cy="106" r="7"/><circle class="b pulse d2" cx="636" cy="145" r="7"/><circle class="b pulse d4" cx="636" cy="184" r="7"/>
+<text x="150" y="270">CONSENTIMENTO NO APP</text><text x="420" y="270">TERMINAL NA ENTRADA</text><text x="690" y="270">LIBERAÇÃO NO HISTÓRICO</text>
+<path class="s2" d="M60 300h720" opacity=".5"/><rect class="b" x="375" y="298" width="90" height="4"/>
+</svg><figcaption>Ilustração do fluxo: sem o consentimento, a foto não vai para o terminal. O modelo do equipamento depende do que o condomínio instalar.</figcaption></figure>
     <div class="sec4 rv">
       <div><h3 class="h3">Consentimento</h3><p>O morador responde em tela própria do app. Para visitante e prestador, quem cadastra declara ter a autorização; sem isso, a foto não vai para o terminal.</p></div>
       <div><h3 class="h3">Quem recusa</h3><p>Ninguém é obrigado a cadastrar o rosto. A revogação apaga a foto do morador e retira o rosto dos terminais.</p></div>
@@ -940,6 +985,14 @@ ps-if{display:contents}ps-if[hidden]{display:none!important}
         <p class="lead">O aplicativo, a portaria, o banco de dados e os arquivos são hospedados na Amazon Web Services (AWS), com banco e arquivos na região de São Paulo. O assistente de IA pode ser processado em outras regiões da AWS, e as notificações passam pelo Firebase, do Google. Em novembro de 2026, a solução foi aprovada na <b>Foundational Technical Review (FTR)</b>, revisão técnica da AWS para soluções de parceiros, com base em relatório do AWS Well-Architected Framework.</p>
         <p class="lead" style="margin-top: 16px;">A aprovação vale até novembro de 2028 e é refeita a cada dois anos. A AWS não publica esse resultado numa página aberta: ele aparece no painel de parceiro da Prestare. Se o seu condomínio precisar da comprovação, peça pelo WhatsApp.</p>
         <a href="https://aws.amazon.com/what-is-cloud-computing" target="_blank" rel="noopener" class="aws-link"><img class="img-dark" src="/sobre/assets/powered-by-aws-vert-white.svg" alt="Powered by AWS Cloud Computing" width="541" height="387" loading="lazy"><img class="img-light" src="/sobre/assets/powered-by-aws-vert-gray.svg" alt="Powered by AWS Cloud Computing" width="541" height="387" loading="lazy"></a>
+        <figure class="mo mo-aws rv"><svg viewBox="0 0 840 330" role="img" aria-labelledby="mo3t"><title id="mo3t">Servidores e banco de dados em duas zonas de disponibilidade em São Paulo, com cópia em tempo real entre elas e backup diário</title>
+<rect class="s2" x="60" y="60" width="290" height="160" rx="4"/><text x="205" y="48">ZONA A</text><rect class="f" x="80" y="96" width="150" height="24" rx="3"/><circle class="b pulse " cx="94" cy="108" r="4"/><path class="s2" d="M110 108h70"/><rect class="f" x="80" y="130" width="150" height="24" rx="3"/><circle class="b pulse d2" cx="94" cy="142" r="4"/><path class="s2" d="M110 142h70"/><rect class="f" x="80" y="164" width="150" height="24" rx="3"/><circle class="b pulse d4" cx="94" cy="176" r="4"/><path class="s2" d="M110 176h70"/><path class="f" d="M260 112v72c0 8 14 14 32 14s32-6 32-14v-72"/><ellipse class="f" cx="292" cy="112" rx="32" ry="14"/><path class="s2" d="M260 148c0 8 14 14 32 14s32-6 32-14"/><rect class="s2" x="490" y="60" width="290" height="160" rx="4"/><text x="635" y="48">ZONA B</text><rect class="f" x="510" y="96" width="150" height="24" rx="3"/><circle class="b pulse d1" cx="524" cy="108" r="4"/><path class="s2" d="M540 108h70"/><rect class="f" x="510" y="130" width="150" height="24" rx="3"/><circle class="b pulse d3" cx="524" cy="142" r="4"/><path class="s2" d="M540 142h70"/><rect class="f" x="510" y="164" width="150" height="24" rx="3"/><circle class="b pulse " cx="524" cy="176" r="4"/><path class="s2" d="M540 176h70"/><path class="f" d="M690 112v72c0 8 14 14 32 14s32-6 32-14v-72"/><ellipse class="f" cx="722" cy="112" rx="32" ry="14"/><path class="s2" d="M690 148c0 8 14 14 32 14s32-6 32-14"/>
+<path class="bs dash" d="M358 148h126"/><path class="bs" d="m366 140-8 8 8 8M476 140l8 8-8 8"/>
+<text x="420" y="124" style="font-size:14px">CÓPIA EM</text><text x="420" y="184" style="font-size:14px">TEMPO REAL</text>
+<g class="spin"><path class="s" d="M226 268a14 14 0 1 1-4-10"/><path class="s" d="M224 252v7h-7"/></g>
+<text x="440" y="275" style="text-anchor:middle">BACKUP DIÁRIO · 7 DIAS · SÃO PAULO</text>
+<path class="s2" d="M60 304h720" opacity=".5"/><rect class="b" x="690" y="302" width="90" height="4"/>
+</svg><figcaption>Ilustração da arquitetura: duas zonas de disponibilidade, cópia do banco em tempo real e backup diário.</figcaption></figure>
       </div>
       <ul class="rv">
         <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><div><h3 class="h3">Dados criptografados e em rede privada</h3><p>Banco de dados e arquivos ficam criptografados com chaves gerenciadas na AWS, e todo acesso pela internet é feito por conexão segura (HTTPS). O banco fica em uma rede privada, sem acesso direto pela internet, e fotos e documentos só abrem por links temporários.</p></div></li>
