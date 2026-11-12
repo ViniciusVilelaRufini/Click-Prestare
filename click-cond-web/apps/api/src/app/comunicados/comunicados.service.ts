@@ -1,10 +1,17 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
+
+/** Texto sem espaços nas pontas; vazio/só espaços → 400 com a mensagem dada. */
+function textoObrigatorio(valor: unknown, mensagem: string): string {
+  const texto = String(valor ?? '').trim();
+  if (!texto) throw new BadRequestException(mensagem);
+  return texto;
+}
 
 export interface CreateComunicadoDto {
   titulo: string;
@@ -97,10 +104,14 @@ export class ComunicadosService {
     // assertStaff so garante "nao e morador": publicar comunicado e comunicacao
     // oficial do condominio, e a flag existe para o sindico controlar isso.
     await this.tenant.assertPermissaoFuncionario(dto.id_condominio, 'comunicados', operador);
+    // Sem título/descrição nada é gravado nem notificado (antes um Salvar vazio
+    // empurrava "Novo comunicado" em branco para todos os moradores).
+    const titulo = textoObrigatorio(dto.titulo, 'Informe o título do comunicado.');
+    const descricao = textoObrigatorio(dto.descricao, 'Informe a descrição do comunicado.');
     const criado = await this.prisma.comunicados.create({
       data: {
-        titulo: dto.titulo,
-        descricao: dto.descricao ?? null,
+        titulo,
+        descricao,
         id_condominio: dto.id_condominio,
         user: operador?.sub ?? null,
       },
@@ -125,13 +136,20 @@ export class ComunicadosService {
     if (!antes) throw new NotFoundException(`Comunicado ${id} não encontrado`);
     await this.tenant.assertEntidade(antes.id_condominio, operador, `comunicado #${id}`);
     await this.tenant.assertPermissaoFuncionario(antes.id_condominio, 'comunicados', operador);
+    // Só valida o que veio no corpo; o que veio é gravado já sem as pontas.
+    const titulo =
+      dto.titulo !== undefined ? textoObrigatorio(dto.titulo, 'Informe o título do comunicado.') : undefined;
+    const descricao =
+      dto.descricao !== undefined
+        ? textoObrigatorio(dto.descricao, 'Informe a descrição do comunicado.')
+        : undefined;
 
     try {
       const atualizado = await this.prisma.comunicados.update({
         where: { id },
         data: {
-          ...(dto.titulo !== undefined && { titulo: dto.titulo }),
-          ...(dto.descricao !== undefined && { descricao: dto.descricao }),
+          ...(titulo !== undefined && { titulo }),
+          ...(descricao !== undefined && { descricao }),
         },
       });
 

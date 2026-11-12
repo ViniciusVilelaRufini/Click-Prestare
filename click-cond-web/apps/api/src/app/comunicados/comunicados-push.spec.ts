@@ -18,7 +18,7 @@ describe('ComunicadosService.create — push aos moradores', () => {
     const notifications: any = { sendPushNotification: jest.fn(async () => 'ok') };
     const service = new ComunicadosService(prisma, { registrar: jest.fn() } as any, tenant, notifications);
 
-    await service.create({ titulo: 'Troca do portão', id_condominio: 1 } as any, {
+    await service.create({ titulo: 'Troca do portão', descricao: 'Obra amanhã', id_condominio: 1 } as any, {
       sub: 1, typeAccess: 'Sindico', user: { id: 1 },
     } as any);
     await new Promise((r) => setImmediate(r));

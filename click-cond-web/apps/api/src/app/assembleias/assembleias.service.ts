@@ -8,6 +8,13 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { hojeBrasilia } from '../common/hora-brasilia.util';
 import { rotuloBloco } from '../common/rotulo-bloco.util';
 
+/** Título da assembleia sem espaços nas pontas; vazio é erro (não grava sem nome). */
+function tituloObrigatorio(valor: unknown): string {
+  const titulo = String(valor ?? '').trim();
+  if (!titulo) throw new BadRequestException('Título é obrigatório.');
+  return titulo;
+}
+
 /** Unidade do usuário no condomínio, para votar e mostrar o voto dela. */
 export type UnidadeVoto = { id_apto: number; rotulo: string };
 
@@ -79,6 +86,7 @@ export class AssembleiasService {
   async insert(idCondominio: number, assembleia: any, userId: number, requester?: JwtPayload) {
     assertStaff(requester, 'criar assembleia');
     await this.tenant.assertCondominio(idCondominio, requester);
+    assembleia.titulo = tituloObrigatorio(assembleia.titulo);
     if (!this.prisma.isConnected) return { success: true };
 
     // Processar anexos (docs) — upload real para R2 quando vierem em base64.
@@ -135,6 +143,7 @@ export class AssembleiasService {
   async update(idCondominio: number, assembleia: any, userId: number, requester?: JwtPayload) {
     assertStaff(requester, 'editar assembleia');
     await this.tenant.assertCondominio(idCondominio, requester);
+    if (assembleia.titulo !== undefined) assembleia.titulo = tituloObrigatorio(assembleia.titulo);
     if (!this.prisma.isConnected) return { success: true };
 
     const listDocs = await this.uploadDocs(assembleia.docs, 'assembleias', () =>

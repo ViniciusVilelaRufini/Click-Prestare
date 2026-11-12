@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff, isOperador } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { hojeBrasilia } from '../common/hora-brasilia.util';
 import { assertApartamentoGravavel, ehMoradorMobile } from '../common/apartamento-gravavel.util';
 
 @Injectable()
@@ -139,12 +140,18 @@ export class MudancasService {
 
   async updateStatus(id: number, isAccept: boolean, motivo?: string, user?: JwtPayload) {
     assertStaff(user, 'aprovar ou recusar mudança');
-    const atual = await this.prisma.mudancas.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    const atual = await this.prisma.mudancas.findUnique({ where: { id: Number(id) }, select: { id_condominio: true, data: true } });
     if (!atual) throw new NotFoundException(`Mudança ${id} não encontrada`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
     // assertStaff só garante "não é morador": sem isto, funcionário com a flag
     // desligada pelo síndico ainda liberava elevador e portaria.
     await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'agendar_mudanca', user);
+    // Aprovar libera elevador e portaria: não faz sentido para um dia que já
+    // passou (coluna @db.Date, comparada com o "hoje" de Brasília). Recusar
+    // continua permitido para limpar a fila.
+    if (isAccept && atual.data && new Date(atual.data) < hojeBrasilia()) {
+      throw new BadRequestException('Não é possível aprovar uma mudança com data passada.');
+    }
     try {
       return await this.prisma.mudancas.update({
         where: { id: Number(id) },
