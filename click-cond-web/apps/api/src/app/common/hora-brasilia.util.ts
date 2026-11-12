@@ -50,3 +50,39 @@ export function hojeBrasilia(d: Date = new Date()): Date {
   const p = partes(d);
   return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day)));
 }
+
+/** Diferença (ms) entre o relógio de Brasília e o UTC no instante dado. */
+function deslocamentoBrasiliaMs(instante: number): number {
+  const p = partes(new Date(instante));
+  const relogio = Date.UTC(
+    Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute),
+  );
+  return relogio - Math.floor(instante / 60000) * 60000;
+}
+
+/** Instante UTC da meia-noite (Brasília) do dia civil y-m-d. */
+function meiaNoiteBrasilia(ano: number, mes: number, dia: number): number {
+  const utc = Date.UTC(ano, mes, dia);
+  // Duas passadas cobrem a troca de offset (horário de verão) perto da meia-noite.
+  let inst = utc - deslocamentoBrasiliaMs(utc);
+  inst = utc - deslocamentoBrasiliaMs(inst);
+  return inst;
+}
+
+/**
+ * Início e fim do dia civil de Brasília que contém `d`, como INSTANTES —
+ * para filtrar colunas DATETIME/timestamp (para colunas @db.Date use
+ * `hojeBrasilia`). `inicio` é 00:00:00.000 e `fim` o ÚLTIMO milissegundo do
+ * dia (23:59:59.999), ambos inclusivos: use `gte: inicio, lte: fim`.
+ * O offset vem do Intl (America/Sao_Paulo), nada de -3 fixo no código.
+ */
+export function intervaloHojeBrasilia(d: Date = new Date()): { inicio: Date; fim: Date } {
+  const p = partes(d);
+  const ano = Number(p.year);
+  const mes = Number(p.month) - 1;
+  const dia = Number(p.day);
+  return {
+    inicio: new Date(meiaNoiteBrasilia(ano, mes, dia)),
+    fim: new Date(meiaNoiteBrasilia(ano, mes, dia + 1) - 1),
+  };
+}

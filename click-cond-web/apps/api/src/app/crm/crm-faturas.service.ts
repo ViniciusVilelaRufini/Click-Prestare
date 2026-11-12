@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { executarComLock } from '../common/lock-distribuido';
+import { hojeBrasilia } from '../common/hora-brasilia.util';
 
 /**
  * Ciclo de negócio da geração mensal (2 instâncias): uma vez por mês no
@@ -152,8 +153,8 @@ export class CrmFaturasService implements OnModuleInit {
     });
     const nomePorId = new Map(conds.map((c) => [c.id, c.nome]));
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    // vencimento é @db.Date: compara com a data de hoje em Brasília.
+    const hoje = hojeBrasilia();
 
     return faturas.map((f) => {
       let status = f.status;

@@ -51,7 +51,7 @@ import { agentesSemRedeInterna, urlExternaSegura } from '../common/url-segura.ut
 import { validarIpDispositivo, validarPortaDispositivo } from './device-endereco.util';
 import { StorageService } from '../common/storage/storage.service';
 import { executarComLock, OpcoesLock } from '../common/lock-distribuido';
-import { hojeBrasilia, horaBrasilia } from '../common/hora-brasilia.util';
+import { hojeBrasilia, horaBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 
 /** Validade da marca de bulk sync em andamento (instância que morreu no meio não trava o condomínio para sempre). */
@@ -787,8 +787,7 @@ export class FacialService {
       ? new Date(Math.max(...lastSeenTimestamps))
       : null;
 
-    const inicioDoDia = new Date();
-    inicioDoDia.setHours(0, 0, 0, 0);
+    const { inicio: inicioDoDia } = intervaloHojeBrasilia();
     const eventosFantasmas = this.prisma.isConnected
       ? await this.prisma.auditLog.findMany({
         where: {

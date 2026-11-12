@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { executarComLock } from '../common/lock-distribuido';
+import { hojeBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import type { Prisma } from '../prisma/generated';
 
 // Client "de dentro" de um `prisma.$transaction(async (tx) => ...)` — mesma
@@ -462,8 +463,7 @@ export class AreasSociaisService {
    * ausentes do Map (o chamador usa 0 como default).
    */
   private async getOcupacaoPorArea(idCondominio: number): Promise<Map<number, number>> {
-    const inicioDoDia = new Date();
-    inicioDoDia.setHours(0, 0, 0, 0);
+    const { inicio: inicioDoDia } = intervaloHojeBrasilia();
 
     // Agrupa por (área, pessoa) e mantém só o último evento do dia via
     // GROUP_CONCAT ordenado desc + primeiro elemento. Portável (MySQL 5.7+) e,
@@ -1166,13 +1166,11 @@ export class AreasSociaisService {
       ];
     }
 
-    const ontem = new Date();
-    ontem.setDate(ontem.getDate() - 1);
-
     const list = await this.prisma.areas_Sociais_Agendamentos.findMany({
       where: {
         area: { id_condominio: Number(idCondominio) },
-        data: { gt: ontem },
+        // `data` é @db.Date: a reserva de hoje (Brasília) segue na lista.
+        data: { gte: hojeBrasilia() },
       },
       include: {
         area: { select: { nome: true } },
@@ -1223,15 +1221,13 @@ export class AreasSociaisService {
       throw new ForbiddenException('Acesso negado ao apartamento solicitado.');
     }
 
-    const ontem = new Date();
-    ontem.setDate(ontem.getDate() - 1);
-
     const list = await this.prisma.areas_Sociais_Agendamentos.findMany({
       where: {
         area: { id_condominio: Number(idCondominio) },
         id_apartamento: targetAptoId ? targetAptoId : undefined,
         id_user: Number(userId),
-        data: { gt: ontem },
+        // `data` é @db.Date: a reserva de hoje (Brasília) segue na lista.
+        data: { gte: hojeBrasilia() },
       },
       include: {
         area: { select: { nome: true } },

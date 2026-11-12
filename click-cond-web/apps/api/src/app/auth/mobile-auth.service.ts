@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { hojeBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { MailService } from '../common/mail/mail.service';
@@ -1226,10 +1227,7 @@ export class MobileAuthService {
           };
         }
 
-        const hojeIni = new Date();
-        hojeIni.setHours(0, 0, 0, 0);
-        const hojeFim = new Date();
-        hojeFim.setHours(23, 59, 59, 999);
+        const { inicio: hojeIni, fim: hojeFim } = intervaloHojeBrasilia();
 
         const [packagesCount, visitsToday, insideCondo, occurrencesCount] = await Promise.all([
           this.prisma.encomendas.count({
@@ -1298,10 +1296,7 @@ export class MobileAuthService {
       }
     } else {
       // Morador
-      const hojeIni = new Date();
-      hojeIni.setHours(0, 0, 0, 0);
-      const hojeFim = new Date();
-      hojeFim.setHours(23, 59, 59, 999);
+      const { inicio: hojeIni, fim: hojeFim } = intervaloHojeBrasilia();
 
       const aptoUsers = await this.prisma.apartamentos_Users.findMany({
         where: { id_user: idUser, apartamento: { condominio: { ativo: 1 } } },
@@ -2025,8 +2020,8 @@ export class MobileAuthService {
       orderBy: { data_vencimento: 'asc' },
       take: 20,
     });
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    // data_vencimento é @db.Date: compara com a data de hoje em Brasília.
+    const hoje = hojeBrasilia();
     for (const f of contas) {
       const venc = f.data_vencimento as Date;
       const vencida = venc < hoje;
