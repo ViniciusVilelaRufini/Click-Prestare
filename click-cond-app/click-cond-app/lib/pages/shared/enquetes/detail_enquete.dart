@@ -10,6 +10,7 @@ import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/votacao/opcao_resultado_bar.dart';
 import 'package:click/widgets/votacao/opcao_selecionavel.dart';
+import 'package:click/widgets/votacao/seletor_unidade_voto.dart';
 import 'package:click/widgets/votacao/votacao_helpers.dart';
 import 'package:click/widgets/votacao/votacao_status_badge.dart';
 import 'package:flutter/material.dart';
@@ -40,6 +41,9 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
   /// substitui o voto anterior); este modo volta a mostrar as opções.
   bool _alterando = false;
 
+  /// Unidade pela qual vota quem tem mais de uma no condomínio (`id_apto`).
+  int? _unidade;
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +57,8 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
       // Dado novo (ex.: depois de votar): volta ao estado de leitura.
       _escolhida = null;
       _alterando = false;
+      // Mantém a unidade escolhida entre recargas (ex.: depois de votar).
+      _unidade = unidadePadrao(_unidades, atual: _unidade);
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -76,10 +82,10 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     }
   }
 
-  Future<void> insertVoto(int opcao_id, int votacao_id) async {
+  Future<void> insertVoto(int opcao_id, int votacao_id, {int? id_apto}) async {
     try {
       setState(() => _isLoading = true);
-      var voto = VotoModel(opcao_id: opcao_id, votacao_id: votacao_id);
+      var voto = VotoModel(opcao_id: opcao_id, votacao_id: votacao_id, id_apto: id_apto);
       var res = await apiSaveObject("assembleias/votacoes/voto", "voto", voto, false);
       if (res.toString().isEmpty) {
         await load();
@@ -103,7 +109,25 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     return int.tryParse('${s ?? ''}');
   }
 
+  /// Unidades do usuário nesta enquete (vazio na API antiga).
+  List<UnidadeVoto> get _unidades => unidadesDaVotacao(obj?['votosPorUnidade'], _votacao?['id']);
+
+  /// Mais de uma unidade: escolhe por qual vota; o "meu voto" é o da unidade.
+  bool get _variasUnidades => _unidades.length > 1;
+
+  /// Unidade enviada no voto: a escolhida (várias) ou a única. Nula na API
+  /// antiga — aí o voto sai sem `id_apto`, como antes.
+  int? get _idAptoDoVoto {
+    final unidades = _unidades;
+    if (unidades.length == 1) return unidades.first.idApto;
+    return _variasUnidades ? _unidade : null;
+  }
+
   List<dynamic> get _meuVoto {
+    if (_variasUnidades) {
+      final u = _unidades.where((x) => x.idApto == _unidade).firstOrNull;
+      return u?.opcao == null ? const [] : [u!.opcao];
+    }
     final m = obj?['meuVoto'];
     return m is List ? m : const [];
   }
@@ -123,7 +147,16 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     if (id == null || votacaoId == null) return;
     final opcao = int.tryParse(id);
     if (opcao == null) return;
-    insertVoto(opcao, votacaoId is int ? votacaoId : int.parse('$votacaoId'));
+    insertVoto(opcao, votacaoId is int ? votacaoId : int.parse('$votacaoId'), id_apto: _idAptoDoVoto);
+  }
+
+  void _escolherUnidade(int idApto) {
+    if (idApto == _unidade) return;
+    setState(() {
+      _unidade = idApto;
+      _escolhida = null;
+      _alterando = false;
+    });
   }
 
   void _comecarAlteracao() {
@@ -163,6 +196,17 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
                     _cabecalho(),
                     const SizedBox(height: AppSpacing.lg),
                     _avisoEstado(),
+                    if (_variasUnidades) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      SeletorUnidadeVoto(
+                        idVotacao: _votacao['id'],
+                        unidades: _unidades,
+                        opcoes: parseOpcoes(_votacao['opcoes']),
+                        selecionada: _unidade,
+                        habilitado: !_isLoading,
+                        onChanged: _escolherUnidade,
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.xl),
                     _secaoOpcoes(),
                     if (_podeFinalizar) ...[
@@ -576,7 +620,10 @@ class VotoModel {
   int? votacao_id;
   int? opcao_id;
 
-  VotoModel({this.votacao_id, this.opcao_id});
+  /// Unidade pela qual o voto é dado; fora do corpo quando nula (API antiga).
+  int? id_apto;
 
-  Map toJson() => {'votacao_id': votacao_id, 'opcao_id': opcao_id};
+  VotoModel({this.votacao_id, this.opcao_id, this.id_apto});
+
+  Map toJson() => {'votacao_id': votacao_id, 'opcao_id': opcao_id, if (id_apto != null) 'id_apto': id_apto};
 }

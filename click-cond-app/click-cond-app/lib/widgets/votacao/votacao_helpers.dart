@@ -114,6 +114,49 @@ bool votouNaOpcao(dynamic opcaoId, List<dynamic>? meusVotos) {
   return meusVotos.any((v) => v.toString() == id);
 }
 
+/// Uma unidade do usuário numa votação, com o voto que vale nela hoje.
+/// Vem de `votosPorUnidade` da API (detalhe da enquete e da assembleia):
+/// `[{ id_votacao, id_apto, rotulo, opcao }]`, `opcao` nulo = ainda não votou.
+class UnidadeVoto {
+  final int idApto;
+  final String rotulo;
+
+  /// Id (texto) da opção votada pela unidade, ou nulo.
+  final String? opcao;
+
+  const UnidadeVoto({required this.idApto, required this.rotulo, this.opcao});
+
+  bool get votou => opcao != null;
+}
+
+/// Unidades do usuário na votação [idVotacao], na ordem da API. API antiga
+/// (sem `votosPorUnidade`) ou item sem `id_apto` → lista vazia / item ignorado.
+List<UnidadeVoto> unidadesDaVotacao(dynamic votosPorUnidade, dynamic idVotacao) {
+  if (votosPorUnidade is! List) return const [];
+  final alvo = '${idVotacao ?? ''}'.trim();
+  final out = <UnidadeVoto>[];
+  for (final v in votosPorUnidade) {
+    if (v is! Map) continue;
+    if ('${v['id_votacao'] ?? ''}'.trim() != alvo) continue;
+    final id = int.tryParse('${v['id_apto'] ?? ''}'.trim());
+    if (id == null) continue;
+    final opcao = textoLimpo(v['opcao']);
+    out.add(UnidadeVoto(idApto: id, rotulo: textoLimpo(v['rotulo']), opcao: opcao.isEmpty ? null : opcao));
+  }
+  return out;
+}
+
+/// Unidade que a tela mostra escolhida: [atual] se ainda está na lista; senão
+/// a primeira que não votou; senão a primeira. Lista vazia → nulo.
+int? unidadePadrao(List<UnidadeVoto> unidades, {int? atual}) {
+  if (unidades.isEmpty) return null;
+  if (atual != null && unidades.any((u) => u.idApto == atual)) return atual;
+  for (final u in unidades) {
+    if (!u.votou) return u.idApto;
+  }
+  return unidades.first.idApto;
+}
+
 /// `'1 voto'`, `'12 votos'`, `'0 votos'`.
 String votosLabel(int votos) => votos == 1 ? '1 voto' : '$votos votos';
 

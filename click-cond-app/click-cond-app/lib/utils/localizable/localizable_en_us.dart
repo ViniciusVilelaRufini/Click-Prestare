@@ -303,6 +303,10 @@ class Localizable_EnUs {
           LocalizableModel(key: 'votacao_finalizado', text: 'Finalized'), 
           LocalizableModel(key: 'votacao_finalizar', text: 'End voting?'), 
           LocalizableModel(key: 'votacao_fora_periodo', text: 'Voting outside the permitted period.'), 
+          LocalizableModel(key: 'votacao_unidade_titulo', text: 'Vote for unit'), 
+          LocalizableModel(key: 'votacao_unidade_ajuda', text: 'You have more than one unit in this condominium. Each unit has one vote: choose which one you are voting for.'), 
+          LocalizableModel(key: 'votacao_unidade_sem_voto', text: 'Not voted yet'), 
+          LocalizableModel(key: 'votacao_unidade_voto_atual', text: 'Current vote'), 
       
           //COMUNICADO
           LocalizableModel(key: 'comunicado_nav_edit', text: 'Edit Announcement'), 

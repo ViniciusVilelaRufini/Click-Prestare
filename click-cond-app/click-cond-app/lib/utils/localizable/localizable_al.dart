@@ -303,6 +303,10 @@ class Localizable_Al {
     LocalizableModel(key: 'votacao_finalizado', text: 'Fertig'), 
     LocalizableModel(key: 'votacao_finalizar', text: 'Abstimmung abschließen?'), 
     LocalizableModel(key: 'votacao_fora_periodo', text: 'Abstimmung außerhalb des zulässigen Zeitraums.'), 
+    LocalizableModel(key: 'votacao_unidade_titulo', text: 'Für die Einheit abstimmen'), 
+    LocalizableModel(key: 'votacao_unidade_ajuda', text: 'Sie haben mehr als eine Einheit in dieser Wohnanlage. Jede Einheit hat eine Stimme: Wählen Sie, für welche Sie abstimmen.'), 
+    LocalizableModel(key: 'votacao_unidade_sem_voto', text: 'Noch nicht abgestimmt'), 
+    LocalizableModel(key: 'votacao_unidade_voto_atual', text: 'Aktuelle Stimme'), 
 
     //COMUNICADO
     LocalizableModel(key: 'comunicado_nav_edit', text: 'Ankündigung bearbeiten'), 

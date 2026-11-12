@@ -303,6 +303,10 @@ class Localizable_Es {
           LocalizableModel(key: 'votacao_finalizado', text: 'Finalizado'), 
           LocalizableModel(key: 'votacao_finalizar', text: '¿Finalizar la votación?'), 
           LocalizableModel(key: 'votacao_fora_periodo', text: 'Votar fuera del plazo permitido.'), 
+          LocalizableModel(key: 'votacao_unidade_titulo', text: 'Votar por la unidad'), 
+          LocalizableModel(key: 'votacao_unidade_ajuda', text: 'Tienes más de una unidad en este condominio. Cada unidad tiene un voto: elige por cuál vas a votar.'), 
+          LocalizableModel(key: 'votacao_unidade_sem_voto', text: 'Aún no votó'), 
+          LocalizableModel(key: 'votacao_unidade_voto_atual', text: 'Voto actual'), 
       
           //COMUNICADO
           LocalizableModel(key: 'comunicado_nav_edit', text: 'Editar anuncio'), 

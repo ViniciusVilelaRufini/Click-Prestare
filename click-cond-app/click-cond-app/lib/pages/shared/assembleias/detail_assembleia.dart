@@ -33,6 +33,10 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
   List<dynamic> votacoes = [];
   List<dynamic> meus_votos = [];
 
+  /// `votosPorUnidade` da API: `[{ id_votacao, id_apto, rotulo, opcao }]`
+  /// (vazio na API antiga).
+  dynamic votos_por_unidade;
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +49,7 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
       var res = await apiGetDetails('assembleias', widget.id);
       votacoes = res['votacoes'];
       meus_votos = res['meusVotos'];
+      votos_por_unidade = res['votosPorUnidade'];
       obj = res['assembleia'];
       if (mounted) setState(() {});
     } catch (e) {
@@ -68,10 +73,10 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
     }
   }
 
-  Future<void> insertVoto(int opcao_id, int votacao_id) async {
+  Future<void> insertVoto(int opcao_id, int votacao_id, {int? id_apto}) async {
     try {
       setState(() => _isLoading = true);
-      var voto = VotoModel(opcao_id: opcao_id, votacao_id: votacao_id);
+      var voto = VotoModel(opcao_id: opcao_id, votacao_id: votacao_id, id_apto: id_apto);
       var res = await apiSaveObject("assembleias/votacoes/voto", "voto", voto, false);
       if (res.toString().isEmpty) {
         await load();
@@ -118,9 +123,10 @@ class _DetailAssembleiaPageState extends State<DetailAssembleia> {
                       item: item,
                       isRegister: false,
                       meusVotos: meus_votos,
+                      unidades: unidadesDaVotacao(votos_por_unidade, item['id']),
                       carregando: _isLoading,
                       onPressedDelete: () => delete(item['id']),
-                      onPressedChoice: (id) => insertVoto(id, item['id']),
+                      onPressedChoice: (id, idApto) => insertVoto(id, item['id'], id_apto: idApto),
                     ),
                   ),
             ],
@@ -409,7 +415,10 @@ class VotoModel {
   int? votacao_id;
   int? opcao_id;
 
-  VotoModel({this.votacao_id, this.opcao_id});
+  /// Unidade pela qual o voto é dado; fora do corpo quando nula (API antiga).
+  int? id_apto;
 
-  Map toJson() => {'votacao_id': votacao_id, 'opcao_id': opcao_id};
+  VotoModel({this.votacao_id, this.opcao_id, this.id_apto});
+
+  Map toJson() => {'votacao_id': votacao_id, 'opcao_id': opcao_id, if (id_apto != null) 'id_apto': id_apto};
 }

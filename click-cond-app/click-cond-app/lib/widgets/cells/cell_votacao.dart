@@ -6,6 +6,7 @@ import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/votacao/opcao_resultado_bar.dart';
 import 'package:click/widgets/votacao/opcao_selecionavel.dart';
+import 'package:click/widgets/votacao/seletor_unidade_voto.dart';
 import 'package:click/widgets/votacao/votacao_helpers.dart';
 import 'package:click/widgets/votacao/votacao_status_badge.dart';
 import 'package:flutter/material.dart';
@@ -24,14 +25,21 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 /// `{ id, titulo, descricao, data_inicio, data_termino, status: 0|1|2,
 /// opcoes: ['id;nome;votos'] }`. [meusVotos] são os ids (texto) das opções
 /// em que o usuário votou na assembleia inteira.
+///
+/// [unidades] são as unidades do usuário nesta votação (`votosPorUnidade` da
+/// API, ver `unidadesDaVotacao`). Com mais de uma, a célula mostra a escolha
+/// da unidade e o voto de cada uma, e "meu voto" passa a ser o da unidade
+/// escolhida. [onPressedChoice] recebe a opção e a unidade (`id_apto`) do
+/// voto — nula na API antiga, que não manda as unidades.
 class CellVotacao extends StatefulWidget {
   final dynamic item;
   final List<dynamic> meusVotos;
+  final List<UnidadeVoto> unidades;
 
   /// Pré-visualização (sem contagem de votos, sem votar nem excluir).
   final bool isRegister;
   final VoidCallback onPressedDelete;
-  final Function(int) onPressedChoice;
+  final void Function(int opcaoId, int? idApto) onPressedChoice;
 
   /// A tela está enviando/recarregando: desabilita opções e botões.
   final bool carregando;
@@ -44,6 +52,7 @@ class CellVotacao extends StatefulWidget {
     required this.onPressedDelete,
     required this.onPressedChoice,
     this.carregando = false,
+    this.unidades = const [],
   });
 
   /// Botão do rodapé da votação (votar / confirmar / alterar voto).
@@ -63,6 +72,15 @@ class _CellVotacaoState extends State<CellVotacao> {
   /// Trocando um voto já dado.
   bool _alterando = false;
 
+  /// Unidade escolhida (`id_apto`) de quem tem mais de uma.
+  int? _unidade;
+
+  @override
+  void initState() {
+    super.initState();
+    _unidade = unidadePadrao(widget.unidades);
+  }
+
   @override
   void didUpdateWidget(covariant CellVotacao oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -72,6 +90,23 @@ class _CellVotacaoState extends State<CellVotacao> {
       _escolhida = null;
       _alterando = false;
     }
+    _unidade = unidadePadrao(widget.unidades, atual: _unidade);
+  }
+
+  bool get _variasUnidades => widget.unidades.length > 1;
+
+  /// Unidade enviada no voto: a escolhida (várias) ou a única; nula na API antiga.
+  int? get _idAptoDoVoto {
+    if (widget.unidades.length == 1) return widget.unidades.first.idApto;
+    return _variasUnidades ? _unidade : null;
+  }
+
+  /// "Meu voto" nesta votação: o da unidade escolhida (várias unidades) ou o
+  /// campo antigo `meusVotos`.
+  List<dynamic> get _meusVotos {
+    if (!_variasUnidades) return widget.meusVotos;
+    final u = widget.unidades.where((x) => x.idApto == _unidade).firstOrNull;
+    return u?.opcao == null ? const [] : [u!.opcao];
   }
 
   dynamic get _item => widget.item;
@@ -84,14 +119,14 @@ class _CellVotacaoState extends State<CellVotacao> {
 
   List<OpcaoVotacao> get _opcoes => parseOpcoes(_item['opcoes']);
 
-  bool get _jaVotou => _opcoes.any((o) => votouNaOpcao(o.id, widget.meusVotos));
+  bool get _jaVotou => _opcoes.any((o) => votouNaOpcao(o.id, _meusVotos));
 
   bool get _escolhendo => !widget.isRegister && _status == 1 && (!_jaVotou || _alterando);
 
   void _votar() {
     final id = int.tryParse(_escolhida ?? '');
     if (id == null) return;
-    widget.onPressedChoice(id);
+    widget.onPressedChoice(id, _idAptoDoVoto);
   }
 
   @override
@@ -175,6 +210,24 @@ class _CellVotacaoState extends State<CellVotacao> {
             _aviso(status, inicio),
             const SizedBox(height: AppSpacing.md),
           ],
+          if (!widget.isRegister && _variasUnidades) ...[
+            SeletorUnidadeVoto(
+              idVotacao: _item['id'],
+              unidades: widget.unidades,
+              opcoes: opcoes,
+              selecionada: _unidade,
+              habilitado: !widget.carregando,
+              onChanged: (idApto) {
+                if (idApto == _unidade) return;
+                setState(() {
+                  _unidade = idApto;
+                  _escolhida = null;
+                  _alterando = false;
+                });
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
           if (opcoes.isEmpty)
             Text(
               getText('alert_list_empty_generic'),
@@ -249,7 +302,7 @@ class _CellVotacaoState extends State<CellVotacao> {
             rotulo: opcoes[i].nome,
             votos: opcoes[i].votos,
             percentual: pcts[i],
-            meuVoto: votouNaOpcao(opcoes[i].id, widget.meusVotos),
+            meuVoto: votouNaOpcao(opcoes[i].id, _meusVotos),
           ),
         ),
     ];
@@ -323,12 +376,12 @@ class _CellVotacaoState extends State<CellVotacao> {
             ? null
             : () => setState(() {
                   _alterando = true;
-                  final meu = _opcoes.where((o) => votouNaOpcao(o.id, widget.meusVotos));
+                  final meu = _opcoes.where((o) => votouNaOpcao(o.id, _meusVotos));
                   _escolhida = meu.isEmpty ? null : meu.first.id;
                 }),
       );
     }
-    final mesmaOpcao = _alterando && _escolhida != null && votouNaOpcao(_escolhida, widget.meusVotos);
+    final mesmaOpcao = _alterando && _escolhida != null && votouNaOpcao(_escolhida, _meusVotos);
     final pode = _escolhida != null && !mesmaOpcao && !widget.carregando;
     final votar = AppButton(
       key: chave,

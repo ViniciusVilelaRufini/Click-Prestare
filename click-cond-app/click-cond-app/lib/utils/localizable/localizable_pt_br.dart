@@ -303,6 +303,10 @@ class Localizable_PtBr {
     LocalizableModel(key: 'votacao_finalizado', text: 'Finalizado'), 
     LocalizableModel(key: 'votacao_finalizar', text: 'Finalizar votação?'), 
     LocalizableModel(key: 'votacao_fora_periodo', text: 'Votação fora do período permitido.'), 
+    LocalizableModel(key: 'votacao_unidade_titulo', text: 'Votar pela unidade'), 
+    LocalizableModel(key: 'votacao_unidade_ajuda', text: 'Você tem mais de uma unidade neste condomínio. Cada unidade tem um voto: escolha por qual vai votar.'), 
+    LocalizableModel(key: 'votacao_unidade_sem_voto', text: 'Ainda não votou'), 
+    LocalizableModel(key: 'votacao_unidade_voto_atual', text: 'Voto atual'), 
 
     //COMUNICADO
     LocalizableModel(key: 'comunicado_nav_edit', text: 'Editar Comunicado'), 
