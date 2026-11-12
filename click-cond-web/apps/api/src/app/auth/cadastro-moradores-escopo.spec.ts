@@ -70,6 +70,43 @@ describe('Cadastro de moradores — escopo por papel e por apartamento', () => {
     });
   });
 
+  describe('getAllMoradores — tipo vindo do vínculo', () => {
+    function moradorRow(over: any) {
+      return {
+        id: 1, nome: 'X', documento: '', email: '', telefone: '', data_nascimento: null,
+        bloco: 'A', apartamento: '106', foto_pessoa: null, user: null,
+        extra1: '', extra2: '', extra3: '', extra4: '', tipo: 'proprietario', id_user: 10,
+        ...over,
+      };
+    }
+
+    it('usa o vínculo do apartamento (membro => dependente) quando diverge do cadastro', async () => {
+      const { svc, prisma } = build();
+      prisma.moradores.findMany = jest.fn(async () => [moradorRow({})]);
+      prisma.apartamentos_Users.findMany = jest.fn(async () => [
+        { id_user: 10, tipo: 'Membro', apartamento: { bloco: ' a ', apto: '106' } },
+      ]);
+      const [r] = await svc.getAllMoradores(1, sindico);
+      expect(r.tipo).toBe('dependente');
+      expect(r.vinculo).toBe('dependente');
+      expect(prisma.apartamentos_Users.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('sem vínculo no apartamento usa o cadastro do morador', async () => {
+      const { svc, prisma } = build();
+      prisma.moradores.findMany = jest.fn(async () => [
+        moradorRow({ tipo: 'Inquilino' }),
+        moradorRow({ id: 2, id_user: null, tipo: 'dependente' }),
+      ]);
+      prisma.apartamentos_Users.findMany = jest.fn(async () => [
+        { id_user: 10, tipo: 'membro', apartamento: { bloco: 'B', apto: '999' } },
+      ]);
+      const r = await svc.getAllMoradores(1, sindico);
+      expect(r[0].tipo).toBe('inquilino');
+      expect(r[1].tipo).toBe('dependente');
+    });
+  });
+
   describe('getMoradoresApto (/apartamentos/get-moradores)', () => {
     it('NEGA morador listar quem mora no apartamento do vizinho', async () => {
       const { svc, prisma } = build();

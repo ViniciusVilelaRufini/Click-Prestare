@@ -3874,7 +3874,32 @@ export class MobileAuthService {
       },
       orderBy: { nome: 'asc' },
     });
-    return reais.map(m => ({
+    // O tipo vem do vinculo em Apartamentos_Users (fonte de verdade das
+    // permissoes e do detalhe do apartamento); Moradores.tipo so serve de
+    // reserva. Uma consulta so para a lista toda.
+    const idsUser = [...new Set(reais.map(m => m.id_user).filter((v): v is number => v != null))];
+    const vinculos = idsUser.length
+      ? await this.prisma.apartamentos_Users.findMany({
+          where: { id_user: { in: idsUser }, apartamento: { id_condominio: Number(idCond) } },
+          include: { apartamento: { select: { bloco: true, apto: true } } },
+        })
+      : [];
+    const chaveUnidade = (b: string | null | undefined, a: string | null | undefined) =>
+      `${(b ?? '').trim().toLowerCase()}|${(a ?? '').trim().toLowerCase()}`;
+    const tipoPorVinculo = new Map<string, string | null>();
+    for (const v of vinculos) {
+      const k = `${v.id_user}|${chaveUnidade(v.apartamento?.bloco, v.apartamento?.apto)}`;
+      if (!tipoPorVinculo.has(k)) tipoPorVinculo.set(k, v.tipo);
+    }
+    // O app (inclusive versoes antigas) conta "dependente", nao "membro".
+    const tipoParaApp = (raw: string | null | undefined) => {
+      const t = this.normalizeTipo(raw);
+      return t === 'membro' ? 'dependente' : t;
+    };
+    return reais.map(m => {
+      const k = `${m.id_user}|${chaveUnidade(m.bloco, m.apartamento)}`;
+      const tipo = tipoParaApp(tipoPorVinculo.has(k) ? tipoPorVinculo.get(k) : m.tipo);
+      return {
       id: m.id,
       nome: m.nome ?? '',
       documento: m.documento ?? '',
@@ -3885,13 +3910,14 @@ export class MobileAuthService {
       apartamento: m.apartamento ?? '',
       photo: m.user?.photo || m.foto_pessoa || '',
       foto_pessoa: m.foto_pessoa || m.user?.photo || '',
-      vinculo: m.tipo ?? 'proprietario',
-      tipo: m.tipo ?? 'proprietario',
+      vinculo: tipo,
+      tipo,
       extra1: m.extra1 ?? '',
       extra2: m.extra2 ?? '',
       extra3: m.extra3 ?? '',
       extra4: m.extra4 ?? '',
-    }));
+      };
+    });
   }
 
   async getMoradorById(id: number, idUser: number, idCondominio?: number, requester?: JwtPayload) {
