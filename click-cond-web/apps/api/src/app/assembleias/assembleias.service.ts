@@ -338,8 +338,24 @@ export class AssembleiasService {
     await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) return { success: true };
 
+    const titulo = String(votacao?.titulo ?? '').trim();
+    if (!titulo) throw new BadRequestException('Informe o título da votação.');
+
+    // Opções: trim, sem vazias e sem repetidas (maiúsculas não diferenciam).
+    const vistas = new Set<string>();
+    const opcoes: string[] = [];
+    for (const o of Array.isArray(votacao.opcoes) ? votacao.opcoes : []) {
+      const nome = String(o ?? '').trim();
+      if (!nome || vistas.has(nome.toLowerCase())) continue;
+      vistas.add(nome.toLowerCase());
+      opcoes.push(nome);
+    }
+    if (opcoes.length < 2) throw new BadRequestException('Informe pelo menos duas opções diferentes.');
+
+    if (!String(votacao.data_inicio ?? '').trim() || !String(votacao.data_termino ?? '').trim()) {
+      throw new BadRequestException('Informe as datas de início e término.');
+    }
     const parseDate = (dStr: string) => {
-      if (!dStr) return new Date();
       if (dStr.includes('/')) {
         const p = dStr.split('/');
         return new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0]));
@@ -347,8 +363,8 @@ export class AssembleiasService {
       return new Date(dStr);
     };
 
-    const dIni = parseDate(votacao.data_inicio);
-    const dFim = parseDate(votacao.data_termino);
+    const dIni = parseDate(String(votacao.data_inicio).trim());
+    const dFim = parseDate(String(votacao.data_termino).trim());
     if (Number.isNaN(dIni.getTime()) || Number.isNaN(dFim.getTime())) {
       throw new BadRequestException('Datas da votação inválidas.');
     }
@@ -357,28 +373,32 @@ export class AssembleiasService {
     }
     const isEnquete = votacao.is_enquete ? 1 : 0;
 
-    // Criar a votação
-    const created = await this.prisma.votacoes.create({
-      data: {
-        titulo: votacao.titulo,
-        descricao: votacao.descricao ?? '',
-        data_inicio: dIni,
-        data_termino: dFim,
-        id_assembleia: votacao.id_assembleia ? Number(votacao.id_assembleia) : null,
-        id_condominio: Number(idCondominio),
-        is_enquete: isEnquete,
-      },
-    });
-
-    // Inserir opções
-    if (Array.isArray(votacao.opcoes)) {
-      await this.prisma.votacoes_Opcoes.createMany({
-        data: votacao.opcoes.map((nomeOpcao: string) => ({
-          id_votacao: created.id,
-          nome: nomeOpcao,
-        })),
+    const idAssembleia = votacao.id_assembleia ? Number(votacao.id_assembleia) : null;
+    if (idAssembleia) {
+      const assembleia = await this.prisma.assembleias.findFirst({
+        where: { id: idAssembleia, id_condominio: Number(idCondominio) },
+        select: { id: true },
       });
+      if (!assembleia) throw new BadRequestException('Assembleia não encontrada neste condomínio.');
     }
+
+    // Votação e opções juntas: sem votação órfã sem opções.
+    await this.prisma.$transaction(async (tx) => {
+      const created = await tx.votacoes.create({
+        data: {
+          titulo,
+          descricao: votacao.descricao ?? '',
+          data_inicio: dIni,
+          data_termino: dFim,
+          id_assembleia: idAssembleia,
+          id_condominio: Number(idCondominio),
+          is_enquete: isEnquete,
+        },
+      });
+      await tx.votacoes_Opcoes.createMany({
+        data: opcoes.map((nome) => ({ id_votacao: created.id, nome })),
+      });
+    });
 
     return { success: true };
   }

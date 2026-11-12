@@ -11,6 +11,7 @@ describe('AssembleiasService.insertVotacao — datas', () => {
       votacoes: { create: jest.fn(async () => ({ id: 9 })) },
       votacoes_Opcoes: { createMany: jest.fn(async () => ({ count: 2 })) },
     };
+    prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
     const tenant: any = { assertCondominio: jest.fn(async () => undefined) };
     const svc = new AssembleiasService(prisma, {} as any, tenant);
     return { svc, prisma };
