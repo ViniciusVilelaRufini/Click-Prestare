@@ -283,7 +283,7 @@ class Localizable_EnUs {
           LocalizableModel(key: 'assembleia_arquivos', text: 'Insira os arquivos aqui\n(Apenas formato .PDF)'), 
       
           LocalizableModel(key: 'assembleia_alert_ata', text: 'Insert the MINUTES to end this Meeting'), 
-          LocalizableModel(key: 'assembleia_encerrada', text: 'A assembléia foi encerrada!\nA ATA se encontra disponível para consulta no menu "Docs" do seu condomínio.'), 
+          LocalizableModel(key: 'assembleia_encerrada', text: 'A assembleia foi encerrada!\nA ATA se encontra disponível para consulta no menu "Docs" do seu condomínio.'), 
           LocalizableModel(key: 'assembleia_finalize_upload', text: 'End the meeting.\nUpload the Minutes'), 
           LocalizableModel(key: 'assembleia_upload_ata', text: 'Insert the Meeting Minutes here'), 
           

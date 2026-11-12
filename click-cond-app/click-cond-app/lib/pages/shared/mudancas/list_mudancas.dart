@@ -7,6 +7,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/validacao_formularios.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
@@ -223,6 +224,8 @@ class _MudancaCard extends StatelessWidget {
     final isSindico = getUserType() == 'sindico';
     final podeGerenciarMudanca = isSindico || getUserPermission('agendar_mudanca') == 1;
     final canDecide = podeGerenciarMudanca && rawStatus.toLowerCase() == 'pendente';
+    // Dia que já passou: o servidor recusa a aprovação, então só oferece RECUSAR.
+    final dataPassada = canDecide && mudancaDataPassada(data);
 
     return Container(
       decoration: BoxDecoration(
@@ -343,6 +346,16 @@ class _MudancaCard extends StatelessWidget {
                         ),
                       // Action buttons se o usuário puder aceitar/recusar
                       if (canDecide) ...[
+                        if (dataPassada) ...[
+                          const SizedBox(height: 10),
+                          Row(children: [
+                            Icon(PhosphorIcons.warning, size: 14, color: AppColors.warning),
+                            const SizedBox(width: 6),
+                            Text('Data passada',
+                                style: TextStyle(
+                                    color: AppColors.warning, fontSize: 12, fontWeight: FontWeight.bold)),
+                          ]),
+                        ],
                         const SizedBox(height: 12),
                         Row(
                           children: [
@@ -359,6 +372,7 @@ class _MudancaCard extends StatelessWidget {
                                 label: Text('Recusar'.toUpperCase(), style: TextStyle(fontWeight: FontWeight.bold)),
                               ),
                             ),
+                            if (!dataPassada) ...[
                             const SizedBox(width: 10),
                             Expanded(
                               child: ElevatedButton.icon(
@@ -374,6 +388,7 @@ class _MudancaCard extends StatelessWidget {
                                 label: Text('Aceitar'.toUpperCase(), style: TextStyle(fontWeight: FontWeight.bold)),
                               ),
                             ),
+                            ],
                           ],
                         ),
                       ] else if (onTap != null) ...[

@@ -283,7 +283,7 @@ class Localizable_Al {
     LocalizableModel(key: 'assembleia_arquivos', text: 'Insira os arquivos aqui\n(Apenas formato .PDF)'), 
 
     LocalizableModel(key: 'assembleia_alert_ata', text: 'Geben Sie den ATA ein, um diese Montage abzuschließen'), 
-    LocalizableModel(key: 'assembleia_encerrada', text: 'A assembléia foi encerrada!\nA ATA se encontra disponível para consulta no menu "Docs" do seu condomínio.'), 
+    LocalizableModel(key: 'assembleia_encerrada', text: 'A assembleia foi encerrada!\nA ATA se encontra disponível para consulta no menu "Docs" do seu condomínio.'), 
     LocalizableModel(key: 'assembleia_finalize_upload', text: 'Beenden Sie die Montage.\nLaden Sie das Protokoll hoch'), 
     LocalizableModel(key: 'assembleia_upload_ata', text: 'Fügen Sie hier das Protokoll der Versammlung ein'), 
     

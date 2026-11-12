@@ -4,6 +4,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/validacao_formularios.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
@@ -47,6 +48,11 @@ class _NewComunicadoPageState extends State<NewComunicado> {
   }
 
   Future<void> save() async {
+    final erro = validarComunicado(titulo: txtTitulo.text, descricao: txtDescricao.text);
+    if (erro != null) {
+      displayMessage(context, getText('alert_ops'), erro);
+      return;
+    }
     try {
       _setLoading(true);
       final obj = ComunicadoModel(id: widget.myId ?? -1, titulo: txtTitulo.text, descricao: txtDescricao.text);

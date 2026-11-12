@@ -5,6 +5,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/validacao_formularios.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
@@ -74,6 +75,11 @@ class _NewAssembleiaPageState extends State<NewAssembleia> {
   }
 
   Future<void> save() async {
+    final erro = validarAssembleia(titulo: txtTitulo.text, data: txtData.text, hora: txtHora.text);
+    if (erro != null) {
+      displayMessage(context, getText('alert_ops'), erro);
+      return;
+    }
     try {
       setState(() => _isSaving = true);
       List<String> base64 = [];
@@ -81,7 +87,7 @@ class _NewAssembleiaPageState extends State<NewAssembleia> {
         base64.add(convertToBase64(item, 'application/pdf'));
       }
       var obj = AssembleiaModel(
-        id: widget.myId ?? -1, titulo: txtTitulo.text, descricao: txtDescricao.text,
+        id: widget.myId ?? -1, titulo: txtTitulo.text.trim(), descricao: txtDescricao.text,
         data: convertStringToDate(txtData.text), hora: convertStringToTime(txtHora.text),
         local: txtLocal.text, link: txtLink.text, docs: base64,
       );

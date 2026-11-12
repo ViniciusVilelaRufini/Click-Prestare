@@ -583,7 +583,7 @@ class _OptionSheet extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   child: Material(
                     color: it.selected
-                        ? AppColors.primaryLight
+                        ? AppColors.accentGhost(context)
                         : AppColors.surface(context),
                     borderRadius: BorderRadius.circular(AppRadius.lg),
                     child: InkWell(
@@ -595,7 +595,7 @@ class _OptionSheet extends StatelessWidget {
                           children: [
                             Icon(it.icon,
                                 color: it.selected
-                                    ? AppColors.primary
+                                    ? AppColors.accent(context)
                                     : AppColors.textSecondary(context),
                                 size: 22),
                             AppSpacing.gapMd,
@@ -606,7 +606,7 @@ class _OptionSheet extends StatelessWidget {
                                   Text(it.label,
                                       style: AppTypography.bodyMedium(context).copyWith(
                                         color: it.selected
-                                            ? AppColors.primary
+                                            ? AppColors.accent(context)
                                             : AppColors.textPrimary(context),
                                       )),
                                   if (it.description != null)
@@ -617,7 +617,7 @@ class _OptionSheet extends StatelessWidget {
                             ),
                             if (it.selected)
                               Icon(PhosphorIcons.checkCircleFill,
-                                  color: AppColors.primary, size: 22),
+                                  color: AppColors.accent(context), size: 22),
                           ],
                         ),
                       ),

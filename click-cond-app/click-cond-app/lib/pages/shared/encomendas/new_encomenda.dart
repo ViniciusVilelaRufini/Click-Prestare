@@ -327,7 +327,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                 const SizedBox(width: AppSpacing.md),
               ],
               Expanded(
-                flex: 2,
+                flex: 1,
                 child: AppInput(
                   label: 'Apartamento *',
                   controller: txtApto,

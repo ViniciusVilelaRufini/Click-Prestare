@@ -283,7 +283,7 @@ class Localizable_PtPt {
     LocalizableModel(key: 'assembleia_arquivos', text: 'Insira os arquivos aqui\n(Apenas formato .PDF)'), 
 
     LocalizableModel(key: 'assembleia_alert_ata', text: 'Insira ATA para finalizar esta Assembleia'), 
-    LocalizableModel(key: 'assembleia_encerrada', text: 'A assembléia foi encerrada!\nA ATA se encontra disponível para consulta no menu "Docs" do seu condomínio.'), 
+    LocalizableModel(key: 'assembleia_encerrada', text: 'A assembleia foi encerrada!\nA ATA se encontra disponível para consulta no menu "Docs" do seu condomínio.'), 
     LocalizableModel(key: 'assembleia_finalize_upload', text: 'Termine a assembéia. \nFaça o upload da Ata'), 
     LocalizableModel(key: 'assembleia_upload_ata', text: 'Clique aqui para a Ata da Assembleia'), 
     

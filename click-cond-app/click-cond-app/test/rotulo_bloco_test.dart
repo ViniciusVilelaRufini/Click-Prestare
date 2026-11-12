@@ -12,4 +12,11 @@ void main() {
     expect(rotuloBloco(null), '');
     expect(rotuloBloco('null'), '');
   });
+
+  test('rotuloUnidade não duplica "Bloco" no CSV do relatório', () {
+    expect(rotuloUnidade('Bloco A', '12'), 'Bloco A - Apto 12');
+    expect(rotuloUnidade('A', '12'), 'Bloco A - Apto 12');
+    expect(rotuloUnidade('', '12'), 'Apto 12');
+    expect(rotuloUnidade('B', ''), 'Bloco B');
+  });
 }

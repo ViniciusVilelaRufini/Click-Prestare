@@ -12,6 +12,7 @@ import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/utils/relatorio_exportar.dart';
+import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 
 class MoradorRelatorioPage extends StatefulWidget {
@@ -279,7 +280,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
       buffer.writeln('Data de Emissão:;$dataAtual');
       buffer.writeln('Morador:;${userName.isNotEmpty ? userName : 'Morador'}');
       if (apto.isNotEmpty || bloco.isNotEmpty) {
-        buffer.writeln('Unidade:;Bloco $bloco - Apto $apto');
+        buffer.writeln('Unidade:;${rotuloUnidade(bloco, apto)}');
       }
       buffer.writeln('Período:;$periodoTexto');
       buffer.writeln('Categoria Filtrada:;$_selectedCategory');

@@ -69,7 +69,7 @@ class Localizable_PtBr {
     LocalizableModel(key: 'lb_areas_sociais', text: 'Áreas Sociais'),
     LocalizableModel(key: 'lb_area_social', text: 'Área Social'),
     LocalizableModel(key: 'lb_financeiro', text: 'Financeiro'),
-    LocalizableModel(key: 'lb_assembleia_votacoes', text: 'Assembléias e Votações'),
+    LocalizableModel(key: 'lb_assembleia_votacoes', text: 'Assembleias e Votações'),
     LocalizableModel(key: 'lb_assembleias', text: 'Assembleias'),
     LocalizableModel(key: 'lb_assembleia', text: 'Assembleia'),
     LocalizableModel(key: 'lb_votacoes', text: 'Votações'),
@@ -274,18 +274,18 @@ class Localizable_PtBr {
     LocalizableModel(key: 'area_social_reservado', text: 'Reservado:'), 
 
     //ASSEMBLEIA
-    LocalizableModel(key: 'assembleia_infos', text: 'INFORMAÇÕES DA ASSEMBLÉIA'), 
+    LocalizableModel(key: 'assembleia_infos', text: 'INFORMAÇÕES DA ASSEMBLEIA'), 
     LocalizableModel(key: 'assembleia_local', text: 'Local'), 
-    LocalizableModel(key: 'assembleia_nav_edit', text: 'Editar Assembléia'), 
-    LocalizableModel(key: 'assembleia_nav_new', text: 'Nova Assembléia'), 
+    LocalizableModel(key: 'assembleia_nav_edit', text: 'Editar Assembleia'), 
+    LocalizableModel(key: 'assembleia_nav_new', text: 'Nova Assembleia'), 
     LocalizableModel(key: 'assembleia_data_local', text: 'SOBRE A DATA E O LOCAL'), 
-    LocalizableModel(key: 'assembleia_link_online', text: 'Link (caso a assembléia seja online)'), 
+    LocalizableModel(key: 'assembleia_link_online', text: 'Link (caso a assembleia seja online)'), 
     LocalizableModel(key: 'assembleia_arquivos', text: 'Insira os arquivos aqui\n(Apenas formato .PDF)'), 
 
-    LocalizableModel(key: 'assembleia_alert_ata', text: 'Insira a ATA para finalizar essa Assembléia'), 
-    LocalizableModel(key: 'assembleia_encerrada', text: 'A assembléia foi encerrada!\nA ATA se encontra disponível para consulta no menu "Docs" do seu condomínio.'), 
+    LocalizableModel(key: 'assembleia_alert_ata', text: 'Insira a ATA para finalizar essa Assembleia'), 
+    LocalizableModel(key: 'assembleia_encerrada', text: 'A assembleia foi encerrada!\nA ATA se encontra disponível para consulta no menu "Docs" do seu condomínio.'), 
     LocalizableModel(key: 'assembleia_finalize_upload', text: 'Finalize a assembéia.\nFaça o upload da Ata'), 
-    LocalizableModel(key: 'assembleia_upload_ata', text: 'Insira aqui a Ata da Assembléia'), 
+    LocalizableModel(key: 'assembleia_upload_ata', text: 'Insira aqui a Ata da Assembleia'), 
     
 
     //VOTACAO
