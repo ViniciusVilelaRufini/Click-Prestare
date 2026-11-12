@@ -326,6 +326,7 @@ class Localizable_PtPt {
     LocalizableModel(key: 'config_delete_cond', text: 'Excluir condomínio'), 
     LocalizableModel(key: 'config_delete_account', text: 'Apagar a minha conta'), 
     LocalizableModel(key: 'visitante_nome_obrigatorio', text: 'Indique o nome do visitante.'), 
+    LocalizableModel(key: 'prestador_nome_obrigatorio', text: 'Indique o nome do prestador.'), 
     LocalizableModel(key: 'visitante_inicio_obrigatorio', text: 'Indique a data de início do acesso.'), 
     LocalizableModel(key: 'visitante_termino_obrigatorio', text: 'Indique a data de fim do acesso.'), 
     LocalizableModel(key: 'visitante_periodo_invalido', text: 'A data de fim não pode ser anterior à de início.'), 

@@ -212,6 +212,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
       final inicio = convertStringToDateTimeFormat(txtDataInicio.text.trim());
       final termino = convertStringToDateTimeFormat(txtDataTermino.text.trim());
       final validacao = validarCamposVisitanteDetalhado(
+        prestador: currentTipo == 'prestador',
         nome: txtNome.text,
         inicio: inicio,
         termino: termino,

@@ -11,6 +11,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/financeiro_constants.dart';
+import 'package:click/utils/relatorio_exportar.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 
 class MoradorRelatorioPage extends StatefulWidget {
@@ -73,6 +74,8 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
   @override
   void initState() {
     super.initState();
+    _mesesScroll = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _rolarAteMesSelecionado());
     _selectedMes = widget.initialMes.padLeft(2, '0');
     _selectedAno = widget.initialAno;
 
@@ -90,6 +93,29 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
     } else {
       _loadData();
     }
+  }
+
+  late final ScrollController _mesesScroll;
+
+  @override
+  void dispose() {
+    _mesesScroll.dispose();
+    super.dispose();
+  }
+
+  /// A fileira de meses abre rolada no início; NOV/DEZ ficavam fora da tela.
+  void _rolarAteMesSelecionado() {
+    if (!mounted || !_mesesScroll.hasClients) return;
+    final i = _meses.indexWhere((m) => m['num'] == _selectedMes);
+    if (i < 0) return;
+    final pos = _mesesScroll.position;
+    _mesesScroll.jumpTo(offsetRolagemParaItem(
+      index: i,
+      itemExtent: 54,
+      separator: 8,
+      viewport: pos.viewportDimension,
+      maxScrollExtent: pos.maxScrollExtent,
+    ));
   }
 
   Future<void> _loadData() async {
@@ -337,7 +363,11 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
             duration: const Duration(seconds: 3),
           ),
         );
-        await OpenFilex.open(file.path);
+        final aberto = await OpenFilex.open(file.path);
+        final aviso = avisoRelatorioNaoAbriu(aberto.type);
+        if (aviso != null && mounted) {
+          displayMessage(context, "Relatório", aviso);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -547,6 +577,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                   SizedBox(
                     height: 48,
                     child: ListView.separated(
+                      controller: _mesesScroll,
                       scrollDirection: Axis.horizontal,
                       itemCount: _meses.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 8),

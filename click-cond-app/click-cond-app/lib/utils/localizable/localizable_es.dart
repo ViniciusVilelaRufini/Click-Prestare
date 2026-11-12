@@ -326,6 +326,7 @@ class Localizable_Es {
           LocalizableModel(key: 'config_delete_cond', text: 'Excluir condominio'), 
           LocalizableModel(key: 'config_delete_account', text: 'eliminar mi cuenta'), 
           LocalizableModel(key: 'visitante_nome_obrigatorio', text: 'Ingrese el nombre del visitante.'), 
+          LocalizableModel(key: 'prestador_nome_obrigatorio', text: 'Ingrese el nombre del prestador.'), 
           LocalizableModel(key: 'visitante_inicio_obrigatorio', text: 'Ingrese la fecha de inicio del acceso.'), 
           LocalizableModel(key: 'visitante_termino_obrigatorio', text: 'Ingrese la fecha de término del acceso.'), 
           LocalizableModel(key: 'visitante_periodo_invalido', text: 'La fecha de término no puede ser anterior a la de inicio.'), 

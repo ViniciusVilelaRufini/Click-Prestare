@@ -48,12 +48,17 @@ ValidacaoVisitanteResult validarCamposVisitanteDetalhado({
   required String nome,
   required DateTime? inicio,
   required DateTime? termino,
+  bool prestador = false,
 }) {
   String? erroNome;
   String? erroInicio;
   String? erroTermino;
 
-  if (nome.trim().isEmpty) erroNome = 'visitante_nome_obrigatorio';
+  if (nome.trim().isEmpty) {
+    erroNome = prestador
+        ? 'prestador_nome_obrigatorio'
+        : 'visitante_nome_obrigatorio';
+  }
   if (inicio == null) erroInicio = 'visitante_inicio_obrigatorio';
   if (termino == null) {
     erroTermino = 'visitante_termino_obrigatorio';
@@ -81,8 +86,10 @@ String? validarCadastroVisitante({
   required String nome,
   required DateTime? inicio,
   required DateTime? termino,
+  bool prestador = false,
 }) {
   return validarCamposVisitanteDetalhado(
+    prestador: prestador,
     nome: nome,
     inicio: inicio,
     termino: termino,

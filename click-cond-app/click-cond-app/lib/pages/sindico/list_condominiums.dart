@@ -1,4 +1,5 @@
 import 'package:click/widgets/app/app_card.dart';
+import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/pages/shared/areas%20sociais/list_areas_sociais.dart';
 import 'package:click/utils/rotulo_bloco.dart';
 import 'package:click/utils/utils.dart';
@@ -879,7 +880,15 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         acao(
           icon: PhosphorIcons.signOut,
           tooltip: getText('lb_logout'),
-          onPressed: () {
+          onPressed: () async {
+            final ok = await showAppConfirmDialog(
+              context,
+              title: 'Sair da conta',
+              message: 'Deseja sair da sua conta neste aparelho?',
+              confirmLabel: 'Sair',
+              isDanger: false,
+            );
+            if (!ok || !context.mounted) return;
             storageLogout();
             Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
           },
