@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import { autorDoToken } from '../auth/usuario-do-token.util';
+import { usuarioTemVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FacialDeviceClientService } from '../facial/facial-device-client.service';
@@ -18,6 +19,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MOTIVO_MAX = 500;
 const MSG_EMAIL_DE_OUTRA_CONTA =
   'Este e-mail já pertence a outra conta. Confirme o endereço com o morador ou use outro e-mail.';
+const MSG_LOGIN_DE_OUTRO_CADASTRO =
+  'Este login também é usado por outro cadastro (outro morador, síndico ou funcionário). ' +
+  'Corrigir aqui mudaria o acesso dessa outra pessoa. Peça ao titular que troque o e-mail pelo app, ' +
+  'ou cadastre o morador de novo com o e-mail certo.';
 
 /** "carlos@gmail.com" → "ca****@gmail.com" — a auditoria não guarda o e-mail inteiro. */
 function mascararEmail(email: string): string {
@@ -338,14 +343,20 @@ export class CrmCondominiosService {
     const idUser = conta?.id ?? null;
     const emailAnterior = conta?.login ?? conta?.email ?? morador.email ?? '';
 
+    // Vale também para morador sem conta: o cadastro não pode apontar para o
+    // e-mail de login de outra pessoa.
+    const outraConta = await this.prisma.users.findFirst({
+      where: { ...(idUser ? { id: { not: idUser } } : {}), OR: [{ email }, { login: email }] },
+      select: { id: true },
+    });
+    if (outraConta) throw new ConflictException(MSG_EMAIL_DE_OUTRA_CONTA);
+
+    if (conta && (await this.contaTemOutroCadastro(conta, morador.id, idCondominio))) {
+      throw new ConflictException(MSG_LOGIN_DE_OUTRO_CADASTRO);
+    }
+
     try {
       if (idUser) {
-        const outraConta = await this.prisma.users.findFirst({
-          where: { id: { not: idUser }, OR: [{ email }, { login: email }] },
-          select: { id: true },
-        });
-        if (outraConta) throw new ConflictException(MSG_EMAIL_DE_OUTRA_CONTA);
-
         await this.prisma.$transaction([
           this.prisma.users.update({
             where: { id: idUser },
@@ -353,6 +364,12 @@ export class CrmCondominiosService {
             data: { email, login: email, senha_alterada_em: momentoTrocaSenha() },
           }),
           this.prisma.moradores.update({ where: { id: morador.id }, data: { email } }),
+          // Link de "Esqueci a senha" pedido antes ainda valeria. 'funcionario'
+          // fica de fora: lá id_conta é Funcionarios_Portaria.id, outra numeração.
+          this.prisma.redefinicoes_Senha.updateMany({
+            where: { id_conta: idUser, papel: { in: ['morador', 'sindico'] }, usado_em: null },
+            data: { usado_em: new Date() },
+          }),
         ]);
       } else {
         await this.prisma.moradores.update({ where: { id: morador.id }, data: { email } });
@@ -384,6 +401,31 @@ export class CrmCondominiosService {
     });
 
     return { success: true, idMorador: morador.id, email, contaAtualizada: !!idUser };
+  }
+
+  /**
+   * A conta tem qualquer cadastro além desta linha de morador? O saveMorador
+   * reaproveita a Users pelo e-mail/CPF: um morador cadastrado com o e-mail de
+   * outra pessoa fica ligado à conta DELA, e corrigir o login daqui entregaria
+   * a conta dela (inclusive o papel de síndica de outro prédio) a quem pedir
+   * "Esqueci a senha" no e-mail novo.
+   */
+  private async contaTemOutroCadastro(
+    conta: { id: number; email: string | null; login: string | null },
+    idMorador: number,
+    idCondominio: number,
+  ): Promise<boolean> {
+    const logins = [...new Set([conta.login, conta.email].filter((v): v is string => !!v))];
+    const [moradores, sindicos, sindicosCond, funcionarios, portaria] = await Promise.all([
+      this.prisma.moradores.count({ where: { id_user: conta.id, id: { not: idMorador } } }),
+      this.prisma.sindicos.count({ where: { id_user: conta.id } }),
+      this.prisma.sindicos_Condominios.count({ where: { id_user: conta.id } }),
+      this.prisma.funcionarios.count({ where: { id_user: conta.id } }),
+      logins.length ? this.prisma.funcionarios_Portaria.count({ where: { login: { in: logins } } }) : 0,
+    ]);
+    if (moradores + sindicos + sindicosCond + funcionarios + portaria > 0) return true;
+    // Cobre também a unidade (Apartamentos_Users) em outro condomínio.
+    return usuarioTemVinculoEmOutroCondominio(this.prisma, conta.id, idCondominio);
   }
 
   /** Gera bloco × andar × unidade — ex.: bloco A, andar 3, unidade 2 → "302". */

@@ -14,7 +14,13 @@ import { CrmAdminGuard } from './crm-admin.guard';
 describe('CrmCondominiosService.corrigirEmailAcessoMorador', () => {
   const admin: any = { sub: 9, role: 'crm_admin', nome: 'Ana Suporte', email: 'ana@prestare.com.br' };
 
-  function build(opts?: { morador?: any; conflito?: any }) {
+  type Vinculos = Partial<
+    Record<'moradores' | 'sindicos' | 'sindicos_Condominios' | 'funcionarios' | 'funcionarios_Portaria' | 'apartamentos_Users', number>
+  >;
+
+  function build(opts?: { morador?: any; conflito?: any; vinculos?: Vinculos }) {
+    const vinculos = opts?.vinculos ?? {};
+    const contador = (tabela: keyof Vinculos) => jest.fn(async () => vinculos[tabela] ?? 0);
     const morador =
       opts && 'morador' in opts
         ? opts.morador
@@ -30,7 +36,14 @@ describe('CrmCondominiosService.corrigirEmailAcessoMorador', () => {
       moradores: {
         findFirst: jest.fn(async () => morador),
         update: jest.fn(async (a: any) => ({ ...morador, ...a.data })),
+        count: contador('moradores'),
       },
+      sindicos: { count: contador('sindicos') },
+      sindicos_Condominios: { count: contador('sindicos_Condominios') },
+      funcionarios: { count: contador('funcionarios') },
+      funcionarios_Portaria: { count: contador('funcionarios_Portaria') },
+      apartamentos_Users: { count: contador('apartamentos_Users') },
+      redefinicoes_Senha: { updateMany: jest.fn(async () => ({ count: 1 })) },
       users: {
         findUnique: jest.fn(async () => conta),
         findFirst: jest.fn(async () => opts?.conflito ?? null),
@@ -176,5 +189,78 @@ describe('CrmCondominiosService.corrigirEmailAcessoMorador', () => {
     await expect(
       svc.corrigirEmailAcessoMorador(1, 50, { email: 'carlos@gmail.com', motivo: 'm' }, admin),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  // ── Revisão C1: conta com outro cadastro ──
+  // O saveMorador reaproveita a Users pelo e-mail/CPF: morador cadastrado com
+  // o e-mail da esposa fica ligado à conta dela. "Corrigir" mudaria o login
+  // DELA, e o marido entraria pela "Esqueci a senha" — inclusive como síndica
+  // de outro prédio.
+  describe.each<[string, Vinculos]>([
+    ['outro cadastro de morador com a mesma conta', { moradores: 1 }],
+    ['síndico (Sindicos)', { sindicos: 1 }],
+    ['síndico de algum condomínio (Sindicos_Condominios)', { sindicos_Condominios: 1 }],
+    ['funcionário do app (Funcionarios)', { funcionarios: 1 }],
+    ['funcionário da portaria com o mesmo login', { funcionarios_Portaria: 1 }],
+    ['unidade em outro condomínio (Apartamentos_Users)', { apartamentos_Users: 1 }],
+  ])('recusa quando a conta também é %s', (_nome, vinculos) => {
+    it('409 com a mensagem do titular, sem gravar nada', async () => {
+      const { svc, prisma, auditoria } = build({ vinculos });
+
+      const p = svc.corrigirEmailAcessoMorador(1, 50, { email: 'carlos@gmail.com', motivo: 'm' }, admin);
+      await expect(p).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        svc.corrigirEmailAcessoMorador(1, 50, { email: 'carlos@gmail.com', motivo: 'm' }, admin),
+      ).rejects.toThrow(/também é usado por outro cadastro/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.users.update).not.toHaveBeenCalled();
+      expect(prisma.moradores.update).not.toHaveBeenCalled();
+      expect(auditoria.registrar).not.toHaveBeenCalled();
+    });
+  });
+
+  it('confere o outro cadastro de morador excluindo esta linha, e a portaria pelo login e pelo e-mail da conta', async () => {
+    const { svc, prisma } = build();
+
+    await svc.corrigirEmailAcessoMorador(1, 50, { email: 'carlos@gmail.com', motivo: 'm' }, admin);
+
+    const wheresMoradores = prisma.moradores.count.mock.calls.map((c: any[]) => c[0].where);
+    expect(wheresMoradores).toContainEqual({ id_user: 70, id: { not: 50 } });
+    expect(prisma.sindicos.count.mock.calls[0][0].where).toEqual({ id_user: 70 });
+    expect(prisma.funcionarios.count.mock.calls.map((c: any[]) => c[0].where)).toContainEqual({ id_user: 70 });
+    expect(prisma.funcionarios_Portaria.count.mock.calls[0][0].where).toEqual({
+      login: { in: ['carlos@gmial.com'] },
+    });
+  });
+
+  // ── Revisão M1: links de "Esqueci a senha" pendentes ──
+  it('invalida, na mesma transação, os pedidos de redefinição pendentes da conta (morador e síndico)', async () => {
+    const { svc, prisma } = build();
+
+    await svc.corrigirEmailAcessoMorador(1, 50, { email: 'carlos@gmail.com', motivo: 'm' }, admin);
+
+    expect(prisma.redefinicoes_Senha.updateMany).toHaveBeenCalledTimes(1);
+    const arg = prisma.redefinicoes_Senha.updateMany.mock.calls[0][0];
+    // 'funcionario' fica de fora: lá id_conta é Funcionarios_Portaria.id.
+    expect(arg.where).toEqual({ id_conta: 70, papel: { in: ['morador', 'sindico'] }, usado_em: null });
+    expect(arg.data.usado_em).toBeInstanceOf(Date);
+    const ops = prisma.$transaction.mock.calls[0][0];
+    expect(ops).toHaveLength(3);
+  });
+
+  // ── Revisão M2: morador sem conta também não pega e-mail de outra conta ──
+  it('morador sem conta: recusa e-mail que já é de uma conta', async () => {
+    const { svc, prisma } = build({
+      morador: { id: 51, nome: 'Sem Conta', email: 'velho@x.com', id_user: 0, id_condominio: 1 },
+      conflito: { id: 99 },
+    });
+
+    await expect(
+      svc.corrigirEmailAcessoMorador(1, 51, { email: 'joao@gmail.com', motivo: 'm' }, admin),
+    ).rejects.toThrow(/outra conta/i);
+    expect(prisma.users.findFirst.mock.calls[0][0].where).toEqual({
+      OR: [{ email: 'joao@gmail.com' }, { login: 'joao@gmail.com' }],
+    });
+    expect(prisma.moradores.update).not.toHaveBeenCalled();
   });
 });

@@ -87,6 +87,24 @@ describe('ClienteDrawerComponent — corrigir e-mail de acesso', () => {
     expect(comp.moradores()[0].email).toBe('carlos@gmial.com');
   });
 
+  it('mostra no diálogo a recusa por login compartilhado com outro cadastro (409)', () => {
+    const msg =
+      'Este login também é usado por outro cadastro (outro morador, síndico ou funcionário). ' +
+      'Corrigir aqui mudaria o acesso dessa outra pessoa. Peça ao titular que troque o e-mail pelo app, ' +
+      'ou cadastre o morador de novo com o e-mail certo.';
+    const { comp, toast } = montar(throwError(() => ({ status: 409, error: { statusCode: 409, message: msg } })));
+
+    comp.abrirCorrecaoEmail(morador);
+    comp.emailCorrigido = 'carlos@gmail.com';
+    comp.motivoCorrecaoEmail = 'm';
+    comp.corrigirEmailAcesso();
+
+    expect(comp.erroCorrecaoEmail()).toBe(msg);
+    expect(comp.moradorCorrecaoEmail()?.id).toBe(50);
+    expect(comp.salvandoCorrecaoEmail()).toBe(false);
+    expect(toast.trigger).not.toHaveBeenCalled();
+  });
+
   it('não chama a API sem motivo', () => {
     const { comp, api } = montar(of({}));
 
