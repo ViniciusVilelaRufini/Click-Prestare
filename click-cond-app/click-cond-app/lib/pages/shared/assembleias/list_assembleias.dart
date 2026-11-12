@@ -160,7 +160,7 @@ class AssembleiaCard extends StatelessWidget {
                   // Bloco de data (dia + mês); sem data válida, o ícone.
                   Container(
                     width: 48,
-                    height: 52,
+                    constraints: const BoxConstraints(minHeight: 52),
                     decoration: BoxDecoration(
                       color: corBloco.withValues(alpha: isDark ? 0.18 : 0.08),
                       borderRadius: AppRadius.rmd,
@@ -169,7 +169,9 @@ class AssembleiaCard extends StatelessWidget {
                     alignment: Alignment.center,
                     child: data == null
                         ? Icon(PhosphorIcons.usersThree, size: 22, color: corBloco)
-                        : Column(
+                        : FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
@@ -190,6 +192,7 @@ class AssembleiaCard extends StatelessWidget {
                                 ),
                               ),
                             ],
+                            ),
                           ),
                   ),
                   const SizedBox(width: AppSpacing.md),
