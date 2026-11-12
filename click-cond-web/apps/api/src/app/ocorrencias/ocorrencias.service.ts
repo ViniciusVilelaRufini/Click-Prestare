@@ -511,12 +511,25 @@ export class OcorrenciasService {
     const anexos = await subirAnexosOcorrencia(this.storage, dados.docs);
     if (anexos) data.anexos = anexos;
 
+    // A checagem de Pendente acima é só para dar a mensagem certa: a garantia
+    // é o filtro da própria escrita (autor + Pendente), senão uma ciência da
+    // equipe entre o findUnique e o update seria sobrescrita. A coluna é
+    // NOT NULL e o MySQL compara sem diferenciar caixa, então 'Pendente' cobre
+    // o mesmo que `estaPendente`.
+    let r: { count: number };
     try {
-      return await this.prisma.ocorrencias.update({ where: { id: idOc }, data });
+      r = await this.prisma.ocorrencias.updateMany({
+        where: { id: idOc, user: idUsuarioDoToken(user) as number, status: 'Pendente' },
+        data,
+      });
     } catch (err: any) {
       this.logger.error(`[ocorrencias.editarPeloAutor] Falha: ${err?.message ?? err}`);
       throw new BadRequestException('Não foi possível salvar a ocorrência. Verifique os dados e tente novamente.');
     }
+    if (r.count === 0) {
+      throw new BadRequestException('Esta ocorrência já está em atendimento e não pode mais ser editada.');
+    }
+    return this.prisma.ocorrencias.findUnique({ where: { id: idOc } });
   }
 
   /**
@@ -534,10 +547,13 @@ export class OcorrenciasService {
 
     const autor = this.ehAutor(o, user);
     if (autor && estaPendente(o.status)) {
-      try {
-        await this.prisma.ocorrencias.delete({ where: { id: idOc } });
-      } catch {
-        throw new NotFoundException(`Ocorrência ${idOc} não encontrada`);
+      // Exclusão condicionada a autor + Pendente: se a equipe deu ciência no
+      // meio do caminho, nada é apagado.
+      const r = await this.prisma.ocorrencias.deleteMany({
+        where: { id: idOc, user: idUsuarioDoToken(user) as number, status: 'Pendente' },
+      });
+      if (r.count === 0) {
+        throw new BadRequestException('Esta ocorrência já está em atendimento e não pode mais ser excluída.');
       }
       return;
     }

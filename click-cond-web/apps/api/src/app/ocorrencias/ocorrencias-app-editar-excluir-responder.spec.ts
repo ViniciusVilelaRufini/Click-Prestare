@@ -29,7 +29,7 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
   const sindico = { sub: 7, typeAccess: 'Sindico', user: { id: 7 } } as any;
   const funcionario = { sub: 20, typeAccess: 'Funcionario', user: { id: 20 } } as any;
 
-  function montar(opts: { oc?: any; flag?: number; uploads?: (string | null)[] } = {}) {
+  function montar(opts: { oc?: any; flag?: number; uploads?: (string | null)[]; corrida?: boolean } = {}) {
     const oc = {
       id: 5,
       id_condominio: COND,
@@ -48,6 +48,9 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
         create: jest.fn(async ({ data }: any) => ({ id: 9, ...data })),
         update: jest.fn(async ({ data }: any) => ({ ...oc, ...data })),
         delete: jest.fn(async () => ({})),
+        // Escrita do autor: condicionada a Pendente. `count` 0 simula a corrida.
+        updateMany: jest.fn(async () => ({ count: opts.corrida ? 0 : 1 })),
+        deleteMany: jest.fn(async () => ({ count: opts.corrida ? 0 : 1 })),
       },
       ocorrencias_Categorias: {
         findUnique: jest.fn(async ({ where }: any) => ({ sla_horas: where.id === 2 ? 4 : null })),
@@ -107,9 +110,9 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
     it('autor edita descrição, tipo e visibilidade da ocorrência pendente', async () => {
       const { ctrl, prisma } = montar();
       await ctrl.update(edicao({ descricao: '  Vazamento grave  ', tipo: '2', publica: true }), autor);
-      expect(prisma.ocorrencias.update).toHaveBeenCalledTimes(1);
-      const { where, data } = prisma.ocorrencias.update.mock.calls[0][0];
-      expect(where).toEqual({ id: 5 });
+      expect(prisma.ocorrencias.updateMany).toHaveBeenCalledTimes(1);
+      const { where, data } = prisma.ocorrencias.updateMany.mock.calls[0][0];
+      expect(where).toEqual({ id: 5, user: 100, status: 'Pendente' });
       expect(data.descricao).toBe('Vazamento grave');
       expect(data.tipo).toBe(2);
       expect(data.publica).toBe(true);
@@ -123,16 +126,24 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
     it('mesmo tipo: prazo não muda', async () => {
       const { ctrl, prisma } = montar();
       await ctrl.update(edicao({ tipo: '1' }), autor);
-      const { data } = prisma.ocorrencias.update.mock.calls[0][0];
+      const { data } = prisma.ocorrencias.updateMany.mock.calls[0][0];
       expect('prazo' in data).toBe(false);
       expect('tipo' in data).toBe(false);
+    });
+
+    it('corrida: equipe deu ciência entre a leitura e o update -> 400 e nada é gravado', async () => {
+      const { ctrl, prisma } = montar({ corrida: true });
+      const e: any = await erro(ctrl.update(edicao(), autor));
+      expect(e).toBeInstanceOf(BadRequestException);
+      expect(e.message).toContain('já está em atendimento');
+      expect(prisma.ocorrencias.update).not.toHaveBeenCalled();
     });
 
     it('não-autor recebe 403 e nada é gravado', async () => {
       const { ctrl, prisma, storage } = montar();
       const e = await erro(ctrl.update(edicao({ docs: [PNG] }), vizinho));
       expect(e).toBeInstanceOf(ForbiddenException);
-      expect(prisma.ocorrencias.update).not.toHaveBeenCalled();
+      expect(prisma.ocorrencias.updateMany).not.toHaveBeenCalled();
       expect(storage.uploadDataUrl).not.toHaveBeenCalled();
     });
 
@@ -140,7 +151,7 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
       const { ctrl, prisma } = montar();
       const e = await erro(ctrl.update(edicao(), sindico));
       expect(e).toBeInstanceOf(ForbiddenException);
-      expect(prisma.ocorrencias.update).not.toHaveBeenCalled();
+      expect(prisma.ocorrencias.updateMany).not.toHaveBeenCalled();
     });
 
     it('ocorrência já atendida (Ciente/Solucionado) não é editada', async () => {
@@ -148,7 +159,7 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
         const { ctrl, prisma } = montar({ oc: { status } });
         const e: any = await erro(ctrl.update(edicao(), autor));
         expect(e).toBeInstanceOf(BadRequestException);
-        expect(prisma.ocorrencias.update).not.toHaveBeenCalled();
+        expect(prisma.ocorrencias.updateMany).not.toHaveBeenCalled();
       }
     });
 
@@ -157,7 +168,7 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
       const e = await erro(ctrl.update(edicao(), autor));
       expect(e).toBeInstanceOf(ForbiddenException);
       expect(tenant.assertEntidade).toHaveBeenCalledWith(OUTRO_COND, autor, expect.any(String));
-      expect(prisma.ocorrencias.update).not.toHaveBeenCalled();
+      expect(prisma.ocorrencias.updateMany).not.toHaveBeenCalled();
     });
 
     it('ocorrência inexistente: 404', async () => {
@@ -171,7 +182,7 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
       const e: any = await erro(ctrl.update(edicao({ descricao: '   \n ' }), autor));
       expect(e).toBeInstanceOf(BadRequestException);
       expect(e.message).toBe('Descrição é obrigatória.');
-      expect(prisma.ocorrencias.update).not.toHaveBeenCalled();
+      expect(prisma.ocorrencias.updateMany).not.toHaveBeenCalled();
     });
   });
 
@@ -181,7 +192,7 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
       await ctrl.update(edicao({ docs: [PNG, JPG] }), autor);
       expect(storage.uploadDataUrl).toHaveBeenCalledTimes(2);
       expect(storage.uploadDataUrl).toHaveBeenCalledWith(PNG, 'ocorrencias');
-      expect(prisma.ocorrencias.update.mock.calls[0][0].data.anexos).toBe(`${URL_1};${URL_2}`);
+      expect(prisma.ocorrencias.updateMany.mock.calls[0][0].data.anexos).toBe(`${URL_1};${URL_2}`);
     });
 
     it('update sem docs mantém os anexos atuais', async () => {
@@ -189,7 +200,7 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
       await ctrl.update(edicao({ docs: [] }), autor);
       await ctrl.update(edicao({ docs: undefined }), autor);
       expect(storage.uploadDataUrl).not.toHaveBeenCalled();
-      for (const c of prisma.ocorrencias.update.mock.calls) expect('anexos' in c[0].data).toBe(false);
+      for (const c of prisma.ocorrencias.updateMany.mock.calls) expect('anexos' in c[0].data).toBe(false);
     });
 
     it('no máximo 3 imagens; PDF e texto não são anexados', async () => {
@@ -197,21 +208,21 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
       await ctrl.update(edicao({ docs: [PDF, PNG, 'nao-e-data-url', JPG, PNG, JPG, null] }), autor);
       expect(storage.uploadDataUrl).toHaveBeenCalledTimes(3);
       for (const c of storage.uploadDataUrl.mock.calls) expect(c[0]).not.toBe(PDF);
-      expect(prisma.ocorrencias.update.mock.calls[0][0].data.anexos).toBe(`${URL_1};${URL_2};${URL_3}`);
+      expect(prisma.ocorrencias.updateMany.mock.calls[0][0].data.anexos).toBe(`${URL_1};${URL_2};${URL_3}`);
     });
 
     it('URL enviada no lugar da imagem é ignorada (não vira anexo)', async () => {
       const { ctrl, prisma, storage } = montar();
       await ctrl.update(edicao({ docs: ['https://bucket.s3.amazonaws.com/moradores/alheia.jpg'] }), autor);
       expect(storage.uploadDataUrl).not.toHaveBeenCalled();
-      expect('anexos' in prisma.ocorrencias.update.mock.calls[0][0].data).toBe(false);
+      expect('anexos' in prisma.ocorrencias.updateMany.mock.calls[0][0].data).toBe(false);
     });
 
     it('storage desligado/falhando: salva sem o arquivo, nunca 500', async () => {
       // Desligado devolve o próprio data URL; falha devolve null.
       const { ctrl, prisma } = montar({ uploads: [PNG, null] });
       await expect(ctrl.update(edicao({ docs: [PNG, JPG] }), autor)).resolves.toBeDefined();
-      expect('anexos' in prisma.ocorrencias.update.mock.calls[0][0].data).toBe(false);
+      expect('anexos' in prisma.ocorrencias.updateMany.mock.calls[0][0].data).toBe(false);
     });
 
     it('insert sobe os anexos e grava separados por ";"', async () => {
@@ -313,16 +324,25 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
   });
 
   describe('remove', () => {
-    it('autor exclui a própria ocorrência pendente', async () => {
+    it('autor exclui a própria ocorrência pendente (condicionado a autor + Pendente)', async () => {
       const { ctrl, prisma } = montar();
       expect(await ctrl.remove({ id: 5 }, autor)).toEqual({ ok: true });
-      expect(prisma.ocorrencias.delete).toHaveBeenCalledWith({ where: { id: 5 } });
+      expect(prisma.ocorrencias.deleteMany).toHaveBeenCalledWith({ where: { id: 5, user: 100, status: 'Pendente' } });
+    });
+
+    it('corrida: equipe deu ciência entre a leitura e o delete -> 400 e nada é apagado', async () => {
+      const { ctrl, prisma } = montar({ corrida: true });
+      const e: any = await erro(ctrl.remove({ id: 5 }, autor));
+      expect(e).toBeInstanceOf(BadRequestException);
+      expect(e.message).toContain('já está em atendimento');
+      expect(prisma.ocorrencias.delete).not.toHaveBeenCalled();
     });
 
     it('autor não exclui ocorrência já atendida', async () => {
       const { ctrl, prisma } = montar({ oc: { status: 'Ciente' } });
       expect(await erro(ctrl.remove({ id: 5 }, autor))).toBeInstanceOf(BadRequestException);
       expect(prisma.ocorrencias.delete).not.toHaveBeenCalled();
+      expect(prisma.ocorrencias.deleteMany).not.toHaveBeenCalled();
     });
 
     it('outro morador: 403', async () => {
