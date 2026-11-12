@@ -214,7 +214,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   }
 
   Future<void> _carregarPendentes() async {
-    if (getUserType() != 'morador') return;
+    if (getUserType() != 'morador' || !temSessao()) return;
     try {
       final res = await apiGetPendentes();
       if (!mounted) return;
@@ -225,7 +225,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   }
 
   Future<void> _loadCond() async {
-    if (!mounted) return;
+    if (!mounted || !temSessao()) return;
     _carregarPendentes();
     // Stale-while-revalidate: skeleton só no 1º load (sem cache). Ao voltar,
     // mantém o conteúdo e atualiza em segundo plano.
@@ -276,11 +276,11 @@ class _MyCondominiumState extends State<MyCondominium> {
         if (city.isNotEmpty) {
           _fetchWeather(city, stateCode);
         }
-      } else {
+      } else if (temSessao()) {
         _err();
       }
     } catch (_) {
-      if (mounted) _err();
+      if (mounted && temSessao()) _err();
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

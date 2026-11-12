@@ -67,13 +67,14 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   Future<void> _carregarNaoLidas() async {
+    if (!temSessao()) return;
     final itens = await apiGetNotificacoes();
     if (!mounted) return;
     setState(() => _naoLidas = contarNaoLidas(itens));
   }
 
   Future<void> _carregarPendentes() async {
-    if (getUserType() != 'morador') return;
+    if (getUserType() != 'morador' || !temSessao()) return;
     try {
       final res = await apiGetPendentes();
       if (!mounted) return;

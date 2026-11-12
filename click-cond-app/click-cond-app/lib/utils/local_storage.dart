@@ -226,6 +226,11 @@ String getToken() {
   return SegredosSessao.ler('token');
 }
 
+/// Há sessão aberta? Recargas disparadas ao voltar de uma tela (`.then`) rodam
+/// também depois do "Sair", quando as rotas são removidas: sem esta checagem
+/// elas chamam a API sem token, levam 401 e mostram erro sobre o login.
+bool temSessao() => getToken().trim().isNotEmpty;
+
 String getUsername() {
   final name = _storage.getItem('name');
   if (name == null) return "";
