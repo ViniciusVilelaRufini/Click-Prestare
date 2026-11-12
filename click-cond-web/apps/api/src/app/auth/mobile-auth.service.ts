@@ -27,6 +27,7 @@ import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { parseLocalTimeToUTC } from '../visitantes/visitantes.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
+import { subirAnexosOcorrencia } from '../ocorrencias/anexos-ocorrencia.util';
 
 /** Senha atual errada na troca de e-mail do perfil: 10 falhas em 10 min travam a conta por 10 min. */
 const MAX_FALHAS_SENHA_PERFIL = 10;
@@ -4643,13 +4644,17 @@ export class MobileAuthService {
     }
     const data = body.ocorrencia ?? body;
     const idCondominio = body.id_condominio ?? data.id_condominio;
-    const descricao = data.descricao;
+    // Só espaços passava e virava ocorrência sem relato.
+    const descricao = typeof data.descricao === 'string' ? data.descricao.trim() : '';
     const tipo = data.tipo;
     const publica = data.publica === true || data.publica === 1 || data.publica === 'true';
 
     if (!descricao) throw new BadRequestException('Descrição é obrigatória.');
     if (!idCondominio) throw new BadRequestException('id_condominio é obrigatório.');
     await this.tenant.assertCondominio(Number(idCondominio), user);
+
+    // As fotos (`docs`) eram ignoradas: a ocorrência nascia sem anexo.
+    const anexos = await subirAnexosOcorrencia(this.storage, data.docs);
 
     // SLA: prazo = agora + sla_horas da categoria (se configurado).
     const tipoNum = tipo ? Number(tipo) : null;
@@ -4669,6 +4674,7 @@ export class MobileAuthService {
         data: {
           id_condominio: Number(idCondominio),
           descricao: descricao,
+          anexos,
           tipo: tipoNum,
           user: idUser,
           status: 'Pendente',

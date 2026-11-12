@@ -10,12 +10,33 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
 import { StorageService } from '../common/storage/storage.service';
-import { assertStaff } from '../auth/tenant.util';
+import { assertStaff, isSindicoEstrito } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { autorOcorrencia } from './autor-ocorrencia.util';
+import { subirAnexosOcorrencia } from './anexos-ocorrencia.util';
 
 export type OcorrenciaStatus = 'Pendente' | 'Ciente' | 'Solucionado';
+
+/**
+ * Status que a tela de resposta do app envia ('ciente' | 'solucionado') para o
+ * vocabulário gravado no banco e lido pela portaria. 'Pendente' não é resposta.
+ */
+const STATUS_DA_RESPOSTA_APP: Record<string, OcorrenciaStatus> = {
+  ciente: 'Ciente',
+  solucionado: 'Solucionado',
+};
+
+/** Pendente = ninguém da equipe deu ciência ainda (status nulo conta como Pendente). */
+function estaPendente(status: string | null | undefined): boolean {
+  return (status ?? 'Pendente').trim().toLowerCase() === 'pendente';
+}
+
+function idValido(id: unknown): number {
+  const n = Number(id);
+  if (!Number.isInteger(n) || n <= 0) throw new BadRequestException('Ocorrência inválida.');
+  return n;
+}
 
 export interface CreateOcorrenciaDto {
   descricao: string;
@@ -305,18 +326,7 @@ export class OcorrenciasService {
 
     // Normaliza tipo: app Flutter pode enviar como string mas schema eh Int.
     const tipoNum = dto.tipo != null ? Number(dto.tipo) : null;
-
-    // SLA: se a categoria tem sla_horas, o prazo = agora + sla_horas.
-    let prazo: Date | null = null;
-    if (tipoNum != null) {
-      const cat = await this.prisma.ocorrencias_Categorias.findUnique({
-        where: { id: tipoNum },
-        select: { sla_horas: true },
-      });
-      if (cat?.sla_horas != null) {
-        prazo = new Date(Date.now() + cat.sla_horas * 3600 * 1000);
-      }
-    }
+    const prazo = await this.prazoDaCategoria(tipoNum);
 
     try {
       return await this.prisma.ocorrencias.create({
@@ -339,6 +349,16 @@ export class OcorrenciasService {
         `Nao foi possivel registrar a ocorrencia. Verifique os dados e tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
       );
     }
+  }
+
+  /** SLA: prazo = agora + sla_horas da categoria; sem categoria ou sem SLA, nulo. */
+  private async prazoDaCategoria(tipo: number | null): Promise<Date | null> {
+    if (tipo == null) return null;
+    const cat = await this.prisma.ocorrencias_Categorias.findUnique({
+      where: { id: tipo },
+      select: { sla_horas: true },
+    });
+    return cat?.sla_horas != null ? new Date(Date.now() + cat.sla_horas * 3600 * 1000) : null;
   }
 
   /** Push ao autor da ocorrência, respeitando a preferência `notif_ocorrencias`. */
@@ -411,6 +431,121 @@ export class OcorrenciasService {
     } catch {
       throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     }
+  }
+
+  // ----- Superfície do app (POST ocorrencias/update e ocorrencias/remove) -----
+
+  /**
+   * Resposta da equipe pelo app: grava a resposta (se houver texto) e o status
+   * num update só. Quem pode é o mesmo de `updateResposta`/`updateStatus`/
+   * `atribuir` — síndico, ou funcionário com a flag `ocorrencias`, do
+   * condomínio da ocorrência (loadParaMutacaoStaff). Morador nunca responde,
+   * nem a própria.
+   */
+  async responderPeloApp(id: number, dados: { resposta?: unknown; status?: unknown }, user?: JwtPayload) {
+    const idOc = idValido(id);
+    await this.loadParaMutacaoStaff(idOc, user, 'responder ocorrência');
+    const status = STATUS_DA_RESPOSTA_APP[String(dados.status ?? '').trim().toLowerCase()];
+    if (!status) throw new BadRequestException('Informe o status da ocorrência!');
+    const resposta = typeof dados.resposta === 'string' ? dados.resposta.trim() : '';
+
+    let atualizado;
+    try {
+      atualizado = await this.prisma.ocorrencias.update({
+        where: { id: idOc },
+        // Sem texto, a resposta anterior fica como estava: só o status muda.
+        data: resposta ? { status, resposta, resposta_at: new Date() } : { status },
+      });
+    } catch {
+      throw new NotFoundException(`Ocorrência ${idOc} não encontrada`);
+    }
+    if (resposta) {
+      await this.notificarAutor(idOc, atualizado.user, 'Ocorrência respondida', resposta.slice(0, 140));
+    } else {
+      await this.notificarAutor(idOc, atualizado.user, 'Ocorrência atualizada', `Sua ocorrência #${idOc} agora está: ${status}.`);
+    }
+    return atualizado;
+  }
+
+  /**
+   * Edição pelo autor, pelo app: só quem abriu (Users.id do token) e só
+   * enquanto ninguém da equipe deu ciência (Pendente). Síndico e funcionário
+   * não reescrevem o relato do morador por aqui — eles respondem.
+   *
+   * Fotos novas em `docs` SUBSTITUEM os anexos; sem fotos novas, os atuais
+   * ficam. Tipo trocado recalcula o prazo (SLA) como no cadastro.
+   */
+  async editarPeloAutor(
+    id: number,
+    dados: { descricao?: unknown; tipo?: unknown; publica?: unknown; docs?: unknown },
+    user?: JwtPayload,
+  ) {
+    const idOc = idValido(id);
+    const o = await this.prisma.ocorrencias.findUnique({
+      where: { id: idOc },
+      select: { id_condominio: true, user: true, status: true, tipo: true },
+    });
+    if (!o) throw new NotFoundException(`Ocorrência ${idOc} não encontrada`);
+    await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${idOc}`);
+    if (!this.ehAutor(o, user)) {
+      throw new ForbiddenException('Acesso negado: só quem abriu a ocorrência pode editá-la.');
+    }
+    if (!estaPendente(o.status)) {
+      throw new BadRequestException('Esta ocorrência já está em atendimento e não pode mais ser editada.');
+    }
+    const descricao = typeof dados.descricao === 'string' ? dados.descricao.trim() : '';
+    if (!descricao) throw new BadRequestException('Descrição é obrigatória.');
+
+    const data: Record<string, unknown> = { descricao };
+    if (dados.publica !== undefined && dados.publica !== null) {
+      data.publica = dados.publica === true || dados.publica === 1 || dados.publica === 'true';
+    }
+    if (dados.tipo !== undefined && dados.tipo !== null && dados.tipo !== '') {
+      const tipo = Number(dados.tipo);
+      if (!Number.isInteger(tipo)) throw new BadRequestException('Tipo de ocorrência inválido.');
+      if (tipo !== o.tipo) {
+        data.tipo = tipo;
+        data.prazo = await this.prazoDaCategoria(tipo);
+      }
+    }
+    const anexos = await subirAnexosOcorrencia(this.storage, dados.docs);
+    if (anexos) data.anexos = anexos;
+
+    try {
+      return await this.prisma.ocorrencias.update({ where: { id: idOc }, data });
+    } catch (err: any) {
+      this.logger.error(`[ocorrencias.editarPeloAutor] Falha: ${err?.message ?? err}`);
+      throw new BadRequestException('Não foi possível salvar a ocorrência. Verifique os dados e tente novamente.');
+    }
+  }
+
+  /**
+   * Exclusão pelo app: o autor, enquanto Pendente; ou o síndico do condomínio,
+   * pela mesma regra do `remove` do console. Funcionário não exclui pelo app.
+   */
+  async removerPeloApp(id: number, user?: JwtPayload) {
+    const idOc = idValido(id);
+    const o = await this.prisma.ocorrencias.findUnique({
+      where: { id: idOc },
+      select: { id_condominio: true, user: true, status: true },
+    });
+    if (!o) throw new NotFoundException(`Ocorrência ${idOc} não encontrada`);
+    await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${idOc}`);
+
+    const autor = this.ehAutor(o, user);
+    if (autor && estaPendente(o.status)) {
+      try {
+        await this.prisma.ocorrencias.delete({ where: { id: idOc } });
+      } catch {
+        throw new NotFoundException(`Ocorrência ${idOc} não encontrada`);
+      }
+      return;
+    }
+    if (isSindicoEstrito(user)) return this.remove(idOc, user);
+    if (autor) {
+      throw new BadRequestException('Esta ocorrência já está em atendimento e não pode mais ser excluída.');
+    }
+    throw new ForbiddenException('Acesso negado: só quem abriu a ocorrência pode excluí-la.');
   }
 
   /**

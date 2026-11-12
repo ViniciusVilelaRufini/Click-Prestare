@@ -574,6 +574,33 @@ export class OcorrenciasMobileController {
     return this.service.getOcorrenciaById(Number(id), payload);
   }
 
+  // O app usa a mesma rota para duas coisas (apiSaveObject com isEdit):
+  //  - isResposta=true: síndico/funcionário respondendo (detail_ocorrencia);
+  //  - isResposta=false: o autor editando o relato (new_ocorrencia).
+  // A flag vem do cliente, mas não autoriza nada: cada caminho confere o
+  // próprio papel, a autoria e o condomínio da ocorrência.
+  @Post('update')
+  @HttpCode(200)
+  update(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    const o = body?.ocorrencia ?? body ?? {};
+    const ehResposta = o.isResposta === true || o.isResposta === 1 || o.isResposta === 'true';
+    if (ehResposta) {
+      return this.ocorrenciasService.responderPeloApp(o.id, { resposta: o.descricao, status: o.status }, payload);
+    }
+    return this.ocorrenciasService.editarPeloAutor(
+      o.id,
+      { descricao: o.descricao, tipo: o.tipo, publica: o.publica, docs: o.docs },
+      payload,
+    );
+  }
+
+  @Post('remove')
+  @HttpCode(200)
+  async remove(@Body() body: { id: number }, @ReqUser() payload: JwtPayload) {
+    await this.ocorrenciasService.removerPeloApp(body?.id, payload);
+    return { ok: true };
+  }
+
   // Atribui a ocorrência a um funcionário (Users.id) e dispara push a ele.
   @Post('update-responsavel')
   @HttpCode(200)
