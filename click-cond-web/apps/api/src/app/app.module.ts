@@ -42,6 +42,7 @@ import { VeiculosModule } from './veiculos/veiculos.module';
 import { VagasModule } from './vagas/vagas.module';
 import { ContatosModule } from './contatos/contatos.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { CardAoVivoModule } from './card-ao-vivo/card-ao-vivo.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { ChatIaModule } from './chat-ia/chat-ia.module';
 import { SuperlogicaModule } from './superlogica/superlogica.module';
@@ -89,6 +90,7 @@ import { THROTTLERS } from './common/throttle/throttlers';
     VagasModule,
     ContatosModule,
     RealtimeModule,
+    CardAoVivoModule,
     AgendaModule,
     ChatIaModule,
     SuperlogicaModule,

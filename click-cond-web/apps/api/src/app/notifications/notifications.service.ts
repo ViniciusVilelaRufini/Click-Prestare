@@ -136,6 +136,38 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
+  /**
+   * Push comum para UM aparelho (sem o fan-out de `sendPushNotification`).
+   * O card ao vivo decide aparelho por aparelho quem recebe card e quem
+   * recebe o push comum; mandar para todos duplicaria o aviso.
+   */
+  async enviarParaAparelho(token: string, title: string, body: string, data?: Record<string, string>) {
+    if (!this.enabled || !token) return null;
+    return this.enviarParaToken(token, title, body, data);
+  }
+
+  /**
+   * Push só de dados, prioridade alta, para o app montar a notificação por
+   * conta própria (card ao vivo no Android). Sem bloco `notification`: com
+   * ele o Android exibiria uma notificação do sistema por cima da do app.
+   */
+  async enviarDados(token: string, data: Record<string, string>): Promise<'ok' | 'morto' | 'falha' | 'desligado'> {
+    if (!this.enabled) return 'desligado';
+    if (!token) return 'falha';
+    try {
+      await admin.messaging().send({ token, data, android: { priority: 'high', ttl: 5 * 60 * 1000 } });
+      return 'ok';
+    } catch (error) {
+      const code = (error as any)?.errorInfo?.code ?? '';
+      if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
+        await this.esquecerToken(token);
+        return 'morto';
+      }
+      this.logger.warn(`Falha ao enviar push de dados: ${(error as any)?.message ?? error}`);
+      return 'falha';
+    }
+  }
+
   private async tokensDoMesmoDono(token: string): Promise<string[]> {
     if (!this.prisma?.isConnected) return [token];
     try {

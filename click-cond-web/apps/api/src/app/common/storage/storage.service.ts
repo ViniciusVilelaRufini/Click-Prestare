@@ -286,6 +286,22 @@ export class StorageService {
   }
 
   /**
+   * Conteúdo de um objeto do bucket como texto, ou null se não existir /
+   * storage desativado. Para configuração privada guardada no bucket (ex.:
+   * `config/apns/AuthKey.p8`), que não cabe nas variáveis do Elastic Beanstalk.
+   */
+  async lerObjetoTexto(key: string): Promise<string | null> {
+    if (!this.enabled || !this.client) return null;
+    try {
+      const obj = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+      return (await obj.Body?.transformToString('utf-8')) ?? null;
+    } catch (err: any) {
+      if (err?.name === 'NoSuchKey' || err?.$metadata?.httpStatusCode === 404) return null;
+      throw err;
+    }
+  }
+
+  /**
    * Link temporário de leitura para um arquivo do bucket (privado). URL de
    * outro host, data URL ou storage desativado: devolve como está.
    */
