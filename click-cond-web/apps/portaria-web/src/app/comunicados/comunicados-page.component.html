@@ -6,7 +6,7 @@
       <h1 class="ps-h1">Comunicados</h1>
       <p class="text-sm">Avisos do síndico e administração — visíveis para todos os moradores</p>
     </div>
-    @if (!showForm) {
+    @if (!showForm && podePublicar()) {
       <button (click)="abrirNovo()" class="ps-btn">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/>
@@ -97,7 +97,9 @@
         </svg>
       </div>
       <p class="text-sm text-slate-300 font-medium">Nenhum comunicado publicado</p>
-      <p class="text-xs text-slate-500 mt-1">Clique em "Novo comunicado" para publicar um aviso</p>
+      @if (podePublicar()) {
+        <p class="text-xs text-slate-500 mt-1">Clique em "Novo comunicado" para publicar um aviso</p>
+      }
     </div>
   } @else {
     <div class="space-y-3">
@@ -121,6 +123,7 @@
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
                   <span class="text-xs text-slate-500 font-mono">{{ c.created_at | date: 'dd/MM/yy HH:mm' }}</span>
+                  @if (podePublicar()) {
                   <button (click)="abrirEditar(c)" title="Editar"
                           class="ps-ibtn">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,6 +136,7 @@
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/>
                     </svg>
                   </button>
+                  }
                 </div>
               </div>
               @if (c.descricao) {
