@@ -1060,6 +1060,11 @@ ${docsTxt}`;
         this.logger.error(`erro ao indexar doc ${doc.id}: ${e?.message ?? e}`);
       }
     }
+    // Trechos de documento que não existe mais (corrida antiga com a exclusão ou falha do
+    // removerIndiceDocumento): sem FK, só esta varredura os alcança.
+    await this.prisma.rag_Embeddings.deleteMany({
+      where: { id_condominio: idCondominio, source_id: { notIn: docs.map((d) => d.id) } },
+    });
     return { ok: true, documentos: processados, chunks: totalChunks, total_docs: docs.length };
   }
 
@@ -1115,6 +1120,11 @@ ${docsTxt}`;
     const textos = pedacos.map((p) => `[${doc.nome}] ${p}`);
     const vetores = await this.ia.embedBatch(textos);
 
+    // Download + embeddings levam segundos: o documento pode ter sido excluído nesse meio-tempo, e
+    // Rag_Embeddings não tem FK para Documentos — trecho gravado agora ficaria para sempre.
+    if (!(await this.documentoExiste(idCondominio, doc.id))) {
+      return { skipped: true, motivo: 'nao_encontrado' };
+    }
     await this.prisma.rag_Embeddings.createMany({
       data: textos.map((t, i) => ({
         id_condominio: idCondominio,
@@ -1125,7 +1135,22 @@ ${docsTxt}`;
         embedding: vetores[i] ?? [],
       })),
     });
+    // Excluído entre a checagem e o createMany: o removerIndiceDocumento já rodou, então limpa aqui.
+    if (!(await this.documentoExiste(idCondominio, doc.id))) {
+      await this.prisma.rag_Embeddings.deleteMany({
+        where: { id_condominio: idCondominio, source_id: doc.id },
+      });
+      return { skipped: true, motivo: 'nao_encontrado' };
+    }
     return { indexed: textos.length };
+  }
+
+  private async documentoExiste(idCondominio: number, idDoc: number): Promise<boolean> {
+    const doc = await this.prisma.documentos.findFirst({
+      where: { id: idDoc, id_condominio: idCondominio },
+      select: { id: true },
+    });
+    return !!doc;
   }
 
   private async extrairTextoPdf(url: string): Promise<string> {
