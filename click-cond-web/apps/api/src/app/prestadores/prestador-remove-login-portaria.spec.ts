@@ -113,4 +113,23 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
     expect(prisma.funcionarios_Portaria.deleteMany).not.toHaveBeenCalled();
     expect(prisma.funcionarios_Portaria.create).not.toHaveBeenCalled();
   });
+
+  // E-mail só com espaços é "sem e-mail": nunca vira login '' nem fica gravado como ''.
+  it.each([[''], ['   ']])('create com e-mail %p e acesso pedido não cria login e grava e-mail null', async (email) => {
+    const { svc, prisma } = build(null);
+    await svc.create({ id_condominio: 1, nome: 'Novo', email, hasPortariaAccess: true, senha: 'Escolhida#1' } as any, porteiroConsole);
+    expect(prisma.funcionarios_Portaria.create).not.toHaveBeenCalled();
+    expect(prisma.prestadores_servico.create).toHaveBeenCalledWith({ data: expect.objectContaining({ email: null }) });
+  });
+
+  it.each([[''], ['   ']])('limpar o e-mail com %p revoga o login do próprio prestador, como email: null', async (email) => {
+    const { svc, prisma } = build('p@x.com');
+    await svc.update(1, { email }, 1, porteiroConsole);
+    expect(prisma.prestadores_servico.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ email: null }) }),
+    );
+    expect(prisma.funcionarios_Portaria.deleteMany).toHaveBeenCalledTimes(1);
+    expect(prisma.funcionarios_Portaria.deleteMany).toHaveBeenCalledWith({ where: { id: 12 } });
+    expect(prisma.funcionarios_Portaria.update).not.toHaveBeenCalled();
+  });
 });

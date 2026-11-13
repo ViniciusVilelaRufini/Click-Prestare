@@ -323,6 +323,8 @@ export class PrestadoresService {
   }
 
   async create(dto: CreatePrestadorDto, user?: JwtPayload) {
+    // E-mail só com espaços = sem e-mail: nunca vira login de portaria ''.
+    if (typeof dto.email === 'string' && dto.email.trim() === '') dto = { ...dto, email: null };
     await this.tenant.assertCondominio(dto.id_condominio, user);
     await this.tenant.assertPermissaoFuncionario(dto.id_condominio, 'prestadores_servico', user);
     // Conceder login de portaria é ato do console (síndico/portaria), não de morador nem de funcionário do app.
@@ -494,6 +496,8 @@ export class PrestadoresService {
   }
 
   async update(id: number, dto: Partial<CreatePrestadorDto>, idCondominio?: number, user?: JwtPayload) {
+    // E-mail só com espaços = limpar o e-mail: revoga o login do prestador exatamente como email: null.
+    if (typeof dto.email === 'string' && dto.email.trim() === '') dto = { ...dto, email: null };
     if (!this.prisma.isConnected) {
       return { success: true, id };
     }
