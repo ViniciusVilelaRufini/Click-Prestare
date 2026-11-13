@@ -127,7 +127,15 @@ export function blocoColideComReserva(
     const [h, m] = (s || '0:0').split(':').map(Number);
     return h * 60 + (m || 0);
   };
-  return min(bloco.horarioDe) < min(ag.horaAte) && min(bloco.horarioAte) > min(ag.horaDe);
+  return min(bloco.horarioDe) < fimEmMinutos(min(ag.horaAte)) && fimEmMinutos(min(bloco.horarioAte)) > min(ag.horaDe);
+}
+
+/**
+ * Término "00:00" é a meia-noite do FIM do dia (o app gera "24:00", que a
+ * coluna TIME devolve como 00:00): vale 1440, senão nada colide com ele.
+ */
+function fimEmMinutos(minutos: number): number {
+  return minutos === 0 ? 1440 : minutos;
 }
 
 @Injectable()
@@ -254,8 +262,8 @@ export class AreasSociaisService {
     return ags.find((a) => {
       if (!a.hora_de || !a.hora_ate) return false;
       const aDe = a.hora_de.getHours() * 60 + a.hora_de.getMinutes();
-      const aAte = a.hora_ate.getHours() * 60 + a.hora_ate.getMinutes();
-      return de < aAte && ate > aDe;
+      const aAte = fimEmMinutos(a.hora_ate.getHours() * 60 + a.hora_ate.getMinutes());
+      return de < aAte && fimEmMinutos(ate) > aDe;
     });
   }
 

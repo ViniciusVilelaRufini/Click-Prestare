@@ -132,6 +132,15 @@ describe('AreasSociaisService — transição de status da reserva', () => {
     expect(facial.syncReservaArea).not.toHaveBeenCalled();
   });
 
+  it('Aprovar 22:00–23:00 com outra aprovada 20:00–00:00 (fim do dia): 409', async () => {
+    const { svc, linhas } = build([
+      reserva({ status: 'pendente', hora_de: new Date(1970, 0, 1, 22, 0, 0), hora_ate: new Date(1970, 0, 1, 23, 0, 0) }),
+      reserva({ id: 501, status: 'aprovado', hora_de: new Date(1970, 0, 1, 20, 0, 0), hora_ate: new Date(1970, 0, 1, 0, 0, 0) }),
+    ]);
+    await expect(svc.updateStatusAgendamento(500, true, '', funcionario)).rejects.toBeInstanceOf(ConflictException);
+    expect(linhas[0].status).toBe('pendente');
+  });
+
   it('Aprovar com reserva aprovada em horário vizinho (sem sobreposição) aprova', async () => {
     const { svc, linhas } = build([
       reserva({ status: 'pendente' }),
