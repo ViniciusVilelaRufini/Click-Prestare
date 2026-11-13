@@ -595,7 +595,7 @@
             </svg>
             <h3 class="ps-h2 !text-[13px]">Registrar Retirada de Encomenda</h3>
           </div>
-          <button (click)="fecharRetirada()" aria-label="Fechar modal" class="ps-ibtn">
+          <button (click)="fecharRetirada()" [disabled]="retirando()" aria-label="Fechar modal" class="ps-ibtn disabled:opacity-40">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>

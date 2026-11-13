@@ -200,6 +200,15 @@ describe('EncomendasPageComponent — ciclos do porteiro', () => {
       expect(c.retirando()).toBe(false);
     });
 
+    it('o X do cabeçalho fica desabilitado durante o envio', () => {
+      const f = montar([enc({ id: 7 })]);
+      abrir(f);
+      api.retirar.mockReturnValue(new Subject<any>());
+      f.componentInstance.confirmarRetirada();
+      f.detectChanges();
+      expect((f.nativeElement.querySelector('[aria-label="Fechar modal"]') as HTMLButtonElement).disabled).toBe(true);
+    });
+
     it('B2: fechar o modal pelo X desliga a câmera', () => {
       const f = montar([enc({ id: 7 })]);
       abrir(f);
