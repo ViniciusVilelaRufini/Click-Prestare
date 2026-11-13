@@ -163,15 +163,43 @@ describe('loginFuncionario — senha da portaria x conta existente', () => {
     expect(jwt.sign).not.toHaveBeenCalled();
   });
 
-  it('1º ramo: o dono da conta que já é deste condomínio entra com a PRÓPRIA senha', async () => {
+  it('1º ramo: o síndico deste condomínio entra com a PRÓPRIA senha', async () => {
     const prisma = prismaFalso({
       usuarioPorLogin: { 'v@t': { id: 50, login: 'v@t', email: 'v@t', password: hV, photo: null, funcionarios: [] } },
-      moradores: [{ id_user: 50, id_condominio: 2 }],
+      sindicos: [{ id_user: 50, id_condominio: 2 }],
       portaria: portaria(),
     });
     const { svc } = servico(prisma);
 
     await expect(svc.loginFuncionario('v@t', 'v')).resolves.toMatchObject({ token: 'token-assinado' });
+  });
+
+  // R12: vínculo só de morador não prova ser o porteiro — antes, a conta de morador cujo login coincidia com
+  // um login de portaria virava funcionário (todas as flags) com a própria senha.
+  it('1º ramo: vínculo só de morador NÃO dispensa a senha da portaria nem cria linha de equipe', async () => {
+    const prisma = prismaFalso({
+      usuarioPorLogin: { 'v@t': { id: 50, login: 'v@t', email: 'v@t', password: hV, photo: null, funcionarios: [] } },
+      moradores: [{ id_user: 50, id_condominio: 2 }],
+      unidades: [{ id_user: 50, id_condominio: 2 }],
+      portaria: portaria(),
+    });
+    const { svc, jwt } = servico(prisma);
+
+    await expect(svc.loginFuncionario('v@t', 'v')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.funcionarios.create).not.toHaveBeenCalled();
+    expect(prisma.users.update).not.toHaveBeenCalled();
+    expect(jwt.sign).not.toHaveBeenCalled();
+  });
+
+  it('1º ramo: morador deste condomínio entra quando a senha confere TAMBÉM com a da portaria', async () => {
+    const prisma = prismaFalso({
+      usuarioPorLogin: { 'v@t': { id: 50, login: 'v@t', email: 'v@t', password: hA, photo: null, funcionarios: [] } },
+      moradores: [{ id_user: 50, id_condominio: 2 }],
+      portaria: portaria(),
+    });
+    const { svc } = servico(prisma);
+
+    await expect(svc.loginFuncionario('v@t', 'a')).resolves.toMatchObject({ token: 'token-assinado' });
   });
 
   // Pentest 04/11: o /sindico/signup é público e não verifica o e-mail. Quem cria uma conta com o

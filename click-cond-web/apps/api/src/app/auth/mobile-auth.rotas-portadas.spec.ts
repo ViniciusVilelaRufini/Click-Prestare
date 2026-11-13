@@ -28,7 +28,7 @@ describe('MobileAuthService — rotas portadas do Express', () => {
         create: jest.fn(async () => ({ id: 77 })),
       },
       funcionarios: { findFirst: jest.fn(async () => null), update: jest.fn(async () => ({})) },
-      funcionarios_Portaria: { findUnique: jest.fn(async () => null) },
+      funcionarios_Portaria: { findUnique: jest.fn(async () => null), findFirst: jest.fn(async () => null), updateMany: jest.fn(async () => ({ count: 0 })) },
       apartamentos: { findUnique: jest.fn(async () => ({ id: 10, id_condominio: 2, bloco: 'A', apto: '101' })) },
       apartamentos_Users: {
         findFirst: jest.fn(async () => null),

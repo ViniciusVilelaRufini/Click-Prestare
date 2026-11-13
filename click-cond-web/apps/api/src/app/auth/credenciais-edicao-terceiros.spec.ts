@@ -25,6 +25,7 @@ describe('Credenciais da conta — edição por terceiros e autoedição', () =>
       users: { update: jest.fn(async () => ({})) },
       sindicos: { update: jest.fn(async () => ({})) },
       funcionarios: { update: jest.fn(async () => ({})) },
+      funcionarios_Portaria: { updateMany: jest.fn(async () => ({ count: 0 })) },
     };
     const prisma: any = {
       isConnected: true,
@@ -49,6 +50,7 @@ describe('Credenciais da conta — edição por terceiros e autoedição', () =>
       funcionarios: { findFirst: jest.fn(async () => ({ id: 6, id_user: 40 })), count: jest.fn(async () => 0) },
       sindicos_Condominios: { count: jest.fn(async () => 0) },
       apartamentos_Users: { count: jest.fn(async () => 0) },
+      funcionarios_Portaria: { findFirst: jest.fn(async () => null) },
       $transaction: jest.fn(async (fn: any) => fn(tx)),
     };
     // Funcionário com a flag `apartamentos` (editar morador alheio exige a flag).

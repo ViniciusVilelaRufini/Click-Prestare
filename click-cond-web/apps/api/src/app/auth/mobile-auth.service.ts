@@ -496,6 +496,22 @@ export class MobileAuthService {
     return !daConta.includes(norm(novo));
   }
 
+  /**
+   * Users.login/email e Funcionarios_Portaria.login são ligados só por texto (cada tabela garante a
+   * unicidade dentro de si). Uma conta que passasse a ter como e-mail/login o login (ou e-mail) de uma linha
+   * de portaria era tratada como o porteiro pelo loginFuncionario. `mensagem`: a mesma do conflito em Users
+   * de quem chama — a resposta não revela de que tabela é o e-mail.
+   */
+  private async assertEmailLivreNaPortaria(email: string, mensagem: string) {
+    const login = email.trim();
+    if (!login) return;
+    const linha = await this.prisma.funcionarios_Portaria.findFirst({
+      where: { OR: [{ login }, { email: login }] },
+      select: { id: true },
+    });
+    if (linha) throw new BadRequestException(mensagem);
+  }
+
   async updateSindico(idUser: number, body: {
     nome?: string;
     email?: string;
@@ -539,6 +555,7 @@ export class MobileAuthService {
       if (existing) {
         throw new BadRequestException('Este e-mail já está sendo utilizado por outro usuário.');
       }
+      await this.assertEmailLivreNaPortaria(emailNormalized!, 'Este e-mail já está sendo utilizado por outro usuário.');
     }
 
     let parsedBirth: Date | null = s.date_birth;
@@ -968,12 +985,18 @@ export class MobileAuthService {
       // A senha da PRÓPRIA conta só prova quem é o dono da conta, não quem é o porteiro: o e-mail de
       // Users não é verificado (o /sindico/signup é público). Sem isto, quem criava uma conta com o
       // e-mail de um porteiro já cadastrado entrava aqui com a senha que ele mesmo escolheu e virava
-      // funcionário (com todas as permissões) do condomínio do porteiro. Conta sem vínculo com este
+      // funcionário (com todas as permissões) do condomínio do porteiro. Conta que não é síndico deste
       // condomínio só adota o cadastro da portaria se também souber a senha da portaria.
+      // Só o vínculo de ADMINISTRAÇÃO (síndico) deste condomínio dispensa a senha da portaria — este ramo só
+      // roda para conta sem nenhuma linha Funcionarios. Vínculo de morador não prova ser o porteiro: antes, a
+      // conta de morador cujo login coincidia com um login de portaria virava funcionário com todas as flags.
       if (
         user?.password &&
         portaria.id_condominio != null &&
-        !(await usuarioTemVinculoNoCondominio(this.prisma as any, user.id, portaria.id_condominio)) &&
+        !(await this.prisma.sindicos_Condominios.findFirst({
+          where: { id_user: user.id, id_condominio: portaria.id_condominio },
+          select: { id: true },
+        })) &&
         !(await this.verifyPassword(senhaRaw, portaria.password, portaria.id, 'funcionarios_Portaria'))
       ) {
         throw new UnauthorizedException('Login ou Senha incorretos');
@@ -3496,8 +3519,10 @@ export class MobileAuthService {
 
     const email = func.email ? String(func.email).trim() : null;
     let trocaEmail = false;
+    // Fora do if: a transação abaixo precisa do login/e-mail ANTIGOS para levar o login de portaria junto.
+    let contaAtual: { email: string | null; login: string | null } | null = null;
     if (email) {
-      const contaAtual = await this.prisma.users.findUnique({
+      contaAtual = await this.prisma.users.findUnique({
         where: { id: idUser },
         select: { email: true, login: true },
       });
@@ -3514,6 +3539,7 @@ export class MobileAuthService {
           select: { id: true },
         });
         if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
+        await this.assertEmailLivreNaPortaria(email, 'Já existe outro usuário com este e-mail.');
       }
     }
 
@@ -3552,6 +3578,16 @@ export class MobileAuthService {
           ...(photoUrl !== null && { photo: photoUrl, profile_image: photoUrl }),
         },
       });
+      // O login de portaria desta conta (ligado por texto ao login/e-mail dela) muda junto, só nos condomínios
+      // em que ela é da equipe. Antes ficava um login de portaria sem dono, que outra conta adotava ao trocar
+      // o próprio e-mail para ele.
+      const loginsAntigos = [...new Set([contaAtual?.login, contaAtual?.email].filter((v): v is string => !!v))];
+      if (trocaEmail && loginsAntigos.length > 0) {
+        await tx.funcionarios_Portaria.updateMany({
+          where: { login: { in: loginsAntigos }, condominio: { funcionarios: { some: { id_user: idUser } } } },
+          data: { login: email as string, email },
+        });
+      }
     });
 
     // Reemite a sessão com os dados atualizados (mesmo shape do loginFuncionario,
@@ -4109,6 +4145,11 @@ export class MobileAuthService {
             select: { id: true },
           });
           if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
+          // Só a autoedição grava o e-mail novo como Users.login (terceiros não trocam a credencial, no
+          // userPatch abaixo): esse login também não pode ser login/e-mail de uma linha de portaria.
+          if (trocaDaConta && autoedicao) {
+            await this.assertEmailLivreNaPortaria(emailBusca, 'Já existe outro usuário com este e-mail.');
+          }
         }
 
         // Cláusula 8.3: Bloqueio de menor de 18 anos para login e biometria
