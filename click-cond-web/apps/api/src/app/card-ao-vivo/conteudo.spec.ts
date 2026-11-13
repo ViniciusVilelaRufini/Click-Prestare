@@ -26,6 +26,14 @@ describe('conteúdo do card ao vivo', () => {
     expect(rotuloUnidade(null, null)).toBe('');
   });
 
+  it('não repete "Bloco"/"Apto" quando o cadastro já traz a palavra', () => {
+    expect(rotuloUnidade('Bloco A', '106')).toBe('Bloco A · Apto 106');
+    expect(rotuloUnidade('BLOCO 2', 'Apto 31')).toBe('BLOCO 2 · Apto 31');
+    expect(rotuloUnidade('Torre Norte', 'Casa 4')).toBe('Torre Norte · Casa 4');
+    expect(rotuloUnidade('A', '12B')).toBe('Bloco A · Apto 12B');
+    expect(rotuloUnidade('  ', ' 7 ')).toBe('Apto 7');
+  });
+
   it('extras sobrescrevem o padrão', () => {
     const c = montarConteudo(base, 'liberado', { respondidoPor: 'Marina', horaResposta: chegou + 60 });
     expect(c.fase).toBe('liberado');
@@ -41,6 +49,8 @@ describe('conteúdo do card ao vivo', () => {
     expect(p.aps.attributes).toEqual({ idCartao: '9', idPedido: '5', origem: 'visitante' });
     expect(p.aps['content-state']).toBe(c);
     expect(p.aps.alert.title).toBe('Visitante na portaria');
+    const comTema = payloadInicio(c, { idCartao: '9', idPedido: '5', origem: 'visitante', tema: 'claro' }, 1000);
+    expect(comTema.aps.attributes).toEqual({ idCartao: '9', idPedido: '5', origem: 'visitante', tema: 'claro' });
     expect(p.aps.alert.body).toBe('Vinicius Vilela quer entrar. Autorizar?');
     expect(p.aps.timestamp).toBe(1000);
   });

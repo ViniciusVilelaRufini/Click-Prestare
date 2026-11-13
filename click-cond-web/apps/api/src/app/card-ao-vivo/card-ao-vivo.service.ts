@@ -13,6 +13,7 @@ import {
   payloadAtualizacao,
   payloadFim,
   payloadInicio,
+  temaValido,
   textoAlerta,
 } from './conteudo';
 
@@ -117,7 +118,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     const [aparelhos, usuarios] = await Promise.all([
       this.prisma.users_Devices.findMany({
         where: { id_user: { in: idsUsuarios } },
-        select: { id_user: true, fcm_token: true, plataforma: true, card_token_inicio: true, card_android: true },
+        select: { id_user: true, fcm_token: true, plataforma: true, card_token_inicio: true, card_android: true, card_tema: true },
       }),
       this.prisma.users.findMany({
         where: { id: { in: idsUsuarios } },
@@ -135,7 +136,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     const t = setTimeout(() => void this.verificarReserva(p.origem, p.id).catch(() => undefined), RESERVA_MS);
     t.unref?.();
 
-    type Aparelho = { id_user: number; fcm_token: string; plataforma: string | null; card_token_inicio: string | null; card_android: number };
+    type Aparelho = { id_user: number; fcm_token: string; plataforma: string | null; card_token_inicio: string | null; card_android: number; card_tema?: string | null };
     const alvos: Aparelho[] = [];
     const cobertos = new Set<string>();
     for (const u of usuarios) {
@@ -159,7 +160,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
 
   private async abrirNoAparelho(
     p: PedidoCard,
-    a: { id_user: number; fcm_token: string; plataforma: string | null; card_token_inicio: string | null; card_android: number },
+    a: { id_user: number; fcm_token: string; plataforma: string | null; card_token_inicio: string | null; card_android: number; card_tema?: string | null },
     conteudo: ConteudoCard,
     pushComum: ReturnType<CardAoVivoService['pushComum']>,
     agora: Date,
@@ -167,9 +168,15 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     const plataforma = (a.plataforma ?? '').toLowerCase();
     if (plataforma === 'ios' && a.card_token_inicio) {
       const linha = await this.criarLinha(p, a.id_user, 'ios', a.fcm_token, a.card_token_inicio, agora, conteudo);
+      // Tema do app no aparelho: o card do iPhone segue Claro/Escuro/Sistema.
+      const tema = temaValido(a.card_tema);
       const r = await this.apns.enviar(
         a.card_token_inicio,
-        payloadInicio(conteudo, { idCartao: String(linha.id), idPedido: String(p.id), origem: p.origem }, epochSeg(agora)),
+        payloadInicio(
+          conteudo,
+          { idCartao: String(linha.id), idPedido: String(p.id), origem: p.origem, ...(tema ? { tema } : {}) },
+          epochSeg(agora),
+        ),
         10,
       );
       if (r.status !== 200) await this.falhouAbrir(linha, r, pushComum);

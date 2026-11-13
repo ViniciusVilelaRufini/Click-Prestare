@@ -42,16 +42,32 @@ export interface AtributosCard {
   idCartao: string;
   idPedido: string;
   origem: string;
+  /** Tema escolhido no app ("claro" | "escuro" | "sistema"); ausente = segue o aparelho. */
+  tema?: TemaCard;
+}
+
+export type TemaCard = 'claro' | 'escuro' | 'sistema';
+
+/** Valor aceito do app; qualquer outra coisa vira null (segue o aparelho). */
+export function temaValido(t: unknown): TemaCard | null {
+  return t === 'claro' || t === 'escuro' || t === 'sistema' ? t : null;
 }
 
 export function epochSeg(d: Date): number {
   return Math.floor(d.getTime() / 1000);
 }
 
+/**
+ * "Bloco A · Apto 106". O cadastro às vezes já traz a palavra ("Bloco A",
+ * "Torre Norte", "Casa 4"): só põe "Bloco"/"Apto" na frente de valor que
+ * começa por número ou é um código curto ("A", "12B").
+ */
 export function rotuloUnidade(bloco: string | null, apto: string | null): string {
   const partes: string[] = [];
-  if (bloco && bloco.trim()) partes.push(`Bloco ${bloco.trim()}`);
-  if (apto && apto.trim()) partes.push(`Apto ${apto.trim()}`);
+  const b = (bloco ?? '').trim();
+  const a = (apto ?? '').trim();
+  if (b) partes.push(/^[A-Za-zÀ-ÿ]{2,}\s/.test(b) ? b : `Bloco ${b}`);
+  if (a) partes.push(/^[A-Za-zÀ-ÿ]{2,}\s/.test(a) ? a : `Apto ${a}`);
   return partes.join(' · ');
 }
 

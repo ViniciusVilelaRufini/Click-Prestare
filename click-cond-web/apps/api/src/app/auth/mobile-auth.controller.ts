@@ -897,7 +897,7 @@ export class UsersMobileController {
   @HttpCode(200)
   updateFcmToken(
     @ReqUser() payload: JwtPayload,
-    @Body() body: { fcm_token?: string; plataforma?: string; card_token_inicio?: string; card_android?: boolean },
+    @Body() body: { fcm_token?: string; plataforma?: string; card_token_inicio?: string; card_android?: boolean; card_tema?: string },
   ) {
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.updateFcmToken(
@@ -906,6 +906,7 @@ export class UsersMobileController {
       body?.plataforma,
       body?.card_token_inicio,
       body?.card_android === true,
+      body?.card_tema,
     );
   }
 

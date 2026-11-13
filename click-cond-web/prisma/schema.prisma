@@ -154,6 +154,9 @@ model Users_Devices {
   /// Android com app que monta o card ao vivo (1.2.42+). 0 = app antigo:
   /// recebe o push comum, não o push só de dados que ele ignoraria.
   card_android      Int      @default(0) @db.TinyInt
+  /// Tema escolhido no app ("claro", "escuro" ou "sistema"): o card ao vivo
+  /// do iPhone segue o tema do app. Null = app antigo, segue o do aparelho.
+  card_tema         String?  @db.VarChar(10)
   created_at DateTime @default(now()) @db.DateTime(0)
   updated_at DateTime @default(now()) @updatedAt @db.DateTime(0)
   user       Users    @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_users_devices_user")

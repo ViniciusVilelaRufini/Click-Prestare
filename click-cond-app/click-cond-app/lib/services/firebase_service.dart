@@ -10,6 +10,7 @@ import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/services/card_ao_vivo/card_android.dart';
 import 'package:click/services/card_ao_vivo/card_ao_vivo_ios.dart';
+import 'package:click/theme/theme_controller.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/local_storage.dart';
@@ -37,6 +38,31 @@ class FirebaseService {
   /// Remoção de push mais recente: o login seguinte espera por ela. Nunca lança.
   Future<void> _desregistro = Future.value();
 
+  /// Tema que o servidor conhece para este aparelho (null = ainda não registrou).
+  String? _temaEnviado;
+
+  /// Tema do app no formato do servidor: o card ao vivo do iPhone segue a
+  /// escolha feita em Configurações (Claro, Escuro ou Sistema).
+  @visibleForTesting
+  static String temaDoApp(ThemeMode modo) {
+    switch (modo) {
+      case ThemeMode.light:
+        return 'claro';
+      case ThemeMode.dark:
+        return 'escuro';
+      case ThemeMode.system:
+        return 'sistema';
+    }
+  }
+
+  /// Trocou o tema depois do registro: avisa o servidor, para o próximo card
+  /// já sair na cor nova.
+  void _aoMudarTema() {
+    final tema = temaDoApp(ThemeController.instance.mode);
+    if (_temaEnviado == null || _temaEnviado == tema) return;
+    unawaited(registrarNoServidor());
+  }
+
   /// Nunca lança: quem chama não espera o resultado, e uma falha aqui não
   /// pode derrubar nem travar o app — no máximo o aparelho fica sem push.
   Future<void> init() async {
@@ -59,6 +85,7 @@ class FirebaseService {
     // Live Activity pela ponte Swift). Antes do registro do token, que leva
     // o token de push-to-start do iPhone junto.
     CardAoVivoIos.iniciar(aoMudarToken: () => registrarNoServidor());
+    ThemeController.instance.addListener(_aoMudarTema);
     CardAndroid.aoTocarNoCard = () => _navigateByType('autorizacao_visitante', const {});
     CardAndroid.aoAutorizarPelaNotificacao = _autorizarPelaNotificacao;
     try {
@@ -268,6 +295,7 @@ class FirebaseService {
     final base = ApiConfig.buildUri('').toString().replaceAll(RegExp(r'/+$'), '');
     await CardAoVivoIos.definirSessao(jwt, base);
     final cardTokenInicio = await CardAoVivoIos.obterTokenInicio();
+    final tema = temaDoApp(ThemeController.instance.mode);
 
     try {
       await ApiClient.post(
@@ -280,8 +308,10 @@ class FirebaseService {
           // Este app monta o card ao vivo no Android (o servidor manda o push
           // só de dados apenas para aparelhos com esta marca).
           if (defaultTargetPlatform == TargetPlatform.android) 'card_android': true,
+          'card_tema': tema,
         }),
       );
+      _temaEnviado = tema;
     } catch (e) {
       logDebug('Falha ao registrar token de push: $e');
     }

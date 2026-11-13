@@ -20,6 +20,7 @@ import { idUsuarioDoToken } from './usuario-do-token.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
+import { temaValido } from '../card-ao-vivo/conteudo';
 import { assertStaff, assertSindico, assertSindicoEstrito, assertOperador, isOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
@@ -2348,7 +2349,14 @@ export class MobileAuthService {
    * (o porteiro sai, o morador entra), o registro MIGRA para o novo usuário,
    * senão a notificação do novo continuaria caindo na conta antiga.
    */
-  async updateFcmToken(idUser: number, fcmToken: string, plataforma?: string, cardTokenInicio?: string, cardAndroid?: boolean) {
+  async updateFcmToken(
+    idUser: number,
+    fcmToken: string,
+    plataforma?: string,
+    cardTokenInicio?: string,
+    cardAndroid?: boolean,
+    cardTema?: string,
+  ) {
     if (!this.prisma.isConnected) return { success: true };
     if (!idUser || Number.isNaN(idUser)) {
       throw new BadRequestException('Usuário inválido');
@@ -2366,6 +2374,9 @@ export class MobileAuthService {
         : /^[0-9a-fA-F]{16,200}$/.test(cardTokenInicio.trim())
           ? cardTokenInicio.trim()
           : null;
+    // Tema do app (o card do iPhone segue Claro/Escuro/Sistema). Ausente ou
+    // inválido = não mexe (app antigo).
+    const tema = temaValido(cardTema);
 
     // O token é único na tabela: o upsert é o que migra o aparelho de dono.
     await this.prisma.users_Devices.upsert({
@@ -2376,6 +2387,7 @@ export class MobileAuthService {
         plataforma: plataforma ?? null,
         ...(card ? { card_token_inicio: card } : {}),
         ...(cardAndroid === true ? { card_android: 1 } : {}),
+        ...(tema ? { card_tema: tema } : {}),
       },
       update: {
         id_user: idUser,
@@ -2383,6 +2395,7 @@ export class MobileAuthService {
         ...(card !== undefined ? { card_token_inicio: card } : {}),
         // App Android 1.2.42+ monta o card ao vivo; o antigo não manda o campo.
         ...(cardAndroid === true ? { card_android: 1 } : {}),
+        ...(tema ? { card_tema: tema } : {}),
       },
     });
 

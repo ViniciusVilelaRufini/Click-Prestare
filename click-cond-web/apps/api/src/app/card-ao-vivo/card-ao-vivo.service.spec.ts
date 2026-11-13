@@ -270,6 +270,20 @@ describe('CardAoVivoService — abrir, reserva, tique', () => {
     expect((apns.enviar.mock.calls[0] as any[])[1].aps['input-push-token']).toBe(1);
   });
 
+  it('card segue o tema do app no aparelho; tema desconhecido ou ausente não vai', async () => {
+    const claro = montarCard({ aparelhos: [{ ...aparelhos[0], card_tema: 'claro' }], usuarios: [usuarios[0]] });
+    await claro.svc.abrir(pedido, [1]);
+    expect((claro.apns.enviar.mock.calls[0] as any[])[1].aps.attributes.tema).toBe('claro');
+
+    const lixo = montarCard({ aparelhos: [{ ...aparelhos[0], card_tema: 'roxo' }], usuarios: [usuarios[0]] });
+    await lixo.svc.abrir(pedido, [1]);
+    expect((lixo.apns.enviar.mock.calls[0] as any[])[1].aps.attributes).not.toHaveProperty('tema');
+
+    const antigo = montarCard({ aparelhos: [aparelhos[0]], usuarios: [usuarios[0]] });
+    await antigo.svc.abrir(pedido, [1]);
+    expect((antigo.apns.enviar.mock.calls[0] as any[])[1].aps.attributes).not.toHaveProperty('tema');
+  });
+
   it('APNs lento não segura os outros aparelhos (envios em paralelo)', async () => {
     const { svc, apns, notifications } = montarCard({ aparelhos, usuarios });
     let libera: () => void = () => undefined;

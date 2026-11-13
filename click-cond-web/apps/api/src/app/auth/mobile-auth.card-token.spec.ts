@@ -55,6 +55,22 @@ describe('MobileAuthService — card ao vivo', () => {
     expect(prisma.users_Devices.upsert.mock.calls[1][0].update.card_token_inicio).toBeNull();
   });
 
+  it('grava o tema do app; app antigo ou valor inválido não mexe no tema gravado', async () => {
+    const { svc, prisma } = build();
+    await svc.updateFcmToken(1, 'fcm-x', 'iOS', undefined, false, 'claro');
+    let args = prisma.users_Devices.upsert.mock.calls[0][0];
+    expect(args.create.card_tema).toBe('claro');
+    expect(args.update.card_tema).toBe('claro');
+
+    await svc.updateFcmToken(1, 'fcm-x', 'iOS');
+    args = prisma.users_Devices.upsert.mock.calls[1][0];
+    expect('card_tema' in args.update).toBe(false);
+
+    await svc.updateFcmToken(1, 'fcm-x', 'iOS', undefined, false, 'roxo');
+    args = prisma.users_Devices.upsert.mock.calls[2][0];
+    expect('card_tema' in args.update).toBe(false);
+  });
+
   it('logout encerra os cards do usuário antes de apagar os tokens', async () => {
     const { svc, prisma, card } = build();
     await svc.removeFcmToken(1, 'fcm-x');

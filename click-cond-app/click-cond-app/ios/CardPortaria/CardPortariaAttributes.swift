@@ -38,6 +38,9 @@ struct CardPortariaAttributes: ActivityAttributes {
   var idPedido: String
   /// visitante | visita
   var origem: String
+  /// Tema escolhido no app: claro | escuro | sistema. Ausente (servidor ou
+  /// app antigo) = segue o aparelho.
+  var tema: String?
 }
 
 @available(iOS 16.1, *)
