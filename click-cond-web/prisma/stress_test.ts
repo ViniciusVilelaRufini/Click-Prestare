@@ -64,6 +64,13 @@ const tiposVisitante = [
 ];
 
 async function main() {
+  // Senha das contas de morador de teste: nunca literal (o script grava no banco do .env, o RDS).
+  // Ex.: SCRIPT_PASSWORD='...' npx tsx prisma/stress_test.ts
+  const senhaMoradores = process.env['SCRIPT_PASSWORD'] ?? '';
+  if (senhaMoradores.length < 12) {
+    throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) com a senha das contas de morador de teste.');
+  }
+  const hashMoradores = bcrypt.hashSync(senhaMoradores, 10);
   console.log('🚀 Iniciando stress test de dados...\n');
 
   // ── Busca condomínio existente
@@ -148,7 +155,7 @@ async function main() {
           name: nome,
           email,
           login: email,
-          password: bcrypt.hashSync('123456', 10),
+          password: hashMoradores,
           cpf: doc.replace(/\D/g, ''),
           phone: `(11) 9${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
           is_morador: 1,

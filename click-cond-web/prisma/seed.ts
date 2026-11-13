@@ -10,6 +10,12 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  // Senha do porteiro demo: nunca literal (o seed grava no banco do .env, que é o RDS).
+  // Ex.: SCRIPT_PASSWORD='...' npx tsx prisma/seed.ts — checada antes de gravar qualquer coisa.
+  const senhaPadrao = process.env['SCRIPT_PASSWORD'] ?? '';
+  if (senhaPadrao.length < 12) {
+    throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) com a senha do porteiro demo.');
+  }
   console.log('🌱 Iniciando seed...');
 
   // 1) Condomínio demo
@@ -74,9 +80,8 @@ async function main() {
     }
   }
 
-  // 4) Porteiro padrão (pra você logar)
+  // 4) Porteiro padrão (pra você logar) — senha de SCRIPT_PASSWORD (topo de main).
   const loginPorteiro = 'porteiro';
-  const senhaPadrao = '123456';
   const porteiro = await prisma.funcionarios_Portaria.findFirst({
     where: { login: loginPorteiro },
   });
@@ -91,7 +96,7 @@ async function main() {
         ativo: 1,
       },
     });
-    console.log(`✓ Porteiro padrão criado: login="${loginPorteiro}" senha="${senhaPadrao}"`);
+    console.log(`✓ Porteiro padrão criado: login="${loginPorteiro}" (senha: a definida em SCRIPT_PASSWORD)`);
   } else {
     console.log(`↺ Porteiro já existe: ${porteiro.login}`);
   }

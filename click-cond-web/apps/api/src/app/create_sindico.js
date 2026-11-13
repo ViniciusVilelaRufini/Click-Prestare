@@ -4,7 +4,11 @@ const prisma = new PrismaClient();
 
 async function main() {
   const login = 'sindico_novo@click.com';
-  const passwordRaw = '123456';
+  // Senha nunca literal (o script grava no banco do .env). Ex.: SCRIPT_PASSWORD='...' node create_sindico.js
+  const passwordRaw = process.env.SCRIPT_PASSWORD || '';
+  if (passwordRaw.length < 12) {
+    throw new Error('Defina SCRIPT_PASSWORD (mínimo 12 caracteres) com a senha da conta.');
+  }
   const bcryptPassword = await bcrypt.hash(passwordRaw, 12);
   const name = 'Sindico de Teste 2026';
   const idCondominio = 1; // Edifício Demo
@@ -41,12 +45,13 @@ async function main() {
 
   console.log(`✅ Usuário criado com sucesso!`);
   console.log(`Login: ${login}`);
-  console.log(`Senha: ${passwordRaw}`);
+  console.log('Senha: (a definida em SCRIPT_PASSWORD)');
 }
 
 main()
   .catch(e => {
-    console.error('Erro ao criar usuário:', e);
+    console.error('Erro ao criar usuário:', e.message || e);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();
