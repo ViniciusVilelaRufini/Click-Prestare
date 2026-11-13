@@ -34,6 +34,7 @@ describe('MoradoresService - Envio de Credenciais Aleatórias', () => {
         count: jest.fn().mockResolvedValue(0),
       },
       sindicos_Condominios: { count: jest.fn().mockResolvedValue(0) },
+      funcionarios_Portaria: { count: jest.fn().mockResolvedValue(0) }, // login de portaria livre
       funcionarios: { count: jest.fn().mockResolvedValue(0) },
       facial_Devices: {
         findMany: jest.fn().mockResolvedValue([]),

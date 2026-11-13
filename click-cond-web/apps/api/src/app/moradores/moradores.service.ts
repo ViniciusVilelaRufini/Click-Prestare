@@ -117,6 +117,17 @@ export class MoradoresService {
     };
   }
 
+  /**
+   * Funcionarios_Portaria.login é único só na própria tabela: gravar o mesmo valor em Users.login
+   * (conta nova, ou login novo numa conta existente) misturava os dois namespaces de login.
+   * Mesma mensagem neutra do conflito de e-mail no update (não diz que é de um porteiro).
+   */
+  private async assertLoginLivreDaPortaria(login: string | null | undefined): Promise<void> {
+    if (!login) return;
+    const emUso = await this.prisma.funcionarios_Portaria.count({ where: { login } });
+    if (emUso > 0) throw new BadRequestException('Já existe outro usuário com este e-mail.');
+  }
+
   private fireFacialSync(idMorador: number) {
     this.facial
       .syncMorador(idMorador)
@@ -845,6 +856,7 @@ export class MoradoresService {
         // Atualiza login e password caso estejam vazios para permitir acesso, e as fotos
         const userUpdates: any = {};
         if (!contaDeOutroCondominio && (!existing.login || !existing.password)) {
+          if (existing.login !== dto.email) await this.assertLoginLivreDaPortaria(dto.email);
           userUpdates.login = dto.email;
           userUpdates.password = senhaHash;
           passwordWasSet = true;
@@ -860,6 +872,7 @@ export class MoradoresService {
           });
         }
       } else {
+        await this.assertLoginLivreDaPortaria(dto.email);
         const u = await this.prisma.users.create({
           data: {
             name: dto.nome,
@@ -1324,6 +1337,10 @@ export class MoradoresService {
         const existingUser = await this.prisma.users.findFirst({
           where: { OR: [{ email: m.email }, { login: m.email }] },
         });
+        // Sem id_user a conta (nova ou achada) recebe login = m.email logo abaixo.
+        if (!existingUser || existingUser.login !== m.email) {
+          await this.assertLoginLivreDaPortaria(m.email);
+        }
         if (existingUser) {
           // Antes do vínculo: a recusa abaixo saía depois de gravar Moradores.id_user com a conta alheia.
           if (m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existingUser.id, m.id_condominio))) {

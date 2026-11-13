@@ -26,6 +26,7 @@ describe('MoradoresService.create — senha inicial nunca é o CPF', () => {
       apartamentos: { findUnique: jest.fn(async () => null) },
       apartamentos_Users: { create: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
       sindicos_Condominios: { count: jest.fn(async () => 0) },
+      funcionarios_Portaria: { count: jest.fn(async () => 0) }, // login de portaria livre
       funcionarios: { count: jest.fn(async () => 0) },
     };
     const mail: any = { sendWelcomeMorador: jest.fn(async () => ({})), sendWelcomeMoradorExisting: jest.fn(async () => ({})) };

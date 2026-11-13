@@ -120,7 +120,8 @@ export class CrmCondominiosService {
         where: { OR: [{ email: dto.sindico.email }, { login: dto.sindico.email }] },
         select: { id: true },
       });
-      if (emailExistente) {
+      // Login de portaria de outra pessoa: a mesma recusa (não diz que é de um porteiro).
+      if (emailExistente || (await this.loginEmUsoNaPortaria(dto.sindico.email.trim()))) {
         throw new ConflictException(
           'Já existe uma conta com este e-mail. Cadastre o condomínio e vincule o síndico existente depois.',
         );
@@ -358,6 +359,10 @@ export class CrmCondominiosService {
     if (conta && (await this.contaTemOutroCadastro(conta, morador.id, idCondominio))) {
       throw new ConflictException(MSG_LOGIN_DE_OUTRO_CADASTRO);
     }
+    // A conta passa a ter login = e-mail novo: não pode ser o login de portaria de outra pessoa.
+    if (idUser && (await this.loginEmUsoNaPortaria(email))) {
+      throw new ConflictException(MSG_EMAIL_DE_OUTRA_CONTA);
+    }
 
     try {
       if (idUser) {
@@ -430,6 +435,15 @@ export class CrmCondominiosService {
     if (moradores + sindicos + sindicosCond + funcionarios + portaria > 0) return true;
     // Cobre também a unidade (Apartamentos_Users) em outro condomínio.
     return usuarioTemVinculoEmOutroCondominio(this.prisma, conta.id, idCondominio);
+  }
+
+  /**
+   * Funcionarios_Portaria.login é único só na própria tabela: um Users.login igual a ele mistura os
+   * dois namespaces de login. Conferido antes de gravar login novo em Users.
+   */
+  private async loginEmUsoNaPortaria(login: string): Promise<boolean> {
+    if (!login) return false;
+    return (await this.prisma.funcionarios_Portaria.count({ where: { login } })) > 0;
   }
 
   /** Gera bloco × andar × unidade — ex.: bloco A, andar 3, unidade 2 → "302". */
