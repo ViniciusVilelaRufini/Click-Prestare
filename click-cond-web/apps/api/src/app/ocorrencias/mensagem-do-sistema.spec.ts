@@ -1,16 +1,15 @@
 import { BadRequestException, ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { OcorrenciasService } from './ocorrencias.service';
 import { CrmService } from '../crm/crm.service';
-import { KabaniaService } from '../integrations/kabania.service';
 
 /**
- * CRM e integração Kabania escrevem no chat da ocorrência sem token de
- * usuário. Elas chamavam a `createMessage` pública sem `requester` e levavam
+ * O CRM escreve no chat da ocorrência sem token de
+ * usuário. Ele chamava a `createMessage` pública sem `requester` e levava
  * 403 (nem autor, nem equipe). O caminho interno `createMessageDoSistema`
  * confere só que a ocorrência existe e marca a origem no texto; a pública
  * continua recusando quem não é autor nem equipe.
  */
-describe('Ocorrências — mensagem do sistema (CRM e Kabania)', () => {
+describe('Ocorrências — mensagem do sistema (CRM)', () => {
   function montar(opts?: { oc?: any; sindico?: any }) {
     const oc =
       opts && 'oc' in opts
@@ -38,8 +37,7 @@ describe('Ocorrências — mensagem do sistema (CRM e Kabania)', () => {
     const tenant: any = { assertEntidade: jest.fn(async () => undefined) };
     const ocorrencias = new OcorrenciasService(prisma, notifications, tenant, {} as any);
     const crm = new CrmService(prisma, ocorrencias, {} as any);
-    const kabania = new KabaniaService(prisma, crm, ocorrencias);
-    return { prisma, notifications, tenant, ocorrencias, crm, kabania };
+    return { prisma, notifications, tenant, ocorrencias, crm };
   }
 
   it('CRM grava a mensagem, identificada como do suporte da Prestare', async () => {
@@ -64,16 +62,6 @@ describe('Ocorrências — mensagem do sistema (CRM e Kabania)', () => {
     expect(data.mensagem).toBe('[Suporte Prestare] [Chamado Reaberto] Voltou a vazar');
   });
 
-  it('Kabania grava a mensagem, identificada como Kabania', async () => {
-    const { kabania, prisma } = montar();
-
-    await kabania.resolveOccurrenceMessage(5, 'Ordem de serviço aberta');
-
-    const data = prisma.ocorrenciaMensagens.create.mock.calls[0][0].data;
-    expect(data).toMatchObject({ id_ocorrencia: 5, id_usuario: 7 });
-    expect(data.mensagem).toBe('[Kabania] Ordem de serviço aberta');
-  });
-
   it('o push ao autor sai com o rótulo da origem, não com o nome do síndico', async () => {
     const { crm, notifications } = montar();
 
@@ -90,7 +78,7 @@ describe('Ocorrências — mensagem do sistema (CRM e Kabania)', () => {
   it('sem síndico no condomínio, a mensagem fica com o autor da ocorrência', async () => {
     const { ocorrencias, prisma } = montar({ sindico: null });
 
-    await ocorrencias.createMessageDoSistema({ idOcorrencia: 5, mensagem: 'oi', autorRotulo: 'Kabania', origem: 'kabania' });
+    await ocorrencias.createMessageDoSistema({ idOcorrencia: 5, mensagem: 'oi', autorRotulo: 'Suporte Prestare', origem: 'crm' });
 
     expect(prisma.ocorrenciaMensagens.create.mock.calls[0][0].data.id_usuario).toBe(100);
   });
@@ -102,7 +90,7 @@ describe('Ocorrências — mensagem do sistema (CRM e Kabania)', () => {
     });
 
     await expect(
-      ocorrencias.createMessageDoSistema({ idOcorrencia: 5, mensagem: 'oi', autorRotulo: 'Kabania', origem: 'kabania' }),
+      ocorrencias.createMessageDoSistema({ idOcorrencia: 5, mensagem: 'oi', autorRotulo: 'Suporte Prestare', origem: 'crm' }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
     expect(prisma.ocorrenciaMensagens.create).not.toHaveBeenCalled();
   });

@@ -38,7 +38,6 @@ import { CrmModule } from './crm/crm.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { AwsMarketplaceModule } from './aws-marketplace/aws-marketplace.module';
-import { IntegrationsModule } from './integrations/integrations.module';
 import { VeiculosModule } from './veiculos/veiculos.module';
 import { VagasModule } from './vagas/vagas.module';
 import { ContatosModule } from './contatos/contatos.module';
@@ -86,7 +85,6 @@ import { THROTTLERS } from './common/throttle/throttlers';
     MarketingModule,
     WhatsappModule,
     AwsMarketplaceModule,
-    IntegrationsModule,
     VeiculosModule,
     VagasModule,
     ContatosModule,

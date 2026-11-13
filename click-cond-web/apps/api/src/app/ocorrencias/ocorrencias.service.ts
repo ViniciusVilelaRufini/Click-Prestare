@@ -669,8 +669,9 @@ export class OcorrenciasService {
     if (!idUsuario) {
       throw new BadRequestException('Envie a mensagem com um login de síndico ou morador.');
     }
-    // "[Suporte Prestare]" e "[Kabania]" no início marcam a mensagem que vem
-    // do createMessageDoSistema; ninguém imita o suporte por aqui.
+    // "[Suporte Prestare]" no início marca a mensagem que vem do
+    // createMessageDoSistema ("[Kabania]" segue reservado: há mensagens antigas
+    // da integração removida); ninguém imita o suporte por aqui.
     if (typeof mensagem === 'string' && PREFIXO_RESERVADO.test(mensagem)) {
       mensagem = mensagem.replace(PREFIXO_RESERVADO, '');
       if (!mensagem.trim()) throw new BadRequestException('Mensagem inválida.');
@@ -696,30 +697,26 @@ export class OcorrenciasService {
   }
 
   /**
-   * Mensagem escrita por um serviço interno — CRM (suporte da Prestare) ou a
-   * integração Kabania —, que não tem token de usuário. NÃO é rota: só esses
-   * serviços chamam, depois dos próprios guards (CrmAdminGuard /
-   * KabaniaApiKeyGuard). A `createMessage` pública segue exigindo autor ou
-   * equipe.
+   * Mensagem escrita por um serviço interno — o CRM (suporte da Prestare) —,
+   * que não tem token de usuário. NÃO é rota: só o CrmService chama, depois do
+   * CrmAdminGuard. A `createMessage` pública segue exigindo autor ou equipe.
    *
    * `OcorrenciaMensagens.id_usuario` é FK obrigatória para Users e não há
    * conta de sistema no banco. Fica o critério que esses serviços já usavam:
    * o síndico do condomínio e, sem síndico, o autor da ocorrência — sem o
    * antigo `1` fixo, que gravava em nome de quem tivesse esse id. A origem
    * vai no início do texto (`[Suporte Prestare] ...`), para o chat não
-   * atribuir ao síndico o que veio da Prestare/Kabania.
+   * atribuir ao síndico o que veio da Prestare.
    */
   async createMessageDoSistema(params: {
     idOcorrencia: number;
     mensagem: string;
     autorRotulo: string;
-    origem: 'crm' | 'kabania';
+    origem: 'crm';
   }) {
     const mensagem = typeof params.mensagem === 'string' ? params.mensagem.trim() : '';
     if (!mensagem) throw new BadRequestException('Escreva a mensagem.');
-    const rotulo =
-      (params.autorRotulo ?? '').replace(/[[\]]/g, '').trim().slice(0, 60) ||
-      (params.origem === 'kabania' ? 'Kabania' : 'Suporte Prestare');
+    const rotulo = (params.autorRotulo ?? '').replace(/[[\]]/g, '').trim().slice(0, 60) || 'Suporte Prestare';
 
     const oc = await this.prisma.ocorrencias.findUnique({
       where: { id: params.idOcorrencia },
