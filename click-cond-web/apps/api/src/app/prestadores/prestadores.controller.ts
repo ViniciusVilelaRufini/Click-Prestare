@@ -41,6 +41,9 @@ export class PrestadoresController {
     @Body() body: Omit<CreatePrestadorDto, 'id_condominio'>,
     @ReqUser() payload: JwtPayload,
   ) {
+    // Mesma regra de PUT/PATCH/DELETE desta classe. Sem isto, um morador gravava aqui o login de um
+    // porteiro como e-mail do próprio prestador (o app, /prestadores/insert, nem repassa o e-mail).
+    assertOperador(payload, 'cadastrar prestador pelo console');
     return this.service.create({ ...body, id_condominio: idCondominio }, payload);
   }
 

@@ -348,13 +348,8 @@ export class PrestadoresService {
     }
 
     if (dto.email && dto.hasPortariaAccess) {
-      const conflito = await this.prisma.funcionarios_Portaria.findFirst({
-        where: { login: dto.email.trim() },
-        select: { id: true },
-      });
-      if (conflito) {
-        throw new BadRequestException('Já existe um funcionário com este e-mail.');
-      }
+      // Com acesso pedido nem o login do próprio cadastro vale: o create abaixo criaria um login duplicado.
+      await this.assertEmailLivreNaPortaria(dto.email);
       await this.assertContaLivreParaPortaria(dto.email.trim(), dto.id_condominio);
     }
 
@@ -370,6 +365,13 @@ export class PrestadoresService {
     // prestador do vizinho e trocava a foto que o terminal facial reconhece.
     // Antes do upload, para a foto recusada nem chegar ao storage.
     if (existing) await this.assertPodeGerenciarPrestador(existing, user);
+
+    // Sem acesso pedido, o e-mail também não pode passar a ser um login de portaria existente: o login do
+    // prestador é achado por esse e-mail (remove, revogação). Repetir o e-mail que o cadastro já tem não é troca.
+    if (!dto.hasPortariaAccess && typeof dto.email === 'string') {
+      const mesmoEmail = !!existing && (existing.email ?? '').trim().toLowerCase() === dto.email.trim().toLowerCase();
+      if (!mesmoEmail) await this.assertEmailLivreNaPortaria(dto.email);
+    }
 
     // Unidade que de fato vai para o banco (no upsert, a ausente mantém a atual):
     // tem de ser do condomínio e, para morador, um apartamento dele.
@@ -658,15 +660,18 @@ export class PrestadoresService {
         } catch (err) {
           this.logger.error('Erro ao sincronizar funcionario web com Users/Funcionarios no update', err);
         }
-      } else {
-        if (dto.hasPortariaAccess === false || (dto.email === null && atual.email)) {
-          const emailParaRemover = atual.email || emailParaLogin;
-          if (emailParaRemover) {
-            await this.prisma.funcionarios_Portaria.deleteMany({
-              where: { login: emailParaRemover, id_condominio: atual.id_condominio },
-            });
-          }
-        }
+      } else if (dto.hasPortariaAccess === false || (dto.email === null && atual.email)) {
+        // Só o login que ESTE prestador recebeu. Antes: deleteMany pelo e-mail (atual ou o novo), que levava
+        // o login de qualquer pessoa da equipe gravado como e-mail do prestador.
+        const proprio = await this.loginPortariaDoPrestador(atual);
+        if (proprio) await this.prisma.funcionarios_Portaria.deleteMany({ where: { id: proprio.id } });
+      } else if (emailMuda && emailParaLogin && loginProprio) {
+        // Troca de e-mail sem a flag: o login do prestador acompanha (já conferido livre acima). Sem isto ele
+        // ficava com o e-mail antigo, fora do alcance de re-credenciar, revogar e remover.
+        await this.prisma.funcionarios_Portaria.update({
+          where: { id: loginProprio.id },
+          data: { login: emailParaLogin },
+        });
       }
 
       this.fireFacialSync(atualizado.id);
@@ -718,12 +723,14 @@ export class PrestadoresService {
         );
     }
 
-    if (atual.email) {
-      await this.prisma.funcionarios_Portaria.deleteMany({
-        where: { login: atual.email, id_condominio: atual.id_condominio },
-      }).catch((err) =>
-        this.logger.warn(`Falha ao remover acesso portaria do prestador ${id}: ${err.message}`),
-      );
+    // Só o login de portaria que ESTE prestador recebeu (e-mail dele + condomínio + turno 'Geral'). Antes:
+    // deleteMany por e-mail — gravar o login de um porteiro como e-mail do prestador e removê-lo apagava a
+    // conta do porteiro. Continua best-effort, como antes.
+    try {
+      const loginProprio = await this.loginPortariaDoPrestador(atual);
+      if (loginProprio) await this.prisma.funcionarios_Portaria.deleteMany({ where: { id: loginProprio.id } });
+    } catch (err: any) {
+      this.logger.warn(`Falha ao remover acesso portaria do prestador ${id}: ${err?.message ?? err}`);
     }
 
     try {
