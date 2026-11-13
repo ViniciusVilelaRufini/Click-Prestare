@@ -61,13 +61,24 @@ describe('check-out — visitante recorrente mantém a liberação', () => {
   it.each([
     ['Pessoas/Visitas', pessoasVisitas, 'visitas'],
     ['legado', legado, 'visitantes'],
-  ])('%s: recorrente sai e continua liberado; avulso perde a liberação', async (_, montar, tabela) => {
-    const rec = montar({ dias_semana: 'seg,qua' });
-    await rec.svc.checkOut(tabela === 'visitas' ? 1000004 : 77, porteiro);
+  ])('%s: recorrente com término futuro sai e continua liberado; sem término, término vencido ou avulso perde', async (_, montar, tabela) => {
+    const id = tabela === 'visitas' ? 1000004 : 77;
+    const H = 60 * 60 * 1000;
+    const rec = montar({ dias_semana: 'seg,qua', data_hora_termino: new Date(Date.now() + 30 * 24 * H) });
+    await rec.svc.checkOut(id, porteiro);
     expect(rec.prisma[tabela].update.mock.calls[0][0].data.liberado).toBe(1);
 
+    // Sem término virava acesso permanente: perde como visitante comum.
+    const semTermino = montar({ dias_semana: 'seg,qua', data_hora_termino: null });
+    await semTermino.svc.checkOut(id, porteiro);
+    expect(semTermino.prisma[tabela].update.mock.calls[0][0].data.liberado).toBe(0);
+
+    const vencido = montar({ dias_semana: 'seg,qua', data_hora_termino: new Date(Date.now() - H) });
+    await vencido.svc.checkOut(id, porteiro);
+    expect(vencido.prisma[tabela].update.mock.calls[0][0].data.liberado).toBe(0);
+
     const avulso = montar({});
-    await avulso.svc.checkOut(tabela === 'visitas' ? 1000004 : 77, porteiro);
+    await avulso.svc.checkOut(id, porteiro);
     expect(avulso.prisma[tabela].update.mock.calls[0][0].data.liberado).toBe(0);
   });
 });

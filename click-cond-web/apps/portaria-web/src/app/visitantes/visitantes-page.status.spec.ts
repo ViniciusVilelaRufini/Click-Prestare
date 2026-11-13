@@ -74,6 +74,11 @@ describe('VisitantesPageComponent.getStatusVisitante', () => {
     expect(tela.getStatusVisitante(v)).toBe('liberado');
   });
 
+  it('visitante recorrente que saiu e PERDEU a liberação (sem término) é "saiu"', () => {
+    const v: any = { liberado: 0, is_prestador: 0, dias_semana: 'seg,qua', data_entrada: saidaAntiga, data_saida: saidaAntiga };
+    expect(tela.getStatusVisitante(v)).toBe('saiu');
+  });
+
   // M3: "agendado" é pré-autorização; sem liberação, janela futura não agenda nada.
   it('janela futura sem liberação não é "agendado"', () => {
     const v: any = {

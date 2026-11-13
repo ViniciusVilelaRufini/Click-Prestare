@@ -30,12 +30,12 @@ describe('FacialService — saída do visitante recorrente mantém a liberação
     confianca_minima: 0, nome: 'Leitor Tag', webhook_token: 'tok-tag',
   };
 
-  function montar(diasSemana: string | null) {
+  function montar(diasSemana: string | null, termino: Date | null = new Date(Date.now() + 30 * 24 * 3_600_000)) {
     const agora = Date.now();
     const visitaDentro = {
       id: 802, id_pessoa: 55, id_condominio: 1, id_apartamento: 101, is_prestador: 0,
       liberado: 1, bloqueado: 0, tag_rfid: 'TAG-REC', codigo_acesso: null,
-      data_hora_inicio: new Date(agora - 3_600_000), data_hora_termino: new Date(agora + 30 * 24 * 3_600_000),
+      data_hora_inicio: new Date(agora - 3_600_000), data_hora_termino: termino,
       data_entrada: new Date(agora - 1_800_000), data_saida: null, dias_semana: diasSemana,
       pessoa: { id: 55, nome: 'Fulano Recorrente', bloqueado: 0 },
     };
@@ -77,11 +77,18 @@ describe('FacialService — saída do visitante recorrente mantém a liberação
 
   const saida = { event: 'saida', external_id: 'TAG-REC', timestamp: new Date().toISOString() };
 
-  it('com dias da semana: sai e continua liberado', async () => {
+  it('com dias da semana e término futuro: sai e continua liberado', async () => {
     const { svc, prisma } = montar('seg,ter,qua,qui,sex,sab,dom');
     await svc.processWebhook('tok-tag', { ...saida, timestamp: new Date().toISOString() });
     const chamada = prisma.visitas.updateMany.mock.calls.find((c: any[]) => c[0].where?.id === 802);
     expect(chamada[0].data.liberado).toBe(1);
+  });
+
+  it('com dias da semana mas SEM término: perde a liberação (não vira acesso permanente)', async () => {
+    const { svc, prisma } = montar('seg,ter,qua,qui,sex,sab,dom', null);
+    await svc.processWebhook('tok-tag', { ...saida, timestamp: new Date().toISOString() });
+    const chamada = prisma.visitas.updateMany.mock.calls.find((c: any[]) => c[0].where?.id === 802);
+    expect(chamada[0].data.liberado).toBe(0);
   });
 
   it('avulso: sai e perde a liberação', async () => {

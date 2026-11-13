@@ -76,6 +76,20 @@ export function isAutorizacaoAtual(registro: any, agora = Date.now()): boolean {
   return (agora - respondida) <= AUTORIZACAO_EXPIRACAO_MS;
 }
 
+/**
+ * A saída mantém `liberado`? Prestador sempre; visitante recorrente (dias da
+ * semana) só com término no FUTURO — sem término viraria acesso permanente.
+ * Mesma regra da saída pelo terminal (facial.service).
+ */
+export function mantemLiberadoNaSaida(
+  v: { is_prestador?: number | null; dias_semana?: string | null; data_hora_termino?: Date | string | null },
+  agora = Date.now(),
+): boolean {
+  if (v.is_prestador === 1) return true;
+  if (!String(v.dias_semana ?? '').trim() || !v.data_hora_termino) return false;
+  return new Date(v.data_hora_termino).getTime() > agora;
+}
+
 export interface CreateVisitanteDto {
   nome: string;
   doc_identificacao?: string;
@@ -3397,9 +3411,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data: {
         data_saida: new Date(),
         codigo_acesso: null,
-        // Prestador e visitante recorrente (dias da semana) voltam outro dia:
-        // a saída não revoga a liberação. Avulso perde a liberação na saída.
-        liberado: ref.is_prestador === 1 || String(ref.dias_semana ?? '').trim() ? 1 : 0,
+        // Prestador e visitante recorrente (com término futuro) voltam outro
+        // dia: a saída não revoga a liberação. Avulso perde na saída.
+        liberado: mantemLiberadoNaSaida(ref) ? 1 : 0,
         auth_status: null,
         auth_solicitado_em: null,
         auth_respondido_em: null,
@@ -4906,9 +4920,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data: {
         data_saida: new Date(),
         codigo_acesso: null,
-        // Prestador e visitante recorrente (dias da semana) voltam outro dia:
-        // a saída não revoga a liberação. Avulso perde a liberação na saída.
-        liberado: ref.is_prestador === 1 || String(ref.dias_semana ?? '').trim() ? 1 : 0,
+        // Prestador e visitante recorrente (com término futuro) voltam outro
+        // dia: a saída não revoga a liberação. Avulso perde na saída.
+        liberado: mantemLiberadoNaSaida(ref) ? 1 : 0,
         auth_status: null,
         auth_solicitado_em: null,
         auth_respondido_em: null,
