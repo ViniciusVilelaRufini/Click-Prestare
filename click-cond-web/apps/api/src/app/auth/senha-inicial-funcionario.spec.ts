@@ -57,4 +57,13 @@ describe('saveFuncionario — sem senha padrão', () => {
     await svc.saveFuncionario({ id_condominio: 1, funcionario: { id: 50, nome: 'Novo Nome' } }, true, sindico);
     expect(prisma.funcionarios_Portaria.update.mock.calls[0][0].data).not.toHaveProperty('password');
   });
+
+  // Só espaços é "sem senha": antes era truthy e a conta do app nascia com o hash de '   '.
+  it.each([[{ senha: '   ' }], [{ password: ' \t ' }]])('edição com senha em branco (%p) = edição sem senha', async (extra) => {
+    const { svc, prisma } = build();
+    await svc.saveFuncionario({ id_condominio: 1, funcionario: { id: 50, nome: 'Novo Nome', ...extra } }, true, sindico);
+    expect(prisma.funcionarios_Portaria.update.mock.calls[0][0].data).not.toHaveProperty('password');
+    // Conta do app criada na sincronização reaproveita o hash que o login de portaria já tem.
+    expect(prisma.users.create.mock.calls[0][0].data.password).toBe('$2b$04$antigo');
+  });
 });

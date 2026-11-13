@@ -3762,7 +3762,9 @@ export class MobileAuthService {
       }
 
       const updated = await this.prisma.funcionarios_Portaria.update({ where: { id }, data });
-      await sincronizarUsuarioMobile(updated, func.senha || func.password, photoUrl);
+      // Mesmo teste do cadastro: só espaços é "sem senha" (antes era truthy e virava a senha da conta do app).
+      const senhaEdit = [func.senha, func.password].find((s) => typeof s === 'string' && s.trim() !== '') as string | undefined;
+      await sincronizarUsuarioMobile(updated, senhaEdit, photoUrl);
       return '';
     }
 
