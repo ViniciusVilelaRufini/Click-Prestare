@@ -3,8 +3,12 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
+import { AtendimentoCard, mensagemDelivery } from '../card-ao-vivo/delivery-conteudo';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -47,11 +51,14 @@ const DIA_MS = 86_400_000;
 
 @Injectable()
 export class DeliveryService {
+  private readonly logger = new Logger(DeliveryService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly tenant: TenantAccessService,
     private readonly storage: StorageService,
+    @Optional() private readonly cardAoVivo?: CardAoVivoService,
   ) {}
 
   async criarAviso(dto: CriarDeliveryDto, user: JwtPayload) {
@@ -281,15 +288,7 @@ export class DeliveryService {
     // Recusada e retirada na portaria também mudam o que o morador precisa
     // fazer (buscar lá embaixo / saber que não vem) — ficavam sem aviso.
     // Quem respondeu foi o próprio morador: não há o que avisar a ele.
-    if (!respostaDoMorador && ['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'].includes(statusNovo)) {
-      await this.notificarMorador(
-        atualizado.id_apartamento,
-        atualizado.id_morador_user,
-        statusNovo,
-        atualizado.id,
-        dto.motivo,
-      );
-    }
+    await this.avisarMorador(atualizado, statusNovo, !isOperador(user), respostaDoMorador, dto.motivo);
     return isOperador(user) ? atualizado : this.paraMorador(atualizado);
   }
 
@@ -419,17 +418,83 @@ export class DeliveryService {
     return db.deliveryEventos.create({ data: { id_atendimento: idAtendimento, status_anterior: anterior, status_novo: novo, id_usuario_autor: idUsuarioDoToken(user), autor_nome: user.nome ?? user.user?.name ?? null, mensagem: mensagem?.trim() || null } });
   }
 
-  private async notificarMorador(idApartamento: number, idMorador: number, status: DeliveryStatus, idAtendimento: number, motivo?: string) {
-    const vinculo = await this.prisma.apartamentos_Users.findFirst({ where: { id_apto: idApartamento, id_user: idMorador }, include: { user: { select: { fcm_token: true } } } });
-    const mensagens: Partial<Record<DeliveryStatus, string>> = {
-      CHEGOU: 'Seu entregador chegou à portaria.',
-      AGUARDANDO_AUTORIZACAO: 'A portaria aguarda sua autorização para a entrega.',
-      AUTORIZADA: 'Sua entrega foi autorizada.',
-      CONCLUIDA: 'Sua entrega foi concluída.',
-      RECUSADA: `Sua entrega foi recusada pela portaria.${motivo?.trim() ? ` Motivo: ${motivo.trim()}` : ''}`,
-      RETIRADA_NA_PORTARIA: 'Sua entrega ficou na portaria. Retire quando puder.',
+  /**
+   * Avisa o morador da mudança: card ao vivo (spec
+   * 2026-11-13-card-ao-vivo-delivery) e, para quem não tem o card, a
+   * notificação de hoje. CHEGOU abre o card, que já manda a notificação de
+   * hoje aos aparelhos sem card. O card é melhor esforço: falhou, segue a
+   * notificação de hoje.
+   */
+  private async avisarMorador(
+    registro: any,
+    statusNovo: DeliveryStatus,
+    acaoDoMorador: boolean,
+    respostaDoMorador: boolean,
+    motivo?: string,
+  ) {
+    const notificavel =
+      !respostaDoMorador &&
+      ['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'].includes(statusNovo);
+    let cobertos = new Set<string>();
+    let viaCard = false;
+    if (this.cardAoVivo) {
+      try {
+        const atendimento = await this.atendimentoParaCard(registro.id);
+        if (statusNovo === 'CHEGOU') {
+          await this.cardAoVivo.abrirDelivery(atendimento, registro.id_morador_user);
+          viaCard = true;
+        } else {
+          ({ cobertos } = await this.cardAoVivo.atualizarDelivery(atendimento, registro.id_morador_user, {
+            voceRespondeu: acaoDoMorador,
+          }));
+        }
+      } catch (e: any) {
+        this.logger.warn(`Card ao vivo do delivery ${registro.id}: ${e?.message ?? e}`);
+      }
+    }
+    if (!notificavel || viaCard) return;
+    await this.notificarMorador(registro.id_apartamento, registro.id_morador_user, statusNovo, registro.id, motivo, cobertos);
+  }
+
+  /** O atendimento no formato do card (unidade e entregador com a foto). */
+  private async atendimentoParaCard(id: number): Promise<AtendimentoCard> {
+    const a = await (this.prisma as any).deliveryAtendimentos.findUnique({
+      where: { id: Number(id) },
+      include: {
+        apartamento: { select: { bloco: true, apto: true } },
+        entregador: { select: { nome: true, plataforma: true, foto: true } },
+      },
+    });
+    return {
+      id: a.id,
+      status: a.status,
+      estabelecimento: a.estabelecimento ?? null,
+      chegou_em: a.chegou_em ?? null,
+      autorizado_em: a.autorizado_em ?? null,
+      recusado_em: a.recusado_em ?? null,
+      concluido_em: a.concluido_em ?? null,
+      motivo: a.motivo ?? null,
+      bloco: a.apartamento?.bloco ?? null,
+      apto: a.apartamento?.apto ?? null,
+      entregadorNome: a.entregador?.nome ?? a.nome_entregador ?? null,
+      entregadorPlataforma: a.entregador?.plataforma ?? null,
+      fotoEntregador: a.entregador?.foto ?? null,
     };
-    await this.notifications.sendPushNotification(vinculo?.user?.fcm_token ?? '', 'Delivery', mensagens[status] ?? 'Atualização no seu atendimento.', { id_delivery: String(idAtendimento), status });
+  }
+
+  /** A notificação de hoje; não vai ao aparelho que já acompanha pelo card (`cobertos`). */
+  private async notificarMorador(
+    idApartamento: number,
+    idMorador: number,
+    status: DeliveryStatus,
+    idAtendimento: number,
+    motivo?: string,
+    cobertos: Set<string> = new Set(),
+  ) {
+    const vinculo = await this.prisma.apartamentos_Users.findFirst({ where: { id_apto: idApartamento, id_user: idMorador }, include: { user: { select: { fcm_token: true } } } });
+    const token = vinculo?.user?.fcm_token ?? '';
+    if (token && cobertos.has(token)) return;
+    await this.notifications.sendPushNotification(token, 'Delivery', mensagemDelivery(status, motivo), { id_delivery: String(idAtendimento), status });
   }
 
   private async criarVeiculo(db: any, idEntregador: number, idCondominio: number, veiculo: { tipo?: string; placa?: string; modelo?: string; cor?: string }) {
