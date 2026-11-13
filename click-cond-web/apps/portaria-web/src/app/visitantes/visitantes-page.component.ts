@@ -96,7 +96,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   /** Identidade estável da pessoa: `id_pessoa` (Pessoas/Visitas) ou `id` (legado). */
   chavePessoa(v: Visitante | Pessoa): number {
-    return (v as Pessoa).id_pessoa ?? v.id;
+    return (v as Pessoa).id_pessoa ?? (v.id as number);
   }
 
   // Modal de registro de entrada com abas/seleção de apartamento liberado
@@ -323,11 +323,12 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   }
 
   abrirDetalhes(v: Visitante | Pessoa) {
-    if (!this.temVisita(v)) return;
+    if (!this.temVisita(v) || v.id == null) return;
+    const idVisita = v.id;
     this.detalhesData.set(null);
     this.detalhesError.set(null);
     this.detalhesLoading.set(true);
-    this.service.detalhes(v.id).subscribe({
+    this.service.detalhes(idVisita).subscribe({
       next: (d) => {
         this.detalhesData.set(d);
         this.detalhesLoading.set(false);
@@ -665,6 +666,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const apto = aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ?? aptos[0];
     const targetId = apto?.visitanteId ?? p.id;
     const targetAptoId = apto?.id ?? p.id_apartamento;
+    if (targetId == null) return; // sem visita: nada a liberar
     this.service.liberar(targetId, targetAptoId).subscribe({
       next: () => {
         this.fecharAuthModal();
@@ -758,7 +760,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     // A visita DA UNIDADE escolhida; sem visita lá, a principal + a unidade
     // (a API abre uma visita nova nessa unidade, sem mexer na principal).
     const daUnidade = (pessoa.apartamentosVisitados ?? []).find((a) => a.id === idApto);
-    this.service.solicitarAutorizacao(daUnidade?.visitanteId ?? pessoa.id, idApto).subscribe({
+    const alvo = daUnidade?.visitanteId ?? pessoa.id;
+    if (alvo == null) return; // sem visita (abrirSolicitar já bloqueia)
+    this.service.solicitarAutorizacao(alvo, idApto).subscribe({
       next: () => {
         this.carregar(true);
       },
@@ -841,7 +845,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       // isso não for confirmado, `p.id` continua sendo o id certo no caminho
       // legado, e o fallback `?? p.id` é o que faz esta chamada funcionar
       // nos dois modos. Não remover até o caminho legado sair de cena.
-      this.service.removerPessoa(p.id_pessoa ?? p.id).subscribe({
+      this.service.removerPessoa(this.chavePessoa(p)).subscribe({
         next: () => this.carregar(),
         error: (e) => this.error.set(`Falha ao remover: ${e?.error?.message ?? e?.message ?? e}`),
       });
@@ -855,7 +859,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    * usa atualizarPessoa() para refletir em todas as visitas dela.
    */
   abrirEditar(v: Visitante | Pessoa) {
-    this.editingId = v.id;
+    // Sem visita o `id` é null; `editingId` é a marca do modo edição.
+    this.editingId = v.id ?? this.chavePessoa(v);
     // `id_pessoa` quando o backend já serve pelo caminho Pessoas/Visitas;
     // cai para `v.id` no caminho legado (onde já é o id certo).
     this.editingIdPessoa = (v as Pessoa).id_pessoa ?? v.id;
@@ -960,7 +965,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       // ainda não está confirmado no ambiente de produção. Sem o fallback,
       // com a flag desligada `id_pessoa` vem `undefined` e a chamada quebra
       // (rota vira `/pessoa/undefined/nova-visita`). Não remover.
-      this.service.novaVisitaPessoa(novaPara.id_pessoa ?? novaPara.id, {
+      this.service.novaVisitaPessoa(this.chavePessoa(novaPara), {
         id_apartamento: this.novo.id_apartamento,
         data_hora_inicio: this.novo.data_hora_inicio,
         data_hora_termino: this.novo.data_hora_termino,
@@ -1186,7 +1191,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       confirmLabel: 'Confirmar Saída',
       variant: 'primary',
     });
-    if (!ok) return;
+    if (!ok || v.id == null) return;
     this.service.checkOut(v.id).subscribe({
       next: () => this.carregar(),
       error: (e) => this.error.set(`Falha ao registrar saída: ${e?.error?.message ?? e?.message ?? e}`),
@@ -1269,6 +1274,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         })
         .pipe(switchMap((nova: any) => this.service.checkIn(nova.id, idApartamento)));
     } else {
+      if (idParaCheckIn == null) return; // sem visita (registrarEntradaManual já bloqueia)
       entrada$ = this.service.checkIn(idParaCheckIn, idApartamento);
     }
 

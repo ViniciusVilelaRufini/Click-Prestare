@@ -120,6 +120,11 @@ export class PrestadoresPageComponent implements OnInit {
   readonly savingAcesso = signal(false);
   readonly errorAcesso = signal<string | null>(null);
 
+  /** Identidade da pessoa: `id_pessoa`; `id` (visita principal) é null sem visita. */
+  chavePessoa(p: Pessoa): number {
+    return p.id_pessoa ?? (p.id as number);
+  }
+
   abrirEditarAcesso(p: Pessoa) {
     this.editAcessoForm = {
       nome: p.nome ?? '',
@@ -168,7 +173,7 @@ export class PrestadoresPageComponent implements OnInit {
     this.savingAcesso.set(true);
     // `id_pessoa` (id da Pessoa) quando disponível — `p.id` é o id da VISITA
     // principal e é ambíguo para um endpoint que edita a pessoa inteira.
-    this.visitantesApi.atualizarPessoa(p.id_pessoa ?? p.id, {
+    this.visitantesApi.atualizarPessoa(this.chavePessoa(p), {
       nome: this.editAcessoForm.nome,
       doc_identificacao: this.editAcessoForm.doc_identificacao,
       tag_rfid: (this.editAcessoForm.tag_rfid ?? '').trim() || null,
@@ -196,7 +201,7 @@ export class PrestadoresPageComponent implements OnInit {
     });
     if (!ok) return;
     // `id_pessoa` quando disponível — ver comentário de `salvarAcesso`.
-    this.visitantesApi.removerPessoa(p.id_pessoa ?? p.id).subscribe({ next: () => this.carregar() });
+    this.visitantesApi.removerPessoa(this.chavePessoa(p)).subscribe({ next: () => this.carregar() });
   }
 
   togglePinAcesso(id: number, event: Event) {

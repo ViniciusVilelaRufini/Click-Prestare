@@ -23,6 +23,8 @@ describe('VisitantesPageComponent — pessoa sem visita', () => {
       detalhes: jest.fn(() => of({})),
       checkIn: jest.fn(() => of({ ok: true })),
       solicitarAutorizacao: jest.fn(() => of({ ok: true })),
+      atualizarPessoa: jest.fn(() => of({ ok: true, atualizados: 0 })),
+      create: jest.fn(() => of({ id: 1 })),
     };
     TestBed.configureTestingModule({
       imports: [VisitantesPageComponent],
@@ -39,7 +41,7 @@ describe('VisitantesPageComponent — pessoa sem visita', () => {
   }
 
   const semVisita = {
-    id: 2000050, // id da Pessoa (fallback da API)
+    id: null, // sem visita, a API não manda id de visita
     id_pessoa: 2000050,
     nome: 'QA_Sem_Visita',
     liberado: 0,
@@ -53,6 +55,20 @@ describe('VisitantesPageComponent — pessoa sem visita', () => {
     const tela = build();
     expect(tela.temVisita(semVisita)).toBe(false);
     expect(tela.temVisita({ ...semVisita, totalVisitas: 1 } as Pessoa)).toBe(true);
+  });
+
+  it('Editar salva a identidade pela Pessoa (não cai no cadastro de pessoa nova)', () => {
+    const tela = build();
+    tela.abrirEditar(semVisita);
+    tela.novo.nome = 'QA_Sem_Visita Novo';
+    tela.salvar();
+    expect(service.create).not.toHaveBeenCalled();
+    expect(service.atualizarPessoa).toHaveBeenCalledWith(2000050, expect.objectContaining({ nome: 'QA_Sem_Visita Novo' }));
+  });
+
+  it('a chave da linha é a Pessoa', () => {
+    const tela = build();
+    expect(tela.chavePessoa(semVisita)).toBe(2000050);
   });
 
   it('clicar na linha não busca detalhes com o id da Pessoa', () => {

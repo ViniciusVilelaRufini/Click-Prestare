@@ -128,7 +128,9 @@ export interface ApartamentoVisitado {
 
 /** 1 pessoa = 1 linha. Substitui Visitante[] na página /visitantes. */
 export interface Pessoa {
-  id: number; // id do registro principal (compatível com endpoints antigos)
+  // id da VISITA principal (compatível com endpoints antigos). `null` quando a
+  // pessoa não tem visita — use `id_pessoa` (chavePessoa) para identificá-la.
+  id: number | null;
   // Id da Pessoa (tabela `pessoas`), quando o backend já está na migração
   // Pessoas/Visitas. `id` acima é o id da VISITA principal — ambíguo para
   // endpoints que operam sobre a pessoa inteira (removerPessoa/

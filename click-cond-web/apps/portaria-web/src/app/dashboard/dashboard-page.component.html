@@ -939,7 +939,7 @@
                     <span class="text-xs text-slate-500">Buscando cadastros...</span>
                   </div>
                 } @else if (pessoasEncontradas().length > 0) {
-                  @for (p of pessoasEncontradas(); track p.id) {
+                  @for (p of pessoasEncontradas(); track p.id_pessoa ?? p.id) {
                     <div
                          role="button"
                          tabindex="0"

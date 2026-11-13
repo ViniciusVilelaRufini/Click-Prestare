@@ -1171,8 +1171,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             // rodada): id da VISITA principal quando a pessoa tem alguma —
             // mantido assim de propósito porque é o que `create()` já
             // devolve nesse modo (`mapVisitaParaRespostaLegada`) e o que o
-            // app v75 guarda como "o id do visitante". Só cai para
-            // `Pessoas.id` quando a pessoa não tem nenhuma visita.
+            // app v75 guarda como "o id do visitante". Sem nenhuma visita é
+            // `null`: o fallback para `Pessoas.id` fazia as ações de visita
+            // (detalhes, entrada, solicitar) acertarem a visita de OUTRA pessoa.
             //
             // `id_pessoa` (abaixo) é o id da Pessoa, sempre — SEM fallback
             // para `Visitas.id`. `removerPessoa`/`atualizarPessoa` usam
@@ -1184,7 +1185,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             // independentes colidem: uma pessoa sem visita — estado normal
             // depois de `remove()` apagar a última Visita dela — tem `id`
             // igual ao `Visitas.id` de alguém completamente diferente).
-            id: principal?.id ?? p.id,
+            id: principal ? principal.id : null,
             id_pessoa: p.id,
             nome: p.nome,
             doc_identificacao: p.doc_identificacao,

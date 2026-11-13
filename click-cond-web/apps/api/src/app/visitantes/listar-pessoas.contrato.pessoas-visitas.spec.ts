@@ -163,6 +163,9 @@ describe('listarPessoas (Pessoas/Visitas) — mesmo contrato do legado', () => {
   it('pessoa sem nenhuma visita: liberado 0 (não "Liberado")', async () => {
     const [p]: any[] = await servico([]).listarPessoas(1);
     expect(p.liberado).toBe(0);
+    // Sem visita não há id de VISITA: o id da Pessoa ali acertava a visita de outra pessoa.
+    expect(p.id).toBeNull();
+    expect(p.id_pessoa).toBe(2000007);
     expect(p.totalVisitas).toBe(0);
     expect(p.statusLabel).toBe('Histórico');
     expect(p.is_prestador).toBe(0);
