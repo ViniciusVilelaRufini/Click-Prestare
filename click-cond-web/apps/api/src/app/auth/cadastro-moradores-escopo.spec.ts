@@ -174,7 +174,10 @@ describe('removeFuncionario — escopo por condomínio', () => {
         }),
         count: jest.fn(async () => aindaEmOutroPredio),
       },
-      sindicos_Condominios: { findFirst: jest.fn(async () => ({ id: 1 })) },
+      sindicos_Condominios: { findFirst: jest.fn(async () => ({ id: 1 })), count: jest.fn(async () => 0) },
+      sindicos: { count: jest.fn(async () => 0) },
+      moradores: { count: jest.fn(async () => 0) },
+      apartamentos_Users: { count: jest.fn(async () => 0) },
     };
     prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
     const tenant = new TenantAccessService(prisma);

@@ -3817,11 +3817,11 @@ export class MobileAuthService {
             where: { id_user: user.id, id_condominio: fp.id_condominio },
           });
 
-          // Só deleta o Users se ele não for síndico nem morador — evita destruir
-          // vínculos de condomínio de contas que compartilham o mesmo e-mail.
-          // E só quando não sobrou vínculo de equipe em nenhum outro prédio.
-          const aindaEhFuncionario = await tx.funcionarios.count({ where: { id_user: user.id } });
-          if (!user.is_sindico && !user.is_morador && aindaEhFuncionario === 0) {
+          // Só apaga a conta global quando ela não tem NENHUM outro vínculo (perfil/vínculo de síndico,
+          // morador, unidade ou equipe em outro prédio). As flags is_sindico/is_morador não bastam: o
+          // cadastro de morador liga conta existente sem marcar is_morador, e o DELETE leva em cascata o
+          // cadastro de morador da pessoa em outro condomínio. Flags ficam como trava extra.
+          if (!user.is_sindico && !user.is_morador && (await this.contaSoDaEquipeDoCondominio(user.id, fp.id_condominio))) {
             await tx.users.delete({ where: { id: user.id } });
           }
         }
