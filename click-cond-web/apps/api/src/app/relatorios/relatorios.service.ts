@@ -745,13 +745,18 @@ export class RelatoriosService {
       ...(ocultarOcorrencias ? MODULOS_AUDITORIA_OCORRENCIAS : []),
     ];
     const pedido = typeof modulo === 'string' ? modulo.trim() : '';
-    const chave = pedido.toLowerCase();
+    // Mesma régua da colação do MySQL (sem caixa, sem acento): `ocorrências` é `ocorrencias`.
+    const normalizar = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const chave = normalizar(pedido);
     if (pedido && chave !== 'todos') {
-      if (ocultos.includes(chave)) {
+      if (ocultos.some((o) => normalizar(o) === chave)) {
         // Pedir um módulo que este papel não lê: lista vazia, não erro.
         where.modulo = { in: [] };
       } else if (GRUPOS_MODULO_AUDITORIA[chave]) {
         where.modulo = { in: GRUPOS_MODULO_AUDITORIA[chave] };
+      } else if (ocultos.length) {
+        // A exclusão vai junto do filtro para o banco compará-la com a mesma colação do pedido.
+        where.AND = [{ modulo: pedido }, { modulo: { notIn: ocultos } }];
       } else {
         where.modulo = pedido;
       }

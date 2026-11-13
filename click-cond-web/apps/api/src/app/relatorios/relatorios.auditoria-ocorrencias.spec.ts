@@ -69,6 +69,10 @@ describe('RelatoriosService.getAuditoria — ocultarOcorrencias', () => {
 
   it('sem ocultar: igual ao comportamento anterior', async () => {
     expect(await whereDe(undefined, false, false)).toEqual({ id_condominio: 1, modulo: { notIn: SIGILOSOS } });
-    expect((await whereDe('ocorrencias', false, false)).modulo).toBe('ocorrencias');
+    expect((await whereDe('ocorrencias', false, false)).AND).toEqual([
+      { modulo: 'ocorrencias' },
+      { modulo: { notIn: SIGILOSOS } },
+    ]);
+    expect((await whereDe('ocorrencias', true, false)).modulo).toBe('ocorrencias');
   });
 });

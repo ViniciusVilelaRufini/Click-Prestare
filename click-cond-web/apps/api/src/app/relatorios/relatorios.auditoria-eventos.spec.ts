@@ -276,8 +276,20 @@ describe('RelatoriosService — auditoria e eventos', () => {
       expect(await moduloWhere('AUTH')).toEqual({ in: [] });
     });
 
-    it('demais módulos seguem com igualdade simples', async () => {
-      expect(await moduloWhere('encomendas')).toBe('encomendas');
+    it('demais módulos: igualdade simples para o síndico', async () => {
+      expect(await moduloWhere('encomendas', true)).toBe('encomendas');
+    });
+
+    it('demais módulos para o porteiro: igualdade E exclusão dos sigilosos (colação do banco)', async () => {
+      const prisma = buildPrisma();
+      await (new RelatoriosService(prisma) as any).getAuditoria(1, 'encomendas', undefined, undefined, 1, 50, false);
+      expect(prisma.auditLog.findMany.mock.calls[0][0].where).toEqual({
+        id_condominio: 1,
+        AND: [
+          { modulo: 'encomendas' },
+          { modulo: { notIn: ['financeiro', 'crm', 'crm-condominio', 'superlogica', 'auth', 'AUTH'] } },
+        ],
+      });
     });
   });
 
