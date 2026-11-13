@@ -3630,6 +3630,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
 
+    // Quem está DENTRO usa o PIN para a SAÍDA: janela, dia e liberação são
+    // regras de entrada — cobrá-las prendia a saída de quem passou do horário.
+    const dentro = !!v.data_entrada && !v.data_saida;
     const now = new Date();
     const inicio = v.data_hora_inicio ? new Date(v.data_hora_inicio) : now;
     const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : now;
@@ -3645,14 +3648,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       status = 'EXPIRADO';
     }
 
-    if (status === 'EXPIRADO') {
+    if (!dentro && status === 'EXPIRADO') {
       throw new BadRequestException('Acesso negado: O período de validade deste código já expirou.');
     }
-    if (status === 'FUTURO') {
+    if (!dentro && status === 'FUTURO') {
       throw new BadRequestException('Acesso negado: O período de validade deste código ainda não iniciou.');
     }
 
-    if (v.dias_semana) {
+    if (v.dias_semana && !dentro) {
       const diasPermitidos = v.dias_semana.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean);
       if (diasPermitidos.length > 0) {
         const diaSemanaAtual = diaSemanaBrasilia(now);
@@ -3662,7 +3665,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    if (v.liberado !== 1) {
+    if (!dentro && v.liberado !== 1) {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
 
@@ -4360,6 +4363,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
 
+    // Quem está DENTRO usa o PIN para a SAÍDA: janela, dia e liberação são
+    // regras de entrada — cobrá-las prendia a saída de quem passou do horário.
+    const dentro = !!v.data_entrada && !v.data_saida;
     const now = new Date();
     const inicio = v.data_hora_inicio ? new Date(v.data_hora_inicio) : now;
     const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : now;
@@ -4376,15 +4382,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       status = 'EXPIRADO';
     }
 
-    if (status === 'EXPIRADO') {
+    if (!dentro && status === 'EXPIRADO') {
       throw new BadRequestException('Acesso negado: O período de validade deste código já expirou.');
     }
-    if (status === 'FUTURO') {
+    if (!dentro && status === 'FUTURO') {
       throw new BadRequestException('Acesso negado: O período de validade deste código ainda não iniciou.');
     }
 
     // Validação de dias da semana autorizados
-    if (v.dias_semana) {
+    if (v.dias_semana && !dentro) {
       const diasPermitidos = v.dias_semana.split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
       if (diasPermitidos.length > 0) {
         const diaSemanaAtual = diaSemanaBrasilia(now);
@@ -4394,7 +4400,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    if (v.liberado !== 1) {
+    if (!dentro && v.liberado !== 1) {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
 
