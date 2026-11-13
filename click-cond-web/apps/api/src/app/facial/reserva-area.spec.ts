@@ -28,7 +28,7 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
 
   function build(
     agOverrides: Record<string, any> = {},
-    opts: { outraReserva?: number; outraReservaRegistro?: any } = {},
+    opts: { outraReserva?: number; outraReservaRegistro?: any; moradores?: any[]; autorizou?: boolean } = {},
   ) {
     const ag = {
       id: 100,
@@ -70,8 +70,10 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
       apartamentos_Users: {
         findMany: jest.fn(async () => [{ id_user: 111 }, { id_user: 112 }]),
       },
-      moradores: { findMany: jest.fn(async () => MORADORES) },
+      moradores: { findMany: jest.fn(async () => opts.moradores ?? MORADORES) },
     };
+    // Consentimento de biometria do titular (ConsentimentosService.autorizouBiometria).
+    const consentimentos = { autorizouBiometria: jest.fn(async () => opts.autorizou ?? true) };
     const svc = new FacialService(
       prisma,
       client as any,
@@ -79,6 +81,9 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
+      {} as any,
+      consentimentos as any,
       {} as any,
     );
     jest.spyOn(svc as any, 'fetchPhotoAsBase64').mockResolvedValue('BASE64DATA');
@@ -181,6 +186,41 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
 
       await svc.syncReservaArea(100);
 
+      expect(client.enrollPerson).not.toHaveBeenCalled();
+      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11');
+    });
+  });
+
+  describe('biometria revogada não volta pelo terminal da área (R5b)', () => {
+    // Operador revogou neste condomínio (marca na linha) e depois gravaram foto nova; a reserva foi aprovada.
+    const ANA_REVOGADA = {
+      id: 11,
+      id_user: 111,
+      nome: 'Ana',
+      foto_pessoa: 'https://s3/ana-nova.jpg',
+      face_id: null,
+      id_condominio: 1,
+      face_sync_status: 'revoked',
+      face_sync_error: 'revogado_pelo_operador',
+    };
+
+    it('revogação pelo operador + foto nova + reserva aprovada → não enrola no terminal da área', async () => {
+      const { svc, client } = build({}, { moradores: [ANA_REVOGADA] });
+      await svc.syncReservaArea(100);
+      expect(client.enrollPerson).not.toHaveBeenCalled();
+      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11');
+    });
+
+    it('recusa global do titular + reserva aprovada → não enrola no terminal da área', async () => {
+      const { svc, client } = build({}, { moradores: [{ ...MORADORES[0], id_user: 111 }], autorizou: false });
+      await svc.syncReservaArea(100);
+      expect(client.enrollPerson).not.toHaveBeenCalled();
+      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11');
+    });
+
+    it('reserva perdida com outra aprovada: o revogado não é reenrolado com a janela da outra', async () => {
+      const { svc, client } = build({ status: 'recusado' }, { outraReserva: 1, moradores: [ANA_REVOGADA] });
+      await svc.syncReservaArea(100);
       expect(client.enrollPerson).not.toHaveBeenCalled();
       expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11');
     });

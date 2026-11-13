@@ -2434,10 +2434,27 @@ export class FacialService {
       aprovado ? ag : (reservaRemanescente ?? ag),
     );
 
+    // Biometria revogada pelo operador neste condomínio (marca na linha) ou recusada pelo titular: a
+    // reserva não dá rosto no terminal da área — mesma regra do syncMorador para os outros terminais.
+    const semBiometria = new Set<number>();
+    for (const m of moradores) {
+      if (
+        m.face_sync_error === REVOGADO_PELO_OPERADOR ||
+        !(await this.consentimentos.autorizouBiometria(m.id_user))
+      ) {
+        semBiometria.add(m.id);
+      }
+    }
+
     for (const device of devices) {
       for (const m of moradores) {
         const externalId = `morador_${m.id}`;
         try {
+          if (semBiometria.has(m.id)) {
+            // Remove também com a reserva aprovada: um rosto de reserva anterior ainda pode estar lá.
+            await this.client.removePerson(this.toConfig(device), m.face_id ?? externalId);
+            continue;
+          }
           if (aprovado || reservaRemanescente) {
             // Sem foto utilizável não dá para (re)enrolar. Quando a reserva
             // atual foi perdida, cair fora sem fazer nada deixaria a janela

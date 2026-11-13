@@ -48,6 +48,11 @@ describe('ConsentimentosService', () => {
           if (m) Object.assign(m, data);
           return m;
         }),
+        // Marca de revogação pelo operador (R5b): `pendentes` conta, `registrar` limpa.
+        count: jest.fn(async ({ where }: any) =>
+          listaMoradores.filter((m) => m.id_user === where.id_user && m.face_sync_error === where.face_sync_error).length,
+        ),
+        updateMany: jest.fn(async () => ({ count: 0 })),
       },
     };
     const facial: any = {

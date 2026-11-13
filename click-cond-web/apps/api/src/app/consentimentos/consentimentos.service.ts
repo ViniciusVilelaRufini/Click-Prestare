@@ -19,8 +19,9 @@ export type TipoConsentimento = 'privacidade' | 'biometria';
 
 /**
  * `Moradores.face_sync_error` da linha cuja biometria o operador revogou naquele condomínio. A recusa
- * global não é gravada (é do titular), então é esta marca que impede o `syncMorador` de matricular o
- * rosto de novo ali até um novo aceite de biometria do titular (`registrar`), que a limpa.
+ * global não é gravada (é do titular), então é esta marca que impede o `syncMorador` e o
+ * `syncReservaArea` de matricular o rosto de novo ali até uma nova resposta do titular (`registrar`,
+ * que a limpa: "sim" libera, "não" vira recusa global). Com ela, `pendentes` pede o aceite de novo.
  * `face_sync_status` segue `'revoked'` para as telas.
  */
 export const REVOGADO_PELO_OPERADOR = 'revogado_pelo_operador';
@@ -83,18 +84,29 @@ export class ConsentimentosService {
     // Só o aceite de privacidade bloqueia. A biometria é opcional por
     // exigência do Art. 8º, §3º (consentimento livre): se recusá-la impedisse
     // o uso do app, seria condição de uso, não consentimento.
-    const precisaAceitar =
-      !privacidade || privacidade.aceito !== 1 || privacidade.versao !== POLITICA_VERSAO;
-
     const biometria = await this.ultimo(idUser, 'biometria');
+
+    // Biometria revogada pelo operador em algum condomínio: o aceite global segue 1, mas o rosto só
+    // volta com uma nova resposta do titular — então a tela de aceite precisa aparecer (o app só a
+    // mostra com precisaAceitar). A resposta, sim ou não, passa a valer e tira a marca (registrar).
+    const revogadaPeloOperador =
+      (await this.prisma.moradores.count({
+        where: { id_user: idUser, face_sync_error: REVOGADO_PELO_OPERADOR },
+      })) > 0;
+
+    const precisaAceitar =
+      !privacidade ||
+      privacidade.aceito !== 1 ||
+      privacidade.versao !== POLITICA_VERSAO ||
+      revogadaPeloOperador;
 
     return {
       precisaAceitar,
       versao: POLITICA_VERSAO,
       biometria: {
         // Perguntamos de novo quando a versão muda, mas sem bloquear.
-        respondida: !!biometria && biometria.versao === POLITICA_VERSAO,
-        aceita: biometria?.aceito === 1,
+        respondida: !revogadaPeloOperador && !!biometria && biometria.versao === POLITICA_VERSAO,
+        aceita: !revogadaPeloOperador && biometria?.aceito === 1,
       },
     };
   }
@@ -128,13 +140,13 @@ export class ConsentimentosService {
       ],
     });
 
-    // Novo aceite do titular desbloqueia os cadastros que o operador tinha revogado (R5b).
-    if (dados.biometria) {
-      await this.prisma.moradores.updateMany({
-        where: { id_user: idUser, face_sync_error: REVOGADO_PELO_OPERADOR },
-        data: { face_sync_error: null },
-      });
-    }
+    // A resposta do titular, posterior à revogação do operador, passa a valer nos cadastros que ele
+    // tinha revogado (R5b): "sim" desbloqueia; "não" vira a recusa global gravada acima, que bloqueia
+    // em todo condomínio até um novo "sim". Sem a marca, a tela de aceite não é pedida a cada login.
+    await this.prisma.moradores.updateMany({
+      where: { id_user: idUser, face_sync_error: REVOGADO_PELO_OPERADOR },
+      data: { face_sync_error: null },
+    });
 
     this.logger.log(
       `Consentimento ${POLITICA_VERSAO} do usuário ${idUser}: ` +

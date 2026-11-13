@@ -250,6 +250,36 @@ describe('R5b — revogação pelo operador bloqueia o recadastro do rosto no co
     expect(client.enrollPerson).not.toHaveBeenCalled();
   });
 
+  it('pendentes: linha marcada pelo operador volta a pedir o aceite; o novo aceite da biometria encerra', async () => {
+    const { consentimentos, linhas } = build([linha({ id: 1, id_condominio: 1 }), linha({ id: 2, id_condominio: 2 })]);
+    await consentimentos.registrar(TITULAR, { privacidade: true, biometria: true });
+    expect(await consentimentos.pendentes(TITULAR)).toMatchObject({ precisaAceitar: false, biometria: { aceita: true } });
+
+    await consentimentos.revogarBiometria(7, 'Portaria', 1);
+    const pend = await consentimentos.pendentes(TITULAR);
+    expect(pend).toMatchObject({ precisaAceitar: true, versao: POLITICA_VERSAO, biometria: { aceita: false } });
+    expect(Object.keys(pend).sort()).toEqual(['biometria', 'precisaAceitar', 'versao']);
+    expect(Object.keys(pend.biometria).sort()).toEqual(['aceita', 'respondida']);
+
+    await consentimentos.registrar(TITULAR, { privacidade: true, biometria: true });
+    expect(await consentimentos.pendentes(TITULAR)).toMatchObject({ precisaAceitar: false, biometria: { aceita: true } });
+    expect(linhas.every((m) => m.face_sync_error !== 'revogado_pelo_operador')).toBe(true);
+  });
+
+  it('pendentes: responder "não" à biometria mantém a linha bloqueada (recusa global, fail-closed)', async () => {
+    const { consentimentos, facial, client, linhas } = build([linha({ id: 1, id_condominio: 1 })]);
+    await consentimentos.revogarBiometria(7, 'Portaria', 1);
+
+    await consentimentos.registrar(TITULAR, { privacidade: true, biometria: false });
+    linhas[0].foto_pessoa = NOVA;
+    await facial.syncMorador(1);
+
+    expect(client.enrollPerson).not.toHaveBeenCalled();
+    expect(await consentimentos.autorizouBiometria(7)).toBe(false);
+    // A recusa já é a resposta: a tela não volta a cada login, e o bloqueio segue pela recusa global.
+    expect((await consentimentos.pendentes(TITULAR)).precisaAceitar).toBe(false);
+  });
+
   it('(e) revogação pelo titular continua global: grava a recusa e bloqueia todos os condomínios', async () => {
     const { consentimentos, facial, client, linhas, prisma } = build([
       linha({ id: 1, id_condominio: 1 }),
