@@ -6,6 +6,7 @@ import { FacialService } from '../facial/facial.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { parseLocalTimeToUTC } from '../visitantes/visitantes.service';
+import { vagaVencida, whereVagaVigente } from './vaga-vigente.util';
 
 /**
  * Versão canônica (portaria-web) do módulo de Vagas — mesma regra de negócio
@@ -48,6 +49,9 @@ export class VagasService {
       placa: v.placa ?? v.veiculo?.placa ?? null,
       inicio: v.inicio,
       fim: v.fim,
+      // Cedida a visitante com o prazo já passado: não ocupa mais a vaga, só
+      // aparece na lista para o porteiro revogar.
+      vencida: vagaVencida(v),
       titular_nome: v.titular?.nome ?? null,
       ocupante_nome:
         v.tipo_ocupacao === 'visitante'
@@ -94,6 +98,7 @@ export class VagasService {
       placa: v.placa ?? null,
       inicio: null,
       fim: null,
+      vencida: false,
       titular_nome: moradores.find((m) => m.id === v.id_morador)?.nome ?? null,
       ocupante_nome: v.marca_modelo ?? null,
     }));
@@ -101,7 +106,7 @@ export class VagasService {
     const todas = [...proprios, ...vagas.map((v) => this.mapVaga(v))];
     return {
       qtd_vagas: apto.qtd_vagas ?? 0,
-      ocupadas: todas.length,
+      ocupadas: todas.filter((v) => !v.vencida).length,
       vagas: todas,
       moradores,
     };
@@ -228,7 +233,7 @@ export class VagasService {
     }
 
     const [ativas, veiculosProprios] = await Promise.all([
-      this.prisma.vagas.count({ where: { id_apartamento: apto.id, ativo: 1 } }),
+      this.prisma.vagas.count({ where: { id_apartamento: apto.id, ativo: 1, ...whereVagaVigente() } }),
       moradorIds.length
         ? this.prisma.veiculos.count({ where: { id_morador: { in: moradorIds }, ativo: 1 } })
         : Promise.resolve(0),

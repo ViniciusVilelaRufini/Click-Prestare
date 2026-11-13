@@ -46,6 +46,7 @@ import {
 import { normalizarPayloadNativo } from './webhook-payload.util';
 import { gruposCodigoTag } from '../common/tag-codigo.util';
 import { VISITA_NAO_ENCERRADA } from '../common/tag-em-uso.util';
+import { whereVagaVigente } from '../vagas/vaga-vigente.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
 import { normalizarMac } from './descoberta.service';
@@ -2755,7 +2756,7 @@ export class FacialService {
     // ele não consegue reentrar mesmo dentro da validade.
     const temVagaAtiva =
       (await this.prisma.vagas.count({
-        where: { id_visitante: visitante.id, ativo: 1 },
+        where: { id_visitante: visitante.id, ativo: 1, ...whereVagaVigente() },
       })) > 0;
 
     let faceId: string | null = visitante.face_id ?? null;
@@ -3239,7 +3240,7 @@ export class FacialService {
     if (visitaAtiva) {
       try {
         const count = await this.prisma.vagas.count({
-          where: { id_visita: visitaAtiva.id, ativo: 1 },
+          where: { id_visita: visitaAtiva.id, ativo: 1, ...whereVagaVigente() },
         });
         temVagaAtiva = count > 0;
       } catch (err: any) {
@@ -6118,13 +6119,13 @@ export class FacialService {
           temVagaAtiva =
             v.is_prestador !== 1 &&
             (await this.prisma.vagas.count({
-              where: { id_visita: visitaAtivaMigrada.id, ativo: 1 },
+              where: { id_visita: visitaAtivaMigrada.id, ativo: 1, ...whereVagaVigente() },
             })) > 0;
         } else {
           temVagaAtiva =
             v.is_prestador !== 1 &&
             (await this.prisma.vagas.count({
-              where: { id_visitante: v.id, ativo: 1 },
+              where: { id_visitante: v.id, ativo: 1, ...whereVagaVigente() },
             })) > 0;
         }
         // data_entrada < timestamp: um replay de backlog com timestamp ANTERIOR

@@ -29,6 +29,7 @@ import { MfaService } from './mfa/mfa.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { parseLocalTimeToUTC } from '../visitantes/visitantes.service';
+import { vagaVencida, whereVagaVigente } from '../vagas/vaga-vigente.util';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { subirAnexosOcorrencia } from '../ocorrencias/anexos-ocorrencia.util';
 
@@ -5886,6 +5887,7 @@ export class MobileAuthService {
       placa: v.placa ?? v.veiculo?.placa ?? null,
       inicio: v.inicio,
       fim: v.fim,
+      vencida: vagaVencida(v),
       ocupante_nome:
         v.tipo_ocupacao === 'visitante'
           ? (v.visita?.pessoa?.nome ?? v.visitante?.nome ?? null)
@@ -5933,12 +5935,14 @@ export class MobileAuthService {
       placa: v.placa ?? null,
       inicio: null,
       fim: null,
+      vencida: false,
       ocupante_nome: v.marca_modelo ?? null,
     }));
     const todas = [...proprios, ...vagas.map((v) => this.mapVaga(v))];
     return {
       qtd_vagas: ctx.apto.qtd_vagas ?? 0,
-      ocupadas: todas.length,
+      // Vaga de visitante vencida segue na lista (para revogar), mas não ocupa.
+      ocupadas: todas.filter((v) => !v.vencida).length,
       vagas: todas,
     };
   }
@@ -6040,7 +6044,7 @@ export class MobileAuthService {
     const moradoresDoAptoLiberar = await this.moradoresDoApto(ctx.apto);
     const moradorIdsLiberar = moradoresDoAptoLiberar.map((m) => m.id);
     const [ativas, veiculosProprios] = await Promise.all([
-      this.prisma.vagas.count({ where: { id_apartamento: ctx.apto.id, ativo: 1 } }),
+      this.prisma.vagas.count({ where: { id_apartamento: ctx.apto.id, ativo: 1, ...whereVagaVigente() } }),
       moradorIdsLiberar.length
         ? this.prisma.veiculos.count({ where: { id_morador: { in: moradorIdsLiberar }, ativo: 1 } })
         : Promise.resolve(0),

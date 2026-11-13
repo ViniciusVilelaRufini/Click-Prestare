@@ -14,6 +14,8 @@ export interface Vaga {
   placa: string | null;
   inicio: string | null;
   fim: string | null;
+  /** Cedida a visitante com o prazo já passado: não ocupa vaga, falta revogar. */
+  vencida?: boolean;
   titular_nome: string | null;
   ocupante_nome: string | null;
 }

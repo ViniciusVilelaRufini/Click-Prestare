@@ -624,6 +624,11 @@
                       Vaga própria · titular {{ v.titular_nome }}
                     } @else if (v.tipo_ocupacao === 'visitante') {
                       Cedida a visitante · titular {{ v.titular_nome }}
+                      @if (v.vencida) {
+                        · <span class="ps-tag text-[var(--signal-danger)]">vencida</span>
+                      } @else if (v.fim) {
+                        · válida até {{ dataHoraCurta(v.fim) }}
+                      }
                     } @else {
                       Cedida a inquilino · titular {{ v.titular_nome }}
                     }
