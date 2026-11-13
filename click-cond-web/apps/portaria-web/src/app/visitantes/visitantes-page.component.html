@@ -725,6 +725,18 @@
         >
           Cancelar
         </button>
+        @if (!novaVisitaPara() && !(editingId && editandoIdentidade())) {
+          <!-- Cria sem liberar: sem PIN, sem facial, sem aviso de "chegou"; o pedido vai ao morador da unidade. -->
+          <button
+            type="button"
+            (click)="salvar('pedir')"
+            [disabled]="saving()"
+            class="ps-btn ps-btn-sec disabled:opacity-50"
+            title="Cadastra sem liberar e pede autorização ao morador pelo app"
+          >
+            Cadastrar e pedir autorização
+          </button>
+        }
         <button
           type="button"
           (click)="salvar()"

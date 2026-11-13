@@ -573,7 +573,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  carregar(silent = false) {
+  carregar(silent = false, depois?: (lista: Pessoa[]) => void) {
     if (!silent) this.loading.set(true);
     this.error.set(null);
     // Lista agrupada por pessoa para a tabela principal
@@ -581,6 +581,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       next: (data) => {
         this.pessoas.set(data);
         this.loading.set(false);
+        depois?.(data);
       },
       error: (e) => {
         if (!silent) this.error.set(`Falha ao carregar: ${e?.message ?? e}`);
@@ -903,7 +904,12 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.error.set(null);
   }
 
-  salvar() {
+  /**
+   * `modo` só vale no cadastro de pessoa nova: 'liberar' (padrão — nasce
+   * liberada, com PIN e facial) ou 'pedir' (nasce sem liberação e o pedido
+   * vai ao morador da unidade; a janela "ao vivo" do pedido abre em seguida).
+   */
+  salvar(modo: 'liberar' | 'pedir' = 'liberar') {
     this.novo.categorias = Array.from(this.categoriasSelecionadas()).join(';');
 
     const erroDoc = erroDocumento(this.novo.doc_identificacao);
@@ -1016,7 +1022,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       return;
     }
     this.saving.set(true);
-    this.service.create(this.novo).subscribe({
+    const pedir = modo === 'pedir';
+    this.service.create({ ...this.novo, ...(pedir && { pedir_autorizacao: true }) }).subscribe({
       next: (created) => {
         if (this.novo.foto_pessoa && created?.id) {
           this.consentimentosApi.registrarTerceiro({
@@ -1030,7 +1037,18 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         this.saving.set(false);
         this.cancelarForm();
         this.novo = this.estadoInicial();
-        this.carregar();
+        // Pedido enviado: abre a janela "ao vivo" do pedido da pessoa criada.
+        this.carregar(false, pedir && created?.id
+          ? (lista) => {
+              const p = lista.find(
+                (x) => x.id === created.id || (x.apartamentosVisitados ?? []).some((a) => a.visitanteId === created.id),
+              );
+              if (p) {
+                this.authModalPessoaId.set(this.chavePessoa(p));
+                this.startAuthPolling();
+              }
+            }
+          : undefined);
       },
       error: (e) => {
         this.saving.set(false);

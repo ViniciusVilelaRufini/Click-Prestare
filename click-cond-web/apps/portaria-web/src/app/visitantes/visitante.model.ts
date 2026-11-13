@@ -38,4 +38,6 @@ export interface CreateVisitante {
   dias_semana?: string;
   categorias?: string;
   bloqueado?: number;
+  /** "Cadastrar e pedir autorização": nasce sem liberação e o pedido vai ao morador. */
+  pedir_autorizacao?: boolean;
 }

@@ -103,6 +103,12 @@ export interface CreateVisitanteDto {
    * sincroniza.
    */
   sem_facial?: boolean;
+  /**
+   * "Cadastrar e pedir autorização" (portaria): a visita nasce SEM liberação,
+   * sem PIN, sem enrolar o rosto e sem o push de "chegou"; em seguida o pedido
+   * vai ao morador da unidade. Só vale para operador (morador ignora).
+   */
+  pedir_autorizacao?: boolean;
 }
 
 export interface UpdateVisitanteDto extends Partial<CreateVisitanteDto> {
@@ -2470,9 +2476,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const fotoDoc = await this.resolveFoto(dto.foto_documento, reaproveitaveis);
     const fotoPes = await this.resolveFoto(dto.foto_pessoa, reaproveitaveis);
 
+    // "Cadastrar e pedir autorização": nada de liberação/PIN/facial/"chegou"
+    // até o morador responder — o aviso dele é o próprio pedido.
+    const pedirAutorizacao = dto.pedir_autorizacao === true && isOperador(operador);
+
     // Mesma rotina do gerarPinUnico, mas escopada a `visitas` — gerarPinUnico
     // olha só `Visitantes`, que este caminho para de escrever.
-    const pin = await this.gerarPinUnicoVisita();
+    const pin = pedirAutorizacao ? null : await this.gerarPinUnicoVisita();
 
     const visita = await this.visitasService.criarVisita({
       id_condominio: Number(dto.id_condominio),
@@ -2490,7 +2500,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data_hora_inicio: parseLocalTimeToUTC(dto.data_hora_inicio),
       data_hora_termino: parseLocalTimeToUTCNullable(dto.data_hora_termino),
       codigo_acesso: pin,
-      liberado: 1,
+      liberado: pedirAutorizacao ? 0 : 1,
       dias_semana: dto.dias_semana ?? null,
       categorias: dto.categorias ?? null,
     } as any, aptosDoChamador ? { aptosDoChamador } : undefined);
@@ -2501,7 +2511,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // dois. Aqui a "mesma pessoa" é `id_pessoa`, direto — não a heurística de
     // doc/nome que o caminho legado precisa porque Visitantes não tem esse
     // vínculo estrutural.
-    await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id, aptosDoChamador);
+    if (!pedirAutorizacao) {
+      await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id, aptosDoChamador);
+    }
 
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctxCreate = this.construirContextoAuditoria(visita);
@@ -2516,42 +2528,48 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Notificar moradores — idêntico ao caminho legado.
-    try {
-      const moradores = await this.prisma.users.findMany({
-        where: {
-          apartamentosUsers: {
-            some: {
-              id_apto: dto.id_apartamento,
+    if (!pedirAutorizacao) {
+      try {
+        const moradores = await this.prisma.users.findMany({
+          where: {
+            apartamentosUsers: {
+              some: {
+                id_apto: dto.id_apartamento,
+              },
             },
+            notif_visitantes: 1,
           },
-          notif_visitantes: 1,
-        },
-        select: { fcm_token: true, name: true, phone: true },
-      });
+          select: { fcm_token: true, name: true, phone: true },
+        });
 
-      for (const m of moradores) {
-        if (m.fcm_token) {
-          await this.notifications.sendPushNotification(
-            m.fcm_token,
-            dto.is_prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
-            `${dto.nome} acabou de chegar para o seu apartamento.`,
-            { id: visita.id.toString(), type: 'visitante' },
-          );
+        for (const m of moradores) {
+          if (m.fcm_token) {
+            await this.notifications.sendPushNotification(
+              m.fcm_token,
+              dto.is_prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
+              `${dto.nome} acabou de chegar para o seu apartamento.`,
+              { id: visita.id.toString(), type: 'visitante' },
+            );
+          }
+          if (m.phone) {
+            const tipo = dto.is_prestador ? 'Prestador de Serviço' : 'Visitante';
+            const waMessage = `Olá, ${m.name}! O ${tipo} "${dto.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
+            await this.notifications.sendWhatsApp(m.phone, waMessage);
+          }
         }
-        if (m.phone) {
-          const tipo = dto.is_prestador ? 'Prestador de Serviço' : 'Visitante';
-          const waMessage = `Olá, ${m.name}! O ${tipo} "${dto.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
-          await this.notifications.sendWhatsApp(m.phone, waMessage);
-        }
+      } catch (error) {
+        console.error('Erro ao notificar moradores sobre visitante:', error);
       }
-    } catch (error) {
-      console.error('Erro ao notificar moradores sobre visitante:', error);
     }
 
     // Sync facial por PESSOA (não mais por visita avulsa) — mesma condição de
     // `sem_facial` do caminho legado.
-    if (fotoPes && dto.sem_facial !== true) {
+    if (fotoPes && dto.sem_facial !== true && !pedirAutorizacao) {
       this.fireFacialSyncPessoa(visita.id_pessoa);
+    }
+
+    if (pedirAutorizacao) {
+      await this.solicitarAutorizacaoViaPessoasVisitas(visita.id, operador);
     }
 
     // Morador: a Pessoa achada pelo documento pode ser de outro apartamento.
