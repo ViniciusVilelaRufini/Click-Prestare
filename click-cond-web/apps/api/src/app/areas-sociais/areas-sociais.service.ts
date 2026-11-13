@@ -1216,7 +1216,7 @@ export class AreasSociaisService {
         data: { gte: hojeBrasilia() },
       },
       include: {
-        area: { select: { nome: true } },
+        area: { select: { nome: true, exige_confirmacao: true } },
         apartamento: { select: { bloco: true, apto: true } },
       },
       orderBy: { data: 'desc' },
@@ -1237,6 +1237,8 @@ export class AreasSociaisService {
       aprovado_por: ag.aprovado_por_nome ?? (ag.status === 'aprovado' ? 'Síndico' : null),
       aprovado_em: ag.aprovado_em ? dataHoraBr(ag.aprovado_em) : null,
       motivo_recusa: ag.motivo_recusa ?? null,
+      // A fila do console oferece "Confirmar presença" só onde a área exige.
+      exige_confirmacao: ag.area?.exige_confirmacao === 1,
     }));
   }
 

@@ -136,14 +136,73 @@ export class AreasSociaisPageComponent implements OnInit {
     });
   }
 
-  alterarStatus(id: number, isAccept: boolean) {
+  alterarStatus(id: number, isAccept: boolean, motivo = '') {
     this.acaoErro.set(null);
-    this.api.updateStatus(id, isAccept).subscribe({
+    this.api.updateStatus(id, isAccept, motivo).subscribe({
       next: () => {
         // Atualizar lista local na hora
         this.agendamentos.update(list =>
           list.map(item => item.id === id ? { ...item, status: isAccept ? 'aprovado' : 'recusado' } : item)
         );
+      },
+      error: (e) => this.falhaNaAcao(e),
+    });
+  }
+
+  // ---- Recusa com motivo (opcional) ----
+  readonly recusaAlvo = signal<AgendamentoArea | null>(null);
+  motivoRecusa = '';
+
+  abrirRecusa(ag: AgendamentoArea) {
+    this.motivoRecusa = '';
+    this.recusaAlvo.set(ag);
+  }
+
+  fecharRecusa() {
+    this.recusaAlvo.set(null);
+  }
+
+  confirmarRecusa() {
+    const ag = this.recusaAlvo();
+    if (!ag) return;
+    this.recusaAlvo.set(null);
+    this.alterarStatus(ag.id, false, this.motivoRecusa.trim());
+  }
+
+  // ---- Horário da reserva (a lista traz dd/mm/aaaa + HH:mm, no relógio do condomínio) ----
+  private diaDaReserva(ag: AgendamentoArea): [number, number, number] | null {
+    const [d, m, a] = (ag.data ?? '').split('/').map(Number);
+    return d && m && a ? [a, m - 1, d] : null;
+  }
+
+  /** O horário da reserva já terminou: não faz sentido cancelar nem confirmar. */
+  reservaJaTerminou(ag: AgendamentoArea): boolean {
+    const dia = this.diaDaReserva(ag);
+    if (!dia) return false;
+    const [h, min] = (ag.horaAte || '00:00').split(':').map(Number);
+    // Término "00:00" é a meia-noite do fim do dia, não o começo.
+    const fim = !h && !min ? new Date(dia[0], dia[1], dia[2] + 1) : new Date(dia[0], dia[1], dia[2], h || 0, min || 0);
+    return fim.getTime() <= Date.now();
+  }
+
+  private reservaEhHoje(ag: AgendamentoArea): boolean {
+    const dia = this.diaDaReserva(ag);
+    const hoje = new Date();
+    return !!dia && dia[0] === hoje.getFullYear() && dia[1] === hoje.getMonth() && dia[2] === hoje.getDate();
+  }
+
+  /** Aprovada de hoje, em área com confirmação obrigatória, ainda sem confirmar. */
+  aguardandoConfirmacao(ag: AgendamentoArea): boolean {
+    return ag.status === 'aprovado' && !!ag.exige_confirmacao && !ag.confirmada_em
+      && this.reservaEhHoje(ag) && !this.reservaJaTerminou(ag);
+  }
+
+  confirmarPresenca(id: number) {
+    this.acaoErro.set(null);
+    this.api.confirmar(id).subscribe({
+      next: () => {
+        const agora = new Date().toISOString();
+        this.agendamentos.update(list => list.map(item => item.id === id ? { ...item, confirmada_em: agora } : item));
       },
       error: (e) => this.falhaNaAcao(e),
     });

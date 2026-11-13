@@ -87,6 +87,77 @@ describe('AreasSociaisPageComponent — ações nas reservas', () => {
     expect(api.listAgendamentos).toHaveBeenCalledTimes(2);
   });
 
+  it('Recusar pede um motivo opcional e o envia', () => {
+    const { f, api, el } = build({ lista: [reserva()] });
+    botao(el, 'Recusar')!.click();
+    f.detectChanges();
+    const dialogo = el.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialogo).toBeTruthy();
+    expect(api.updateStatus).not.toHaveBeenCalled();
+    const campo = dialogo.querySelector('textarea') as HTMLTextAreaElement;
+    campo.value = '  Área em obra  ';
+    campo.dispatchEvent(new Event('input'));
+    const recusar = Array.from(dialogo.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Recusar')!;
+    recusar.click();
+    f.detectChanges();
+    expect(api.updateStatus).toHaveBeenCalledWith(1, false, 'Área em obra');
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  describe('confirmação de presença e reservas já ocorridas', () => {
+    // 10/06/2026 às 15:00 no relógio do navegador.
+    beforeEach(() => jest.useFakeTimers().setSystemTime(new Date(2026, 5, 10, 15, 0)));
+
+    it('aprovada de hoje, área com confirmação, sem confirmar: selo e botão "Confirmar presença"', () => {
+      const { f, api, el } = build({
+        lista: [reserva({ status: 'aprovado', data: '10/06/2026', horaDe: '16:00', horaAte: '18:00', exige_confirmacao: true, confirmada_em: null })],
+      });
+      expect(el.textContent).toContain('aguardando confirmação');
+      botao(el, 'Confirmar presença')!.click();
+      f.detectChanges();
+      expect(api.confirmar).toHaveBeenCalledWith(1);
+      expect(el.textContent).not.toContain('aguardando confirmação');
+      expect(botao(el, 'Confirmar presença')).toBeUndefined();
+    });
+
+    it('sem o botão quando já confirmada, quando a área não exige ou quando não é hoje', () => {
+      const { el } = build({
+        lista: [
+          reserva({ id: 1, status: 'aprovado', data: '10/06/2026', horaDe: '16:00', horaAte: '18:00', exige_confirmacao: true, confirmada_em: '2026-06-10T14:00:00Z' }),
+          reserva({ id: 2, status: 'aprovado', data: '10/06/2026', horaDe: '16:00', horaAte: '18:00', exige_confirmacao: false }),
+          reserva({ id: 3, status: 'aprovado', data: '11/06/2026', horaDe: '16:00', horaAte: '18:00', exige_confirmacao: true }),
+        ],
+      });
+      expect(botao(el, 'Confirmar presença')).toBeUndefined();
+      expect(el.textContent).not.toContain('aguardando confirmação');
+    });
+
+    it('Confirmar presença com erro: mostra a mensagem e recarrega', () => {
+      const { f, api, el } = build({
+        lista: [reserva({ status: 'aprovado', data: '10/06/2026', horaDe: '16:00', horaAte: '18:00', exige_confirmacao: true })],
+        api: { confirmar: jest.fn(() => throwError(() => ({ error: { message: 'Agendamento não encontrado.' } }))) },
+      });
+      botao(el, 'Confirmar presença')!.click();
+      f.detectChanges();
+      expect(el.textContent).toContain('Agendamento não encontrado.');
+      expect(api.listAgendamentos).toHaveBeenCalledTimes(2);
+    });
+
+    it('reserva aprovada cujo horário já terminou não oferece "Cancelar reserva"', () => {
+      const { el } = build({
+        lista: [reserva({ status: 'aprovado', data: '10/06/2026', horaDe: '10:00', horaAte: '12:00' })],
+      });
+      expect(botao(el, 'Cancelar reserva')).toBeUndefined();
+    });
+
+    it('reserva aprovada ainda por acontecer oferece "Cancelar reserva"', () => {
+      const { el } = build({
+        lista: [reserva({ status: 'aprovado', data: '10/06/2026', horaDe: '20:00', horaAte: '00:00' })],
+      });
+      expect(botao(el, 'Cancelar reserva')).toBeTruthy();
+    });
+  });
+
   it('com a aba escondida, não recarrega', () => {
     jest.useFakeTimers();
     const vis = jest.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
