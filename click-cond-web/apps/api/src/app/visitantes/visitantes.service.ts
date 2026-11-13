@@ -4148,9 +4148,6 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // Morador só apaga visita de apartamento dele; porteiro/síndico, do
     // condomínio deles. Mesma regra de todas as outras ações da visita.
     const refLegado = await this.assertPodeAcessarVisitante(id, payload);
-    // Visitante apagado leva o card junto (melhor esforço; se a exclusão
-    // falhar abaixo, o card some igual — o pedido já não faz sentido na tela).
-    this.card((c) => c.encerrar('visitante', Number(id)));
     await this.assertFlagCadastrarVisitante(refLegado.id_condominio, payload);
 
     const v = await this.prisma.visitantes.findUnique({
@@ -4197,6 +4194,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         .unsyncVisitante(id, v.face_id, v.id_condominio)
         .catch((err) => this.logger.warn(`Unsync facial visitante ${id} falhou: ${err?.message ?? err}`));
     }
+    // Visitante apagado leva o card ao vivo junto.
+    this.card((c) => c.encerrar('visitante', Number(id)));
     return { success: true };
   }
 
@@ -4806,7 +4805,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       let viaCard = false;
       if (this.cardAoVivo && moradores.length) {
         try {
-          await this.cardAoVivo.abrir(
+          // Teto de espera: o pedido do porteiro não pode ficar preso num
+          // APNs/FCM lento. Passado o teto, o card segue em segundo plano e a
+          // reserva automática (agendada dentro do abrir) garante o aviso.
+          let teto: ReturnType<typeof setTimeout> | undefined;
+          const abrindo = this.cardAoVivo.abrir(
             {
               origem,
               id: v.id,
@@ -4819,6 +4822,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             },
             moradores.map((m) => m.id),
           );
+          const estourou = await Promise.race([
+            abrindo.then(() => false),
+            new Promise<boolean>((r) => {
+              teto = setTimeout(() => r(true), 12_000);
+              (teto as any)?.unref?.();
+            }),
+          ]).finally(() => teto && clearTimeout(teto));
+          if (estourou) {
+            this.logger.warn(`Card ao vivo (${v.id}) passou de 12 s; segue em segundo plano.`);
+            abrindo.catch((e) => this.logger.warn(`Card ao vivo não abriu (${v.id}): ${(e as any)?.message ?? e}`));
+          }
           viaCard = true;
         } catch (e) {
           // Card falhou no meio: cai no push comum para ninguém ficar sem aviso.

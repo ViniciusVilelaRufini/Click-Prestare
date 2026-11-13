@@ -1,4 +1,5 @@
 import 'package:click/utils/log.dart';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
@@ -276,6 +277,9 @@ class FirebaseService {
           'fcm_token': tokenFcm,
           'plataforma': defaultTargetPlatform.name,
           if (cardTokenInicio != null) 'card_token_inicio': cardTokenInicio,
+          // Este app monta o card ao vivo no Android (o servidor manda o push
+          // só de dados apenas para aparelhos com esta marca).
+          if (defaultTargetPlatform == TargetPlatform.android) 'card_android': true,
         }),
       );
     } catch (e) {
@@ -298,8 +302,10 @@ class FirebaseService {
     bool outraSessao() => jwt != null && getToken().isNotEmpty;
 
     if (outraSessao()) return;
-    await CardAoVivoIos.limparSessao();
-    await CardAndroid.limpar();
+    // Card ao vivo: sem esperar. O Sair não pode depender de plugin nativo
+    // (o FCM já mostrou que um plugin sem resposta trava o logout).
+    unawaited(CardAoVivoIos.limparSessao().timeout(limiteFcm, onTimeout: () {}).catchError((_) {}));
+    unawaited(CardAndroid.limpar().timeout(limiteFcm, onTimeout: () {}).catchError((_) {}));
     String? token;
     try {
       token = await obterTokenFcm().timeout(limiteFcm);
@@ -331,6 +337,9 @@ class FirebaseService {
   }
 }
 
+// Entry point do isolate de segundo plano: sem a anotação, o build release
+// (AOT) remove a função e o card do Android não aparece com o app fechado.
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (kIsWeb) return;
   await Firebase.initializeApp();

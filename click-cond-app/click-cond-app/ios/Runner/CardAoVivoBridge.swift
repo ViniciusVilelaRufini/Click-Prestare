@@ -20,6 +20,8 @@ final class CardAoVivoBridge {
   private var canal: FlutterMethodChannel?
   private var observando = false
   private var cardsObservados = Set<String>()
+  /// cardsObservados é tocado pela thread principal e pela Task de activityUpdates.
+  private let trava = NSLock()
   private let chaveTokenInicio = "card_ao_vivo_token_inicio"
 
   private init() {}
@@ -92,8 +94,10 @@ final class CardAoVivoBridge {
   @available(iOS 16.2, *)
   private func observarToken(_ activity: Activity<CardPortariaAttributes>) {
     let id = activity.attributes.idCartao
-    guard !cardsObservados.contains(id) else { return }
-    cardsObservados.insert(id)
+    trava.lock()
+    let novo = cardsObservados.insert(id).inserted
+    trava.unlock()
+    guard novo else { return }
     Task {
       for await dados in activity.pushTokenUpdates {
         let hex = dados.map { String(format: "%02x", $0) }.joined()

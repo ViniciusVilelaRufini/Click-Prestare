@@ -110,6 +110,25 @@ enum CardLocal {
       }
     }
   }
+
+  /// O servidor recusou (pedido já respondido por outro morador/portaria, ou
+  /// vencido): o card sai da tela em vez de ficar parado em AGUARDANDO.
+  static func encerrar(idCartao: String) async {
+    for activity in Activity<CardPortariaAttributes>.activities where activity.attributes.idCartao == idCartao {
+      await activity.end(nil, dismissalPolicy: .immediate)
+    }
+  }
+}
+
+/// Resposta do botão: 400 = pedido que já não aceita resposta.
+@available(iOS 17.0, *)
+private func responder(_ caminho: String, corpo: [String: Any], idCartao: String, fase: String) async throws {
+  do {
+    try await CardApi.post(caminho, corpo: corpo)
+    await CardLocal.responder(idCartao: idCartao, fase: fase)
+  } catch CardApi.Erro.http(let status, _) where status == 400 {
+    await CardLocal.encerrar(idCartao: idCartao)
+  }
 }
 
 // MARK: - Botões
@@ -130,8 +149,7 @@ struct NegarCardIntent: LiveActivityIntent {
   }
 
   func perform() async throws -> some IntentResult {
-    try await CardApi.post("/visitantes/\(idPedido)/negar", corpo: [:])
-    await CardLocal.responder(idCartao: idCartao, fase: "negado")
+    try await responder("/visitantes/\(idPedido)/negar", corpo: [:], idCartao: idCartao, fase: "negado")
     return .result()
   }
 }
@@ -154,8 +172,7 @@ struct AutorizarCardIntent: LiveActivityIntent {
   }
 
   func perform() async throws -> some IntentResult {
-    try await CardApi.post("/visitantes/\(idPedido)/autorizar", corpo: ["darEntrada": false])
-    await CardLocal.responder(idCartao: idCartao, fase: "liberado")
+    try await responder("/visitantes/\(idPedido)/autorizar", corpo: ["darEntrada": false], idCartao: idCartao, fase: "liberado")
     return .result()
   }
 }

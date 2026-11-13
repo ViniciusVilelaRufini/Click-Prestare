@@ -67,6 +67,11 @@
                 <data android:scheme="clickprestare" android:host="redefinir-senha" />
             </intent-filter>
         </activity>
+        <!-- Card ao vivo da portaria remota: botões da notificação (NEGAR roda
+             em segundo plano). Sem este receiver o toque não chega ao app. -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

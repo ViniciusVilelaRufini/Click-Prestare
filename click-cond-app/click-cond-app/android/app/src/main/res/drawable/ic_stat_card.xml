@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícone de status do card ao vivo da portaria remota: logo Prestare em
+     traço único (o Android pinta de branco/da cor da notificação). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- prédio de trás -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,6h6v1.5h-4.5v12h4.5v1.5h-6z" />
+    <!-- prédio da frente -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9,2h10v19h-10zM10.5,3.5v16h7v-16z" />
+    <!-- janelas -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,5.5h2v2h-2zM15,5.5h2v2h-2zM12,9.5h2v2h-2zM15,9.5h2v2h-2zM12,13.5h2v2h-2zM15,13.5h2v2h-2z" />
+</vector>

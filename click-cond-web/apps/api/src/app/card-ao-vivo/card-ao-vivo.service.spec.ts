@@ -122,7 +122,7 @@ describe('CardAoVivoService — abrir, reserva, tique', () => {
 
   const aparelhos = [
     { id_user: 1, fcm_token: 'fcm-iphone', plataforma: 'ios', card_token_inicio: 'aa11bb22cc33dd44' },
-    { id_user: 1, fcm_token: 'fcm-android', plataforma: 'android', card_token_inicio: null },
+    { id_user: 1, fcm_token: 'fcm-android', plataforma: 'android', card_token_inicio: null, card_android: 1 },
     { id_user: 2, fcm_token: 'fcm-antigo', plataforma: null, card_token_inicio: null },
   ];
   const usuarios = [
@@ -253,6 +253,49 @@ describe('CardAoVivoService — abrir, reserva, tique', () => {
     expect(prisma.cards_Ao_Vivo.rows[0].encerrado_em).toBeInstanceOf(Date);
   });
 
+  it('Android com app antigo (card_android 0) recebe o push comum na hora, sem esperar a reserva', async () => {
+    const { svc, notifications, prisma } = montarCard({
+      aparelhos: [{ id_user: 1, fcm_token: 'fcm-velho', plataforma: 'android', card_token_inicio: null, card_android: 0 }],
+      usuarios: [usuarios[0]],
+    });
+    await svc.abrir(pedido, [1]);
+    expect(notifications.enviarDados).not.toHaveBeenCalled();
+    expect(notifications.enviarParaAparelho).toHaveBeenCalledWith('fcm-velho', 'Visitante na portaria', expect.any(String), expect.any(Object));
+    expect(prisma.cards_Ao_Vivo.rows).toHaveLength(0);
+  });
+
+  it('push-to-start pede o token de atualização (input-push-token)', async () => {
+    const { svc, apns } = montarCard({ aparelhos: [aparelhos[0]], usuarios: [usuarios[0]] });
+    await svc.abrir(pedido, [1]);
+    expect((apns.enviar.mock.calls[0] as any[])[1].aps['input-push-token']).toBe(1);
+  });
+
+  it('APNs lento não segura os outros aparelhos (envios em paralelo)', async () => {
+    const { svc, apns, notifications } = montarCard({ aparelhos, usuarios });
+    let libera: () => void = () => undefined;
+    apns.enviar.mockImplementationOnce(() => new Promise((r) => { libera = () => r({ status: 200 } as any); }) as any);
+    const abrindo = svc.abrir(pedido, [1, 2]);
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    expect(notifications.enviarDados).toHaveBeenCalled();
+    expect(notifications.enviarParaAparelho).toHaveBeenCalledWith('fcm-antigo', expect.any(String), expect.any(String), expect.any(Object));
+    libera();
+    await abrindo;
+  });
+
+  it('iPhone confirma depois de o card ser encerrado (re-solicitação): recebe o fim na hora', async () => {
+    const { svc, prisma, apns } = montarCard({ aparelhos: [aparelhos[0]], usuarios: [usuarios[0]] });
+    await svc.abrir(pedido, [1]);
+    const linha = prisma.cards_Ao_Vivo.rows[0];
+    await svc.encerrar('visitante', 5);
+    apns.enviar.mockClear();
+    await svc.confirmar(1, linha.id, 'ffee0011ffee0011');
+    const [token, corpo] = apns.enviar.mock.calls[0] as any[];
+    expect(token).toBe('ffee0011ffee0011');
+    expect(corpo.aps.event).toBe('end');
+    expect(corpo.aps['dismissal-date']).toBe(corpo.aps.timestamp);
+  });
+
   it('reabrir o mesmo pedido encerra o card anterior', async () => {
     const { svc, prisma } = montarCard({ aparelhos: [aparelhos[1]], usuarios: [usuarios[0]] });
     await svc.abrir(pedido, [1]);
@@ -356,6 +399,30 @@ describe('CardAoVivoService — fases', () => {
     const [atual] = enviadoPara(k.apns, 'bbbb9999bbbb9999');
     expect(atual.event).toBe('update');
     expect(atual['content-state'].fase).toBe('liberado');
+  });
+
+  it('confirmação atrasada recebe o conteúdo completo (quem respondeu e a hora)', async () => {
+    const k = montarCard({ aparelhos, usuarios });
+    await k.svc.abrir(pedido, [1, 2]);
+    const marina = k.prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === 1);
+    const carlos = k.prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === 2);
+    await k.svc.confirmar(1, marina.id, 'aaaa9999aaaa9999');
+    await k.svc.respondido('visitante', 5, 'liberado', { idUser: 1, pelaPortaria: false });
+    k.apns.enviar.mockClear();
+    await k.svc.confirmar(2, carlos.id, 'bbbb9999bbbb9999');
+    const [atual] = enviadoPara(k.apns, 'bbbb9999bbbb9999');
+    expect(atual['content-state']).toMatchObject({ fase: 'liberado', respondidoPor: 'Marina', voceRespondeu: false });
+    expect(atual['content-state'].horaResposta).toEqual(expect.any(Number));
+  });
+
+  it('tique que expira não atropela resposta que já mudou a fase', async () => {
+    const { svc, apns, avancar } = await abertoEConfirmado();
+    await svc.respondido('visitante', 5, 'liberado', { idUser: 1, pelaPortaria: false });
+    apns.enviar.mockClear();
+    avancar(4 * 60_000);
+    await svc.tick();
+    const fases = (apns.enviar.mock.calls as any[]).map((c) => c[1].aps['content-state']?.fase);
+    expect(fases).not.toContain('expirado');
   });
 
   it('logout encerra os cards abertos do usuário', async () => {

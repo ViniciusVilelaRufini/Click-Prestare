@@ -151,6 +151,9 @@ model Users_Devices {
   /// iPhone (iOS 17.2+): token de push-to-start da Live Activity do card ao
   /// vivo da portaria remota. Null = o aparelho recebe o push comum.
   card_token_inicio String? @db.VarChar(200)
+  /// Android com app que monta o card ao vivo (1.2.42+). 0 = app antigo:
+  /// recebe o push comum, não o push só de dados que ele ignoraria.
+  card_android      Int      @default(0) @db.TinyInt
   created_at DateTime @default(now()) @db.DateTime(0)
   updated_at DateTime @default(now()) @updatedAt @db.DateTime(0)
   user       Users    @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_users_devices_user")
@@ -180,6 +183,9 @@ model Cards_Ao_Vivo {
   /// 'aguardando' | 'liberado' | 'entrou' | 'negado' | 'expirado'
   fase               String    @db.VarChar(20)
   fase_em            DateTime  @db.DateTime(0)
+  /// Último content-state enviado (JSON): reenviado ao iPhone que confirma
+  /// depois de a fase já ter mudado.
+  conteudo_json      String?   @db.Text
   confirmado_em      DateTime? @db.DateTime(0)
   reserva_enviada_em DateTime? @db.DateTime(0)
   encerrado_em       DateTime? @db.DateTime(0)

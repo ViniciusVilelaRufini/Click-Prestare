@@ -21,12 +21,12 @@ private let urlSolicitacoes = URL(string: "clickprestare://solicitacoes")
 struct CardPortariaLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: CardPortariaAttributes.self) { context in
-      TelaBloqueio(attributes: context.attributes, estado: context.state)
+      TelaBloqueio(attributes: context.attributes, estado: estadoVisivel(context.state, vencido: context.isStale))
         .activityBackgroundTint(Cores.superficie)
         .activitySystemActionForegroundColor(Cores.ink)
         .widgetURL(urlSolicitacoes)
     } dynamicIsland: { context in
-      let estado = context.state
+      let estado = estadoVisivel(context.state, vencido: context.isStale)
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
           HStack(spacing: 8) {
@@ -85,6 +85,16 @@ struct CardPortariaLiveActivity: Widget {
       .keylineTint(Cores.marca)
     }
   }
+}
+
+/// Card AGUARDANDO que passou do prazo (o iOS marca como "stale" pelo
+/// stale-date do push) aparece como EXPIRADO mesmo se o push do servidor não
+/// chegar — app fechado à força, sem rede.
+func estadoVisivel(_ e: CardPortariaAttributes.ContentState, vencido: Bool) -> CardPortariaAttributes.ContentState {
+  guard vencido, e.fase == "aguardando" else { return e }
+  var s = e
+  s.fase = "expirado"
+  return s
 }
 
 /// "Visitante na portaria · Bloco A · Apto 106" (aguardando) / "Visitante · Bloco A · Apto 106".

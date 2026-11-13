@@ -10,6 +10,8 @@
 -- O que faz:
 --   1. Users_Devices.card_token_inicio VARCHAR(200) NULL — token de
 --      push-to-start do iPhone. Anulável, sem default: não reescreve linhas.
+--      Users_Devices.card_android TINYINT NOT NULL DEFAULT 0 — Android com
+--      app que monta o card (1.2.42+). Tabela pequena (um registro por aparelho).
 --   2. Tabela Cards_Ao_Vivo (um card por pedido por aparelho), FK para Users
 --      com ON DELETE CASCADE (conta apagada leva os cards junto). Sem FK para
 --      o pedido: linha efêmera, não pode impedir apagar visitante.
@@ -27,6 +29,15 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users_Devices' AND COLUMN_NAME = 'card_android') = 0,
+  'ALTER TABLE `Users_Devices` ADD COLUMN `card_android` TINYINT NOT NULL DEFAULT 0 AFTER `card_token_inicio`',
+  'SELECT ''card_android: ja existe'' AS passo_1b');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS `Cards_Ao_Vivo` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `origem` VARCHAR(10) NOT NULL,
@@ -38,6 +49,7 @@ CREATE TABLE IF NOT EXISTS `Cards_Ao_Vivo` (
   `token_atualizacao` VARCHAR(200) NULL,
   `fase` VARCHAR(20) NOT NULL,
   `fase_em` DATETIME(0) NOT NULL,
+  `conteudo_json` TEXT NULL,
   `confirmado_em` DATETIME(0) NULL,
   `reserva_enviada_em` DATETIME(0) NULL,
   `encerrado_em` DATETIME(0) NULL,

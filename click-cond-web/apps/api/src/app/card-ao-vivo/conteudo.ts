@@ -95,6 +95,9 @@ export function payloadInicio(c: ConteudoCard, attrs: AtributosCard, agora: numb
       'content-state': c,
       'attributes-type': 'CardPortariaAttributes',
       attributes: attrs,
+      // iOS 18+: pede ao sistema que emita o token de atualização deste card
+      // (sem ele o iPhone não confirma e o card não recebe as fases).
+      'input-push-token': 1,
       // Card AGUARDANDO perde o sentido depois da janela de resposta; o tique
       // do servidor manda EXPIRADO, isto é só a rede de segurança do iOS.
       'stale-date': c.expiraEm + 30,

@@ -38,12 +38,19 @@ class CardAndroid {
 
   static Future<void> iniciar() {
     if (!_suportado) return Future.value();
-    return _iniciando ??= _iniciar();
+    return _iniciando ??= _iniciar().catchError((Object e) {
+      // Plugin indisponível (teste, motor sem plugins): tenta de novo na
+      // próxima chamada em vez de guardar a falha para sempre.
+      _iniciando = null;
+      throw e;
+    });
   }
 
   static Future<void> _iniciar() async {
     await _plugin.initialize(
-      settings: const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+      // Ícone monocromático da barra de status (o ic_launcher colorido vira um
+      // quadrado branco).
+      settings: const InitializationSettings(android: AndroidInitializationSettings('@drawable/ic_stat_card')),
       onDidReceiveNotificationResponse: _respostaEmPrimeiroPlano,
       onDidReceiveBackgroundNotificationResponse: respostaCardSegundoPlano,
     );
@@ -59,9 +66,11 @@ class CardAndroid {
 
   /// Logout: nenhum card fica na tela de quem saiu.
   static Future<void> limpar() async {
-    if (!_suportado) return;
+    // Só se o plugin já subiu (no app, na abertura): o Sair não inicializa
+    // nada nativo.
+    if (!_suportado || _iniciando == null) return;
     try {
-      await iniciar();
+      await _iniciando;
       await _plugin.cancelAll();
     } catch (_) {}
   }
@@ -69,8 +78,14 @@ class CardAndroid {
   /// App aberto pela notificação (AUTORIZAR ou toque no corpo) depois de fechado.
   static Future<void> tratarAbertura() async {
     if (!_suportado) return;
-    await iniciar();
-    final detalhes = await _plugin.getNotificationAppLaunchDetails();
+    final NotificationAppLaunchDetails? detalhes;
+    try {
+      await iniciar();
+      detalhes = await _plugin.getNotificationAppLaunchDetails();
+    } catch (e) {
+      logDebug('Card ao vivo: abertura pela notificação não lida: $e');
+      return;
+    }
     final r = detalhes?.notificationResponse;
     if (detalhes?.didNotificationLaunchApp == true && r != null) _respostaEmPrimeiroPlano(r);
   }

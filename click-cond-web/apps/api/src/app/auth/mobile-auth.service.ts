@@ -2279,7 +2279,7 @@ export class MobileAuthService {
    * (o porteiro sai, o morador entra), o registro MIGRA para o novo usuário,
    * senão a notificação do novo continuaria caindo na conta antiga.
    */
-  async updateFcmToken(idUser: number, fcmToken: string, plataforma?: string, cardTokenInicio?: string) {
+  async updateFcmToken(idUser: number, fcmToken: string, plataforma?: string, cardTokenInicio?: string, cardAndroid?: boolean) {
     if (!this.prisma.isConnected) return { success: true };
     if (!idUser || Number.isNaN(idUser)) {
       throw new BadRequestException('Usuário inválido');
@@ -2301,11 +2301,19 @@ export class MobileAuthService {
     // O token é único na tabela: o upsert é o que migra o aparelho de dono.
     await this.prisma.users_Devices.upsert({
       where: { fcm_token: token },
-      create: { id_user: idUser, fcm_token: token, plataforma: plataforma ?? null, ...(card ? { card_token_inicio: card } : {}) },
+      create: {
+        id_user: idUser,
+        fcm_token: token,
+        plataforma: plataforma ?? null,
+        ...(card ? { card_token_inicio: card } : {}),
+        ...(cardAndroid === true ? { card_android: 1 } : {}),
+      },
       update: {
         id_user: idUser,
         plataforma: plataforma ?? undefined,
         ...(card !== undefined ? { card_token_inicio: card } : {}),
+        // App Android 1.2.42+ monta o card ao vivo; o antigo não manda o campo.
+        ...(cardAndroid === true ? { card_android: 1 } : {}),
       },
     });
 

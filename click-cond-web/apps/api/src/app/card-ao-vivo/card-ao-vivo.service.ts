@@ -60,6 +60,7 @@ type Linha = {
   token_atualizacao: string | null;
   fase: string;
   fase_em: Date;
+  conteudo_json?: string | null;
   confirmado_em: Date | null;
   reserva_enviada_em: Date | null;
   encerrado_em: Date | null;
@@ -116,7 +117,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     const [aparelhos, usuarios] = await Promise.all([
       this.prisma.users_Devices.findMany({
         where: { id_user: { in: idsUsuarios } },
-        select: { id_user: true, fcm_token: true, plataforma: true, card_token_inicio: true },
+        select: { id_user: true, fcm_token: true, plataforma: true, card_token_inicio: true, card_android: true },
       }),
       this.prisma.users.findMany({
         where: { id: { in: idsUsuarios } },
@@ -128,43 +129,61 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     const conteudo = montarConteudo((await this.carregarBase(p.origem, p.id)) ?? p, 'aguardando');
     const pushComum = this.pushComum(p, conteudo);
     const agora = new Date(this.agora());
-    const cobertos = new Set<string>();
 
+    // Reserva agendada ANTES dos envios: se algum envio demorar, o aviso
+    // comum continua garantido.
+    const t = setTimeout(() => void this.verificarReserva(p.origem, p.id).catch(() => undefined), RESERVA_MS);
+    t.unref?.();
+
+    type Aparelho = { id_user: number; fcm_token: string; plataforma: string | null; card_token_inicio: string | null; card_android: number };
+    const alvos: Aparelho[] = [];
+    const cobertos = new Set<string>();
     for (const u of usuarios) {
       // Usuário deslogado (Users.fcm_token null) não recebe nada, como hoje.
       if (!u.fcm_token) continue;
-      const doUsuario = aparelhos.filter((a) => a.id_user === u.id && a.fcm_token);
+      const doUsuario = (aparelhos as Aparelho[]).filter((a) => a.id_user === u.id && a.fcm_token);
       // Aparelho que ainda não reabriu o app desde Users_Devices: só o token antigo.
-      if (!doUsuario.length) doUsuario.push({ id_user: u.id, fcm_token: u.fcm_token, plataforma: null, card_token_inicio: null });
-
+      if (!doUsuario.length) doUsuario.push({ id_user: u.id, fcm_token: u.fcm_token, plataforma: null, card_token_inicio: null, card_android: 0 });
       for (const a of doUsuario) {
         if (cobertos.has(a.fcm_token)) continue;
         cobertos.add(a.fcm_token);
-        const plataforma = (a.plataforma ?? '').toLowerCase();
-
-        if (plataforma === 'ios' && a.card_token_inicio) {
-          const linha = await this.criarLinha(p, u.id, 'ios', a.fcm_token, a.card_token_inicio, agora);
-          const r = await this.apns.enviar(
-            a.card_token_inicio,
-            payloadInicio(conteudo, { idCartao: String(linha.id), idPedido: String(p.id), origem: p.origem }, epochSeg(agora)),
-            10,
-          );
-          if (r.status !== 200) await this.falhouAbrir(linha, r, pushComum);
-        } else if (plataforma === 'android') {
-          const linha = await this.criarLinha(p, u.id, 'android', a.fcm_token, null, agora);
-          const r = await this.notifications.enviarDados(a.fcm_token, this.dadosAndroid(linha, conteudo));
-          if (r !== 'ok') {
-            await this.marcar(linha.id, { encerrado_em: agora, reserva_enviada_em: agora });
-            if (r !== 'morto') await this.notifications.enviarParaAparelho(a.fcm_token, pushComum.titulo, pushComum.corpo, pushComum.dados);
-          }
-        } else {
-          await this.notifications.enviarParaAparelho(a.fcm_token, pushComum.titulo, pushComum.corpo, pushComum.dados);
-        }
+        alvos.push(a);
       }
     }
 
-    const t = setTimeout(() => void this.verificarReserva(p.origem, p.id).catch(() => undefined), RESERVA_MS);
-    t.unref?.();
+    // Em paralelo: um aparelho lento não atrasa os outros moradores.
+    await Promise.all(alvos.map((a) => this.abrirNoAparelho(p, a, conteudo, pushComum, agora).catch((e) =>
+      this.logger.warn(`Card ao vivo (aparelho do usuário ${a.id_user}): ${e?.message ?? e}`),
+    )));
+  }
+
+  private async abrirNoAparelho(
+    p: PedidoCard,
+    a: { id_user: number; fcm_token: string; plataforma: string | null; card_token_inicio: string | null; card_android: number },
+    conteudo: ConteudoCard,
+    pushComum: ReturnType<CardAoVivoService['pushComum']>,
+    agora: Date,
+  ) {
+    const plataforma = (a.plataforma ?? '').toLowerCase();
+    if (plataforma === 'ios' && a.card_token_inicio) {
+      const linha = await this.criarLinha(p, a.id_user, 'ios', a.fcm_token, a.card_token_inicio, agora, conteudo);
+      const r = await this.apns.enviar(
+        a.card_token_inicio,
+        payloadInicio(conteudo, { idCartao: String(linha.id), idPedido: String(p.id), origem: p.origem }, epochSeg(agora)),
+        10,
+      );
+      if (r.status !== 200) await this.falhouAbrir(linha, r, pushComum);
+    } else if (plataforma === 'android' && a.card_android === 1) {
+      const linha = await this.criarLinha(p, a.id_user, 'android', a.fcm_token, null, agora, conteudo);
+      const r = await this.notifications.enviarDados(a.fcm_token, this.dadosAndroid(linha, conteudo));
+      if (r !== 'ok') {
+        await this.marcar(linha.id, { encerrado_em: agora, reserva_enviada_em: agora });
+        if (r !== 'morto') await this.notifications.enviarParaAparelho(a.fcm_token, pushComum.titulo, pushComum.corpo, pushComum.dados);
+      }
+    } else {
+      // App antigo (não monta o card) ou iPhone sem token: o push de hoje.
+      await this.notifications.enviarParaAparelho(a.fcm_token, pushComum.titulo, pushComum.corpo, pushComum.dados);
+    }
   }
 
   private async falhouAbrir(linha: Linha, r: RespostaApns, push: ReturnType<CardAoVivoService['pushComum']>) {
@@ -192,14 +211,20 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       confirmado_em: linha.confirmado_em ?? new Date(this.agora()),
       ...(token ? { token_atualizacao: token } : {}),
     });
-    // A fase mudou antes de o iPhone mandar o token (resposta muito rápida de
-    // outro morador): o card dele ainda mostra AGUARDANDO. Leva ao estado atual.
-    if (token && linha.plataforma === 'ios' && linha.fase !== 'aguardando') {
-      const base = await this.carregarBase(linha.origem as OrigemPedido, linha.id_pedido);
-      if (base) {
-        const c = montarConteudo(base, linha.fase as FaseCard);
+    // O iPhone mandou o token depois de a fase mudar (resposta rápida de
+    // outro morador, encerramento por re-solicitação/exclusão/logout): o card
+    // dele ainda mostra AGUARDANDO. Relê a linha DEPOIS de gravar o token —
+    // quem mudou a fase relê também (aplicarFase), então um dos dois envia.
+    if (token && linha.plataforma === 'ios') {
+      const atual = (await this.prisma.cards_Ao_Vivo.findUnique({ where: { id: linha.id } })) as Linha | null;
+      if (atual && (atual.fase !== 'aguardando' || atual.encerrado_em)) {
         const agora = epochSeg(new Date(this.agora()));
-        const corpo = linha.encerrado_em ? payloadFim(c, agora, DISMISSAL_FINAL_SEG) : payloadAtualizacao(c, agora);
+        const c = lerConteudo(atual) ?? montarConteudo(
+          { nome: '', isPrestador: false, bloco: null, apto: null, solicitadoEm: atual.created_at },
+          (atual.fase as FaseCard) || 'aguardando',
+        );
+        const dismissal = atual.fase === 'entrou' ? DISMISSAL_ENTROU_SEG : atual.fase === 'aguardando' ? 0 : DISMISSAL_FINAL_SEG;
+        const corpo = atual.encerrado_em ? payloadFim(c, agora, dismissal) : payloadAtualizacao(c, agora);
         await this.apns.enviar(token, corpo, 10);
       }
     }
@@ -259,14 +284,14 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       respondidoPor: quem.pelaPortaria ? null : nome,
       pelaPortaria: quem.pelaPortaria,
       horaResposta: hora,
-    }), fase === 'negado' ? DISMISSAL_FINAL_SEG : null);
+    }), fase === 'negado' ? DISMISSAL_FINAL_SEG : null, ['aguardando']);
   }
 
   /** Visitante passou (facial ou check-in da portaria). */
   async entrou(origem: OrigemPedido, id: number, em: Date = new Date(this.agora())): Promise<void> {
     const linhas = await this.linhasAbertas(origem, id, ['aguardando', 'liberado']);
     if (!linhas.length) return;
-    await this.aplicarFase(origem, id, linhas, 'entrou', () => ({ horaEntrada: epochSeg(em) }), DISMISSAL_ENTROU_SEG);
+    await this.aplicarFase(origem, id, linhas, 'entrou', () => ({ horaEntrada: epochSeg(em) }), DISMISSAL_ENTROU_SEG, ['aguardando', 'liberado']);
   }
 
   /** Some com o card na hora (visitante excluído, check-out, re-solicitação). */
@@ -292,7 +317,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     })) as Linha[];
     for (const [chave, linhas] of agrupar(vencidos)) {
       const [origem, id] = chave.split(':');
-      await this.aplicarFase(origem as OrigemPedido, Number(id), linhas, 'expirado', () => ({}), DISMISSAL_FINAL_SEG);
+      await this.aplicarFase(origem as OrigemPedido, Number(id), linhas, 'expirado', () => ({}), DISMISSAL_FINAL_SEG, ['aguardando']);
     }
 
     const semEntrada = (await this.prisma.cards_Ao_Vivo.findMany({
@@ -305,6 +330,13 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
 
   // ─────────────────────────────────────────── internos
 
+  /**
+   * Leva as linhas à `fase` e avisa cada aparelho. A troca é condicional
+   * (só de `permitidas`, só se aberta): duas mudanças simultâneas (tique que
+   * expira × resposta do morador) não mandam as duas ao aparelho. O token é
+   * relido DEPOIS da troca: se o iPhone confirmar no meio, o `confirmar`
+   * (que relê depois de gravar o token) ou este envio alcança o card.
+   */
   private async aplicarFase(
     origem: OrigemPedido,
     id: number,
@@ -312,6 +344,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     fase: FaseCard,
     extras: (l: Linha) => Partial<ConteudoCard>,
     dismissalSeg: number | null,
+    permitidas: string[],
   ) {
     const base = await this.carregarBase(origem, id);
     if (!base) {
@@ -322,33 +355,46 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     const seg = epochSeg(agora);
     for (const l of linhas) {
       const c = montarConteudo(base, fase, extras(l));
+      const r = await this.prisma.cards_Ao_Vivo.updateMany({
+        where: { id: l.id, encerrado_em: null, fase: { in: permitidas } },
+        data: {
+          fase,
+          fase_em: agora,
+          conteudo_json: JSON.stringify(c),
+          ...(dismissalSeg !== null ? { encerrado_em: agora } : {}),
+        },
+      });
+      if (!r.count) continue;
       if (l.plataforma === 'ios') {
-        if (l.token_atualizacao) {
+        const token = (await this.tokenAtual(l.id)) ?? l.token_atualizacao;
+        if (token) {
           const corpo = dismissalSeg === null ? payloadAtualizacao(c, seg) : payloadFim(c, seg, dismissalSeg);
-          await this.apns.enviar(l.token_atualizacao, corpo, 10);
+          await this.apns.enviar(token, corpo, 10);
         }
       } else {
         await this.notifications.enviarDados(l.fcm_token, this.dadosAndroid(l, c));
       }
-      await this.marcar(l.id, {
-        fase,
-        fase_em: agora,
-        ...(dismissalSeg !== null ? { encerrado_em: agora } : {}),
-      });
     }
   }
 
+  /** Some com as linhas na hora. */
   private async encerrarLinhas(linhas: Linha[]) {
     const agora = new Date(this.agora());
     const seg = epochSeg(agora);
     for (const l of linhas) {
+      const r = await this.prisma.cards_Ao_Vivo.updateMany({
+        where: { id: l.id, encerrado_em: null },
+        data: { encerrado_em: agora },
+      });
+      if (!r.count) continue;
       if (l.plataforma === 'ios') {
-        if (l.token_atualizacao) {
-          const c = montarConteudo(
+        const token = (await this.tokenAtual(l.id)) ?? l.token_atualizacao;
+        if (token) {
+          const c = lerConteudo(l) ?? montarConteudo(
             { nome: '', isPrestador: false, bloco: null, apto: null, solicitadoEm: l.created_at },
             (l.fase as FaseCard) || 'aguardando',
           );
-          await this.apns.enviar(l.token_atualizacao, payloadFim(c, seg, 0), 5);
+          await this.apns.enviar(token, payloadFim(c, seg, 0), 5);
         }
       } else {
         await this.notifications.enviarDados(l.fcm_token, {
@@ -359,8 +405,12 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
           fase: 'encerrado',
         });
       }
-      await this.marcar(l.id, { encerrado_em: agora });
     }
+  }
+
+  private async tokenAtual(id: number): Promise<string | null> {
+    const l = await this.prisma.cards_Ao_Vivo.findUnique({ where: { id }, select: { token_atualizacao: true } } as any);
+    return ((l as any)?.token_atualizacao as string | null) ?? null;
   }
 
   private async linhasAbertas(origem: OrigemPedido, id: number, fases?: string[]): Promise<Linha[]> {
@@ -376,6 +426,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     fcm: string,
     tokenInicio: string | null,
     agora: Date,
+    conteudo: ConteudoCard,
   ): Promise<Linha> {
     return (await this.prisma.cards_Ao_Vivo.create({
       data: {
@@ -387,6 +438,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
         token_inicio: tokenInicio,
         fase: 'aguardando',
         fase_em: agora,
+        conteudo_json: JSON.stringify(conteudo),
         created_at: agora,
       },
     })) as Linha;
@@ -468,6 +520,16 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Card ao vivo: pedido ${origem}:${id} não carregou: ${e?.message ?? e}`);
       return null;
     }
+  }
+}
+
+/** Último content-state gravado na linha (o que o aparelho deveria estar mostrando). */
+function lerConteudo(l: Pick<Linha, 'conteudo_json'>): ConteudoCard | null {
+  if (!l.conteudo_json) return null;
+  try {
+    return JSON.parse(l.conteudo_json) as ConteudoCard;
+  } catch {
+    return null;
   }
 }
 

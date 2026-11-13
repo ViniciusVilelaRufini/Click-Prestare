@@ -65,7 +65,9 @@ export class ApnsClient {
     const jwt = await this.obterJwt();
     if (!jwt) return { status: 0, motivo: 'sem-chave' };
     try {
-      return await this.post(token, JSON.stringify(corpo), prioridade, jwt);
+      const r = await this.post(token, JSON.stringify(corpo), prioridade, jwt);
+      // Timeout: não repete (o tempo do porteiro já foi gasto); a reserva cobre.
+      return r;
     } catch (e: any) {
       // Sessão HTTP/2 caída (GOAWAY, rede): descarta e tenta uma vez numa nova.
       this.fecharSessao();
@@ -129,7 +131,17 @@ export class ApnsClient {
   }
 
   private post(token: string, corpo: string, prioridade: 5 | 10, jwt: string): Promise<RespostaApns> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolveOriginal, reject) => {
+      // Toda saída passa por aqui uma vez só. Um stream cancelado pelo timeout
+      // (RST_STREAM CANCEL) não emite 'error' nem 'end' no Node: sem o
+      // 'close' e o resolve do timeout, a promessa ficaria pendurada e
+      // travaria o pedido do porteiro e o tique.
+      let terminou = false;
+      const resolve = (r: RespostaApns) => {
+        if (terminou) return;
+        terminou = true;
+        resolveOriginal(r);
+      };
       const req = this.obterSessao().request({
         ':method': 'POST',
         ':path': `/3/device/${token}`,
@@ -139,7 +151,11 @@ export class ApnsClient {
         'apns-priority': String(prioridade),
         'content-type': 'application/json',
       });
-      req.setTimeout(10_000, () => req.close(http2.constants.NGHTTP2_CANCEL));
+      req.setTimeout(8_000, () => {
+        resolve({ status: 0, motivo: 'timeout' });
+        req.close(http2.constants.NGHTTP2_CANCEL);
+      });
+      req.on('close', () => resolve({ status, motivo: status ? undefined : 'fechado' }));
       let status = 0;
       let dados = '';
       req.on('response', (h) => {
@@ -158,7 +174,11 @@ export class ApnsClient {
         }
         resolve({ status, ...(motivo ? { motivo } : {}) });
       });
-      req.on('error', reject);
+      req.on('error', (e) => {
+        if (terminou) return;
+        terminou = true;
+        reject(e);
+      });
       req.end(corpo);
     });
   }
