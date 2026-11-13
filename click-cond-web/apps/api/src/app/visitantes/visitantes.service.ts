@@ -1071,7 +1071,6 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               return false;
             });
 
-            const authStatus = isAutorizado ? 'autorizado' : isPendente ? 'pendente' : null;
             const noLocalApto = regs.some((r) => r.data_entrada && !r.data_saida);
             // Mesma condição que faz o check-in recusar ("autorização expirada"):
             // autorização do morador vencida numa visita ainda não usada, sem
@@ -1082,6 +1081,28 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             // saiu (ou foi liberado de novo) por visitas posteriores.
             const criadaEm = (r: (typeof regs)[number]) => (r.created_at ? new Date(r.created_at).getTime() : 0);
             const maisRecenteApto = regs.reduce((m, r) => (criadaEm(r) > criadaEm(m) ? r : m), regs[0]);
+            // A resposta mais recente do morador foi NEGAR (e ninguém liberou
+            // depois: negar grava liberado=0; a portaria liberando grava 1).
+            // Sem isto a linha caía na janela da visita e mostrava "Autorizado".
+            const semEstadoAtivo = !isAutorizado && !isPendente && !noLocalApto;
+            const negadoApto =
+              semEstadoAtivo &&
+              (maisRecenteApto as any).auth_status === 'negado' &&
+              maisRecenteApto.liberado !== 1 &&
+              !maisRecenteApto.data_entrada;
+            // Pedido ao morador sem resposta além do prazo (o morador não pode
+            // mais responder: `autorizar` recusa depois de 10 min).
+            const pedidoExpiradoApto =
+              semEstadoAtivo &&
+              (maisRecenteApto as any).auth_status === 'pendente' &&
+              !pedidoPendenteAtual(maisRecenteApto);
+            const authStatus = isAutorizado
+              ? 'autorizado'
+              : isPendente
+                ? 'pendente'
+                : negadoApto
+                  ? 'negado'
+                  : null;
             const autorizacaoExpirada =
               !isAutorizado &&
               !noLocalApto &&
@@ -1110,6 +1131,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
                 : null,
               temPinAtivo: regs.some((r) => Boolean(r.codigo_acesso && !r.data_saida)),
               autorizacao_expirada: autorizacaoExpirada,
+              pedido_expirado: pedidoExpiradoApto,
               noLocal: noLocalApto,
               data_entrada: best.data_entrada?.toISOString() ?? null,
               data_saida: best.data_saida?.toISOString() ?? null,
@@ -1150,8 +1172,37 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             face_sync_status: p.face_sync_status,
             face_enrolled_at: p.face_enrolled_at ? new Date(p.face_enrolled_at).toISOString() : null,
             codigo_acesso: null, // Sanitizado conforme LGPD (Art. 46): credencial física nunca deve ser exposta na listagem
-            liberado: principal?.liberado ?? 1,
+            // Sem visita não há liberação nenhuma (o default 1 mostrava
+            // "Liberado" e oferecia ações que miravam o id da Pessoa).
+            liberado: principal ? principal.liberado : 0,
             bloqueado: p.bloqueado === 1 || principal?.bloqueado === 1 ? 1 : 0,
+            // Mesmo contrato do caminho legado: tipo, unidade e tag da visita
+            // principal. Sem eles /prestadores ficava vazia e editar só o nome
+            // virava o prestador em visitante e apagava a tag.
+            is_prestador: principal
+              ? principal.is_prestador === 1 ? 1 : 0
+              : (p as any).tipo_pessoa === 'prestador' ? 1 : 0,
+            is_visitante: principal
+              ? principal.is_visitante
+              : (p as any).tipo_pessoa === 'prestador' ? 0 : 1,
+            id_apartamento: principal?.id_apartamento ?? principal?.apartamento?.id ?? null,
+            // A tag migra para a visita ativa (visitaParaNovaPassagem): fica
+            // numa visita só, que nem sempre é a principal.
+            tag_rfid:
+              principal?.tag_rfid ??
+              arr.map((r) => (r as any).tag_rfid).find((t) => t && String(t).trim()) ??
+              null,
+            statusLabel: noLocal
+              ? 'No condomínio'
+              : arr.some((r) =>
+                    r.is_prestador === 1
+                      ? r.liberado === 1
+                      : r.liberado === 1 && !r.data_entrada && !r.data_saida,
+                  )
+                ? 'Liberado'
+                : temPinAtivo
+                  ? 'Agendado'
+                  : 'Histórico',
             data_hora_inicio: principal?.data_hora_inicio ? new Date(principal.data_hora_inicio).toISOString() : null,
             data_hora_termino: principal?.data_hora_termino ? new Date(principal.data_hora_termino).toISOString() : null,
             // Mesmo contrato do legado: entrada/saída da visita ATUAL
@@ -1176,10 +1227,16 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               const ativo =
                 apartamentosVisitados.find((a) => a.auth_status === 'autorizado') ||
                 apartamentosVisitados.find((a) => a.auth_status === 'pendente');
+              // Negativa / pedido vencido só sobem para a pessoa quando nenhuma
+              // unidade tem algo valendo (liberação, pedido, alguém dentro).
+              const nadaValendo = !ativo && !apartamentosVisitados.some((a) => a.liberado || a.noLocal);
+              const negado = nadaValendo ? apartamentosVisitados.find((a) => a.auth_status === 'negado') : undefined;
+              const ref = ativo ?? negado;
               return {
-                auth_status: ativo?.auth_status ?? null,
-                auth_solicitado_em: ativo?.auth_solicitado_em ?? null,
-                auth_respondido_em: ativo?.auth_respondido_em ?? null,
+                auth_status: ref?.auth_status ?? null,
+                auth_solicitado_em: ref?.auth_solicitado_em ?? null,
+                auth_respondido_em: ref?.auth_respondido_em ?? null,
+                pedido_expirado: nadaValendo && !negado && apartamentosVisitados.some((a) => a.pedido_expirado),
               };
             })(),
             autorizacao_expirada: apartamentosVisitados.some((a) => a.autorizacao_expirada),

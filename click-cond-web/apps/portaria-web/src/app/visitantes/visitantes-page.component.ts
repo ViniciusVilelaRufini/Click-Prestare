@@ -1282,8 +1282,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     if ((v as any).liberado === 1 && !this.autorizacaoExpirada(v)) return 'liberado';
     
     const now = Date.now();
-    // 4. Dentro do período de liberação (ainda não entrou)
-    if (v.data_hora_inicio && v.data_hora_termino) {
+    // 4. Dentro do período de liberação (ainda não entrou). A janela sozinha
+    // não autoriza: sem liberação (morador negou, pedido venceu, cópia de
+    // visita) a linha mostrava "Autorizado" e oferecia Registrar Entrada.
+    if ((v as any).liberado === 1 && v.data_hora_inicio && v.data_hora_termino) {
       const inicio = new Date(v.data_hora_inicio).getTime();
       const fim = new Date(v.data_hora_termino).getTime();
       if (now >= inicio && now <= fim) return 'autorizado';

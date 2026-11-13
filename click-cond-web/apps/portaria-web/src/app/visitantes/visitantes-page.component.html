@@ -925,10 +925,17 @@
                         </span>
                       }
                       @case ('saiu') {
-                        <span class="ps-tag">
-                          <span class="ps-dot ps-dot-ink"></span>
-                          Saiu
-                        </span>
+                        @if ($any(v).pedido_expirado) {
+                          <span class="ps-tag" title="O morador não respondeu em 10 min. Solicite de novo.">
+                            <span class="ps-dot ps-dot-warn"></span>
+                            Pedido expirado
+                          </span>
+                        } @else {
+                          <span class="ps-tag">
+                            <span class="ps-dot ps-dot-ink"></span>
+                            Saiu
+                          </span>
+                        }
                       }
                     }
                   }
@@ -1368,10 +1375,17 @@
                         </span>
                       }
                       @case ('saiu') {
-                        <span class="ps-tag">
-                          <span class="ps-dot ps-dot-ink"></span>
-                          Saiu
-                        </span>
+                        @if ($any(v).pedido_expirado) {
+                          <span class="ps-tag" title="O morador não respondeu em 10 min. Solicite de novo.">
+                            <span class="ps-dot ps-dot-warn"></span>
+                            Pedido expirado
+                          </span>
+                        } @else {
+                          <span class="ps-tag">
+                            <span class="ps-dot ps-dot-ink"></span>
+                            Saiu
+                          </span>
+                        }
                       }
                     }
                   }
@@ -1864,7 +1878,7 @@
           </div>
 
           <!-- ESTADO: EXPIRADO (> 10 min) -->
-          @if (autorizacaoExpirada(ap)) {
+          @if (autorizacaoExpirada(ap) || ap.pedido_expirado) {
             <div class="p-4 rounded-xl bg-slate-500/10 border border-slate-500/20 flex items-start gap-3 animate-fade-in">
               <div class="ps-ico !w-8 !h-8 mt-0.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2102,7 +2116,7 @@
           }
 
           <!-- ESTADO: SEM SOLICITAÇÃO ATIVA / INICIAL (nunca fica em branco) -->
-          @if (!autorizacaoExpirada(ap) && ap.auth_status !== 'pendente' && ap.auth_status !== 'autorizado' && ap.auth_status !== 'negado') {
+          @if (!autorizacaoExpirada(ap) && !ap.pedido_expirado && ap.auth_status !== 'pendente' && ap.auth_status !== 'autorizado' && ap.auth_status !== 'negado') {
             <div class="p-4 rounded-xl bg-slate-500/10 border border-slate-500/20 flex items-start gap-3 animate-fade-in">
               <div class="ps-ico !w-8 !h-8 mt-0.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

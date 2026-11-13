@@ -107,6 +107,8 @@ export interface ApartamentoVisitado {
   liberado?: boolean;
   /** Autorização do morador vencida numa visita ainda não usada: o check-in seria recusado. */
   autorizacao_expirada?: boolean;
+  /** Pedido ao morador sem resposta além do prazo (10 min). */
+  pedido_expirado?: boolean;
   auth_status?: 'pendente' | 'autorizado' | 'negado' | null;
   auth_solicitado_em?: string | null;
   auth_respondido_em?: string | null;
@@ -129,6 +131,8 @@ export interface Pessoa {
   id_pessoa?: number;
   /** Algum apartamento com autorização do morador vencida (ver ApartamentoVisitado). */
   autorizacao_expirada?: boolean;
+  /** Pedido ao morador sem resposta além do prazo, sem nada valendo na pessoa. */
+  pedido_expirado?: boolean;
   nome: string;
   doc_identificacao: string | null;
   foto_pessoa: string | null;

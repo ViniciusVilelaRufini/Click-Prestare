@@ -32,6 +32,21 @@ describe('VisitantesPageComponent.getStatusVisitante', () => {
     expect(tela.getStatusVisitante(v)).toBe('agendado');
   });
 
+  describe('sem liberação (liberado=0), a janela da visita não autoriza nada', () => {
+    const inicio = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const fim = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+
+    it('morador negou: não é "autorizado"', () => {
+      const v: any = { liberado: 0, auth_status: 'negado', data_hora_inicio: inicio, data_hora_termino: fim };
+      expect(tela.getStatusVisitante(v)).not.toBe('autorizado');
+    });
+
+    it('pedido venceu sem resposta: não é "autorizado"', () => {
+      const v: any = { liberado: 0, auth_status: null, pedido_expirado: true, data_hora_inicio: inicio, data_hora_termino: fim };
+      expect(tela.getStatusVisitante(v)).not.toBe('autorizado');
+    });
+  });
+
   it('saída da visita atual continua "saiu"', () => {
     const v: any = { liberado: 0, data_entrada: saidaAntiga, data_saida: saidaAntiga, ultSaida: saidaAntiga };
     expect(tela.getStatusVisitante(v)).toBe('saiu');
