@@ -120,7 +120,7 @@ export class OcorrenciasService {
     assertOperador(user, contexto);
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id },
-      select: { id_condominio: true, tipo: true },
+      select: { id_condominio: true, tipo: true, status: true },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${id}`);
@@ -431,12 +431,16 @@ export class OcorrenciasService {
   }
 
   async updateStatus(id: number, status: OcorrenciaStatus, user?: JwtPayload) {
-    await this.loadParaAtendimento(id, user, 'alterar status da ocorrência');
+    const atual = await this.loadParaAtendimento(id, user, 'alterar status da ocorrência');
+    // Reabrir: o prazo recomeça de agora pelo SLA da categoria (a mesma conta
+    // do cadastro). Com o prazo original a ocorrência voltava já "Atrasada".
+    const reabrindo = status === 'Pendente' && (atual.status ?? '').trim().toLowerCase() === 'solucionado';
+    const data = reabrindo ? { status, prazo: await this.prazoDaCategoria(atual.tipo ?? null) } : { status };
     let atualizado;
     try {
       atualizado = await this.prisma.ocorrencias.update({
         where: { id },
-        data: { status },
+        data,
       });
     } catch {
       throw new NotFoundException(`Ocorrência ${id} não encontrada`);
