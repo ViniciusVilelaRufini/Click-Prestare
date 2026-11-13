@@ -213,6 +213,20 @@ export class VagasService {
       throw new BadRequestException('Tipo de liberação inválido.');
     }
 
+    // Mesma regra do app: o carro tem de ser de um morador DESTE apartamento, neste condomínio —
+    // senão a vaga (e a placa devolvida em mapVaga) apontava para veículo de outra unidade/condomínio.
+    // Conferido antes do ramo de visitante, que já grava.
+    const idVeiculo = Number(body?.id_veiculo) || null;
+    if (idVeiculo) {
+      const veiculo = moradorIds.length
+        ? await this.prisma.veiculos.findFirst({
+            where: { id: idVeiculo, id_condominio: apto.id_condominio, id_morador: { in: moradorIds } },
+            select: { id: true },
+          })
+        : null;
+      if (!veiculo) throw new BadRequestException('Veículo não encontrado neste apartamento.');
+    }
+
     const [ativas, veiculosProprios] = await Promise.all([
       this.prisma.vagas.count({ where: { id_apartamento: apto.id, ativo: 1 } }),
       moradorIds.length
@@ -328,7 +342,7 @@ export class VagasService {
         id_visitante: idVisitante,
         id_visita: idVisita,
         id_morador_beneficiario: idBeneficiario,
-        id_veiculo: Number(body?.id_veiculo) || null,
+        id_veiculo: idVeiculo,
         placa,
         inicio,
         fim,
