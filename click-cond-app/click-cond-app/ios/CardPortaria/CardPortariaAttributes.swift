@@ -41,6 +41,9 @@ struct CardPortariaAttributes: ActivityAttributes {
   /// Tema escolhido no app: claro | escuro | sistema. Ausente (servidor ou
   /// app antigo) = segue o aparelho.
   var tema: String?
+  /// Miniatura JPEG da foto do visitante em base64 (≤ ~2,6 KB, cabe no push
+  /// de 4 KB). Ausente = card com as iniciais.
+  var foto: String?
 }
 
 @available(iOS 16.1, *)

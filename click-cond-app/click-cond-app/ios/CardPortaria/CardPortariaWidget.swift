@@ -36,7 +36,7 @@ struct CardPortariaLiveActivity: Widget {
       // embaixo para a barra e os botões.
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          AvatarPessoa(nome: estado.nome, tamanho: 36)
+          AvatarPessoa(nome: estado.nome, foto: context.attributes.foto, tamanho: 36)
             .padding(.leading, 4)
             .environment(\.paleta, .ilha)
         }
@@ -202,11 +202,12 @@ struct NomeEUnidade: View {
 /// Pessoa: iniciais, nome, tipo e unidade.
 struct LinhaVisitante: View {
   let estado: CardPortariaAttributes.ContentState
+  var foto: String? = nil
   var avatar: CGFloat = 38
 
   var body: some View {
     HStack(spacing: 12) {
-      AvatarPessoa(nome: estado.nome, tamanho: avatar)
+      AvatarPessoa(nome: estado.nome, foto: foto, tamanho: avatar)
       NomeEUnidade(estado: estado)
       Spacer(minLength: 0)
     }
@@ -254,7 +255,7 @@ struct TelaBloqueio: View {
       .frame(height: 18)
 
       HStack(alignment: .center, spacing: 8) {
-        LinhaVisitante(estado: estado)
+        LinhaVisitante(estado: estado, foto: attributes.foto)
         NumeroDireita(estado: estado, tamanho: 30)
       }
       .padding(.top, 10)

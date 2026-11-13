@@ -4,6 +4,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { executarComLock } from '../common/lock-distribuido';
 import { ApnsClient, RespostaApns, tokenMorto } from './apns.client';
+import { miniaturaBase64 } from './miniatura';
 import {
   BaseCard,
   ConteudoCard,
@@ -12,6 +13,7 @@ import {
   montarConteudo,
   payloadAtualizacao,
   payloadFim,
+  cabeNoPush,
   payloadInicio,
   temaValido,
   textoAlerta,
@@ -41,6 +43,8 @@ export interface PedidoCard extends BaseCard {
   origem: OrigemPedido;
   id: number;
   fotoUrl?: string | null;
+  /** Foto como está no cadastro (URL do bucket, chave ou data URL) para a miniatura do card. */
+  fotoOrigem?: string | null;
 }
 
 export interface QuemRespondeu {
@@ -69,6 +73,8 @@ type Linha = {
 };
 
 export const RESERVA_MS = 10_000;
+/** Teto para ler e reduzir a foto do visitante; passou, o card sai com as iniciais. */
+export const FOTO_TETO_MS = 3_000;
 export const LIBERADO_ESPERA_SEG = 600;
 export const DISMISSAL_ENTROU_SEG = 300;
 export const DISMISSAL_FINAL_SEG = 120;
@@ -136,6 +142,9 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     const t = setTimeout(() => void this.verificarReserva(p.origem, p.id).catch(() => undefined), RESERVA_MS);
     t.unref?.();
 
+    // Foto do visitante em miniatura, uma vez para todos os aparelhos.
+    const foto = await this.fotoDoCard(p);
+
     type Aparelho = { id_user: number; fcm_token: string; plataforma: string | null; card_token_inicio: string | null; card_android: number; card_tema?: string | null };
     const alvos: Aparelho[] = [];
     const cobertos = new Set<string>();
@@ -153,7 +162,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Em paralelo: um aparelho lento não atrasa os outros moradores.
-    await Promise.all(alvos.map((a) => this.abrirNoAparelho(p, a, conteudo, pushComum, agora).catch((e) =>
+    await Promise.all(alvos.map((a) => this.abrirNoAparelho(p, a, conteudo, pushComum, agora, foto).catch((e) =>
       this.logger.warn(`Card ao vivo (aparelho do usuário ${a.id_user}): ${e?.message ?? e}`),
     )));
   }
@@ -164,25 +173,22 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     conteudo: ConteudoCard,
     pushComum: ReturnType<CardAoVivoService['pushComum']>,
     agora: Date,
+    foto: string | null = null,
   ) {
     const plataforma = (a.plataforma ?? '').toLowerCase();
     if (plataforma === 'ios' && a.card_token_inicio) {
       const linha = await this.criarLinha(p, a.id_user, 'ios', a.fcm_token, a.card_token_inicio, agora, conteudo);
       // Tema do app no aparelho: o card do iPhone segue Claro/Escuro/Sistema.
       const tema = temaValido(a.card_tema);
-      const r = await this.apns.enviar(
-        a.card_token_inicio,
-        payloadInicio(
-          conteudo,
-          { idCartao: String(linha.id), idPedido: String(p.id), origem: p.origem, ...(tema ? { tema } : {}) },
-          epochSeg(agora),
-        ),
-        10,
-      );
+      const atributos = { idCartao: String(linha.id), idPedido: String(p.id), origem: p.origem, ...(tema ? { tema } : {}) };
+      let corpo = payloadInicio(conteudo, foto ? { ...atributos, foto } : atributos, epochSeg(agora));
+      // Passou do limite do APNs (nome muito longo + foto): sai sem a foto.
+      if (foto && !cabeNoPush(corpo)) corpo = payloadInicio(conteudo, atributos, epochSeg(agora));
+      const r = await this.apns.enviar(a.card_token_inicio, corpo, 10);
       if (r.status !== 200) await this.falhouAbrir(linha, r, pushComum);
     } else if (plataforma === 'android' && a.card_android === 1) {
       const linha = await this.criarLinha(p, a.id_user, 'android', a.fcm_token, null, agora, conteudo);
-      const r = await this.notifications.enviarDados(a.fcm_token, this.dadosAndroid(linha, conteudo));
+      const r = await this.notifications.enviarDados(a.fcm_token, this.dadosAndroid(linha, conteudo, foto));
       if (r !== 'ok') {
         await this.marcar(linha.id, { encerrado_em: agora, reserva_enviada_em: agora });
         if (r !== 'morto') await this.notifications.enviarParaAparelho(a.fcm_token, pushComum.titulo, pushComum.corpo, pushComum.dados);
@@ -455,8 +461,12 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.cards_Ao_Vivo.update({ where: { id }, data }).catch(() => undefined);
   }
 
-  private dadosAndroid(l: Pick<Linha, 'id' | 'id_pedido' | 'origem'> & { origem: string }, c: ConteudoCard): Record<string, string> {
-    return {
+  private dadosAndroid(
+    l: Pick<Linha, 'id' | 'id_pedido' | 'origem'> & { origem: string },
+    c: ConteudoCard,
+    foto: string | null = null,
+  ): Record<string, string> {
+    const dados: Record<string, string> = {
       type: 'card_portaria',
       id_cartao: String(l.id),
       id_pedido: String(l.id_pedido),
@@ -464,6 +474,45 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       fase: c.fase,
       conteudo: JSON.stringify(c),
     };
+    // Só na abertura: o app guarda a foto do card e a reusa nas fases seguintes.
+    if (foto && cabeNoPush({ ...dados, foto })) dados['foto'] = foto;
+    return dados;
+  }
+
+  /**
+   * Miniatura da foto do visitante (base64), ou null — sem foto, o card mostra
+   * as iniciais. Teto de 3 s: a foto não pode atrasar o aviso.
+   */
+  async fotoDoCard(p: Pick<PedidoCard, 'fotoUrl' | 'fotoOrigem'>): Promise<string | null> {
+    const origem = (p.fotoOrigem ?? p.fotoUrl ?? '').trim();
+    if (!origem) return null;
+    let teto: ReturnType<typeof setTimeout> | undefined;
+    const trabalho = (async () => {
+      let bytes: Buffer | null = null;
+      const i = origem.indexOf(';base64,');
+      if (origem.startsWith('data:image/') && i > 0) {
+        const b64 = origem.slice(i + 8);
+        if (b64.length <= 11_000_000) bytes = Buffer.from(b64, 'base64');
+      } else {
+        bytes = (await this.storage?.lerArquivoBytes(origem)) ?? null;
+      }
+      return bytes ? miniaturaBase64(bytes) : null;
+    })().catch((e: any) => {
+      // Também depois do teto: erro tardio não pode virar rejeição sem dono.
+      this.logger.warn(`Card ao vivo: foto do pedido não carregou: ${e?.message ?? e}`);
+      return null;
+    });
+    try {
+      return await Promise.race([
+        trabalho,
+        new Promise<null>((r) => {
+          teto = setTimeout(() => r(null), FOTO_TETO_MS);
+          (teto as any)?.unref?.();
+        }),
+      ]);
+    } finally {
+      if (teto) clearTimeout(teto);
+    }
   }
 
   /** O push de hoje (mesmo título, corpo e `type`), para quem não tem card. */

@@ -8,6 +8,7 @@
 // Prévia aprovada: scratchpad card-preview (13/11).
 
 import SwiftUI
+import UIKit
 
 struct Paleta {
   let superficie: Color
@@ -189,17 +190,29 @@ struct TagFase: View {
   }
 }
 
-/// Avatar: círculo com contorno e as iniciais do visitante.
+/// Miniatura JPEG em base64 que o servidor manda no push (atributo `foto`).
+func imagemDaFoto(_ base64: String?) -> UIImage? {
+  guard let base64, !base64.isEmpty, let dados = Data(base64Encoded: base64) else { return nil }
+  return UIImage(data: dados)
+}
+
+/// Avatar: foto do visitante num círculo; sem foto, as iniciais.
 struct AvatarPessoa: View {
   let nome: String
+  var foto: String? = nil
   var tamanho: CGFloat = 44
   @Environment(\.paleta) private var p
 
   var body: some View {
     ZStack {
-      Circle().stroke(p.borda, lineWidth: 1)
       let ini = iniciais(nome)
-      if ini.isEmpty {
+      if let imagem = imagemDaFoto(foto) {
+        Image(uiImage: imagem)
+          .resizable()
+          .scaledToFill()
+          .frame(width: tamanho, height: tamanho)
+          .clipShape(Circle())
+      } else if ini.isEmpty {
         Image(systemName: "person")
           .font(.system(size: tamanho * 0.36, weight: .light))
           .foregroundColor(p.ink)
@@ -211,6 +224,7 @@ struct AvatarPessoa: View {
       }
     }
     .frame(width: tamanho, height: tamanho)
+    .overlay(Circle().stroke(p.borda, lineWidth: 1))
   }
 }
 

@@ -44,6 +44,15 @@ export interface AtributosCard {
   origem: string;
   /** Tema escolhido no app ("claro" | "escuro" | "sistema"); ausente = segue o aparelho. */
   tema?: TemaCard;
+  /** Miniatura JPEG da foto do visitante em base64 (sem prefixo); ausente = iniciais. */
+  foto?: string;
+}
+
+/** O APNs (Live Activity) e o FCM aceitam até 4 KB; margem para o envelope. */
+export const LIMITE_PUSH_BYTES = 3900;
+
+export function cabeNoPush(corpo: unknown): boolean {
+  return Buffer.byteLength(JSON.stringify(corpo), 'utf8') <= LIMITE_PUSH_BYTES;
 }
 
 export type TemaCard = 'claro' | 'escuro' | 'sistema';

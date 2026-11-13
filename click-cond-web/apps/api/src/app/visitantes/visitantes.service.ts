@@ -4828,6 +4828,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               apto: null,
               solicitadoEm: v.auth_solicitado_em ?? new Date(),
               fotoUrl: photoUrl || null,
+              fotoOrigem: v.foto_pessoa ?? null,
             },
             moradores.map((m) => m.id),
           );

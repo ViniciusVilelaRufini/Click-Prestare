@@ -302,6 +302,26 @@ export class StorageService {
   }
 
   /**
+   * Bytes de um arquivo do NOSSO bucket (URL canônica, assinada ou chave
+   * crua), até `maxBytes`. null se não for do bucket, não existir, passar do
+   * limite ou o storage estiver desativado. Nunca busca URL de outro host.
+   */
+  async lerArquivoBytes(valor: string, maxBytes = 8 * 1024 * 1024): Promise<Buffer | null> {
+    if (!this.enabled || !this.client) return null;
+    const key = this.keyDoBucket(valor) ?? this.chaveCrua(valor);
+    if (!key) return null;
+    try {
+      const obj = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+      if ((obj.ContentLength ?? 0) > maxBytes) return null;
+      const bytes = await obj.Body?.transformToByteArray();
+      return bytes && bytes.length <= maxBytes ? Buffer.from(bytes) : null;
+    } catch (err: any) {
+      if (err?.name === 'NoSuchKey' || err?.$metadata?.httpStatusCode === 404) return null;
+      throw err;
+    }
+  }
+
+  /**
    * Link temporário de leitura para um arquivo do bucket (privado). URL de
    * outro host, data URL ou storage desativado: devolve como está.
    */

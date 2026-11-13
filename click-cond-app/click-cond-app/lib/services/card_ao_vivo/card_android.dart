@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:click/controllers/controller_visitantes.dart';
@@ -10,6 +11,7 @@ import 'package:click/utils/log.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// Card ao vivo da portaria remota no Android: uma notificação fixa por
 /// pedido, montada pelo app a partir do push de dados `type: card_portaria`
@@ -112,8 +114,12 @@ class CardAndroid {
 
     if (data['fase'] == 'encerrado') {
       await _plugin.cancel(id: idCartao);
+      await _apagarFoto(idCartao);
       return;
     }
+    // A foto só vem na abertura; as fases seguintes reusam o arquivo.
+    final foto = data['foto'];
+    if (foto is String && foto.isNotEmpty) await _guardarFoto(idCartao, foto);
     Map<String, dynamic> conteudo;
     try {
       conteudo = Map<String, dynamic>.from(jsonDecode('${data['conteudo']}') as Map);
@@ -141,9 +147,12 @@ class CardAndroid {
       'entrou' => 5 * 60 * 1000,
       _ => 2 * 60 * 1000,
     };
+    final foto = await _arquivoFoto(idCartao);
     final detalhes = AndroidNotificationDetails(
       canalId,
       'Portaria remota',
+      // Foto do visitante (miniatura do servidor) como imagem grande.
+      largeIcon: foto != null ? FilePathAndroidBitmap(foto) : null,
       importance: Importance.max,
       priority: Priority.max,
       category: AndroidNotificationCategory.status,
@@ -190,6 +199,41 @@ class CardAndroid {
     } catch (e) {
       logDebug('Card ao vivo: confirmação falhou: $e');
     }
+  }
+
+  static Future<File?> _caminhoFoto(int idCartao) async {
+    try {
+      final dir = await getTemporaryDirectory();
+      return File('${dir.path}/card_foto_$idCartao.jpg');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> _guardarFoto(int idCartao, String base64) async {
+    try {
+      final f = await _caminhoFoto(idCartao);
+      await f?.writeAsBytes(base64Decode(base64), flush: true);
+    } catch (e) {
+      logDebug('Card ao vivo: foto não gravada: $e');
+    }
+  }
+
+  /// Caminho da foto do card, se o servidor mandou uma.
+  static Future<String?> _arquivoFoto(int idCartao) async {
+    final f = await _caminhoFoto(idCartao);
+    try {
+      return f != null && await f.exists() ? f.path : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> _apagarFoto(int idCartao) async {
+    try {
+      final f = await _caminhoFoto(idCartao);
+      if (f != null && await f.exists()) await f.delete();
+    } catch (_) {}
   }
 
   static Color _corDaFase(String fase) => switch (fase) {

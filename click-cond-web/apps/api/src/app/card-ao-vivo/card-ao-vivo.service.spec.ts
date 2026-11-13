@@ -67,6 +67,8 @@ export function montarCard(opts: {
   usuarios?: Row[];
   visitante?: Row | null;
   cards?: Row[];
+  /** Bytes que o storage devolve para a foto (ausente = sem storage). */
+  fotoBytes?: Buffer | null;
 } = {}) {
   const prisma: any = {
     users_Devices: tabela(opts.aparelhos ?? []),
@@ -94,7 +96,11 @@ export function montarCard(opts: {
     enviarParaAparelho: jest.fn(async () => 'msg-id'),
     enviarDados: jest.fn(async () => 'ok'),
   };
-  const svc = new CardAoVivoService(prisma, notifications);
+  const storage =
+    opts.fotoBytes === undefined
+      ? undefined
+      : ({ lerArquivoBytes: jest.fn(async () => opts.fotoBytes), lerObjetoTexto: jest.fn(async () => null) } as any);
+  const svc = new CardAoVivoService(prisma, notifications, storage);
   const apns = { enviar: jest.fn(async () => ({ status: 200 })) };
   svc.apns = apns as any;
   let agora = T0;
@@ -282,6 +288,36 @@ describe('CardAoVivoService — abrir, reserva, tique', () => {
     const antigo = montarCard({ aparelhos: [aparelhos[0]], usuarios: [usuarios[0]] });
     await antigo.svc.abrir(pedido, [1]);
     expect((antigo.apns.enviar.mock.calls[0] as any[])[1].aps.attributes).not.toHaveProperty('tema');
+  });
+
+  it('foto do visitante vai em miniatura no iPhone (atributos) e no Android (dados), dentro de 4 KB', async () => {
+    jest.useRealTimers();
+    const sharp = (await import('sharp')).default;
+    const fotoBytes = await sharp({ create: { width: 640, height: 480, channels: 3, background: '#7a5c3e' } })
+      .jpeg()
+      .toBuffer();
+    const { svc, apns, notifications } = montarCard({ aparelhos, usuarios, fotoBytes });
+    await svc.abrir({ ...pedido, fotoOrigem: 'https://bucket/visitantes/1.jpg' }, [1, 2]);
+
+    const corpoIos = (apns.enviar.mock.calls[0] as any[])[1];
+    expect(typeof corpoIos.aps.attributes.foto).toBe('string');
+    expect(Buffer.from(corpoIos.aps.attributes.foto, 'base64').subarray(0, 2).toString('hex')).toBe('ffd8'); // JPEG
+    expect(Buffer.byteLength(JSON.stringify(corpoIos))).toBeLessThanOrEqual(3900);
+
+    const dados = (notifications.enviarDados.mock.calls[0] as any[])[1];
+    expect(dados.foto).toBe(corpoIos.aps.attributes.foto);
+  });
+
+  it('sem foto ou foto que não é imagem: card abre com as iniciais', async () => {
+    jest.useRealTimers();
+    const semFoto = montarCard({ aparelhos: [aparelhos[0]], usuarios: [usuarios[0]], fotoBytes: null });
+    await semFoto.svc.abrir({ ...pedido, fotoOrigem: 'https://bucket/visitantes/1.jpg' }, [1]);
+    expect((semFoto.apns.enviar.mock.calls[0] as any[])[1].aps.attributes).not.toHaveProperty('foto');
+
+    const lixo = montarCard({ aparelhos: [aparelhos[0]], usuarios: [usuarios[0]], fotoBytes: Buffer.from('lixo') });
+    await lixo.svc.abrir({ ...pedido, fotoOrigem: 'https://bucket/visitantes/1.jpg' }, [1]);
+    expect(lixo.apns.enviar).toHaveBeenCalledTimes(1);
+    expect((lixo.apns.enviar.mock.calls[0] as any[])[1].aps.attributes).not.toHaveProperty('foto');
   });
 
   it('APNs lento não segura os outros aparelhos (envios em paralelo)', async () => {
