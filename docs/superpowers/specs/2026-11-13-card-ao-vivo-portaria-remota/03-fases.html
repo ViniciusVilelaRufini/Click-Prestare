@@ -1,0 +1,97 @@
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500&family=Barlow+Condensed:wght@300;600&display=swap" rel="stylesheet">
+<style>
+  .fx{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:26px;margin:18px 0 34px}
+  .fx h3{margin:0 0 4px;font-size:15px}
+  .fx p.sm{margin:0 0 12px;font-size:13px;opacity:.7}
+  .scr{background:#000;padding:22px 14px;font-family:"Barlow",sans-serif;color:#fff}
+  .la{background:#141414;border:1px solid #242424;border-radius:22px;padding:16px}
+  .hd{display:flex;align-items:center;gap:10px}
+  .logo{width:22px;height:22px;flex:none}
+  .kick{font-family:"Barlow Condensed";font-weight:600;font-size:12px;letter-spacing:.2em;color:#a3a3a3;text-transform:uppercase}
+  .tag{margin-left:auto;border:1px solid #666;padding:4px 8px;font-family:"Barlow Condensed";font-weight:600;font-size:11px;letter-spacing:.2em;color:#a3a3a3;display:flex;align-items:center;gap:6px}
+  .dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}
+  .y{background:#ffc83d}.g{background:#5ec28a}.r{background:#ff6b6b}.n{background:#666}
+  .row{display:flex;align-items:center;gap:14px;margin-top:14px}
+  .av{width:44px;height:44px;border-radius:50%;border:1px solid #666;display:flex;align-items:center;justify-content:center;flex:none}
+  .nm{font-size:17px;font-weight:500}
+  .sub{font-size:13px;color:#a3a3a3;line-height:1.35}
+  .num{margin-left:auto;font-family:"Barlow Condensed";font-weight:300;font-size:34px;line-height:1}
+  .div{height:1px;background:#242424;margin:14px 0}
+  .trk{display:flex;align-items:center;gap:0}
+  .trk .st{display:flex;flex-direction:column;align-items:flex-start;gap:6px;flex:1}
+  .trk .bar{height:2px;background:#666;width:100%}
+  .trk .bar.on{background:#fff}
+  .trk .lb{font-family:"Barlow Condensed";font-weight:600;font-size:11px;letter-spacing:.2em;color:#8a8a8a}
+  .trk .lb.on{color:#fff}
+  .ln{font-size:13px;margin-top:12px;color:#a3a3a3}
+  .ok{color:#5ec28a}.no{color:#ff6b6b}
+  .di{background:#000;padding:18px;display:flex;justify-content:center}
+  .pill{background:#000;border:1px solid #242424;border-radius:22px;height:38px;width:250px;display:flex;align-items:center;justify-content:space-between;padding:0 12px}
+  .pill .num{font-size:20px;margin:0}
+  .pill .cam{width:12px;height:12px;border-radius:50%;background:#111;border:1px solid #222}
+</style>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="lg" viewBox="0 0 24 24"><rect x="3" y="6" width="8" height="15" fill="none" stroke="#fff" stroke-width="1.5"/><rect x="9" y="2" width="9" height="19" fill="#000" stroke="#fff" stroke-width="1.5"/><g fill="#ffc83d"><rect x="11" y="5" width="2" height="2"/><rect x="14.5" y="5" width="2" height="2"/><rect x="11" y="9" width="2" height="2"/><rect x="14.5" y="9" width="2" height="2"/><rect x="11" y="13" width="2" height="2"/><rect x="14.5" y="13" width="2" height="2"/></g></symbol>
+  <symbol id="us" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></symbol>
+</svg>
+
+<h2>Todas as fases, no padrão Prestare Dark</h2>
+<p class="subtitle">Mesmo visual das imagens aprovadas. A fase 1 (aguardando) é a imagem do Higgsfield; aqui estão as seguintes. Cor só no ponto de 6px e em texto curto.</p>
+
+<div class="fx">
+
+  <div><h3>2. Autorizado</h3><p class="sm">Vira acompanhamento, como o pedido "a caminho" do iFood.</p>
+  <div class="scr"><div class="la">
+    <div class="hd"><svg class="logo"><use href="#lg"/></svg><span class="kick">Portaria remota</span><span class="tag"><span class="dot g"></span>LIBERADO</span></div>
+    <div class="row"><div class="av"><svg width="20" height="20"><use href="#us"/></svg></div><div><div class="nm">Vinicius Vilela</div><div class="sub">Visitante · Bloco A · Apto 106</div></div></div>
+    <div class="div"></div>
+    <div class="trk">
+      <div class="st"><div class="bar on"></div><span class="lb on">PEDIDO</span></div>
+      <div class="st"><div class="bar on"></div><span class="lb on">AUTORIZADO</span></div>
+      <div class="st"><div class="bar"></div><span class="lb">ENTROU</span></div>
+    </div>
+    <div class="ln">Você autorizou às 14:31. Aguardando a entrada.</div>
+  </div></div></div>
+
+  <div><h3>3. Entrou</h3><p class="sm">Fase final; o card some sozinho depois.</p>
+  <div class="scr"><div class="la">
+    <div class="hd"><svg class="logo"><use href="#lg"/></svg><span class="kick">Portaria remota</span><span class="tag"><span class="dot g"></span>NO LOCAL</span></div>
+    <div class="row"><div class="av"><svg width="20" height="20"><use href="#us"/></svg></div><div><div class="nm">Vinicius Vilela</div><div class="sub">Visitante · Bloco A · Apto 106</div></div><div class="num">14:33</div></div>
+    <div class="div"></div>
+    <div class="trk">
+      <div class="st"><div class="bar on"></div><span class="lb on">PEDIDO</span></div>
+      <div class="st"><div class="bar on"></div><span class="lb on">AUTORIZADO</span></div>
+      <div class="st"><div class="bar on"></div><span class="lb on">ENTROU</span></div>
+    </div>
+    <div class="ln"><span class="ok">Entrou</span> · Visitante</div>
+  </div></div></div>
+
+  <div><h3>Negado</h3><p class="sm">Fecha na hora.</p>
+  <div class="scr"><div class="la">
+    <div class="hd"><svg class="logo"><use href="#lg"/></svg><span class="kick">Portaria remota</span><span class="tag"><span class="dot r"></span>NEGADO</span></div>
+    <div class="row"><div class="av"><svg width="20" height="20"><use href="#us"/></svg></div><div><div class="nm">Vinicius Vilela</div><div class="sub">Visitante · Bloco A · Apto 106</div></div></div>
+    <div class="ln"><span class="no">Você negou</span> a entrada às 14:31.</div>
+  </div></div></div>
+
+  <div><h3>Respondido por outro morador</h3><p class="sm">Nos outros celulares do apartamento.</p>
+  <div class="scr"><div class="la">
+    <div class="hd"><svg class="logo"><use href="#lg"/></svg><span class="kick">Portaria remota</span><span class="tag"><span class="dot g"></span>LIBERADO</span></div>
+    <div class="row"><div class="av"><svg width="20" height="20"><use href="#us"/></svg></div><div><div class="nm">Vinicius Vilela</div><div class="sub">Visitante · Bloco A · Apto 106</div></div></div>
+    <div class="ln">Autorizado por <span style="color:#fff">Marina</span> às 14:31.</div>
+  </div></div></div>
+
+  <div><h3>Sem resposta</h3><p class="sm">Contagem chegou a zero; a portaria decide.</p>
+  <div class="scr"><div class="la">
+    <div class="hd"><svg class="logo"><use href="#lg"/></svg><span class="kick">Portaria remota</span><span class="tag"><span class="dot n"></span>EXPIRADO</span></div>
+    <div class="row"><div class="av"><svg width="20" height="20"><use href="#us"/></svg></div><div><div class="nm">Vinicius Vilela</div><div class="sub">Visitante · Bloco A · Apto 106</div></div><div class="num" style="color:#8a8a8a">00:00</div></div>
+    <div class="ln">Sem resposta. A portaria decide a entrada.</div>
+  </div></div></div>
+
+  <div><h3>Ilha Dinâmica recolhida</h3><p class="sm">Aguardando e depois de autorizar.</p>
+  <div class="di" style="flex-direction:column;gap:12px;align-items:center">
+    <div class="pill"><svg width="20" height="20"><use href="#lg"/></svg><span class="cam"></span><span class="num">02:41</span></div>
+    <div class="pill"><svg width="20" height="20"><use href="#lg"/></svg><span class="cam"></span><span class="kick" style="color:#fff;display:flex;align-items:center;gap:6px"><span class="dot g"></span>LIBERADO</span></div>
+  </div></div>
+
+</div>

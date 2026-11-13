@@ -127,6 +127,7 @@ model Users {
   votacoesUsuarios    Votacoes_Usuarios[]
   financeiros         Financeiro[]
   devices             Users_Devices[]
+  cardsAoVivo         Cards_Ao_Vivo[]
   mfaChallenges       Mfa_Challenges[]
   trustedDevices      User_Trusted_Devices[]
   deliveryAtendimentosCriados DeliveryAtendimentos[] @relation("DeliveryMorador")
@@ -147,11 +148,47 @@ model Users_Devices {
   /// migra para o novo usuário em vez de duplicar.
   fcm_token  String   @unique(map: "uni_users_devices_token") @db.VarChar(500)
   plataforma String?  @db.VarChar(20)
+  /// iPhone (iOS 17.2+): token de push-to-start da Live Activity do card ao
+  /// vivo da portaria remota. Null = o aparelho recebe o push comum.
+  card_token_inicio String? @db.VarChar(200)
   created_at DateTime @default(now()) @db.DateTime(0)
   updated_at DateTime @default(now()) @updatedAt @db.DateTime(0)
   user       Users    @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_users_devices_user")
 
   @@index([id_user], map: "idx_users_devices_user")
+}
+
+/// Card ao vivo da portaria remota: um por pedido de autorização por aparelho.
+///
+/// `origem` diz de qual tabela é o `id_pedido`: 'visitante' (Visitantes.id,
+/// caminho antigo) ou 'visita' (Visitas.id, migração Pessoas/Visitas). Sem FK
+/// para o pedido de propósito: a linha é efêmera (minutos) e não pode impedir
+/// apagar um visitante.
+model Cards_Ao_Vivo {
+  id                 Int       @id @default(autoincrement())
+  origem             String    @db.VarChar(10)
+  id_pedido          Int
+  id_user            Int
+  /// 'ios' (Live Activity) ou 'android' (notificação fixa).
+  plataforma         String    @db.VarChar(10)
+  /// Token FCM do aparelho: destino do Android e do push comum da reserva.
+  fcm_token          String    @db.VarChar(500)
+  /// iOS: token de push-to-start usado para abrir o card.
+  token_inicio       String?   @db.VarChar(200)
+  /// iOS: token da Live Activity aberta, que o aparelho manda ao confirmar.
+  token_atualizacao  String?   @db.VarChar(200)
+  /// 'aguardando' | 'liberado' | 'entrou' | 'negado' | 'expirado'
+  fase               String    @db.VarChar(20)
+  fase_em            DateTime  @db.DateTime(0)
+  confirmado_em      DateTime? @db.DateTime(0)
+  reserva_enviada_em DateTime? @db.DateTime(0)
+  encerrado_em       DateTime? @db.DateTime(0)
+  created_at         DateTime  @default(now()) @db.DateTime(0)
+  user               Users     @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_cards_ao_vivo_user")
+
+  @@index([origem, id_pedido], map: "idx_cav_pedido")
+  @@index([encerrado_em, fase], map: "idx_cav_aberto_fase")
+  @@index([id_user], map: "idx_cav_user")
 }
 
 model Condominios {
