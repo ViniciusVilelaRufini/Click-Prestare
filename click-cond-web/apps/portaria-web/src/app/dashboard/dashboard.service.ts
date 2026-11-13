@@ -7,7 +7,10 @@ import { AuthService } from '../auth/auth.service';
 export interface DashboardSummary {
   visitantesAtivos: number;
   prestadoresAtivos: number;
+  /** Ocorrências abertas (status diferente de Solucionado, como no app). */
   ocorrenciasPendentes: number;
+  /** Das abertas, as com prazo vencido ou prioridade alta — acende o selo "urgente". */
+  ocorrenciasUrgentes?: number;
   encomendasAguardando: number;
   comunicadosRecentes: number;
   totalApartamentos: number;
