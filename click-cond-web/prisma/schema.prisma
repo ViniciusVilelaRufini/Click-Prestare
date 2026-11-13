@@ -521,6 +521,8 @@ model Funcionarios_Portaria {
   created_at    DateTime    @default(now()) @db.DateTime(0)
   updated_at    DateTime    @default(now()) @updatedAt @db.DateTime(0)
   condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_portaria_cond")
+  ocorrencias   Ocorrencias[]         @relation("OcorrenciaFuncionarioPortaria")
+  mensagensOcorrencia OcorrenciaMensagens[] @relation("MensagemFuncionarioPortaria")
 
   @@index([id_condominio])
 }
@@ -940,29 +942,48 @@ model Ocorrencias {
   // simples, sem relation, p/ não mexer no model Users; nome resolvido em query).
   prazo         DateTime?               @db.DateTime(0)
   id_responsavel Int?
+  /// Quem abriu, quando não foi um usuário do app: 'portaria' (porteiro do
+  /// console, ver id_funcionario_portaria), 'crm' (suporte Prestare) ou
+  /// 'sistema' (monitor de dispositivos). NULL = registro antigo ou aberto
+  /// por usuário (`user`). Rótulo em ocorrencias/autor-ocorrencia.util.ts.
+  origem        String?                 @db.VarChar(12)
+  /// Porteiro do console que abriu (origem 'portaria'). Funcionário removido
+  /// anula a coluna: a ocorrência fica, o rótulo vira só "Portaria".
+  id_funcionario_portaria Int?
   created_at    DateTime                @default(now()) @db.DateTime(0)
   updated_at    DateTime                @default(now()) @updatedAt @db.DateTime(0)
   categoria     Ocorrencias_Categorias? @relation(fields: [tipo], references: [id], map: "fk_oco_cat")
   condominio    Condominios             @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_oco_cond")
   criadoPor     Users?                  @relation("OcorrenciaUser", fields: [user], references: [id], map: "fk_oco_user")
+  funcionarioPortaria Funcionarios_Portaria? @relation("OcorrenciaFuncionarioPortaria", fields: [id_funcionario_portaria], references: [id], onDelete: SetNull, map: "fk_oco_func_portaria")
   mensagens     OcorrenciaMensagens[]
 
   @@index([id_condominio])
   @@index([tipo], map: "fk_oco_cat")
   @@index([user], map: "fk_oco_user")
+  @@index([id_funcionario_portaria], map: "fk_oco_func_portaria")
 }
 
 model OcorrenciaMensagens {
   id            Int         @id @default(autoincrement())
   id_ocorrencia Int
-  id_usuario    Int
+  /// Users.id de quem escreveu. NULL quando quem escreveu é o porteiro do
+  /// console (id_funcionario_portaria), que não tem conta em Users.
+  id_usuario    Int?
+  /// Porteiro do console que escreveu (id_usuario NULL).
+  id_funcionario_portaria Int?
+  /// Retrato do nome de quem escreveu sem conta em Users, para a mensagem
+  /// não ficar anônima se o funcionário for removido.
+  nome_autor    String?     @db.VarChar(120)
   mensagem      String      @db.Text
   created_at    DateTime    @default(now()) @db.DateTime(0)
   ocorrencia    Ocorrencias @relation(fields: [id_ocorrencia], references: [id], onDelete: Cascade, map: "fk_msg_oco")
-  usuario       Users       @relation(fields: [id_usuario], references: [id], onDelete: Cascade, map: "fk_msg_user", name: "MensagemUsuario")
+  usuario       Users?      @relation(fields: [id_usuario], references: [id], onDelete: Cascade, map: "fk_msg_user", name: "MensagemUsuario")
+  funcionarioPortaria Funcionarios_Portaria? @relation("MensagemFuncionarioPortaria", fields: [id_funcionario_portaria], references: [id], onDelete: SetNull, map: "fk_msg_func_portaria")
 
   @@index([id_ocorrencia], map: "fk_msg_oco")
   @@index([id_usuario], map: "fk_msg_user")
+  @@index([id_funcionario_portaria], map: "fk_msg_func_portaria")
 }
 
 model Financeiro {
