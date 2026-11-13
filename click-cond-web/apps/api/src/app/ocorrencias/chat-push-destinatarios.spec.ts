@@ -32,12 +32,16 @@ describe('Ocorrências — destinatários do push do chat', () => {
     const prisma: any = {
       isConnected: true,
       funcionarios: { findFirst: jest.fn(async () => ({ ocorrencias: 1 })) },
+      // Equipe atribuível: o responsável precisa estar nela para receber (chat-push-responsavel.spec).
+      funcionarios_Portaria: { findMany: jest.fn(async () => [{ id: 3, login: 'resp@a', nome: 'Resp', ativo: 1 }]) },
       ocorrencias: { findUnique: jest.fn(async () => ({ ...oc })) },
       ocorrenciaMensagens: { create: jest.fn(async ({ data }: any) => ({ id: 1, ...data })) },
       users: {
         findUnique: jest.fn(async ({ where }: any) => nomes[where.id] ?? null),
         findFirst: jest.fn(async () => ({ id: SINDICO })),
-        findMany: jest.fn(async () => [{ id: SINDICO, fcm_token: 'tok-sindico' }]),
+        findMany: jest.fn(async ({ where }: any) =>
+          where?.login ? [{ id: RESP, login: 'resp@a' }] : [{ id: SINDICO, fcm_token: 'tok-sindico' }],
+        ),
       },
     };
     const notifications: any = { sendPushNotification: jest.fn(async () => undefined) };

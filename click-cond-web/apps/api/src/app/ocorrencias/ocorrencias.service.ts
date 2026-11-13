@@ -808,6 +808,33 @@ export class OcorrenciasService {
   }
 
   /**
+   * O push do chat leva o texto da mensagem: o responsável atribuído só o
+   * recebe se ainda está na equipe atribuível do condomínio (porteiro ativo,
+   * ligado a uma conta) e, na ocorrência privada, se tem a flag `ocorrencias`
+   * — a mesma regra que o deixa abrir a ocorrência no app. Sem isso, quem
+   * toma 403 ao abrir lia o conteúdo pela notificação. Na dúvida, não envia.
+   */
+  private async responsavelPodeLer(
+    o: { id_condominio: number; publica: boolean },
+    idResponsavel: number,
+  ): Promise<boolean> {
+    try {
+      const equipe = await this.listFuncionariosAtribuiveis(o.id_condominio);
+      if (!equipe.some((f) => f.id_user === idResponsavel)) return false;
+      if (o.publica) return true;
+      await this.tenant.assertPermissaoFuncionario(o.id_condominio, 'ocorrencias', {
+        sub: idResponsavel,
+        nome: '',
+        typeAccess: 'Funcionario',
+        user: { id: idResponsavel },
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Quem é avisado decide-se por QUEM escreveu em relação ao AUTOR, não pelo
    * `is_sindico` do remetente (assim o funcionário que respondia no chat
    * avisava os síndicos e o morador nunca sabia):
@@ -865,8 +892,13 @@ export class OcorrenciasService {
       if (s.fcm_token && s.id !== idUsuarioSender) tokens.add(s.fcm_token);
     }
     // Responsável é Users.id (a conta do porteiro, ligada pelo login — ver
-    // listFuncionariosAtribuiveis); recebe se usa o app e tem token de push.
-    if (o.id_responsavel && o.id_responsavel !== idUsuarioSender) {
+    // listFuncionariosAtribuiveis); recebe se usa o app, tem token de push e
+    // ainda pode ler a ocorrência (responsavelPodeLer).
+    if (
+      o.id_responsavel &&
+      o.id_responsavel !== idUsuarioSender &&
+      (await this.responsavelPodeLer(o, o.id_responsavel))
+    ) {
       const resp = await this.prisma.users.findUnique({
         where: { id: o.id_responsavel },
         select: { fcm_token: true },
