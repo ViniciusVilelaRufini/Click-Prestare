@@ -2524,7 +2524,11 @@ export class FacialService {
   private async tickReservasAreas() {
     if (FACIAL_DISABLED || !this.prisma.isConnected) return;
     try {
-      const hojeStr = new Date().toISOString().slice(0, 10);
+      // "Hoje" em Brasília, como em proximaOutraReservaAprovada: o dia UTC
+      // já é amanhã depois das 21h locais.
+      const hojeStr = new Date()
+        .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo', hour12: false })
+        .slice(0, 10);
       const agoraStr = new Date()
         .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo', hour12: false })
         .replace(',', '');
