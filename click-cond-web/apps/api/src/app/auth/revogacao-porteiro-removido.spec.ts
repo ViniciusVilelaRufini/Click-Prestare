@@ -15,6 +15,7 @@ describe('JwtStrategy — porteiro removido ou desativado', () => {
       isConnected: true,
       funcionarios_Portaria: { findFirst: jest.fn(async () => registro) },
       users: { findUnique: jest.fn(async () => ({ senha_alterada_em: null })) },
+      sindicos_Condominios: { findFirst: jest.fn(async () => ({ id: 1 })) },
     };
     const strategy = new JwtStrategy(prisma);
     (strategy as any).logger = { warn: jest.fn() };
@@ -57,7 +58,7 @@ describe('JwtStrategy — porteiro removido ou desativado', () => {
     expect(prisma.funcionarios_Portaria.findFirst).toHaveBeenCalledTimes(1);
   });
 
-  it('token sem tipo_sub (síndico, QR, legado) não consulta Funcionarios_Portaria', async () => {
+  it('token sem tipo_sub (síndico, QR, legado) não consulta Funcionarios_Portaria; o de síndico confere o vínculo', async () => {
     const { strategy, prisma } = build(null);
 
     await expect(
@@ -65,5 +66,6 @@ describe('JwtStrategy — porteiro removido ou desativado', () => {
     ).resolves.toBeTruthy();
     await expect(validar(strategy, { sub: 3, nome: 'P', id_condominio: 7, iat: 1 })).resolves.toBeTruthy();
     expect(prisma.funcionarios_Portaria.findFirst).not.toHaveBeenCalled();
+    expect(prisma.sindicos_Condominios.findFirst).toHaveBeenCalledTimes(1);
   });
 });

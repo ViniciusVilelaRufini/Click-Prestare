@@ -56,7 +56,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * Token do porteiro do console (tipo_sub 'funcionario_portaria', sub = Funcionarios_Portaria.id) é
    * recusado quando o porteiro foi removido ou desativado, ou quando o condomínio do token foi desligado.
    * É o mesmo critério do loginPortaria. Sem isto, quem saiu da equipe seguia operando a portaria (e
-   * abrindo a porta) até o token vencer. Token do CRM não passa por aqui. Tokens de porteiro emitidos
+   * abrindo a porta) até o token vencer. Token de console com sub = Users.id (síndico, QR) é recusado quando
+   * o vínculo com o condomínio do token sumiu ou o condomínio foi desativado (vinculoConsoleAtivo). Token do
+   * CRM não passa por aqui. Tokens de porteiro emitidos
    * antes de existir tipo_sub (commit ced8f6b4) não são cobertos e vencem sozinhos em até 24h.
    *
    * Banco indisponível ou erro na consulta: segue aceitando (o app trata 401 como fim de sessão, e uma
@@ -80,7 +82,48 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (tokenAnteriorATrocaDeSenha(payload.iat, await this.senhaAlteradaEm(idUser))) {
       throw new UnauthorizedException('Sessão encerrada porque a senha foi alterada. Entre novamente.');
     }
+    // Token de CONSOLE com sub = Users.id (síndico na portaria-web, QR Code): o id_condominio do token valia
+    // como prova de vínculo pela vida toda dele (24 h) — funcionário removido seguia operando o console e a
+    // porta, e condomínio desativado no CRM seguia de pé. Token do app não carrega id_condominio.
+    if (payload.id_condominio && !(await this.vinculoConsoleAtivo(idUser, Number(payload.id_condominio), payload))) {
+      throw new UnauthorizedException(
+        'Sessão encerrada: seu acesso a este condomínio foi removido ou o condomínio foi desativado.',
+      );
+    }
     return payload;
+  }
+
+  /**
+   * O usuário do token de console segue vinculado ao condomínio do token, e o condomínio segue ativo:
+   * síndico por Sindicos_Condominios, funcionário por Funcionarios (o mesmo critério do
+   * assertVinculoCondominio que emitiu o token). Mesmo cache e fail-open do porteiroAtivo, com prefixo
+   * próprio na chave: o sub do porteiro é Funcionarios_Portaria.id, outra numeração.
+   */
+  private async vinculoConsoleAtivo(idUser: number, idCondominio: number, payload: JwtPayload): Promise<boolean> {
+    const sindico = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase() === 'sindico';
+    const chave = `u:${sindico ? 's' : 'f'}:${idUser}:${idCondominio}`;
+    const agora = Date.now();
+    const cache = this.porteiroCache.get(chave);
+    if (cache && cache.expira > agora) return cache.valor;
+    let valor = true;
+    try {
+      const vinculo = sindico
+        ? await this.prisma!.sindicos_Condominios.findFirst({
+            where: { id_user: idUser, id_condominio: idCondominio, condominio: { ativo: 1 } },
+            select: { id: true },
+          })
+        : await this.prisma!.funcionarios.findFirst({
+            where: { id_user: idUser, id_condominio: idCondominio, condominio: { ativo: 1 } },
+            select: { id: true },
+          });
+      valor = !!vinculo;
+    } catch (e: any) {
+      // Fail-open, como no porteiro: banco instável não derruba todos os consoles.
+      this.logger.warn(`Não foi possível conferir o vínculo do usuário ${idUser} com o condomínio ${idCondominio}: ${e?.message ?? e}`);
+    }
+    if (this.porteiroCache.size > 10_000) this.porteiroCache.clear();
+    this.porteiroCache.set(chave, { valor, expira: agora + CACHE_PORTEIRO_MS });
+    return valor;
   }
 
   private async senhaAlteradaEm(idUser: number): Promise<Date | null> {

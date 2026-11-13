@@ -750,8 +750,9 @@ export class AuthService {
     const tipo = (typeAccess ?? '').toLowerCase();
 
     if (tipo === 'sindico') {
+      // condominio.ativo: o mesmo corte do loginPortaria — condomínio desativado no CRM não ganha sessão por QR.
       const vinculo = await this.prisma.sindicos_Condominios.findFirst({
-        where: { id_user: userId, id_condominio: idCondominio },
+        where: { id_user: userId, id_condominio: idCondominio, condominio: { ativo: 1 } },
         select: { id: true },
       });
       if (!vinculo) {
@@ -762,7 +763,7 @@ export class AuthService {
 
     // Funcionário: vínculo via Funcionarios (id_user).
     const func = await this.prisma.funcionarios.findFirst({
-      where: { id_user: userId, id_condominio: idCondominio },
+      where: { id_user: userId, id_condominio: idCondominio, condominio: { ativo: 1 } },
       select: { id: true },
     });
     if (func) return 'Funcionario';
