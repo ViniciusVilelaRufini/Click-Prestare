@@ -184,7 +184,7 @@ struct TagFase: View {
       Rotulo(texto: info.rotulo, tamanho: 10)
     }
     .padding(.horizontal, 8)
-    .padding(.vertical, 4)
+    .padding(.vertical, 3)
     .overlay(Rectangle().stroke(p.borda, lineWidth: 1))
   }
 }
@@ -267,7 +267,8 @@ struct BotaoCard: View {
       Text(titulo.uppercased()).font(Fonte.rotulo(14)).tracking(2.8)
     }
     .foregroundColor(solido ? p.sobreMarca : p.ink)
-    .frame(maxWidth: .infinity, minHeight: 44)
+    // 36 pt: a Live Activity tem teto de altura (ver TelaBloqueio).
+    .frame(maxWidth: .infinity, minHeight: 36, maxHeight: 36)
     .background(solido ? p.marca : p.botaoSec)
     .overlay(Rectangle().stroke(solido ? p.marca : p.borda, lineWidth: 1))
   }

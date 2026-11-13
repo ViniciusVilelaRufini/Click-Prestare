@@ -31,15 +31,22 @@ struct CardPortariaLiveActivity: Widget {
       .widgetURL(urlSolicitacoes)
     } dynamicIsland: { context in
       let estado = estadoVisivel(context.state, vencido: context.isStale)
+      // A ilha expandida tem teto de altura (~160 pt no total): pessoa nas
+      // regiões de cima (iniciais | nome | contagem) para sobrar espaço
+      // embaixo para a barra e os botões.
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          LogoPrestare(tamanho: 20)
+          AvatarPessoa(nome: estado.nome, tamanho: 36)
             .padding(.leading, 4)
             .environment(\.paleta, .ilha)
         }
         DynamicIslandExpandedRegion(.trailing) {
-          NumeroDireita(estado: estado, tamanho: 26, comRotulo: false)
+          NumeroDireita(estado: estado, tamanho: 24, comRotulo: false)
             .padding(.trailing, 4)
+            .environment(\.paleta, .ilha)
+        }
+        DynamicIslandExpandedRegion(.center) {
+          IlhaNome(estado: estado)
             .environment(\.paleta, .ilha)
         }
         DynamicIslandExpandedRegion(.bottom) {
@@ -86,7 +93,7 @@ struct NumeroDireita: View {
   @Environment(\.paleta) private var p
 
   var body: some View {
-    VStack(alignment: .trailing, spacing: 4) {
+    VStack(alignment: .trailing, spacing: 2) {
       numero
       if comRotulo, let r = rotulo {
         Rotulo(texto: r, tamanho: 9)
@@ -170,33 +177,37 @@ struct Botoes: View {
   }
 }
 
-/// Pessoa: iniciais, nome, tipo e unidade (e a hora do pedido, se pedida).
-struct LinhaVisitante: View {
+/// Nome e "Visitante · Bloco A · Apto 106".
+struct NomeEUnidade: View {
   let estado: CardPortariaAttributes.ContentState
-  var avatar: CGFloat = 44
-  var tamanhoNome: CGFloat = 17
-  var mostrarChegada = false
+  var tamanhoNome: CGFloat = 16
+  var tamanhoLinha: CGFloat = 13
   @Environment(\.paleta) private var p
 
   var body: some View {
-    HStack(spacing: 14) {
+    VStack(alignment: .leading, spacing: 1) {
+      Text(estado.nome)
+        .font(Fonte.nome(tamanhoNome))
+        .foregroundColor(p.ink)
+        .lineLimit(1)
+      Text(linhaPessoa(estado))
+        .font(Fonte.texto(tamanhoLinha))
+        .foregroundColor(p.inkMuted)
+        .lineLimit(1)
+        .minimumScaleFactor(0.85)
+    }
+  }
+}
+
+/// Pessoa: iniciais, nome, tipo e unidade.
+struct LinhaVisitante: View {
+  let estado: CardPortariaAttributes.ContentState
+  var avatar: CGFloat = 38
+
+  var body: some View {
+    HStack(spacing: 12) {
       AvatarPessoa(nome: estado.nome, tamanho: avatar)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(estado.nome)
-          .font(Fonte.nome(tamanhoNome))
-          .foregroundColor(p.ink)
-          .lineLimit(1)
-        Text(linhaPessoa(estado))
-          .font(Fonte.texto(13))
-          .foregroundColor(p.inkMuted)
-          .lineLimit(1)
-          .minimumScaleFactor(0.85)
-        if mostrarChegada {
-          Text("Chegou às \(horaCurta(estado.dataChegada))")
-            .font(Fonte.texto(13))
-            .foregroundColor(p.inkMuted)
-        }
-      }
+      NomeEUnidade(estado: estado)
       Spacer(minLength: 0)
     }
   }
@@ -222,6 +233,11 @@ struct CardTelaBloqueio: View {
 }
 
 /// Tela de bloqueio (e banner em iPhones sem Ilha Dinâmica).
+///
+/// O iOS dá no máximo ~160 pt de altura à Live Activity e CORTA o que passar
+/// (o 1.2.43 perdeu o topo e os botões). Orçamento da fase mais alta
+/// (aguardando): 12 + cabeçalho 18 + 10 + pessoa 42 + 10 + barra 4 + 10 +
+/// botões 36 + 12 = 154 pt. Mexeu em tamanho ou espaço, refaça a conta.
 struct TelaBloqueio: View {
   let attributes: CardPortariaAttributes
   let estado: CardPortariaAttributes.ContentState
@@ -229,44 +245,55 @@ struct TelaBloqueio: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      HStack(spacing: 10) {
-        LogoPrestare(tamanho: 22)
-        Rotulo(texto: "Portaria remota", tamanho: 12)
+      HStack(spacing: 8) {
+        LogoPrestare(tamanho: 18)
+        Rotulo(texto: "Portaria remota", tamanho: 11)
         Spacer(minLength: 8)
         TagFase(fase: estado.fase)
       }
+      .frame(height: 18)
 
       HStack(alignment: .center, spacing: 8) {
-        LinhaVisitante(estado: estado, mostrarChegada: estado.fase == "aguardando")
-        NumeroDireita(estado: estado)
+        LinhaVisitante(estado: estado)
+        NumeroDireita(estado: estado, tamanho: 30)
       }
-      .padding(.top, 14)
+      .padding(.top, 10)
 
       switch estado.fase {
       case "aguardando":
-        BarraTempo(estado: estado).padding(.top, 14)
-        Botoes(attributes: attributes).padding(.top, 14)
+        BarraTempo(estado: estado).padding(.top, 10)
+        Botoes(attributes: attributes).padding(.top, 10)
       case "liberado", "entrou":
-        Rectangle().fill(p.divisor).frame(height: 1).padding(.vertical, 14)
+        Rectangle().fill(p.divisor).frame(height: 1).padding(.vertical, 8)
         Etapas(fase: estado.fase)
-        LinhaStatus(estado: estado).padding(.top, 10)
+        LinhaStatus(estado: estado).padding(.top, 6)
       default:
-        LinhaStatus(estado: estado).padding(.top, 12)
+        LinhaStatus(estado: estado).padding(.top, 8)
       }
     }
-    .padding(16)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
   }
 }
 
-/// Ilha Dinâmica expandida, parte de baixo.
+/// Ilha Dinâmica expandida, centro: nome e unidade.
+struct IlhaNome: View {
+  let estado: CardPortariaAttributes.ContentState
+
+  var body: some View {
+    NomeEUnidade(estado: estado, tamanhoNome: 15, tamanhoLinha: 12)
+      .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+/// Ilha Dinâmica expandida, parte de baixo: barra e botões (ou a fase).
 struct IlhaExpandida: View {
   let attributes: CardPortariaAttributes
   let estado: CardPortariaAttributes.ContentState
   @Environment(\.paleta) private var p
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      LinhaVisitante(estado: estado, avatar: 40, tamanhoNome: 16)
+    VStack(alignment: .leading, spacing: 8) {
       if estado.fase == "aguardando" {
         BarraTempo(estado: estado)
         Botoes(attributes: attributes)
