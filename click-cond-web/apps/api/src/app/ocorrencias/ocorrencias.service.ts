@@ -12,9 +12,10 @@ import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.s
 import { StorageService } from '../common/storage/storage.service';
 import { assertOperador, assertStaff, isOperador, isSindicoEstrito } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
-import { autorOcorrencia, OrigemOcorrencia } from './autor-ocorrencia.util';
+import { idFuncionarioPortariaDoToken, idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { autorOcorrencia, OrigemOcorrencia, rotuloPortaria } from './autor-ocorrencia.util';
 import { subirAnexosOcorrencia } from './anexos-ocorrencia.util';
+import { INCLUDE_AUTOR_MENSAGEM, mensagemParaResposta } from './mensagem-ocorrencia.util';
 
 export type OcorrenciaStatus = 'Pendente' | 'Ciente' | 'Solucionado';
 
@@ -139,15 +140,15 @@ export class OcorrenciasService {
    * que as rotas aplicam, para a tela não mostrar botão que vai dar 403.
    *  - operar: ciente, solucionar, reabrir, responder, atribuir;
    *  - administrar: remover e alternar Pública/Privada (só síndico na tela);
-   *  - conversar: escrever no chat — exige Users.id, que o porteiro do
-   *    console não tem (OcorrenciaMensagens.id_usuario é FK para Users).
+   *  - conversar: escrever no chat — com Users.id ou como porteiro do
+   *    console (a mensagem dele grava id_funcionario_portaria).
    */
   async acesso(idCondominio: number, user?: JwtPayload) {
     const operar = isOperador(user) && !(await this.semFlagOcorrencias(idCondominio, user));
     return {
       operar,
       administrar: operar && isSindicoEstrito(user),
-      conversar: operar && idUsuarioDoToken(user) != null,
+      conversar: operar && (idUsuarioDoToken(user) != null || idFuncionarioPortariaDoToken(user) != null),
     };
   }
 
@@ -292,6 +293,7 @@ export class OcorrenciasService {
     return reais
       .map((f) => ({
         id_user: f.login ? idMap.get(f.login) ?? null : null,
+        id_funcionario_portaria: f.id,
         nome: f.nome ?? '',
         funcao: f.turno ? `Porteiro ${f.turno}` : 'Porteiro',
       }))
@@ -692,13 +694,12 @@ export class OcorrenciasService {
     // Só o condomínio era conferido: qualquer morador lia o chat da ocorrência
     // privada do vizinho. Mesma regra do findOne.
     await this.assertPodeVer(o, requester);
-    return this.prisma.ocorrenciaMensagens.findMany({
+    const lista = await this.prisma.ocorrenciaMensagens.findMany({
       where: { id_ocorrencia: idOcorrencia },
-      include: {
-        usuario: { select: { id: true, name: true, login_type: true, is_sindico: true } },
-      },
+      include: INCLUDE_AUTOR_MENSAGEM,
       orderBy: { created_at: 'asc' },
     });
+    return lista.map(mensagemParaResposta);
   }
 
   async createMessage(idOcorrencia: number, idUsuario: number | null, mensagem: string, requester?: JwtPayload) {
@@ -719,11 +720,15 @@ export class OcorrenciasService {
       // morador, que lê a pública mas não conversa nela.
       await this.exigirFlagOcorrencias(oc.id_condominio, requester);
     }
-    // Autor da mensagem é FK para Users. O token da portaria-web não tem
-    // Users.id — gravar o `sub` dele atribuía a mensagem a outra pessoa.
-    if (!idUsuario) {
-      throw new BadRequestException('Envie a mensagem com um login de síndico ou morador.');
+    // Autor da mensagem: Users.id ou, para o porteiro do console (sem conta
+    // em Users), o Funcionarios_Portaria.id do token — gravar o `sub` dele
+    // como Users.id atribuía a mensagem a outra pessoa. Sem nenhum dos dois
+    // (token antigo da portaria, sem tipo_sub), recusa.
+    const idFuncPortaria = idUsuario ? null : idFuncionarioPortariaDoToken(requester);
+    if (!idUsuario && !idFuncPortaria) {
+      throw new BadRequestException('Envie a mensagem com um login de síndico, morador ou da portaria.');
     }
+    const nomePorteiro = idFuncPortaria ? (requester?.nome ?? '').toString().trim().slice(0, 120) || null : null;
     // "[Suporte Prestare]" no início marca a mensagem que vem do
     // createMessageDoSistema ("[Kabania]" segue reservado: há mensagens antigas
     // da integração removida); ninguém imita o suporte por aqui.
@@ -734,21 +739,26 @@ export class OcorrenciasService {
     const msg = await this.prisma.ocorrenciaMensagens.create({
       data: {
         id_ocorrencia: idOcorrencia,
-        id_usuario: idUsuario,
+        id_usuario: idUsuario ?? null,
+        ...(idFuncPortaria ? { id_funcionario_portaria: idFuncPortaria, nome_autor: nomePorteiro } : {}),
         mensagem,
       },
-      include: {
-        usuario: { select: { id: true, name: true, login_type: true, is_sindico: true } },
-      },
+      include: INCLUDE_AUTOR_MENSAGEM,
     });
 
     try {
-      await this.sendChatNotification(idOcorrencia, idUsuario, mensagem);
+      await this.sendChatNotification(
+        idOcorrencia,
+        idFuncPortaria
+          ? { idFuncionarioPortaria: idFuncPortaria, nome: rotuloPortaria(nomePorteiro) }
+          : { idUsuario },
+        mensagem,
+      );
     } catch (e) {
       console.error('Error sending chat notification:', e);
     }
 
-    return msg;
+    return mensagemParaResposta(msg);
   }
 
   /**
@@ -756,8 +766,8 @@ export class OcorrenciasService {
    * que não tem token de usuário. NÃO é rota: só o CrmService chama, depois do
    * CrmAdminGuard. A `createMessage` pública segue exigindo autor ou equipe.
    *
-   * `OcorrenciaMensagens.id_usuario` é FK obrigatória para Users e não há
-   * conta de sistema no banco. Fica o critério que esses serviços já usavam:
+   * Não há conta de sistema em Users (`id_usuario` NULL é reservado à
+   * mensagem do porteiro do console). Fica o critério que esses serviços já usavam:
    * o síndico do condomínio e, sem síndico, o autor da ocorrência — sem o
    * antigo `1` fixo, que gravava em nome de quem tivesse esse id. A origem
    * vai no início do texto (`[Suporte Prestare] ...`), para o chat não
@@ -792,19 +802,18 @@ export class OcorrenciasService {
 
     const msg = await this.prisma.ocorrenciaMensagens.create({
       data: { id_ocorrencia: params.idOcorrencia, id_usuario: idUsuario, mensagem: `[${rotulo}] ${mensagem}` },
-      include: {
-        usuario: { select: { id: true, name: true, login_type: true, is_sindico: true } },
-      },
+      include: INCLUDE_AUTOR_MENSAGEM,
     });
     this.logger.log(`[ocorrencias] mensagem de ${params.origem} na ocorrência #${params.idOcorrencia}`);
 
     try {
-      await this.sendChatNotification(params.idOcorrencia, idUsuario, mensagem, rotulo);
+      // Gravada em nome do síndico (ou do autor), mas não escrita por ele.
+      await this.sendChatNotification(params.idOcorrencia, { nome: rotulo }, mensagem);
     } catch (e: any) {
       this.logger.error(`[ocorrencias.createMessageDoSistema] push falhou: ${e?.message ?? e}`);
     }
 
-    return msg;
+    return mensagemParaResposta(msg);
   }
 
   /**
@@ -843,14 +852,18 @@ export class OcorrenciasService {
    *  - ocorrência sem autor em Users (portaria, CRM, monitor) → avisa os
    *    síndicos e o responsável, como se a equipe fosse o autor (antes não
    *    avisava ninguém).
-   * Ninguém recebe push da própria mensagem. `nomeRemetente` só vem da
-   * mensagem do sistema, que nunca é do autor, mesmo gravada em nome dele.
+   * Ninguém recebe push da própria mensagem — nem o porteiro pela conta em
+   * Users ligada ao login dele (a que o faz responsável).
+   *
+   * `remetente`: `idUsuario` é o Users.id de quem escreveu de fato; a
+   * mensagem do sistema (CRM) vem só com `nome` — gravada em nome do síndico
+   * ou do autor, mas não escrita por eles; o porteiro vem com
+   * `idFuncionarioPortaria` e o rótulo "Portaria · <nome>".
    */
   private async sendChatNotification(
     idOcorrencia: number,
-    idUsuarioSender: number,
+    remetente: { idUsuario?: number | null; idFuncionarioPortaria?: number | null; nome?: string },
     mensagem: string,
-    nomeRemetente?: string,
   ) {
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id: idOcorrencia },
@@ -860,16 +873,16 @@ export class OcorrenciasService {
     });
     if (!o) return;
 
-    const sender = await this.prisma.users.findUnique({
-      where: { id: idUsuarioSender },
-      select: { name: true, is_sindico: true },
-    });
-    const senderName = nomeRemetente || sender?.name || 'Sistema';
-    const remetenteEhAutor = !nomeRemetente && o.user != null && o.user === idUsuarioSender;
+    const idSender = remetente.idUsuario ?? null;
+    const sender = idSender
+      ? await this.prisma.users.findUnique({ where: { id: idSender }, select: { name: true, is_sindico: true } })
+      : null;
+    const senderName = remetente.nome || sender?.name || 'Sistema';
+    const remetenteEhAutor = idSender != null && o.user != null && o.user === idSender;
     const dados = { id: idOcorrencia.toString(), type: 'ocorrencia_chat' };
 
     if (o.user != null && !remetenteEhAutor) {
-      if (o.criadoPor?.fcm_token && (nomeRemetente || o.criadoPor.id !== idUsuarioSender)) {
+      if (o.criadoPor?.fcm_token && o.criadoPor.id !== idSender) {
         await this.notifications.sendPushNotification(
           o.criadoPor.fcm_token,
           'Nova mensagem na sua Ocorrência',
@@ -878,6 +891,20 @@ export class OcorrenciasService {
         );
       }
       return;
+    }
+
+    // Contas em Users de quem escreveu: a dele e, para o porteiro, a ligada
+    // ao login (mesma ligação de listFuncionariosAtribuiveis).
+    const proprios = new Set<number>(idSender != null ? [idSender] : []);
+    if (remetente.idFuncionarioPortaria) {
+      try {
+        const equipe = await this.listFuncionariosAtribuiveis(o.id_condominio);
+        for (const f of equipe) {
+          if (f.id_funcionario_portaria === remetente.idFuncionarioPortaria && f.id_user != null) proprios.add(f.id_user);
+        }
+      } catch (e: any) {
+        this.logger.error(`[ocorrencias.push] conta do porteiro: ${e?.message ?? e}`);
+      }
     }
 
     const sindicos = await this.prisma.users.findMany({
@@ -891,17 +918,15 @@ export class OcorrenciasService {
       select: { id: true, fcm_token: true },
     });
     const tokens = new Set<string>();
-    // A mensagem do sistema vai gravada em nome do síndico, mas não é dele.
-    const proprio = nomeRemetente ? null : idUsuarioSender;
     for (const s of sindicos) {
-      if (s.fcm_token && s.id !== proprio) tokens.add(s.fcm_token);
+      if (s.fcm_token && !proprios.has(s.id)) tokens.add(s.fcm_token);
     }
     // Responsável é Users.id (a conta do porteiro, ligada pelo login — ver
     // listFuncionariosAtribuiveis); recebe se usa o app, tem token de push e
     // ainda pode ler a ocorrência (responsavelPodeLer).
     if (
       o.id_responsavel &&
-      o.id_responsavel !== proprio &&
+      !proprios.has(o.id_responsavel) &&
       (await this.responsavelPodeLer(o, o.id_responsavel))
     ) {
       const resp = await this.prisma.users.findUnique({

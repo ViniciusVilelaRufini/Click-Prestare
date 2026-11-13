@@ -109,7 +109,8 @@ describe('Ocorrências — operar pelo console', () => {
 
   describe('GET acesso — o que a tela pode oferecer', () => {
     it.each([
-      ['porteiro do console', porteiro, 1, { operar: true, administrar: false, conversar: false }],
+      // Conversa desde que a mensagem passou a gravar id_funcionario_portaria (chat-porteiro.spec).
+      ['porteiro do console', porteiro, 1, { operar: true, administrar: false, conversar: true }],
       ['síndico no console', sindicoConsole, 1, { operar: true, administrar: true, conversar: true }],
       ['funcionário QR com a flag', funcionarioQr, 1, { operar: true, administrar: false, conversar: true }],
       ['funcionário QR sem a flag', funcionarioQr, 0, { operar: false, administrar: false, conversar: false }],
