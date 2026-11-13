@@ -30,7 +30,10 @@ describe('Expurgo LGPD — fim da visita sem data_saida e Pessoa sem visita', ()
     });
   }
 
-  const visita = (o: any) => ({ data_saida: null, data_hora_termino: null, data_entrada: null, data_hora_inicio: null, created_at: ha(200), ...o });
+  const visita = (o: any) => {
+    const created_at = o.created_at ?? ha(200);
+    return { data_saida: null, data_hora_termino: null, data_entrada: null, data_hora_inicio: null, created_at, updated_at: created_at, ...o };
+  };
   const visitantes = [
     { id: 1, ...FOTOS, ...visita({ data_hora_termino: ha(100) }) },            // autorização acabou há 100 dias
     { id: 2, ...FOTOS, ...visita({ created_at: ha(100) }) },                   // sem saída nem término
@@ -46,15 +49,15 @@ describe('Expurgo LGPD — fim da visita sem data_saida e Pessoa sem visita', ()
     { id: 15, ...FOTOS, updated_at: ha(200), visitas: [visita({ data_saida: ha(100) }), visita({ created_at: ha(5) })] },
   ];
 
-  function build() {
+  function build(linhasVisitantes: any[] = visitantes, linhasPessoas: any[] = pessoas) {
     const prisma: any = {
       isConnected: true,
       visitantes: {
-        findMany: jest.fn(async ({ where }: any) => visitantes.filter((v) => casa(v, where))),
+        findMany: jest.fn(async ({ where }: any) => linhasVisitantes.filter((v) => casa(v, where))),
         updateMany: jest.fn(async ({ where }: any) => ({ count: where.id.in.length })),
       },
       pessoas: {
-        findMany: jest.fn(async ({ where }: any) => pessoas.filter((p) => casa(p, where))),
+        findMany: jest.fn(async ({ where }: any) => linhasPessoas.filter((p) => casa(p, where))),
         updateMany: jest.fn(async () => ({ count: 1 })),
       },
     };
@@ -77,5 +80,35 @@ describe('Expurgo LGPD — fim da visita sem data_saida e Pessoa sem visita', ()
     await svc.tickRetencaoDadosVisitantes(90);
     const ids = prisma.pessoas.updateMany.mock.calls.map(([a]: any) => a.where.id).sort();
     expect(ids).toEqual([11, 12]);
+  });
+
+  // Re-liberar uma visita não usada ou salvar foto nova só mexe em `updated_at`: sem contá-lo, a
+  // foto recém-salva de quem tem uma única visita antiga e aberta era apagada na mesma noite.
+  describe('última atividade inclui updated_at', () => {
+    it('legado: visita antiga, não usada, sem término e com updated_at recente não expurga; com updated_at antigo expurga', async () => {
+      const { svc, prisma } = build(
+        [
+          { id: 21, ...FOTOS, ...visita({ created_at: ha(100), updated_at: ha(5) }) },
+          { id: 22, ...FOTOS, ...visita({ created_at: ha(100), updated_at: ha(100) }) },
+        ],
+        [],
+      );
+      await svc.tickRetencaoDadosVisitantes(90);
+      expect(prisma.visitantes.updateMany.mock.calls[0][0].where.id.in).toEqual([22]);
+    });
+
+    it('Pessoas: foto salva há pouco (updated_at da Pessoa) ou visita aberta mexida há pouco protegem; tudo antigo expurga', async () => {
+      const { svc, prisma } = build(
+        [],
+        [
+          { id: 31, ...FOTOS, updated_at: ha(5), visitas: [visita({ created_at: ha(100) })] },
+          { id: 32, ...FOTOS, updated_at: ha(200), visitas: [visita({ created_at: ha(100), updated_at: ha(5) })] },
+          { id: 33, ...FOTOS, updated_at: ha(200), visitas: [visita({ created_at: ha(100) })] },
+        ],
+      );
+      await svc.tickRetencaoDadosVisitantes(90);
+      const ids = prisma.pessoas.updateMany.mock.calls.map(([a]: any) => a.where.id);
+      expect(ids).toEqual([33]);
+    });
   });
 });

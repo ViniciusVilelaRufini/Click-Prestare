@@ -215,6 +215,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
                   data_saida: null,
                   data_hora_termino: null,
                   created_at: { lte: limiteRetencao },
+                  // Re-liberar a visita ou salvar foto nova só mexe em updated_at.
+                  updated_at: { lte: limiteRetencao },
                   AND: [
                     { OR: [{ data_entrada: null }, { data_entrada: { lte: limiteRetencao } }] },
                     { OR: [{ data_hora_inicio: null }, { data_hora_inicio: { lte: limiteRetencao } }] },
@@ -291,9 +293,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       where: {
         AND: [
           { OR: [{ foto_pessoa: { not: null } }, { foto_documento: { not: null } }] },
-          // Sem nenhuma visita (cancelada/apagada, ou Pessoa criada sem visita): conta pela última
-          // alteração da própria Pessoa.
-          { OR: [{ visitas: { some: {} } }, { updated_at: { lte: limiteRetencao } }] },
+          // Última alteração da própria Pessoa (foto nova, edição) fora do prazo — vale também
+          // para Pessoa sem nenhuma visita (cancelada/apagada, ou criada sem visita).
+          { updated_at: { lte: limiteRetencao } },
         ],
         // Nenhuma visita ainda dentro do prazo — mesmo "fim da visita" do ramo legado.
         NOT: {
@@ -309,6 +311,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
                     { created_at: { gt: limiteRetencao } },
                     { data_entrada: { gt: limiteRetencao } },
                     { data_hora_inicio: { gt: limiteRetencao } },
+                    { updated_at: { gt: limiteRetencao } },
                   ],
                 },
               ],
