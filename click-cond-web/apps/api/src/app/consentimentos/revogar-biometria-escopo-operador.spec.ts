@@ -1,4 +1,4 @@
-import { ConsentimentosService } from './consentimentos.service';
+import { ConsentimentosService, REVOGADO_PELO_OPERADOR } from './consentimentos.service';
 import { ConsentimentosCondominioController } from './consentimentos.controller';
 
 /**
@@ -131,6 +131,19 @@ describe('Revogação de biometria pelo operador — só no condomínio dele', (
     expect(storage.deleteUrl).toHaveBeenCalledWith(FOTO_1, expect.anything());
     expect(storage.deleteUrl).toHaveBeenCalledWith(FOTO_2, expect.anything());
     expect(prisma.users.updateMany).toHaveBeenCalled();
+  });
+
+  it('marca só as linhas deste condomínio como revogadas pelo operador (bloqueia o recadastro, R5b)', async () => {
+    const { svc, rows } = build({ rows: [daqui(), deOutro()] });
+    await svc.revogarBiometria(7, 'Portaria', 1);
+    expect(rows[0]).toMatchObject({ face_sync_status: 'revoked', face_sync_error: REVOGADO_PELO_OPERADOR });
+    expect((rows[1] as any).face_sync_error).toBeUndefined();
+  });
+
+  it('revogação do titular não usa a marca do operador', async () => {
+    const { svc, rows } = build({ rows: [daqui(), deOutro()] });
+    await svc.revogarBiometria(7);
+    expect(rows.every((r: any) => r.face_sync_error !== REVOGADO_PELO_OPERADOR)).toBe(true);
   });
 
   it('o controller do operador passa o condomínio da rota', async () => {

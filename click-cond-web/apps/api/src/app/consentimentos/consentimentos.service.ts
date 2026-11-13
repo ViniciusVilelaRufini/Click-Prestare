@@ -18,6 +18,14 @@ export const POLITICA_VERSAO = '2026-09';
 export type TipoConsentimento = 'privacidade' | 'biometria';
 
 /**
+ * `Moradores.face_sync_error` da linha cuja biometria o operador revogou naquele condomínio. A recusa
+ * global não é gravada (é do titular), então é esta marca que impede o `syncMorador` de matricular o
+ * rosto de novo ali até um novo aceite de biometria do titular (`registrar`), que a limpa.
+ * `face_sync_status` segue `'revoked'` para as telas.
+ */
+export const REVOGADO_PELO_OPERADOR = 'revogado_pelo_operador';
+
+/**
  * Consentimento LGPD do titular.
  *
  * Tabela append-only: a revogação é um registro novo, nunca a edição do
@@ -120,6 +128,14 @@ export class ConsentimentosService {
       ],
     });
 
+    // Novo aceite do titular desbloqueia os cadastros que o operador tinha revogado (R5b).
+    if (dados.biometria) {
+      await this.prisma.moradores.updateMany({
+        where: { id_user: idUser, face_sync_error: REVOGADO_PELO_OPERADOR },
+        data: { face_sync_error: null },
+      });
+    }
+
     this.logger.log(
       `Consentimento ${POLITICA_VERSAO} do usuário ${idUser}: ` +
         `privacidade=${dados.privacidade}, biometria=${dados.biometria}`,
@@ -139,7 +155,8 @@ export class ConsentimentosService {
    *
    * Com `idCondominio` (operador): age só nos moradores desse condomínio, não grava a recusa (1), só
    * limpa a foto em Users se a conta não é de outro condomínio e só apaga do storage a foto que mais
-   * nada referencia.
+   * nada referencia. Cada linha desse condomínio recebe `REVOGADO_PELO_OPERADOR` em face_sync_error:
+   * o rosto não é matriculado de novo ali até um novo aceite de biometria do titular.
    */
   async revogarBiometria(target: JwtPayload | number, operadorNome?: string, idCondominio?: number) {
     const idUser = typeof target === 'number' ? target : this.idDoUsuario(target);
@@ -174,6 +191,8 @@ export class ConsentimentosService {
 
     let allRemoved = true;
     const fotos = new Set<string>();
+    // Operador: sem recusa global, a marca na linha é o que impede o recadastro do rosto aqui (R5b).
+    const marcaOperador = escopo != null ? REVOGADO_PELO_OPERADOR : null;
     for (const m of moradores) {
       if (m.foto_pessoa) fotos.add(m.foto_pessoa);
       if (m.face_id && m.id_condominio) {
@@ -184,7 +203,7 @@ export class ConsentimentosService {
             data: {
               face_id: null,
               face_sync_status: 'revoked',
-              face_sync_error: null,
+              face_sync_error: marcaOperador,
               foto_pessoa: null,
             },
           });
@@ -194,11 +213,17 @@ export class ConsentimentosService {
             where: { id: m.id },
             data: {
               face_sync_status: 'pending_removal',
-              face_sync_error: 'device_offline_pending_retry',
+              face_sync_error: marcaOperador ?? 'device_offline_pending_retry',
               foto_pessoa: null,
             },
           });
         }
+      } else if (marcaOperador) {
+        // Sem rosto no aparelho: a foto (se houver) sai do banco e a linha fica bloqueada mesmo assim.
+        await this.prisma.moradores.update({
+          where: { id: m.id },
+          data: { foto_pessoa: null, face_sync_status: 'revoked', face_sync_error: marcaOperador },
+        });
       } else if (m.foto_pessoa) {
         // Foto guardada mas nunca enrolada (sem face_id): sai do banco também.
         await this.prisma.moradores.update({ where: { id: m.id }, data: { foto_pessoa: null } });

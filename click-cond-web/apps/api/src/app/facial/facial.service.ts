@@ -24,7 +24,7 @@ import {
 import { EnrollSessionService } from './enroll-session.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
-import { ConsentimentosService } from '../consentimentos/consentimentos.service';
+import { ConsentimentosService, REVOGADO_PELO_OPERADOR } from '../consentimentos/consentimentos.service';
 import { ConsentimentosTerceirosService } from '../consentimentos/consentimentos-terceiros.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { AccessStateService } from './access-state.service';
@@ -2045,6 +2045,10 @@ export class FacialService {
     if (!morador)
       throw new NotFoundException(`Morador ${idMorador} não encontrado`);
 
+    // Biometria revogada pelo operador neste condomínio: foto nova não basta, só um novo aceite do
+    // titular (ConsentimentosService.registrar limpa a marca). Os outros condomínios não têm a marca.
+    const revogadoPeloOperador = morador.face_sync_error === REVOGADO_PELO_OPERADOR;
+
     // Sem data de nascimento não há como saber a idade: não enrola. Menor de
     // 18 anos só com o termo de consentimento do responsável (LGPD Art. 14),
     // aceito no app e gravado em extra2 — decisão do produto em 23/09/2026.
@@ -2070,7 +2074,11 @@ export class FacialService {
         }
         await this.prisma.moradores.update({
           where: { id: idMorador },
-          data: { face_id: null, face_sync_status: 'revoked', face_sync_error: 'menor_de_idade' },
+          data: {
+            face_id: null,
+            face_sync_status: 'revoked',
+            face_sync_error: revogadoPeloOperador ? REVOGADO_PELO_OPERADOR : 'menor_de_idade',
+          },
         });
       }
       return { skipped: true, reason: 'menor_de_idade_ou_sem_comprovacao' };
@@ -2084,9 +2092,11 @@ export class FacialService {
     // conformidade sem a substância, que é pior que não ter a caixa.
     //
     // Ausência de registro conta como NÃO autorizado.
-    if (!(await this.consentimentos.autorizouBiometria(morador.id_user))) {
+    if (revogadoPeloOperador || !(await this.consentimentos.autorizouBiometria(morador.id_user))) {
       this.logger.log(
-        `Morador ${idMorador} sem consentimento de biometria: enrolamento facial não realizado.`,
+        revogadoPeloOperador
+          ? `Morador ${idMorador} com biometria revogada pelo operador: enrolamento facial não realizado até novo consentimento do titular.`
+          : `Morador ${idMorador} sem consentimento de biometria: enrolamento facial não realizado.`,
       );
       if (morador.face_id && morador.id_condominio) {
         const removedOk = await this.unsyncMorador(idMorador, morador.face_id, morador.id_condominio);
@@ -2102,7 +2112,10 @@ export class FacialService {
           data: { face_id: null, face_sync_status: 'revoked' },
         });
       }
-      return { skipped: true, reason: 'sem_consentimento_biometria' };
+      return {
+        skipped: true,
+        reason: revogadoPeloOperador ? 'revogado_pelo_operador' : 'sem_consentimento_biometria',
+      };
     }
     if (!morador.foto_pessoa) {
       // Foto removida do cadastro: se a pessoa já tinha rosto no aparelho,
