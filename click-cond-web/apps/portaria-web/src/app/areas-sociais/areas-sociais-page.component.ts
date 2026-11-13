@@ -1,10 +1,13 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AgendamentoArea, AreaSocial, AreasSociaisApi } from './areas-sociais.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+
+/** Intervalo da recarga silenciosa da lista de reservas. */
+const RECARGA_RESERVAS_MS = 30_000;
 
 @Component({
   selector: 'app-areas-sociais-page',
@@ -16,12 +19,15 @@ export class AreasSociaisPageComponent implements OnInit {
   private api = inject(AreasSociaisApi);
   private apartamentosApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
+  private destroyRef = inject(DestroyRef);
 
   readonly areas = signal<AreaSocial[]>([]);
   readonly agendamentos = signal<AgendamentoArea[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   readonly tab = signal<'areas' | 'reservas'>('areas');
+  /** Erro da última ação sobre uma reserva (aprovar, recusar, cancelar…). */
+  readonly acaoErro = signal<string | null>(null);
 
   // Controle do Modal
   readonly modalAberto = signal(false);
@@ -82,6 +88,28 @@ export class AreasSociaisPageComponent implements OnInit {
 
   ngOnInit() {
     this.carregarDados();
+    // Recarga silenciosa da lista: outra aba, o síndico no app ou o morador
+    // podem ter decidido a reserva enquanto a tela estava aberta.
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (this.loading()) return;
+      this.recarregarAgendamentos();
+    }, RECARGA_RESERVAS_MS);
+    this.destroyRef.onDestroy(() => clearInterval(timer));
+  }
+
+  /** Busca só a lista de reservas, sem o spinner da página. */
+  recarregarAgendamentos() {
+    this.api.listAgendamentos().subscribe({
+      next: (ag) => this.agendamentos.set(ag),
+      error: (e) => this.acaoErro.set('Falha ao atualizar as reservas: ' + (e?.error?.message ?? e?.message ?? 'erro')),
+    });
+  }
+
+  /** Ação recusada pela API (ex.: a reserva já mudou): mostra o motivo e traz o estado real. */
+  private falhaNaAcao(e: any) {
+    this.acaoErro.set(e?.error?.message ?? e?.message ?? 'Não foi possível concluir a ação.');
+    this.recarregarAgendamentos();
   }
 
   carregarDados() {
@@ -109,11 +137,15 @@ export class AreasSociaisPageComponent implements OnInit {
   }
 
   alterarStatus(id: number, isAccept: boolean) {
-    this.api.updateStatus(id, isAccept).subscribe(() => {
-      // Atualizar lista local na hora
-      this.agendamentos.update(list =>
-        list.map(item => item.id === id ? { ...item, status: isAccept ? 'aprovado' : 'recusado' } : item)
-      );
+    this.acaoErro.set(null);
+    this.api.updateStatus(id, isAccept).subscribe({
+      next: () => {
+        // Atualizar lista local na hora
+        this.agendamentos.update(list =>
+          list.map(item => item.id === id ? { ...item, status: isAccept ? 'aprovado' : 'recusado' } : item)
+        );
+      },
+      error: (e) => this.falhaNaAcao(e),
     });
   }
 
@@ -125,8 +157,12 @@ export class AreasSociaisPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.cancelar(id, 'Cancelada pela administração').subscribe(() => {
-      this.agendamentos.update(list => list.map(item => item.id === id ? { ...item, status: 'cancelado' } : item));
+    this.acaoErro.set(null);
+    this.api.cancelar(id, 'Cancelada pela administração').subscribe({
+      next: () => {
+        this.agendamentos.update(list => list.map(item => item.id === id ? { ...item, status: 'cancelado' } : item));
+      },
+      error: (e) => this.falhaNaAcao(e),
     });
   }
 

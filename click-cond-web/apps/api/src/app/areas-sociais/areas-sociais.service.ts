@@ -95,6 +95,26 @@ function dataHoraBr(d: Date): string {
   return `${dia} às ${hora}`;
 }
 
+/** De quais status cada mudança pedida em updateStatusAgendamento pode partir. */
+const ORIGENS_TRANSICAO_RESERVA: Record<string, string[]> = {
+  aprovado: ['pendente'],
+  recusado: ['pendente'],
+  cancelado: ['pendente', 'aprovado'],
+};
+
+const ROTULO_STATUS_RESERVA: Record<string, string> = {
+  aprovado: 'aprovada',
+  recusado: 'recusada',
+  cancelado: 'cancelada',
+};
+
+/** Mensagem do 409 quando a reserva já não está no estado que a tela mostrava. */
+function mensagemReservaJaMudou(status: string | null | undefined): string {
+  if (!status) return 'Esta reserva não existe mais.';
+  if (status === 'pendente') return 'Esta reserva voltou a ficar pendente.';
+  return `Esta reserva já foi ${ROTULO_STATUS_RESERVA[status] ?? status}.`;
+}
+
 /**
  * Um bloco de horário livre deixa de estar livre se INTERSECTA uma reserva
  * ativa — a mesma regra de sobreposição que insertAgendamento aplica no POST.
@@ -219,6 +239,24 @@ export class AreasSociaisService {
   private combineDateTime(date: Date, time: Date | null | undefined): Date {
     const [h, m] = time ? [time.getHours(), time.getMinutes()] : [0, 0];
     return new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, m, 0, 0);
+  }
+
+  /**
+   * Primeira reserva de `ags` (mesmo dia) cujo horário sobrepõe [de, ate) em
+   * minutos — tocar na borda não conta. É a checagem da criação, reusada na
+   * aprovação.
+   */
+  private conflitoDeHorario<T extends { hora_de: Date | null; hora_ate: Date | null }>(
+    ags: T[],
+    de: number,
+    ate: number,
+  ): T | undefined {
+    return ags.find((a) => {
+      if (!a.hora_de || !a.hora_ate) return false;
+      const aDe = a.hora_de.getHours() * 60 + a.hora_de.getMinutes();
+      const aAte = a.hora_ate.getHours() * 60 + a.hora_ate.getMinutes();
+      return de < aAte && ate > aDe;
+    });
   }
 
   // Colisão de intervalos [inicio, fim): true quando o bloco intersecta
@@ -818,12 +856,7 @@ export class AreasSociaisService {
       throw new BadRequestException('Não é possível reservar uma data ou horário que já passou.');
     }
 
-    const conflito = agendamentosDia.find((a) => {
-      if (!a.hora_de || !a.hora_ate) return false;
-      const aDe = a.hora_de.getHours() * 60 + a.hora_de.getMinutes();
-      const aAte = a.hora_ate.getHours() * 60 + a.hora_ate.getMinutes();
-      return requestedDe < aAte && requestedAte > aDe;
-    });
+    const conflito = this.conflitoDeHorario(agendamentosDia, requestedDe, requestedAte);
 
     if (conflito) {
       throw new BadRequestException('Este espaço já possui um agendamento ativo que conflita com o horário solicitado.');
@@ -1296,6 +1329,35 @@ export class AreasSociaisService {
       assertOperador(user, 'aprovar ou recusar reserva');
     }
 
+    // A transição parte do status ATUAL, não do que a tela achava que era:
+    // aprovar/recusar só valem sobre 'pendente'; cancelar, sobre 'aprovado' —
+    // e também sobre 'pendente', porque o app do morador oferece cancelar o
+    // próprio pedido ainda não decidido (cell_my_agendamento.dart).
+    const origens = ORIGENS_TRANSICAO_RESERVA[novoStatus];
+    if (!origens) throw new BadRequestException('Status de reserva inválido.');
+    if (!origens.includes(agAlvo.status)) {
+      throw new ConflictException(mensagemReservaJaMudou(agAlvo.status));
+    }
+
+    // Mesma checagem de horário da criação: outra reserva já aprovada no
+    // horário (ex.: o horário vagou com um cancelamento e outro apartamento
+    // reservou) impede aprovar esta.
+    if (novoStatus === 'aprovado' && agAlvo.data && agAlvo.hora_de && agAlvo.hora_ate) {
+      const aprovadasNoDia = await this.prisma.areas_Sociais_Agendamentos.findMany({
+        where: {
+          id_area_social: agAlvo.id_area_social,
+          data: agAlvo.data,
+          status: 'aprovado',
+          NOT: { id: agAlvo.id },
+        },
+      });
+      const de = agAlvo.hora_de.getHours() * 60 + agAlvo.hora_de.getMinutes();
+      const ate = agAlvo.hora_ate.getHours() * 60 + agAlvo.hora_ate.getMinutes();
+      if (this.conflitoDeHorario(aprovadasNoDia, de, ate)) {
+        throw new ConflictException('Já existe outra reserva aprovada neste horário.');
+      }
+    }
+
     let aprovadorNome: string | null = null;
     if (novoStatus === 'aprovado' || novoStatus === 'recusado') {
       aprovadorNome = (user as any)?.name ?? user?.nome ?? (user as any)?.user?.name ?? (typeAccess === 'sindico' ? 'Síndico' : 'Administração');
@@ -1303,14 +1365,24 @@ export class AreasSociaisService {
       aprovadorNome = typeAccess === 'Morador' ? 'Cancelado pelo Morador' : ((user as any)?.name ?? user?.nome ?? 'Cancelado pelo Síndico');
     }
 
-    const agendamento = await this.prisma.areas_Sociais_Agendamentos.update({
-      where: { id: Number(id) },
+    // Condicional ao status lido acima: se outra aba/aparelho mudou a reserva
+    // entre a leitura e a gravação, nada é gravado e quem chamou recebe 409.
+    const { count } = await this.prisma.areas_Sociais_Agendamentos.updateMany({
+      where: { id: Number(id), status: agAlvo.status },
       data: {
         status: novoStatus,
         aprovado_por_nome: aprovadorNome,
         aprovado_em: new Date(),
         motivo_recusa: motivo ? String(motivo) : null,
       },
+    });
+    if (count === 0) {
+      const atual = await this.prisma.areas_Sociais_Agendamentos.findUnique({ where: { id: Number(id) } });
+      throw new ConflictException(mensagemReservaJaMudou(atual?.status));
+    }
+
+    const agendamento = await this.prisma.areas_Sociais_Agendamentos.findUnique({
+      where: { id: Number(id) },
       include: {
         user: true,
         area: true,
