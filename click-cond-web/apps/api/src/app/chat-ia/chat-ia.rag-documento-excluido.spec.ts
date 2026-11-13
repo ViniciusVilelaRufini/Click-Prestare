@@ -59,7 +59,18 @@ describe('ChatIaService — índice RAG de documento excluído', () => {
     const { svc, prisma } = build([]);
     await svc.reindexCondominio(1, { sub: 9, nome: 'Síndico QA', typeAccess: 'Sindico' });
     expect(prisma.rag_Embeddings.deleteMany).toHaveBeenCalledWith({
-      where: { id_condominio: 1, source_id: { notIn: [5] } },
+      where: { id_condominio: 1, source_type: { in: ['ata', 'documento'] }, source_id: { notIn: [5] } },
+    });
+  });
+
+  it('reindexCondominio: documento enviado durante o laço não perde os trechos na varredura de órfãos', async () => {
+    const { svc, prisma } = build([]);
+    prisma.documentos.findMany
+      .mockResolvedValueOnce([{ ...DOC, link_doc: 'https://exemplo.com/planilha.xlsx' }])
+      .mockResolvedValueOnce([{ id: 5 }, { id: 6 }]);
+    await svc.reindexCondominio(1, { sub: 9, nome: 'Síndico QA', typeAccess: 'Sindico' });
+    expect(prisma.rag_Embeddings.deleteMany).toHaveBeenCalledWith({
+      where: { id_condominio: 1, source_type: { in: ['ata', 'documento'] }, source_id: { notIn: [5, 6] } },
     });
   });
 });

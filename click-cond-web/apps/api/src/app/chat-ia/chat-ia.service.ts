@@ -1066,9 +1066,18 @@ ${docsTxt}`;
       }
     }
     // Trechos de documento que não existe mais (corrida antiga com a exclusão ou falha do
-    // removerIndiceDocumento): sem FK, só esta varredura os alcança.
+    // removerIndiceDocumento): sem FK, só esta varredura os alcança. Relê os ids agora para não
+    // apagar os trechos de documento enviado durante o laço.
+    const existentes = await this.prisma.documentos.findMany({
+      where: { id_condominio: idCondominio },
+      select: { id: true },
+    });
     await this.prisma.rag_Embeddings.deleteMany({
-      where: { id_condominio: idCondominio, source_id: { notIn: docs.map((d) => d.id) } },
+      where: {
+        id_condominio: idCondominio,
+        source_type: { in: ['ata', 'documento'] },
+        source_id: { notIn: existentes.map((d) => d.id) },
+      },
     });
     return { ok: true, documentos: processados, chunks: totalChunks, total_docs: docs.length };
   }

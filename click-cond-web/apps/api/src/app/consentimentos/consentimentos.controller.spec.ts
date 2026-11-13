@@ -23,7 +23,7 @@ describe('ConsentimentosController & ConsentimentosCondominioController', () => 
   });
 
   it('permite registrar declaração de terceiro com operador', async () => {
-    const user: any = { role: 'sindico', user: { id: 10, name: 'Síndico João' } };
+    const user: any = { role: 'sindico', typeAccess: 'Sindico', user: { id: 10, name: 'Síndico João' } };
     const body: any = {
       tipoPessoa: 'visitante',
       idPessoa: 5,
@@ -41,6 +41,7 @@ describe('ConsentimentosController & ConsentimentosCondominioController', () => 
         idPessoa: 5,
         biometria: true,
         maiorIdade: true,
+        declaradoPorId: 10,
       }),
     );
   });

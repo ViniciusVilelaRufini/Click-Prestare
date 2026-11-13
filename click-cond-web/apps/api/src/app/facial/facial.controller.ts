@@ -59,7 +59,7 @@ function assertTokenInterno(token: string | undefined): void {
 const API_URL_PUBLICA_PADRAO = 'https://api.prestarecondominios.com.br';
 
 /**
- * O webhook_token vale como credencial do agente (resolveCondominioForAgent) e
+ * O webhook_token vale como credencial do agente (resolveAgente, recortado ao próprio dispositivo nas rotas condo/*) e
  * api_user/api_password abrem o aparelho: operador que não é síndico recebe o
  * terminal sem esses campos.
  */

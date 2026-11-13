@@ -607,7 +607,8 @@ export class CrmCondominiosService {
     // 3. A cascata do banco leva as tabelas com id_condominio — exceto
     // Acessos_Facial (RESTRICT) e Moradores: id_condominio é anulável e
     // fk_mor_cond é SET NULL, então o cadastro (nome, CPF, fotos, tag, QR)
-    // sobrevivia órfão. Os dois saem explicitamente na MESMA transação do
+    // sobrevivia órfão. Vagas, Moradores e (se pedido) o histórico saem
+    // explicitamente na MESMA transação do
     // delete do condomínio (tudo ou nada). O histórico de acessos só quando
     // o operador pediu; senão o delete já teria sido recusado acima.
     await this.prisma.$transaction([

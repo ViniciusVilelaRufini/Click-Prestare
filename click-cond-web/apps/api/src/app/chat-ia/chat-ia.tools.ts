@@ -745,7 +745,7 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
   {
     nome: 'minhas_ocorrencias',
     descricao:
-      'Ocorrências/chamados abertos pelo usuário logado, com status e resposta do síndico. Para síndico e funcionário traz as do condomínio inteiro.',
+      'Ocorrências/chamados abertos pelo usuário logado, com status e resposta do síndico. Para síndico (e funcionário com a permissão de ocorrências) traz as do condomínio inteiro; funcionário sem essa permissão vê as públicas e as que ele abriu.',
     papeis: TODOS,
     async executar(_args, ctx) {
       const recorte = !ctx.staff

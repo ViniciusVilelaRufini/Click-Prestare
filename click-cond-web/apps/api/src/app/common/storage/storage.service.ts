@@ -274,7 +274,7 @@ export class StorageService {
    * Outra URL do bucket ou outra chave crua: 400. URL fora do bucket segue a regra de cada campo.
    *
    * `gravados` são os valores atuais da entidade; como função, só é carregada
-   * quando o valor de fato é URL do bucket (o caso comum não consulta o banco).
+   * quando o valor é URL do bucket ou chave crua (o caso comum não consulta o banco).
    */
   async exigirArquivoDoRegistro(valor: unknown, gravados: Gravados): Promise<void> {
     // Chave crua (sem esquema) segue a mesma regra da URL do bucket: só a já gravada.
