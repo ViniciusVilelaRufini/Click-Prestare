@@ -25,6 +25,8 @@ export interface Encomenda {
   codigo_rastreio?: string | null;
   codigo_validacao?: string | null;
   foto_volume?: string | null;
+  /** create/notificar/receber/corrigir unidade: quantos moradores o aviso alcançou. */
+  avisados?: number;
 }
 
 export interface CreateEncomenda {
@@ -88,6 +90,11 @@ export class EncomendasApi {
   /** Confirma o recebimento de uma encomenda pré-registrada ('Esperando' -> 'Aguardando'). */
   receber(id: number): Observable<Encomenda> {
     return this.http.patch<Encomenda>(`${this.base}/${id}/receber`, {});
+  }
+
+  /** Corrige a unidade de uma encomenda aguardando retirada; a nova unidade é avisada. */
+  corrigirUnidade(id: number, dto: { destinatario_apto: string; destinatario_bloco: string }): Observable<Encomenda> {
+    return this.http.patch<Encomenda>(`${this.base}/${id}`, dto);
   }
 
   remove(id: number): Observable<{ ok: boolean }> {

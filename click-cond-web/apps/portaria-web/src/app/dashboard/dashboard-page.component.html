@@ -153,7 +153,7 @@
       </a>
 
       <!-- Encomendas -->
-      <a routerLink="/encomendas" [class.ps-tone-warn]="d.encomendasAguardando > 0" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
+      <a routerLink="/encomendas" [queryParams]="{status: 'Aguardando'}" [class.ps-tone-warn]="d.encomendasAguardando > 0" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
         <div class="ps-kpi-row1">
           <span class="ps-kic"><svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
