@@ -1,7 +1,8 @@
 import { MoradoresService } from './moradores.service';
 
-/** Mesma porta no cadastro do console: conta achada por e-mail, login+senha gravados se faltasse qualquer um. */
+/** Mesma regra no cadastro do console (e no import-bulk, que chama create por linha). */
 describe('MoradoresService.create — conta existente com vínculo em outro condomínio', () => {
+  const MSG = 'Não foi possível concluir o cadastro com este e-mail/CPF. Peça para a pessoa vincular a unidade pelo próprio app ou fale com o suporte.';
   const existente = { id: 70, email: 'v@x.com', login: null, password: '$2b$10$senhaDaVitima', photo: null };
 
   function build(vinculoFora: boolean) {
@@ -34,20 +35,13 @@ describe('MoradoresService.create — conta existente com vínculo em outro cond
 
   const dto = { nome: 'V', email: 'v@x.com', data_nascimento: '1990-01-01', id_condominio: 1, sendCredentials: true };
 
-  it('NÃO troca login/senha da conta que tem vínculo em outro condomínio', async () => {
+  it('RECUSA ligar a conta de outro condomínio: nada gravado, nenhum e-mail', async () => {
     const { svc, prisma, mail } = build(true);
-    await svc.create(dto as any);
+    await expect(svc.create(dto as any)).rejects.toThrow(MSG);
     expect(prisma.users.update).not.toHaveBeenCalled();
+    expect(prisma.moradores.create).not.toHaveBeenCalled();
     expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
-    expect(prisma.moradores.create.mock.calls[0][0].data.id_user).toBe(70);
-  });
-
-  it('conta de outro condomínio recebe só o aviso de conta existente, sem senha', async () => {
-    const { svc, mail } = build(true);
-    await svc.create(dto as any);
-    // O e-mail achou a conta, então o aviso vai para o endereço dela mesma.
-    expect(mail.sendWelcomeMoradorExisting).toHaveBeenCalledWith('v@x.com', 'V');
-    expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
+    expect(mail.sendWelcomeMoradorExisting).not.toHaveBeenCalled();
   });
 
   it('conta só deste condomínio continua recebendo login/senha', async () => {

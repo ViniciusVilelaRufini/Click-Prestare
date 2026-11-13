@@ -42,3 +42,36 @@ export async function usuarioTemVinculoNoCondominio(
   ]);
   return s + f + m + a > 0;
 }
+
+/** Recusa neutra de ligar a este condomínio uma conta que já é de outro (não diz qual nem onde). */
+export const MSG_CONTA_DE_OUTRO_CONDOMINIO =
+  'Não foi possível concluir o cadastro com este e-mail/CPF. Peça para a pessoa vincular a unidade pelo próprio app ou fale com o suporte.';
+
+type PrismaLikeLista = {
+  sindicos_Condominios: { findMany: (a: any) => Promise<Array<{ id_user: number | null }>> };
+  funcionarios: { findMany: (a: any) => Promise<Array<{ id_user: number | null }>> };
+  moradores: { findMany: (a: any) => Promise<Array<{ id_user: number | null }>> };
+  apartamentos_Users: { findMany: (a: any) => Promise<Array<{ id_user: number | null }>> };
+};
+
+/**
+ * Dos usuários informados, os que têm vínculo (síndico, equipe, morador ou unidade) em condomínio
+ * diferente de `idCondominio`. Uma consulta por tabela para a lista inteira; sem ids, não consulta.
+ */
+export async function usuariosComVinculoEmOutroCondominio(
+  prisma: PrismaLikeLista,
+  idsUser: Array<number | null | undefined>,
+  idCondominio: number,
+): Promise<Set<number>> {
+  const ids = [...new Set(idsUser.filter((v): v is number => v != null).map(Number))];
+  if (ids.length === 0) return new Set();
+  const fora = { not: Number(idCondominio) };
+  const select = { id_user: true };
+  const [s, f, m, a] = await Promise.all([
+    prisma.sindicos_Condominios.findMany({ where: { id_user: { in: ids }, id_condominio: fora }, select }),
+    prisma.funcionarios.findMany({ where: { id_user: { in: ids }, id_condominio: fora }, select }),
+    prisma.moradores.findMany({ where: { id_user: { in: ids }, id_condominio: fora }, select }),
+    prisma.apartamentos_Users.findMany({ where: { id_user: { in: ids }, apartamento: { id_condominio: fora } }, select }),
+  ]);
+  return new Set([...s, ...f, ...m, ...a].map((r) => r.id_user).filter((v): v is number => v != null));
+}

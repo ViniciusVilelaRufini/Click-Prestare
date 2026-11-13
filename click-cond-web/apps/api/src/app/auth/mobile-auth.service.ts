@@ -16,7 +16,7 @@ import { somenteDigitos } from '../common/documento.util';
 import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService, ehFuncionarioDoApp, type PermissaoFuncionario } from './tenant-access.service';
-import { usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio } from '../common/vinculos-usuario.util';
+import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -4285,6 +4285,12 @@ export class MobileAuthService {
         // Antes, quem cadastrava achava a conta pelo CPF, gravava o PRÓPRIO e-mail como login
         // e uma senha que conhecia, e entrava como a pessoa — com os vínculos dela no outro prédio.
         const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, idCondominio);
+        // Ligar aqui uma conta que já é de OUTRO condomínio, achada só por e-mail/CPF, entregava a este
+        // condomínio o perfil dela (e-mail, telefone, CPF, foto). Quem liga é o titular; exceção: a conta
+        // é a do próprio solicitante (a sessão prova a posse).
+        if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(user)) {
+          throw new BadRequestException(MSG_CONTA_DE_OUTRO_CONDOMINIO);
+        }
         const patch: any = {};
         if (!contaDeOutroCondominio) {
           // Garante que o usuário tem login/senha para acessar o app

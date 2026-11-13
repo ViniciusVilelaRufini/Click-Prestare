@@ -9,7 +9,8 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import * as bcrypt from 'bcrypt';
-import { usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio } from '../common/vinculos-usuario.util';
+import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { randomBytes } from 'crypto';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 
@@ -803,6 +804,9 @@ export class MoradoresService {
         // Users é global: conta com vínculo em OUTRO condomínio só é ligada a este cadastro.
         // Login, senha e foto dela não são tocados (vinculos-usuario.util; mesma regra do sendCredentials).
         const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, dto.id_condominio);
+        if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(operador)) {
+          throw new BadRequestException(MSG_CONTA_DE_OUTRO_CONDOMINIO);
+        }
         // Atualiza login e password caso estejam vazios para permitir acesso, e as fotos
         const userUpdates: any = {};
         if (!contaDeOutroCondominio && (!existing.login || !existing.password)) {

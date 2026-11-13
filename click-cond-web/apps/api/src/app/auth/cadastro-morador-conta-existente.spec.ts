@@ -1,14 +1,14 @@
 import { MobileAuthService } from './mobile-auth.service';
 
 /**
- * Users é global. O cadastro de morador achava a conta pelo CPF em QUALQUER
- * condomínio e, faltando login/senha/e-mail, gravava o e-mail de quem
- * cadastrava e uma senha que ele conhecia — tomando a conta de um morador de
- * outro prédio. A A2 deixou o VÍNCULO para o dono decidir; aqui só se impede
- * gravar credenciais nessa conta.
+ * Users é global. O cadastro de morador achava a conta pelo CPF/e-mail (que não são segredo) e a
+ * ligava a este apartamento mesmo sendo de OUTRO condomínio — e a lista do apto passava a mostrar
+ * e-mail, telefone, CPF e foto dela. Agora recusa com mensagem neutra; só não recusa quando a conta
+ * é a de quem cadastra (a sessão prova a posse).
  */
 describe('saveMorador — conta existente com vínculo em outro condomínio', () => {
   const CPF = '52998224725';
+  const MSG = 'Não foi possível concluir o cadastro com este e-mail/CPF. Peça para a pessoa vincular a unidade pelo próprio app ou fale com o suporte.';
   const sindico = { sub: 1, nome: 'Síndico A', typeAccess: 'Sindico' } as any;
   const vitima = { id: 70, cpf: CPF, email: null, login: null, password: null, name: 'Vítima', phone: '17999990000' };
 
@@ -44,21 +44,27 @@ describe('saveMorador — conta existente com vínculo em outro condomínio', ()
     morador: { nome: 'Outro nome', documento: CPF, email: 'atacante@x.com', data_nascimento: '01/01/1990', id_apto: 11, sendCredentials },
   });
 
-  it.each([[true], [false]])('NÃO grava login/e-mail/senha na conta de outro condomínio (sendCredentials=%p)', async (envio) => {
+  it.each([[true], [false]])('RECUSA ligar a conta de outro condomínio (sendCredentials=%p)', async (envio) => {
     const { svc, prisma, mail } = montar(true);
-    await svc.saveMorador(corpo(envio), false, sindico);
+    await expect(svc.saveMorador(corpo(envio), false, sindico)).rejects.toThrow(MSG);
     expect(prisma.users.update).not.toHaveBeenCalled();
+    expect(prisma.apartamentos_Users.create).not.toHaveBeenCalled();
+    expect(prisma.moradores.create).not.toHaveBeenCalled();
     expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
-    // O vínculo ao apartamento continua (decisão de produto deferida na A2).
-    expect(prisma.apartamentos_Users.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ id_apto: 11, id_user: 70 }),
-    });
   });
 
-  it('NÃO preenche telefone/nome vazios na conta de outro condomínio', async () => {
-    const { svc, prisma } = montar(true, { ...vitima, phone: null, name: null });
-    const body = corpo(true);
-    await svc.saveMorador({ morador: { ...body.morador, telefone: '17988887777' } }, false, sindico);
+  it('RECUSA também com só o CPF (sem e-mail)', async () => {
+    const { svc, prisma } = montar(true);
+    await expect(
+      svc.saveMorador({ morador: { nome: 'X', documento: CPF, data_nascimento: '01/01/1990', id_apto: 11, sendCredentials: false } }, false, sindico),
+    ).rejects.toThrow(MSG);
+    expect(prisma.apartamentos_Users.create).not.toHaveBeenCalled();
+  });
+
+  it('a conta é a do próprio síndico (de mais de um condomínio): continua sendo ligada, sem tocar Users', async () => {
+    const { svc, prisma } = montar(true, { ...vitima, id: 1 });
+    await svc.saveMorador(corpo(false), false, sindico);
+    expect(prisma.apartamentos_Users.create).toHaveBeenCalledWith({ data: expect.objectContaining({ id_apto: 11, id_user: 1 }) });
     expect(prisma.users.update).not.toHaveBeenCalled();
   });
 
