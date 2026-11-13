@@ -1686,6 +1686,9 @@ export class MobileAuthService {
             is_prestador: true,
             data_entrada: true,
             data_saida: true,
+            data_hora_inicio: true,
+            data_hora_termino: true,
+            created_at: true,
             pessoa: { select: { nome: true, tipo_pessoa: true, foto_pessoa: true } },
           },
         })
@@ -1703,6 +1706,9 @@ export class MobileAuthService {
             is_prestador: true,
             data_entrada: true,
             data_saida: true,
+            data_hora_inicio: true,
+            data_hora_termino: true,
+            created_at: true,
             foto_pessoa: true,
           },
         });
@@ -1719,6 +1725,9 @@ export class MobileAuthService {
           tipo_pessoa: v.pessoa?.tipo_pessoa ?? (v.is_prestador === 1 ? 'prestador' : 'visitante'),
           data_entrada: v.data_entrada,
           data_saida: v.data_saida,
+          data_hora_inicio: v.data_hora_inicio as Date | null | undefined,
+          data_hora_termino: v.data_hora_termino as Date | null | undefined,
+          created_at: v.created_at as Date | null | undefined,
           foto: linkDaFoto(v.pessoa?.foto_pessoa),
         }))
       : (visitorsRaw as any[]).map((v) => ({
@@ -1730,6 +1739,9 @@ export class MobileAuthService {
           tipo_pessoa: v.tipo_pessoa,
           data_entrada: v.data_entrada,
           data_saida: v.data_saida,
+          data_hora_inicio: v.data_hora_inicio as Date | null | undefined,
+          data_hora_termino: v.data_hora_termino as Date | null | undefined,
+          created_at: v.created_at as Date | null | undefined,
           foto: linkDaFoto(v.foto_pessoa),
         }));
     const visitorIds = visitors.map((v) => v.id);
@@ -1764,6 +1776,8 @@ export class MobileAuthService {
       visEvIdFilter.length
         ? this.prisma.acessos_Facial.findMany({
             where: {
+              // id_pessoa é polimórfico (Visitantes/Visitas/Pessoas): sem o condomínio, casa evento alheio.
+              id_condominio: { in: [...new Set(visitors.map((v) => v.id_condominio))] },
               tipo_pessoa: { in: ['visitante', 'prestador'] },
               id_pessoa: { in: visEvIdFilter },
               evento: { in: ['entrada', 'saida'] },
@@ -1791,7 +1805,26 @@ export class MobileAuthService {
     const fotoMorador = new Map<number, string | null>(
       moras.map((m: any) => [m.id, linkDaFoto(m.foto_pessoa, m.user?.photo)]),
     );
-    const visEvAtualizados = visEv.map((e) => ({
+    // O id da Pessoa cobre TODAS as visitas dela no condomínio (inclusive a outras unidades): o evento só
+    // é do morador se cair na janela de uma visita dele, no mesmo condomínio.
+    const FOLGA_JANELA_VISITA_MS = 60 * 60 * 1000;
+    const agoraMs = Date.now();
+    const ms = (d?: Date | null) => (d ? new Date(d).getTime() : null);
+    const janelas = visitors.map((v) => {
+      const inicios = [v.data_hora_inicio, v.data_entrada, v.created_at].map(ms).filter((t): t is number => t != null);
+      const fim = ms(v.data_saida) ?? (v.data_entrada ? agoraMs : ms(v.data_hora_termino) ?? agoraMs);
+      return {
+        ids: [v.id, v.id_pessoa_alt].filter((id): id is number => id != null),
+        cond: v.id_condominio,
+        de: inicios.length ? Math.min(...inicios) - FOLGA_JANELA_VISITA_MS : -Infinity,
+        ate: fim + FOLGA_JANELA_VISITA_MS,
+      };
+    });
+    const visEvDoMorador = visEv.filter((e) => {
+      const t = e.timestamp.getTime();
+      return janelas.some((j) => j.cond === e.id_condominio && j.ids.includes(e.id_pessoa as number) && t >= j.de && t <= j.ate);
+    });
+    const visEvAtualizados = visEvDoMorador.map((e) => ({
       ...e,
       tipo_pessoa: (e.id_pessoa != null ? tipoAtualPorId.get(e.id_pessoa) : undefined) ?? e.tipo_pessoa,
     }));
