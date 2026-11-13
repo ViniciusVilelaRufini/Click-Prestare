@@ -4,7 +4,6 @@ import { PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage
 import type { FacialService } from '../facial/facial.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
-import { usuarioTemVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 
 /**
  * Versão do texto de privacidade vigente.
@@ -137,7 +136,8 @@ export class ConsentimentosService {
    * 4. Se todos os aparelhos removeram com sucesso: face_id = null, face_sync_status = 'revoked'.
    * 5. Se algum aparelho falhou (offline): face_sync_status = 'pending_removal' (preserva face_id para retry).
    *
-   * Com `idCondominio` (operador): age só nos moradores desse condomínio e não grava a recusa (1).
+   * Com `idCondominio` (operador): age só nos moradores desse condomínio, não grava a recusa (1), não
+   * altera Users e só apaga do storage a foto que mais nada referencia.
    */
   async revogarBiometria(target: JwtPayload | number, operadorNome?: string, idCondominio?: number) {
     const idUser = typeof target === 'number' ? target : this.idDoUsuario(target);
@@ -160,7 +160,9 @@ export class ConsentimentosService {
     }
 
     this.logger.log(
-      `Biometria facial revogada para usuário ${idUser} por ${operadorNome ?? 'próprio titular'}.`,
+      `Biometria facial revogada para usuário ${idUser}` +
+        (escopo != null ? ` no condomínio ${escopo}` : '') +
+        ` por ${operadorNome ?? 'próprio titular'}.`,
     );
 
     // 2. Localiza moradores vinculados
@@ -203,16 +205,25 @@ export class ConsentimentosService {
 
     // O banco só guardava o LINK: o objeto (public-read) seguia no storage para quem já tinha a URL.
     // Users.photo/profile_image recebem a mesma URL no cadastro; apagado o objeto, apontariam para nada.
-    // Revogação só deste condomínio: a foto pode ser a que a conta usa nos outros (Users é global) —
-    // fica no storage e em Users; sai só dos cadastros daqui (acima).
-    const contaDeOutroCondominio =
-      escopo != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, idUser, escopo));
-    if (fotos.size > 0 && !contaDeOutroCondominio) {
+    if (fotos.size > 0 && escopo == null) {
       const urls = [...fotos];
       await this.prisma.users.updateMany({ where: { id: idUser, photo: { in: urls } }, data: { photo: null } });
       await this.prisma.users.updateMany({ where: { id: idUser, profile_image: { in: urls } }, data: { profile_image: null } });
       for (const url of urls) {
         await this.storage?.deleteUrl(url, PREFIXOS_FOTO_MORADOR).catch(() => false);
+      }
+    } else if (fotos.size > 0) {
+      // Revogação só deste condomínio: Users é global e fica como está, e a mesma URL pode estar no
+      // cadastro de outro condomínio. Sai do storage só a foto que mais nada referencia (os cadastros
+      // daqui já foram zerados acima).
+      for (const url of fotos) {
+        const [naConta, emOutroCadastro] = await Promise.all([
+          this.prisma.users.count({ where: { id: idUser, OR: [{ photo: url }, { profile_image: url }] } }),
+          this.prisma.moradores.count({ where: { foto_pessoa: url } }),
+        ]);
+        if (naConta + emOutroCadastro === 0) {
+          await this.storage?.deleteUrl(url, PREFIXOS_FOTO_MORADOR).catch(() => false);
+        }
       }
     }
 
