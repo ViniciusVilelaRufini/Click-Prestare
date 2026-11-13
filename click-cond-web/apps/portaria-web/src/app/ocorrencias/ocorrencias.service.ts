@@ -27,6 +27,13 @@ export interface Ocorrencia {
   responsavelNome?: string | null;
 }
 
+/**
+ * O que a sessão pode fazer na tela (GET ocorrencias/acesso), pela mesma regra
+ * das rotas: operar = ciente/solucionar/reabrir/responder/atribuir;
+ * administrar = remover e alternar Pública/Privada; conversar = escrever no chat.
+ */
+export interface AcessoOcorrencias { operar: boolean; administrar: boolean; conversar: boolean; }
+
 export interface CreateOcorrencia {
   descricao: string;
   tipo: number;
@@ -47,6 +54,10 @@ export class OcorrenciasApi {
     if (status) params = params.set('status', status);
 
     return this.http.get<Ocorrencia[]>(this.base, { params });
+  }
+
+  acesso(): Observable<AcessoOcorrencias> {
+    return this.http.get<AcessoOcorrencias>(`${this.base}/acesso`);
   }
 
   categorias(): Observable<Categoria[]> {
