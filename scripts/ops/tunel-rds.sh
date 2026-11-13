@@ -18,5 +18,15 @@ pkill -f 'StartPortForwardingSessionToRemoteHost' 2>/dev/null
 nohup aws ssm start-session --target "$INST" --document-name AWS-StartPortForwardingSessionToRemoteHost \
   --parameters "host=$DBHOST,portNumber=3306,localPortNumber=3307" > /tmp/tunel.log 2>&1 &
 sleep 6
-mysql_prestare() { MYSQL_PWD="$DBPASS" mysql -h 127.0.0.1 -P 3307 -u "$DBUSER" "$DBNAME" "$@"; }
+# TLS verificado quando houver o bundle de CA do RDS (global-bundle.pem da documentacao da AWS).
+# Mesma variavel do run-sql-migration.mjs. VERIFY_CA, nao VERIFY_IDENTITY: o cliente conecta em
+# 127.0.0.1 (o tunel), nao no hostname do certificado. Sem o bundle, segue como antes (aviso).
+RDS_CA_BUNDLE="${RDS_CA_BUNDLE:-$HOME/global-bundle.pem}"
+if [ -f "$RDS_CA_BUNDLE" ]; then
+  MYSQL_SSL_ARGS=(--ssl-mode=VERIFY_CA "--ssl-ca=$RDS_CA_BUNDLE")
+else
+  MYSQL_SSL_ARGS=()
+  echo "aviso: bundle de CA do RDS nao encontrado em $RDS_CA_BUNDLE; mysql sem verificacao de certificado (defina RDS_CA_BUNDLE)" >&2
+fi
+mysql_prestare() { MYSQL_PWD="$DBPASS" mysql ${MYSQL_SSL_ARGS[@]+"${MYSQL_SSL_ARGS[@]}"} -h 127.0.0.1 -P 3307 -u "$DBUSER" "$DBNAME" "$@"; }
 echo "tunel via $INST -> $DBHOST"
