@@ -5,6 +5,7 @@ import { ConsentimentosTerceirosService, TipoPessoaTerceiro } from './consentime
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 
 // Rotas do app: o `sub` só é Users.id em token de usuário do app. O do
 // porteiro (Funcionarios_Portaria.id) e o do CRM agiam como o usuário de
@@ -74,7 +75,7 @@ export class ConsentimentosCondominioController {
       doc: body.doc,
       biometria: body.biometria === true,
       maiorIdade: body.maiorIdade === true,
-      declaradoPorId: Number(user?.user?.id ?? user?.sub) || null,
+      declaradoPorId: idUsuarioDoToken(user),
       declaradoPorNome: user?.user?.name ?? (user as any)?.nome ?? 'Operador Portaria',
     });
   }

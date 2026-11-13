@@ -56,4 +56,20 @@ describe('ConsentimentosController & ConsentimentosCondominioController', () => 
       doc: '12345678900',
     });
   });
+
+  it('porteiro do console: declarado_por_id fica nulo (schema: null para porteiro)', async () => {
+    const porteiro: any = { sub: 7, nome: 'Portaria', id_condominio: 1, turno: 'Manha', tipo_sub: 'funcionario_portaria' };
+    const body: any = { tipoPessoa: 'visitante', idPessoa: 5, biometria: true, maiorIdade: true };
+    await controllerCond.registrarTerceiro(1, body, porteiro);
+    expect(terceirosServiceMock.registrar).toHaveBeenCalledWith(
+      expect.objectContaining({ declaradoPorId: null, declaradoPorNome: 'Portaria' }),
+    );
+  });
+
+  it('síndico do app: declarado_por_id é o Users.id', async () => {
+    const sindico: any = { sub: 10, typeAccess: 'Sindico', user: { id: 10, name: 'Síndico João' } };
+    const body: any = { tipoPessoa: 'visitante', idPessoa: 5, biometria: true, maiorIdade: true };
+    await controllerCond.registrarTerceiro(1, body, sindico);
+    expect(terceirosServiceMock.registrar).toHaveBeenCalledWith(expect.objectContaining({ declaradoPorId: 10 }));
+  });
 });
