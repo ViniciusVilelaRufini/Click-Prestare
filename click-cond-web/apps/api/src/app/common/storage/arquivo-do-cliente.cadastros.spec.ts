@@ -73,7 +73,11 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
           })),
           findFirst: jest.fn(async () => null),
           create: jest.fn(async () => ({ id: 12 })),
+          count: jest.fn(async () => 0),
         },
+        sindicos_Condominios: { count: jest.fn(async () => 0) },
+        funcionarios: { count: jest.fn(async () => 0) },
+        apartamentos_Users: { count: jest.fn(async () => 0) },
         visitantes: { findFirst: jest.fn(async () => null) },
         users: { findFirst: jest.fn(async () => null) },
         $transaction: jest.fn(async () => {

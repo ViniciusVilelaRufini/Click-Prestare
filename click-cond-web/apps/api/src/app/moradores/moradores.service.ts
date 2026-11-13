@@ -1060,6 +1060,13 @@ export class MoradoresService {
       validarBiometria(dnFinal, temTermoResponsavel((atual as any).extra2), 'atualização de biometria facial');
     }
 
+    // O console nunca é o titular: com a conta também em outro condomínio, nome/telefone/foto ficam só
+    // em Moradores. Só consulta quando há o que propagar (as demais edições não tocam Users).
+    const tocaPerfilDaConta = dto.nome !== undefined || dto.telefone !== undefined || fotoPessoaUrl !== undefined;
+    const contaDeOutroCondominio =
+      tocaPerfilDaConta && !!atual.id_user && atual.id_condominio != null &&
+      (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, atual.id_user, atual.id_condominio));
+
     let result;
     try {
       result = await this.prisma.$transaction(async (tx) => {
@@ -1160,7 +1167,7 @@ export class MoradoresService {
         delete userPatch.email;
         delete userPatch.login;
         delete userPatch.cpf;
-        if (Object.keys(userPatch).length > 0 && atual.id_user) {
+        if (Object.keys(userPatch).length > 0 && atual.id_user && !contaDeOutroCondominio) {
           await tx.users.update({
             where: { id: atual.id_user },
             data: userPatch,

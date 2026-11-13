@@ -4118,6 +4118,14 @@ export class MobileAuthService {
           }
         }
 
+        // Users é global: quem edita o cadastro de OUTRA pessoa cuja conta também é de outro condomínio
+        // grava só no Moradores daqui — nome, telefone e foto da conta são do titular.
+        const contaDeOutroCondominio =
+          !!atual.id_user &&
+          atual.id_user !== callerId &&
+          atual.id_condominio != null &&
+          (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, atual.id_user, atual.id_condominio));
+
         await this.prisma.$transaction(async (tx) => {
           await tx.moradores.update({
             where: { id: idMorador },
@@ -4157,7 +4165,7 @@ export class MobileAuthService {
             delete userPatch.login;
             delete userPatch.cpf;
           }
-          if (Object.keys(userPatch).length > 0 && atual.id_user) {
+          if (Object.keys(userPatch).length > 0 && atual.id_user && !contaDeOutroCondominio) {
             await tx.users.update({ where: { id: atual.id_user }, data: userPatch });
           }
         });
