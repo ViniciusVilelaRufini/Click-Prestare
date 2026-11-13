@@ -412,7 +412,7 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
 
     it('listarPendentes() filtra solicitações pendentes recentes', async () => {
       const { service, prisma } = buildStateHarness();
-      const payload: any = { sub: 1, user: { id: 1 } };
+      const payload: any = { sub: 1, typeAccess: 'Morador', user: { id: 1 } };
       // Marca como pendente
       await prisma.visitas.update({
         where: { id: 50 },

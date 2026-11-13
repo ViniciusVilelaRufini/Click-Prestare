@@ -396,7 +396,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
 
     if (ehMoradorMobile) {
-      const userId = Number(payload.user?.id ?? payload.sub);
+      const userId = idUsuarioDoToken(payload);
       if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
       const vinculoApto = await this.prisma.apartamentos_Users.findFirst({
         where: { id_user: userId, id_apto: v.id_apartamento },
@@ -446,7 +446,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
     if (!ehMoradorMobile) return;
 
-    const userId = Number(payload.user?.id ?? payload.sub);
+    const userId = idUsuarioDoToken(payload);
     if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
 
     const vinculo = await this.prisma.apartamentos_Users.findFirst({
@@ -2445,7 +2445,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
     const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
     if (!ehMoradorMobile) return undefined;
-    const userId = Number(payload.user?.id ?? payload.sub);
+    const userId = idUsuarioDoToken(payload);
+    if (!userId) return [];
     const vinculos = await this.prisma.apartamentos_Users.findMany({
       where: { id_user: userId },
       select: { id_apto: true },
@@ -2652,7 +2653,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
 
     if (ehMoradorMobile) {
-      const userId = Number(payload.user?.id ?? payload.sub);
+      const userId = idUsuarioDoToken(payload);
       if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
       const vinculoApto = await this.prisma.apartamentos_Users.findFirst({
         where: { id_user: userId, id_apto: v.id_apartamento },
@@ -3063,7 +3064,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         ...(ref.auth_status === 'pendente' && {
           auth_status: 'autorizado',
           auth_respondido_em: new Date(),
-          auth_respondido_por: payload?.sub ?? null,
+          auth_respondido_por: idUsuarioDoToken(payload),
         }),
       },
       include: {
@@ -3130,7 +3131,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         ...(ref.auth_status === 'pendente' && {
           auth_status: 'autorizado',
           auth_respondido_em: new Date(),
-          auth_respondido_por: payload?.sub ?? null,
+          auth_respondido_por: idUsuarioDoToken(payload),
         }),
       },
       include: {
@@ -3294,7 +3295,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         throw new BadRequestException('Esta solicitação de autorização expirou (limite de 10 minutos).');
       }
     }
-    const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
+    const respondidoPor = idUsuarioDoToken(payload);
     const v = await this.prisma.visitas.update({
       where: { id: Number(id) },
       data: {
@@ -3338,7 +3339,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   private async negarViaPessoasVisitas(id: number, payload?: JwtPayload) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     this.assertPedidoPendente(ref);
-    const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
+    const respondidoPor = idUsuarioDoToken(payload);
     const v = await this.prisma.visitas.update({
       where: { id: Number(id) },
       data: {
@@ -3888,7 +3889,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async listarPendentesViaPessoasVisitas(idCondominio: number | undefined, payload?: JwtPayload) {
-    const userId = Number(payload?.user?.id ?? payload?.sub);
+    const userId = idUsuarioDoToken(payload);
     if (!userId) throw new ForbiddenException('Sessão sem usuário válido.');
     const vinculos = await this.prisma.apartamentos_Users.findMany({
       where: {
@@ -4538,7 +4539,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         ...(ref.auth_status === 'pendente' && {
           auth_status: 'autorizado',
           auth_respondido_em: new Date(),
-          auth_respondido_por: payload?.sub ?? null,
+          auth_respondido_por: idUsuarioDoToken(payload),
         }),
       },
     });
@@ -4588,7 +4589,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         ...(ref.auth_status === 'pendente' && {
           auth_status: 'autorizado',
           auth_respondido_em: new Date(),
-          auth_respondido_por: payload?.sub ?? null,
+          auth_respondido_por: idUsuarioDoToken(payload),
         }),
       },
     });
@@ -4783,7 +4784,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         throw new BadRequestException('Esta solicitação de autorização expirou (limite de 10 minutos).');
       }
     }
-    const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
+    const respondidoPor = idUsuarioDoToken(payload);
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: {
@@ -4826,7 +4827,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       return this.negarViaPessoasVisitas(id, payload);
     }
     await this.assertPodeAcessarVisitante(id, payload);
-    const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
+    const respondidoPor = idUsuarioDoToken(payload);
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: {
@@ -4858,7 +4859,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (pessoasMigrationEnabled(this.prisma)) {
       return this.listarPendentesViaPessoasVisitas(idCondominio, payload);
     }
-    const userId = Number(payload?.user?.id ?? payload?.sub);
+    const userId = idUsuarioDoToken(payload);
     if (!userId) throw new ForbiddenException('Sessão sem usuário válido.');
     const vinculos = await this.prisma.apartamentos_Users.findMany({
       where: {
