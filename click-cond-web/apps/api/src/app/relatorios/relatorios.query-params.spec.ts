@@ -127,7 +127,8 @@ describe('RelatoriosController — parâmetros de auditoria/eventos', () => {
     it('porteiro: pede a listagem SEM os módulos sigilosos', async () => {
       const { ctrl, service } = build();
       await ctrl.getAuditoria(1, porteiro, 'financeiro');
-      expect(service.getAuditoria).toHaveBeenCalledWith(1, 'financeiro', undefined, undefined, 1, 50, false);
+      // 8º argumento: ocultarOcorrencias (só o funcionário do app sem a flag) — porteiro não.
+      expect(service.getAuditoria).toHaveBeenCalledWith(1, 'financeiro', undefined, undefined, 1, 50, false, false);
     });
 
     it('síndico (app e console): pede a listagem completa', async () => {

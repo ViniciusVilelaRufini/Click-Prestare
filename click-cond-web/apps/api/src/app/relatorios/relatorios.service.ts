@@ -30,6 +30,12 @@ import { cabecalhoMarca, fileteMarca, PDF_COR, temaPdf, travarAcessosPdf } from 
 const MODULOS_AUDITORIA_SIGILOSOS = ['financeiro', 'crm', 'crm-condominio', 'superlogica', 'auth', 'AUTH'];
 
 /**
+ * Linhas que carregam o texto da ocorrência (descricao/detalhes). O funcionário do app sem a flag
+ * `ocorrencias` não as lê (TenantAccessService.recorteOcorrenciasPrivadas).
+ */
+const MODULOS_AUDITORIA_OCORRENCIAS = ['ocorrencias'];
+
+/**
  * Módulos que a tela oferece como um assunto só, mas que os services gravam
  * com nomes vizinhos. Filtrar por igualdade perdia essas linhas.
  */
@@ -645,12 +651,14 @@ export class RelatoriosService {
     pageSize = 50,
     /** Só o síndico lê os módulos sigilosos; na dúvida, ficam de fora. */
     verSigilosos = false,
+    /** Funcionário do app sem a flag `ocorrencias`: as linhas desse módulo ficam de fora. */
+    ocultarOcorrencias = false,
   ) {
     if (!this.prisma.isConnected) {
       return { items: [], total: 0, page, pageSize };
     }
 
-    const where = this.buildAuditWhere(idCondominio, modulo, dataInicio, dataFim, verSigilosos);
+    const where = this.buildAuditWhere(idCondominio, modulo, dataInicio, dataFim, verSigilosos, ocultarOcorrencias);
     const safeSize = Math.min(Math.max(pageSize, 1), 200);
     const safePage = Math.max(page, 1);
 
@@ -729,21 +737,31 @@ export class RelatoriosService {
     dataInicio?: string,
     dataFim?: string,
     verSigilosos = false,
+    ocultarOcorrencias = false,
   ) {
     const where: any = { id_condominio: idCondominio };
+    const ocultos = [
+      ...(verSigilosos ? [] : MODULOS_AUDITORIA_SIGILOSOS),
+      ...(ocultarOcorrencias ? MODULOS_AUDITORIA_OCORRENCIAS : []),
+    ];
     const pedido = typeof modulo === 'string' ? modulo.trim() : '';
-    const chave = pedido.toLowerCase();
+    // Mesma régua da colação do MySQL (sem caixa, sem acento): `ocorrências` é `ocorrencias`.
+    const normalizar = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const chave = normalizar(pedido);
     if (pedido && chave !== 'todos') {
-      if (!verSigilosos && MODULOS_AUDITORIA_SIGILOSOS.includes(chave)) {
-        // Pedir um módulo sigiloso sem ser síndico: lista vazia, não erro.
+      if (ocultos.some((o) => normalizar(o) === chave)) {
+        // Pedir um módulo que este papel não lê: lista vazia, não erro.
         where.modulo = { in: [] };
       } else if (GRUPOS_MODULO_AUDITORIA[chave]) {
         where.modulo = { in: GRUPOS_MODULO_AUDITORIA[chave] };
+      } else if (ocultos.length) {
+        // A exclusão vai junto do filtro para o banco compará-la com a mesma colação do pedido.
+        where.AND = [{ modulo: pedido }, { modulo: { notIn: ocultos } }];
       } else {
         where.modulo = pedido;
       }
-    } else if (!verSigilosos) {
-      where.modulo = { notIn: MODULOS_AUDITORIA_SIGILOSOS };
+    } else if (ocultos.length) {
+      where.modulo = { notIn: ocultos };
     }
     if (dataInicio || dataFim) {
       where.created_at = {

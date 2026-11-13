@@ -107,6 +107,8 @@ export class RelatoriosController {
     assertOperador(payload, 'consultar a auditoria do condomínio');
     // Financeiro/CRM/Superlógica no log carregam valores, nomes e telefone de
     // cobrança: só o síndico lê essas linhas (o porteiro recebe a lista sem elas).
+    // As de `ocorrencias` trazem o texto da ocorrência: o funcionário do app sem a flag não as lê.
+    const ocultarOcorrencias = (await this.recorteOcorrencias(idCondominio, payload)) !== null;
     return this.service.getAuditoria(
       idCondominio,
       textoUnico(modulo),
@@ -115,6 +117,7 @@ export class RelatoriosController {
       inteiroPositivoOuPadrao(pageStr, 1),
       inteiroPositivoOuPadrao(pageSizeStr, 50),
       isSindico(payload),
+      ocultarOcorrencias,
     );
   }
 

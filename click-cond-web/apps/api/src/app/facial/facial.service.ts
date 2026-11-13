@@ -198,6 +198,11 @@ export interface AgenteResolvido {
   viaTokenDispositivo?: boolean;
   /** Dispositivo dono do token, quando `viaTokenDispositivo`. */
   idDispositivo?: number;
+  /**
+   * true quando `viaTokenDispositivo` e o condomínio não tem agent_token configurado (nulo/vazio):
+   * instalação em que o agente foi configurado com a URL do webhook de um dispositivo.
+   */
+  condominioSemAgentToken?: boolean;
 }
 
 export interface CreateDeviceDto {
@@ -1086,14 +1091,17 @@ export class FacialService {
     if (cond) return { idCondominio: cond.id };
     const device = await this.prisma.facial_Devices.findFirst({
       where: { webhook_token: token, ativo: 1, condominio: { ativo: 1 } },
-      select: { id: true, id_condominio: true },
+      // agent_token do condomínio na mesma consulta: sem ele, este é o único token do agente.
+      select: { id: true, id_condominio: true, condominio: { select: { agent_token: true } } },
     });
     if (device) {
       this.avisarTokenDeDispositivo(token, device.id, device.id_condominio);
+      const semAgentToken = !!device.condominio && !String(device.condominio.agent_token ?? '').trim();
       return {
         idCondominio: device.id_condominio,
         viaTokenDispositivo: true,
         idDispositivo: device.id,
+        ...(semAgentToken && { condominioSemAgentToken: true }),
       };
     }
     throw new UnauthorizedException('Token do agente inválido');
@@ -6601,6 +6609,7 @@ export class FacialService {
       todosVisIds.length > 0
         ? await this.prisma.acessos_Facial.findMany({
             where: {
+              id_condominio: v.id_condominio,
               tipo_pessoa: 'visitante',
               id_pessoa: { in: todosVisIds },
             },

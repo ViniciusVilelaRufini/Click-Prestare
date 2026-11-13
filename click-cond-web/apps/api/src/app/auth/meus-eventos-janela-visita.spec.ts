@@ -62,7 +62,9 @@ describe('getMeusEventos (morador) — só eventos do condomínio e da janela da
       id: 30, nome: 'Visitante V', id_condominio: 1, is_prestador: 0,
       created_at: ha(3), data_hora_inicio: ha(3), data_hora_termino: null, data_entrada: ha(3), data_saida: null, foto_pessoa: null,
     };
-    const { svc } = build([], [v], [ev(4, 2, 30, ha(1), 'Outro condominio'), ev(5, 1, 30, ha(1), 'Mesmo condominio')]);
+    // Dentro da janela da visita (entrada sem saída nem término: teto de 24 h a partir da entrada).
+    const dentro = new Date(ha(3).getTime() + 2 * 60 * 60 * 1000);
+    const { svc } = build([], [v], [ev(4, 2, 30, dentro, 'Outro condominio'), ev(5, 1, 30, dentro, 'Mesmo condominio')]);
     const nomes = (await svc.getMeusEventos(9, 15, 'Morador')).map((e: any) => e.nome);
     expect(nomes).toContain('Mesmo condominio');
     expect(nomes).not.toContain('Outro condominio');

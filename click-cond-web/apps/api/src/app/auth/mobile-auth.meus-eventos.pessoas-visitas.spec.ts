@@ -181,7 +181,8 @@ describe('MobileAuthService — getMeusEventos() (Pessoas/Visitas)', () => {
         visitas: {
           findMany: jest.fn(async () => [
             {
-              id: 900, id_pessoa: 500, id_condominio: 1, is_prestador: 0,
+              // created_at é NOT NULL no schema: sem ele a visita não tem janela (o evento não é dela).
+              id: 900, id_pessoa: 500, id_condominio: 1, is_prestador: 0, created_at: new Date(),
               data_entrada: null, data_saida: null, pessoa: { nome: 'Visitante X' },
             },
           ]),

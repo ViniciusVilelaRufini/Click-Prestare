@@ -23,6 +23,7 @@ describe('MoradoresService.create — conta existente com vínculo em outro cond
       apartamentos: { findUnique: jest.fn(async () => ({ id: 55, id_condominio: 1, bloco: 'A', apto: '101' })) },
       apartamentos_Users: { create: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
       sindicos_Condominios: { count: jest.fn(async () => 0) },
+      funcionarios_Portaria: { count: jest.fn(async () => 0) }, // login de portaria livre
       funcionarios: { count: jest.fn(async () => 0) },
     };
     const mail: any = { sendWelcomeMorador: jest.fn(async () => ({})), sendWelcomeMoradorExisting: jest.fn(async () => ({})) };

@@ -107,6 +107,7 @@ describe('cadastro de tag — código normalizado em todos os pontos', () => {
           findFirst: jest.fn().mockResolvedValue(null),
           create: jest.fn().mockResolvedValue({ id: 99 }),
         },
+        funcionarios_Portaria: { count: jest.fn().mockResolvedValue(0) }, // login de portaria livre
         apartamentos_Users: { create: jest.fn().mockResolvedValue({}) },
         moradores: {
           findFirst: jest.fn().mockResolvedValue(null),

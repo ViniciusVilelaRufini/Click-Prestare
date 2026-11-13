@@ -16,6 +16,7 @@ describe('MoradoresService - Validação de Menor de 18 Anos', () => {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 99 }),
       },
+      funcionarios_Portaria: { count: jest.fn().mockResolvedValue(0) }, // login de portaria livre
       apartamentos_Users: {
         create: jest.fn().mockResolvedValue({}),
       },
@@ -249,6 +250,7 @@ describe('MoradoresService.update - fecha o mesmo buraco de maioridade que exist
         count: jest.fn().mockResolvedValue(0),
       },
       sindicos_Condominios: { count: jest.fn().mockResolvedValue(0) },
+      funcionarios_Portaria: { count: jest.fn().mockResolvedValue(0) }, // login de portaria livre
       funcionarios: { count: jest.fn().mockResolvedValue(0) },
       visitantes: {
         findFirst: jest.fn().mockResolvedValue(null),

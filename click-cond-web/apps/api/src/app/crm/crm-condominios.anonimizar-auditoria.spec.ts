@@ -47,6 +47,9 @@ describe('CrmCondominiosService.purgar — anonimização de audit_logs', () => 
           return { count: 57 };
         }),
       },
+      chat_Ia_Historico: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+      rag_Embeddings: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+      fechamentoMensal: { deleteMany: jest.fn(async () => ({ count: 0 })) },
       $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
     };
 

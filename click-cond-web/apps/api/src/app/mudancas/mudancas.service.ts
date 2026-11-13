@@ -126,13 +126,26 @@ export class MudancasService {
     await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
     // Token sem Users.id (porteiro do console) nunca é o dono.
     const callerId = idUsuarioDoToken(user);
-    if (callerId === null || atual.user !== callerId) {
+    const ehDono = callerId !== null && atual.user === callerId;
+    if (!ehDono) {
       assertStaff(user, 'editar mudança de outro morador');
       // Mesma flag do updateStatus: gerir mudança alheia é "agendar mudança".
       await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'agendar_mudanca', user);
     }
     if (dto.id_apartamento !== undefined) {
       await assertApartamentoGravavel(this.prisma as any, Number(dto.id_apartamento), atual.id_condominio, user);
+      // Mesma regra do create: o atalho do dono não leva a mudança para unidade em que o
+      // funcionário do app não mora sem a flag `agendar_mudanca`.
+      const idApartamento = Number(dto.id_apartamento);
+      if (ehDono && ehFuncionarioDoApp(user) && idApartamento !== atual.id_apartamento) {
+        const moraNaUnidade = await this.prisma.apartamentos_Users.findFirst({
+          where: { id_user: callerId, id_apto: idApartamento },
+          select: { id_apto: true },
+        });
+        if (!moraNaUnidade) {
+          await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'agendar_mudanca', user);
+        }
+      }
     }
     // A aprovação vale para o dia, a hora e a unidade que a equipe viu: o
     // morador que remarca uma mudança aprovada (ou recusada) a devolve à fila.

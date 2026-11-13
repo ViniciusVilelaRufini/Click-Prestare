@@ -96,7 +96,7 @@ export class AgentController {
   @Public()
   @Get('condo/:token/poll')
   async condoPoll(@Param('token') token: string) {
-    const { idCondominio, soDispositivo } = await this.escopo(token);
+    const { idCondominio, soDispositivo, semAgentToken } = await this.escopo(token);
     const todos = await this.service.getActiveDevices(idCondominio);
     const devices = soDispositivo == null ? todos : todos.filter((d) => d.id === soDispositivo);
     // Antes do poll (que marca o heartbeat): quem estava offline até agora.
@@ -148,7 +148,10 @@ export class AgentController {
       descobrir: soDispositivo == null ? await this.descoberta.consumirPedido(idCondominio) : false,
       // "Atualizar agora" do portal (AgentBridgeService.pedirVerificacaoDeAtualizacao):
       // true só uma vez por pedido, para o agente conferir a versão já. Agente antigo ignora.
-      verificar_atualizacao: await this.bridge.consumirPedidoDeAtualizacao(idCondominio),
+      // Pedido do condomínio inteiro (como a descoberta): só o agent_token consome — ou o token de
+      // dispositivo, quando o condomínio não tem agent_token (o agente foi configurado com a URL do webhook).
+      verificar_atualizacao:
+        soDispositivo == null || semAgentToken ? await this.bridge.consumirPedidoDeAtualizacao(idCondominio) : false,
     };
   }
 
@@ -257,8 +260,14 @@ export class AgentController {
    * agent_token → condomínio inteiro. webhook_token de um dispositivo (agente antigo) → só ele
    * (`soDispositivo`). Ver FacialService.resolveAgente.
    */
-  private async escopo(token: string): Promise<{ idCondominio: number; soDispositivo: number | null }> {
+  private async escopo(
+    token: string,
+  ): Promise<{ idCondominio: number; soDispositivo: number | null; semAgentToken: boolean }> {
     const a = await this.service.resolveAgente(token);
-    return { idCondominio: a.idCondominio, soDispositivo: a.viaTokenDispositivo ? Number(a.idDispositivo) : null };
+    return {
+      idCondominio: a.idCondominio,
+      soDispositivo: a.viaTokenDispositivo ? Number(a.idDispositivo) : null,
+      semAgentToken: !!a.viaTokenDispositivo && a.condominioSemAgentToken === true,
+    };
   }
 }
