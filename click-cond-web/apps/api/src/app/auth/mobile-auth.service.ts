@@ -4232,9 +4232,13 @@ export class MobileAuthService {
           // S22: o menor revogado pelo operador não tem login para dar a nova resposta. O responsável,
           // pelo app dele, reenvia a foto com o termo: só isso é gravado (o resto do cadastro segue
           // com a equipe) e a marca da revogação sai neste condomínio. Fora desse caso, regra de sempre.
+          // O termo tem de ser NOVO: a revogação mantém o extra2, e o app reenvia o termo gravado num
+          // simples "Salvar" — reenviá-lo não é nova resposta do responsável.
+          const termoNovo =
+            temTermoResponsavel(mor.extra2) && String(mor.extra2).trim() !== String(atual.extra2 ?? '').trim();
           if (
             mor.photo &&
-            temTermoResponsavel(mor.extra2) &&
+            termoNovo &&
             (await this.ehResponsavelDoMenorRevogado(atual, user))
           ) {
             photoUrl = await resolverFoto([atual.foto_pessoa, atual.user?.photo, atual.user?.profile_image]);

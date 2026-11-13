@@ -1,5 +1,6 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { MobileAuthService } from './mobile-auth.service';
+import { MSG_ARQUIVO_INVALIDO, StorageService } from '../common/storage/storage.service';
 import { REVOGADO_PELO_OPERADOR } from '../consentimentos/consentimentos.service';
 
 /**
@@ -116,7 +117,14 @@ function montar() {
     },
   };
   prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
-  const storage: any = { isDataUrl: () => true, uploadDataUrl: jest.fn(async () => 'https://s3/moradores/qa.jpg') };
+  // Regra real do campo de arquivo (StorageService sem bucket configurado): data URL sobe; chave/URL
+  // do bucket só passa se for a já gravada no cadastro.
+  const real = new StorageService();
+  const storage: any = {
+    isDataUrl: (v: unknown) => real.isDataUrl(v),
+    uploadDataUrl: jest.fn(async () => 'https://s3/moradores/qa.jpg'),
+    exigirArquivoDoRegistro: (v: unknown, g: any) => real.exigirArquivoDoRegistro(v, g),
+  };
   const tenant: any = {
     assertCondominio: jest.fn(async () => undefined),
     assertEntidade: jest.fn(async () => undefined),
@@ -175,6 +183,26 @@ describe('S22 — termo do responsável desbloqueia o menor revogado pelo operad
     it('sem foto no envio, segue a regra atual', async () => {
       const { svc, linha } = montar();
       await expect(svc.saveMorador(edicaoMenor(500, { photo: undefined }), true, responsavel)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(linha(500).face_sync_error).toBe(REVOGADO_PELO_OPERADOR);
+    });
+
+    it('reenviar o termo JÁ gravado (o "Salvar" do app reenvia o extra2) não é nova resposta: recusado, marca intacta', async () => {
+      const { svc, prisma, linha, consentimentos } = montar();
+      await expect(
+        svc.saveMorador(edicaoMenor(500, { extra2: `  ${TERMO_ANTIGO} ` }), true, responsavel),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.moradores.update).not.toHaveBeenCalled();
+      expect(consentimentos).toHaveLength(0);
+      expect(linha(500).face_sync_error).toBe(REVOGADO_PELO_OPERADOR);
+    });
+
+    it('foto que não é a gravada no cadastro (chave do bucket alheia): "Arquivo inválido.", marca intacta', async () => {
+      const { svc, prisma, linha, consentimentos } = montar();
+      const r = svc.saveMorador(edicaoMenor(500, { photo: 'moradores/foto-de-outra-pessoa.jpg' }), true, responsavel);
+      await expect(r).rejects.toBeInstanceOf(BadRequestException);
+      await expect(r).rejects.toThrow(MSG_ARQUIVO_INVALIDO);
+      expect(prisma.moradores.update).not.toHaveBeenCalled();
+      expect(consentimentos).toHaveLength(0);
       expect(linha(500).face_sync_error).toBe(REVOGADO_PELO_OPERADOR);
     });
   });
