@@ -294,6 +294,34 @@ export class PrestadoresService {
     }
   }
 
+  /**
+   * O e-mail do prestador é a chave do login de portaria dele (não há FK). Por isso ele nunca pode passar a
+   * ser um login de portaria que já existe e não é o dele — com ou sem acesso pedido. `idLoginProprio`: o
+   * login que já pertence a este prestador (loginPortariaDoPrestador), que não conta como colisão.
+   */
+  private async assertEmailLivreNaPortaria(email: string | null | undefined, idLoginProprio?: number) {
+    const login = (email ?? '').trim();
+    if (!login) return;
+    // login é único no banco inteiro: uma linha no máximo, comparada pelo id aqui.
+    const existente = await this.prisma.funcionarios_Portaria.findFirst({ where: { login }, select: { id: true } });
+    if (existente && existente.id !== idLoginProprio) {
+      throw new BadRequestException('Já existe um funcionário com este e-mail.');
+    }
+  }
+
+  /**
+   * Login de portaria que ESTE prestador recebeu: login = e-mail gravado nele, mesmo condomínio e turno
+   * 'Geral' (só o acesso concedido pelo cadastro de prestador grava esse turno). Linha com o mesmo login e
+   * outro turno é de outra pessoa da equipe — nunca é re-credenciada nem apagada a partir do prestador.
+   */
+  private loginPortariaDoPrestador(p: { email: string | null; id_condominio: number }) {
+    const login = (p.email ?? '').trim();
+    if (!login) return Promise.resolve(null);
+    return this.prisma.funcionarios_Portaria.findFirst({
+      where: { login, id_condominio: p.id_condominio, turno: 'Geral' },
+    });
+  }
+
   async create(dto: CreatePrestadorDto, user?: JwtPayload) {
     await this.tenant.assertCondominio(dto.id_condominio, user);
     await this.tenant.assertPermissaoFuncionario(dto.id_condominio, 'prestadores_servico', user);
@@ -490,15 +518,6 @@ export class PrestadoresService {
       );
     }
 
-    if (dto.email && dto.hasPortariaAccess) {
-      const conflito = await this.prisma.funcionarios_Portaria.findFirst({
-        where: { login: dto.email.trim(), NOT: { login: atual.email || '' } },
-        select: { id: true },
-      });
-      if (conflito) {
-        throw new BadRequestException('Já existe outro funcionário com este e-mail.');
-      }
-    }
     if (dto.hasPortariaAccess) {
       assertOperador(user, 'conceder acesso à portaria a um prestador');
       const emailAcesso = (dto.email ?? atual.email ?? '').trim();
@@ -508,15 +527,18 @@ export class PrestadoresService {
     // novo sem senha é recusado (antes virava '123456') sem deixar o cadastro meio salvo.
     const emailParaLogin = dto.email ? dto.email.trim() : dto.email === undefined ? (atual.email ?? '').trim() : '';
     const senhaInformada = typeof dto.senha === 'string' && dto.senha.trim() !== '' ? dto.senha : undefined;
-    const atualPortaria =
-      dto.hasPortariaAccess && emailParaLogin
-        ? await this.prisma.funcionarios_Portaria.findFirst({
-            where: {
-              login: { in: [atual.email, emailParaLogin].filter(Boolean) as string[] },
-              id_condominio: atual.id_condominio,
-            },
-          })
-        : null;
+    // Só o login que ESTE prestador recebeu é re-credenciado. Antes era qualquer linha do condomínio com o
+    // e-mail antigo ou o novo: gravar como e-mail o login de um colega e pedir o acesso com senha
+    // sobrescrevia a senha dele (e o turno dele, até 'Síndico', continuava valendo).
+    const emailMuda =
+      typeof dto.email === 'string' && dto.email.trim().toLowerCase() !== (atual.email ?? '').trim().toLowerCase();
+    const loginProprio = emailMuda || dto.hasPortariaAccess ? await this.loginPortariaDoPrestador(atual) : null;
+    // E o e-mail resultante nunca pode ser login de outra pessoa: em TODA troca de e-mail (com ou sem a flag)
+    // e em todo acesso pedido (antes só quando e-mail e flag vinham juntos, e o e-mail atual era isento).
+    if (emailMuda || dto.hasPortariaAccess) {
+      await this.assertEmailLivreNaPortaria(emailParaLogin, loginProprio?.id);
+    }
+    const atualPortaria = dto.hasPortariaAccess && emailParaLogin ? loginProprio : null;
     if (dto.hasPortariaAccess && emailParaLogin && !atualPortaria && !senhaInformada) {
       throw new BadRequestException('Informe uma senha para o acesso à portaria.');
     }
