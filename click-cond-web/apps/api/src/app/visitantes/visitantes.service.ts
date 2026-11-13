@@ -1557,7 +1557,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       categorias: ultimaVisita?.categorias ?? null,
     } as any);
 
-    await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id);
+    await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id, await this.aptosDoMoradorMobile(payload));
 
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = this.construirContextoAuditoria(visita);
@@ -2122,8 +2122,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         descricao: `Agendamento existente atualizado para ${tipoLabel} "${updated.nome}".`,
       });
 
-      // Desativar qualquer outra visita ativa/duplicada
-      await this.desativarOutrosCodigos(updated.id_condominio, updated.id, updated.nome, updated.doc_identificacao);
+      // Desativar qualquer outra visita ativa/duplicada — do morador, só nas unidades dele.
+      await this.desativarOutrosCodigos(
+        updated.id_condominio, updated.id, updated.nome, updated.doc_identificacao,
+        await this.aptosDoMoradorMobile(operador),
+      );
 
       // Notificar moradores
       try {
@@ -3156,7 +3159,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       descricao: `Acesso liberado: ${label} "${v.pessoa?.nome}" no ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
-    await this.desativarOutrosCodigosVisita(v.id_condominio, v.id_pessoa, v.id);
+    await this.desativarOutrosCodigosVisita(v.id_condominio, v.id_pessoa, v.id, await this.aptosDoMoradorMobile(payload));
 
     this.fireFacialSyncPessoa(v.id_pessoa);
     return { ok: true };
@@ -4609,7 +4612,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       descricao: `Acesso liberado: ${label} "${v.nome}" no ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
-    await this.desativarOutrosCodigos(v.id_condominio, v.id, v.nome, v.doc_identificacao);
+    await this.desativarOutrosCodigos(
+      v.id_condominio, v.id, v.nome, v.doc_identificacao, await this.aptosDoMoradorMobile(payload),
+    );
     // Enrola (ou re-enrola) o rosto no terminal facial agora que liberado=1.
     this.fireFacialSync(v.id);
     return { ok: true };
@@ -4984,6 +4989,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     idAtual: number,
     nome: string,
     doc?: string | null,
+    // Morador: só revoga códigos das visitas dos apartamentos DELE (ver aptosDoMoradorMobile).
+    aptosDoChamador?: number[],
   ): Promise<void> {
     if (!this.prisma.isConnected) return;
     const docNorm = doc?.trim();
@@ -4992,6 +4999,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       id: { not: Number(idAtual) },
       data_entrada: null,
       data_saida: null,
+      ...(aptosDoChamador ? { id_apartamento: { in: aptosDoChamador } } : {}),
     };
     if (docNorm) {
       where.doc_identificacao = docNorm;
