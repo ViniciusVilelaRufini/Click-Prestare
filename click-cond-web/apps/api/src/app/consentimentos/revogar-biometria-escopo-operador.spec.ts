@@ -7,7 +7,8 @@ import { ConsentimentosCondominioController } from './consentimentos.controller'
  * dos cadastros de outros condomínios.
  *
  * No modo do operador a foto sai do storage só se mais nada a referencia (Users da conta ou outro
- * cadastro de morador); Users é global e não é alterado.
+ * cadastro de morador). Users é global: a foto da conta só é limpa quando a conta é apenas deste
+ * condomínio; se ela também tem vínculo em outro, Users fica como está.
  */
 describe('Revogação de biometria pelo operador — só no condomínio dele', () => {
   const FOTO_1 = 'https://pub.example.com/moradores/1-a.jpg';
