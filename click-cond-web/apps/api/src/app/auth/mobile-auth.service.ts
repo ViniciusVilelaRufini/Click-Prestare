@@ -5474,6 +5474,10 @@ export class MobileAuthService {
     if (norm(encomenda.status) === 'retirada') {
       throw new BadRequestException('Esta encomenda já foi retirada.');
     }
+    // Pré-registro ('Esperando') ainda não está na portaria: não há o que retirar.
+    if (norm(encomenda.status) !== 'aguardando') {
+      throw new BadRequestException('Esta encomenda ainda não chegou à portaria.');
+    }
 
     // Foto chega como data URL do app; o storage devolve a URL pública.
     let fotoUrl: string | null = fotoDataUrl ?? null;
@@ -5485,8 +5489,10 @@ export class MobileAuthService {
       }
     }
 
-    return this.prisma.encomendas.update({
-      where: { id: encomenda.id },
+    // Só sai de 'Aguardando' uma vez: outra baixa (portaria ou outro morador)
+    // no meio não grava por cima.
+    const transicao = await this.prisma.encomendas.updateMany({
+      where: { id: encomenda.id, status: encomenda.status },
       data: {
         retirado_em: new Date(),
         retirado_por: dono.nome,
@@ -5495,6 +5501,10 @@ export class MobileAuthService {
         entregue_por_user: idUser,
       },
     });
+    if (transicao.count === 0) {
+      throw new BadRequestException('Esta encomenda já foi retirada.');
+    }
+    return this.prisma.encomendas.findUnique({ where: { id: encomenda.id } });
   }
 
   async updatePassword(idUser: number, newPasswordPlana: string, typeAccess: string, senhaAtual?: string) {
