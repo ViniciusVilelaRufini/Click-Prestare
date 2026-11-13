@@ -25,7 +25,9 @@ describe('MobileAuthService.deleteAccount — porteiros só dos vínculos da pes
       },
       funcionarios_Portaria: { deleteMany: jest.fn(async () => ({ count: 1 })) },
       moradores: { findMany: jest.fn(async () => []) },
+      financeiro: { updateMany: jest.fn(async () => ({ count: 0 })) },
       $executeRaw: jest.fn(async () => 1),
+      $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
     };
     const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     (svc as any).logger = { warn: jest.fn(), error: jest.fn(), log: jest.fn() };

@@ -2179,7 +2179,18 @@ export class MobileAuthService {
     } catch (err: any) {
       this.logger.warn(`Exclusão de conta ${idUser}: não foi possível listar os rostos: ${err?.message ?? err}`);
     }
-    await this.prisma.$executeRaw`DELETE FROM Users WHERE id = ${idUser}`;
+    // Cobrança do condomínio (tudo que não é conta pessoal 'D') guarda o morador em id_usuario e
+    // fk_fin_user é ON DELETE CASCADE: a exclusão apagava a taxa condominial da unidade. Desvincula antes,
+    // na mesma transação do DELETE. Votos (Votacoes_Usuarios.id_user) e mensagens de ocorrência
+    // (OcorrenciaMensagens.id_usuario) são NOT NULL e seguem em cascata até aplicar
+    // prisma/sql/2026-11-12-PROPOSTA-exclusao-conta-preserva-votos-mensagens.sql (não aplicado).
+    await this.prisma.$transaction([
+      this.prisma.financeiro.updateMany({
+        where: { id_usuario: idUser, OR: [{ tipo: null }, { NOT: { tipo: 'D' } }] },
+        data: { id_usuario: null },
+      }),
+      this.prisma.$executeRaw`DELETE FROM Users WHERE id = ${idUser}`,
+    ]);
     return { success: true };
   }
 

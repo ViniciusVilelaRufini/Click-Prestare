@@ -20,10 +20,12 @@ describe('MobileAuthService.deleteAccount — rosto nos terminais', () => {
           { id: 12, face_id: 'morador_12', id_condominio: 2 },
         ]),
       },
+      financeiro: { updateMany: jest.fn(async () => ({ count: 0 })) },
       $executeRaw: jest.fn(async () => {
         ordem.push('delete');
         return 1;
       }),
+      $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
     };
     const facial: any = {
       unsyncMorador: jest.fn(async (id: number) => {
