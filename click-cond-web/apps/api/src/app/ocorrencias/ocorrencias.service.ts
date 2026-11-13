@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
 import { StorageService } from '../common/storage/storage.service';
-import { assertOperador, assertStaff, isOperador, isSindicoEstrito } from '../auth/tenant.util';
+import { assertOperador, assertSindicoEstrito, assertStaff, isOperador, isSindicoEstrito } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idFuncionarioPortariaDoToken, idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { autorOcorrencia, OrigemOcorrencia, rotuloPortaria } from './autor-ocorrencia.util';
@@ -96,9 +96,9 @@ export class OcorrenciasService {
 
   /**
    * Carrega uma ocorrência, confirma que pertence ao condomínio do operador
-   * e que o operador é síndico/funcionário. Use antes das mutações
-   * administrativas (remoção, visibilidade, resposta pelo app; o atendimento
-   * do console usa loadParaAtendimento) — sem isso, um
+   * e que o operador é síndico/funcionário. Use antes da resposta pelo app
+   * (o atendimento do console usa loadParaAtendimento; remover e
+   * visibilidade, loadParaAdministrar) — sem isso, um
    * morador (ou usuário de outro condomínio) altera/apaga ocorrência alheia
    * só chutando o id.
    */
@@ -112,6 +112,20 @@ export class OcorrenciasService {
     // não depende de flag; o operador da portaria-web, sem typeAccess, já para
     // no assertStaff acima, como antes.
     await this.exigirFlagOcorrencias(o.id_condominio, user);
+    return o;
+  }
+
+  /**
+   * Remover e alternar Pública/Privada: só o síndico (regra do dono), pelo
+   * typeAccess carimbado no login — o mesmo critério de `acesso().administrar`.
+   * O funcionário com a flag `ocorrencias` atende, mas não apaga nem expõe a
+   * ocorrência privada; o `turno` do porteiro é texto livre e não conta.
+   */
+  private async loadParaAdministrar(id: number, user: JwtPayload | undefined, contexto: string) {
+    assertSindicoEstrito(user, contexto);
+    const o = await this.prisma.ocorrencias.findUnique({ where: { id }, select: { id_condominio: true } });
+    if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
+    await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${id}`);
     return o;
   }
 
@@ -465,7 +479,7 @@ export class OcorrenciasService {
   }
 
   async updatePublica(id: number, publica: boolean, user?: JwtPayload) {
-    await this.loadParaMutacaoStaff(id, user, 'alterar visibilidade da ocorrência');
+    await this.loadParaAdministrar(id, user, 'alterar visibilidade da ocorrência');
     try {
       return await this.prisma.ocorrencias.update({
         where: { id },
@@ -495,7 +509,7 @@ export class OcorrenciasService {
   }
 
   async remove(id: number, user?: JwtPayload) {
-    await this.loadParaMutacaoStaff(id, user, 'remover ocorrência');
+    await this.loadParaAdministrar(id, user, 'remover ocorrência');
     try {
       await this.prisma.ocorrencias.delete({ where: { id } });
     } catch {
