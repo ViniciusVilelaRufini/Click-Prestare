@@ -510,8 +510,11 @@ export class MoradoresService {
    * - Histórico de acessos faciais do morador
    *
    * As 4 queries rodam em paralelo (Promise.all) para baixa latência.
+   *
+   * `ocorrenciasSoPublicasOuDe`: recorte de TenantAccessService.recorteOcorrenciasPrivadas — com um
+   * Users.id, as ocorrências saem só públicas ou abertas por ele; `null` = todas as do morador.
    */
-  async atividade(idMorador: number) {
+  async atividade(idMorador: number, ocorrenciasSoPublicasOuDe: number | null = null) {
     if (!this.prisma.isConnected) {
       return {
         visitas: [],
@@ -610,6 +613,9 @@ export class MoradoresService {
         where: {
           id_condominio: morador.id_condominio ?? -1,
           user: morador.id_user,
+          ...(ocorrenciasSoPublicasOuDe != null && {
+            OR: [{ publica: true }, { user: ocorrenciasSoPublicasOuDe }],
+          }),
         },
         select: {
           id: true,

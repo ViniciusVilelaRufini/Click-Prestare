@@ -96,7 +96,9 @@ export class MoradoresController {
     // findOne só pra validar tenant; atividade tem queries paralelas próprias.
     const morador = await this.service.findOne(id);
     await this.tenant.assertEntidade((morador as any)?.id_condominio, user, `morador #${id}`);
-    return this.service.atividade(id);
+    // Funcionário do app sem a flag `ocorrencias`: só as públicas + as que ele abriu (como nos outros leitores).
+    const recorte = await this.tenant.recorteOcorrenciasPrivadas((morador as any)?.id_condominio, user);
+    return this.service.atividade(id, recorte);
   }
 
   @SkipAudit()
