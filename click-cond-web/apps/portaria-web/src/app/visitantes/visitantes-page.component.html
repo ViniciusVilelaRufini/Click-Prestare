@@ -863,7 +863,12 @@
                   </span>
                 </div>
                 <div class="mt-2 flex items-center gap-2 flex-wrap">
-                  @if (getStatusVisitante(v) === 'presente') {
+                  @if (!temVisita(v)) {
+                    <span class="ps-tag" title="Nenhuma visita ativa. Use Nova Visita.">
+                      <span class="ps-dot ps-dot-ink"></span>
+                      Sem visita
+                    </span>
+                  } @else if (getStatusVisitante(v) === 'presente') {
                     <span class="ps-tag">
                       <span class="ps-dot ps-dot-ok ps-dot-pulse"></span>
                       No condomínio
@@ -1003,7 +1008,9 @@
                   class="mt-3 flex items-center gap-2 flex-wrap"
                   (click)="$event.stopPropagation()"
                 >
-                  @if (getStatusVisitante(v) === 'presente') {
+                  @if (!temVisita(v)) {
+                    <!-- Sem visita: o id da linha é o da Pessoa; só Nova Visita/Editar/Remover. -->
+                  } @else if (getStatusVisitante(v) === 'presente') {
                     <button
                       (click)="darBaixa(v)"
                       class="ps-btn ps-btn-danger ps-btn-sm"
@@ -1313,7 +1320,12 @@
                   }
                 </td>
                 <td>
-                  @if (getStatusVisitante(v) === 'presente') {
+                  @if (!temVisita(v)) {
+                    <span class="ps-tag" title="Nenhuma visita ativa. Use Nova Visita.">
+                      <span class="ps-dot ps-dot-ink"></span>
+                      Sem visita
+                    </span>
+                  } @else if (getStatusVisitante(v) === 'presente') {
                     <span class="ps-tag">
                       <span class="ps-dot ps-dot-ok"></span>
                       No condomínio
@@ -1396,7 +1408,9 @@
                 >
                   <div class="flex items-center justify-end gap-2">
                     <!-- Ação primária contextual -->
-                    @if (getStatusVisitante(v) === 'presente') {
+                    @if (!temVisita(v)) {
+                    <!-- Sem visita: o id da linha é o da Pessoa; só Nova Visita/Editar/Remover. -->
+                  } @else if (getStatusVisitante(v) === 'presente') {
                       <button
                         (click)="darBaixa(v)"
                         class="ps-btn ps-btn-danger ps-btn-sm"

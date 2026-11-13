@@ -302,7 +302,18 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * A pessoa tem alguma visita? Sem visita, o `id` da linha é o id da PESSOA
+   * e as ações de visita (detalhes, entrada, solicitar) acertariam a visita de
+   * outra pessoa — a linha só oferece Nova Visita, Editar e Remover.
+   */
+  temVisita(v: Visitante | Pessoa): boolean {
+    const total = (v as Pessoa).totalVisitas;
+    return total === undefined || total > 0;
+  }
+
   abrirDetalhes(v: Visitante | Pessoa) {
+    if (!this.temVisita(v)) return;
     this.detalhesData.set(null);
     this.detalhesError.set(null);
     this.detalhesLoading.set(true);
@@ -709,6 +720,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   /** Abre o modal para escolher o apartamento de destino antes de solicitar. */
   abrirSolicitar(v: Pessoa) {
+    if (!this.temVisita(v)) return;
     this.solicitarModalPessoa.set(v);
     this.solicitarAptoId.set(v.id_apartamento ?? null);
   }
@@ -1147,6 +1159,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   }
 
   registrarEntradaManual(v: Visitante | Pessoa) {
+    if (!this.temVisita(v)) return;
     const p: Pessoa = (v as Pessoa).apartamentosVisitados
       ? (v as Pessoa)
       : (this.pessoas().find((item) => item.id === v.id) ?? (v as any));
