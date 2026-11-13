@@ -31,6 +31,7 @@ import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-pa
 import { parseLocalTimeToUTC } from '../visitantes/visitantes.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { subirAnexosOcorrencia } from '../ocorrencias/anexos-ocorrencia.util';
+import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 
 /** Senha atual errada na troca de e-mail do perfil: 10 falhas em 10 min travam a conta por 10 min. */
 const MAX_FALHAS_SENHA_PERFIL = 10;
@@ -5179,7 +5180,7 @@ export class MobileAuthService {
 
     const list = await this.prisma.ocorrencias.findMany({
       where,
-      include: { categoria: true, criadoPor: { select: { name: true } } },
+      include: { categoria: true, criadoPor: { select: { name: true } }, funcionarioPortaria: { select: { nome: true } } },
       orderBy: { created_at: 'desc' },
     });
 
@@ -5205,7 +5206,7 @@ export class MobileAuthService {
 
     const list = await this.prisma.ocorrencias.findMany({
       where,
-      include: { categoria: true, criadoPor: { select: { name: true } } },
+      include: { categoria: true, criadoPor: { select: { name: true } }, funcionarioPortaria: { select: { nome: true } } },
       orderBy: { created_at: 'desc' },
     });
     return this.mapOcorrenciasComResp(list);
@@ -5231,7 +5232,7 @@ export class MobileAuthService {
 
     const list = await this.prisma.ocorrencias.findMany({
       where,
-      include: { categoria: true, criadoPor: { select: { name: true } } },
+      include: { categoria: true, criadoPor: { select: { name: true } }, funcionarioPortaria: { select: { nome: true } } },
       orderBy: { created_at: 'desc' },
     });
     return this.mapOcorrenciasComResp(list);
@@ -5292,7 +5293,11 @@ export class MobileAuthService {
       status: o.status ?? 'Pendente',
       resposta: o.resposta ?? '',
       resposta_at: o.resposta_at,
-      criado_por: o.criadoPor?.name ?? '',
+      // Com origem (porteiro, CRM, monitor), o rótulo de quem abriu; sem
+      // ela, o nome do usuário como sempre ('' quando não há).
+      criado_por: o.origem
+        ? autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome)
+        : o.criadoPor?.name ?? '',
       created_at: o.created_at,
       updated_at: o.updated_at,
       anexos: o.anexos ?? '',
@@ -5305,7 +5310,7 @@ export class MobileAuthService {
     if (!this.prisma.isConnected) return null;
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id },
-      include: { categoria: true, criadoPor: { select: { name: true } } },
+      include: { categoria: true, criadoPor: { select: { name: true } }, funcionarioPortaria: { select: { nome: true } } },
     });
     if (!o) return null;
     await this.tenant.assertEntidade(o.id_condominio, requester, `ocorrência #${id}`);

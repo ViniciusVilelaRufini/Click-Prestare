@@ -13,7 +13,7 @@ import { StorageService } from '../common/storage/storage.service';
 import { assertOperador, assertStaff, isOperador, isSindicoEstrito } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
-import { autorOcorrencia } from './autor-ocorrencia.util';
+import { autorOcorrencia, OrigemOcorrencia } from './autor-ocorrencia.util';
 import { subirAnexosOcorrencia } from './anexos-ocorrencia.util';
 
 export type OcorrenciaStatus = 'Pendente' | 'Ciente' | 'Solucionado';
@@ -44,6 +44,12 @@ export interface CreateOcorrenciaDto {
   anexos?: string;
   id_condominio: number;
   user?: number;
+}
+
+/** Autoria de quem abre sem conta em Users — só o servidor preenche (token, CRM, monitor). */
+export interface AutoriaOcorrencia {
+  origem: OrigemOcorrencia;
+  id_funcionario_portaria?: number | null;
 }
 
 /**
@@ -320,6 +326,7 @@ export class OcorrenciasService {
       include: {
         categoria: { select: { nome: true, sla_horas: true } },
         criadoPor: { select: { name: true } },
+        funcionarioPortaria: { select: { nome: true } },
       },
       orderBy: { created_at: 'desc' },
     });
@@ -337,7 +344,7 @@ export class OcorrenciasService {
       prazo: o.prazo,
       id_responsavel: o.id_responsavel,
       responsavelNome: o.id_responsavel ? nomes.get(o.id_responsavel) ?? null : null,
-      criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
+      criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
       created_at: o.created_at,
       publica: o.publica,
     }));
@@ -349,6 +356,7 @@ export class OcorrenciasService {
       include: {
         categoria: { select: { nome: true, sla_horas: true } },
         criadoPor: { select: { name: true } },
+        funcionarioPortaria: { select: { nome: true } },
       },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
@@ -360,11 +368,11 @@ export class OcorrenciasService {
       tipoNome: o.categoria?.nome ?? null,
       sla_horas: o.categoria?.sla_horas ?? null,
       responsavelNome: o.id_responsavel ? nomes.get(o.id_responsavel) ?? null : null,
-      criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
+      criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
     };
   }
 
-  async create(dto: CreateOcorrenciaDto) {
+  async create(dto: CreateOcorrenciaDto, autoria?: AutoriaOcorrencia) {
     // Ocorrência nova: nenhuma URL do bucket é anexo dela (a API assina toda
     // URL do bucket que devolve — ver StorageService.exigirArquivoDoRegistro).
     // Cada parte separada por ';' também, sem exceção para data URL: as partes
@@ -389,6 +397,11 @@ export class OcorrenciasService {
           id_condominio: dto.id_condominio,
           user: dto.user ?? null,
           prazo,
+          // Campos explícitos: `dto` pode vir do corpo da requisição e não
+          // escolhe a autoria.
+          ...(autoria
+            ? { origem: autoria.origem, id_funcionario_portaria: autoria.id_funcionario_portaria ?? null }
+            : {}),
         },
       });
     } catch (err: any) {

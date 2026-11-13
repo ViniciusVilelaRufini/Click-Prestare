@@ -275,6 +275,7 @@ export class DashboardService {
         include: {
           criadoPor: { select: { name: true } },
           categoria: { select: { nome: true } },
+          funcionarioPortaria: { select: { nome: true } },
         },
       }),
       // Acessos faciais recentes (terminal facial)
@@ -602,7 +603,7 @@ export class DashboardService {
           descricao: o.descricao || 'Sem descrição',
           status: o.status,
           dataEntrada: o.created_at.toISOString(),
-          autorizadoPor: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
+          autorizadoPor: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
           resposta: o.resposta || undefined,
           dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
         },

@@ -1205,7 +1205,9 @@ export class CrmService {
         descricao,
         tipo: tipo ? Number(tipo) : null,
         status: 'Pendente',
-        publica: true
+        publica: true,
+        // Sem Users.id (token do CRM): o rótulo sai "Suporte Prestare".
+        origem: 'crm',
       },
       include: {
         condominio: {
