@@ -5,12 +5,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import { autorDoToken } from '../auth/usuario-do-token.util';
 import { usuarioTemVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
+import { PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FacialDeviceClientService } from '../facial/facial-device-client.service';
@@ -103,6 +105,8 @@ export class CrmCondominiosService {
     private readonly prisma: PrismaService,
     private readonly auditoria: AuditoriaService,
     private readonly deviceClient: FacialDeviceClientService,
+    // Global (StorageModule). Opcional para os specs antigos: sem ele, a purga não apaga as fotos.
+    @Optional() private readonly storage?: StorageService,
   ) {}
 
   // ════════════════════════ Criação ════════════════════════
@@ -487,8 +491,10 @@ export class CrmCondominiosService {
     const resumo = await this.contar(id);
 
     await this.prisma.$transaction([
-      // agent_token = null derruba o agente local: resolveCondominioForAgent
-      // deixa de encontrar o condomínio e o agente perde a sincronização.
+      // agent_token = null derruba o agente local: FacialService.resolveAgente
+      // (por onde passa também resolveCondominioForAgent) deixa de encontrar o
+      // condomínio pelo agent_token, e o webhook_token dos terminais cai junto
+      // (ativo = 0 abaixo). O agente perde a sincronização.
       this.prisma.condominios.update({
         where: { id },
         data: { ativo: 0, agent_token: null },
@@ -596,23 +602,27 @@ export class CrmCondominiosService {
 
     // 2. Contas candidatas — decididas antes, apagadas depois da cascata.
     const candidatos = await this.usuariosVinculados(id);
+    const fotosMoradores = await this.fotosDosMoradores(id);
 
-    // 3. A cascata do banco leva as 33 tabelas com id_condominio — exceto
-    // Acessos_Facial, que agora é RESTRICT. Se o operador pediu explicitamente
-    // para apagar o histórico junto, isso entra na MESMA transação do delete
-    // do condomínio (tudo ou nada); senão o delete simples já teria sido
-    // recusado acima.
-    if (purgarHistorico && totalAcessos > 0) {
-      await this.prisma.$transaction([
-        this.prisma.acessos_Facial.deleteMany({ where: { id_condominio: id } }),
-        this.prisma.condominios.delete({ where: { id } }),
-      ]);
-    } else {
-      await this.prisma.condominios.delete({ where: { id } });
-    }
+    // 3. A cascata do banco leva as tabelas com id_condominio — exceto
+    // Acessos_Facial (RESTRICT) e Moradores: id_condominio é anulável e
+    // fk_mor_cond é SET NULL, então o cadastro (nome, CPF, fotos, tag, QR)
+    // sobrevivia órfão. Os dois saem explicitamente na MESMA transação do
+    // delete do condomínio (tudo ou nada). O histórico de acessos só quando
+    // o operador pediu; senão o delete já teria sido recusado acima.
+    await this.prisma.$transaction([
+      this.prisma.moradores.deleteMany({ where: { id_condominio: id } }),
+      ...(purgarHistorico && totalAcessos > 0
+        ? [this.prisma.acessos_Facial.deleteMany({ where: { id_condominio: id } })]
+        : []),
+      this.prisma.condominios.delete({ where: { id } }),
+    ]);
 
     // 4. Só agora: apaga as contas que ficaram sem QUALQUER vínculo.
     const contasRemovidas = await this.removerContasOrfas(candidatos);
+
+    // 4b. Fotos dos cadastros apagados: só as que mais nada no banco referencia.
+    await this.apagarFotosSemReferencia(fotosMoradores);
 
     // 5. LGPD: audit_logs não tem FK, a cascata não a alcança. Anonimiza o que
     // já existe ANTES de gravar a linha da exclusão, para que essa (operador
@@ -727,6 +737,39 @@ export class CrmCondominiosService {
     return { limpos, falhas };
   }
 
+  /** URLs de foto dos cadastros de morador do condomínio (lidas antes do delete). */
+  private async fotosDosMoradores(idCondominio: number): Promise<string[]> {
+    const linhas = await this.prisma.moradores.findMany({
+      where: { id_condominio: idCondominio },
+      select: { foto_pessoa: true, foto_documento: true },
+    });
+    const urls = new Set<string>();
+    for (const l of linhas as { foto_pessoa?: string | null; foto_documento?: string | null }[]) {
+      for (const u of [l.foto_pessoa, l.foto_documento]) if (u) urls.add(u);
+    }
+    return [...urls];
+  }
+
+  /**
+   * Best-effort, depois do commit: a mesma URL pode seguir num cadastro de outro condomínio ou numa
+   * conta preservada — aí fica no storage. deleteUrl só apaga dentro de `moradores/`.
+   */
+  private async apagarFotosSemReferencia(urls: string[]): Promise<void> {
+    if (!this.storage) return;
+    for (const url of urls) {
+      try {
+        const [emCadastro, emConta] = await Promise.all([
+          this.prisma.moradores.count({ where: { OR: [{ foto_pessoa: url }, { foto_documento: url }] } }),
+          this.prisma.users.count({ where: { OR: [{ photo: url }, { profile_image: url }] } }),
+        ]);
+        if (emCadastro + emConta > 0) continue;
+        await this.storage.deleteUrl(url, PREFIXOS_FOTO_MORADOR);
+      } catch (e: any) {
+        this.logger.warn(`Foto de morador do condomínio purgado não removida: ${e?.message}`);
+      }
+    }
+  }
+
   /** Todo Users com algum papel neste condomínio (síndico, morador, funcionário). */
   private async usuariosVinculados(idCondominio: number): Promise<number[]> {
     const [sindicos, moradores, funcionarios, aptoUsers] = await Promise.all([
@@ -768,7 +811,9 @@ export class CrmCondominiosService {
     for (const idUser of candidatos) {
       const [sindico, morador, funcionario, aptoUser] = await Promise.all([
         this.prisma.sindicos_Condominios.count({ where: { id_user: idUser } }),
-        this.prisma.moradores.count({ where: { id_user: idUser } }),
+        // Linha órfã (id_condominio NULL, sobra de purga antiga via fk SET NULL) não é vínculo:
+        // apagada a conta, a cascata de fk_mor_user leva a órfã junto.
+        this.prisma.moradores.count({ where: { id_user: idUser, id_condominio: { not: null } } }),
         this.prisma.funcionarios.count({ where: { id_user: idUser } }),
         this.prisma.apartamentos_Users.count({ where: { id_user: idUser } }),
       ]);

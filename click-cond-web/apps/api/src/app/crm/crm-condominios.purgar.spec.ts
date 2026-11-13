@@ -21,7 +21,11 @@ describe('CrmCondominiosService.purgar — refusal when Acessos_Facial has histo
         count: jest.fn(async () => 0),
       },
       sindicos_Condominios: { findMany: jest.fn(async () => []) },
-      moradores: { findMany: jest.fn(async () => []), count: jest.fn(async () => 0) },
+      moradores: {
+        findMany: jest.fn(async () => []),
+        count: jest.fn(async () => 0),
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+      },
       funcionarios: { findMany: jest.fn(async () => []), count: jest.fn(async () => 0) },
       apartamentos: { count: jest.fn(async () => 0) },
       apartamentos_Users: { findMany: jest.fn(async () => []) },
@@ -65,6 +69,7 @@ describe('CrmCondominiosService.purgar — refusal when Acessos_Facial has histo
 
     expect(resultado.success).toBe(true);
     expect(prisma.condominios.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+    expect(prisma.moradores.deleteMany).toHaveBeenCalledWith({ where: { id_condominio: 1 } });
   });
 
   it('com purgarHistoricoAcessos=true, apaga o histórico e o condomínio na mesma transação', async () => {

@@ -31,7 +31,11 @@ describe('CrmCondominiosService.purgar — anonimização de audit_logs', () => 
         updateMany: jest.fn(async () => ({ count: 2 })),
       },
       sindicos_Condominios: { findMany: jest.fn(async () => []) },
-      moradores: { findMany: jest.fn(async () => []), count: jest.fn(async () => 12) },
+      moradores: {
+        findMany: jest.fn(async () => []),
+        count: jest.fn(async () => 12),
+        deleteMany: jest.fn(async () => ({ count: 12 })),
+      },
       funcionarios: { findMany: jest.fn(async () => []), count: jest.fn(async () => 3) },
       apartamentos: { count: jest.fn(async () => 40) },
       apartamentos_Users: { findMany: jest.fn(async () => []) },
