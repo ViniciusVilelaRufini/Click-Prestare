@@ -299,6 +299,10 @@ export class PrestadoresService {
     await this.tenant.assertPermissaoFuncionario(dto.id_condominio, 'prestadores_servico', user);
     // Conceder login de portaria é ato do console (síndico/portaria), não de morador nem de funcionário do app.
     if (dto.hasPortariaAccess) assertOperador(user, 'conceder acesso à portaria a um prestador');
+    // Sem senha padrão: '123456' era a senha do login de portaria (e da conta do app) do prestador.
+    if (dto.hasPortariaAccess && dto.email && !(typeof dto.senha === 'string' && dto.senha.trim() !== '')) {
+      throw new BadRequestException('Informe uma senha para o acesso à portaria.');
+    }
     if (!this.prisma.isConnected) {
       return {
         id: Date.now(),
@@ -382,7 +386,7 @@ export class PrestadoresService {
     }
 
     if (dto.hasPortariaAccess && dto.email) {
-      const senhaInicial = dto.senha || '123456';
+      const senhaInicial = dto.senha as string;
       const hash = await bcrypt.hash(senhaInicial, 12);
       const emailClean = dto.email.trim();
 
@@ -500,6 +504,22 @@ export class PrestadoresService {
       const emailAcesso = (dto.email ?? atual.email ?? '').trim();
       if (emailAcesso) await this.assertContaLivreParaPortaria(emailAcesso, atual.id_condominio);
     }
+    // Login de portaria que esta edição cria ou re-credencia, resolvido ANTES de gravar: criar um login
+    // novo sem senha é recusado (antes virava '123456') sem deixar o cadastro meio salvo.
+    const emailParaLogin = dto.email ? dto.email.trim() : dto.email === undefined ? (atual.email ?? '').trim() : '';
+    const senhaInformada = typeof dto.senha === 'string' && dto.senha.trim() !== '' ? dto.senha : undefined;
+    const atualPortaria =
+      dto.hasPortariaAccess && emailParaLogin
+        ? await this.prisma.funcionarios_Portaria.findFirst({
+            where: {
+              login: { in: [atual.email, emailParaLogin].filter(Boolean) as string[] },
+              id_condominio: atual.id_condominio,
+            },
+          })
+        : null;
+    if (dto.hasPortariaAccess && emailParaLogin && !atualPortaria && !senhaInformada) {
+      throw new BadRequestException('Informe uma senha para o acesso à portaria.');
+    }
 
     const fotosDoCadastro = [atual.foto_pessoa, atual.foto_documento];
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDoCadastro) : undefined;
@@ -520,15 +540,8 @@ export class PrestadoresService {
         },
       });
 
-      const emailParaLogin = dto.email ? dto.email.trim() : (atualizado.email ?? '');
-
       if (dto.hasPortariaAccess && emailParaLogin) {
-        const loginsParaBuscar = [atual.email, emailParaLogin].filter(Boolean) as string[];
-        const atualPortaria = await this.prisma.funcionarios_Portaria.findFirst({
-          where: { login: { in: loginsParaBuscar }, id_condominio: atualizado.id_condominio },
-        });
-
-        const hash = dto.senha ? await bcrypt.hash(dto.senha, 12) : undefined;
+        const hash = senhaInformada ? await bcrypt.hash(senhaInformada, 12) : undefined;
 
         if (atualPortaria) {
           await this.prisma.funcionarios_Portaria.update({
@@ -543,13 +556,12 @@ export class PrestadoresService {
             },
           });
         } else {
-          const senhaInicial = dto.senha || '123456';
-          const newHash = await bcrypt.hash(senhaInicial, 12);
           await this.prisma.funcionarios_Portaria.create({
             data: {
               nome: dto.nome ?? atualizado.nome,
               login: emailParaLogin,
-              password: newHash,
+              // Garantida pela checagem antes do try: sem login próprio, a senha é obrigatória.
+              password: hash as string,
               email: emailParaLogin,
               telefone: dto.telefone ?? atualizado.telefone ?? null,
               turno: 'Geral',
@@ -564,8 +576,8 @@ export class PrestadoresService {
             where: { OR: [{ login: emailParaLogin }, { email: emailParaLogin }] },
           });
           if (!user) {
-            const senhaInicial = dto.senha || '123456';
-            const userHash = hash || (await bcrypt.hash(senhaInicial, 12));
+            // Sem senha nova, a conta do app nasce com a senha que o login de portaria já tem.
+            const userHash = hash ?? atualPortaria!.password;
             user = await this.prisma.users.create({
               data: {
                 login: emailParaLogin,

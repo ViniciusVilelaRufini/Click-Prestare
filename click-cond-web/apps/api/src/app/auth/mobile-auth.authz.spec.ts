@@ -59,7 +59,7 @@ describe('MobileAuthService — gestão de funcionários (takeover crítico)', (
   const sindicoCond2: JwtPayload = { sub: 9, nome: 'Síndico Z', typeAccess: 'Sindico' };
 
   describe('saveFuncionario (criação)', () => {
-    const body = { id_condominio: 2, funcionario: { nome: 'Novo Porteiro', email: 'novo@x.com' } };
+    const body = { id_condominio: 2, funcionario: { nome: 'Novo Porteiro', email: 'novo@x.com', senha: 'Senha-Teste-1' } };
 
     it('NEGA morador criar funcionário', async () => {
       const { svc, prisma } = build();

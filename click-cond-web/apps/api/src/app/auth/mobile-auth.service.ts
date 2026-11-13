@@ -12,7 +12,6 @@ import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { type Gravados, StorageService } from '../common/storage/storage.service';
-import { somenteDigitos } from '../common/documento.util';
 import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService, ehFuncionarioDoApp, type PermissaoFuncionario } from './tenant-access.service';
@@ -3729,7 +3728,9 @@ export class MobileAuthService {
     if (!idCondominio) throw new BadRequestException('id_condominio é obrigatório.');
     await this.tenant.assertCondominio(idCondominio, user);
     if (!func.nome) throw new BadRequestException('Nome é obrigatório.');
-    const loginFinal = func.email || func.login;
+    // Sem espaços, como na edição: o login gravado aqui é o que a portaria compara no acesso.
+    const emailNovo: string | null | undefined = typeof func.email === 'string' ? func.email.trim() : func.email;
+    const loginFinal = emailNovo || (typeof func.login === 'string' ? func.login.trim() : func.login);
     if (!loginFinal) throw new BadRequestException('E-mail é obrigatório para login do porteiro.');
 
     const conflito = await this.prisma.funcionarios_Portaria.findUnique({ where: { login: loginFinal } });
@@ -3738,14 +3739,11 @@ export class MobileAuthService {
     // Porteiro novo não tem foto gravada: URL do bucket nunca é dele.
     const photoUrl = await resolverFoto([]);
 
-    // Senha inicial = senha recebida, documento (só dígitos) ou '123456'.
-    // A senha escolhida no formulário passa intacta — normalizar ali
-    // destruiria uma senha com letras ou símbolos.
-    const senhaInicial =
-      func.senha || func.password || somenteDigitos(func.documento) || '123456';
-    // Senha inicial em bcrypt. Gravar MD5 aqui era o pior caso: como o valor
-    // padrao sao os digitos do documento, um hash sem sal de um numero de 11
-    // digitos e reversivel em segundos por forca bruta.
+    // Sem senha padrão: '123456' e os dígitos do CPF eram a senha de um login de portaria ativo e sem
+    // MFA. A senha escolhida no formulário passa intacta (normalizar destruiria letras/símbolos).
+    const senhaInicial = [func.senha, func.password].find((s) => typeof s === 'string' && s.trim() !== '') as string | undefined;
+    if (!senhaInicial) throw new BadRequestException('Informe uma senha para o funcionário.');
+    // Senha inicial em bcrypt (nunca MD5 sem sal).
     const senhaHash = await bcrypt.hash(senhaInicial, 10);
 
     const created = await this.prisma.funcionarios_Portaria.create({
@@ -3753,7 +3751,7 @@ export class MobileAuthService {
         nome: func.nome,
         login: loginFinal,
         password: senhaHash,
-        email: func.email ?? null,
+        email: emailNovo ?? null,
         telefone: func.telefone ?? null,
         turno: func.ch ?? func.turno ?? null,
         ativo: 1,
