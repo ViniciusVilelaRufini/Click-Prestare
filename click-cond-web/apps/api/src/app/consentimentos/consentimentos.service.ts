@@ -4,6 +4,7 @@ import { PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage
 import type { FacialService } from '../facial/facial.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { usuarioTemVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 
 /**
  * Versão do texto de privacidade vigente.
@@ -135,21 +136,28 @@ export class ConsentimentosService {
    * 3. Chama `facial.unsyncMorador` para cada morador com face_id.
    * 4. Se todos os aparelhos removeram com sucesso: face_id = null, face_sync_status = 'revoked'.
    * 5. Se algum aparelho falhou (offline): face_sync_status = 'pending_removal' (preserva face_id para retry).
+   *
+   * Com `idCondominio` (operador): age só nos moradores desse condomínio e não grava a recusa (1).
    */
-  async revogarBiometria(target: JwtPayload | number, operadorNome?: string) {
+  async revogarBiometria(target: JwtPayload | number, operadorNome?: string, idCondominio?: number) {
     const idUser = typeof target === 'number' ? target : this.idDoUsuario(target);
     const registrado_em = new Date();
+    // Operador (síndico/portaria) só administra o cadastro do condomínio dele. A recusa global e os
+    // cadastros de outros condomínios são do titular (POST /consentimentos/revogar-biometria).
+    const escopo = idCondominio != null ? Number(idCondominio) : null;
 
-    // 1. Histórico LGPD: novo registro com aceito = 0
-    await this.prisma.consentimentos.create({
-      data: {
-        id_user: idUser,
-        tipo: 'biometria',
-        versao: POLITICA_VERSAO,
-        aceito: 0,
-        registrado_em,
-      },
-    });
+    // 1. Histórico LGPD: novo registro com aceito = 0 — só na revogação do próprio titular.
+    if (escopo == null) {
+      await this.prisma.consentimentos.create({
+        data: {
+          id_user: idUser,
+          tipo: 'biometria',
+          versao: POLITICA_VERSAO,
+          aceito: 0,
+          registrado_em,
+        },
+      });
+    }
 
     this.logger.log(
       `Biometria facial revogada para usuário ${idUser} por ${operadorNome ?? 'próprio titular'}.`,
@@ -157,7 +165,7 @@ export class ConsentimentosService {
 
     // 2. Localiza moradores vinculados
     const moradores = await this.prisma.moradores.findMany({
-      where: { id_user: idUser },
+      where: { id_user: idUser, ...(escopo != null && { id_condominio: escopo }) },
     });
 
     let allRemoved = true;
@@ -195,7 +203,11 @@ export class ConsentimentosService {
 
     // O banco só guardava o LINK: o objeto (public-read) seguia no storage para quem já tinha a URL.
     // Users.photo/profile_image recebem a mesma URL no cadastro; apagado o objeto, apontariam para nada.
-    if (fotos.size > 0) {
+    // Revogação só deste condomínio: a foto pode ser a que a conta usa nos outros (Users é global) —
+    // fica no storage e em Users; sai só dos cadastros daqui (acima).
+    const contaDeOutroCondominio =
+      escopo != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, idUser, escopo));
+    if (fotos.size > 0 && !contaDeOutroCondominio) {
       const urls = [...fotos];
       await this.prisma.users.updateMany({ where: { id: idUser, photo: { in: urls } }, data: { photo: null } });
       await this.prisma.users.updateMany({ where: { id: idUser, profile_image: { in: urls } }, data: { profile_image: null } });

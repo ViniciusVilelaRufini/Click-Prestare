@@ -119,6 +119,7 @@ export class ConsentimentosCondominioController {
     return this.service.revogarBiometria(
       morador.id_user,
       user?.user?.name ?? (user as any)?.nome ?? 'Portaria',
+      idCondominio,
     );
   }
 }
