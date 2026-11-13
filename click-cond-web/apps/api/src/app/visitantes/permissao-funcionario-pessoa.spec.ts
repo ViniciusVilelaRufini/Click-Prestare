@@ -68,7 +68,7 @@ describe('Flag do funcionário do app — pessoa, POST /pessoas e confirmar rese
     function build(areas_sociais: number, idDono: number) {
       const prisma: any = prismaCom({ areas_sociais }, {
         areas_Sociais_Agendamentos: {
-          findUnique: jest.fn(async () => ({ id: 1, id_user: idDono, confirmada_em: null, area: { id_condominio: 2 } })),
+          findUnique: jest.fn(async () => ({ id: 1, id_user: idDono, status: 'aprovado', confirmada_em: null, area: { id_condominio: 2 } })),
           update: jest.fn(async () => ({})),
         },
       });

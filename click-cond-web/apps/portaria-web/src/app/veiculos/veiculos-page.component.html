@@ -56,6 +56,10 @@
       />
     </label>
 
+    @if (erroAcaoVeiculo()) {
+      <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroAcaoVeiculo() }}</div>
+    }
+
     @if (veiculosFiltrados().length === 0) {
       <div class="ps-panel ps-empty">
         <p class="text-sm text-slate-300 font-medium">Nenhum veículo encontrado</p>

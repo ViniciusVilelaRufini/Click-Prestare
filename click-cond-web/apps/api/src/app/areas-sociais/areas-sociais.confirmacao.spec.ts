@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { AreasSociaisService } from './areas-sociais.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -257,6 +257,20 @@ describe('AreasSociaisService — confirmação de reserva', () => {
       const { svc, prisma } = build({ agendamentos: [ag] });
       const resultado = await svc.confirmarAgendamento(1, 5, 'Morador', moradorDono);
       expect(resultado).toEqual({ success: true });
+      expect(prisma.areas_Sociais_Agendamentos.update).not.toHaveBeenCalled();
+    });
+
+    // Confirmar presença só faz sentido em reserva aprovada: numa cancelada,
+    // recusada ou pendente gravava confirmada_em e a tela via "confirmada".
+    it.each([
+      ['cancelado', 'Esta reserva já foi cancelada.'],
+      ['recusado', 'Esta reserva já foi recusada.'],
+      ['pendente', 'Esta reserva ainda não foi aprovada.'],
+    ])('reserva %s: 409 com o estado atual e nada gravado', async (status, mensagem) => {
+      const { svc, prisma } = build({ agendamentos: [agendamento({ status })] });
+      const erro = await svc.confirmarAgendamento(1, 5, 'Morador', moradorDono).catch((e) => e);
+      expect(erro).toBeInstanceOf(ConflictException);
+      expect(erro.message).toBe(mensagem);
       expect(prisma.areas_Sociais_Agendamentos.update).not.toHaveBeenCalled();
     });
   });

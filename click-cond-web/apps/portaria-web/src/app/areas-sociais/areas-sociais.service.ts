@@ -32,6 +32,11 @@ export interface AgendamentoArea {
   horaDe: string;
   horaAte: string;
   convidados?: number | null;
+  /** Quando o morador (ou a portaria) confirmou a presença; null = não confirmada. */
+  confirmada_em?: string | null;
+  /** A área cancela a reserva aprovada que não for confirmada até o início. */
+  exige_confirmacao?: boolean;
+  motivo_recusa?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -97,6 +102,11 @@ export class AreasSociaisApi {
       motivo_recusa: motivo,
       id_condominio: this.cid
     });
+  }
+
+  /** Confirma a presença na reserva em nome do morador (áreas com confirmação obrigatória). */
+  confirmar(id: number): Observable<any> {
+    return this.http.post(`${API_BASE}/areasSociais/agendamento/confirmar`, { id });
   }
 
   /** Cancela uma reserva (pendente ou aprovada) em nome da administração. */

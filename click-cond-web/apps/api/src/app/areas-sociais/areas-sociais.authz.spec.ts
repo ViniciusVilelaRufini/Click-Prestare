@@ -151,11 +151,12 @@ describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', ()
           findMany: jest.fn(async () => []),
           create: jest.fn(async () => ({ id: 500, status: 'pendente' })),
           findUnique: jest.fn(async () => ({ ...agendamento500 })),
-          update: jest.fn(async ({ data }: any) => ({ ...agendamento500, ...data })),
+          // Gravação condicional ao status atual (ver areas-sociais.transicao-status.spec).
+          updateMany: jest.fn(async () => ({ count: 1 })),
         },
       });
       await svc.updateStatusAgendamento(500, false, '', funcionarioCond2);
-      expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalledWith(
+      expect(prisma.areas_Sociais_Agendamentos.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ status: 'recusado' }) }),
       );
     });

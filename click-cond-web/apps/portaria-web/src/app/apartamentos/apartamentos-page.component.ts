@@ -495,6 +495,19 @@ export class ApartamentosPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.vagasApi.revogar(apto.id, v.id).subscribe({ next: () => this.carregarVagas() });
+    this.erroVagas.set(null);
+    this.vagasApi.revogar(apto.id, v.id).subscribe({
+      next: () => this.carregarVagas(),
+      error: (e) => this.erroVagas.set(e?.error?.message ?? e?.message ?? 'Falha ao revogar a vaga.'),
+    });
+  }
+
+  /** "dd/mm HH:mm" no relógio do navegador (o prazo da vaga vem em ISO). */
+  dataHoraCurta(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 }

@@ -46,6 +46,7 @@ import {
 import { normalizarPayloadNativo } from './webhook-payload.util';
 import { gruposCodigoTag } from '../common/tag-codigo.util';
 import { VISITA_NAO_ENCERRADA } from '../common/tag-em-uso.util';
+import { whereVagaVigente } from '../vagas/vaga-vigente.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
 import { normalizarMac } from './descoberta.service';
@@ -2523,14 +2524,15 @@ export class FacialService {
   private async tickReservasAreas() {
     if (FACIAL_DISABLED || !this.prisma.isConnected) return;
     try {
-      const hojeStr = new Date().toISOString().slice(0, 10);
       const agoraStr = new Date()
         .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo', hour12: false })
         .replace(',', '');
       const ags = await this.prisma.areas_Sociais_Agendamentos.findMany({
         where: {
           status: 'aprovado',
-          data: new Date(hojeStr),
+          // "Hoje" em Brasília (meia-noite UTC, a forma do @db.Date): o dia
+          // UTC já é amanhã depois das 21h locais.
+          data: hojeBrasilia(),
           area: {
             controle_acesso_facial: 1,
             devices: { some: { ativo: 1, tipo: 'facial' } },
@@ -2755,7 +2757,7 @@ export class FacialService {
     // ele não consegue reentrar mesmo dentro da validade.
     const temVagaAtiva =
       (await this.prisma.vagas.count({
-        where: { id_visitante: visitante.id, ativo: 1 },
+        where: { id_visitante: visitante.id, ativo: 1, ...whereVagaVigente() },
       })) > 0;
 
     let faceId: string | null = visitante.face_id ?? null;
@@ -3239,7 +3241,7 @@ export class FacialService {
     if (visitaAtiva) {
       try {
         const count = await this.prisma.vagas.count({
-          where: { id_visita: visitaAtiva.id, ativo: 1 },
+          where: { id_visita: visitaAtiva.id, ativo: 1, ...whereVagaVigente() },
         });
         temVagaAtiva = count > 0;
       } catch (err: any) {
@@ -6118,13 +6120,13 @@ export class FacialService {
           temVagaAtiva =
             v.is_prestador !== 1 &&
             (await this.prisma.vagas.count({
-              where: { id_visita: visitaAtivaMigrada.id, ativo: 1 },
+              where: { id_visita: visitaAtivaMigrada.id, ativo: 1, ...whereVagaVigente() },
             })) > 0;
         } else {
           temVagaAtiva =
             v.is_prestador !== 1 &&
             (await this.prisma.vagas.count({
-              where: { id_visitante: v.id, ativo: 1 },
+              where: { id_visitante: v.id, ativo: 1, ...whereVagaVigente() },
             })) > 0;
         }
         // data_entrada < timestamp: um replay de backlog com timestamp ANTERIOR

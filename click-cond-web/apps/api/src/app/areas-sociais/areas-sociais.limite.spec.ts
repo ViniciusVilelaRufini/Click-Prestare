@@ -18,7 +18,7 @@ describe('AreasSociaisService — limite mensal por apartamento', () => {
   const morador: JwtPayload = { sub: 6, nome: 'Morador X', id_condominio: 2, typeAccess: 'Morador' };
   const sindico: JwtPayload = { sub: 1, nome: 'Síndico', id_condominio: 2, typeAccess: 'Sindico' };
 
-  function build(opts: { limite?: number | null; reservasNoMes?: Array<{ data: Date; status: string }> } = {}) {
+  function build(opts: { limite?: number | null; reservasNoMes?: Array<{ data: Date; status: string; hora_ate?: Date | null }> } = {}) {
     const area = {
       id: 30,
       id_condominio: 2,
@@ -330,6 +330,42 @@ describe('AreasSociaisService — limite mensal por apartamento', () => {
       await svc.update(2, { id: 30, nome: 'Salão', limite_mensal_apto: 3 }, sindico);
       const dataArg = prisma.areas_Sociais.updateMany.mock.calls[0][0].data;
       expect(dataArg.limite_mensal_apto).toBe(3);
+    });
+  });
+
+  // Pedido pendente que ninguém decidiu e cujo horário já passou não vai mais
+  // acontecer — não pode seguir comendo a cota do mês do apartamento.
+  describe('pendente cujo horário já terminou não conta no limite', () => {
+    // 15/06/2026 às 12:00 em Brasília.
+    beforeEach(() => jest.setSystemTime(new Date(Date.UTC(2026, 5, 15, 15, 0, 0))));
+    afterEach(() => jest.setSystemTime(new Date(Date.UTC(2026, 0, 1, 12, 0, 0))));
+
+    const pedido = { ...agendamentoBase, data: '20/06/2026' };
+
+    it('pendente de dia anterior do mês não conta', async () => {
+      const { svc, prisma } = build({
+        limite: 1,
+        reservasNoMes: [{ data: new Date(2026, 5, 3), status: 'pendente', hora_ate: new Date(1970, 0, 1, 11, 0, 0) }],
+      });
+      await svc.insertAgendamento(pedido, 6, 'Morador', morador);
+      expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
+    });
+
+    it('pendente de hoje que termina mais tarde continua contando', async () => {
+      const { svc, prisma } = build({
+        limite: 1,
+        reservasNoMes: [{ data: new Date(2026, 5, 15), status: 'pendente', hora_ate: new Date(1970, 0, 1, 18, 0, 0) }],
+      });
+      await expect(svc.insertAgendamento(pedido, 6, 'Morador', morador)).rejects.toThrow(BadRequestException);
+      expect(prisma.areas_Sociais_Agendamentos.create).not.toHaveBeenCalled();
+    });
+
+    it('aprovada que já aconteceu continua contando (o apartamento usou a área)', async () => {
+      const { svc } = build({
+        limite: 1,
+        reservasNoMes: [{ data: new Date(2026, 5, 3), status: 'aprovado', hora_ate: new Date(1970, 0, 1, 11, 0, 0) }],
+      });
+      await expect(svc.insertAgendamento(pedido, 6, 'Morador', morador)).rejects.toThrow(BadRequestException);
     });
   });
 });
