@@ -38,6 +38,8 @@ export interface FiltroEspinha {
   migrado: boolean;
   limit: number;
   offset: number;
+  /** Users.id: ramo ocorrência só com públicas + as dele (funcionário do app sem a flag). */
+  ocorrenciasSoPublicasOuDe?: number | null;
 }
 
 export interface PeriodoEventos {
@@ -210,6 +212,10 @@ function ramos(f: FiltroEspinha): Ramo[] {
       FROM Ocorrencias o
       WHERE o.id_condominio = ${f.idCondominio}${faixa(Prisma.sql`o.created_at`, f)}${
         like ? Prisma.sql` AND o.descricao LIKE ${like} ESCAPE '!'` : E
+      }${
+        f.ocorrenciasSoPublicasOuDe != null
+          ? Prisma.sql` AND (o.publica = 1 OR o.user = ${f.ocorrenciasSoPublicasOuDe})`
+          : E
       }`,
     },
     {

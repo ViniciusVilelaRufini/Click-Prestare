@@ -31,6 +31,11 @@ export interface ContextoFerramenta {
   idUser: number;
   papel: PapelChat;
   staff: boolean;
+  /**
+   * Staff que lê ocorrências PRIVADAS do condomínio. Falso para o funcionário do app sem a flag
+   * `ocorrencias` (vê públicas + as próprias, como em OcorrenciasService.findAll).
+   */
+  ocorrenciasPrivadas: boolean;
   /** Apartamentos do usuário NESTE condomínio. Vazio = morador sem vínculo. */
   aptos: number[];
   prisma: PrismaService;
@@ -737,10 +742,15 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
       'Ocorrências/chamados abertos pelo usuário logado, com status e resposta do síndico. Para síndico e funcionário traz as do condomínio inteiro.',
     papeis: TODOS,
     async executar(_args, ctx) {
+      const recorte = !ctx.staff
+        ? { user: ctx.idUser }
+        : ctx.ocorrenciasPrivadas
+          ? {}
+          : { OR: [{ publica: true }, { user: ctx.idUser }] };
       const lista = await ctx.prisma.ocorrencias.findMany({
         where: {
           id_condominio: ctx.idCondominio,
-          ...(ctx.staff ? {} : { user: ctx.idUser }),
+          ...recorte,
         },
         select: {
           id: true,

@@ -825,6 +825,7 @@ export class RelatoriosService {
     page = 1,
     pageSize = 50,
     search?: string,
+    ocorrenciasSoPublicasOuDe: number | null = null,
   ) {
     const safeSize = Math.min(Math.max(pageSize, 1), 200);
     const safePage = Math.max(page, 1);
@@ -848,6 +849,7 @@ export class RelatoriosService {
       migrado,
       limit: safeSize,
       offset: (safePage - 1) * safeSize,
+      ocorrenciasSoPublicasOuDe,
     });
 
     const items = await this.hidratarEventos(idCondominio, linhas, migrado);

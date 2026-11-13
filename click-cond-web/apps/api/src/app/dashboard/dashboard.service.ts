@@ -72,9 +72,15 @@ export class DashboardService {
    */
   async summary(
     idCondominio: number,
-    opts: { incluirFotoDocumento?: boolean } = {},
+    opts: { incluirFotoDocumento?: boolean; ocorrenciasSoPublicasOuDe?: number } = {},
   ): Promise<DashboardSummary> {
     const incluirFotoDocumento = opts.incluirFotoDocumento === true;
+    // Funcionário do app sem a flag `ocorrencias`: as recentes (com descrição e resposta) só
+    // públicas + as dele. Os contadores não expõem conteúdo e ficam como estão.
+    const recorteOcorrencias =
+      opts.ocorrenciasSoPublicasOuDe != null
+        ? { OR: [{ publica: true }, { user: opts.ocorrenciasSoPublicasOuDe }] }
+        : {};
     const agora = new Date();
 
     if (!this.prisma.isConnected) {
@@ -244,7 +250,7 @@ export class DashboardService {
         },
       }),
       this.prisma.ocorrencias.findMany({
-        where: { id_condominio: idCondominio },
+        where: { id_condominio: idCondominio, ...recorteOcorrencias },
         orderBy: { created_at: 'desc' },
         take: 15,
         include: {

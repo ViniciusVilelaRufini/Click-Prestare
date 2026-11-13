@@ -220,7 +220,7 @@ describe('Ferramentas do Assistente IA — autorização', () => {
     });
 
     it('minhas_ocorrencias abre para o condomínio quando é staff', async () => {
-      const c = ctx({ papel: 'Sindico', staff: true });
+      const c = ctx({ papel: 'Sindico', staff: true, ocorrenciasPrivadas: true });
       await pegar('minhas_ocorrencias').executar({}, c);
       const arg = (c.prisma as any).ocorrencias.findMany.mock.calls[0][0];
       expect(arg.where.user).toBeUndefined();

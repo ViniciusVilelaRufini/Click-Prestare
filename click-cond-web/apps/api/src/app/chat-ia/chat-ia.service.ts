@@ -188,7 +188,7 @@ export class ChatIaService {
     );
 
     const [ctxFerramenta, contextoEstruturado, trechosDocs, historico] = await Promise.all([
-      this.montarContextoFerramenta(idCondominio, idUser, papel),
+      this.montarContextoFerramenta(idCondominio, idUser, papel, user),
       this.montarContextoEstruturado(idCondominio, user),
       this.buscarTrechos(idCondominio, texto || arquivo?.nome || 'fatura'),
       nova
@@ -599,16 +599,24 @@ export class ChatIaService {
     idCondominio: number,
     idUser: number,
     papel: PapelChat,
+    user?: JwtPayload,
   ): Promise<ContextoFerramenta> {
     const vinculos = await this.prisma.apartamentos_Users.findMany({
       where: { id_user: idUser, apartamento: { id_condominio: idCondominio } },
       select: { id_apto: true },
     });
+    const staff = papel === 'Sindico' || papel === 'Funcionario';
+    // Só o funcionário do app depende da flag `ocorrencias`; sem token, nega as privadas.
+    const ocorrenciasPrivadas =
+      papel === 'Funcionario'
+        ? !!user && (await this.tenant.recorteOcorrenciasPrivadas(idCondominio, user)) === null
+        : staff;
     return {
       idCondominio,
       idUser,
       papel,
-      staff: papel === 'Sindico' || papel === 'Funcionario',
+      staff,
+      ocorrenciasPrivadas,
       aptos: vinculos.map((v) => v.id_apto),
       prisma: this.prisma,
       cartoes: [],

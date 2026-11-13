@@ -50,7 +50,7 @@ describe('RelatoriosController — parâmetros de auditoria/eventos', () => {
     it('eventos: page/pageSize inválidos caem no padrão', async () => {
       const { ctrl, service } = build();
       await ctrl.getEventos(1, porteiro, undefined, undefined, 'abc', ['x']);
-      expect(service.getEventos).toHaveBeenCalledWith(1, undefined, undefined, 1, 50, undefined);
+      expect(service.getEventos).toHaveBeenCalledWith(1, undefined, undefined, 1, 50, undefined, null);
     });
   });
 
@@ -91,7 +91,7 @@ describe('RelatoriosController — parâmetros de auditoria/eventos', () => {
     it('data válida e data vazia passam (vazia vira undefined)', async () => {
       const { ctrl, service } = build();
       await ctrl.getEventos(1, porteiro, '2026-09-01', '');
-      expect(service.getEventos).toHaveBeenCalledWith(1, '2026-09-01', undefined, 1, 50, undefined);
+      expect(service.getEventos).toHaveBeenCalledWith(1, '2026-09-01', undefined, 1, 50, undefined, null);
     });
   });
 

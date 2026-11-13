@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from './jwt-payload.interface';
+import { idUsuarioDoToken } from './usuario-do-token.util';
 
 /**
  * Uma das oito colunas de permissão da tabela `Funcionarios` — as mesmas que
@@ -209,6 +210,23 @@ export class TenantAccessService {
       throw new ForbiddenException(
         'Acesso negado: seu perfil não tem permissão para esta área. Fale com o síndico.',
       );
+    }
+  }
+
+  /**
+   * Recorte de ocorrências privadas para os leitores DERIVADOS (chat, linha do tempo, painel):
+   * `null` = vê todas (síndico, operador do console, funcionário do app COM a flag `ocorrencias`);
+   * número = só as públicas e as que esse Users.id abriu — o mesmo recorte de
+   * `OcorrenciasService.findAll` para o funcionário do app SEM a flag.
+   */
+  async recorteOcorrenciasPrivadas(idCondominio: number, payload?: JwtPayload): Promise<number | null> {
+    if (!ehFuncionarioDoApp(payload)) return null;
+    try {
+      await this.assertPermissaoFuncionario(idCondominio, 'ocorrencias', payload);
+      return null;
+    } catch (e) {
+      if (e instanceof ForbiddenException) return idUsuarioDoToken(payload) ?? -1;
+      throw e;
     }
   }
 

@@ -1,10 +1,11 @@
-import { Controller, Get, Param, ParseIntPipe, Query, Res } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Optional, Param, ParseIntPipe, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { RelatoriosService } from './relatorios.service';
 import { CondominiosExportService } from './condominios-export.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador, assertSindico, isSindico } from '../auth/tenant.util';
+import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
 import { dataIsoOuErro, inteiroPositivoOuPadrao, textoUnico } from './relatorios-query.util';
 
 /**
@@ -20,7 +21,17 @@ export class RelatoriosController {
   constructor(
     private readonly service: RelatoriosService,
     private readonly exportService?: CondominiosExportService,
+    // Global (TenantAccessModule). Opcional só porque vários specs instanciam o controller sem ele;
+    // sem ele, o funcionário do app é recusado (nunca liberado) — ver recorteOcorrencias.
+    @Optional() private readonly tenant?: TenantAccessService,
   ) {}
+
+  /** Funcionário do app: recorte das ocorrências privadas; demais papéis: null (sem consulta). */
+  private async recorteOcorrencias(idCondominio: number, payload: JwtPayload): Promise<number | null> {
+    if (!ehFuncionarioDoApp(payload)) return null;
+    if (!this.tenant) throw new ForbiddenException('Acesso negado.');
+    return this.tenant.recorteOcorrenciasPrivadas(idCondominio, payload);
+  }
 
   @Get('export')
   async exportDadosCondominio(
@@ -60,6 +71,12 @@ export class RelatoriosController {
       assertSindico(payload, 'baixar o relatório financeiro do condomínio');
     } else {
       assertOperador(payload, 'baixar relatórios operacionais do condomínio');
+    }
+    // Exporta TODAS as ocorrências (descrição, resposta, autor): o funcionário do app sem a flag
+    // `ocorrencias` não lê as privadas em lugar nenhum, então não baixa o relatório.
+    if (tipo === 'ocorrencias' && ehFuncionarioDoApp(payload)) {
+      if (!this.tenant) throw new ForbiddenException('Acesso negado.');
+      await this.tenant.assertPermissaoFuncionario(idCondominio, 'ocorrencias', payload);
     }
     const { buffer, mime, filename } = await this.service.generate(
       idCondominio,
@@ -135,13 +152,16 @@ export class RelatoriosController {
     @Query('search') search?: unknown,
   ) {
     assertOperador(payload, 'consultar o histórico de eventos');
+    const inicio = dataIsoOuErro(dataInicio, 'dataInicio');
+    const fim = dataIsoOuErro(dataFim, 'dataFim');
     return this.service.getEventos(
       idCondominio,
-      dataIsoOuErro(dataInicio, 'dataInicio'),
-      dataIsoOuErro(dataFim, 'dataFim'),
+      inicio,
+      fim,
       inteiroPositivoOuPadrao(pageStr, 1),
       inteiroPositivoOuPadrao(pageSizeStr, 50),
       textoUnico(search),
+      await this.recorteOcorrencias(idCondominio, payload),
     );
   }
 }
