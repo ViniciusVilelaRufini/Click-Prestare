@@ -23,7 +23,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { isOperador } from '../auth/tenant.util';
-import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
+import { gerarPinUnicoVisita, novaVisitaEmOutraUnidade, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PessoasService, pessoaTemVisitaForaDosAptos } from '../pessoas/pessoas.service';
@@ -53,6 +53,8 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
 }
 
 const AUTORIZACAO_EXPIRACAO_MS = 10 * 60 * 1000;
+/** Janela da visita aberta por um pedido de autorização: agora → +4 h. */
+const JANELA_PEDIDO_MS = 4 * 60 * 60 * 1000;
 
 // Movido para auth/ (financeiro também precisa); reexportado para os imports existentes.
 export { idUsuarioDoToken };
@@ -3400,24 +3402,49 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async solicitarAutorizacaoViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
-    const ref = await this.assertPodeAcessarVisita(id, payload);
-    if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
+    const principal = await this.assertPodeAcessarVisita(id, payload);
+    if (principal.bloqueado === 1 || (principal.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
-    let redirecionarApto: number | undefined;
-    if (idApartamento && Number(idApartamento) !== ref.id_apartamento) {
+    // Outra unidade escolhida: o pedido vai para a visita da pessoa NAQUELA
+    // unidade (ou uma nova lá). Mover a visita recebida de apartamento levava
+    // junto a liberação/PIN da unidade original.
+    let ref: any = principal;
+    let idVisita: number;
+    if (idApartamento && Number(idApartamento) !== principal.id_apartamento) {
       await this.assertPodeUsarApartamento(Number(idApartamento), payload);
       const apto = await this.prisma.apartamentos.findUnique({ where: { id: Number(idApartamento) } });
-      if (!apto || apto.id_condominio !== ref.id_condominio) {
+      if (!apto || apto.id_condominio !== principal.id_condominio) {
         throw new BadRequestException('Apartamento de destino inválido.');
       }
-      redirecionarApto = Number(idApartamento);
+      const daUnidade = await this.prisma.visitas.findFirst({
+        where: { id_pessoa: principal.id_pessoa, id_apartamento: Number(idApartamento) },
+        orderBy: { created_at: 'desc' },
+      });
+      if (daUnidade) {
+        if (daUnidade.bloqueado === 1) {
+          throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+        }
+        ref = daUnidade;
+        idVisita = await this.visitaParaNovaPassagem(daUnidade);
+      } else {
+        idVisita = await novaVisitaEmOutraUnidade(this.prisma, principal, Number(idApartamento));
+      }
+    } else {
+      idVisita = await this.visitaParaNovaPassagem(principal);
     }
-    const idVisita = await this.visitaParaNovaPassagem(ref);
+    // Visita copiada (herda a janela da antiga) ou janela já vencida: o
+    // morador autorizava e o facial recusava fora da janela. O pedido é para
+    // agora — janela agora → +4 h, o mesmo padrão do cadastro.
+    const agora = new Date();
+    const copia = idVisita !== Number(ref.id);
+    const janelaVencida = !!ref.data_hora_termino && new Date(ref.data_hora_termino).getTime() < agora.getTime();
     const v = await this.prisma.visitas.update({
       where: { id: idVisita },
       data: {
-        ...(redirecionarApto ? { id_apartamento: redirecionarApto } : {}),
+        ...(copia || janelaVencida
+          ? { data_hora_inicio: agora, data_hora_termino: new Date(agora.getTime() + JANELA_PEDIDO_MS) }
+          : {}),
         auth_status: 'pendente',
         auth_solicitado_em: new Date(),
         auth_respondido_em: null,

@@ -740,7 +740,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.authModalPessoaId.set(this.chavePessoa(pessoa)); // abre a janela "ao vivo" do pedido
     this.startAuthPolling();
 
-    this.service.solicitarAutorizacao(pessoa.id, idApto).subscribe({
+    // A visita DA UNIDADE escolhida; sem visita lá, a principal + a unidade
+    // (a API abre uma visita nova nessa unidade, sem mexer na principal).
+    const daUnidade = (pessoa.apartamentosVisitados ?? []).find((a) => a.id === idApto);
+    this.service.solicitarAutorizacao(daUnidade?.visitanteId ?? pessoa.id, idApto).subscribe({
       next: () => {
         this.carregar(true);
       },
