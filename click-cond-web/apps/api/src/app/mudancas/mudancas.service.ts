@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { TenantAccessService } from '../auth/tenant-access.service';
+import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { assertStaff, isOperador } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { hojeBrasilia } from '../common/hora-brasilia.util';
@@ -82,6 +83,20 @@ export class MudancasService {
     }
     // Do condomínio informado e, para morador, um apartamento dele.
     await assertApartamentoGravavel(this.prisma as any, idApartamento, Number(dto.id_condominio), requester);
+    // Agendar mudança para uma unidade qualquer é a área `agendar_mudanca` (mesma flag de
+    // update/remove/updateStatus). O funcionário que mora na unidade agenda a própria sem ela.
+    if (ehFuncionarioDoApp(requester)) {
+      const idUser = idUsuarioDoToken(requester);
+      const moraNaUnidade = idUser
+        ? await this.prisma.apartamentos_Users.findFirst({
+            where: { id_user: idUser, id_apto: idApartamento },
+            select: { id_apto: true },
+          })
+        : null;
+      if (!moraNaUnidade) {
+        await this.tenant.assertPermissaoFuncionario(Number(dto.id_condominio), 'agendar_mudanca', requester);
+      }
+    }
     return this.prisma.mudancas.create({
       data: {
         data: dto.data ? new Date(dto.data) : null,
