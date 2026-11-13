@@ -5,8 +5,9 @@ import { join, relative } from 'path';
  * Estes módulos atendem o porteiro do console (fora do UsuarioAppGuard). Nele o `sub` é
  * Funcionarios_Portaria.id: lido como Users.id, atribui registros a outra pessoa. O id do usuário
  * sai de idUsuarioDoToken / autorDoToken (auth/usuario-do-token.util.ts) — nunca de `.sub`.
+ * O chat-ia fica atrás do UsuarioAppGuard, mas grava e executa ações como Users.id: mesma regra.
  */
-const MODULOS = ['encomendas', 'areas-sociais', 'delivery', 'consentimentos', 'visitantes'];
+const MODULOS = ['encomendas', 'areas-sociais', 'delivery', 'consentimentos', 'visitantes', 'chat-ia'];
 const LEITURA_CRUA = /\.sub\b|\[\s*['"]sub['"]\s*\]/;
 const APP = join(__dirname, '..');
 

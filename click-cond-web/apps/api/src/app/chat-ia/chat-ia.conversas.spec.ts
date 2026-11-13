@@ -9,7 +9,7 @@ import { ChatIaService } from './chat-ia.service';
  * nem virar contexto da conversa de quem perguntou.
  */
 describe('ChatIaService — conversas', () => {
-  const USER = { user: { id: 47 }, sub: 47 } as any;
+  const USER = { user: { id: 47 }, sub: 47, typeAccess: 'Morador' } as any;
   const OUTRO_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
   function montar(overrides: Record<string, any> = {}) {

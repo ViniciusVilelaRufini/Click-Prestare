@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertSindico } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { IaClient } from './ia.client';
 import type {
   ChamadaFerramenta,
@@ -163,7 +165,9 @@ export class ChatIaService {
     // O tipo vem dos bytes, não do mime/nome informados pelo cliente.
     if (arquivo) arquivo = { ...arquivo, mime_type: validarAnexo(String(arquivo.base64)) };
 
-    const idUser = Number(user?.user?.id ?? user?.sub);
+    // Token sem Users.id (porteiro do console, CRM) não tem histórico nem cota próprios aqui.
+    const idUser = idUsuarioDoToken(user);
+    if (!idUser) throw new ForbiddenException('Sessão sem usuário válido.');
     const papel = this.papelDe(user);
 
     // Porta barata: cota estourada não deve gerar embedding pago nem consultas.
@@ -189,7 +193,7 @@ export class ChatIaService {
 
     const [ctxFerramenta, contextoEstruturado, trechosDocs, historico] = await Promise.all([
       this.montarContextoFerramenta(idCondominio, idUser, papel, user),
-      this.montarContextoEstruturado(idCondominio, user),
+      this.montarContextoEstruturado(idCondominio, idUser, user),
       this.buscarTrechos(idCondominio, texto || arquivo?.nome || 'fatura'),
       nova
         ? Promise.resolve([])
@@ -456,7 +460,10 @@ export class ChatIaService {
     if (!idAcao) throw new BadRequestException('Ação não informada.');
     await this.tenant.assertCondominio(idCondominio, user);
 
-    const idUser = Number(user?.user?.id ?? user?.sub);
+    // O porteiro do console tem sub = Funcionarios_Portaria.id: lido como Users.id, confirmaria a
+    // proposta do morador de mesmo número e gravaria em nome dele.
+    const idUser = idUsuarioDoToken(user);
+    if (!idUser) throw new ForbiddenException('Sessão sem usuário válido.');
     const { acao, erro } = await this.acoes.obterParaConfirmar(idAcao, idUser, idCondominio);
     if (erro || !acao) throw new BadRequestException(erro ?? 'Solicitação não encontrada.');
 
@@ -465,7 +472,7 @@ export class ChatIaService {
       throw new BadRequestException('Essa solicitação já foi confirmada.');
     }
     try {
-      const mensagem = await this.executarAcao(acao, user);
+      const mensagem = await this.executarAcao(acao, idUser, user);
       await this.registrarAuditoria(acao, user);
       return { ok: true, mensagem };
     } catch (e: any) {
@@ -478,8 +485,7 @@ export class ChatIaService {
     }
   }
 
-  private async executarAcao(acao: AcaoPendente, user: JwtPayload): Promise<string> {
-    const idUser = Number(user?.user?.id ?? user?.sub);
+  private async executarAcao(acao: AcaoPendente, idUser: number, user: JwtPayload): Promise<string> {
     const papel = this.papelDe(user);
 
     if (acao.tipo === 'reserva_area') {
@@ -639,8 +645,7 @@ export class ChatIaService {
     return 'Morador';
   }
 
-  private async montarContextoEstruturado(idCondominio: number, user: JwtPayload) {
-    const idUser = Number(user?.user?.id ?? user?.sub);
+  private async montarContextoEstruturado(idCondominio: number, idUser: number, user: JwtPayload) {
     const blocos: string[] = [];
 
     // 1. Informações gerais — todos os papéis.
@@ -869,8 +874,8 @@ export class ChatIaService {
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return [];
 
-    const idUser = Number(user?.user?.id ?? user?.sub);
-    if (!idUser || Number.isNaN(idUser)) return [];
+    const idUser = idUsuarioDoToken(user);
+    if (!idUser) return [];
 
     const grupos = await this.prisma.chat_Ia_Historico.groupBy({
       by: ['conversa_id'],
@@ -931,8 +936,8 @@ export class ChatIaService {
     if (!id) throw new BadRequestException('conversa_id é obrigatório.');
     await this.tenant.assertCondominio(idCondominio, user);
 
-    const idUser = Number(user?.user?.id ?? user?.sub);
-    if (!idUser || Number.isNaN(idUser)) {
+    const idUser = idUsuarioDoToken(user);
+    if (!idUser) {
       throw new NotFoundException('Conversa não encontrada.');
     }
     return { idUser, id };
