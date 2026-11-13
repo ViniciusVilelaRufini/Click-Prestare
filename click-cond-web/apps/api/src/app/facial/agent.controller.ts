@@ -148,7 +148,9 @@ export class AgentController {
       descobrir: soDispositivo == null ? await this.descoberta.consumirPedido(idCondominio) : false,
       // "Atualizar agora" do portal (AgentBridgeService.pedirVerificacaoDeAtualizacao):
       // true só uma vez por pedido, para o agente conferir a versão já. Agente antigo ignora.
-      verificar_atualizacao: await this.bridge.consumirPedidoDeAtualizacao(idCondominio),
+      // Pedido do condomínio inteiro (como a descoberta): só o agent_token consome.
+      verificar_atualizacao:
+        soDispositivo == null ? await this.bridge.consumirPedidoDeAtualizacao(idCondominio) : false,
     };
   }
 

@@ -94,11 +94,15 @@ describe('Agente — token de dispositivo nas rotas condo/*: escopo só do dispo
     expect(service.resolveAgente).toHaveBeenCalledWith('tok-5');
   });
 
-  it('poll com token de dispositivo continua entregando (e consumindo) o verificar_atualizacao', async () => {
+  // O pedido "Atualizar agora" é do condomínio (como a descoberta): o token de um dispositivo não o
+  // consome, senão o agente do condomínio nunca recebia o pedido feito no portal.
+  it('poll com token de dispositivo não consome o verificar_atualizacao; o agent_token recebe uma vez', async () => {
     const { ctrl, bridge } = montar();
     await bridge.pedirVerificacaoDeAtualizacao(7);
-    expect((await ctrl.condoPoll('tok-5')).verificar_atualizacao).toBe(true);
     expect((await ctrl.condoPoll('tok-5')).verificar_atualizacao).toBe(false);
+    expect((await ctrl.condoPoll('tok-6')).verificar_atualizacao).toBe(false);
+    expect((await ctrl.condoPoll('tok-condo-7')).verificar_atualizacao).toBe(true);
+    expect((await ctrl.condoPoll('tok-condo-7')).verificar_atualizacao).toBe(false);
   });
 
   describe('FacialService', () => {
