@@ -286,6 +286,11 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Balão do lado "da casa": síndico ou porteiro do console. */
+  daCasa(msg: OcorrenciaMensagem): boolean {
+    return msg.usuario?.is_sindico === 1 || msg.autor_tipo === 'portaria';
+  }
+
   scrollChatParaFim() {
     setTimeout(() => {
       const container = document.getElementById('chat-container');

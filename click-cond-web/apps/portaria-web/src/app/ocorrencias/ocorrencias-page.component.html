@@ -316,17 +316,17 @@
         } @else {
           @for (msg of mensagens(); track msg.id) {
             <!-- Balão de Mensagem -->
-            <div class="flex flex-col mb-2" [class.items-end]="msg.usuario.is_sindico === 1" [class.items-start]="msg.usuario.is_sindico !== 1">
+            <div class="flex flex-col mb-2" [class.items-end]="daCasa(msg)" [class.items-start]="!daCasa(msg)">
               <span class="text-[10px] text-slate-400 mb-0.5 px-1">
                 {{ msg.usuario.name }}
               </span>
 
               <div class="max-w-[85%] px-4 py-2 text-sm"
-                   [class.bg-accent]="msg.usuario.is_sindico === 1"
-                   [class.bg-graphite-300]="msg.usuario.is_sindico !== 1"
-                   [class.border]="msg.usuario.is_sindico !== 1"
-                   [class.border-slate-200]="msg.usuario.is_sindico !== 1"
-                   [class.text-slate-100]="msg.usuario.is_sindico !== 1">
+                   [class.bg-accent]="daCasa(msg)"
+                   [class.bg-graphite-300]="!daCasa(msg)"
+                   [class.border]="!daCasa(msg)"
+                   [class.border-slate-200]="!daCasa(msg)"
+                   [class.text-slate-100]="!daCasa(msg)">
                 <p class="leading-relaxed break-words">{{ msg.mensagem }}</p>
               </div>
 
@@ -341,9 +341,9 @@
       <!-- Input -->
       <div class="ps-drawer-foot">
         @if (!acesso().conversar) {
-          <!-- A mensagem precisa de um autor em Users: o login da portaria não tem. -->
+          <!-- Atende sem conversar: sessão antiga da portaria (sem a marca do login) ou API antiga. -->
           <p class="text-xs text-slate-400 w-full">
-            {{ acesso().operar ? 'O login da portaria só lê a conversa. Para escrever, entre pelo QR Code do app ou como síndico.' : 'Sem permissão para conversar nesta ocorrência.' }}
+            {{ acesso().operar ? 'Esta sessão só lê a conversa. Para escrever, saia e entre de novo na portaria.' : 'Sem permissão para conversar nesta ocorrência.' }}
           </p>
         } @else {
         <form (submit)="$event.preventDefault(); enviarMensagem()" class="flex gap-2 w-full">

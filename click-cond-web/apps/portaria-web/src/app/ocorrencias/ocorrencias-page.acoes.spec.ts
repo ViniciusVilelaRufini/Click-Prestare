@@ -18,7 +18,7 @@ registerLocaleData(ɵfindLocaleData('en'), 'pt');
  * desativado aparece no select como "Nome (inativo)".
  */
 describe('OcorrenciasPageComponent — ações conforme o acesso', () => {
-  const PORTEIRO: AcessoOcorrencias = { operar: true, administrar: false, conversar: false };
+  const PORTEIRO: AcessoOcorrencias = { operar: true, administrar: false, conversar: true };
   const SINDICO: AcessoOcorrencias = { operar: true, administrar: true, conversar: true };
   const SEM_PERMISSAO: AcessoOcorrencias = { operar: false, administrar: false, conversar: false };
 
@@ -74,8 +74,28 @@ describe('OcorrenciasPageComponent — ações conforme o acesso', () => {
     comp.ngOnDestroy();
   });
 
-  it('porteiro: abre o chat para ler, sem o campo de mensagem', () => {
-    const { el, fixture, comp } = render(PORTEIRO);
+  it('porteiro: abre o chat e escreve; o balão dele fica do lado da casa, com o nome', () => {
+    const mensagens = [
+      { id: 1, id_ocorrencia: 5, id_usuario: 100, mensagem: 'Continua vazando', created_at: '2026-11-10T10:00:00Z',
+        autor_tipo: 'usuario', usuario: { id: 100, name: 'Maria', login_type: 'email', is_sindico: 0 } },
+      { id: 2, id_ocorrencia: 5, id_usuario: null, mensagem: 'Encanador chamado', created_at: '2026-11-10T10:05:00Z',
+        autor_tipo: 'portaria', usuario: { id: null, name: 'Portaria · João', login_type: 'portaria', is_sindico: 0 } },
+    ];
+    const { el, fixture, comp } = render(PORTEIRO, [base], { listMessages: jest.fn(() => of(mensagens)) });
+    comp.abrirChat(base);
+    fixture.detectChanges();
+    expect(el.querySelector('input[name="mensagem"]')).toBeTruthy();
+    const baloes = Array.from(el.querySelectorAll('#chat-container > div')) as HTMLElement[];
+    const doMorador = baloes.find((b) => b.textContent?.includes('Continua vazando'))!;
+    const doPorteiro = baloes.find((b) => b.textContent?.includes('Encanador chamado'))!;
+    expect(doPorteiro.textContent).toContain('Portaria · João');
+    expect(doPorteiro.classList).toContain('items-end');
+    expect(doMorador.classList).toContain('items-start');
+    comp.ngOnDestroy();
+  });
+
+  it('sessão que atende mas não conversa: lê sem o campo de mensagem', () => {
+    const { el, fixture, comp } = render({ operar: true, administrar: false, conversar: false });
     comp.abrirChat(base);
     fixture.detectChanges();
     expect(el.querySelector('input[name="mensagem"]')).toBeNull();

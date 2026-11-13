@@ -113,14 +113,20 @@ export class OcorrenciasApi {
   }
 }
 
+/**
+ * Mensagem do chat. A do porteiro do console vem com `id_usuario` null,
+ * `autor_tipo` 'portaria' e `usuario` preenchido com o rótulo
+ * ("Portaria · João", is_sindico 0).
+ */
 export interface OcorrenciaMensagem {
   id: number;
   id_ocorrencia: number;
-  id_usuario: number;
+  id_usuario: number | null;
   mensagem: string;
   created_at: string;
+  autor_tipo?: 'usuario' | 'portaria';
   usuario: {
-    id: number;
+    id: number | null;
     name: string;
     login_type: string;
     is_sindico: number;
