@@ -30,6 +30,12 @@ describe('CrmCondominiosService.purgar — refusal when Acessos_Facial has histo
       funcionarios: { findMany: jest.fn(async () => []), count: jest.fn(async () => 0) },
       apartamentos: { count: jest.fn(async () => 0) },
       apartamentos_Users: { findMany: jest.fn(async () => []) },
+      // Sem FK para Condominios: a cascata não os alcança.
+      chat_Ia_Historico: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+      rag_Embeddings: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+      fechamentoMensal: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+      crm_Faturas: { deleteMany: jest.fn() },
+      crm_Disparos: { deleteMany: jest.fn() },
       $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
     };
 
@@ -88,5 +94,30 @@ describe('CrmCondominiosService.purgar — refusal when Acessos_Facial has histo
       where: { id_condominio: 1 },
     });
     expect(prisma.condominios.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+  });
+
+  it('apaga chat do assistente, embeddings do RAG e fechamentos mensais na mesma transação (sem FK, fora da cascata)', async () => {
+    const { svc, prisma } = build(0);
+
+    await svc.purgar(1, 'Condomínio Teste', 'operador@teste');
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    const ops = prisma.$transaction.mock.calls[0][0];
+    for (const modelo of ['chat_Ia_Historico', 'rag_Embeddings', 'fechamentoMensal']) {
+      expect(prisma[modelo].deleteMany).toHaveBeenCalledWith({ where: { id_condominio: 1 } });
+      expect(ops).toContain(prisma[modelo].deleteMany.mock.results[0].value);
+    }
+    // Faturamento da Prestare fica: não é dado do condomínio a apagar.
+    expect(prisma.crm_Faturas.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.crm_Disparos.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('purga recusada não apaga chat, embeddings nem fechamentos', async () => {
+    const { svc, prisma } = build(3);
+
+    await expect(svc.purgar(1, 'Condomínio Teste', 'operador@teste')).rejects.toThrow(ConflictException);
+    expect(prisma.chat_Ia_Historico.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.rag_Embeddings.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.fechamentoMensal.deleteMany).not.toHaveBeenCalled();
   });
 });

@@ -620,6 +620,12 @@ export class CrmCondominiosService {
       ...(purgarHistorico && totalAcessos > 0
         ? [this.prisma.acessos_Facial.deleteMany({ where: { id_condominio: id } })]
         : []),
+      // Sem FK para Condominios (a cascata não os alcança): conversas do assistente IA, trechos
+      // indexados do RAG e fechamentos do livro caixa sobreviviam à exclusão definitiva.
+      // Crm_Faturas e Crm_Disparos ficam de propósito: são o faturamento da Prestare.
+      this.prisma.chat_Ia_Historico.deleteMany({ where: { id_condominio: id } }),
+      this.prisma.rag_Embeddings.deleteMany({ where: { id_condominio: id } }),
+      this.prisma.fechamentoMensal.deleteMany({ where: { id_condominio: id } }),
       this.prisma.condominios.delete({ where: { id } }),
     ]);
 
