@@ -10,7 +10,27 @@
  * decodifica `Date` como segundos desde 2001, não 1970.
  */
 
-export type FaseCard = 'aguardando' | 'liberado' | 'entrou' | 'negado' | 'expirado';
+export type FaseCard =
+  // portaria remota
+  | 'aguardando'
+  | 'liberado'
+  | 'entrou'
+  | 'negado'
+  | 'expirado'
+  // delivery (`aguardando` é compartilhada: pedido de autorização)
+  | 'chegou'
+  | 'autorizado'
+  | 'retirar'
+  | 'entregue'
+  | 'recusado';
+
+/** Vida máxima do card de delivery (a Apple aceita até 8 h; a entrega dura minutos). */
+export const DELIVERY_MAX_SEG = 7200;
+
+export interface AlertaCard {
+  titulo: string;
+  corpo: string;
+}
 
 /** Janela de resposta do morador (igual ao "Sem resposta" da portaria-web). */
 export const JANELA_RESPOSTA_SEG = 180;
@@ -27,7 +47,8 @@ export interface BaseCard {
 export interface ConteudoCard {
   fase: FaseCard;
   nome: string;
-  tipo: 'Visitante' | 'Prestador';
+  /** Portaria: "Visitante" | "Prestador". Delivery: o entregador ("Carlos · iFood" ou "Entregador"). */
+  tipo: string;
   unidade: string;
   chegouEm: number;
   expiraEm: number;
@@ -36,6 +57,10 @@ export interface ConteudoCard {
   pelaPortaria: boolean;
   horaResposta: number | null;
   horaEntrada: number | null;
+  /** Delivery: miniatura da foto do entregador (base64); ausente = iniciais. */
+  foto?: string;
+  /** Delivery recusado: motivo informado. */
+  motivo?: string | null;
 }
 
 export interface AtributosCard {
@@ -111,8 +136,8 @@ export function textoAlerta(c: Pick<ConteudoCard, 'tipo' | 'nome'>) {
 }
 
 /** Push-to-start (iOS 17.2+): abre o card com o app fechado. */
-export function payloadInicio(c: ConteudoCard, attrs: AtributosCard, agora: number) {
-  const alerta = textoAlerta(c);
+export function payloadInicio(c: ConteudoCard, attrs: AtributosCard, agora: number, alertaDado?: AlertaCard) {
+  const alerta = alertaDado ?? textoAlerta(c);
   return {
     aps: {
       timestamp: agora,
@@ -132,12 +157,14 @@ export function payloadInicio(c: ConteudoCard, attrs: AtributosCard, agora: numb
   };
 }
 
-export function payloadAtualizacao(c: ConteudoCard, agora: number) {
+/** Atualização; com `alerta`, toca e mostra o aviso (pedido que exige o morador). */
+export function payloadAtualizacao(c: ConteudoCard, agora: number, alerta?: AlertaCard | null) {
   return {
     aps: {
       timestamp: agora,
       event: 'update',
       'content-state': c,
+      ...(alerta ? { alert: { title: alerta.titulo, body: alerta.corpo, sound: 'default' }, sound: 'default' } : {}),
     },
   };
 }

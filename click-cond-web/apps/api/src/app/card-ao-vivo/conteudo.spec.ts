@@ -1,4 +1,4 @@
-import { montarConteudo, payloadFim, payloadInicio, rotuloUnidade, textoAlerta } from './conteudo';
+import { montarConteudo, payloadAtualizacao, payloadFim, payloadInicio, rotuloUnidade, textoAlerta } from './conteudo';
 
 describe('conteúdo do card ao vivo', () => {
   const base = {
@@ -49,6 +49,13 @@ describe('conteúdo do card ao vivo', () => {
     expect(p.aps.attributes).toEqual({ idCartao: '9', idPedido: '5', origem: 'visitante' });
     expect(p.aps['content-state']).toBe(c);
     expect(p.aps.alert.title).toBe('Visitante na portaria');
+    const comAlerta = payloadInicio(c, { idCartao: '9', idPedido: '5', origem: 'delivery' }, 1000, { titulo: 'T', corpo: 'C' });
+    expect(comAlerta.aps.alert).toEqual({ title: 'T', body: 'C', sound: 'default' });
+    const tocando = payloadAtualizacao(c, 1000, { titulo: 'T', corpo: 'C' });
+    expect((tocando.aps as any).alert).toEqual({ title: 'T', body: 'C', sound: 'default' });
+    expect((tocando.aps as any).sound).toBe('default');
+    expect((payloadAtualizacao(c, 1000).aps as any).alert).toBeUndefined();
+    expect((payloadAtualizacao(c, 1000, null).aps as any).alert).toBeUndefined();
     const comTema = payloadInicio(c, { idCartao: '9', idPedido: '5', origem: 'visitante', tema: 'claro' }, 1000);
     expect(comTema.aps.attributes).toEqual({ idCartao: '9', idPedido: '5', origem: 'visitante', tema: 'claro' });
     expect(p.aps.alert.body).toBe('Vinicius Vilela quer entrar. Autorizar?');
