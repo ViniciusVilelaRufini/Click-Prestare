@@ -323,6 +323,8 @@ export class PrestadoresService {
   }
 
   async create(dto: CreatePrestadorDto, user?: JwtPayload) {
+    // Interface, não DTO: um objeto no e-mail estourava em .trim() e virava erro 500 em vez de 400.
+    if (dto.email != null && typeof dto.email !== 'string') throw new BadRequestException('E-mail inválido.');
     // E-mail só com espaços = sem e-mail: nunca vira login de portaria ''.
     if (typeof dto.email === 'string' && dto.email.trim() === '') dto = { ...dto, email: null };
     await this.tenant.assertCondominio(dto.id_condominio, user);
@@ -496,6 +498,8 @@ export class PrestadoresService {
   }
 
   async update(id: number, dto: Partial<CreatePrestadorDto>, idCondominio?: number, user?: JwtPayload) {
+    // Interface, não DTO: um objeto no e-mail estourava em .trim() e virava erro 500 em vez de 400.
+    if (dto.email != null && typeof dto.email !== 'string') throw new BadRequestException('E-mail inválido.');
     // E-mail só com espaços = limpar o e-mail: revoga o login do prestador exatamente como email: null.
     if (typeof dto.email === 'string' && dto.email.trim() === '') dto = { ...dto, email: null };
     if (!this.prisma.isConnected) {
