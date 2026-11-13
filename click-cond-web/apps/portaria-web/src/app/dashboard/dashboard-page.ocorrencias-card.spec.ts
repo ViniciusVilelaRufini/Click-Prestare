@@ -12,7 +12,7 @@ registerLocaleData(ɵfindLocaleData('en'), 'pt');
 /**
  * Cartão de ocorrências: conta as abertas (status diferente de Solucionado,
  * como o app) e só acende "urgente" quando a API aponta aberta com prazo
- * vencido ou prioridade alta. Evento de status de dispositivo sai como
+ * vencido ou de categoria crítica (prioridade 1). Evento de status de dispositivo sai como
  * "Dispositivo" e não leva à lista de ocorrências.
  */
 describe('DashboardPageComponent — cartão de ocorrências e eventos de dispositivo', () => {

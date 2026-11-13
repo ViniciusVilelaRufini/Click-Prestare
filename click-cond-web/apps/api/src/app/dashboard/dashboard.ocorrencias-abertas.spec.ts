@@ -5,7 +5,8 @@ import { DashboardService } from './dashboard.service';
  * 'Pendente' (o app conta tudo que não está Solucionado) e acendia "urgente"
  * para qualquer pendente. Agora:
  *  - aberta = status diferente de Solucionado, a mesma definição do app;
- *  - urgente = aberta com prazo vencido ou prioridade alta/crítica (<= 2);
+ *  - urgente = aberta com prazo vencido ou categoria de prioridade CRÍTICA
+ *    (exatamente 1 — 0 é o padrão de categoria sem valor, 2 é "alta");
  *  - evento de status de dispositivo (AuditLog) sai como "Dispositivo", não
  *    como "Ocorrência" que levava à lista de ocorrências.
  */
@@ -45,7 +46,7 @@ describe('DashboardService — ocorrências abertas, urgentes e eventos de dispo
     });
   });
 
-  it('urgentes = abertas com prazo vencido ou prioridade alta', async () => {
+  it('urgentes = abertas com prazo vencido ou prioridade crítica (1); 0 e 2 não acendem', async () => {
     const { svc, prisma } = montar();
     const r = await svc.summary(1);
     expect(r.ocorrenciasUrgentes).toBe(2);
@@ -53,7 +54,7 @@ describe('DashboardService — ocorrências abertas, urgentes e eventos de dispo
     expect(urgentes.status).toEqual({ notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] });
     expect(urgentes.OR).toEqual([
       { prazo: { lt: expect.any(Date) } },
-      { categoria: { prioridade: { lte: 2 } } },
+      { categoria: { prioridade: 1 } },
     ]);
   });
 

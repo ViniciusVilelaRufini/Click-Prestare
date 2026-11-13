@@ -188,13 +188,14 @@ export class DashboardService {
       this.prisma.ocorrencias.count({
         where: { id_condominio: idCondominio, status: { notIn: [...STATUS_SOLUCIONADO] } },
       }),
-      // "urgente" só quando há aberta com prazo vencido ou prioridade alta
-      // (1 crítica, 2 alta — a escala de Ocorrencias_Categorias).
+      // "urgente" só quando há aberta com prazo vencido ou de categoria
+      // crítica (prioridade exatamente 1 na escala de Ocorrencias_Categorias;
+      // 0 é o padrão de categoria sem valor e 2 é "alta" — nenhum dos dois acende).
       this.prisma.ocorrencias.count({
         where: {
           id_condominio: idCondominio,
           status: { notIn: [...STATUS_SOLUCIONADO] },
-          OR: [{ prazo: { lt: agora } }, { categoria: { prioridade: { lte: 2 } } }],
+          OR: [{ prazo: { lt: agora } }, { categoria: { prioridade: 1 } }],
         },
       }),
       this.prisma.encomendas.count({

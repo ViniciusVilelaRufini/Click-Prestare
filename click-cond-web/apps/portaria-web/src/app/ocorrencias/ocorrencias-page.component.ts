@@ -160,7 +160,9 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
 
   async mudarStatus(o: Ocorrencia, status: OcorrenciaStatus) {
     const prioridade = this.prioridadeCategoria(o.tipo);
-    const isCritica = prioridade <= 1;
+    // Crítica é exatamente 1: 0 é o padrão de categoria sem valor (a mesma
+    // regra do "urgente" do dashboard).
+    const isCritica = prioridade === 1;
 
     const ok = await this.confirm.ask({
       title: isCritica ? '⚠️ Alteração em Ocorrência CRÍTICA' : 'Confirmar alteração de status',
@@ -203,10 +205,11 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     return this.categorias().find((c) => c.id === catId)?.prioridade ?? 999;
   }
 
+  /** 1 crítica, 2 alta, 3 média; 4+ e 0 (categoria sem prioridade definida) contam como baixa. */
   prioridadeLabel(p: number): { label: string; color: string } {
-    if (p <= 1) return { label: 'Crítica', color: 'text-red-400' };
-    if (p <= 2) return { label: 'Alta', color: 'text-amber-400' };
-    if (p <= 3) return { label: 'Média', color: '' };
+    if (p === 1) return { label: 'Crítica', color: 'text-red-400' };
+    if (p === 2) return { label: 'Alta', color: 'text-amber-400' };
+    if (p === 3) return { label: 'Média', color: '' };
     return { label: 'Baixa', color: 'text-slate-400' };
   }
 

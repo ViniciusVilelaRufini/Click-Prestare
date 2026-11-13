@@ -9,7 +9,7 @@ export interface DashboardSummary {
   prestadoresAtivos: number;
   /** Ocorrências abertas (status diferente de Solucionado, como no app). */
   ocorrenciasPendentes: number;
-  /** Das abertas, as com prazo vencido ou prioridade alta — acende o selo "urgente". */
+  /** Das abertas, as com prazo vencido ou de categoria crítica (prioridade 1) — acende o selo "urgente". */
   ocorrenciasUrgentes?: number;
   encomendasAguardando: number;
   comunicadosRecentes: number;

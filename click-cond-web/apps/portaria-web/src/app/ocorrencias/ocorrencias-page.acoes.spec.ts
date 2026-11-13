@@ -148,6 +148,19 @@ describe('OcorrenciasPageComponent — ações conforme o acesso', () => {
     comp.ngOnDestroy();
   });
 
+  it('prioridade: só 1 é Crítica — 0 (categoria sem valor) não pede a confirmação de CRÍTICA', async () => {
+    const confirm = { ask: jest.fn(async () => true) };
+    const { comp } = render(PORTEIRO);
+    (comp as any).confirm = confirm;
+    expect(comp.prioridadeLabel(1).label).toBe('Crítica');
+    expect(comp.prioridadeLabel(2).label).toBe('Alta');
+    expect(comp.prioridadeLabel(0).label).not.toBe('Crítica');
+    comp.categorias.set([{ id: 3, nome: 'Outros', prioridade: 0, sla_horas: null }]);
+    await comp.mudarStatus({ ...base, tipo: 3 }, 'Ciente');
+    expect((confirm.ask.mock.calls[0] as any[])[0].variant).toBe('primary');
+    comp.ngOnDestroy();
+  });
+
   it('sem a rota de acesso (API antiga), cai na sessão: porteiro sem Remover', () => {
     const { el, comp } = render(SINDICO, [base], { acesso: jest.fn(() => throwError(() => ({ status: 404 }))) });
     // Sem porteiroInfo no teste a sessão é nula: atende, mas não administra nem conversa.
