@@ -3577,6 +3577,10 @@ export class MobileAuthService {
     // não deveria conseguir criar/editar outro porteiro (nem de si mesmo).
     assertSindico(user, 'gerenciar funcionários');
     const func = body.funcionario || body.funcionarios || {};
+    // E-mail/login vão direto para findFirst/findUnique: objeto vira filtro do Prisma (oráculo de logins).
+    if ((func.email != null && typeof func.email !== 'string') || (func.login != null && typeof func.login !== 'string')) {
+      throw new BadRequestException('E-mail inválido.');
+    }
     const idCondominio = Number(body.id_condominio);
 
     // Resolvida em cada ramo, depois da autorização: URL do bucket só passa se
@@ -3685,19 +3689,20 @@ export class MobileAuthService {
       });
 
       const data: any = {};
+      const emailEdit: string | null | undefined = typeof func.email === 'string' ? func.email.trim() : func.email;
       if (func.nome !== undefined) data.nome = func.nome;
-      if (func.email !== undefined) data.email = func.email;
+      if (func.email !== undefined) data.email = emailEdit;
       if (func.telefone !== undefined) data.telefone = func.telefone;
       if (func.ch !== undefined || func.turno !== undefined) data.turno = func.ch ?? func.turno;
       // Se mudou o login (email), atualiza também
-      if (func.email && func.email !== atual.login) {
+      if (emailEdit && emailEdit !== atual.login) {
         const conflito = await this.prisma.funcionarios_Portaria.findFirst({
-          where: { login: func.email, NOT: { id } },
+          where: { login: emailEdit, NOT: { id } },
           select: { id: true },
         });
         if (conflito) throw new BadRequestException('Já existe outro funcionário com este e-mail.');
-        await this.assertLoginLivreParaPortaria(func.email, atual.id_condominio, idUsuarioDoToken(user));
-        data.login = func.email;
+        await this.assertLoginLivreParaPortaria(emailEdit, atual.id_condominio, idUsuarioDoToken(user));
+        data.login = emailEdit;
       }
 
       const updated = await this.prisma.funcionarios_Portaria.update({ where: { id }, data });
@@ -4007,6 +4012,11 @@ export class MobileAuthService {
       throw new ServiceUnavailableException('Banco indisponível. Tente novamente em instantes.');
     }
     const mor = body.morador || body.moradores || {};
+    // Corpo sem DTO: um objeto/array no e-mail virava filtro do Prisma na busca de conflito em Users
+    // (resposta diferente para "existe" e "não existe" — oráculo de e-mails de qualquer condomínio).
+    if (mor.email != null && typeof mor.email !== 'string') {
+      throw new BadRequestException('E-mail inválido.');
+    }
     const idAptoRaw = mor.id_apto ?? body.id_apto;
     const idApto = idAptoRaw ? Number(idAptoRaw) : null;
     const tipoRaw = String(mor.tipo || mor.vinculo || 'proprietario');
@@ -4070,9 +4080,10 @@ export class MobileAuthService {
         }
 
         if (emailMudou && mor.email && (trocaDaConta || !autoedicao)) {
+          const emailBusca = normEmail(mor.email);
           const conflito = await this.prisma.users.findFirst({
             where: {
-              OR: [{ email: mor.email }, { login: mor.email }],
+              OR: [{ email: emailBusca }, { login: emailBusca }],
               NOT: { id: atual.id_user },
             },
             select: { id: true },

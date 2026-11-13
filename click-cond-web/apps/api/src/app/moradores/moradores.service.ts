@@ -967,6 +967,11 @@ export class MoradoresService {
       throw new NotFoundException(`Morador ${id} não encontrado`);
     }
 
+    // Interface, não DTO: um objeto no e-mail virava filtro do Prisma na busca de conflito em Users.
+    if (dto.email != null && typeof dto.email !== 'string') {
+      throw new BadRequestException('E-mail inválido.');
+    }
+
     // Carrega o morador atual com seu Users vinculado
     const atual = await this.prisma.moradores.findUnique({
       where: { id },
@@ -1003,9 +1008,10 @@ export class MoradoresService {
     // Se o email mudou, valida unicidade no Users (login + email)
     const emailMudou = dto.email !== undefined && dto.email !== atual.email;
     if (emailMudou && dto.email) {
+      const emailBusca = dto.email.trim().toLowerCase();
       const conflito = await this.prisma.users.findFirst({
         where: {
-          OR: [{ email: dto.email }, { login: dto.email }],
+          OR: [{ email: emailBusca }, { login: emailBusca }],
           NOT: { id: atual.id_user },
         },
         select: { id: true },
