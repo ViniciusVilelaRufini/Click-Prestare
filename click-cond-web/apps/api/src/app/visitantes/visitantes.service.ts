@@ -210,7 +210,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             {
               OR: [
                 { data_saida: { lte: limiteRetencao } },
-                { data_saida: null, data_hora_termino: { lte: limiteRetencao } },
+                {
+                  data_saida: null,
+                  data_hora_termino: { lte: limiteRetencao },
+                  // checkIn/liberarAcesso reabrem esta mesma linha sem mexer no término: quem está
+                  // dentro ou acabou de ser liberado não pode perder a foto pelo término antigo.
+                  updated_at: { lte: limiteRetencao },
+                  OR: [{ data_entrada: null }, { data_entrada: { lte: limiteRetencao } }],
+                },
                 {
                   data_saida: null,
                   data_hora_termino: null,
@@ -321,9 +328,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               OR: [
                 { data_saida: { gt: limiteRetencao } },
                 { data_saida: null, data_hora_termino: { gt: limiteRetencao } },
+                // Sem saída e com atividade recente, qualquer que seja o término: a passagem nova
+                // (liberar/check-in) copia o término antigo da visita de origem.
                 {
                   data_saida: null,
-                  data_hora_termino: null,
                   OR: [
                     { created_at: { gt: limiteRetencao } },
                     { data_entrada: { gt: limiteRetencao } },
