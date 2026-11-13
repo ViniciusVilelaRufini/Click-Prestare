@@ -35,7 +35,7 @@ jobs:
 
       # 24.x é o que o package.json declara em `engines` e o que roda no
       # ambiente de desenvolvimento — o CI não pode divergir disso.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -156,7 +156,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
