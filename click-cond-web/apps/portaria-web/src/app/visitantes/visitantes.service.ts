@@ -5,6 +5,14 @@ import { CreateVisitante, Visitante } from './visitante.model';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
 
+/**
+ * Prazo do pedido de autorização ao morador — o mesmo da API
+ * (`AUTORIZACAO_EXPIRACAO_MS`) e do card ao vivo. Único ponto no front.
+ */
+export const AUTORIZACAO_EXPIRACAO_MS = 10 * 60 * 1000;
+/** Sem resposta há esse tempo: a portaria já pode agir sem esperar o morador. */
+export const AUTORIZACAO_SEM_RESPOSTA_MS = 3 * 60 * 1000;
+
 export interface VisitanteTimelineEntry {
   evento: 'entrada' | 'saida' | 'negado';
   timestamp: string;
@@ -107,6 +115,8 @@ export interface ApartamentoVisitado {
   liberado?: boolean;
   /** Autorização do morador vencida numa visita ainda não usada: o check-in seria recusado. */
   autorizacao_expirada?: boolean;
+  /** Pedido ao morador sem resposta além do prazo (10 min). */
+  pedido_expirado?: boolean;
   auth_status?: 'pendente' | 'autorizado' | 'negado' | null;
   auth_solicitado_em?: string | null;
   auth_respondido_em?: string | null;
@@ -118,7 +128,9 @@ export interface ApartamentoVisitado {
 
 /** 1 pessoa = 1 linha. Substitui Visitante[] na página /visitantes. */
 export interface Pessoa {
-  id: number; // id do registro principal (compatível com endpoints antigos)
+  // id da VISITA principal (compatível com endpoints antigos). `null` quando a
+  // pessoa não tem visita — use `id_pessoa` (chavePessoa) para identificá-la.
+  id: number | null;
   // Id da Pessoa (tabela `pessoas`), quando o backend já está na migração
   // Pessoas/Visitas. `id` acima é o id da VISITA principal — ambíguo para
   // endpoints que operam sobre a pessoa inteira (removerPessoa/
@@ -129,6 +141,8 @@ export interface Pessoa {
   id_pessoa?: number;
   /** Algum apartamento com autorização do morador vencida (ver ApartamentoVisitado). */
   autorizacao_expirada?: boolean;
+  /** Pedido ao morador sem resposta além do prazo, sem nada valendo na pessoa. */
+  pedido_expirado?: boolean;
   nome: string;
   doc_identificacao: string | null;
   foto_pessoa: string | null;
@@ -269,7 +283,9 @@ export class VisitantesService {
 
   validarCodigo(codigo: string): Observable<any> {
     const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
-    return this.http.get<any>(`${API_BASE}/visitantes/validar/${codigo}`, {
+    // O PIN é mostrado como "123-456": tira hífen, espaço e ponto (Dashboard e Visitantes).
+    const pin = (codigo ?? '').replace(/[\s.\-]/g, '');
+    return this.http.get<any>(`${API_BASE}/visitantes/validar/${encodeURIComponent(pin)}`, {
       params: new HttpParams().set('id_condominio', cid.toString())
     });
   }

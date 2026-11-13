@@ -961,7 +961,7 @@
                     <span class="text-xs text-slate-500">Buscando cadastros...</span>
                   </div>
                 } @else if (pessoasEncontradas().length > 0) {
-                  @for (p of pessoasEncontradas(); track p.id) {
+                  @for (p of pessoasEncontradas(); track p.id_pessoa ?? p.id) {
                     <div
                          role="button"
                          tabindex="0"
@@ -1171,7 +1171,7 @@
                   <!-- Tag de Vigência -->
                   <span class="ps-tag">
                     <span class="ps-dot" [class.ps-dot-ok]="validationResult().status_vigencia === 'ATIVO'" [class.ps-dot-warn]="validationResult().status_vigencia === 'FUTURO'" [class.ps-dot-danger]="validationResult().status_vigencia === 'EXPIRADO'"></span>
-                    {{ validationResult().status_vigencia }}
+                    {{ validationResult().data_entrada ? 'Registrar saída' : validationResult().status_vigencia }}
                   </span>
                 </div>
                 
@@ -1243,7 +1243,7 @@
                 </button>
                 <button
                   (click)="confirmarEntradaPIN()"
-                  [disabled]="checkingIn() || validationResult().status_vigencia === 'EXPIRADO'"
+                  [disabled]="checkingIn() || (!validationResult().data_entrada && validationResult().status_vigencia === 'EXPIRADO')"
                   [ngClass]="validationResult().data_entrada ? 'ps-btn-danger' : ''"
                   class="ps-btn flex-1 disabled:opacity-50">
                   @if (checkingIn()) {

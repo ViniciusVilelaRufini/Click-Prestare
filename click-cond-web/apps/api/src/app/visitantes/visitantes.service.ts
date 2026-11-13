@@ -23,12 +23,13 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { isOperador } from '../auth/tenant.util';
-import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
+import { gerarPinUnicoVisita, novaVisitaEmOutraUnidade, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PessoasService, pessoaTemVisitaForaDosAptos } from '../pessoas/pessoas.service';
 import { VisitasService } from '../visitas/visitas.service';
 import { CardAoVivoService, type QuemRespondeu } from '../card-ao-vivo/card-ao-vivo.service';
+import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
 
 /**
  * Migração Visitantes → Pessoas/Visitas: as tabelas `pessoas`/`visitas` estão
@@ -52,7 +53,10 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
   return true;
 }
 
-const AUTORIZACAO_EXPIRACAO_MS = 10 * 60 * 1000;
+// Prazo único do pedido/autorização — o card ao vivo usa o mesmo.
+export { AUTORIZACAO_EXPIRACAO_MS };
+/** Janela da visita aberta por um pedido de autorização: agora → +4 h. */
+const JANELA_PEDIDO_MS = 4 * 60 * 60 * 1000;
 
 // Movido para auth/ (financeiro também precisa); reexportado para os imports existentes.
 export { idUsuarioDoToken };
@@ -70,6 +74,20 @@ export function isAutorizacaoAtual(registro: any, agora = Date.now()): boolean {
     ? new Date(registro.auth_respondido_em).getTime()
     : (registro.auth_solicitado_em ? new Date(registro.auth_solicitado_em).getTime() : 0);
   return (agora - respondida) <= AUTORIZACAO_EXPIRACAO_MS;
+}
+
+/**
+ * A saída mantém `liberado`? Prestador sempre; visitante recorrente (dias da
+ * semana) só com término no FUTURO — sem término viraria acesso permanente.
+ * Mesma regra da saída pelo terminal (facial.service).
+ */
+export function mantemLiberadoNaSaida(
+  v: { is_prestador?: number | null; dias_semana?: string | null; data_hora_termino?: Date | string | null },
+  agora = Date.now(),
+): boolean {
+  if (v.is_prestador === 1) return true;
+  if (!String(v.dias_semana ?? '').trim() || !v.data_hora_termino) return false;
+  return new Date(v.data_hora_termino).getTime() > agora;
 }
 
 export interface CreateVisitanteDto {
@@ -101,6 +119,12 @@ export interface CreateVisitanteDto {
    * sincroniza.
    */
   sem_facial?: boolean;
+  /**
+   * "Cadastrar e pedir autorização" (portaria): a visita nasce SEM liberação,
+   * sem PIN, sem enrolar o rosto e sem o push de "chegou"; em seguida o pedido
+   * vai ao morador da unidade. Só vale para operador (morador ignora).
+   */
+  pedir_autorizacao?: boolean;
 }
 
 export interface UpdateVisitanteDto extends Partial<CreateVisitanteDto> {
@@ -987,7 +1011,6 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         }
 
         const now = Date.now();
-        const AUTH_EXPIRACAO_MS = 10 * 60 * 1000;
 
         return pessoasCadastradas.map((p) => {
           const arr = p.visitas ?? [];
@@ -1046,7 +1069,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               const solEm = (r as any).auth_solicitado_em
                 ? new Date((r as any).auth_solicitado_em).getTime()
                 : (r.created_at ? new Date(r.created_at).getTime() : 0);
-              return (now - solEm) <= AUTH_EXPIRACAO_MS;
+              return (now - solEm) <= AUTORIZACAO_EXPIRACAO_MS;
             });
 
             const isAutorizado = regs.some((r) => isAutorizacaoAtual(r, now));
@@ -1066,12 +1089,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
                   ? new Date((r as any).auth_respondido_em).getTime()
                   : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
                 const refTime = respEm || (r.created_at ? new Date(r.created_at).getTime() : 0);
-                return (now - refTime) <= AUTH_EXPIRACAO_MS;
+                return (now - refTime) <= AUTORIZACAO_EXPIRACAO_MS;
               }
               return false;
             });
 
-            const authStatus = isAutorizado ? 'autorizado' : isPendente ? 'pendente' : null;
             const noLocalApto = regs.some((r) => r.data_entrada && !r.data_saida);
             // Mesma condição que faz o check-in recusar ("autorização expirada"):
             // autorização do morador vencida numa visita ainda não usada, sem
@@ -1082,6 +1104,28 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             // saiu (ou foi liberado de novo) por visitas posteriores.
             const criadaEm = (r: (typeof regs)[number]) => (r.created_at ? new Date(r.created_at).getTime() : 0);
             const maisRecenteApto = regs.reduce((m, r) => (criadaEm(r) > criadaEm(m) ? r : m), regs[0]);
+            // A resposta mais recente do morador foi NEGAR (e ninguém liberou
+            // depois: negar grava liberado=0; a portaria liberando grava 1).
+            // Sem isto a linha caía na janela da visita e mostrava "Autorizado".
+            const semEstadoAtivo = !isAutorizado && !isPendente && !noLocalApto;
+            const negadoApto =
+              semEstadoAtivo &&
+              (maisRecenteApto as any).auth_status === 'negado' &&
+              maisRecenteApto.liberado !== 1 &&
+              !maisRecenteApto.data_entrada;
+            // Pedido ao morador sem resposta além do prazo (o morador não pode
+            // mais responder: `autorizar` recusa depois de 10 min).
+            const pedidoExpiradoApto =
+              semEstadoAtivo &&
+              (maisRecenteApto as any).auth_status === 'pendente' &&
+              !pedidoPendenteAtual(maisRecenteApto);
+            const authStatus = isAutorizado
+              ? 'autorizado'
+              : isPendente
+                ? 'pendente'
+                : negadoApto
+                  ? 'negado'
+                  : null;
             const autorizacaoExpirada =
               !isAutorizado &&
               !noLocalApto &&
@@ -1110,6 +1154,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
                 : null,
               temPinAtivo: regs.some((r) => Boolean(r.codigo_acesso && !r.data_saida)),
               autorizacao_expirada: autorizacaoExpirada,
+              pedido_expirado: pedidoExpiradoApto,
               noLocal: noLocalApto,
               data_entrada: best.data_entrada?.toISOString() ?? null,
               data_saida: best.data_saida?.toISOString() ?? null,
@@ -1126,8 +1171,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             // rodada): id da VISITA principal quando a pessoa tem alguma —
             // mantido assim de propósito porque é o que `create()` já
             // devolve nesse modo (`mapVisitaParaRespostaLegada`) e o que o
-            // app v75 guarda como "o id do visitante". Só cai para
-            // `Pessoas.id` quando a pessoa não tem nenhuma visita.
+            // app v75 guarda como "o id do visitante". Sem nenhuma visita é
+            // `null`: o fallback para `Pessoas.id` fazia as ações de visita
+            // (detalhes, entrada, solicitar) acertarem a visita de OUTRA pessoa.
             //
             // `id_pessoa` (abaixo) é o id da Pessoa, sempre — SEM fallback
             // para `Visitas.id`. `removerPessoa`/`atualizarPessoa` usam
@@ -1139,7 +1185,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             // independentes colidem: uma pessoa sem visita — estado normal
             // depois de `remove()` apagar a última Visita dela — tem `id`
             // igual ao `Visitas.id` de alguém completamente diferente).
-            id: principal?.id ?? p.id,
+            id: principal ? principal.id : null,
             id_pessoa: p.id,
             nome: p.nome,
             doc_identificacao: p.doc_identificacao,
@@ -1150,8 +1196,37 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             face_sync_status: p.face_sync_status,
             face_enrolled_at: p.face_enrolled_at ? new Date(p.face_enrolled_at).toISOString() : null,
             codigo_acesso: null, // Sanitizado conforme LGPD (Art. 46): credencial física nunca deve ser exposta na listagem
-            liberado: principal?.liberado ?? 1,
+            // Sem visita não há liberação nenhuma (o default 1 mostrava
+            // "Liberado" e oferecia ações que miravam o id da Pessoa).
+            liberado: principal ? principal.liberado : 0,
             bloqueado: p.bloqueado === 1 || principal?.bloqueado === 1 ? 1 : 0,
+            // Mesmo contrato do caminho legado: tipo, unidade e tag da visita
+            // principal. Sem eles /prestadores ficava vazia e editar só o nome
+            // virava o prestador em visitante e apagava a tag.
+            is_prestador: principal
+              ? principal.is_prestador === 1 ? 1 : 0
+              : (p as any).tipo_pessoa === 'prestador' ? 1 : 0,
+            is_visitante: principal
+              ? principal.is_visitante
+              : (p as any).tipo_pessoa === 'prestador' ? 0 : 1,
+            id_apartamento: principal?.id_apartamento ?? principal?.apartamento?.id ?? null,
+            // A tag migra para a visita ativa (visitaParaNovaPassagem): fica
+            // numa visita só, que nem sempre é a principal.
+            tag_rfid:
+              principal?.tag_rfid ??
+              arr.map((r) => (r as any).tag_rfid).find((t) => t && String(t).trim()) ??
+              null,
+            statusLabel: noLocal
+              ? 'No condomínio'
+              : arr.some((r) =>
+                    r.is_prestador === 1
+                      ? r.liberado === 1
+                      : r.liberado === 1 && !r.data_entrada && !r.data_saida,
+                  )
+                ? 'Liberado'
+                : temPinAtivo
+                  ? 'Agendado'
+                  : 'Histórico',
             data_hora_inicio: principal?.data_hora_inicio ? new Date(principal.data_hora_inicio).toISOString() : null,
             data_hora_termino: principal?.data_hora_termino ? new Date(principal.data_hora_termino).toISOString() : null,
             // Mesmo contrato do legado: entrada/saída da visita ATUAL
@@ -1176,10 +1251,16 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               const ativo =
                 apartamentosVisitados.find((a) => a.auth_status === 'autorizado') ||
                 apartamentosVisitados.find((a) => a.auth_status === 'pendente');
+              // Negativa / pedido vencido só sobem para a pessoa quando nenhuma
+              // unidade tem algo valendo (liberação, pedido, alguém dentro).
+              const nadaValendo = !ativo && !apartamentosVisitados.some((a) => a.liberado || a.noLocal);
+              const negado = nadaValendo ? apartamentosVisitados.find((a) => a.auth_status === 'negado') : undefined;
+              const ref = ativo ?? negado;
               return {
-                auth_status: ativo?.auth_status ?? null,
-                auth_solicitado_em: ativo?.auth_solicitado_em ?? null,
-                auth_respondido_em: ativo?.auth_respondido_em ?? null,
+                auth_status: ref?.auth_status ?? null,
+                auth_solicitado_em: ref?.auth_solicitado_em ?? null,
+                auth_respondido_em: ref?.auth_respondido_em ?? null,
+                pedido_expirado: nadaValendo && !negado && apartamentosVisitados.some((a) => a.pedido_expirado),
               };
             })(),
             autorizacao_expirada: apartamentosVisitados.some((a) => a.autorizacao_expirada),
@@ -1324,7 +1405,6 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
 
       const now = Date.now();
-      const AUTH_EXPIRACAO_MS = 10 * 60 * 1000; // 10 minutos de validade para autorização e pedidos
 
       const apartamentosVisitados = Array.from(aptosMap.entries()).map(([aptoId, regs]) => {
         regs.sort((a, b) => score(b) - score(a));
@@ -1337,7 +1417,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           const solEm = (r as any).auth_solicitado_em
             ? new Date((r as any).auth_solicitado_em).getTime()
             : (r.created_at ? new Date(r.created_at).getTime() : 0);
-          return (now - solEm) <= AUTH_EXPIRACAO_MS;
+          return (now - solEm) <= AUTORIZACAO_EXPIRACAO_MS;
         });
 
         const isAutorizado = regs.some((r) => {
@@ -1352,7 +1432,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           const respEm = (r as any).auth_respondido_em
             ? new Date((r as any).auth_respondido_em).getTime()
             : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
-          return (now - respEm) <= AUTH_EXPIRACAO_MS;
+          return (now - respEm) <= AUTORIZACAO_EXPIRACAO_MS;
         });
 
         const isLiberado = regs.some((r) => {
@@ -1370,7 +1450,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               ? new Date((r as any).auth_respondido_em).getTime()
               : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
             const refTime = respEm || (r.created_at ? new Date(r.created_at).getTime() : 0);
-            return (now - refTime) <= AUTH_EXPIRACAO_MS;
+            return (now - refTime) <= AUTORIZACAO_EXPIRACAO_MS;
           }
           return false;
         });
@@ -1443,7 +1523,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               ? new Date((r as any).auth_respondido_em).getTime()
               : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
             const refTime = respEm || (r.created_at ? new Date(r.created_at).getTime() : 0);
-            return (now - refTime) <= AUTH_EXPIRACAO_MS;
+            return (now - refTime) <= AUTORIZACAO_EXPIRACAO_MS;
           }
           return false;
         }) ? 1 : 0,
@@ -2106,6 +2186,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       return this.createViaPessoasVisitas(dto, operador, opcoes);
     }
 
+    // "Cadastrar e pedir autorização" só existe no caminho Pessoas/Visitas.
+    // Aqui o create liberaria tudo (PIN, facial, "chegou") — recusa antes.
+    if (dto.pedir_autorizacao === true && isOperador(operador)) {
+      throw new BadRequestException('Cadastrar e pedir autorização não está disponível neste condomínio.');
+    }
+
     const blocked = await this.verificarSeBloqueado(dto.id_condominio, dto.nome, dto.doc_identificacao);
     if (blocked) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
@@ -2411,9 +2497,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const fotoDoc = await this.resolveFoto(dto.foto_documento, reaproveitaveis);
     const fotoPes = await this.resolveFoto(dto.foto_pessoa, reaproveitaveis);
 
+    // "Cadastrar e pedir autorização": nada de liberação/PIN/facial/"chegou"
+    // até o morador responder — o aviso dele é o próprio pedido.
+    const pedirAutorizacao = dto.pedir_autorizacao === true && isOperador(operador);
+
     // Mesma rotina do gerarPinUnico, mas escopada a `visitas` — gerarPinUnico
     // olha só `Visitantes`, que este caminho para de escrever.
-    const pin = await this.gerarPinUnicoVisita();
+    const pin = pedirAutorizacao ? null : await this.gerarPinUnicoVisita();
 
     const visita = await this.visitasService.criarVisita({
       id_condominio: Number(dto.id_condominio),
@@ -2431,7 +2521,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data_hora_inicio: parseLocalTimeToUTC(dto.data_hora_inicio),
       data_hora_termino: parseLocalTimeToUTCNullable(dto.data_hora_termino),
       codigo_acesso: pin,
-      liberado: 1,
+      liberado: pedirAutorizacao ? 0 : 1,
       dias_semana: dto.dias_semana ?? null,
       categorias: dto.categorias ?? null,
     } as any, aptosDoChamador ? { aptosDoChamador } : undefined);
@@ -2442,7 +2532,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // dois. Aqui a "mesma pessoa" é `id_pessoa`, direto — não a heurística de
     // doc/nome que o caminho legado precisa porque Visitantes não tem esse
     // vínculo estrutural.
-    await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id, aptosDoChamador);
+    if (!pedirAutorizacao) {
+      await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id, aptosDoChamador);
+    }
 
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctxCreate = this.construirContextoAuditoria(visita);
@@ -2457,42 +2549,48 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Notificar moradores — idêntico ao caminho legado.
-    try {
-      const moradores = await this.prisma.users.findMany({
-        where: {
-          apartamentosUsers: {
-            some: {
-              id_apto: dto.id_apartamento,
+    if (!pedirAutorizacao) {
+      try {
+        const moradores = await this.prisma.users.findMany({
+          where: {
+            apartamentosUsers: {
+              some: {
+                id_apto: dto.id_apartamento,
+              },
             },
+            notif_visitantes: 1,
           },
-          notif_visitantes: 1,
-        },
-        select: { fcm_token: true, name: true, phone: true },
-      });
+          select: { fcm_token: true, name: true, phone: true },
+        });
 
-      for (const m of moradores) {
-        if (m.fcm_token) {
-          await this.notifications.sendPushNotification(
-            m.fcm_token,
-            dto.is_prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
-            `${dto.nome} acabou de chegar para o seu apartamento.`,
-            { id: visita.id.toString(), type: 'visitante' },
-          );
+        for (const m of moradores) {
+          if (m.fcm_token) {
+            await this.notifications.sendPushNotification(
+              m.fcm_token,
+              dto.is_prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
+              `${dto.nome} acabou de chegar para o seu apartamento.`,
+              { id: visita.id.toString(), type: 'visitante' },
+            );
+          }
+          if (m.phone) {
+            const tipo = dto.is_prestador ? 'Prestador de Serviço' : 'Visitante';
+            const waMessage = `Olá, ${m.name}! O ${tipo} "${dto.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
+            await this.notifications.sendWhatsApp(m.phone, waMessage);
+          }
         }
-        if (m.phone) {
-          const tipo = dto.is_prestador ? 'Prestador de Serviço' : 'Visitante';
-          const waMessage = `Olá, ${m.name}! O ${tipo} "${dto.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
-          await this.notifications.sendWhatsApp(m.phone, waMessage);
-        }
+      } catch (error) {
+        console.error('Erro ao notificar moradores sobre visitante:', error);
       }
-    } catch (error) {
-      console.error('Erro ao notificar moradores sobre visitante:', error);
     }
 
     // Sync facial por PESSOA (não mais por visita avulsa) — mesma condição de
     // `sem_facial` do caminho legado.
-    if (fotoPes && dto.sem_facial !== true) {
+    if (fotoPes && dto.sem_facial !== true && !pedirAutorizacao) {
       this.fireFacialSyncPessoa(visita.id_pessoa);
+    }
+
+    if (pedirAutorizacao) {
+      await this.solicitarAutorizacaoViaPessoasVisitas(visita.id, operador);
     }
 
     // Morador: a Pessoa achada pelo documento pode ser de outro apartamento.
@@ -3090,17 +3188,34 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // is_prestador nesta chamada, então `liberado` já é uniforme e cabe no
     // `updateMany` único de baixo.
     let desbloqueioPorRegistro = false;
+    // `bloqueado: 0` numa pessoa que já não estava bloqueada não é
+    // desbloqueio: a tela reenvia o campo a cada edição, e repor `liberado`
+    // aqui revogava a liberação de quem só teve o nome corrigido.
+    const mudouBloqueio = dto.bloqueado !== undefined && Number(dto.bloqueado) !== Number(pessoa.bloqueado ?? 0);
     if (dto.bloqueado !== undefined) {
       const bloqueadoNum = Number(dto.bloqueado);
       visitaData.bloqueado = bloqueadoNum;
       if (bloqueadoNum === 1) {
         visitaData.liberado = 0;
         visitaData.codigo_acesso = null;
+      } else if (!mudouBloqueio) {
+        // Continua desbloqueada: liberações intactas.
       } else if (dto.is_prestador !== undefined) {
         visitaData.liberado = dto.is_prestador === 1 ? 1 : 0;
       } else {
         desbloqueioPorRegistro = true;
       }
+    }
+    // Prestador → visitante: o acesso contínuo do prestador acaba — visitante
+    // só entra com uma nova liberação/pedido (e o facial sincroniza abaixo).
+    if (
+      Number(dto.is_prestador) === 0 &&
+      dto.is_prestador !== undefined &&
+      pessoa.tipo_pessoa === 'prestador' &&
+      visitaData.liberado === undefined &&
+      !desbloqueioPorRegistro
+    ) {
+      visitaData.liberado = 0;
     }
 
     if (Object.keys(pessoaData).length > 0) {
@@ -3155,7 +3270,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
-    if (ref.auth_status === 'autorizado' && !isAutorizacaoAtual(ref)) {
+    // Só numa visita ainda NÃO encerrada: a saída pelo facial não limpa
+    // auth_status, e o check-in numa visita usada abre uma passagem nova, que
+    // não depende daquela autorização.
+    if (ref.auth_status === 'autorizado' && !ref.data_saida && !isAutorizacaoAtual(ref)) {
       throw new BadRequestException('A autorização desta visita está expirada.');
     }
     const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
@@ -3294,7 +3412,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data: {
         data_saida: new Date(),
         codigo_acesso: null,
-        liberado: ref.is_prestador === 1 ? 1 : 0,
+        // Prestador e visitante recorrente (com término futuro) voltam outro
+        // dia: a saída não revoga a liberação. Avulso perde na saída.
+        liberado: mantemLiberadoNaSaida(ref) ? 1 : 0,
         auth_status: null,
         auth_solicitado_em: null,
         auth_respondido_em: null,
@@ -3337,24 +3457,49 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async solicitarAutorizacaoViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
-    const ref = await this.assertPodeAcessarVisita(id, payload);
-    if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
+    const principal = await this.assertPodeAcessarVisita(id, payload);
+    if (principal.bloqueado === 1 || (principal.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
-    let redirecionarApto: number | undefined;
-    if (idApartamento && Number(idApartamento) !== ref.id_apartamento) {
+    // Outra unidade escolhida: o pedido vai para a visita da pessoa NAQUELA
+    // unidade (ou uma nova lá). Mover a visita recebida de apartamento levava
+    // junto a liberação/PIN da unidade original.
+    let ref: any = principal;
+    let idVisita: number;
+    if (idApartamento && Number(idApartamento) !== principal.id_apartamento) {
       await this.assertPodeUsarApartamento(Number(idApartamento), payload);
       const apto = await this.prisma.apartamentos.findUnique({ where: { id: Number(idApartamento) } });
-      if (!apto || apto.id_condominio !== ref.id_condominio) {
+      if (!apto || apto.id_condominio !== principal.id_condominio) {
         throw new BadRequestException('Apartamento de destino inválido.');
       }
-      redirecionarApto = Number(idApartamento);
+      const daUnidade = await this.prisma.visitas.findFirst({
+        where: { id_pessoa: principal.id_pessoa, id_apartamento: Number(idApartamento) },
+        orderBy: { created_at: 'desc' },
+      });
+      if (daUnidade) {
+        if (daUnidade.bloqueado === 1) {
+          throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+        }
+        ref = daUnidade;
+        idVisita = await this.visitaParaNovaPassagem(daUnidade);
+      } else {
+        idVisita = await novaVisitaEmOutraUnidade(this.prisma, principal, Number(idApartamento));
+      }
+    } else {
+      idVisita = await this.visitaParaNovaPassagem(principal);
     }
-    const idVisita = await this.visitaParaNovaPassagem(ref);
+    // Visita copiada (herda a janela da antiga) ou janela já vencida: o
+    // morador autorizava e o facial recusava fora da janela. O pedido é para
+    // agora — janela agora → +4 h, o mesmo padrão do cadastro.
+    const agora = new Date();
+    const copia = idVisita !== Number(ref.id);
+    const janelaVencida = !!ref.data_hora_termino && new Date(ref.data_hora_termino).getTime() < agora.getTime();
     const v = await this.prisma.visitas.update({
       where: { id: idVisita },
       data: {
-        ...(redirecionarApto ? { id_apartamento: redirecionarApto } : {}),
+        ...(copia || janelaVencida
+          ? { data_hora_inicio: agora, data_hora_termino: new Date(agora.getTime() + JANELA_PEDIDO_MS) }
+          : {}),
         auth_status: 'pendente',
         auth_solicitado_em: new Date(),
         auth_respondido_em: null,
@@ -3519,6 +3664,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
 
+    // Quem está DENTRO usa o PIN para a SAÍDA: janela, dia e liberação são
+    // regras de entrada — cobrá-las prendia a saída de quem passou do horário.
+    const dentro = !!v.data_entrada && !v.data_saida;
     const now = new Date();
     const inicio = v.data_hora_inicio ? new Date(v.data_hora_inicio) : now;
     const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : now;
@@ -3534,14 +3682,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       status = 'EXPIRADO';
     }
 
-    if (status === 'EXPIRADO') {
+    if (!dentro && status === 'EXPIRADO') {
       throw new BadRequestException('Acesso negado: O período de validade deste código já expirou.');
     }
-    if (status === 'FUTURO') {
+    if (!dentro && status === 'FUTURO') {
       throw new BadRequestException('Acesso negado: O período de validade deste código ainda não iniciou.');
     }
 
-    if (v.dias_semana) {
+    if (v.dias_semana && !dentro) {
       const diasPermitidos = v.dias_semana.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean);
       if (diasPermitidos.length > 0) {
         const diaSemanaAtual = diaSemanaBrasilia(now);
@@ -3551,7 +3699,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    if (v.liberado !== 1) {
+    if (!dentro && v.liberado !== 1) {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
 
@@ -3570,7 +3718,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       apto: v.apartamento?.apto ?? null,
       apto_bloco: v.apartamento?.bloco ?? null,
       morador_nome: v.criadoPor?.name ?? 'Morador',
-      status_vigencia: status,
+      // Dentro: o PIN serve para a SAÍDA (a janela não importa mais).
+      status_vigencia: dentro ? 'SAIDA' : status,
+      acao: dentro ? 'saida' : 'entrada',
       codigo_acesso: null,
       temPinAtivo: !!v.codigo_acesso,
       data_entrada: v.data_entrada,
@@ -4027,7 +4177,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
     const aptoIds = vinculos.map((x: any) => x.id_apto);
     if (aptoIds.length === 0) return [];
-    const dezMinAtras = new Date(Date.now() - 10 * 60 * 1000);
+    const dezMinAtras = new Date(Date.now() - AUTORIZACAO_EXPIRACAO_MS);
     const pendentes = await this.prisma.visitas.findMany({
       where: {
         id_apartamento: { in: aptoIds },
@@ -4249,6 +4399,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
 
+    // Quem está DENTRO usa o PIN para a SAÍDA: janela, dia e liberação são
+    // regras de entrada — cobrá-las prendia a saída de quem passou do horário.
+    const dentro = !!v.data_entrada && !v.data_saida;
     const now = new Date();
     const inicio = v.data_hora_inicio ? new Date(v.data_hora_inicio) : now;
     const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : now;
@@ -4265,15 +4418,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       status = 'EXPIRADO';
     }
 
-    if (status === 'EXPIRADO') {
+    if (!dentro && status === 'EXPIRADO') {
       throw new BadRequestException('Acesso negado: O período de validade deste código já expirou.');
     }
-    if (status === 'FUTURO') {
+    if (!dentro && status === 'FUTURO') {
       throw new BadRequestException('Acesso negado: O período de validade deste código ainda não iniciou.');
     }
 
     // Validação de dias da semana autorizados
-    if (v.dias_semana) {
+    if (v.dias_semana && !dentro) {
       const diasPermitidos = v.dias_semana.split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
       if (diasPermitidos.length > 0) {
         const diaSemanaAtual = diaSemanaBrasilia(now);
@@ -4283,7 +4436,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    if (v.liberado !== 1) {
+    if (!dentro && v.liberado !== 1) {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
 
@@ -4302,7 +4455,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       apto: v.apartamento?.apto ?? null,
       apto_bloco: v.apartamento?.bloco ?? null,
       morador_nome: v.criadoPor?.name ?? 'Morador',
-      status_vigencia: status,
+      // Dentro: o PIN serve para a SAÍDA (a janela não importa mais).
+      status_vigencia: dentro ? 'SAIDA' : status,
+      acao: dentro ? 'saida' : 'entrada',
       codigo_acesso: null, // Sanitizado conforme LGPD
       temPinAtivo: !!v.codigo_acesso,
       data_entrada: v.data_entrada,
@@ -4766,7 +4921,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data: {
         data_saida: new Date(),
         codigo_acesso: null,
-        liberado: ref.is_prestador === 1 ? 1 : 0,
+        // Prestador e visitante recorrente (com término futuro) voltam outro
+        // dia: a saída não revoga a liberação. Avulso perde na saída.
+        liberado: mantemLiberadoNaSaida(ref) ? 1 : 0,
         auth_status: null,
         auth_solicitado_em: null,
         auth_respondido_em: null,
@@ -5065,7 +5222,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
     const aptoIds = vinculos.map((x) => x.id_apto);
     if (aptoIds.length === 0) return [];
-    const dezMinAtras = new Date(Date.now() - 10 * 60 * 1000);
+    const dezMinAtras = new Date(Date.now() - AUTORIZACAO_EXPIRACAO_MS);
     const pendentes = await this.prisma.visitantes.findMany({
       where: {
         id_apartamento: { in: aptoIds },

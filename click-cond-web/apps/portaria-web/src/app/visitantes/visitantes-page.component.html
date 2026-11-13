@@ -725,6 +725,18 @@
         >
           Cancelar
         </button>
+        @if (!novaVisitaPara() && !(editingId && editandoIdentidade())) {
+          <!-- Cria sem liberar: sem PIN, sem facial, sem aviso de "chegou"; o pedido vai ao morador da unidade. -->
+          <button
+            type="button"
+            (click)="salvar('pedir')"
+            [disabled]="saving()"
+            class="ps-btn ps-btn-sec disabled:opacity-50"
+            title="Cadastra sem liberar e pede autorização ao morador pelo app"
+          >
+            Cadastrar e pedir autorização
+          </button>
+        }
         <button
           type="button"
           (click)="salvar()"
@@ -818,7 +830,7 @@
     } @else {
       <!-- MOBILE / janela estreita: cards -->
       <div class="lg:hidden divide-y divide-slate-300">
-        @for (v of visitantesPaginados(); track v.id) {
+        @for (v of visitantesPaginados(); track chavePessoa(v)) {
           <div
                role="button"
                tabindex="0"
@@ -863,7 +875,12 @@
                   </span>
                 </div>
                 <div class="mt-2 flex items-center gap-2 flex-wrap">
-                  @if (getStatusVisitante(v) === 'presente') {
+                  @if (!temVisita(v)) {
+                    <span class="ps-tag" title="Nenhuma visita ativa. Use Nova Visita.">
+                      <span class="ps-dot ps-dot-ink"></span>
+                      Sem visita
+                    </span>
+                  } @else if (getStatusVisitante(v) === 'presente') {
                     <span class="ps-tag">
                       <span class="ps-dot ps-dot-ok ps-dot-pulse"></span>
                       No condomínio
@@ -925,10 +942,22 @@
                         </span>
                       }
                       @case ('saiu') {
-                        <span class="ps-tag">
-                          <span class="ps-dot ps-dot-ink"></span>
-                          Saiu
-                        </span>
+                        @if ($any(v).pedido_expirado) {
+                          <span class="ps-tag" title="O morador não respondeu em 10 min. Solicite de novo.">
+                            <span class="ps-dot ps-dot-warn"></span>
+                            Pedido expirado
+                          </span>
+                        } @else if (janelaEncerrada(v)) {
+                          <span class="ps-tag" title="A janela de acesso terminou. Solicite de novo ou registre a entrada.">
+                            <span class="ps-dot ps-dot-ink"></span>
+                            Janela encerrada
+                          </span>
+                        } @else {
+                          <span class="ps-tag">
+                            <span class="ps-dot ps-dot-ink"></span>
+                            Saiu
+                          </span>
+                        }
                       }
                     }
                   }
@@ -956,7 +985,7 @@
                   class="mt-1 flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-mono flex-wrap"
                 >
                   @if (v.doc_identificacao) {
-                    <span>Doc: {{ docsRevelados().has(v.id) ? v.doc_identificacao : (v.doc_identificacao | maskDoc) }}</span>
+                    <span>Doc: {{ docsRevelados().has(chavePessoa(v)) ? v.doc_identificacao : (v.doc_identificacao | maskDoc) }}</span>
                   }
                   @if ($any(v).ultEntrada) {
                     <span>{{ $any(v).ultEntrada | date: 'dd/MM HH:mm' }}</span>
@@ -996,7 +1025,9 @@
                   class="mt-3 flex items-center gap-2 flex-wrap"
                   (click)="$event.stopPropagation()"
                 >
-                  @if (getStatusVisitante(v) === 'presente') {
+                  @if (!temVisita(v)) {
+                    <!-- Sem visita: o id da linha é o da Pessoa; só Nova Visita/Editar/Remover. -->
+                  } @else if (getStatusVisitante(v) === 'presente') {
                     <button
                       (click)="darBaixa(v)"
                       class="ps-btn ps-btn-danger ps-btn-sm"
@@ -1031,6 +1062,16 @@
                     <button
                       (click)="registrarEntradaManual(v)"
                       class="ps-btn ps-btn-sm"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                      Registrar Entrada
+                    </button>
+                  } @else if (getStatusVisitante(v) === 'agendado') {
+                    <!-- Pré-autorizado para mais tarde: Solicitar derrubaria a liberação. Chegou antes: registra a entrada. -->
+                    <button
+                      (click)="registrarEntradaManual(v)"
+                      class="ps-btn ps-btn-sec ps-btn-sm"
+                      title="Chegou antes do horário: registrar a entrada agora"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                       Registrar Entrada
@@ -1124,7 +1165,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (v of visitantesPaginados(); track v.id) {
+            @for (v of visitantesPaginados(); track chavePessoa(v)) {
               <tr
                    role="button"
                    tabindex="0"
@@ -1234,14 +1275,14 @@
                 >
                   @if (v.doc_identificacao) {
                     <div class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/5">
-                      <span class="tracking-wider">{{ docsRevelados().has(v.id) ? v.doc_identificacao : (v.doc_identificacao | maskDoc) }}</span>
+                      <span class="tracking-wider">{{ docsRevelados().has(chavePessoa(v)) ? v.doc_identificacao : (v.doc_identificacao | maskDoc) }}</span>
                       <button
-                        (click)="toggleDoc(v.id, $event)"
-                        [attr.aria-label]="docsRevelados().has(v.id) ? 'Ocultar documento' : 'Ver documento completo'"
+                        (click)="toggleDoc(chavePessoa(v), $event)"
+                        [attr.aria-label]="docsRevelados().has(chavePessoa(v)) ? 'Ocultar documento' : 'Ver documento completo'"
                         class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition p-0.5 rounded cursor-pointer"
-                        [title]="docsRevelados().has(v.id) ? 'Ocultar documento' : 'Ver documento completo (LGPD)'"
+                        [title]="docsRevelados().has(chavePessoa(v)) ? 'Ocultar documento' : 'Ver documento completo (LGPD)'"
                       >
-                        @if (docsRevelados().has(v.id)) {
+                        @if (docsRevelados().has(chavePessoa(v))) {
                           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
                         } @else {
                           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -1306,7 +1347,12 @@
                   }
                 </td>
                 <td>
-                  @if (getStatusVisitante(v) === 'presente') {
+                  @if (!temVisita(v)) {
+                    <span class="ps-tag" title="Nenhuma visita ativa. Use Nova Visita.">
+                      <span class="ps-dot ps-dot-ink"></span>
+                      Sem visita
+                    </span>
+                  } @else if (getStatusVisitante(v) === 'presente') {
                     <span class="ps-tag">
                       <span class="ps-dot ps-dot-ok"></span>
                       No condomínio
@@ -1368,10 +1414,22 @@
                         </span>
                       }
                       @case ('saiu') {
-                        <span class="ps-tag">
-                          <span class="ps-dot ps-dot-ink"></span>
-                          Saiu
-                        </span>
+                        @if ($any(v).pedido_expirado) {
+                          <span class="ps-tag" title="O morador não respondeu em 10 min. Solicite de novo.">
+                            <span class="ps-dot ps-dot-warn"></span>
+                            Pedido expirado
+                          </span>
+                        } @else if (janelaEncerrada(v)) {
+                          <span class="ps-tag" title="A janela de acesso terminou. Solicite de novo ou registre a entrada.">
+                            <span class="ps-dot ps-dot-ink"></span>
+                            Janela encerrada
+                          </span>
+                        } @else {
+                          <span class="ps-tag">
+                            <span class="ps-dot ps-dot-ink"></span>
+                            Saiu
+                          </span>
+                        }
                       }
                     }
                   }
@@ -1382,7 +1440,9 @@
                 >
                   <div class="flex items-center justify-end gap-2">
                     <!-- Ação primária contextual -->
-                    @if (getStatusVisitante(v) === 'presente') {
+                    @if (!temVisita(v)) {
+                    <!-- Sem visita: o id da linha é o da Pessoa; só Nova Visita/Editar/Remover. -->
+                  } @else if (getStatusVisitante(v) === 'presente') {
                       <button
                         (click)="darBaixa(v)"
                         class="ps-btn ps-btn-danger ps-btn-sm"
@@ -1419,6 +1479,16 @@
                         (click)="registrarEntradaManual(v)"
                         class="ps-btn ps-btn-sm"
                         title="Registrar entrada no sistema agora"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                        Registrar Entrada
+                      </button>
+                    } @else if (getStatusVisitante(v) === 'agendado') {
+                      <!-- Pré-autorizado para mais tarde: Solicitar derrubaria a liberação. Chegou antes: registra a entrada. -->
+                      <button
+                        (click)="registrarEntradaManual(v)"
+                        class="ps-btn ps-btn-sec ps-btn-sm"
+                        title="Chegou antes do horário: registrar a entrada agora"
                       >
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                         Registrar Entrada
@@ -1665,7 +1735,7 @@
                 </span>
                 @if (p.doc_identificacao) {
                   <span class="text-slate-500 dark:text-slate-400 font-mono">
-                    {{ docsRevelados().has(p.id) ? p.doc_identificacao : (p.doc_identificacao | maskDoc) }}
+                    {{ docsRevelados().has(chavePessoa(p)) ? p.doc_identificacao : (p.doc_identificacao | maskDoc) }}
                   </span>
                 }
                 <span class="text-slate-400">·</span>
@@ -1864,7 +1934,7 @@
           </div>
 
           <!-- ESTADO: EXPIRADO (> 10 min) -->
-          @if (autorizacaoExpirada(ap)) {
+          @if (autorizacaoExpirada(ap) || ap.pedido_expirado) {
             <div class="p-4 rounded-xl bg-slate-500/10 border border-slate-500/20 flex items-start gap-3 animate-fade-in">
               <div class="ps-ico !w-8 !h-8 mt-0.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2102,7 +2172,7 @@
           }
 
           <!-- ESTADO: SEM SOLICITAÇÃO ATIVA / INICIAL (nunca fica em branco) -->
-          @if (!autorizacaoExpirada(ap) && ap.auth_status !== 'pendente' && ap.auth_status !== 'autorizado' && ap.auth_status !== 'negado') {
+          @if (!autorizacaoExpirada(ap) && !ap.pedido_expirado && ap.auth_status !== 'pendente' && ap.auth_status !== 'autorizado' && ap.auth_status !== 'negado') {
             <div class="p-4 rounded-xl bg-slate-500/10 border border-slate-500/20 flex items-start gap-3 animate-fade-in">
               <div class="ps-ico !w-8 !h-8 mt-0.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2323,7 +2393,7 @@
                       validationResult().status_vigencia === 'EXPIRADO'
                     "
                   >
-                    {{ validationResult().status_vigencia }}
+                    {{ rotuloVigenciaPin(validationResult()) }}
                   </span>
                 </div>
 
@@ -2396,10 +2466,7 @@
                 </button>
                 <button
                   (click)="confirmarEntradaPIN()"
-                  [disabled]="
-                    checkingIn() ||
-                    validationResult().status_vigencia === 'EXPIRADO'
-                  "
+                  [disabled]="checkingIn() || pinRecusado(validationResult())"
                   [ngClass]="validationResult().data_entrada ? 'bg-rose-500 hover:bg-rose-600 shadow-lg shadow-rose-500/10' : 'bg-emerald-500 hover:bg-emerald-600'"
                   class="flex-1 py-2.5 rounded-lg font-medium text-sm text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
                 >

@@ -270,7 +270,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
     // `id` da lista de pessoas é o da VISITA principal; a rota quer o da
     // pessoa. Mesmo critério de chavePessoa() na tela de Visitantes.
-    this.visitantesService.novaVisitaPessoa(p.id_pessoa ?? p.id, {
+    this.visitantesService.novaVisitaPessoa(p.id_pessoa ?? (p.id as number), {
       id_apartamento: idApto,
       data_hora_inicio: this.liberarInicio() || undefined,
       data_hora_termino: this.liberarTermino() || undefined,
@@ -412,6 +412,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   confirmarBaixa(p: Pessoa) {
+    if (p.id == null) return; // sem visita não há saída a registrar
     this.registrandoSaida.set(true);
     this.erroBaixa.set(null);
     this.sucessoBaixa.set(null);

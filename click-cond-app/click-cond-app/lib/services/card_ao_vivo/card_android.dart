@@ -157,7 +157,7 @@ class CardAndroid {
             _ => 2 * 60 * 60 * 1000,
           }
         : switch (fase) {
-            'aguardando' => (expiraMs - agoraMs).clamp(5000, 180000).toInt() + 30000,
+            'aguardando' => (expiraMs - agoraMs).clamp(5000, 600000).toInt() + 30000, // teto = prazo da API (10 min)
             'liberado' => 10 * 60 * 1000,
             'entrou' => 5 * 60 * 1000,
             _ => 2 * 60 * 1000,

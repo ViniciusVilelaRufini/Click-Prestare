@@ -48,6 +48,43 @@ export async function visitaParaNovaPassagem(prisma: any, ref: any): Promise<num
   return nova.id;
 }
 
+/**
+ * Visita nova da mesma pessoa em OUTRA unidade, para um pedido de autorização
+ * a uma unidade que ela ainda não visitou. Antes a visita de referência era
+ * movida de apartamento — levando junto a liberação/PIN da unidade original.
+ * Nasce sem entrada, saída, PIN, tag, liberação nem autor (user).
+ */
+export async function novaVisitaEmOutraUnidade(prisma: any, ref: any, idApartamento: number): Promise<number> {
+  if (ref.data_entrada && !ref.data_saida) {
+    throw new BadRequestException(
+      'Este visitante já está no condomínio. Dê baixa antes de registrar uma nova passagem.',
+    );
+  }
+  const nova = await prisma.visitas.create({
+    data: {
+      id_pessoa: ref.id_pessoa,
+      id_condominio: ref.id_condominio,
+      id_apartamento: Number(idApartamento),
+      // Quem convidou na unidade de origem não convidou nesta (coluna opcional).
+      user: null,
+      is_visitante: ref.is_visitante,
+      is_prestador: ref.is_prestador,
+      data_hora_inicio: ref.data_hora_inicio,
+      data_hora_termino: ref.data_hora_termino,
+      data_entrada: null,
+      data_saida: null,
+      codigo_acesso: null,
+      liberado: 0,
+      bloqueado: ref.bloqueado ?? 0,
+      avisar: ref.avisar ?? 1,
+      tag_rfid: null,
+      dias_semana: ref.dias_semana ?? null,
+      categorias: ref.categorias ?? null,
+    },
+  });
+  return nova.id;
+}
+
 /** PIN de 6 dígitos sem colisão com nenhuma visita/visitante em aberto. */
 export async function gerarPinUnicoVisita(prisma: any): Promise<string> {
   for (;;) {

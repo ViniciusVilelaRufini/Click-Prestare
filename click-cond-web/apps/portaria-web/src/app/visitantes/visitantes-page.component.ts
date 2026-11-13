@@ -1,10 +1,18 @@
 import { Component, OnInit, OnDestroy, computed, inject, signal, effect, untracked } from '@angular/core';
-import { Observable, switchMap } from 'rxjs';
+import { Observable, defer, switchMap, tap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { VisitantesService, VisitanteDetalhes, PessoaEncontrada, Pessoa, ApartamentoVisitado } from './visitantes.service';
+import {
+  VisitantesService,
+  VisitanteDetalhes,
+  PessoaEncontrada,
+  Pessoa,
+  ApartamentoVisitado,
+  AUTORIZACAO_EXPIRACAO_MS,
+  AUTORIZACAO_SEM_RESPOSTA_MS,
+} from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
 import { ConfirmService } from '../shared/confirm.service';
@@ -17,6 +25,7 @@ import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { AuthService } from '../auth/auth.service';
 import { ConsentimentosApi } from '../core/consentimentos.service';
 import { erroDocumento } from '../shared/documento.util';
+import { ServerClockService } from '../core/server-clock.service';
 
 @Component({
   selector: 'app-visitantes-page',
@@ -34,6 +43,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   private realtime = inject(RealtimeService);
   private auth = inject(AuthService);
   private consentimentosApi = inject(ConsentimentosApi);
+  private relogio = inject(ServerClockService);
 
   readonly consentimentoBiometria = signal(false);
 
@@ -86,7 +96,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   /** Identidade estável da pessoa: `id_pessoa` (Pessoas/Visitas) ou `id` (legado). */
   chavePessoa(v: Visitante | Pessoa): number {
-    return (v as Pessoa).id_pessoa ?? v.id;
+    return (v as Pessoa).id_pessoa ?? (v.id as number);
   }
 
   // Modal de registro de entrada com abas/seleção de apartamento liberado
@@ -302,11 +312,23 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * A pessoa tem alguma visita? Sem visita, o `id` da linha é o id da PESSOA
+   * e as ações de visita (detalhes, entrada, solicitar) acertariam a visita de
+   * outra pessoa — a linha só oferece Nova Visita, Editar e Remover.
+   */
+  temVisita(v: Visitante | Pessoa): boolean {
+    const total = (v as Pessoa).totalVisitas;
+    return total === undefined || total > 0;
+  }
+
   abrirDetalhes(v: Visitante | Pessoa) {
+    if (!this.temVisita(v) || v.id == null) return;
+    const idVisita = v.id;
     this.detalhesData.set(null);
     this.detalhesError.set(null);
     this.detalhesLoading.set(true);
-    this.service.detalhes(v.id).subscribe({
+    this.service.detalhes(idVisita).subscribe({
       next: (d) => {
         this.detalhesData.set(d);
         this.detalhesLoading.set(false);
@@ -526,9 +548,33 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   // Portaria remota: timer de polling enquanto há pedidos pendentes.
   private authPollTimer: ReturnType<typeof setInterval> | null = null;
+  // Lista viva: entrada/saída pelo terminal não passa pelo pedido nem chega
+  // sempre pelo WebSocket — recarrega em silêncio enquanto a aba está visível.
+  private recargaTimer: ReturnType<typeof setInterval> | null = null;
+  private static readonly RECARGA_MS = 20_000;
+  // Ações (solicitar, entrada, baixa, liberar) ainda sem resposta: as recargas
+  // automáticas esperam, para não sobrescrever o estado otimista da linha.
+  private acoesEmAndamento = 0;
+
+  /** Conta a requisição de ação enquanto ela não responde (antes do next/error de quem assina). */
+  private acao<T>(obs$: Observable<T>): Observable<T> {
+    return defer(() => {
+      this.acoesEmAndamento++;
+      let feito = false;
+      const fim = () => {
+        if (!feito) {
+          feito = true;
+          this.acoesEmAndamento--;
+        }
+      };
+      return obs$.pipe(tap({ next: fim, error: fim, complete: fim, finalize: fim }));
+    });
+  }
 
   ngOnDestroy() {
     this.stopAuthPolling();
+    if (this.recargaTimer) clearInterval(this.recargaTimer);
+    this.recargaTimer = null;
     this.realtime.disconnect();
   }
 
@@ -539,6 +585,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     });
     this.carregar();
     this.startAuthPolling();
+    this.recargaTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (this.loading() || this.acoesEmAndamento > 0) return;
+      this.carregar(true);
+    }, VisitantesPageComponent.RECARGA_MS);
     this.conectarRealtime();
     this.aptApi.list().subscribe({
       next: (data) => {
@@ -562,17 +613,19 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  carregar(silent = false) {
+  carregar(silent = false, depois?: (lista: Pessoa[]) => void) {
     if (!silent) this.loading.set(true);
-    this.error.set(null);
+    // A recarga silenciosa (a cada 20 s) não apaga o erro que o porteiro ainda está lendo.
+    if (!silent) this.error.set(null);
     // Lista agrupada por pessoa para a tabela principal
     this.service.listarPessoas().subscribe({
       next: (data) => {
         this.pessoas.set(data);
         this.loading.set(false);
+        depois?.(data);
       },
       error: (e) => {
-        if (!silent) this.error.set(`Falha ao carregar: ${e?.message ?? e}`);
+        if (!silent) this.error.set(`Falha ao carregar: ${e?.error?.message ?? e?.message ?? e}`);
         this.loading.set(false);
       },
     });
@@ -587,7 +640,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       const temPendente = this.pessoas().some((p) => p.auth_status === 'pendente');
       const modalAberto = this.authModalPessoaId() != null;
       if (temPendente || modalAberto) {
-        this.carregar(true);
+        if (this.acoesEmAndamento === 0) this.carregar(true);
       } else {
         this.stopAuthPolling();
       }
@@ -611,19 +664,14 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.authModalPessoaId.set(null);
   }
 
-  /** Registra a entrada direto da janela de autorização e fecha. */
+  /**
+   * "Registrar Entrada Manual" da janela de autorização: fecha a janela e abre
+   * o MESMO modal da linha (registrarEntradaManual). O check-in direto falhava
+   * com a autorização vencida — o modal da linha pede uma nova janela.
+   */
   registrarEntradaEFechar(p: Pessoa) {
-    const aptos = p.apartamentosVisitados ?? [];
-    const apto = aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ?? aptos[0];
-    const targetId = apto?.visitanteId ?? p.id;
-    const targetAptoId = apto?.id ?? p.id_apartamento;
-    this.service.checkIn(targetId, targetAptoId).subscribe({
-      next: () => {
-        this.fecharAuthModal();
-        this.carregar();
-      },
-      error: (e) => this.error.set(`Falha ao registrar entrada: ${e?.message ?? e}`),
-    });
+    this.fecharAuthModal();
+    this.registrarEntradaManual(p);
   }
 
   /**
@@ -636,12 +684,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const apto = aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ?? aptos[0];
     const targetId = apto?.visitanteId ?? p.id;
     const targetAptoId = apto?.id ?? p.id_apartamento;
-    this.service.liberar(targetId, targetAptoId).subscribe({
+    if (targetId == null) return; // sem visita: nada a liberar
+    this.acao(this.service.liberar(targetId, targetAptoId)).subscribe({
       next: () => {
         this.fecharAuthModal();
         this.carregar();
       },
-      error: (e) => this.error.set(`Falha ao liberar acesso: ${e?.message ?? e}`),
+      error: (e) => this.error.set(`Falha ao liberar acesso: ${e?.error?.message ?? e?.message ?? e}`),
     });
   }
 
@@ -655,14 +704,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   /** Pedido pendente ou autorizado há mais que 10 minutos (expirado). */
   autorizacaoExpirada(p: Pessoa | Visitante): boolean {
     if (!p) return false;
-    const AUTH_EXPIRATION_MS = 10 * 60 * 1000; // 10 min
-    const now = Date.now();
+    const now = this.agoraMs();
 
     // Se estiver pendente há mais de 10 min
     if ((p as Pessoa).auth_status === 'pendente') {
       const sol = (p as Pessoa).auth_solicitado_em;
       if (!sol) return false;
-      return now - new Date(sol).getTime() > AUTH_EXPIRATION_MS;
+      return now - new Date(sol).getTime() > AUTORIZACAO_EXPIRACAO_MS;
     }
 
     // Se estiver autorizado há mais de 10 min e o visitante não estiver dentro do condomínio
@@ -670,7 +718,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       if (p.data_entrada && !p.data_saida) return false; // presente no condomínio
       const refTime = (p as Pessoa).auth_respondido_em || (p as Pessoa).auth_solicitado_em;
       if (!refTime) return false;
-      return now - new Date(refTime).getTime() > AUTH_EXPIRATION_MS;
+      return now - new Date(refTime).getTime() > AUTORIZACAO_EXPIRACAO_MS;
     }
 
     return false;
@@ -693,13 +741,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Pedido pendente há mais que o TIMEOUT (3 min) e dentro do limite de 10 min. */
+  /** Pedido pendente há mais que AUTORIZACAO_SEM_RESPOSTA_MS e ainda dentro do prazo. */
   autorizacaoSemResposta(p: Pessoa): boolean {
     if (p.auth_status !== 'pendente' || !p.auth_solicitado_em) return false;
-    const diff = Date.now() - new Date(p.auth_solicitado_em).getTime();
-    const AUTH_TIMEOUT_MS = 3 * 60 * 1000; // 3 min
-    const AUTH_EXPIRATION_MS = 10 * 60 * 1000; // 10 min
-    return diff > AUTH_TIMEOUT_MS && diff <= AUTH_EXPIRATION_MS;
+    const diff = this.agoraMs() - new Date(p.auth_solicitado_em).getTime();
+    return diff > AUTORIZACAO_SEM_RESPOSTA_MS && diff <= AUTORIZACAO_EXPIRACAO_MS;
   }
 
   formatarApartamentosTooltip(apts?: { id: number; label: string }[]): string {
@@ -709,6 +755,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   /** Abre o modal para escolher o apartamento de destino antes de solicitar. */
   abrirSolicitar(v: Pessoa) {
+    if (!this.temVisita(v)) return;
     this.solicitarModalPessoa.set(v);
     this.solicitarAptoId.set(v.id_apartamento ?? null);
   }
@@ -728,7 +775,12 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.authModalPessoaId.set(this.chavePessoa(pessoa)); // abre a janela "ao vivo" do pedido
     this.startAuthPolling();
 
-    this.service.solicitarAutorizacao(pessoa.id, idApto).subscribe({
+    // A visita DA UNIDADE escolhida; sem visita lá, a principal + a unidade
+    // (a API abre uma visita nova nessa unidade, sem mexer na principal).
+    const daUnidade = (pessoa.apartamentosVisitados ?? []).find((a) => a.id === idApto);
+    const alvo = daUnidade?.visitanteId ?? pessoa.id;
+    if (alvo == null) return; // sem visita (abrirSolicitar já bloqueia)
+    this.acao(this.service.solicitarAutorizacao(alvo, idApto)).subscribe({
       next: () => {
         this.carregar(true);
       },
@@ -811,7 +863,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       // isso não for confirmado, `p.id` continua sendo o id certo no caminho
       // legado, e o fallback `?? p.id` é o que faz esta chamada funcionar
       // nos dois modos. Não remover até o caminho legado sair de cena.
-      this.service.removerPessoa(p.id_pessoa ?? p.id).subscribe({
+      this.service.removerPessoa(this.chavePessoa(p)).subscribe({
         next: () => this.carregar(),
         error: (e) => this.error.set(`Falha ao remover: ${e?.error?.message ?? e?.message ?? e}`),
       });
@@ -825,7 +877,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    * usa atualizarPessoa() para refletir em todas as visitas dela.
    */
   abrirEditar(v: Visitante | Pessoa) {
-    this.editingId = v.id;
+    // Sem visita o `id` é null; `editingId` é a marca do modo edição.
+    this.editingId = v.id ?? this.chavePessoa(v);
     // `id_pessoa` quando o backend já serve pelo caminho Pessoas/Visitas;
     // cai para `v.id` no caminho legado (onde já é o id certo).
     this.editingIdPessoa = (v as Pessoa).id_pessoa ?? v.id;
@@ -851,6 +904,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     } as CreateVisitante;
     const cats = ((v as any).categorias ?? '').split(';').map((x: string) => x.trim()).filter(Boolean);
     this.categoriasSelecionadas.set(new Set(cats));
+    this.editOriginal = {
+      is_prestador: Number(this.novo.is_prestador ?? 0),
+      tag_rfid: (this.novo.tag_rfid ?? '').trim(),
+      bloqueado: Number(this.novo.bloqueado ?? 0),
+      dias_semana: this.novo.dias_semana ?? '',
+      categorias: cats.join(';'),
+    };
     this.fotoPessoaBase64.set(v.foto_pessoa ?? null);
     this.fotoDocumentoBase64.set(v.foto_documento ?? null);
     this.error.set(null);
@@ -858,11 +918,25 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  /**
+   * Valores do cadastro ao abrir a edição. O save só envia tipo, tag,
+   * bloqueio, dias e categorias quando o operador os mudou: reenviar tudo
+   * fazia a API revogar liberações (bloqueado), apagar a tag e trocar o tipo.
+   */
+  private editOriginal: {
+    is_prestador: number;
+    tag_rfid: string;
+    bloqueado: number;
+    dias_semana: string;
+    categorias: string;
+  } | null = null;
+
   cancelarForm() {
     this.fecharCamera();
     this.showForm = false;
     this.editingId = null;
     this.editingIdPessoa = null;
+    this.editOriginal = null;
     this.editandoIdentidade.set(false);
     this.novaVisitaPara.set(null);
     this.fotoPessoaBase64.set(null);
@@ -872,7 +946,12 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.error.set(null);
   }
 
-  salvar() {
+  /**
+   * `modo` só vale no cadastro de pessoa nova: 'liberar' (padrão — nasce
+   * liberada, com PIN e facial) ou 'pedir' (nasce sem liberação e o pedido
+   * vai ao morador da unidade; a janela "ao vivo" do pedido abre em seguida).
+   */
+  salvar(modo: 'liberar' | 'pedir' = 'liberar') {
     this.novo.categorias = Array.from(this.categoriasSelecionadas()).join(';');
 
     const erroDoc = erroDocumento(this.novo.doc_identificacao);
@@ -904,7 +983,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       // ainda não está confirmado no ambiente de produção. Sem o fallback,
       // com a flag desligada `id_pessoa` vem `undefined` e a chamada quebra
       // (rota vira `/pessoa/undefined/nova-visita`). Não remover.
-      this.service.novaVisitaPessoa(novaPara.id_pessoa ?? novaPara.id, {
+      this.service.novaVisitaPessoa(this.chavePessoa(novaPara), {
         id_apartamento: this.novo.id_apartamento,
         data_hora_inicio: this.novo.data_hora_inicio,
         data_hora_termino: this.novo.data_hora_termino,
@@ -939,17 +1018,22 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       // atribui `editingIdPessoa` com o mesmo fallback, então este `??` aqui
       // é redundante NO CAMINHO NOVO — mas é o que mantém o caminho legado
       // funcionando enquanto ele existir. Não remover.
+      const o = this.editOriginal;
+      const tag = (this.novo.tag_rfid ?? '').trim();
+      const mudou = <T>(atual: T, antes: T | undefined) => !o || atual !== antes;
       this.service.atualizarPessoa(this.editingIdPessoa ?? this.editingId, {
         nome: this.novo.nome,
         doc_identificacao: this.novo.doc_identificacao,
         foto_pessoa: this.novo.foto_pessoa ?? undefined,
         foto_documento: this.novo.foto_documento ?? undefined,
-        is_visitante: this.novo.is_visitante,
-        is_prestador: this.novo.is_prestador,
-        tag_rfid: (this.novo.tag_rfid ?? '').trim() || null,
-        dias_semana: this.novo.dias_semana,
-        categorias: this.novo.categorias,
-        bloqueado: this.novo.bloqueado,
+        ...(mudou(Number(this.novo.is_prestador ?? 0), o?.is_prestador) && {
+          is_visitante: this.novo.is_visitante,
+          is_prestador: this.novo.is_prestador,
+        }),
+        ...(mudou(tag, o?.tag_rfid) && { tag_rfid: tag || null }),
+        ...(mudou(this.novo.dias_semana ?? '', o?.dias_semana) && { dias_semana: this.novo.dias_semana }),
+        ...(mudou(this.novo.categorias ?? '', o?.categorias) && { categorias: this.novo.categorias }),
+        ...(mudou(Number(this.novo.bloqueado ?? 0), o?.bloqueado) && { bloqueado: this.novo.bloqueado }),
       }).subscribe({
         next: () => {
           if (this.novo.foto_pessoa && this.editingId) {
@@ -980,7 +1064,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       return;
     }
     this.saving.set(true);
-    this.service.create(this.novo).subscribe({
+    const pedir = modo === 'pedir';
+    this.service.create({ ...this.novo, ...(pedir && { pedir_autorizacao: true }) }).subscribe({
       next: (created) => {
         if (this.novo.foto_pessoa && created?.id) {
           this.consentimentosApi.registrarTerceiro({
@@ -994,7 +1079,18 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         this.saving.set(false);
         this.cancelarForm();
         this.novo = this.estadoInicial();
-        this.carregar();
+        // Pedido enviado: abre a janela "ao vivo" do pedido da pessoa criada.
+        this.carregar(false, pedir && created?.id
+          ? (lista) => {
+              const p = lista.find(
+                (x) => x.id === created.id || (x.apartamentosVisitados ?? []).some((a) => a.visitanteId === created.id),
+              );
+              if (p) {
+                this.authModalPessoaId.set(this.chavePessoa(p));
+                this.startAuthPolling();
+              }
+            }
+          : undefined);
       },
       error: (e) => {
         this.saving.set(false);
@@ -1113,14 +1209,15 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       confirmLabel: 'Confirmar Saída',
       variant: 'primary',
     });
-    if (!ok) return;
-    this.service.checkOut(v.id).subscribe({
+    if (!ok || v.id == null) return;
+    this.acao(this.service.checkOut(v.id)).subscribe({
       next: () => this.carregar(),
-      error: (e) => this.error.set(`Falha ao registrar saída: ${e?.message ?? e}`),
+      error: (e) => this.error.set(`Falha ao registrar saída: ${e?.error?.message ?? e?.message ?? e}`),
     });
   }
 
   registrarEntradaManual(v: Visitante | Pessoa) {
+    if (!this.temVisita(v)) return;
     const p: Pessoa = (v as Pessoa).apartamentosVisitados
       ? (v as Pessoa)
       : (this.pessoas().find((item) => item.id === v.id) ?? (v as any));
@@ -1195,11 +1292,12 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         })
         .pipe(switchMap((nova: any) => this.service.checkIn(nova.id, idApartamento)));
     } else {
+      if (idParaCheckIn == null) return; // sem visita (registrarEntradaManual já bloqueia)
       entrada$ = this.service.checkIn(idParaCheckIn, idApartamento);
     }
 
     this.entradaSalvando.set(true);
-    entrada$.subscribe({
+    this.acao(entrada$).subscribe({
       next: () => {
         this.entradaSalvando.set(false);
         this.fecharEntradaModal();
@@ -1207,7 +1305,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       },
       error: (e) => {
         this.entradaSalvando.set(false);
-        this.error.set(`Falha ao registrar entrada: ${e?.message ?? e}`);
+        this.error.set(`Falha ao registrar entrada: ${e?.error?.message ?? e?.message ?? e}`);
       },
     });
   }
@@ -1258,36 +1356,60 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    * Card/aba em que a pessoa entra. "Liberados" segue o status da linha:
    * contar só `liberado === 1` punha ali quem já saiu da visita atual ou
    * teve a autorização do morador vencida — o card dizia "Liberado" e a
-   * linha, "Saiu"/"Expirado".
+   * linha, "Saiu"/"Expirado". Pedido em andamento e autorização do morador
+   * valendo também são "Liberados (Aguardando)", não "Inativos / Saíram".
    */
   categoriaKpi(p: Pessoa): 'ativos' | 'liberados' | 'historico' {
     if (p.noLocal) return 'ativos';
-    return this.getStatusVisitante(p) === 'liberado' ? 'liberados' : 'historico';
+    if (this.getStatusVisitante(p) === 'liberado') return 'liberados';
+    if ((p.auth_status === 'pendente' || p.auth_status === 'autorizado') && !this.autorizacaoExpirada(p)) {
+      return 'liberados';
+    }
+    return 'historico';
+  }
+
+  /** Hora do SERVIDOR (o PC da portaria costuma estar com o relógio errado). Ver ServerClockService. */
+  private agoraMs(): number {
+    return this.relogio ? this.relogio.agora().getTime() : Date.now();
+  }
+
+  /** Liberado, mas a janela da visita já terminou: o terminal recusa a entrada. */
+  janelaEncerrada(v: Visitante | Pessoa): boolean {
+    if ((v as any).liberado !== 1 || (v.data_entrada && !v.data_saida)) return false;
+    return !!v.data_hora_termino && new Date(v.data_hora_termino).getTime() < this.agoraMs();
   }
 
   getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'liberado' | 'autorizado' | 'agendado' | 'expirado' | 'saiu' {
+    const liberado = (v as any).liberado === 1;
     // 1. Entrou e ainda está dentro (saida não registrada)
     if (v.data_entrada && !v.data_saida) return 'presente';
     // 2. Saída registrada NA VISITA ATUAL. `ultSaida` é de qualquer visita
     // antiga: usá-la prendia em "Saiu" quem foi liberado de novo, e sumiam
-    // os botões "Dar Baixa" e "Liberar entrada".
-    if (v.data_saida) return 'saiu';
+    // os botões "Dar Baixa" e "Liberar entrada". Prestador e visitante
+    // recorrente (dias da semana) mantêm a liberação na saída: continuam
+    // "Liberado" (antes: "Saiu" + Solicitar, que derrubava o acesso).
+    const acessoContinuo =
+      liberado && ((v as any).is_prestador === 1 || !!String((v as any).dias_semana ?? '').trim());
+    if (v.data_saida && !acessoContinuo) return 'saiu';
     // 3. Autorização do morador vencida numa visita não usada: o check-in
     // seria recusado — não é "Liberado" (o botão só falhava).
     if ((v as Pessoa).autorizacao_expirada) return 'expirado';
+    const now = this.agoraMs();
     // Janela ainda não começou: o PIN/facial seriam recusados agora — é
-    // "Agendado", mesmo com liberado === 1.
-    if (v.data_hora_inicio && new Date(v.data_hora_inicio).getTime() > Date.now()) return 'agendado';
-    // 4. Pré-autorizado manualmente/app (liberado === 1 e não expirado)
-    if ((v as any).liberado === 1 && !this.autorizacaoExpirada(v)) return 'liberado';
-    
-    const now = Date.now();
-    // 4. Dentro do período de liberação (ainda não entrou)
-    if (v.data_hora_inicio && v.data_hora_termino) {
+    // "Agendado" (pré-autorização). Sem liberação, não há o que agendar.
+    if (liberado && v.data_hora_inicio && new Date(v.data_hora_inicio).getTime() > now) return 'agendado';
+    // 4. Pré-autorizado manualmente/app (liberado === 1 e não expirado). Com
+    // a janela já encerrada não é mais "Liberado": o terminal recusa.
+    if (liberado && !this.autorizacaoExpirada(v)) {
+      return this.janelaEncerrada(v) ? 'saiu' : 'liberado';
+    }
+    // 4. Dentro do período de liberação (ainda não entrou). A janela sozinha
+    // não autoriza: sem liberação (morador negou, pedido venceu, cópia de
+    // visita) a linha mostrava "Autorizado" e oferecia Registrar Entrada.
+    if (liberado && v.data_hora_inicio && v.data_hora_termino) {
       const inicio = new Date(v.data_hora_inicio).getTime();
       const fim = new Date(v.data_hora_termino).getTime();
       if (now >= inicio && now <= fim) return 'autorizado';
-      if (now < inicio) return 'agendado';
     }
     // 5. Default
     return 'saiu';
@@ -1325,6 +1447,19 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         this.validating.set(false);
       }
     });
+  }
+
+  /** PIN de quem está dentro é para a SAÍDA: só a ENTRADA fora da vigência é recusada. */
+  pinRecusado(res: { data_entrada?: string | null; status_vigencia?: string; acao?: string } | null): boolean {
+    if (!res) return true;
+    if (res.data_entrada || res.acao === 'saida') return false;
+    return res.status_vigencia === 'EXPIRADO';
+  }
+
+  /** Selo do resultado: "Registrar saída" para quem está dentro; senão a vigência. */
+  rotuloVigenciaPin(res: { data_entrada?: string | null; status_vigencia?: string; acao?: string } | null): string {
+    if (!res) return '';
+    return res.data_entrada || res.acao === 'saida' ? 'Registrar saída' : (res.status_vigencia ?? '');
   }
 
   confirmarEntradaPIN() {
