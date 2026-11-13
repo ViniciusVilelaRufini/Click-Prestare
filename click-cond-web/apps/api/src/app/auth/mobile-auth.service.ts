@@ -4604,8 +4604,12 @@ export class MobileAuthService {
         }
         const patch: any = {};
         if (!contaDeOutroCondominio) {
-          // Garante que o usuário tem login/senha para acessar o app
-          if (!existing.login && mor.email) patch.login = mor.email;
+          // Garante que o usuário tem login/senha para acessar o app. O login novo não pode ser login/e-mail
+          // de uma linha de portaria (ligadas só por texto): a conta passaria a ser tratada como o porteiro.
+          if (!existing.login && mor.email) {
+            await this.assertEmailLivreNaPortaria(mor.email, 'Já existe outro usuário com este e-mail.');
+            patch.login = mor.email;
+          }
           if (!existing.password) {
             patch.password = senhaHash;
             passwordWasSet = true;
@@ -4638,6 +4642,8 @@ export class MobileAuthService {
         });
         userId = u.id;
       } else if (mor.email) {
+        // Mesmo motivo do patch.login acima: o login da conta nova não pode ser de uma linha de portaria.
+        await this.assertEmailLivreNaPortaria(mor.email, 'Já existe outro usuário com este e-mail.');
         const u = await this.prisma.users.create({
           data: {
             name: mor.nome,

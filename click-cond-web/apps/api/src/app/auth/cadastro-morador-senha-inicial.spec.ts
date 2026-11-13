@@ -23,6 +23,7 @@ describe('saveMorador — senha inicial nunca é o CPF', () => {
       apartamentos_Users: { findFirst: jest.fn(async () => null), create: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
       sindicos_Condominios: { count: jest.fn(async () => 0) },
       funcionarios: { count: jest.fn(async () => 0) },
+      funcionarios_Portaria: { findFirst: jest.fn(async () => null) },
     };
     const mail: any = { sendWelcomeMorador: jest.fn(async () => ({})), sendWelcomeMoradorExisting: jest.fn(async () => ({})) };
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
