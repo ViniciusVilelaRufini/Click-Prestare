@@ -914,12 +914,27 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       return [];
     }
 
+    // Autorização/pedido/PIN só dão prioridade enquanto VALEM. Uma autorização
+    // do morador vencida sem uso (ou um pedido sem resposta, ou um PIN com a
+    // janela encerrada) ficava para sempre como a visita "principal" e passava
+    // na frente das visitas de hoje: a linha voltava a "Autorização expirada"
+    // depois de cada baixa e a portaria não tinha como pedir de novo.
+    const agoraScore = Date.now();
+    const pedidoPendenteAtual = (v: any) => {
+      if (v?.auth_status !== 'pendente') return false;
+      const ref = v.auth_solicitado_em ?? v.created_at;
+      return agoraScore - (ref ? new Date(ref).getTime() : 0) <= AUTORIZACAO_EXPIRACAO_MS;
+    };
+    const pinVigente = (v: any) =>
+      Boolean(v?.codigo_acesso) &&
+      !v.data_saida &&
+      (!v.data_hora_termino || new Date(v.data_hora_termino).getTime() >= agoraScore);
     const score = (v: any) => {
       if (v.data_entrada && !v.data_saida) return 1000; // No condomínio agora
-      if ((v as any).auth_status === 'autorizado') return 900; // Autorizado pelo morador!
-      if ((v as any).auth_status === 'pendente') return 850;   // Aguardando morador!
-      if (v.codigo_acesso && v.liberado === 1) return 800; // PIN ativo e liberado!
-      if (v.codigo_acesso) return 500;                  // PIN ativo / agendado
+      if (isAutorizacaoAtual(v, agoraScore)) return 900; // Autorizado pelo morador (ainda válido)
+      if (pedidoPendenteAtual(v)) return 850;            // Aguardando morador (pedido recente)
+      if (pinVigente(v) && v.liberado === 1) return 800; // PIN ativo e liberado!
+      if (pinVigente(v)) return 500;                     // PIN ativo / agendado
       const created = v.created_at ? new Date(v.created_at).getTime() : 0;
       return created / 1e10;
     };
@@ -1062,19 +1077,21 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             // autorização do morador vencida numa visita ainda não usada, sem
             // outra válida e sem a pessoa dentro. A portaria precisa saber disso
             // ANTES de clicar — a tela mostrava "Liberado" e o botão só falhava.
+            // Só vale para a visita MAIS RECENTE da unidade: uma autorização
+            // vencida de semanas atrás não diz nada sobre quem já entrou e
+            // saiu (ou foi liberado de novo) por visitas posteriores.
+            const criadaEm = (r: (typeof regs)[number]) => (r.created_at ? new Date(r.created_at).getTime() : 0);
+            const maisRecenteApto = regs.reduce((m, r) => (criadaEm(r) > criadaEm(m) ? r : m), regs[0]);
             const autorizacaoExpirada =
               !isAutorizado &&
               !noLocalApto &&
-              regs.some(
-                (r) =>
-                  (r as any).auth_status === 'autorizado' &&
-                  !r.data_entrada &&
-                  !r.data_saida &&
-                  !isAutorizacaoAtual(r, now),
-              );
+              (maisRecenteApto as any).auth_status === 'autorizado' &&
+              !maisRecenteApto.data_entrada &&
+              !maisRecenteApto.data_saida &&
+              !isAutorizacaoAtual(maisRecenteApto, now);
             const regAtivoApto =
               regs.find((r) => isAutorizacaoAtual(r, now)) ||
-              regs.find((r) => (r as any).auth_status === 'pendente') ||
+              regs.find((r) => pedidoPendenteAtual(r)) ||
               best;
 
             return {
