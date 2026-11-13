@@ -3747,8 +3747,10 @@ export class FinanceiroService implements OnModuleInit {
 
   async anexarCodigoMorador(userId: number, idConta: number, dados: { linha_digitavel?: string; pix_copia_cola?: string }) {
     if (!this.prisma.isConnected) return { success: true };
+    // Só conta pessoal (tipo 'D'), como update/remove: a taxa do condomínio também carrega
+    // id_usuario, e o PIX/linha digitável dela chega aos outros moradores da unidade e à cobrança.
     const conta = await this.prisma.financeiro.findFirst({
-      where: { id: Number(idConta), id_usuario: Number(userId) },
+      where: this.contaPessoalDoMorador(userId, idConta),
     });
     if (!conta) throw new NotFoundException('Conta não encontrada ou não pertence ao usuário.');
 

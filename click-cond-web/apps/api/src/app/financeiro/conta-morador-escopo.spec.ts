@@ -109,4 +109,31 @@ describe('FinanceiroService — rotas do morador só alcançam conta pessoal', (
     });
   });
 
+  describe('anexarCodigoMorador', () => {
+    it('NEGA o morador trocar o PIX/linha digitável da taxa condominial', async () => {
+      const { svc, prisma } = buildService();
+      await expect(
+        svc.anexarCodigoMorador(MORADOR, 900, { pix_copia_cola: '00020126PIXFICTICIO', linha_digitavel: '1234' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.financeiro.update).not.toHaveBeenCalled();
+    });
+
+    it('PERMITE anexar código à conta pessoal dele', async () => {
+      const { svc, prisma } = buildService();
+      await expect(svc.anexarCodigoMorador(MORADOR, 901, { pix_copia_cola: '00020126PIXFICTICIO' })).resolves.toEqual({
+        success: true,
+      });
+      expect(prisma.financeiro.update).toHaveBeenCalledWith({
+        where: { id: 901 },
+        data: { pix_copia_cola: '00020126PIXFICTICIO' },
+      });
+    });
+
+    it('NEGA conta pessoal de outro usuário', async () => {
+      const { svc, prisma } = buildService();
+      await expect(svc.anexarCodigoMorador(78, 901, { linha_digitavel: '1234' })).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.financeiro.update).not.toHaveBeenCalled();
+    });
+  });
+
 });
