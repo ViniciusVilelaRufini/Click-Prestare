@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, computed, inject, signal, effect, untracked } from '@angular/core';
-import { Observable, switchMap } from 'rxjs';
+import { Observable, defer, switchMap, tap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -552,6 +552,24 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   // sempre pelo WebSocket — recarrega em silêncio enquanto a aba está visível.
   private recargaTimer: ReturnType<typeof setInterval> | null = null;
   private static readonly RECARGA_MS = 20_000;
+  // Ações (solicitar, entrada, baixa, liberar) ainda sem resposta: as recargas
+  // automáticas esperam, para não sobrescrever o estado otimista da linha.
+  private acoesEmAndamento = 0;
+
+  /** Conta a requisição de ação enquanto ela não responde (antes do next/error de quem assina). */
+  private acao<T>(obs$: Observable<T>): Observable<T> {
+    return defer(() => {
+      this.acoesEmAndamento++;
+      let feito = false;
+      const fim = () => {
+        if (!feito) {
+          feito = true;
+          this.acoesEmAndamento--;
+        }
+      };
+      return obs$.pipe(tap({ next: fim, error: fim, complete: fim, finalize: fim }));
+    });
+  }
 
   ngOnDestroy() {
     this.stopAuthPolling();
@@ -569,7 +587,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.startAuthPolling();
     this.recargaTimer = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
-      if (this.loading()) return;
+      if (this.loading() || this.acoesEmAndamento > 0) return;
       this.carregar(true);
     }, VisitantesPageComponent.RECARGA_MS);
     this.conectarRealtime();
@@ -622,7 +640,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       const temPendente = this.pessoas().some((p) => p.auth_status === 'pendente');
       const modalAberto = this.authModalPessoaId() != null;
       if (temPendente || modalAberto) {
-        this.carregar(true);
+        if (this.acoesEmAndamento === 0) this.carregar(true);
       } else {
         this.stopAuthPolling();
       }
@@ -667,7 +685,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const targetId = apto?.visitanteId ?? p.id;
     const targetAptoId = apto?.id ?? p.id_apartamento;
     if (targetId == null) return; // sem visita: nada a liberar
-    this.service.liberar(targetId, targetAptoId).subscribe({
+    this.acao(this.service.liberar(targetId, targetAptoId)).subscribe({
       next: () => {
         this.fecharAuthModal();
         this.carregar();
@@ -762,7 +780,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const daUnidade = (pessoa.apartamentosVisitados ?? []).find((a) => a.id === idApto);
     const alvo = daUnidade?.visitanteId ?? pessoa.id;
     if (alvo == null) return; // sem visita (abrirSolicitar já bloqueia)
-    this.service.solicitarAutorizacao(alvo, idApto).subscribe({
+    this.acao(this.service.solicitarAutorizacao(alvo, idApto)).subscribe({
       next: () => {
         this.carregar(true);
       },
@@ -1192,7 +1210,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       variant: 'primary',
     });
     if (!ok || v.id == null) return;
-    this.service.checkOut(v.id).subscribe({
+    this.acao(this.service.checkOut(v.id)).subscribe({
       next: () => this.carregar(),
       error: (e) => this.error.set(`Falha ao registrar saída: ${e?.error?.message ?? e?.message ?? e}`),
     });
@@ -1279,7 +1297,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     }
 
     this.entradaSalvando.set(true);
-    entrada$.subscribe({
+    this.acao(entrada$).subscribe({
       next: () => {
         this.entradaSalvando.set(false);
         this.fecharEntradaModal();

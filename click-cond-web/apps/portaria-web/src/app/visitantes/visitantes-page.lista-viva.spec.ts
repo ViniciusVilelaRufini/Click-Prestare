@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, ActivatedRoute } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { VisitantesPageComponent } from './visitantes-page.component';
 import { VisitantesService, Pessoa } from './visitantes.service';
 import { ConfirmService } from '../shared/confirm.service';
@@ -60,6 +60,30 @@ describe('VisitantesPageComponent — lista viva e mensagens do servidor', () =>
     tela.ngOnDestroy();
     jest.advanceTimersByTime(60_000);
     expect(service.listarPessoas.mock.calls.length).toBe(antes + 1);
+  });
+
+  // A recarga não pode sobrescrever o "Aguardando morador" otimista enquanto
+  // o pedido ainda não voltou do servidor.
+  it('não recarrega enquanto há uma ação em andamento (Solicitar)', () => {
+    jest.useFakeTimers();
+    const tela = build();
+    const resposta = new Subject<any>();
+    service.solicitarAutorizacao = jest.fn(() => resposta);
+    fixture.detectChanges();
+    const p = { id: 1, id_pessoa: 2, nome: 'QA', totalVisitas: 1, id_apartamento: 106, apartamentosVisitados: [] } as any;
+    tela.abrirSolicitar(p);
+    tela.confirmarSolicitar();
+    const antes = service.listarPessoas.mock.calls.length;
+    jest.advanceTimersByTime(20_000);
+    expect(service.listarPessoas.mock.calls.length).toBe(antes);
+    resposta.next({ ok: true });
+    resposta.complete();
+    const depoisDaResposta = service.listarPessoas.mock.calls.length; // o next já recarrega
+    expect(depoisDaResposta).toBe(antes + 1);
+    // Com a resposta, as recargas automáticas (pedido pendente + 20 s) voltam.
+    jest.advanceTimersByTime(20_000);
+    expect(service.listarPessoas.mock.calls.length).toBeGreaterThan(depoisDaResposta);
+    tela.ngOnDestroy();
   });
 
   it('erro ao carregar mostra o motivo do servidor', () => {
