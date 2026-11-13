@@ -35,6 +35,17 @@ const MAX_FALHAS_SENHA_PERFIL = 10;
 const JANELA_FALHAS_SENHA_PERFIL_MS = 10 * 60_000;
 
 /**
+ * "Meus eventos" do morador: visita sem saída e sem término agendado não fica aberta até agora. A janela
+ * dela termina 24 h depois da entrada (ou do início, sem entrada): cobre a visita/serviço de um dia, inclusive
+ * o pernoite, e a saída esquecida pela portaria. Serviço de vários dias tem término agendado, que vale antes
+ * do teto. Passagens da mesma Pessoa depois disso são de outra visita (possivelmente a outra unidade).
+ */
+const TETO_JANELA_VISITA_SEM_FIM_MS = 24 * 60 * 60 * 1000;
+/** Eventos faciais de visitantes no feed do morador, e a margem buscada antes do filtro da janela. */
+const MAX_EVENTOS_VISITANTES_FEED = 40;
+const BUSCA_EVENTOS_VISITANTES_FEED = 200;
+
+/**
  * Foto do signup público de síndico (pentest P-09). Só data URL de imagem
  * jpeg/png/webp de até 5 MB em base64 (o mesmo teto do convite público).
  * Qualquer outro tipo que o StorageService aceitaria (PDF, planilha, texto)
@@ -1791,7 +1802,9 @@ export class MobileAuthService {
               timestamp: { gte: cutoff },
             },
             orderBy: { timestamp: 'desc' },
-            take: 40,
+            // Margem: o filtro da janela das visitas (em memória, abaixo) descarta parte; o corte em
+            // MAX_EVENTOS_VISITANTES_FEED vem depois dele.
+            take: BUSCA_EVENTOS_VISITANTES_FEED,
           })
         : Promise.resolve([]),
     ]);
@@ -1815,11 +1828,19 @@ export class MobileAuthService {
     // O id da Pessoa cobre TODAS as visitas dela no condomínio (inclusive a outras unidades): o evento só
     // é do morador se cair na janela de uma visita dele, no mesmo condomínio.
     const FOLGA_JANELA_VISITA_MS = 60 * 60 * 1000;
-    const agoraMs = Date.now();
     const ms = (d?: Date | null) => (d ? new Date(d).getTime() : null);
+    // Fim da janela: a saída; senão o término agendado (mesmo com entrada); senão o teto a partir da entrada
+    // (ou do início). Antes, entrada sem saída deixava a janela aberta até agora e casava as passagens da
+    // mesma Pessoa por outras unidades, dias depois. Entrada depois do término agendado (atraso) estende o fim
+    // até a entrada, para o próprio evento de entrada não cair fora.
     const janelas = visitors.map((v) => {
       const inicios = [v.data_hora_inicio, v.data_entrada, v.created_at].map(ms).filter((t): t is number => t != null);
-      const fim = ms(v.data_saida) ?? (v.data_entrada ? agoraMs : ms(v.data_hora_termino) ?? agoraMs);
+      const entrada = ms(v.data_entrada);
+      const termino = ms(v.data_hora_termino);
+      const base = entrada ?? ms(v.data_hora_inicio) ?? ms(v.created_at);
+      const fim =
+        ms(v.data_saida) ??
+        (termino != null ? Math.max(termino, entrada ?? termino) : base != null ? base + TETO_JANELA_VISITA_SEM_FIM_MS : -Infinity);
       return {
         ids: [v.id, v.id_pessoa_alt].filter((id): id is number => id != null),
         cond: v.id_condominio,
@@ -1827,10 +1848,13 @@ export class MobileAuthService {
         ate: fim + FOLGA_JANELA_VISITA_MS,
       };
     });
-    const visEvDoMorador = visEv.filter((e) => {
-      const t = e.timestamp.getTime();
-      return janelas.some((j) => j.cond === e.id_condominio && j.ids.includes(e.id_pessoa as number) && t >= j.de && t <= j.ate);
-    });
+    // Corte DEPOIS do filtro: a busca traz uma margem maior (ver visEv acima).
+    const visEvDoMorador = visEv
+      .filter((e) => {
+        const t = e.timestamp.getTime();
+        return janelas.some((j) => j.cond === e.id_condominio && j.ids.includes(e.id_pessoa as number) && t >= j.de && t <= j.ate);
+      })
+      .slice(0, MAX_EVENTOS_VISITANTES_FEED);
     const visEvAtualizados = visEvDoMorador.map((e) => ({
       ...e,
       tipo_pessoa: (e.id_pessoa != null ? tipoAtualPorId.get(e.id_pessoa) : undefined) ?? e.tipo_pessoa,

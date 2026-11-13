@@ -82,7 +82,8 @@ describe('MobileAuthService.getMeusEventos — foto da pessoa', () => {
       apartamentos_Users: { findMany: jest.fn(async () => [{ id_apto: ID_APTO }]) },
       visitas: {
         findMany: jest.fn(async () => [{
-          id: 5, id_pessoa: 50, id_condominio: 1, is_prestador: 0, data_entrada: null, data_saida: null,
+          // created_at é NOT NULL no schema: sem ele a visita não tem janela (o evento não é dela).
+          id: 5, id_pessoa: 50, id_condominio: 1, is_prestador: 0, data_entrada: null, data_saida: null, created_at: agora(),
           pessoa: { nome: 'Rafael Costa', tipo_pessoa: 'visitante', foto_pessoa: 'https://cdn.exemplo/r.jpg' },
         }]),
       },
