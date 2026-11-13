@@ -18,3 +18,23 @@ export function vagaVencida(
 ): boolean {
   return v.tipo_ocupacao === 'visitante' && v.fim != null && new Date(v.fim).getTime() <= agora.getTime();
 }
+
+/**
+ * Outra vaga ainda vigente do MESMO visitante (mesma visita ou mesmo registro
+ * legado) além de `vaga`. Ao revogar uma vaga — vencida, por exemplo — a
+ * visita só perde liberado/PIN se não houver outra: uma vaga nova cedida ao
+ * mesmo visitante reaproveita a visita ainda não usada. `null` = vaga sem
+ * visitante vinculado.
+ */
+export function whereOutraVagaVigenteDoVisitante(
+  vaga: { id: number; id_visita?: number | null; id_visitante?: number | null },
+  agora: Date = new Date(),
+): Prisma.VagasWhereInput | null {
+  const dono = vaga.id_visita
+    ? { id_visita: vaga.id_visita }
+    : vaga.id_visitante
+      ? { id_visitante: vaga.id_visitante }
+      : null;
+  if (!dono) return null;
+  return { ...dono, id: { not: vaga.id }, ativo: 1, ...whereVagaVigente(agora) };
+}

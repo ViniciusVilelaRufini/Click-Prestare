@@ -29,7 +29,7 @@ import { MfaService } from './mfa/mfa.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { parseLocalTimeToUTC } from '../visitantes/visitantes.service';
-import { vagaVencida, whereVagaVigente } from '../vagas/vaga-vigente.util';
+import { vagaVencida, whereOutraVagaVigenteDoVisitante, whereVagaVigente } from '../vagas/vaga-vigente.util';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { subirAnexosOcorrencia } from '../ocorrencias/anexos-ocorrencia.util';
 
@@ -6222,15 +6222,22 @@ export class MobileAuthService {
     // Revoga a vaga E o crachá/PIN por trás dela na mesma transação: sem isto
     // o rosto/PIN da Visita continuava liberando a portaria mesmo com a vaga
     // marcada como revogada — o botão "revogar" mentia para o morador.
+    // Exceção: o mesmo visitante tem OUTRA vaga vigente (cedida de novo, na
+    // mesma visita). Revogar esta — vencida, por exemplo — não pode tirar o
+    // acesso daquela: só a vaga vira ativo=0. Mesma regra de VagasService.revogar.
+    const whereOutra = vaga.tipo_ocupacao === 'visitante' ? whereOutraVagaVigenteDoVisitante(vaga) : null;
+    const mexeNoVisitante =
+      vaga.tipo_ocupacao === 'visitante' && (!whereOutra || (await this.prisma.vagas.count({ where: whereOutra })) === 0);
+
     const updates: any[] = [this.prisma.vagas.update({ where: { id: vaga.id }, data: { ativo: 0 } })];
-    if (vaga.tipo_ocupacao === 'visitante' && vaga.id_visita) {
+    if (mexeNoVisitante && vaga.id_visita) {
       updates.push(
         this.prisma.visitas.update({
           where: { id: vaga.id_visita },
           data: { liberado: 0, codigo_acesso: null },
         }),
       );
-    } else if (vaga.tipo_ocupacao === 'visitante' && vaga.id_visitante) {
+    } else if (mexeNoVisitante && vaga.id_visitante) {
       updates.push(
         this.prisma.visitantes.update({
           where: { id: vaga.id_visitante },
@@ -6243,7 +6250,7 @@ export class MobileAuthService {
     // Reconcilia o estado no device: re-sincroniza o visitante para refletir a
     // vaga revogada. Suporta tanto id_visita quanto id_visitante.
     const idParaSync = vaga.id_visita ?? vaga.id_visitante;
-    if (vaga.tipo_ocupacao === 'visitante' && idParaSync) {
+    if (mexeNoVisitante && idParaSync) {
       this.facial
         .syncVisitante(idParaSync)
         .catch((err) =>
