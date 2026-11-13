@@ -10,11 +10,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
 import { StorageService } from '../common/storage/storage.service';
-import { assertStaff, isSindicoEstrito } from '../auth/tenant.util';
+import { assertOperador, assertSindicoEstrito, assertStaff, isOperador, isSindicoEstrito } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
-import { autorOcorrencia } from './autor-ocorrencia.util';
+import { idFuncionarioPortariaDoToken, idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { autorOcorrencia, OrigemOcorrencia, rotuloPortaria } from './autor-ocorrencia.util';
 import { subirAnexosOcorrencia } from './anexos-ocorrencia.util';
+import { INCLUDE_AUTOR_MENSAGEM, mensagemParaResposta } from './mensagem-ocorrencia.util';
 
 export type OcorrenciaStatus = 'Pendente' | 'Ciente' | 'Solucionado';
 
@@ -44,6 +45,12 @@ export interface CreateOcorrenciaDto {
   anexos?: string;
   id_condominio: number;
   user?: number;
+}
+
+/** Autoria de quem abre sem conta em Users — só o servidor preenche (token, CRM, monitor). */
+export interface AutoriaOcorrencia {
+  origem: OrigemOcorrencia;
+  id_funcionario_portaria?: number | null;
 }
 
 /**
@@ -89,8 +96,9 @@ export class OcorrenciasService {
 
   /**
    * Carrega uma ocorrência, confirma que pertence ao condomínio do operador
-   * e que o operador é síndico/funcionário. Use antes de qualquer mutação
-   * administrativa (status, resposta, atribuição, remoção) — sem isso, um
+   * e que o operador é síndico/funcionário. Use antes da resposta pelo app
+   * (o atendimento do console usa loadParaAtendimento; remover e
+   * visibilidade, loadParaAdministrar) — sem isso, um
    * morador (ou usuário de outro condomínio) altera/apaga ocorrência alheia
    * só chutando o id.
    */
@@ -105,6 +113,57 @@ export class OcorrenciasService {
     // no assertStaff acima, como antes.
     await this.exigirFlagOcorrencias(o.id_condominio, user);
     return o;
+  }
+
+  /**
+   * Remover e alternar Pública/Privada: só o síndico (regra do dono), pelo
+   * typeAccess carimbado no login — o mesmo critério de `acesso().administrar`.
+   * O funcionário com a flag `ocorrencias` atende, mas não apaga nem expõe a
+   * ocorrência privada; o `turno` do porteiro é texto livre e não conta.
+   */
+  private async loadParaAdministrar(id: number, user: JwtPayload | undefined, contexto: string) {
+    assertSindicoEstrito(user, contexto);
+    const o = await this.prisma.ocorrencias.findUnique({ where: { id }, select: { id_condominio: true } });
+    if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
+    await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${id}`);
+    return o;
+  }
+
+  /**
+   * Como loadParaMutacaoStaff, para o atendimento do dia a dia (ciente,
+   * solucionar, reabrir, responder, atribuir): aceita também o porteiro do
+   * console (assertOperador), a mesma regra das outras telas da portaria. O
+   * funcionário do app — inclusive no console por QR Code — continua
+   * dependendo da flag `ocorrencias`. Remover e alternar Pública/Privada
+   * seguem em loadParaMutacaoStaff, fora do alcance do porteiro.
+   */
+  private async loadParaAtendimento(id: number, user: JwtPayload | undefined, contexto: string) {
+    assertOperador(user, contexto);
+    const o = await this.prisma.ocorrencias.findUnique({
+      where: { id },
+      select: { id_condominio: true, tipo: true, status: true },
+    });
+    if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
+    await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${id}`);
+    await this.exigirFlagOcorrencias(o.id_condominio, user);
+    return o;
+  }
+
+  /**
+   * O que a tela do console pode oferecer a quem está logado — a mesma regra
+   * que as rotas aplicam, para a tela não mostrar botão que vai dar 403.
+   *  - operar: ciente, solucionar, reabrir, responder, atribuir;
+   *  - administrar: remover e alternar Pública/Privada (só síndico na tela);
+   *  - conversar: escrever no chat — com Users.id ou como porteiro do
+   *    console (a mensagem dele grava id_funcionario_portaria).
+   */
+  async acesso(idCondominio: number, user?: JwtPayload) {
+    const operar = isOperador(user) && !(await this.semFlagOcorrencias(idCondominio, user));
+    return {
+      operar,
+      administrar: operar && isSindicoEstrito(user),
+      conversar: operar && (idUsuarioDoToken(user) != null || idFuncionarioPortariaDoToken(user) != null),
+    };
   }
 
   /**
@@ -248,6 +307,7 @@ export class OcorrenciasService {
     return reais
       .map((f) => ({
         id_user: f.login ? idMap.get(f.login) ?? null : null,
+        id_funcionario_portaria: f.id,
         nome: f.nome ?? '',
         funcao: f.turno ? `Porteiro ${f.turno}` : 'Porteiro',
       }))
@@ -282,6 +342,7 @@ export class OcorrenciasService {
       include: {
         categoria: { select: { nome: true, sla_horas: true } },
         criadoPor: { select: { name: true } },
+        funcionarioPortaria: { select: { nome: true } },
       },
       orderBy: { created_at: 'desc' },
     });
@@ -299,7 +360,7 @@ export class OcorrenciasService {
       prazo: o.prazo,
       id_responsavel: o.id_responsavel,
       responsavelNome: o.id_responsavel ? nomes.get(o.id_responsavel) ?? null : null,
-      criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
+      criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
       created_at: o.created_at,
       publica: o.publica,
     }));
@@ -311,6 +372,7 @@ export class OcorrenciasService {
       include: {
         categoria: { select: { nome: true, sla_horas: true } },
         criadoPor: { select: { name: true } },
+        funcionarioPortaria: { select: { nome: true } },
       },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
@@ -322,11 +384,11 @@ export class OcorrenciasService {
       tipoNome: o.categoria?.nome ?? null,
       sla_horas: o.categoria?.sla_horas ?? null,
       responsavelNome: o.id_responsavel ? nomes.get(o.id_responsavel) ?? null : null,
-      criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
+      criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
     };
   }
 
-  async create(dto: CreateOcorrenciaDto) {
+  async create(dto: CreateOcorrenciaDto, autoria?: AutoriaOcorrencia) {
     // Ocorrência nova: nenhuma URL do bucket é anexo dela (a API assina toda
     // URL do bucket que devolve — ver StorageService.exigirArquivoDoRegistro).
     // Cada parte separada por ';' também, sem exceção para data URL: as partes
@@ -351,6 +413,11 @@ export class OcorrenciasService {
           id_condominio: dto.id_condominio,
           user: dto.user ?? null,
           prazo,
+          // Campos explícitos: `dto` pode vir do corpo da requisição e não
+          // escolhe a autoria.
+          ...(autoria
+            ? { origem: autoria.origem, id_funcionario_portaria: autoria.id_funcionario_portaria ?? null }
+            : {}),
         },
       });
     } catch (err: any) {
@@ -393,12 +460,16 @@ export class OcorrenciasService {
   }
 
   async updateStatus(id: number, status: OcorrenciaStatus, user?: JwtPayload) {
-    await this.loadParaMutacaoStaff(id, user, 'alterar status da ocorrência');
+    const atual = await this.loadParaAtendimento(id, user, 'alterar status da ocorrência');
+    // Reabrir: o prazo recomeça de agora pelo SLA da categoria (a mesma conta
+    // do cadastro). Com o prazo original a ocorrência voltava já "Atrasada".
+    const reabrindo = status === 'Pendente' && (atual.status ?? '').trim().toLowerCase() === 'solucionado';
+    const data = reabrindo ? { status, prazo: await this.prazoDaCategoria(atual.tipo ?? null) } : { status };
     let atualizado;
     try {
       atualizado = await this.prisma.ocorrencias.update({
         where: { id },
-        data: { status },
+        data,
       });
     } catch {
       throw new NotFoundException(`Ocorrência ${id} não encontrada`);
@@ -408,7 +479,7 @@ export class OcorrenciasService {
   }
 
   async updatePublica(id: number, publica: boolean, user?: JwtPayload) {
-    await this.loadParaMutacaoStaff(id, user, 'alterar visibilidade da ocorrência');
+    await this.loadParaAdministrar(id, user, 'alterar visibilidade da ocorrência');
     try {
       return await this.prisma.ocorrencias.update({
         where: { id },
@@ -420,7 +491,7 @@ export class OcorrenciasService {
   }
 
   async updateResposta(id: number, resposta: string, user?: JwtPayload) {
-    await this.loadParaMutacaoStaff(id, user, 'responder ocorrência');
+    await this.loadParaAtendimento(id, user, 'responder ocorrência');
     let atualizado;
     try {
       atualizado = await this.prisma.ocorrencias.update({
@@ -438,7 +509,7 @@ export class OcorrenciasService {
   }
 
   async remove(id: number, user?: JwtPayload) {
-    await this.loadParaMutacaoStaff(id, user, 'remover ocorrência');
+    await this.loadParaAdministrar(id, user, 'remover ocorrência');
     try {
       await this.prisma.ocorrencias.delete({ where: { id } });
     } catch {
@@ -582,7 +653,7 @@ export class OcorrenciasService {
    * idResponsavel = null desatribui.
    */
   async atribuir(id: number, idResponsavel: number | null, user?: JwtPayload) {
-    const o = await this.loadParaMutacaoStaff(id, user, 'atribuir ocorrência');
+    const o = await this.loadParaAtendimento(id, user, 'atribuir ocorrência');
     // O responsável vem do corpo como Users.id global: precisa estar na
     // equipe atribuível DESTE condomínio (a mesma lista que o app e o console
     // mostram). Sem isso, a equipe de um condomínio lia o nome de qualquer
@@ -637,13 +708,12 @@ export class OcorrenciasService {
     // Só o condomínio era conferido: qualquer morador lia o chat da ocorrência
     // privada do vizinho. Mesma regra do findOne.
     await this.assertPodeVer(o, requester);
-    return this.prisma.ocorrenciaMensagens.findMany({
+    const lista = await this.prisma.ocorrenciaMensagens.findMany({
       where: { id_ocorrencia: idOcorrencia },
-      include: {
-        usuario: { select: { id: true, name: true, login_type: true, is_sindico: true } },
-      },
+      include: INCLUDE_AUTOR_MENSAGEM,
       orderBy: { created_at: 'asc' },
     });
+    return lista.map(mensagemParaResposta);
   }
 
   async createMessage(idOcorrencia: number, idUsuario: number | null, mensagem: string, requester?: JwtPayload) {
@@ -664,11 +734,15 @@ export class OcorrenciasService {
       // morador, que lê a pública mas não conversa nela.
       await this.exigirFlagOcorrencias(oc.id_condominio, requester);
     }
-    // Autor da mensagem é FK para Users. O token da portaria-web não tem
-    // Users.id — gravar o `sub` dele atribuía a mensagem a outra pessoa.
-    if (!idUsuario) {
-      throw new BadRequestException('Envie a mensagem com um login de síndico ou morador.');
+    // Autor da mensagem: Users.id ou, para o porteiro do console (sem conta
+    // em Users), o Funcionarios_Portaria.id do token — gravar o `sub` dele
+    // como Users.id atribuía a mensagem a outra pessoa. Sem nenhum dos dois
+    // (token antigo da portaria, sem tipo_sub), recusa.
+    const idFuncPortaria = idUsuario ? null : idFuncionarioPortariaDoToken(requester);
+    if (!idUsuario && !idFuncPortaria) {
+      throw new BadRequestException('Envie a mensagem com um login de síndico, morador ou da portaria.');
     }
+    const nomePorteiro = idFuncPortaria ? (requester?.nome ?? '').toString().trim().slice(0, 120) || null : null;
     // "[Suporte Prestare]" no início marca a mensagem que vem do
     // createMessageDoSistema ("[Kabania]" segue reservado: há mensagens antigas
     // da integração removida); ninguém imita o suporte por aqui.
@@ -679,21 +753,26 @@ export class OcorrenciasService {
     const msg = await this.prisma.ocorrenciaMensagens.create({
       data: {
         id_ocorrencia: idOcorrencia,
-        id_usuario: idUsuario,
+        id_usuario: idUsuario ?? null,
+        ...(idFuncPortaria ? { id_funcionario_portaria: idFuncPortaria, nome_autor: nomePorteiro } : {}),
         mensagem,
       },
-      include: {
-        usuario: { select: { id: true, name: true, login_type: true, is_sindico: true } },
-      },
+      include: INCLUDE_AUTOR_MENSAGEM,
     });
 
     try {
-      await this.sendChatNotification(idOcorrencia, idUsuario, mensagem);
+      await this.sendChatNotification(
+        idOcorrencia,
+        idFuncPortaria
+          ? { idFuncionarioPortaria: idFuncPortaria, nome: rotuloPortaria(nomePorteiro) }
+          : { idUsuario },
+        mensagem,
+      );
     } catch (e) {
       console.error('Error sending chat notification:', e);
     }
 
-    return msg;
+    return mensagemParaResposta(msg);
   }
 
   /**
@@ -701,8 +780,8 @@ export class OcorrenciasService {
    * que não tem token de usuário. NÃO é rota: só o CrmService chama, depois do
    * CrmAdminGuard. A `createMessage` pública segue exigindo autor ou equipe.
    *
-   * `OcorrenciaMensagens.id_usuario` é FK obrigatória para Users e não há
-   * conta de sistema no banco. Fica o critério que esses serviços já usavam:
+   * Não há conta de sistema em Users (`id_usuario` NULL é reservado à
+   * mensagem do porteiro do console). Fica o critério que esses serviços já usavam:
    * o síndico do condomínio e, sem síndico, o autor da ocorrência — sem o
    * antigo `1` fixo, que gravava em nome de quem tivesse esse id. A origem
    * vai no início do texto (`[Suporte Prestare] ...`), para o chat não
@@ -737,26 +816,68 @@ export class OcorrenciasService {
 
     const msg = await this.prisma.ocorrenciaMensagens.create({
       data: { id_ocorrencia: params.idOcorrencia, id_usuario: idUsuario, mensagem: `[${rotulo}] ${mensagem}` },
-      include: {
-        usuario: { select: { id: true, name: true, login_type: true, is_sindico: true } },
-      },
+      include: INCLUDE_AUTOR_MENSAGEM,
     });
     this.logger.log(`[ocorrencias] mensagem de ${params.origem} na ocorrência #${params.idOcorrencia}`);
 
     try {
-      await this.sendChatNotification(params.idOcorrencia, idUsuario, mensagem, rotulo);
+      // Gravada em nome do síndico (ou do autor), mas não escrita por ele.
+      await this.sendChatNotification(params.idOcorrencia, { nome: rotulo }, mensagem);
     } catch (e: any) {
       this.logger.error(`[ocorrencias.createMessageDoSistema] push falhou: ${e?.message ?? e}`);
     }
 
-    return msg;
+    return mensagemParaResposta(msg);
   }
 
+  /**
+   * O push do chat leva o texto da mensagem: o responsável atribuído só o
+   * recebe se ainda está na equipe atribuível do condomínio (porteiro ativo,
+   * ligado a uma conta) e, na ocorrência privada, se tem a flag `ocorrencias`
+   * — a mesma regra que o deixa abrir a ocorrência no app. Sem isso, quem
+   * toma 403 ao abrir lia o conteúdo pela notificação. Na dúvida, não envia.
+   */
+  private async responsavelPodeLer(
+    o: { id_condominio: number; publica: boolean },
+    idResponsavel: number,
+  ): Promise<boolean> {
+    try {
+      const equipe = await this.listFuncionariosAtribuiveis(o.id_condominio);
+      if (!equipe.some((f) => f.id_user === idResponsavel)) return false;
+      if (o.publica) return true;
+      await this.tenant.assertPermissaoFuncionario(o.id_condominio, 'ocorrencias', {
+        sub: idResponsavel,
+        nome: '',
+        typeAccess: 'Funcionario',
+        user: { id: idResponsavel },
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Quem é avisado decide-se por QUEM escreveu em relação ao AUTOR, não pelo
+   * `is_sindico` do remetente (assim o funcionário que respondia no chat
+   * avisava os síndicos e o morador nunca sabia):
+   *  - quem escreve não é o autor (equipe ou suporte) → avisa o autor;
+   *  - quem escreve é o autor → avisa os síndicos e o responsável atribuído;
+   *  - ocorrência sem autor em Users (portaria, CRM, monitor) → avisa os
+   *    síndicos e o responsável, como se a equipe fosse o autor (antes não
+   *    avisava ninguém).
+   * Ninguém recebe push da própria mensagem — nem o porteiro pela conta em
+   * Users ligada ao login dele (a que o faz responsável).
+   *
+   * `remetente`: `idUsuario` é o Users.id de quem escreveu de fato; a
+   * mensagem do sistema (CRM) vem só com `nome` — gravada em nome do síndico
+   * ou do autor, mas não escrita por eles; o porteiro vem com
+   * `idFuncionarioPortaria` e o rótulo "Portaria · <nome>".
+   */
   private async sendChatNotification(
     idOcorrencia: number,
-    idUsuarioSender: number,
+    remetente: { idUsuario?: number | null; idFuncionarioPortaria?: number | null; nome?: string },
     mensagem: string,
-    nomeRemetente?: string,
   ) {
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id: idOcorrencia },
@@ -766,43 +887,75 @@ export class OcorrenciasService {
     });
     if (!o) return;
 
-    const sender = await this.prisma.users.findUnique({
-      where: { id: idUsuarioSender },
-      select: { name: true, is_sindico: true },
-    });
-    const senderName = nomeRemetente || sender?.name || 'Sistema';
+    const idSender = remetente.idUsuario ?? null;
+    const sender = idSender
+      ? await this.prisma.users.findUnique({ where: { id: idSender }, select: { name: true, is_sindico: true } })
+      : null;
+    const senderName = remetente.nome || sender?.name || 'Sistema';
+    const remetenteEhAutor = idSender != null && o.user != null && o.user === idSender;
+    const dados = { id: idOcorrencia.toString(), type: 'ocorrencia_chat' };
 
-    if (sender?.is_sindico === 1) {
-      if (o.criadoPor?.fcm_token) {
+    if (o.user != null && !remetenteEhAutor) {
+      if (o.criadoPor?.fcm_token && o.criadoPor.id !== idSender) {
         await this.notifications.sendPushNotification(
           o.criadoPor.fcm_token,
           'Nova mensagem na sua Ocorrência',
           `${senderName}: ${mensagem}`,
-          { id: idOcorrencia.toString(), type: 'ocorrencia_chat' },
+          dados,
         );
       }
-    } else {
-      const sindicos = await this.prisma.users.findMany({
-        where: {
-          is_sindico: 1,
-          sindicosCondominios: {
-            some: { id_condominio: o.id_condominio },
-          },
-          fcm_token: { not: null },
+      return;
+    }
+
+    // Contas em Users de quem escreveu: a dele e, para o porteiro, a ligada
+    // ao login (mesma ligação de listFuncionariosAtribuiveis).
+    const proprios = new Set<number>(idSender != null ? [idSender] : []);
+    if (remetente.idFuncionarioPortaria) {
+      try {
+        const equipe = await this.listFuncionariosAtribuiveis(o.id_condominio);
+        for (const f of equipe) {
+          if (f.id_funcionario_portaria === remetente.idFuncionarioPortaria && f.id_user != null) proprios.add(f.id_user);
+        }
+      } catch (e: any) {
+        this.logger.error(`[ocorrencias.push] conta do porteiro: ${e?.message ?? e}`);
+      }
+    }
+
+    const sindicos = await this.prisma.users.findMany({
+      where: {
+        is_sindico: 1,
+        sindicosCondominios: {
+          some: { id_condominio: o.id_condominio },
         },
+        fcm_token: { not: null },
+      },
+      select: { id: true, fcm_token: true },
+    });
+    const tokens = new Set<string>();
+    for (const s of sindicos) {
+      if (s.fcm_token && !proprios.has(s.id)) tokens.add(s.fcm_token);
+    }
+    // Responsável é Users.id (a conta do porteiro, ligada pelo login — ver
+    // listFuncionariosAtribuiveis); recebe se usa o app, tem token de push e
+    // ainda pode ler a ocorrência (responsavelPodeLer).
+    if (
+      o.id_responsavel &&
+      !proprios.has(o.id_responsavel) &&
+      (await this.responsavelPodeLer(o, o.id_responsavel))
+    ) {
+      const resp = await this.prisma.users.findUnique({
+        where: { id: o.id_responsavel },
         select: { fcm_token: true },
       });
-
-      for (const s of sindicos) {
-        if (s.fcm_token) {
-          await this.notifications.sendPushNotification(
-            s.fcm_token,
-            `Nova mensagem na Ocorrência #${idOcorrencia}`,
-            `${senderName}: ${mensagem}`,
-            { id: idOcorrencia.toString(), type: 'ocorrencia_chat' },
-          );
-        }
-      }
+      if (resp?.fcm_token) tokens.add(resp.fcm_token);
+    }
+    for (const token of tokens) {
+      await this.notifications.sendPushNotification(
+        token,
+        `Nova mensagem na Ocorrência #${idOcorrencia}`,
+        `${senderName}: ${mensagem}`,
+        dados,
+      );
     }
   }
 }

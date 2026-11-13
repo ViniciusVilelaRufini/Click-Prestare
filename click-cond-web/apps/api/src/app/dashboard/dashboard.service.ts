@@ -9,7 +9,10 @@ import { formatarDataHoraBrasilia, horaBrasilia } from '../common/hora-brasilia.
 export interface DashboardSummary {
   visitantesAtivos: number;
   prestadoresAtivos: number;
+  /** Ocorrências abertas: status diferente de Solucionado, a mesma definição do app. */
   ocorrenciasPendentes: number;
+  /** Das abertas, as com prazo vencido ou prioridade alta/crítica (selo "urgente"). */
+  ocorrenciasUrgentes?: number;
   encomendasAguardando: number;
   comunicadosRecentes: number;
   totalApartamentos: number;
@@ -60,6 +63,9 @@ export interface DashboardSummary {
     };
   }[];
 }
+
+/** Status de ocorrência fechada — a mesma lista do app (mobile-auth.service). */
+const STATUS_SOLUCIONADO = ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] as const;
 
 @Injectable()
 export class DashboardService {
@@ -132,6 +138,7 @@ export class DashboardService {
       visitantesAtivos,
       prestadoresAtivos,
       ocorrenciasPendentes,
+      ocorrenciasUrgentes,
       encomendasAguardando,
       comunicadosRecentes,
       totalApartamentos,
@@ -175,8 +182,21 @@ export class DashboardService {
           id_condominio: idCondominio,
         },
       }),
+      // Aberta = não solucionada, a mesma conta do app (mobile-auth). Antes só
+      // 'Pendente' entrava e o número não batia com o do síndico. Os chamados
+      // automáticos de "Dispositivos" continuam contando.
       this.prisma.ocorrencias.count({
-        where: { id_condominio: idCondominio, status: 'Pendente' },
+        where: { id_condominio: idCondominio, status: { notIn: [...STATUS_SOLUCIONADO] } },
+      }),
+      // "urgente" só quando há aberta com prazo vencido ou de categoria
+      // crítica (prioridade exatamente 1 na escala de Ocorrencias_Categorias;
+      // 0 é o padrão de categoria sem valor e 2 é "alta" — nenhum dos dois acende).
+      this.prisma.ocorrencias.count({
+        where: {
+          id_condominio: idCondominio,
+          status: { notIn: [...STATUS_SOLUCIONADO] },
+          OR: [{ prazo: { lt: agora } }, { categoria: { prioridade: 1 } }],
+        },
       }),
       this.prisma.encomendas.count({
         where: { id_condominio: idCondominio, status: 'Aguardando' },
@@ -256,6 +276,7 @@ export class DashboardService {
         include: {
           criadoPor: { select: { name: true } },
           categoria: { select: { nome: true } },
+          funcionarioPortaria: { select: { nome: true } },
         },
       }),
       // Acessos faciais recentes (terminal facial)
@@ -584,7 +605,7 @@ export class DashboardService {
           descricao: o.descricao || 'Sem descrição',
           status: o.status,
           dataEntrada: o.created_at.toISOString(),
-          autorizadoPor: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
+          autorizadoPor: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
           resposta: o.resposta || undefined,
           dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
         },
@@ -594,7 +615,9 @@ export class DashboardService {
     for (const a of ultAuditLogs) {
       const isOffline = a.acao === 'OFFLINE';
       ultimosEventos.push({
-        tipo: 'Ocorrência',
+        // "Dispositivo", não "Ocorrência": status de aparelho não é chamado e
+        // não deve levar à lista de ocorrências nem dizer "Resolvido".
+        tipo: 'Dispositivo',
         descricao: a.descricao,
         quando: a.created_at.toISOString(),
         // Evento de status de dispositivo (não é entrada/saída de pessoa):
@@ -604,7 +627,7 @@ export class DashboardService {
           id: a.id,
           nome: 'Dispositivos',
           descricao: a.descricao,
-          status: isOffline ? 'Offline' : 'Resolvido',
+          status: isOffline ? 'Offline' : 'Online',
           dataEntrada: a.created_at.toISOString(),
           autorizadoPor: 'Monitor de Dispositivos',
         },
@@ -802,6 +825,7 @@ export class DashboardService {
       visitantesAtivos,
       prestadoresAtivos,
       ocorrenciasPendentes,
+      ocorrenciasUrgentes,
       encomendasAguardando,
       comunicadosRecentes,
       totalApartamentos,

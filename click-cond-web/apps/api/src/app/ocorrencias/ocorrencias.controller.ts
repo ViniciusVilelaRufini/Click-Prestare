@@ -9,7 +9,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { idFuncionarioPortariaDoToken, idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { assertOperador } from '../auth/tenant.util';
 
 @Controller('condominios/:idCondominio/ocorrencias')
@@ -52,6 +52,12 @@ export class OcorrenciasController {
     return this.service.listFuncionariosAtribuiveis(idCondominio);
   }
 
+  // Antes de ':id' — senão 'acesso' cairia no ParseIntPipe do get.
+  @Get('acesso')
+  acesso(@Param('idCondominio', ParseIntPipe) idCondominio: number, @ReqUser() payload: JwtPayload) {
+    return this.service.acesso(idCondominio, payload);
+  }
+
   @Get()
   list(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
@@ -73,13 +79,18 @@ export class OcorrenciasController {
     @ReqUser() payload: JwtPayload,
     @Body() body: Omit<CreateOcorrenciaDto, 'id_condominio'>,
   ) {
-    // Users.id real: `sub` do porteiro é Funcionarios_Portaria.id.
+    // Users.id real: `sub` do porteiro é Funcionarios_Portaria.id — ele entra
+    // como origem 'portaria'. A autoria vem só do token, nunca do corpo.
     const idUser = idUsuarioDoToken(payload);
-    return this.service.create({
-      ...body,
-      id_condominio: idCondominio,
-      user: idUser ? Number(idUser) : undefined,
-    });
+    const idFuncPortaria = idFuncionarioPortariaDoToken(payload);
+    return this.service.create(
+      {
+        ...body,
+        id_condominio: idCondominio,
+        user: idUser ? Number(idUser) : undefined,
+      },
+      idFuncPortaria ? { origem: 'portaria', id_funcionario_portaria: idFuncPortaria } : undefined,
+    );
   }
 
   @Patch(':id/status')

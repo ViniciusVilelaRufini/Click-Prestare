@@ -593,6 +593,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       case 'Visitante': return 'Visitante cadastrado';
       case 'Encomenda': return 'Encomenda / correspondência';
       case 'Ocorrência': return 'Registro de ocorrência';
+      case 'Dispositivo': return 'Status do dispositivo';
       case 'Acesso Facial': return evento.detalhes?.reconhecimentoLabel || 'Reconhecido pelo terminal facial';
       default: return '';
     }

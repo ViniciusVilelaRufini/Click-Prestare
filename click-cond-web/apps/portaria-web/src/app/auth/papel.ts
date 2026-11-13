@@ -10,3 +10,23 @@ export function ehPorteiro(info: { turno?: string | null } | null | undefined): 
 
 /** Telas que o porteiro não vê no menu e não pode abrir pela URL. */
 export const ROTAS_SO_SINDICO = ['financeiro', 'relatorios', 'configuracoes', 'terminais-faciais'];
+
+/**
+ * `typeAccess` do token da sessão ('Sindico', 'Funcionario'…), em minúsculas.
+ * É carimbado pela API no login a partir do banco — o porteiro de
+ * login/senha não tem. Só decide o que a tela mostra: a API confere a
+ * assinatura e decide de verdade. Token ausente ou ilegível → null.
+ */
+export function papelDoToken(token: string | null | undefined): string | null {
+  const parte = token?.split('.')[1];
+  if (!parte) return null;
+  try {
+    const b64 = parte.replace(/-/g, '+').replace(/_/g, '/');
+    const bytes = Uint8Array.from(atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes));
+    const tipo = payload?.typeAccess ?? payload?.user?.typeAccess;
+    return typeof tipo === 'string' && tipo ? tipo.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}

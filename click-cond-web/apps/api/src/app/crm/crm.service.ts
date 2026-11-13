@@ -1,6 +1,7 @@
 import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
+import { INCLUDE_AUTOR_MENSAGEM, mensagemParaResposta } from '../ocorrencias/mensagem-ocorrencia.util';
 import { AgentBridgeService } from '../facial/agent-bridge.service';
 import { csvCelula } from '../common/csv.util';
 
@@ -1205,7 +1206,9 @@ export class CrmService {
         descricao,
         tipo: tipo ? Number(tipo) : null,
         status: 'Pendente',
-        publica: true
+        publica: true,
+        // Sem Users.id (token do CRM): o rótulo sai "Suporte Prestare".
+        origem: 'crm',
       },
       include: {
         condominio: {
@@ -1233,13 +1236,14 @@ export class CrmService {
 
   async listMessages(idOcorrencia: number) {
     if (!this.prisma.isConnected) return [];
-    return this.prisma.ocorrenciaMensagens.findMany({
+    // Mesma forma do console e do app: a mensagem do porteiro (sem Users.id)
+    // sai como "Portaria · <nome>".
+    const lista = await this.prisma.ocorrenciaMensagens.findMany({
       where: { id_ocorrencia: idOcorrencia },
-      include: {
-        usuario: { select: { id: true, name: true, login_type: true, is_sindico: true } },
-      },
+      include: INCLUDE_AUTOR_MENSAGEM,
       orderBy: { created_at: 'asc' },
     });
+    return lista.map(mensagemParaResposta);
   }
 
   async createMessage(idOcorrencia: number, mensagem: string) {

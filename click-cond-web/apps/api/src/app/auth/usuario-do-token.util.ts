@@ -17,6 +17,18 @@ export function idUsuarioDoToken(payload?: JwtPayload | null): number | null {
 }
 
 /**
+ * Funcionarios_Portaria.id do porteiro logado no console (`tipo_sub`
+ * carimbado no login). Qualquer outro token — inclusive o síndico ou o
+ * funcionário por QR no console, que têm Users.id — devolve null.
+ */
+export function idFuncionarioPortariaDoToken(payload?: JwtPayload | null): number | null {
+  if (!payload || (payload as any).role === 'crm_admin') return null;
+  if (payload.tipo_sub !== 'funcionario_portaria') return null;
+  const id = Number(payload.sub);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/**
  * Autor para audit_logs (`autor_id` + `autor_tipo`): o id de quem está logado e em qual tabela ele vive.
  *
  *  - CRM (`role: 'crm_admin'`)                     → crm_admins.id

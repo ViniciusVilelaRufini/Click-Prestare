@@ -186,13 +186,13 @@
       </a>
 
       <!-- Ocorrências -->
-      <a routerLink="/ocorrencias" [class.ps-tone-danger]="d.ocorrenciasPendentes > 0" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
+      <a routerLink="/ocorrencias" [class.ps-tone-danger]="(d.ocorrenciasUrgentes ?? 0) > 0" class="ps-kpi group hover:bg-[var(--bg-300)] cursor-pointer">
         <div class="ps-kpi-row1">
           <span class="ps-kic"><svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
           </svg></span>
-          <span class="ps-kpi-lab">Ocorrências pendentes</span>
+          <span class="ps-kpi-lab">Ocorrências abertas</span>
           <span class="flex items-center gap-1.5">
             <span class="ps-label !text-[10px] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">Acessar</span>
             <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -212,7 +212,7 @@
           }
         </div>
         <div class="min-h-[22px]">
-          @if (d.ocorrenciasPendentes > 0) {
+          @if ((d.ocorrenciasUrgentes ?? 0) > 0) {
             <span class="ps-tag"><span class="ps-dot ps-dot-danger ps-dot-pulse"></span>urgente</span>
           }
         </div>
@@ -759,6 +759,28 @@
                   }
                 </div>
               }
+            </div>
+          }
+
+          <!-- Evento tipo: Dispositivo (status do aparelho, não é ocorrência) -->
+          @if (ev.tipo === 'Dispositivo') {
+            <div class="space-y-4">
+              <div class="bg-[var(--bg-200)] p-3.5 border border-[var(--line-100)]">
+                <span class="ps-label block mb-1.5">O que aconteceu</span>
+                <span class="text-sm text-slate-700 dark:text-slate-200 block whitespace-pre-line leading-relaxed">{{ ev.detalhes.descricao }}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Quando</span>
+                  <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
+                    {{ ev.detalhes.dataEntrada | date:'dd/MM/yyyy HH:mm' }}
+                  </span>
+                </div>
+                <div class="bg-[var(--bg-200)] p-3 border border-[var(--line-100)]">
+                  <span class="ps-label block mb-1">Status</span>
+                  <div><span class="ps-tag">{{ ev.detalhes.status }}</span></div>
+                </div>
+              </div>
             </div>
           }
 

@@ -327,6 +327,7 @@ export class RelatoriosService {
         include: {
           criadoPor: { select: { name: true } },
           categoria: { select: { nome: true } },
+          funcionarioPortaria: { select: { nome: true } },
         },
         orderBy: { created_at: 'desc' },
       });
@@ -336,7 +337,7 @@ export class RelatoriosService {
         Descrição: o.descricao || 'Sem descrição',
         Status: o.status,
         Criado: formatDateTime(o.created_at),
-        'Criado Por': autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
+        'Criado Por': autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
         Resposta: o.resposta || 'Sem resposta',
         'Respondido Em': o.resposta_at ? formatDateTime(o.resposta_at) : '-',
       }));
@@ -370,7 +371,7 @@ export class RelatoriosService {
                 o.descricao || '-',
                 formatDateTime(o.created_at),
                 o.status,
-                autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
+                autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
               ]),
             ],
           },
@@ -951,6 +952,7 @@ export class RelatoriosService {
             include: {
               criadoPor: { select: { name: true } },
               categoria: { select: { nome: true } },
+              funcionarioPortaria: { select: { nome: true } },
             },
           }),
       idsDispositivo.length === 0
@@ -1070,7 +1072,7 @@ export class RelatoriosService {
           descricao: o.descricao || 'Sem descrição',
           status: o.status,
           dataEntrada: o.created_at.toISOString(),
-          autorizadoPor: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome),
+          autorizadoPor: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
           resposta: o.resposta || undefined,
           dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
         },

@@ -3,9 +3,20 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import {
-  Categoria, CreateOcorrencia, FuncionarioAtribuivel, Ocorrencia, OcorrenciaStatus, OcorrenciasApi, OcorrenciaMensagem,
+  AcessoOcorrencias, Categoria, CreateOcorrencia, FuncionarioAtribuivel, Ocorrencia, OcorrenciaStatus, OcorrenciasApi,
+  OcorrenciaMensagem,
 } from './ocorrencias.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { AuthService } from '../auth/auth.service';
+
+/** Categoria dos chamados abertos e fechados pelo monitor de dispositivos (facial.service). */
+const CATEGORIA_DISPOSITIVOS = 'Dispositivos';
+
+/** Mensagem do servidor quando houver; senão a do cliente; senão a padrão. */
+function msgErro(e: any, padrao: string): string {
+  const m = e?.error?.message ?? e?.message;
+  return (Array.isArray(m) ? m.join(' ') : m) || padrao;
+}
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 @Component({
@@ -18,6 +29,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   private api = inject(OcorrenciasApi);
   private confirm = inject(ConfirmService);
   private route = inject(ActivatedRoute);
+  private auth = inject(AuthService);
 
   readonly ocorrencias = signal<Ocorrencia[]>([]);
   readonly categorias = signal<Categoria[]>([]);
@@ -52,18 +64,27 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   novo: CreateOcorrencia = { descricao: '', tipo: 0 };
   showForm = false;
 
-  // Mini-helpdesk: funcionários atribuíveis + gestão de categorias/SLA.
+  // Mini-helpdesk: funcionários atribuíveis + categorias/SLA (só leitura).
   readonly funcionarios = signal<FuncionarioAtribuivel[]>([]);
+  readonly funcionariosCarregados = signal(false);
   showCategorias = false;
-  catForm: { id?: number; nome: string; prioridade: number; sla_horas: number | null } =
-    { nome: '', prioridade: 0, sla_horas: null };
+
+  /**
+   * O que a sessão pode fazer (GET ocorrencias/acesso). Até a resposta chegar
+   * nada de ação aparece — melhor que mostrar botão que vai dar 403.
+   */
+  readonly acesso = signal<AcessoOcorrencias>({ operar: false, administrar: false, conversar: false });
 
   chatInterval: any = null;
   ocorrenciasInterval: any = null;
 
   ngOnInit() {
+    this.carregarAcesso();
     this.recarregarCategorias();
-    this.api.funcionarios().subscribe({ next: (f) => this.funcionarios.set(f), error: () => {} });
+    this.api.funcionarios().subscribe({
+      next: (f) => { this.funcionarios.set(f); this.funcionariosCarregados.set(true); },
+      error: (e) => this.error.set(msgErro(e, 'Erro ao carregar os funcionários.')),
+    });
     this.carregar();
     this.route.queryParams.subscribe((params) => {
       if (params['novo'] === 'true') {
@@ -79,19 +100,53 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     }, 30000);
   }
 
+  /**
+   * API sem a rota (deploy da tela antes da API): cai na sessão — atende,
+   * e só o síndico administra e conversa. A API continua decidindo.
+   * Só o 404 (rota inexistente) libera esse fallback: qualquer outro erro
+   * aparece e a tela fica sem ações.
+   */
+  carregarAcesso() {
+    this.api.acesso().subscribe({
+      next: (a) => this.acesso.set(a),
+      error: (e) => {
+        if (e?.status !== 404) {
+          this.error.set(msgErro(e, 'Erro ao carregar as permissões da sessão.'));
+          return;
+        }
+        const sindico = this.auth.porteiroInfo()?.turno === 'Síndico';
+        this.acesso.set({ operar: true, administrar: sindico, conversar: sindico });
+      },
+    });
+  }
+
   carregar() {
     this.loading.set(true);
     this.api.list().subscribe({
       next: (data) => { this.ocorrencias.set(data); this.loading.set(false); },
-      error: (e) => { this.error.set(e?.message ?? 'Erro'); this.loading.set(false); },
+      error: (e) => { this.error.set(msgErro(e, 'Erro ao carregar as ocorrências.')); this.loading.set(false); },
     });
   }
 
   carregarSilenciosamente() {
     this.api.list().subscribe({
       next: (data) => { this.ocorrencias.set(data); },
-      error: (e) => console.error('Erro ao recarregar ocorrencias em background:', e)
+      error: (e) => this.error.set(msgErro(e, 'Erro ao atualizar as ocorrências.')),
     });
+  }
+
+  /** Chamado do monitor de dispositivos: fecha sozinho quando o aparelho volta. */
+  ehDispositivo(o: Ocorrencia): boolean {
+    return o.tipoNome === CATEGORIA_DISPOSITIVOS;
+  }
+
+  /**
+   * Responsável que saiu da lista de atribuíveis (porteiro desativado): o
+   * select ficava em branco. Aparece como "Nome (inativo)" e pode ser trocado.
+   */
+  responsavelInativo(o: Ocorrencia): boolean {
+    return this.funcionariosCarregados() && o.id_responsavel != null
+      && !this.funcionarios().some((f) => f.id_user === o.id_responsavel);
   }
 
   registrar() {
@@ -105,13 +160,15 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
         this.novo = { descricao: '', tipo: this.categorias()[0]?.id ?? 0 };
         this.carregar();
       },
-      error: (e) => this.error.set(e?.message ?? 'Erro'),
+      error: (e) => this.error.set(msgErro(e, 'Erro ao registrar a ocorrência.')),
     });
   }
 
   async mudarStatus(o: Ocorrencia, status: OcorrenciaStatus) {
     const prioridade = this.prioridadeCategoria(o.tipo);
-    const isCritica = prioridade <= 1;
+    // Crítica é exatamente 1: 0 é o padrão de categoria sem valor (a mesma
+    // regra do "urgente" do dashboard).
+    const isCritica = prioridade === 1;
 
     const ok = await this.confirm.ask({
       title: isCritica ? '⚠️ Alteração em Ocorrência CRÍTICA' : 'Confirmar alteração de status',
@@ -124,7 +181,10 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
 
     if (!ok) return;
 
-    this.api.updateStatus(o.id, status).subscribe({ next: () => this.carregar() });
+    this.api.updateStatus(o.id, status).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.error.set(msgErro(e, 'Erro ao alterar o status.')),
+    });
   }
 
   async remover(o: Ocorrencia) {
@@ -135,7 +195,10 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.remove(o.id).subscribe({ next: () => this.carregar() });
+    this.api.remove(o.id).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.error.set(msgErro(e, 'Erro ao remover a ocorrência.')),
+    });
   }
 
   statusBadge(s: OcorrenciaStatus) {
@@ -148,10 +211,11 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     return this.categorias().find((c) => c.id === catId)?.prioridade ?? 999;
   }
 
+  /** 1 crítica, 2 alta, 3 média; 4+ e 0 (categoria sem prioridade definida) contam como baixa. */
   prioridadeLabel(p: number): { label: string; color: string } {
-    if (p <= 1) return { label: 'Crítica', color: 'text-red-400' };
-    if (p <= 2) return { label: 'Alta', color: 'text-amber-400' };
-    if (p <= 3) return { label: 'Média', color: '' };
+    if (p === 1) return { label: 'Crítica', color: 'text-red-400' };
+    if (p === 2) return { label: 'Alta', color: 'text-amber-400' };
+    if (p === 3) return { label: 'Média', color: '' };
     return { label: 'Baixa', color: 'text-slate-400' };
   }
 
@@ -185,7 +249,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
         this.loadingMensagens.set(false);
         this.scrollChatParaFim();
       },
-      error: () => this.loadingMensagens.set(false),
+      error: (e) => { this.loadingMensagens.set(false); this.error.set(msgErro(e, 'Erro ao carregar as mensagens.')); },
     });
 
     // Atualiza silenciosamente a cada 1.5 segundos
@@ -209,6 +273,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
           this.scrollChatParaFim();
         }
       },
+      error: (e) => this.error.set(msgErro(e, 'Erro ao atualizar as mensagens.')),
     });
   }
 
@@ -223,7 +288,13 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
         this.novaMensagemText = '';
         this.scrollChatParaFim();
       },
+      error: (e) => this.error.set(msgErro(e, 'Erro ao enviar a mensagem.')),
     });
+  }
+
+  /** Balão do lado "da casa": síndico ou porteiro do console. */
+  daCasa(msg: OcorrenciaMensagem): boolean {
+    return msg.usuario?.is_sindico === 1 || msg.autor_tipo === 'portaria';
   }
 
   scrollChatParaFim() {
@@ -241,7 +312,8 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
       next: (updated) => {
         o.publica = updated.publica;
         this.carregar();
-      }
+      },
+      error: (e) => this.error.set(msgErro(e, 'Erro ao alterar a visibilidade.')),
     });
   }
 
@@ -263,7 +335,8 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
         o.resposta_at = updated.resposta_at;
         this.cancelarEdicaoResposta();
         this.carregar();
-      }
+      },
+      error: (e) => this.error.set(msgErro(e, 'Erro ao salvar a resposta.')),
     });
   }
 
@@ -273,6 +346,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
         this.categorias.set(cats);
         if (cats.length > 0 && !this.novo.tipo) this.novo.tipo = cats[0].id;
       },
+      error: (e) => this.error.set(msgErro(e, 'Erro ao carregar as categorias.')),
     });
   }
 
@@ -281,7 +355,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     const idResponsavel = idResponsavelRaw === '' || idResponsavelRaw == null ? null : Number(idResponsavelRaw);
     this.api.atribuir(o.id, idResponsavel).subscribe({
       next: () => this.carregar(),
-      error: (e) => this.error.set(e?.message ?? 'Erro ao atribuir'),
+      error: (e) => { this.error.set(msgErro(e, 'Erro ao atribuir.')); this.carregar(); },
     });
   }
 
@@ -310,36 +384,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     return { label, classes };
   }
 
-  // ----- Gestão de categorias / SLA -----
-  abrirCategorias() { this.showCategorias = true; this.resetCatForm(); this.recarregarCategorias(); }
+  // ----- Categorias / SLA (só leitura: definidas pela Prestare, no CRM) -----
+  abrirCategorias() { this.showCategorias = true; this.recarregarCategorias(); }
   fecharCategorias() { this.showCategorias = false; }
-  resetCatForm() { this.catForm = { nome: '', prioridade: 0, sla_horas: null }; }
-  editarCategoria(c: Categoria) {
-    this.catForm = { id: c.id, nome: c.nome, prioridade: c.prioridade, sla_horas: c.sla_horas ?? null };
-  }
-
-  salvarCategoria() {
-    const f = this.catForm;
-    if (!f.nome?.trim()) { this.error.set('Informe o nome da categoria.'); return; }
-    const dto = { nome: f.nome.trim(), prioridade: Number(f.prioridade) || 0, sla_horas: f.sla_horas === null || (f.sla_horas as any) === '' ? null : Number(f.sla_horas) };
-    const req = f.id ? this.api.atualizarCategoria(f.id, dto) : this.api.criarCategoria(dto);
-    req.subscribe({
-      next: () => { this.resetCatForm(); this.recarregarCategorias(); },
-      error: (e) => this.error.set(e?.message ?? 'Erro ao salvar categoria'),
-    });
-  }
-
-  async removerCategoria(c: Categoria) {
-    const ok = await this.confirm.ask({
-      title: 'Remover categoria',
-      message: `Remover "${c.nome}"? Ocorrências existentes não são apagadas.`,
-      confirmLabel: 'Remover',
-      variant: 'danger',
-    });
-    if (!ok) return;
-    this.api.removerCategoria(c.id).subscribe({
-      next: () => { if (this.catForm.id === c.id) this.resetCatForm(); this.recarregarCategorias(); },
-      error: (e) => this.error.set(e?.message ?? 'Erro ao remover categoria'),
-    });
-  }
 }

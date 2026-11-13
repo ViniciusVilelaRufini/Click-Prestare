@@ -136,18 +136,25 @@
                 @if (o.tipoNome) {
                   <span class="ps-tag">{{ o.tipoNome }}</span>
                 }
-                <!-- Badge de Publicidade / Visibilidade -->
-                <span
-                     role="button"
-                     tabindex="0"
-                     (keydown.enter)="alternarPublica(o)"
-                     (keydown.space)="$event.preventDefault(); alternarPublica(o)" class="ps-tag cursor-pointer hover:opacity-80 transition"
-                      [class.text-emerald-400]="o.publica"
-                      (click)="alternarPublica(o)"
-                      title="Clique para alternar a visibilidade da ocorrência para outros moradores">
-                  <span class="ps-dot" [class.ps-dot-ok]="o.publica"></span>
-                  {{ o.publica ? 'Pública' : 'Privada' }}
-                </span>
+                <!-- Badge de Publicidade / Visibilidade (só o síndico alterna) -->
+                @if (acesso().administrar) {
+                  <span
+                       role="button"
+                       tabindex="0"
+                       (keydown.enter)="alternarPublica(o)"
+                       (keydown.space)="$event.preventDefault(); alternarPublica(o)" class="ps-tag cursor-pointer hover:opacity-80 transition"
+                        [class.text-emerald-400]="o.publica"
+                        (click)="alternarPublica(o)"
+                        title="Clique para alternar a visibilidade da ocorrência para outros moradores">
+                    <span class="ps-dot" [class.ps-dot-ok]="o.publica"></span>
+                    {{ o.publica ? 'Pública' : 'Privada' }}
+                  </span>
+                } @else {
+                  <span class="ps-tag" [class.text-emerald-400]="o.publica">
+                    <span class="ps-dot" [class.ps-dot-ok]="o.publica"></span>
+                    {{ o.publica ? 'Pública' : 'Privada' }}
+                  </span>
+                }
                 @if (o.criadoPorNome) {
                   <span class="ps-tag">
                     Autor: {{ o.criadoPorNome }}
@@ -196,47 +203,61 @@
                   @if (o.resposta_at) {
                     <p class="text-[9px] text-slate-400 mt-1">Atualizado em: {{ o.resposta_at | date: 'dd/MM/yy HH:mm' }}</p>
                   }
-                  <button (click)="iniciarEdicaoResposta(o)"
-                          class="mt-2 text-[10px] text-slate-400 hover:text-[var(--ink)] transition flex items-center gap-1 font-medium">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                    {{ o.resposta ? 'Editar resposta pública' : 'Responder publicamente' }}
-                  </button>
+                  @if (acesso().operar) {
+                    <button (click)="iniciarEdicaoResposta(o)"
+                            class="mt-2 text-[10px] text-slate-400 hover:text-[var(--ink)] transition flex items-center gap-1 font-medium">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                      {{ o.resposta ? 'Editar resposta pública' : 'Responder publicamente' }}
+                    </button>
+                  }
                 }
               </div>
 
               <!-- Ações -->
               <div class="mt-4 flex flex-wrap items-center gap-2">
-                <!-- Atribuir responsável (funcionário) -->
-                <label class="inline-flex items-center gap-1.5 text-[11px] text-slate-400">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                  <select [ngModel]="o.id_responsavel ?? ''" (ngModelChange)="atribuir(o, $event)"
-                    [attr.aria-label]="'Atribuir responsável para ocorrência #' + o.id"
-                    class="px-2 py-1 text-[11px] bg-graphite-50 border border-slate-300 text-slate-200 focus:outline-none focus:border-[var(--ink)]">
-                    <option [ngValue]="''">Não atribuída</option>
-                    @for (f of funcionarios(); track f.id_user) {
-                      <option [ngValue]="f.id_user">{{ f.nome }}</option>
+                @if (acesso().operar) {
+                  <!-- Atribuir responsável (funcionário) -->
+                  <label class="inline-flex items-center gap-1.5 text-[11px] text-slate-400">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                    <select [ngModel]="o.id_responsavel ?? ''" (ngModelChange)="atribuir(o, $event)"
+                      [attr.aria-label]="'Atribuir responsável para ocorrência #' + o.id"
+                      class="px-2 py-1 text-[11px] bg-graphite-50 border border-slate-300 text-slate-200 focus:outline-none focus:border-[var(--ink)]">
+                      <option [ngValue]="''">Não atribuída</option>
+                      @if (responsavelInativo(o)) {
+                        <option [ngValue]="o.id_responsavel">{{ o.responsavelNome || 'Responsável' }} (inativo)</option>
+                      }
+                      @for (f of funcionarios(); track f.id_user) {
+                        <option [ngValue]="f.id_user">{{ f.nome }}</option>
+                      }
+                    </select>
+                  </label>
+                  @if (o.status === 'Pendente') {
+                    <button (click)="mudarStatus(o, 'Ciente')"
+                            class="ps-btn ps-btn-sec ps-btn-sm">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                      Marcar como ciente
+                    </button>
+                  }
+                  @if (ehDispositivo(o)) {
+                    <!-- O monitor de dispositivos fecha o chamado quando o aparelho volta e reabre se cair de novo. -->
+                    <span class="text-[11px] text-slate-400">Fecha sozinho quando o aparelho voltar</span>
+                  } @else {
+                    @if (o.status !== 'Solucionado') {
+                      <button (click)="mudarStatus(o, 'Solucionado')"
+                              class="ps-btn ps-btn-sec ps-btn-sm">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        Solucionar
+                      </button>
                     }
-                  </select>
-                </label>
-                @if (o.status === 'Pendente') {
-                  <button (click)="mudarStatus(o, 'Ciente')"
-                          class="ps-btn ps-btn-sec ps-btn-sm">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                    Marcar como ciente
-                  </button>
-                }
-                @if (o.status !== 'Solucionado') {
-                  <button (click)="mudarStatus(o, 'Solucionado')"
-                          class="ps-btn ps-btn-sec ps-btn-sm">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-                    Solucionar
-                  </button>
-                }
-                @if (o.status === 'Solucionado') {
-                  <button (click)="mudarStatus(o, 'Pendente')"
-                          class="ps-btn ps-btn-sec ps-btn-sm">
-                    Reabrir
-                  </button>
+                    @if (o.status === 'Solucionado') {
+                      <button (click)="mudarStatus(o, 'Pendente')"
+                              class="ps-btn ps-btn-sec ps-btn-sm">
+                        Reabrir
+                      </button>
+                    }
+                  }
+                } @else {
+                  <span class="text-[11px] text-slate-500">Sem permissão para atender ocorrências</span>
                 }
                 <button (click)="abrirChat(o)"
                         class="ps-btn ps-btn-sec ps-btn-sm ml-auto">
@@ -245,10 +266,12 @@
                   </svg>
                   Conversar
                 </button>
-                <button (click)="remover(o)"
-                        class="ps-btn ps-btn-ghost ps-btn-sm">
-                  Remover
-                </button>
+                @if (acesso().administrar) {
+                  <button (click)="remover(o)"
+                          class="ps-btn ps-btn-ghost ps-btn-sm">
+                    Remover
+                  </button>
+                }
               </div>
             </div>
           </div>
@@ -286,22 +309,24 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
             </svg>
             <p class="text-xs font-medium">Nenhuma mensagem enviada</p>
-            <p class="text-[10px] opacity-80">Envie uma mensagem abaixo para iniciar a conversa com o morador.</p>
+            @if (acesso().conversar) {
+              <p class="text-[10px] opacity-80">Envie uma mensagem abaixo para iniciar a conversa com o morador.</p>
+            }
           </div>
         } @else {
           @for (msg of mensagens(); track msg.id) {
             <!-- Balão de Mensagem -->
-            <div class="flex flex-col mb-2" [class.items-end]="msg.usuario.is_sindico === 1" [class.items-start]="msg.usuario.is_sindico !== 1">
+            <div class="flex flex-col mb-2" [class.items-end]="daCasa(msg)" [class.items-start]="!daCasa(msg)">
               <span class="text-[10px] text-slate-400 mb-0.5 px-1">
                 {{ msg.usuario.name }}
               </span>
 
               <div class="max-w-[85%] px-4 py-2 text-sm"
-                   [class.bg-accent]="msg.usuario.is_sindico === 1"
-                   [class.bg-graphite-300]="msg.usuario.is_sindico !== 1"
-                   [class.border]="msg.usuario.is_sindico !== 1"
-                   [class.border-slate-200]="msg.usuario.is_sindico !== 1"
-                   [class.text-slate-100]="msg.usuario.is_sindico !== 1">
+                   [class.bg-accent]="daCasa(msg)"
+                   [class.bg-graphite-300]="!daCasa(msg)"
+                   [class.border]="!daCasa(msg)"
+                   [class.border-slate-200]="!daCasa(msg)"
+                   [class.text-slate-100]="!daCasa(msg)">
                 <p class="leading-relaxed break-words">{{ msg.mensagem }}</p>
               </div>
 
@@ -315,6 +340,12 @@
 
       <!-- Input -->
       <div class="ps-drawer-foot">
+        @if (!acesso().conversar) {
+          <!-- Atende sem conversar: sessão antiga da portaria (sem a marca do login) ou API antiga. -->
+          <p class="text-xs text-slate-400 w-full">
+            {{ acesso().operar ? 'Esta sessão só lê a conversa. Para escrever, saia e entre de novo na portaria.' : 'Sem permissão para conversar nesta ocorrência.' }}
+          </p>
+        } @else {
         <form (submit)="$event.preventDefault(); enviarMensagem()" class="flex gap-2 w-full">
           <input type="text" [(ngModel)]="novaMensagemText" name="mensagem" placeholder="Digite uma mensagem..."
                  class="flex-1 h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)]"
@@ -327,6 +358,7 @@
             </svg>
           </button>
         </form>
+        }
       </div>
     </div>
   }
@@ -338,7 +370,7 @@
         <div class="sticky top-0 z-10 p-5 border-b border-slate-200 bg-graphite-400 flex items-center justify-between">
           <div>
             <h2 class="ps-h2">Categorias e SLA</h2>
-            <p class="text-xs text-slate-400 mt-0.5">Defina o prazo (SLA) em horas de cada tipo de ocorrência</p>
+            <p class="text-xs text-slate-400 mt-0.5">Prazo (SLA) e prioridade de cada tipo de ocorrência. Definido pela Prestare.</p>
           </div>
           <button (click)="fecharCategorias()" aria-label="Fechar categorias" class="ps-ibtn">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -346,34 +378,6 @@
         </div>
 
         <div class="p-5 space-y-4">
-          <!-- Formulário -->
-          <div class="p-4 border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-            <label class="block md:col-span-2">
-              <span class="ps-label mb-1.5 block">Nome *</span>
-              <input [(ngModel)]="catForm.nome" placeholder="Ex.: Manutenção elétrica"
-                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)]" />
-            </label>
-            <label class="block">
-              <span class="ps-label mb-1.5 block">Prioridade</span>
-              <input type="number" min="0" [(ngModel)]="catForm.prioridade"
-                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white focus:outline-none focus:border-[var(--ink)]" />
-            </label>
-            <label class="block">
-              <span class="ps-label mb-1.5 block">SLA (horas)</span>
-              <input type="number" min="0" [(ngModel)]="catForm.sla_horas" placeholder="vazio = sem prazo"
-                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)]" />
-            </label>
-            <div class="md:col-span-4 flex justify-end gap-2">
-              @if (catForm.id) {
-                <button (click)="resetCatForm()" class="ps-btn ps-btn-sec">Cancelar edição</button>
-              }
-              <button (click)="salvarCategoria()"
-                class="ps-btn">
-                {{ catForm.id ? 'Salvar alterações' : 'Adicionar categoria' }}
-              </button>
-            </div>
-          </div>
-
           <!-- Lista -->
           <div class="space-y-2">
             @for (c of categorias(); track c.id) {
@@ -385,8 +389,6 @@
                     · prioridade {{ prioridadeLabel(c.prioridade).label }}
                   </p>
                 </div>
-                <button (click)="editarCategoria(c)" class="ps-btn ps-btn-sec ps-btn-sm">Editar</button>
-                <button (click)="removerCategoria(c)" class="ps-btn ps-btn-ghost ps-btn-sm">Remover</button>
               </div>
             }
             @if (categorias().length === 0) {

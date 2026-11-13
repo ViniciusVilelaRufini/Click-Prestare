@@ -942,6 +942,7 @@ export class FacialService {
             tipo: categoria.id,
             status: 'Pendente',
             id_condominio: device.id_condominio,
+            origem: 'sistema',
           },
         });
       }
