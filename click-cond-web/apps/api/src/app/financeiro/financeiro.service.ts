@@ -823,7 +823,8 @@ export class FinanceiroService implements OnModuleInit {
     const typeAccess = user?.typeAccess ?? user?.user?.typeAccess;
     const isMorador = typeAccess === 'Morador';
     const isSindico = typeAccess === 'Sindico' || typeAccess === 'Admin' || typeAccess === 'Administradora';
-    const userId = user?.sub ?? user?.user?.id;
+    // Users.id real: porteiro do console (sub = Funcionarios_Portaria.id) e CRM não são dono de nada.
+    const userId = idUsuarioDoToken(user);
 
     // 1. Lançamento com dono (id_usuario preenchido). A conta PESSOAL (tipo 'D':
     //    luz, água, internet que o morador lança para si) é só do dono — o

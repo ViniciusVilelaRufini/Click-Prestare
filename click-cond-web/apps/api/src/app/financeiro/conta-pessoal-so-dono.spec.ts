@@ -65,6 +65,20 @@ describe('Financeiro — conta pessoal só para o dono', () => {
       await expect(svc.get(1, 2, sindico)).resolves.toMatchObject({ id: 2 });
       await expect(svc.get(1, 3, sindico)).resolves.toMatchObject({ id: 3 });
     });
+
+    it('NEGA ao porteiro do console a conta pessoal cujo id_usuario coincide com o sub dele', async () => {
+      const porteiro: JwtPayload = {
+        sub: MORADOR, nome: 'Portaria', id_condominio: 1, turno: 'Manha', tipo_sub: 'funcionario_portaria',
+      } as any;
+      const { svc } = build([contaPessoal]);
+      await expect(svc.get(1, 1, porteiro)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('token do CRM com sub coincidente também não é dono', async () => {
+      const crm: JwtPayload = { sub: MORADOR, nome: 'CRM', role: 'crm_admin' } as any;
+      const { svc } = build([contaPessoal]);
+      await expect(svc.get(1, 1, crm)).rejects.toBeInstanceOf(ForbiddenException);
+    });
   });
 
   /**
