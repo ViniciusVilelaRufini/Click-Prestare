@@ -52,6 +52,12 @@ export class OcorrenciasController {
     return this.service.listFuncionariosAtribuiveis(idCondominio);
   }
 
+  // Antes de ':id' — senão 'acesso' cairia no ParseIntPipe do get.
+  @Get('acesso')
+  acesso(@Param('idCondominio', ParseIntPipe) idCondominio: number, @ReqUser() payload: JwtPayload) {
+    return this.service.acesso(idCondominio, payload);
+  }
+
   @Get()
   list(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,

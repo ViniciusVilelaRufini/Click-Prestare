@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
 import { StorageService } from '../common/storage/storage.service';
-import { assertStaff, isSindicoEstrito } from '../auth/tenant.util';
+import { assertOperador, assertStaff, isOperador, isSindicoEstrito } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { autorOcorrencia } from './autor-ocorrencia.util';
@@ -89,8 +89,9 @@ export class OcorrenciasService {
 
   /**
    * Carrega uma ocorrência, confirma que pertence ao condomínio do operador
-   * e que o operador é síndico/funcionário. Use antes de qualquer mutação
-   * administrativa (status, resposta, atribuição, remoção) — sem isso, um
+   * e que o operador é síndico/funcionário. Use antes das mutações
+   * administrativas (remoção, visibilidade, resposta pelo app; o atendimento
+   * do console usa loadParaAtendimento) — sem isso, um
    * morador (ou usuário de outro condomínio) altera/apaga ocorrência alheia
    * só chutando o id.
    */
@@ -105,6 +106,43 @@ export class OcorrenciasService {
     // no assertStaff acima, como antes.
     await this.exigirFlagOcorrencias(o.id_condominio, user);
     return o;
+  }
+
+  /**
+   * Como loadParaMutacaoStaff, para o atendimento do dia a dia (ciente,
+   * solucionar, reabrir, responder, atribuir): aceita também o porteiro do
+   * console (assertOperador), a mesma regra das outras telas da portaria. O
+   * funcionário do app — inclusive no console por QR Code — continua
+   * dependendo da flag `ocorrencias`. Remover e alternar Pública/Privada
+   * seguem em loadParaMutacaoStaff, fora do alcance do porteiro.
+   */
+  private async loadParaAtendimento(id: number, user: JwtPayload | undefined, contexto: string) {
+    assertOperador(user, contexto);
+    const o = await this.prisma.ocorrencias.findUnique({
+      where: { id },
+      select: { id_condominio: true, tipo: true },
+    });
+    if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
+    await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${id}`);
+    await this.exigirFlagOcorrencias(o.id_condominio, user);
+    return o;
+  }
+
+  /**
+   * O que a tela do console pode oferecer a quem está logado — a mesma regra
+   * que as rotas aplicam, para a tela não mostrar botão que vai dar 403.
+   *  - operar: ciente, solucionar, reabrir, responder, atribuir;
+   *  - administrar: remover e alternar Pública/Privada (só síndico na tela);
+   *  - conversar: escrever no chat — exige Users.id, que o porteiro do
+   *    console não tem (OcorrenciaMensagens.id_usuario é FK para Users).
+   */
+  async acesso(idCondominio: number, user?: JwtPayload) {
+    const operar = isOperador(user) && !(await this.semFlagOcorrencias(idCondominio, user));
+    return {
+      operar,
+      administrar: operar && isSindicoEstrito(user),
+      conversar: operar && idUsuarioDoToken(user) != null,
+    };
   }
 
   /**
@@ -393,7 +431,7 @@ export class OcorrenciasService {
   }
 
   async updateStatus(id: number, status: OcorrenciaStatus, user?: JwtPayload) {
-    await this.loadParaMutacaoStaff(id, user, 'alterar status da ocorrência');
+    await this.loadParaAtendimento(id, user, 'alterar status da ocorrência');
     let atualizado;
     try {
       atualizado = await this.prisma.ocorrencias.update({
@@ -420,7 +458,7 @@ export class OcorrenciasService {
   }
 
   async updateResposta(id: number, resposta: string, user?: JwtPayload) {
-    await this.loadParaMutacaoStaff(id, user, 'responder ocorrência');
+    await this.loadParaAtendimento(id, user, 'responder ocorrência');
     let atualizado;
     try {
       atualizado = await this.prisma.ocorrencias.update({
@@ -582,7 +620,7 @@ export class OcorrenciasService {
    * idResponsavel = null desatribui.
    */
   async atribuir(id: number, idResponsavel: number | null, user?: JwtPayload) {
-    const o = await this.loadParaMutacaoStaff(id, user, 'atribuir ocorrência');
+    const o = await this.loadParaAtendimento(id, user, 'atribuir ocorrência');
     // O responsável vem do corpo como Users.id global: precisa estar na
     // equipe atribuível DESTE condomínio (a mesma lista que o app e o console
     // mostram). Sem isso, a equipe de um condomínio lia o nome de qualquer
