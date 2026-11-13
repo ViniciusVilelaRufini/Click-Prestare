@@ -1314,6 +1314,10 @@ export class MoradoresService {
           where: { OR: [{ email: m.email }, { login: m.email }] },
         });
         if (existingUser) {
+          // Antes do vínculo: a recusa abaixo saía depois de gravar Moradores.id_user com a conta alheia.
+          if (m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existingUser.id, m.id_condominio))) {
+            throw new BadRequestException('Esta pessoa também tem conta em outro condomínio. Peça que use "Esqueci a senha" no app.');
+          }
           userId = existingUser.id;
         } else {
           const newUser = await this.prisma.users.create({
