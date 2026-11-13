@@ -32,7 +32,7 @@ jobs:
         working-directory: click-cond-app/click-cond-app/ios
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # A Apple recusa no upload (409 "SDK version issue") qualquer binário
       # compilado com SDK anterior ao do iOS 26. A imagem macos-15 traz vários
