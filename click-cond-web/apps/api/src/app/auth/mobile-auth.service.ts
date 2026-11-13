@@ -2491,7 +2491,8 @@ export class MobileAuthService {
             num_blocos: Number(data.num_blocos) || 1,
             num_aptos: Number(data.num_aptos) || 0,
             moeda: 'BRL',
-            ativo: 1,
+            // Autocadastro nasce pendente: só o CRM ativa (crm-condominios.service reativar).
+            ativo: 0,
             endereco: idEndereco,
           }
         });
