@@ -51,4 +51,48 @@ describe('VisitantesPageComponent.getStatusVisitante', () => {
     const v: any = { liberado: 0, data_entrada: saidaAntiga, data_saida: saidaAntiga, ultSaida: saidaAntiga };
     expect(tela.getStatusVisitante(v)).toBe('saiu');
   });
+
+  // M1: liberado=1 com a janela encerrada não é "Liberado" (o facial recusa).
+  it('liberado com a janela já encerrada não é "liberado"', () => {
+    const v: any = {
+      liberado: 1,
+      data_hora_inicio: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      data_hora_termino: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    };
+    expect(tela.getStatusVisitante(v)).not.toBe('liberado');
+    expect(tela.janelaEncerrada(v)).toBe(true);
+  });
+
+  // M4 / M2: prestador e visitante recorrente mantêm a liberação depois da saída.
+  it('prestador que saiu e continua liberado é "liberado" (não "Saiu" + Solicitar)', () => {
+    const v: any = { liberado: 1, is_prestador: 1, data_entrada: saidaAntiga, data_saida: saidaAntiga };
+    expect(tela.getStatusVisitante(v)).toBe('liberado');
+  });
+
+  it('visitante recorrente que saiu e continua liberado é "liberado"', () => {
+    const v: any = { liberado: 1, is_prestador: 0, dias_semana: 'seg,qua', data_entrada: saidaAntiga, data_saida: saidaAntiga };
+    expect(tela.getStatusVisitante(v)).toBe('liberado');
+  });
+
+  // M3: "agendado" é pré-autorização; sem liberação, janela futura não agenda nada.
+  it('janela futura sem liberação não é "agendado"', () => {
+    const v: any = {
+      liberado: 0,
+      data_hora_inicio: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      data_hora_termino: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(),
+    };
+    expect(tela.getStatusVisitante(v)).not.toBe('agendado');
+  });
+
+  // M8: o status usa a hora do SERVIDOR, não a do PC da portaria.
+  it('usa a hora do servidor (PC atrasado não vê "agendado" quem já pode entrar)', () => {
+    const t = Object.create(VisitantesPageComponent.prototype) as any;
+    t.relogio = { agora: () => new Date(Date.now() + 10 * 60 * 1000) }; // servidor 10 min à frente do PC
+    const v: any = {
+      liberado: 1,
+      data_hora_inicio: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      data_hora_termino: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+    };
+    expect(t.getStatusVisitante(v)).toBe('liberado');
+  });
 });

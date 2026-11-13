@@ -947,6 +947,11 @@
                             <span class="ps-dot ps-dot-warn"></span>
                             Pedido expirado
                           </span>
+                        } @else if (janelaEncerrada(v)) {
+                          <span class="ps-tag" title="A janela de acesso terminou. Solicite de novo ou registre a entrada.">
+                            <span class="ps-dot ps-dot-ink"></span>
+                            Janela encerrada
+                          </span>
                         } @else {
                           <span class="ps-tag">
                             <span class="ps-dot ps-dot-ink"></span>
@@ -1057,6 +1062,16 @@
                     <button
                       (click)="registrarEntradaManual(v)"
                       class="ps-btn ps-btn-sm"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                      Registrar Entrada
+                    </button>
+                  } @else if (getStatusVisitante(v) === 'agendado') {
+                    <!-- Pré-autorizado para mais tarde: Solicitar derrubaria a liberação. Chegou antes: registra a entrada. -->
+                    <button
+                      (click)="registrarEntradaManual(v)"
+                      class="ps-btn ps-btn-sec ps-btn-sm"
+                      title="Chegou antes do horário: registrar a entrada agora"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                       Registrar Entrada
@@ -1404,6 +1419,11 @@
                             <span class="ps-dot ps-dot-warn"></span>
                             Pedido expirado
                           </span>
+                        } @else if (janelaEncerrada(v)) {
+                          <span class="ps-tag" title="A janela de acesso terminou. Solicite de novo ou registre a entrada.">
+                            <span class="ps-dot ps-dot-ink"></span>
+                            Janela encerrada
+                          </span>
                         } @else {
                           <span class="ps-tag">
                             <span class="ps-dot ps-dot-ink"></span>
@@ -1459,6 +1479,16 @@
                         (click)="registrarEntradaManual(v)"
                         class="ps-btn ps-btn-sm"
                         title="Registrar entrada no sistema agora"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                        Registrar Entrada
+                      </button>
+                    } @else if (getStatusVisitante(v) === 'agendado') {
+                      <!-- Pré-autorizado para mais tarde: Solicitar derrubaria a liberação. Chegou antes: registra a entrada. -->
+                      <button
+                        (click)="registrarEntradaManual(v)"
+                        class="ps-btn ps-btn-sec ps-btn-sm"
+                        title="Chegou antes do horário: registrar a entrada agora"
                       >
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                         Registrar Entrada

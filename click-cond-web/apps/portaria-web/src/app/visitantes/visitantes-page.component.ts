@@ -25,6 +25,7 @@ import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { AuthService } from '../auth/auth.service';
 import { ConsentimentosApi } from '../core/consentimentos.service';
 import { erroDocumento } from '../shared/documento.util';
+import { ServerClockService } from '../core/server-clock.service';
 
 @Component({
   selector: 'app-visitantes-page',
@@ -42,6 +43,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   private realtime = inject(RealtimeService);
   private auth = inject(AuthService);
   private consentimentosApi = inject(ConsentimentosApi);
+  private relogio = inject(ServerClockService);
 
   readonly consentimentoBiometria = signal(false);
 
@@ -545,9 +547,15 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   // Portaria remota: timer de polling enquanto há pedidos pendentes.
   private authPollTimer: ReturnType<typeof setInterval> | null = null;
+  // Lista viva: entrada/saída pelo terminal não passa pelo pedido nem chega
+  // sempre pelo WebSocket — recarrega em silêncio enquanto a aba está visível.
+  private recargaTimer: ReturnType<typeof setInterval> | null = null;
+  private static readonly RECARGA_MS = 20_000;
 
   ngOnDestroy() {
     this.stopAuthPolling();
+    if (this.recargaTimer) clearInterval(this.recargaTimer);
+    this.recargaTimer = null;
     this.realtime.disconnect();
   }
 
@@ -558,6 +566,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     });
     this.carregar();
     this.startAuthPolling();
+    this.recargaTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (this.loading()) return;
+      this.carregar(true);
+    }, VisitantesPageComponent.RECARGA_MS);
     this.conectarRealtime();
     this.aptApi.list().subscribe({
       next: (data) => {
@@ -583,7 +596,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   carregar(silent = false, depois?: (lista: Pessoa[]) => void) {
     if (!silent) this.loading.set(true);
-    this.error.set(null);
+    // A recarga silenciosa (a cada 20 s) não apaga o erro que o porteiro ainda está lendo.
+    if (!silent) this.error.set(null);
     // Lista agrupada por pessoa para a tabela principal
     this.service.listarPessoas().subscribe({
       next: (data) => {
@@ -592,7 +606,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         depois?.(data);
       },
       error: (e) => {
-        if (!silent) this.error.set(`Falha ao carregar: ${e?.message ?? e}`);
+        if (!silent) this.error.set(`Falha ao carregar: ${e?.error?.message ?? e?.message ?? e}`);
         this.loading.set(false);
       },
     });
@@ -656,7 +670,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         this.fecharAuthModal();
         this.carregar();
       },
-      error: (e) => this.error.set(`Falha ao liberar acesso: ${e?.message ?? e}`),
+      error: (e) => this.error.set(`Falha ao liberar acesso: ${e?.error?.message ?? e?.message ?? e}`),
     });
   }
 
@@ -670,7 +684,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   /** Pedido pendente ou autorizado há mais que 10 minutos (expirado). */
   autorizacaoExpirada(p: Pessoa | Visitante): boolean {
     if (!p) return false;
-    const now = Date.now();
+    const now = this.agoraMs();
 
     // Se estiver pendente há mais de 10 min
     if ((p as Pessoa).auth_status === 'pendente') {
@@ -710,7 +724,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   /** Pedido pendente há mais que AUTORIZACAO_SEM_RESPOSTA_MS e ainda dentro do prazo. */
   autorizacaoSemResposta(p: Pessoa): boolean {
     if (p.auth_status !== 'pendente' || !p.auth_solicitado_em) return false;
-    const diff = Date.now() - new Date(p.auth_solicitado_em).getTime();
+    const diff = this.agoraMs() - new Date(p.auth_solicitado_em).getTime();
     return diff > AUTORIZACAO_SEM_RESPOSTA_MS && diff <= AUTORIZACAO_EXPIRACAO_MS;
   }
 
@@ -1175,7 +1189,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     if (!ok) return;
     this.service.checkOut(v.id).subscribe({
       next: () => this.carregar(),
-      error: (e) => this.error.set(`Falha ao registrar saída: ${e?.message ?? e}`),
+      error: (e) => this.error.set(`Falha ao registrar saída: ${e?.error?.message ?? e?.message ?? e}`),
     });
   }
 
@@ -1267,7 +1281,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       },
       error: (e) => {
         this.entradaSalvando.set(false);
-        this.error.set(`Falha ao registrar entrada: ${e?.message ?? e}`);
+        this.error.set(`Falha ao registrar entrada: ${e?.error?.message ?? e?.message ?? e}`);
       },
     });
   }
@@ -1318,38 +1332,60 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    * Card/aba em que a pessoa entra. "Liberados" segue o status da linha:
    * contar só `liberado === 1` punha ali quem já saiu da visita atual ou
    * teve a autorização do morador vencida — o card dizia "Liberado" e a
-   * linha, "Saiu"/"Expirado".
+   * linha, "Saiu"/"Expirado". Pedido em andamento e autorização do morador
+   * valendo também são "Liberados (Aguardando)", não "Inativos / Saíram".
    */
   categoriaKpi(p: Pessoa): 'ativos' | 'liberados' | 'historico' {
     if (p.noLocal) return 'ativos';
-    return this.getStatusVisitante(p) === 'liberado' ? 'liberados' : 'historico';
+    if (this.getStatusVisitante(p) === 'liberado') return 'liberados';
+    if ((p.auth_status === 'pendente' || p.auth_status === 'autorizado') && !this.autorizacaoExpirada(p)) {
+      return 'liberados';
+    }
+    return 'historico';
+  }
+
+  /** Hora do SERVIDOR (o PC da portaria costuma estar com o relógio errado). Ver ServerClockService. */
+  private agoraMs(): number {
+    return this.relogio ? this.relogio.agora().getTime() : Date.now();
+  }
+
+  /** Liberado, mas a janela da visita já terminou: o terminal recusa a entrada. */
+  janelaEncerrada(v: Visitante | Pessoa): boolean {
+    if ((v as any).liberado !== 1 || (v.data_entrada && !v.data_saida)) return false;
+    return !!v.data_hora_termino && new Date(v.data_hora_termino).getTime() < this.agoraMs();
   }
 
   getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'liberado' | 'autorizado' | 'agendado' | 'expirado' | 'saiu' {
+    const liberado = (v as any).liberado === 1;
     // 1. Entrou e ainda está dentro (saida não registrada)
     if (v.data_entrada && !v.data_saida) return 'presente';
     // 2. Saída registrada NA VISITA ATUAL. `ultSaida` é de qualquer visita
     // antiga: usá-la prendia em "Saiu" quem foi liberado de novo, e sumiam
-    // os botões "Dar Baixa" e "Liberar entrada".
-    if (v.data_saida) return 'saiu';
+    // os botões "Dar Baixa" e "Liberar entrada". Prestador e visitante
+    // recorrente (dias da semana) mantêm a liberação na saída: continuam
+    // "Liberado" (antes: "Saiu" + Solicitar, que derrubava o acesso).
+    const acessoContinuo =
+      liberado && ((v as any).is_prestador === 1 || !!String((v as any).dias_semana ?? '').trim());
+    if (v.data_saida && !acessoContinuo) return 'saiu';
     // 3. Autorização do morador vencida numa visita não usada: o check-in
     // seria recusado — não é "Liberado" (o botão só falhava).
     if ((v as Pessoa).autorizacao_expirada) return 'expirado';
+    const now = this.agoraMs();
     // Janela ainda não começou: o PIN/facial seriam recusados agora — é
-    // "Agendado", mesmo com liberado === 1.
-    if (v.data_hora_inicio && new Date(v.data_hora_inicio).getTime() > Date.now()) return 'agendado';
-    // 4. Pré-autorizado manualmente/app (liberado === 1 e não expirado)
-    if ((v as any).liberado === 1 && !this.autorizacaoExpirada(v)) return 'liberado';
-    
-    const now = Date.now();
+    // "Agendado" (pré-autorização). Sem liberação, não há o que agendar.
+    if (liberado && v.data_hora_inicio && new Date(v.data_hora_inicio).getTime() > now) return 'agendado';
+    // 4. Pré-autorizado manualmente/app (liberado === 1 e não expirado). Com
+    // a janela já encerrada não é mais "Liberado": o terminal recusa.
+    if (liberado && !this.autorizacaoExpirada(v)) {
+      return this.janelaEncerrada(v) ? 'saiu' : 'liberado';
+    }
     // 4. Dentro do período de liberação (ainda não entrou). A janela sozinha
     // não autoriza: sem liberação (morador negou, pedido venceu, cópia de
     // visita) a linha mostrava "Autorizado" e oferecia Registrar Entrada.
-    if ((v as any).liberado === 1 && v.data_hora_inicio && v.data_hora_termino) {
+    if (liberado && v.data_hora_inicio && v.data_hora_termino) {
       const inicio = new Date(v.data_hora_inicio).getTime();
       const fim = new Date(v.data_hora_termino).getTime();
       if (now >= inicio && now <= fim) return 'autorizado';
-      if (now < inicio) return 'agendado';
     }
     // 5. Default
     return 'saiu';

@@ -32,4 +32,24 @@ describe('VisitantesPageComponent.categoriaKpi', () => {
   it('pessoa sem liberação é "historico"', () => {
     expect(tela.categoriaKpi({ noLocal: false, liberado: 0, data_entrada: null, data_saida: null } as any)).toBe('historico');
   });
+
+  // M7: pedido em andamento e autorização do morador valendo contam em
+  // "Liberados (Aguardando)", não em "Inativos / Saíram".
+  it('aguardando o morador é "liberados"', () => {
+    const p: any = { noLocal: false, liberado: 0, auth_status: 'pendente', auth_solicitado_em: new Date().toISOString() };
+    expect(tela.categoriaKpi(p)).toBe('liberados');
+  });
+
+  it('autorizado pelo morador (valendo) é "liberados"', () => {
+    const p: any = { noLocal: false, liberado: 1, auth_status: 'autorizado', auth_respondido_em: new Date().toISOString() };
+    expect(tela.categoriaKpi(p)).toBe('liberados');
+  });
+
+  it('pedido vencido continua "historico"', () => {
+    const p: any = {
+      noLocal: false, liberado: 0, auth_status: 'pendente',
+      auth_solicitado_em: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    };
+    expect(tela.categoriaKpi(p)).toBe('historico');
+  });
 });
