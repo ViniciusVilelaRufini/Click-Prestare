@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService, umaVez } from '../common/storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import axios from 'axios';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
@@ -473,7 +474,7 @@ export class EncomendasService implements OnModuleInit {
           retirado_assinatura: assinaturaUrl,
           retirado_foto: fotoUrl,
           status: 'Retirada',
-          entregue_por_user: operador?.sub ?? null,
+          entregue_por_user: idUsuarioDoToken(operador),
         },
       });
 
@@ -588,7 +589,7 @@ export class EncomendasService implements OnModuleInit {
       data: {
         status: 'Aguardando',
         recebido_em: agora,
-        recebido_por_user: operador?.sub ?? null,
+        recebido_por_user: idUsuarioDoToken(operador),
         notificado: 1,
         notificado_em: agora,
       },
