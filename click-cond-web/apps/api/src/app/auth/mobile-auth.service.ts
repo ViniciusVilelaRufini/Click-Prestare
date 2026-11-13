@@ -19,10 +19,10 @@ import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usua
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
 import { NotificationsService } from '../notifications/notifications.service';
-import { assertStaff, assertSindico, assertSindicoEstrito, assertOperador } from './tenant.util';
+import { assertStaff, assertSindico, assertSindicoEstrito, assertOperador, isOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
-import { POLITICA_VERSAO } from '../consentimentos/consentimentos.service';
+import { POLITICA_VERSAO, REVOGADO_PELO_OPERADOR } from '../consentimentos/consentimentos.service';
 import { MfaService } from './mfa/mfa.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
@@ -4112,11 +4112,70 @@ export class MobileAuthService {
    * O facial só enrola quem tem consentimento de biometria registrado. O menor
    * não consente sozinho: vale o termo aceito pelo responsável no app, que
    * fica registrado em nome do menor (o texto do termo cita o responsável).
+   *
+   * Com `liberarRevogacaoNoCondominio` (só o termo enviado pelo PRÓPRIO responsável — ver
+   * ehResponsavelDoMenorRevogado), o termo vale como a nova resposta que o menor não pode dar
+   * sozinho: tira a marca da revogação pelo operador das linhas dele naquele condomínio, como o
+   * ConsentimentosService.registrar faz para o titular adulto. Vindo da equipe, a marca fica.
    */
-  private async registrarTermoResponsavel(db: any, idUserMenor: number) {
+  private async registrarTermoResponsavel(db: any, idUserMenor: number, liberarRevogacaoNoCondominio?: number) {
     await db.consentimentos.create({
       data: { id_user: idUserMenor, tipo: 'biometria', versao: POLITICA_VERSAO, aceito: 1 },
     });
+    if (liberarRevogacaoNoCondominio != null) {
+      await db.moradores.updateMany({
+        where: {
+          id_user: idUserMenor,
+          id_condominio: liberarRevogacaoNoCondominio,
+          face_sync_error: REVOGADO_PELO_OPERADOR,
+        },
+        data: { face_sync_error: null },
+      });
+    }
+  }
+
+  /**
+   * S22: quem edita o cadastro `atual` é o responsável pelo menor revogado pelo operador agindo
+   * pelo próprio app? Tudo vem do token e do banco, nunca do corpo:
+   *  - o cadastro é de menor (data gravada) e tem a marca de revogação pelo operador;
+   *  - o token é de morador do app (isOperador recusa console, síndico, funcionário e porteiro);
+   *  - quem chama não é síndico nem funcionário deste condomínio — mesmo com o token de morador,
+   *    a equipe não desfaz a própria revogação (lado fechado);
+   *  - é maior de idade pelo cadastro dele neste condomínio (sem data, não comprova);
+   *  - tem vínculo (Apartamentos_Users) com uma unidade do menor neste condomínio.
+   */
+  private async ehResponsavelDoMenorRevogado(
+    atual: { id_user: number | null; id_condominio: number | null; data_nascimento: Date | null; face_sync_error: string | null },
+    user?: JwtPayload,
+  ): Promise<boolean> {
+    if (atual.face_sync_error !== REVOGADO_PELO_OPERADOR) return false;
+    if (!atual.data_nascimento || calcularIdade(atual.data_nascimento) >= 18) return false;
+    if (!atual.id_user || atual.id_condominio == null) return false;
+    const idResp = idUsuarioDoToken(user);
+    if (!idResp || isOperador(user) || idResp === atual.id_user) return false;
+    const idCond = atual.id_condominio;
+
+    const [sindico, funcionario] = await Promise.all([
+      this.prisma.sindicos_Condominios.count({ where: { id_user: idResp, id_condominio: idCond } }),
+      this.prisma.funcionarios.count({ where: { id_user: idResp, id_condominio: idCond } }),
+    ]);
+    if (sindico + funcionario > 0) return false;
+
+    const cadastros = await this.prisma.moradores.findMany({
+      where: { id_user: idResp, id_condominio: idCond },
+      select: { data_nascimento: true },
+    });
+    if (!cadastros.some((c) => !!c.data_nascimento && calcularIdade(c.data_nascimento) >= 18)) return false;
+
+    const unidadesDoMenor = await this.prisma.apartamentos_Users.findMany({
+      where: { id_user: atual.id_user, apartamento: { id_condominio: idCond } },
+      select: { id_apto: true },
+    });
+    if (unidadesDoMenor.length === 0) return false;
+    const vinculo = await this.prisma.apartamentos_Users.count({
+      where: { id_user: idResp, id_apto: { in: unidadesDoMenor.map((u) => u.id_apto) } },
+    });
+    return vinculo > 0;
   }
 
   async saveMorador(
@@ -4170,6 +4229,25 @@ export class MobileAuthService {
         // ação de síndico/funcionário.
         const callerId = user?.user?.id ?? user?.sub;
         if (atual.id_user !== callerId) {
+          // S22: o menor revogado pelo operador não tem login para dar a nova resposta. O responsável,
+          // pelo app dele, reenvia a foto com o termo: só isso é gravado (o resto do cadastro segue
+          // com a equipe) e a marca da revogação sai neste condomínio. Fora desse caso, regra de sempre.
+          if (
+            mor.photo &&
+            temTermoResponsavel(mor.extra2) &&
+            (await this.ehResponsavelDoMenorRevogado(atual, user))
+          ) {
+            photoUrl = await resolverFoto([atual.foto_pessoa, atual.user?.photo, atual.user?.profile_image]);
+            validarBiometria(atual.data_nascimento, true);
+            await this.prisma.$transaction(async (tx) => {
+              await tx.moradores.update({
+                where: { id: idMorador },
+                data: { foto_pessoa: photoUrl, extra2: mor.extra2 },
+              });
+              await this.registrarTermoResponsavel(tx, atual.id_user, atual.id_condominio as number);
+            });
+            return '';
+          }
           assertStaff(user, 'editar dados de outro morador');
           // Cadastro de morador é da área "apartamentos" — a flag com que o
           // síndico limita a equipe no console vale também pelo app.
