@@ -133,7 +133,7 @@ jobs:
       # costuma estar no log do gym, não na mensagem final do fastlane.
       - name: Guardar artefatos
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-build-${{ github.run_number }}
           path: |
