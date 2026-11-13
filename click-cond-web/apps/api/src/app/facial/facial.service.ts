@@ -6127,6 +6127,10 @@ export class FacialService {
               where: { id_visitante: v.id, ativo: 1 },
             })) > 0;
         }
+        // Visitante recorrente (dias da semana) volta outro dia: a saída não
+        // revoga a liberação, como o prestador (mesma regra do check-out manual).
+        const manterLiberado =
+          v.is_prestador === 1 || temVagaAtiva || !!String(v.dias_semana ?? '').trim();
         // data_entrada < timestamp: um replay de backlog com timestamp ANTERIOR
         // à entrada registrada é o eco da própria entrada (mesma passagem
         // reportada 2x: ao vivo e pelo log do aparelho) — nunca uma saída real.
@@ -6142,7 +6146,7 @@ export class FacialService {
             data: {
               data_saida: timestamp,
               ...(device.tipo === 'qrcode_reader' ? { codigo_acesso: null } : {}),
-              liberado: v.is_prestador === 1 || temVagaAtiva ? 1 : 0,
+              liberado: manterLiberado ? 1 : 0,
             },
           });
         } else {
@@ -6155,7 +6159,7 @@ export class FacialService {
             data: {
               data_saida: timestamp,
               ...(device.tipo === 'qrcode_reader' ? { codigo_acesso: null } : {}),
-              liberado: v.is_prestador === 1 || temVagaAtiva ? 1 : 0,
+              liberado: manterLiberado ? 1 : 0,
             },
           });
         }

@@ -3380,7 +3380,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data: {
         data_saida: new Date(),
         codigo_acesso: null,
-        liberado: ref.is_prestador === 1 ? 1 : 0,
+        // Prestador e visitante recorrente (dias da semana) voltam outro dia:
+        // a saída não revoga a liberação. Avulso perde a liberação na saída.
+        liberado: ref.is_prestador === 1 || String(ref.dias_semana ?? '').trim() ? 1 : 0,
         auth_status: null,
         auth_solicitado_em: null,
         auth_respondido_em: null,
@@ -4883,7 +4885,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data: {
         data_saida: new Date(),
         codigo_acesso: null,
-        liberado: ref.is_prestador === 1 ? 1 : 0,
+        // Prestador e visitante recorrente (dias da semana) voltam outro dia:
+        // a saída não revoga a liberação. Avulso perde a liberação na saída.
+        liberado: ref.is_prestador === 1 || String(ref.dias_semana ?? '').trim() ? 1 : 0,
         auth_status: null,
         auth_solicitado_em: null,
         auth_respondido_em: null,
