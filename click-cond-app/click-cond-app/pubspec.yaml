@@ -18,7 +18,7 @@ dependencies:
   mask_text_input_formatter: ^2.9.0
   roundcheckbox: ^2.0.5
   multiselect_formfield: ^0.1.7
-  intl: ^0.20.2
+  intl: ^0.20.3
   badges: ^3.2.0
   syncfusion_flutter_charts: ^33.2.5
   currency_text_input_formatter: ^2.3.0
