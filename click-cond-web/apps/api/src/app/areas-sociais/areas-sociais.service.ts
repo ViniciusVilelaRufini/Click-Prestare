@@ -1059,6 +1059,14 @@ export class AreasSociaisService {
       await this.tenant.assertPermissaoFuncionario(ag.area?.id_condominio, 'areas_sociais', user);
     }
 
+    // Só reserva aprovada se confirma: numa cancelada/recusada/pendente o
+    // confirmada_em gravado fazia a tela mostrar uma presença que não vai haver.
+    if (ag.status !== 'aprovado') {
+      throw new ConflictException(
+        ag.status === 'pendente' ? 'Esta reserva ainda não foi aprovada.' : mensagemReservaJaMudou(ag.status),
+      );
+    }
+
     if (!ag.confirmada_em) {
       await this.prisma.areas_Sociais_Agendamentos.update({
         where: { id: Number(id) },
