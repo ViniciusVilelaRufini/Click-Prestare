@@ -63,6 +63,7 @@ describe('"hoje" no fuso de Brasília às 23:30 (02:30Z)', () => {
     };
     const svc = Object.create(MobileAuthService.prototype) as any;
     svc.prisma = prisma;
+    svc.tenant = { recorteOcorrenciasPrivadas: jest.fn().mockResolvedValue(null) };
 
     await svc.getSummary(41, 'Funcionario');
 

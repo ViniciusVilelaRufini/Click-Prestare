@@ -379,7 +379,7 @@ export class DashboardMobileController {
   summary(@ReqUser() payload: JwtPayload) {
     const idUser = payload.user?.id ?? payload.sub;
     const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Sindico';
-    return this.service.getSummary(Number(idUser), typeAccess);
+    return this.service.getSummary(Number(idUser), typeAccess, payload);
   }
 
   @Get('meus-eventos')

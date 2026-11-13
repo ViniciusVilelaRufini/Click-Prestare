@@ -1209,7 +1209,7 @@ export class MobileAuthService {
   // ==========================================
   // DASHBOARD SUMMARY
   // ==========================================
-  async getSummary(idUser: number, typeAccess: string) {
+  async getSummary(idUser: number, typeAccess: string, payload?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return typeAccess === 'Sindico'
         ? { debts: { count: 2, total: 450.0 }, occurrences: 1, packages: 2 }
@@ -1296,6 +1296,12 @@ export class MobileAuthService {
         }
 
         const { inicio: hojeIni, fim: hojeFim } = intervaloHojeBrasilia();
+        // Sem a flag `ocorrencias`, o funcionário só lê as públicas e as que abriu: a contagem segue o
+        // mesmo recorte. Sem payload, monta o do próprio funcionário (cai no recorte, nunca libera).
+        const recorte = await this.tenant.recorteOcorrenciasPrivadas(
+          condId,
+          payload ?? { sub: idUser, nome: '', typeAccess: 'Funcionario' },
+        );
 
         const [packagesCount, visitsToday, insideCondo, occurrencesCount] = await Promise.all([
           this.prisma.encomendas.count({
@@ -1342,6 +1348,7 @@ export class MobileAuthService {
             where: {
               id_condominio: condId,
               status: { notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] },
+              ...(recorte != null && { OR: [{ publica: true }, { user: recorte }] }),
             },
           }),
         ]);

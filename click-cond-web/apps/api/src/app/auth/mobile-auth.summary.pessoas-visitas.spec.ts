@@ -30,7 +30,7 @@ describe('MobileAuthService — getSummary() (Pessoas/Visitas)', () => {
     const mail: any = {};
     const storage: any = {};
     const facial: any = {};
-    const tenant: any = {};
+    const tenant: any = { recorteOcorrenciasPrivadas: jest.fn(async () => null) };
     const financeiro: any = {};
     const apartamentos: any = {};
     const notifications: any = {};
