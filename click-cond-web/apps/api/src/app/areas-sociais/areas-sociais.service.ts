@@ -997,6 +997,10 @@ export class AreasSociaisService {
     if (typeAccess === 'Morador' && ag.id_user !== Number(userId)) {
       throw new ForbiddenException('Você só pode confirmar sua própria reserva.');
     }
+    // Confirmar a reserva de OUTRO morador é gestão de reservas: mesma flag do remove/updateStatus.
+    if (ag.id_user !== Number(userId)) {
+      await this.tenant.assertPermissaoFuncionario(ag.area?.id_condominio, 'areas_sociais', user);
+    }
 
     if (!ag.confirmada_em) {
       await this.prisma.areas_Sociais_Agendamentos.update({

@@ -1754,7 +1754,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * convenção do módulo é `ativo: 0`, preservando o histórico) e o ponteiro
    * para o visitante é limpo, já que o referente deixa de existir.
    */
-  async removerPessoa(idCondominio: number, idPessoaRef: number) {
+  async removerPessoa(idCondominio: number, idPessoaRef: number, payload?: JwtPayload) {
+    // Mesma flag das escritas por visita: apagar a pessoa apaga TODAS as visitas dela.
+    await this.assertFlagCadastrarVisitante(idCondominio, payload);
     // Task 4 (migração Pessoas/Visitas): com a flag ligada, `idPessoaRef`
     // NUNCA é resolvido contra `Visitantes` — resolver ali colidiria com um
     // id de `Visitas`/`Pessoas` que por acaso é o mesmo número (as duas
@@ -1859,7 +1861,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       is_prestador?: number;
       tag_rfid?: string | null;
     },
+    payload?: JwtPayload,
   ) {
+    // Mesma flag das escritas por visita; cobre também o `bloqueado` (desbloqueio) que o corpo pode trazer.
+    await this.assertFlagCadastrarVisitante(idCondominio, payload);
     const erroDoc = erroDocumento(dto.doc_identificacao);
     if (erroDoc) throw new BadRequestException(erroDoc);
 

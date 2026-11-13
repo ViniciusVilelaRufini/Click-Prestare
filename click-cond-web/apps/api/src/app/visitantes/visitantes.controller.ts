@@ -148,7 +148,7 @@ export class VisitantesController {
     // TODAS as visitas dela. Sem checagem de papel, um morador reescrevia o
     // cadastro de qualquer visitante do prédio — incluindo a tag de acesso.
     assertOperador(payload, 'editar o cadastro de uma pessoa');
-    return this.service.atualizarPessoa(idCondominio, idRef, body);
+    return this.service.atualizarPessoa(idCondominio, idRef, body, payload);
   }
 
   /**
@@ -165,7 +165,7 @@ export class VisitantesController {
     // Apaga o cadastro e TODAS as visitas da pessoa. Era a rota mais exposta
     // do módulo: destrutiva, em massa, e alcançável por qualquer morador.
     assertOperador(payload, 'remover o cadastro de uma pessoa');
-    return this.service.removerPessoa(idCondominio, idRef);
+    return this.service.removerPessoa(idCondominio, idRef, payload);
   }
 
   @SkipAudit()

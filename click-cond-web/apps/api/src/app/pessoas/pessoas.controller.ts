@@ -5,6 +5,7 @@ import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import { StorageService, umaVez } from '../common/storage/storage.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
 
 /**
  * Como em `visitantes.controller.ts`: o TenantGuard só confere o
@@ -18,6 +19,7 @@ export class PessoasController {
   constructor(
     private readonly service: PessoasService,
     private readonly storage: StorageService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
   @Get('busca')
@@ -37,6 +39,8 @@ export class PessoasController {
     @ReqUser() payload: JwtPayload,
   ) {
     assertOperador(payload, 'cadastrar uma pessoa');
+    // Funcionário do app: mesma flag do cadastro de visitante (cria ou sobrescreve nome/fotos da pessoa).
+    await this.tenant.assertPermissaoFuncionario(idCondominio, 'cadastrar_visitante', payload);
     // Fotos vêm do cliente: URL do bucket só se for a da pessoa que este
     // cadastro reaproveita (StorageService.exigirArquivoDoRegistro). As
     // chamadas internas de obterOuCriar (visitas) não passam por aqui.

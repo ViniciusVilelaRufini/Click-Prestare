@@ -21,7 +21,7 @@ describe('PessoasController — exige operador e fecha IDOR cross-tenant', () =>
       obterOuCriar: jest.fn(async () => ({ id: 1 })),
       obterHistorico: jest.fn(async () => []),
     };
-    return { ctrl: new PessoasController(service, { exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any), service };
+    return { ctrl: new PessoasController(service, { exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any, { assertPermissaoFuncionario: jest.fn(async () => undefined) } as any), service };
   }
 
   it('NEGA morador buscar pessoas cadastradas', async () => {
@@ -63,7 +63,7 @@ describe('PessoasController — exige operador e fecha IDOR cross-tenant', () =>
         visitas: { findMany: jest.fn() },
       };
       const service = new PessoasService(mockPrisma);
-      const ctrl = new PessoasController(service, { exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any);
+      const ctrl = new PessoasController(service, { exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any, { assertPermissaoFuncionario: jest.fn(async () => undefined) } as any);
 
       // idCondominio=1 na rota, mas a pessoa 77 é do condomínio 2.
       await expect(ctrl.obterHistorico(1, 77, porteiroWeb)).rejects.toBeInstanceOf(
@@ -78,7 +78,7 @@ describe('PessoasController — exige operador e fecha IDOR cross-tenant', () =>
         visitas: { findMany: jest.fn().mockResolvedValue([{ id: 1 }]) },
       };
       const service = new PessoasService(mockPrisma);
-      const ctrl = new PessoasController(service, { exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any);
+      const ctrl = new PessoasController(service, { exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any, { assertPermissaoFuncionario: jest.fn(async () => undefined) } as any);
 
       const res = await ctrl.obterHistorico(1, 77, porteiroWeb);
       expect(res).toHaveLength(1);
@@ -90,7 +90,7 @@ describe('PessoasController — exige operador e fecha IDOR cross-tenant', () =>
         visitas: { findMany: jest.fn() },
       };
       const service = new PessoasService(mockPrisma);
-      const ctrl = new PessoasController(service, { exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any);
+      const ctrl = new PessoasController(service, { exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any, { assertPermissaoFuncionario: jest.fn(async () => undefined) } as any);
 
       await expect(ctrl.obterHistorico(1, 999, porteiroWeb)).rejects.toBeInstanceOf(
         NotFoundException,
