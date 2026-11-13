@@ -272,6 +272,9 @@
   @if (error()) {
     <div class="p-3 border border-[var(--signal-danger)] text-sm text-[var(--signal-danger)]">{{ error() }}</div>
   }
+  @if (semConexao()) {
+    <p role="status" class="text-xs text-[var(--signal-warn)]">Sem conexão — a lista pode estar desatualizada.</p>
+  }
   @if (aviso()) {
     <div role="status" class="p-3 border border-[var(--signal-warn)] text-sm text-[var(--signal-warn)] flex items-start justify-between gap-3">
       <span>{{ aviso() }}</span>

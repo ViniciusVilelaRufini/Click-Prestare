@@ -270,6 +270,54 @@ describe('EncomendasPageComponent — ciclos do porteiro', () => {
       expect(c.encomendas().length).toBe(1);
       expect(c.error()).toBeNull();
     });
+
+    it('falha mostra o aviso discreto de sem conexão, que some quando volta, sem apagar erro de ação', () => {
+      const f = montar([enc({ id: 7 })]);
+      const c = f.componentInstance;
+      c.error.set('Erro ao notificar morador');
+      api.list.mockReturnValue(throwError(() => ({ message: 'offline' })));
+      c.recarregarSilencioso();
+      f.detectChanges();
+      expect(f.nativeElement.textContent).toContain('Sem conexão — a lista pode estar desatualizada.');
+      expect(c.error()).toBe('Erro ao notificar morador');
+      api.list.mockReturnValue(of([enc({ id: 7 })]));
+      c.recarregarSilencioso();
+      f.detectChanges();
+      expect(f.nativeElement.textContent).not.toContain('Sem conexão');
+      expect(c.error()).toBe('Erro ao notificar morador');
+    });
+
+    it('não roda enquanto a lista carrega ou a retirada está sendo enviada', () => {
+      const f = montar([enc({ id: 7 })]);
+      const c = f.componentInstance;
+      api.list.mockClear();
+      c.loading.set(true);
+      c.recarregarSilencioso();
+      c.loading.set(false);
+      c.retirando.set(true);
+      c.recarregarSilencioso();
+      expect(api.list).not.toHaveBeenCalled();
+    });
+
+    it('carregar() cancela a recarga silenciosa em andamento', () => {
+      const f = montar([enc({ id: 7 })]);
+      const c = f.componentInstance;
+      const atrasada = new Subject<Encomenda[]>();
+      api.list.mockReturnValueOnce(atrasada).mockReturnValueOnce(of([enc({ id: 8 })]));
+      c.recarregarSilencioso();
+      c.carregar();
+      atrasada.next([enc({ id: 99 })]);
+      expect(c.encomendas().map((e) => e.id)).toEqual([8]);
+    });
+
+    it('tira da seleção a encomenda cuja unidade mudou', () => {
+      const f = montar([enc({ id: 1 }), enc({ id: 2 })]);
+      const c = f.componentInstance;
+      c.selecionadas.set(new Set([1, 2]));
+      api.list.mockReturnValue(of([enc({ id: 1, destinatario_apto: '202', destinatario_bloco: 'B' }), enc({ id: 2 })]));
+      c.recarregarSilencioso();
+      expect([...c.selecionadas()]).toEqual([2]);
+    });
   });
 
   it('M8: abre filtrado por status quando a rota pede', () => {

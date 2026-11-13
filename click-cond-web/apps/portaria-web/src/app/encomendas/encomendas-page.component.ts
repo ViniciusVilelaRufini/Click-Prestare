@@ -93,6 +93,8 @@ export class EncomendasPageComponent implements OnInit {
   readonly salvandoCorrecao = signal(false);
   novaUnidade: Apartamento | null = null;
   private recargaSilenciosa?: Subscription;
+  /** A última recarga automática falhou: a lista na tela pode estar velha. */
+  readonly semConexao = signal(false);
 
   retiranteNome = '';
   retiranteDocumento = '';
@@ -315,13 +317,17 @@ export class EncomendasPageComponent implements OnInit {
   }
 
   carregar() {
+    // Resposta atrasada da recarga automática não sobrescreve a carga nova.
+    this.recargaSilenciosa?.unsubscribe();
     this.error.set(null);
     this.loading.set(true);
     this.api.list().subscribe({
       next: (data) => {
+        const antes = this.encomendas();
         this.encomendas.set(data);
         this.pagina.set(1);
-        this.manterSelecaoValida(data);
+        this.manterSelecaoValida(antes, data);
+        this.semConexao.set(false);
         this.loading.set(false);
       },
       error: (e) => { this.error.set(mensagemErro(e, 'Erro')); this.loading.set(false); },
@@ -330,25 +336,35 @@ export class EncomendasPageComponent implements OnInit {
 
   /** Recarga sem spinner nem banner: mantém página, seleção válida e modais abertos. */
   recarregarSilencioso() {
+    // Carga normal ou retirada em andamento: a recarga automática espera a próxima vez.
+    if (this.loading() || this.retirando()) return;
     this.recargaSilenciosa?.unsubscribe();
     this.recargaSilenciosa = this.api.list().subscribe({
       next: (data) => {
+        const antes = this.encomendas();
         this.encomendas.set(data);
         const total = Math.max(1, Math.ceil(this.encomendasFiltradas().length / this.itensPorPagina));
         if (this.pagina() > total) this.pagina.set(total);
-        this.manterSelecaoValida(data);
+        this.manterSelecaoValida(antes, data);
+        this.semConexao.set(false);
       },
-      // Falha passageira: a lista na tela continua; a próxima recarga tenta de novo.
-      error: () => undefined,
+      // Falha passageira: a lista na tela continua, com um aviso discreto; o
+      // erro de ação (banner) não é tocado.
+      error: () => this.semConexao.set(true),
     });
   }
 
-  /** Tira da seleção o que não está mais aguardando retirada (retirada em outro posto, removida). */
-  private manterSelecaoValida(data: Encomenda[]) {
+  /**
+   * Tira da seleção o que não está mais aguardando retirada (retirada em outro
+   * posto, removida) e o que mudou de unidade (o lote é de um destinatário só).
+   */
+  private manterSelecaoValida(antes: Encomenda[], data: Encomenda[]) {
     const sel = this.selecionadas();
     if (sel.size === 0) return;
-    const aguardando = new Set(data.filter((e) => e.status === 'Aguardando').map((e) => e.id));
-    const valida = new Set([...sel].filter((id) => aguardando.has(id)));
+    const unidade = (e: Encomenda) => `${(e.destinatario_bloco ?? '').trim()}|${e.destinatario_apto.trim()}`;
+    const anterior = new Map(antes.map((e) => [e.id, unidade(e)]));
+    const atual = new Map(data.filter((e) => e.status === 'Aguardando').map((e) => [e.id, unidade(e)]));
+    const valida = new Set([...sel].filter((id) => atual.has(id) && (!anterior.has(id) || anterior.get(id) === atual.get(id))));
     if (valida.size !== sel.size) this.selecionadas.set(valida);
   }
 
