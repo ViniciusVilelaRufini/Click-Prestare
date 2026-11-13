@@ -8,14 +8,22 @@ function casa(valor: any, cond: any): boolean {
   if (cond instanceof Date) return valor instanceof Date && valor.getTime() === cond.getTime();
   if (cond && typeof cond === 'object') {
     if ('in' in cond) return cond.in.includes(valor);
-    if ('lte' in cond) return valor instanceof Date ? valor.getTime() <= cond.lte.getTime() : valor <= cond.lte;
+    // Como no SQL: NULL não é "menor ou igual" a nada (null <= Date dá true no JS).
+    if ('lte' in cond) {
+      if (valor === null || valor === undefined) return false;
+      return valor instanceof Date ? valor.getTime() <= cond.lte.getTime() : valor <= cond.lte;
+    }
     if ('not' in cond) return !casa(valor, cond.not);
   }
   return valor === cond;
 }
 
-function filtra(rows: Row[], where: Row = {}) {
-  return rows.filter((r) => Object.entries(where).every(([k, c]) => casa(r[k], c)));
+function filtra(rows: Row[], where: Row = {}): Row[] {
+  return rows.filter((r) =>
+    Object.entries(where).every(([k, c]) =>
+      k === 'OR' ? (c as Row[]).some((w) => filtra([r], w).length > 0) : casa(r[k], c),
+    ),
+  );
 }
 
 export function tabela(inicial: Row[] = []) {

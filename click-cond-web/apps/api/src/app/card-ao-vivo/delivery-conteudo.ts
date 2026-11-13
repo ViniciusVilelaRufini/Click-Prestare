@@ -114,6 +114,19 @@ export function mensagemDelivery(status: StatusDelivery, motivo?: string | null)
   return mensagens[status] ?? 'Atualização no seu atendimento.';
 }
 
+/** Inverso de `faseDoStatus` (reserva: a notificação de hoje do status em que o card está). */
+export function statusDaFase(fase: string): StatusDelivery {
+  const m: Record<string, StatusDelivery> = {
+    chegou: 'CHEGOU',
+    aguardando: 'AGUARDANDO_AUTORIZACAO',
+    autorizado: 'AUTORIZADA',
+    retirar: 'RETIRADA_NA_PORTARIA',
+    entregue: 'CONCLUIDA',
+    recusado: 'RECUSADA',
+  };
+  return m[fase] ?? 'CHEGOU';
+}
+
 /** Segundos na tela depois do fim; null = card continua aberto. */
 export function dismissalDelivery(fase: FaseCard): number | null {
   if (fase === 'entregue') return 300;

@@ -6,8 +6,20 @@ import { executarComLock } from '../common/lock-distribuido';
 import { ApnsClient, RespostaApns, tokenMorto } from './apns.client';
 import { miniaturaBase64 } from './miniatura';
 import {
+  AtendimentoCard,
+  StatusDelivery,
+  alertaDelivery,
+  conteudoDelivery,
+  dismissalDelivery,
+  faseDoStatus,
+  mensagemDelivery,
+  statusDaFase,
+} from './delivery-conteudo';
+import {
+  AlertaCard,
   BaseCard,
   ConteudoCard,
+  DELIVERY_MAX_SEG,
   FaseCard,
   epochSeg,
   montarConteudo,
@@ -37,7 +49,35 @@ import {
  * HTTP do porteiro/morador nunca depende do card.
  */
 
-export type OrigemPedido = 'visitante' | 'visita';
+export type OrigemPedido = 'visitante' | 'visita' | 'delivery';
+
+/** Notificação comum (de hoje) que substitui o card em quem não o tem. */
+type PushComum = { titulo: string; corpo: string; dados: Record<string, string> };
+
+type Aparelho = {
+  id_user: number;
+  fcm_token: string;
+  plataforma: string | null;
+  card_token_inicio: string | null;
+  card_android: number;
+  card_tema?: string | null;
+  card_versao?: number | null;
+};
+
+/** O que muda entre abrir o card da portaria e o do delivery. */
+interface OpcoesAbertura {
+  origem: OrigemPedido;
+  id: number;
+  idsUsuarios: number[];
+  conteudo: ConteudoCard;
+  pushComum: PushComum;
+  foto: () => Promise<string | null>;
+  /** Delivery: a foto vai no estado (pode chegar depois); portaria: no atributo. */
+  fotoNoEstado: boolean;
+  /** `Users_Devices.card_versao` mínima para desenhar este card. */
+  versaoMinima: number;
+  alerta: AlertaCard;
+}
 
 export interface PedidoCard extends BaseCard {
   origem: OrigemPedido;
@@ -120,34 +160,112 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
   async abrir(p: PedidoCard, idsUsuarios: number[]): Promise<void> {
     await this.encerrar(p.origem, p.id);
     if (!idsUsuarios.length) return;
+    // Unidade e hora vêm do banco (quem chama nem sempre tem o apartamento).
+    const conteudo = montarConteudo((await this.carregarBase(p.origem, p.id)) ?? p, 'aguardando');
+    await this.abrirNucleo({
+      origem: p.origem,
+      id: p.id,
+      idsUsuarios,
+      conteudo,
+      pushComum: this.pushComum(p, conteudo),
+      foto: () => this.fotoDoCard(p),
+      fotoNoEstado: false,
+      versaoMinima: 1,
+      alerta: textoAlerta(conteudo),
+    });
+  }
 
+  /**
+   * Delivery (spec 2026-11-13-card-ao-vivo-delivery): abre o card do
+   * atendimento nos aparelhos do morador que criou o aviso. Só aparelho com
+   * `card_versao >= 2` (o app que sabe desenhar o delivery); os outros
+   * recebem a notificação de hoje.
+   */
+  async abrirDelivery(a: AtendimentoCard, idUser: number): Promise<void> {
+    const fase = faseDoStatus(a.status);
+    if (!fase || fase === 'encerrar' || !idUser) return;
+    await this.encerrar('delivery', a.id);
+    const conteudo = conteudoDelivery(a, fase, { voceRespondeu: false }, epochSeg(new Date(this.agora())));
+    await this.abrirNucleo({
+      origem: 'delivery',
+      id: a.id,
+      idsUsuarios: [idUser],
+      conteudo,
+      pushComum: this.pushComumDelivery(a.id, a.status, a.motivo),
+      foto: () => (a.fotoEntregador ? this.fotoDoCard({ fotoOrigem: a.fotoEntregador }) : Promise.resolve(null)),
+      fotoNoEstado: true,
+      versaoMinima: 2,
+      alerta: alertaDelivery(fase, conteudo) ?? { titulo: 'Delivery', corpo: mensagemDelivery(a.status, a.motivo) },
+    });
+  }
+
+  /**
+   * Delivery mudou de status. Devolve os tokens que tinham card aberto,
+   * confirmado e sem reserva ANTES da mudança (quem chama não manda a
+   * notificação de hoje a eles). Sem card aberto e status não-final: abre.
+   */
+  async atualizarDelivery(
+    a: AtendimentoCard,
+    idUser: number,
+    opts: { voceRespondeu: boolean },
+  ): Promise<{ cobertos: Set<string> }> {
+    const cobertos = new Set<string>();
+    const fase = faseDoStatus(a.status);
+    if (!fase) return { cobertos };
+    const abertas = await this.linhasAbertas('delivery', a.id);
+    for (const l of abertas) if (l.confirmado_em && !l.reserva_enviada_em) cobertos.add(l.fcm_token);
+    if (fase === 'encerrar') {
+      if (abertas.length) await this.encerrarLinhas(abertas);
+      return { cobertos };
+    }
+    if (!abertas.length) {
+      if (dismissalDelivery(fase) === null) await this.abrirDelivery(a, idUser);
+      return { cobertos };
+    }
+    const foto = a.fotoEntregador ? await this.fotoDoCard({ fotoOrigem: a.fotoEntregador }) : null;
+    const seg = epochSeg(new Date(this.agora()));
+    const alerta = alertaDelivery(fase, { nome: a.estabelecimento?.trim() || 'Delivery' });
+    let c = conteudoDelivery(a, fase, { voceRespondeu: opts.voceRespondeu, foto }, seg);
+    // Foto no estado: o push (APNs ou dados do Android) não pode passar de 4 KB.
+    if (c.foto && (!cabeNoPush(payloadAtualizacao(c, seg, alerta)) || !cabeNoPush(this.dadosAndroid(abertas[0], c)))) {
+      c = conteudoDelivery(a, fase, { voceRespondeu: opts.voceRespondeu }, seg);
+    }
+    await this.aplicarConteudo(abertas, () => c, dismissalDelivery(fase), null, alerta);
+    return { cobertos };
+  }
+
+  /** Núcleo de abertura, comum à portaria e ao delivery. */
+  private async abrirNucleo(o: OpcoesAbertura): Promise<void> {
     const [aparelhos, usuarios] = await Promise.all([
       this.prisma.users_Devices.findMany({
-        where: { id_user: { in: idsUsuarios } },
-        select: { id_user: true, fcm_token: true, plataforma: true, card_token_inicio: true, card_android: true, card_tema: true },
+        where: { id_user: { in: o.idsUsuarios } },
+        select: {
+          id_user: true,
+          fcm_token: true,
+          plataforma: true,
+          card_token_inicio: true,
+          card_android: true,
+          card_tema: true,
+          card_versao: true,
+        },
       }),
       this.prisma.users.findMany({
-        where: { id: { in: idsUsuarios } },
+        where: { id: { in: o.idsUsuarios } },
         select: { id: true, fcm_token: true },
       }),
     ]);
-
-    // Unidade e hora vêm do banco (quem chama nem sempre tem o apartamento).
-    const conteudo = montarConteudo((await this.carregarBase(p.origem, p.id)) ?? p, 'aguardando');
-    const pushComum = this.pushComum(p, conteudo);
     const agora = new Date(this.agora());
 
     // Reserva agendada ANTES dos envios: se algum envio demorar, o aviso
     // comum continua garantido.
-    const t = setTimeout(() => void this.verificarReserva(p.origem, p.id).catch(() => undefined), RESERVA_MS);
+    const t = setTimeout(() => void this.verificarReserva(o.origem, o.id).catch(() => undefined), RESERVA_MS);
     t.unref?.();
 
-    // Foto do visitante em miniatura, uma vez para todos os aparelhos.
-    const foto = await this.fotoDoCard(p);
+    // Foto em miniatura, uma vez para todos os aparelhos.
+    const foto = await o.foto();
 
-    type Aparelho = { id_user: number; fcm_token: string; plataforma: string | null; card_token_inicio: string | null; card_android: number; card_tema?: string | null };
     const alvos: Aparelho[] = [];
-    const cobertos = new Set<string>();
+    const vistos = new Set<string>();
     for (const u of usuarios) {
       // Usuário deslogado (Users.fcm_token null) não recebe nada, como hoje.
       if (!u.fcm_token) continue;
@@ -155,51 +273,58 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       // Aparelho que ainda não reabriu o app desde Users_Devices: só o token antigo.
       if (!doUsuario.length) doUsuario.push({ id_user: u.id, fcm_token: u.fcm_token, plataforma: null, card_token_inicio: null, card_android: 0 });
       for (const a of doUsuario) {
-        if (cobertos.has(a.fcm_token)) continue;
-        cobertos.add(a.fcm_token);
+        if (vistos.has(a.fcm_token)) continue;
+        vistos.add(a.fcm_token);
         alvos.push(a);
       }
     }
 
     // Em paralelo: um aparelho lento não atrasa os outros moradores.
-    await Promise.all(alvos.map((a) => this.abrirNoAparelho(p, a, conteudo, pushComum, agora, foto).catch((e) =>
+    await Promise.all(alvos.map((a) => this.abrirNoAparelho(o, a, agora, foto).catch((e) =>
       this.logger.warn(`Card ao vivo (aparelho do usuário ${a.id_user}): ${e?.message ?? e}`),
     )));
   }
 
-  private async abrirNoAparelho(
-    p: PedidoCard,
-    a: { id_user: number; fcm_token: string; plataforma: string | null; card_token_inicio: string | null; card_android: number; card_tema?: string | null },
-    conteudo: ConteudoCard,
-    pushComum: ReturnType<CardAoVivoService['pushComum']>,
-    agora: Date,
-    foto: string | null = null,
-  ) {
+  private async abrirNoAparelho(o: OpcoesAbertura, a: Aparelho, agora: Date, foto: string | null) {
     const plataforma = (a.plataforma ?? '').toLowerCase();
-    if (plataforma === 'ios' && a.card_token_inicio) {
-      const linha = await this.criarLinha(p, a.id_user, 'ios', a.fcm_token, a.card_token_inicio, agora, conteudo);
+    // App que não sabe desenhar este tipo de card (ex.: delivery no 1.2.45).
+    const sabeDesenhar = (a.card_versao ?? 1) >= o.versaoMinima;
+    const push = o.pushComum;
+    if (plataforma === 'ios' && a.card_token_inicio && sabeDesenhar) {
+      const linha = await this.criarLinha(o.origem, o.id, a.id_user, 'ios', a.fcm_token, a.card_token_inicio, agora, o.conteudo);
       // Tema do app no aparelho: o card do iPhone segue Claro/Escuro/Sistema.
       const tema = temaValido(a.card_tema);
-      const atributos = { idCartao: String(linha.id), idPedido: String(p.id), origem: p.origem, ...(tema ? { tema } : {}) };
-      let corpo = payloadInicio(conteudo, foto ? { ...atributos, foto } : atributos, epochSeg(agora));
+      const atributos = { idCartao: String(linha.id), idPedido: String(o.id), origem: o.origem, ...(tema ? { tema } : {}) };
+      const seg = epochSeg(agora);
+      const montar = (comFoto: boolean) =>
+        !comFoto || !foto
+          ? payloadInicio(o.conteudo, atributos, seg, o.alerta)
+          : o.fotoNoEstado
+            ? payloadInicio({ ...o.conteudo, foto }, atributos, seg, o.alerta)
+            : payloadInicio(o.conteudo, { ...atributos, foto }, seg, o.alerta);
+      let corpo = montar(true);
       // Passou do limite do APNs (nome muito longo + foto): sai sem a foto.
-      if (foto && !cabeNoPush(corpo)) corpo = payloadInicio(conteudo, atributos, epochSeg(agora));
+      if (foto && !cabeNoPush(corpo)) corpo = montar(false);
+      // O estado salvo é o que o iPhone recebeu (reenvios não tiram a foto).
+      if (o.fotoNoEstado && corpo.aps['content-state'] !== o.conteudo) {
+        await this.marcar(linha.id, { conteudo_json: JSON.stringify(corpo.aps['content-state']) });
+      }
       const r = await this.apns.enviar(a.card_token_inicio, corpo, 10);
-      if (r.status !== 200) await this.falhouAbrir(linha, r, pushComum);
-    } else if (plataforma === 'android' && a.card_android === 1) {
-      const linha = await this.criarLinha(p, a.id_user, 'android', a.fcm_token, null, agora, conteudo);
-      const r = await this.notifications.enviarDados(a.fcm_token, this.dadosAndroid(linha, conteudo, foto));
+      if (r.status !== 200) await this.falhouAbrir(linha, r, push);
+    } else if (plataforma === 'android' && a.card_android === 1 && sabeDesenhar) {
+      const linha = await this.criarLinha(o.origem, o.id, a.id_user, 'android', a.fcm_token, null, agora, o.conteudo);
+      const r = await this.notifications.enviarDados(a.fcm_token, this.dadosAndroid(linha, o.conteudo, foto));
       if (r !== 'ok') {
         await this.marcar(linha.id, { encerrado_em: agora, reserva_enviada_em: agora });
-        if (r !== 'morto') await this.notifications.enviarParaAparelho(a.fcm_token, pushComum.titulo, pushComum.corpo, pushComum.dados);
+        if (r !== 'morto') await this.notifications.enviarParaAparelho(a.fcm_token, push.titulo, push.corpo, push.dados);
       }
     } else {
       // App antigo (não monta o card) ou iPhone sem token: o push de hoje.
-      await this.notifications.enviarParaAparelho(a.fcm_token, pushComum.titulo, pushComum.corpo, pushComum.dados);
+      await this.notifications.enviarParaAparelho(a.fcm_token, push.titulo, push.corpo, push.dados);
     }
   }
 
-  private async falhouAbrir(linha: Linha, r: RespostaApns, push: ReturnType<CardAoVivoService['pushComum']>) {
+  private async falhouAbrir(linha: Linha, r: RespostaApns, push: PushComum) {
     const agora = new Date(this.agora());
     if (tokenMorto(r)) {
       await this.prisma.users_Devices
@@ -230,13 +355,23 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     // quem mudou a fase relê também (aplicarFase), então um dos dois envia.
     if (token && linha.plataforma === 'ios') {
       const atual = (await this.prisma.cards_Ao_Vivo.findUnique({ where: { id: linha.id } })) as Linha | null;
-      if (atual && (atual.fase !== 'aguardando' || atual.encerrado_em)) {
+      // Mudou desde a abertura: na portaria toda mudança tira de AGUARDANDO;
+      // o delivery abre em fases variadas, então vale a hora da última troca.
+      const mudou =
+        !!atual &&
+        (!!atual.encerrado_em ||
+          new Date(atual.fase_em).getTime() > new Date(atual.created_at).getTime() ||
+          (atual.origem !== 'delivery' && atual.fase !== 'aguardando'));
+      if (atual && mudou) {
         const agora = epochSeg(new Date(this.agora()));
         const c = lerConteudo(atual) ?? montarConteudo(
           { nome: '', isPrestador: false, bloco: null, apto: null, solicitadoEm: atual.created_at },
           (atual.fase as FaseCard) || 'aguardando',
         );
-        const dismissal = atual.fase === 'entrou' ? DISMISSAL_ENTROU_SEG : atual.fase === 'aguardando' ? 0 : DISMISSAL_FINAL_SEG;
+        const dismissal =
+          atual.origem === 'delivery'
+            ? (dismissalDelivery(atual.fase as FaseCard) ?? 0)
+            : atual.fase === 'entrou' ? DISMISSAL_ENTROU_SEG : atual.fase === 'aguardando' ? 0 : DISMISSAL_FINAL_SEG;
         const corpo = atual.encerrado_em ? payloadFim(c, agora, dismissal) : payloadAtualizacao(c, agora);
         await this.apns.enviar(token, corpo, 10);
       }
@@ -254,7 +389,9 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     const linhas = (await this.prisma.cards_Ao_Vivo.findMany({
       where: {
         ...(origem ? { origem, id_pedido: idPedido } : {}),
-        fase: 'aguardando',
+        // Portaria: só o pedido em aberto. Delivery: o card abre em fases
+        // variadas (chegou, aguardando...), todas valem a reserva.
+        OR: [{ fase: 'aguardando' }, { origem: 'delivery' }],
         confirmado_em: null,
         reserva_enviada_em: null,
         encerrado_em: null,
@@ -265,14 +402,23 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
 
     const bases = new Map<string, BaseCard | null>();
     for (const l of linhas) {
+      // Marca antes de enviar: dois tiques simultâneos não duplicam o push.
+      const marcar = () =>
+        this.prisma.cards_Ao_Vivo.updateMany({
+          where: { id: l.id, reserva_enviada_em: null },
+          data: { reserva_enviada_em: new Date(this.agora()) },
+        });
+      if (l.origem === 'delivery') {
+        if (!(await marcar()).count) continue;
+        const c = lerConteudo(l);
+        const push = this.pushComumDelivery(l.id_pedido, statusDaFase(l.fase), c?.motivo ?? null);
+        await this.notifications.enviarParaAparelho(l.fcm_token, push.titulo, push.corpo, push.dados);
+        continue;
+      }
       const chave = `${l.origem}:${l.id_pedido}`;
       if (!bases.has(chave)) bases.set(chave, await this.carregarBase(l.origem as OrigemPedido, l.id_pedido));
       const base = bases.get(chave);
-      // Marca antes de enviar: dois tiques simultâneos não duplicam o push.
-      const r = await this.prisma.cards_Ao_Vivo.updateMany({
-        where: { id: l.id, reserva_enviada_em: null },
-        data: { reserva_enviada_em: new Date(this.agora()) },
-      });
+      const r = await marcar();
       if (!r.count || !base) continue;
       const c = montarConteudo(base, 'aguardando');
       const push = this.pushComum({ id: l.id_pedido }, c);
@@ -325,8 +471,14 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     const agora = this.agora();
     await this.verificarReserva();
 
+    // Só a portaria tem prazo de resposta; o delivery em AGUARDANDO espera o morador.
     const vencidos = (await this.prisma.cards_Ao_Vivo.findMany({
-      where: { encerrado_em: null, fase: 'aguardando', fase_em: { lte: new Date(agora - 180_000) } },
+      where: {
+        encerrado_em: null,
+        origem: { not: 'delivery' },
+        fase: 'aguardando',
+        fase_em: { lte: new Date(agora - 180_000) },
+      },
     })) as Linha[];
     for (const [chave, linhas] of agrupar(vencidos)) {
       const [origem, id] = chave.split(':');
@@ -337,6 +489,12 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       where: { encerrado_em: null, fase: 'liberado', fase_em: { lte: new Date(agora - LIBERADO_ESPERA_SEG * 1000) } },
     })) as Linha[];
     if (semEntrada.length) await this.encerrarLinhas(semEntrada);
+
+    // Delivery esquecido (a portaria não fechou o atendimento): some em 2 h.
+    const deliveryVelho = (await this.prisma.cards_Ao_Vivo.findMany({
+      where: { encerrado_em: null, origem: 'delivery', created_at: { lte: new Date(agora - DELIVERY_MAX_SEG * 1000) } },
+    })) as Linha[];
+    if (deliveryVelho.length) await this.encerrarLinhas(deliveryVelho);
 
     await this.prisma.cards_Ao_Vivo.deleteMany({ where: { encerrado_em: { lte: new Date(agora - 24 * 3600_000) } } });
   }
@@ -364,14 +522,29 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       await this.encerrarLinhas(linhas);
       return;
     }
+    await this.aplicarConteudo(linhas, (l) => montarConteudo(base, fase, extras(l)), dismissalSeg, permitidas);
+  }
+
+  /**
+   * Núcleo de `aplicarFase`, comum à portaria e ao delivery: grava e envia o
+   * conteúdo pronto. `permitidas` null = qualquer fase (delivery); `alerta`
+   * faz o update tocar (pedido que exige o morador).
+   */
+  private async aplicarConteudo(
+    linhas: Linha[],
+    conteudoDe: (l: Linha) => ConteudoCard,
+    dismissalSeg: number | null,
+    permitidas: string[] | null,
+    alerta: AlertaCard | null = null,
+  ) {
     const agora = new Date(this.agora());
     const seg = epochSeg(agora);
     for (const l of linhas) {
-      const c = montarConteudo(base, fase, extras(l));
+      const c = conteudoDe(l);
       const r = await this.prisma.cards_Ao_Vivo.updateMany({
-        where: { id: l.id, encerrado_em: null, fase: { in: permitidas } },
+        where: { id: l.id, encerrado_em: null, ...(permitidas ? { fase: { in: permitidas } } : {}) },
         data: {
-          fase,
+          fase: c.fase,
           fase_em: agora,
           conteudo_json: JSON.stringify(c),
           ...(dismissalSeg !== null ? { encerrado_em: agora } : {}),
@@ -381,7 +554,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       if (l.plataforma === 'ios') {
         const token = (await this.tokenAtual(l.id)) ?? l.token_atualizacao;
         if (token) {
-          const corpo = dismissalSeg === null ? payloadAtualizacao(c, seg) : payloadFim(c, seg, dismissalSeg);
+          const corpo = dismissalSeg === null ? payloadAtualizacao(c, seg, alerta) : payloadFim(c, seg, dismissalSeg);
           await this.apns.enviar(token, corpo, 10);
         }
       } else {
@@ -433,7 +606,8 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async criarLinha(
-    p: PedidoCard,
+    origem: OrigemPedido,
+    idPedido: number,
     idUser: number,
     plataforma: 'ios' | 'android',
     fcm: string,
@@ -443,13 +617,13 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
   ): Promise<Linha> {
     return (await this.prisma.cards_Ao_Vivo.create({
       data: {
-        origem: p.origem,
-        id_pedido: p.id,
+        origem,
+        id_pedido: idPedido,
         id_user: idUser,
         plataforma,
         fcm_token: fcm,
         token_inicio: tokenInicio,
-        fase: 'aguardando',
+        fase: conteudo.fase,
         fase_em: agora,
         conteudo_json: JSON.stringify(conteudo),
         created_at: agora,
@@ -477,6 +651,15 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     // Só na abertura: o app guarda a foto do card e a reusa nas fases seguintes.
     if (foto && cabeNoPush({ ...dados, foto })) dados['foto'] = foto;
     return dados;
+  }
+
+  /** A notificação de hoje do delivery (mesmo título, texto e dados de DeliveryService.notificarMorador). */
+  private pushComumDelivery(idAtendimento: number, status: StatusDelivery, motivo?: string | null): PushComum {
+    return {
+      titulo: 'Delivery',
+      corpo: mensagemDelivery(status, motivo),
+      dados: { id_delivery: String(idAtendimento), status },
+    };
   }
 
   /**
