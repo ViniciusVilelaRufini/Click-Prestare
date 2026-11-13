@@ -117,21 +117,24 @@ describe('saveFuncionario — conta existente com o mesmo e-mail', () => {
     expect(prisma.funcionarios_Portaria.create).toHaveBeenCalled();
   });
 
-  it('sincronização não move para este condomínio o vínculo de equipe que a pessoa tem em outro', async () => {
+  // Lote 3: a conta (equipe de OUTRO condomínio, sem vínculo de equipe aqui) também não é mais ligada a este
+  // em silêncio — a edição passa pela mesma prova de posse do cadastro e é recusada.
+  it('sincronização não move para este condomínio o vínculo de equipe que a pessoa tem em outro (nem cria um aqui)', async () => {
     const prisma = prismaFalso({
       usuarioPorLogin: { 'p@t': { id: 30, login: 'p@t', email: 'p@t', password: '$2b$04$hash' } },
       sindicos: [{ id_user: 20, id_condominio: 2 }],
+      funcionarios: [{ id_user: 30, id_condominio: 1 }],
       funcionariosRows: [{ id: 77, id_user: 30, id_condominio: 1 }],
       portaria: { id: 50, login: 'p@t', email: 'p@t', password: '$2b$04$hash', nome: 'P', telefone: null, turno: null, id_condominio: 2 },
     });
     const { svc } = servico(prisma);
 
-    await svc.saveFuncionario({ id_condominio: 2, funcionario: { id: 50, nome: 'Novo Nome' } }, true, atacante);
+    await expect(
+      svc.saveFuncionario({ id_condominio: 2, funcionario: { id: 50, nome: 'Novo Nome' } }, true, atacante),
+    ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(prisma.funcionarios.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: 77 } }));
-    expect(prisma.funcionarios.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ id_user: 30, id_condominio: 2 }),
-    });
+    expect(prisma.funcionarios.create).not.toHaveBeenCalled();
   });
 });
 

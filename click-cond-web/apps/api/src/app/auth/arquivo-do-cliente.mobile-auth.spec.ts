@@ -173,7 +173,11 @@ describe('mobile-auth — campos de arquivo recebidos do cliente', () => {
           ),
           update: jest.fn(async () => ({})),
         },
-        funcionarios: { findFirst: jest.fn(async () => ({ id: 4 })), update: jest.fn(async () => ({})) },
+        funcionarios: { findFirst: jest.fn(async () => ({ id: 4 })), update: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
+        // Conta só deste condomínio (sem vínculo em outro): a sincronização regrava a foto dela.
+        sindicos_Condominios: { count: jest.fn(async () => 0) },
+        moradores: { count: jest.fn(async () => 0) },
+        apartamentos_Users: { count: jest.fn(async () => 0) },
       };
       return { service: servico(prisma, storageReal()), prisma };
     }

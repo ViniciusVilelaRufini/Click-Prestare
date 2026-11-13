@@ -3743,10 +3743,20 @@ export class MobileAuthService {
       return func.photo;
     };
 
+    const idSolicitante = idUsuarioDoToken(user);
+
     // Função auxiliar para sincronizar com as tabelas de Users e Funcionarios do app mobile
     const sincronizarUsuarioMobile = async (fp: any, senhaPlana?: string, uploadedPhotoUrl?: string | null) => {
       try {
         let user = await this.prisma.users.findFirst({ where: { login: fp.login } });
+        // Por condomínio: sem o recorte, o vínculo de equipe que a pessoa tem em
+        // OUTRO prédio era achado aqui e "movido" para este pelo update abaixo.
+        const f = user
+          ? await this.prisma.funcionarios.findFirst({ where: { id_user: user.id, id_condominio: fp.id_condominio } })
+          : null;
+        // Conta achada só pelo texto do login e ainda não é da equipe daqui: mesma prova de posse do cadastro
+        // (os chamadores já conferiram antes de gravar; aqui é a rede de segurança, e o erro não é engolido).
+        if (user && !f) await this.assertContaLivreParaPortaria(user.id, fp.id_condominio, idSolicitante);
         // Se veio senha em texto, grava em bcrypt. Sem senha nova, reaproveita
         // o hash ja armazenado (que pode ser legado — o login migra no acesso).
         const senhaHash = senhaPlana ? await bcrypt.hash(senhaPlana, 10) : fp.password;
@@ -3771,23 +3781,23 @@ export class MobileAuthService {
           // (ex.: síndico ou morador com o mesmo e-mail). A senha do porteiro é
           // gerenciada pela tabela Funcionarios_Portaria; aqui só garantimos que o
           // vínculo mobile (is_funcionario + Funcionarios) existe.
-          const patch: any = {
-            name: fp.nome,
-            phone: fp.telefone,
-            email: fp.email || fp.login,
-            is_funcionario: 1,
-            ...(uploadedPhotoUrl !== undefined && { photo: uploadedPhotoUrl, profile_image: uploadedPhotoUrl }),
-          };
+          // Users é global: conta com vínculo em OUTRO condomínio não recebe nome/telefone/e-mail/foto/senha
+          // deste cadastro (mesma regra da edição de morador); o vínculo de equipe daqui segue atualizado.
+          const deOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, user.id, fp.id_condominio);
+          const patch: any = deOutroCondominio
+            ? { is_funcionario: 1 }
+            : {
+                name: fp.nome,
+                phone: fp.telefone,
+                email: fp.email || fp.login,
+                is_funcionario: 1,
+                ...(uploadedPhotoUrl !== undefined && { photo: uploadedPhotoUrl, profile_image: uploadedPhotoUrl }),
+              };
           // Só atualiza a senha se o usuário ainda não tem uma definida
-          if (!user.password) patch.password = senhaHash;
+          if (!user.password && !deOutroCondominio) patch.password = senhaHash;
           await this.prisma.users.update({ where: { id: user.id }, data: patch });
         }
 
-        // Por condomínio: sem o recorte, o vínculo de equipe que a pessoa tem em
-        // OUTRO prédio era achado aqui e "movido" para este pelo update abaixo.
-        const f = await this.prisma.funcionarios.findFirst({
-          where: { id_user: user.id, id_condominio: fp.id_condominio },
-        });
         if (!f) {
           await this.prisma.funcionarios.create({
             data: {
@@ -3821,6 +3831,8 @@ export class MobileAuthService {
           });
         }
       } catch (err) {
+        // A recusa de posse não é falha de sincronização: chega ao síndico.
+        if (err instanceof HttpException) throw err;
         console.error('Falha ao sincronizar funcionário com tabelas mobile:', err);
       }
     };
@@ -3861,6 +3873,8 @@ export class MobileAuthService {
         await this.assertLoginLivreParaPortaria(emailEdit, atual.id_condominio, idUsuarioDoToken(user));
         data.login = emailEdit;
       }
+      // Antes de gravar: a sincronização abaixo vincularia ao condomínio a conta com este login.
+      await this.assertPosseDaContaDoLoginDePortaria(data.login ?? atual.login, atual.id_condominio, idSolicitante);
 
       const updated = await this.prisma.funcionarios_Portaria.update({ where: { id }, data });
       // Mesmo teste do cadastro: só espaços é "sem senha" (antes era truthy e virava a senha da conta do app).
@@ -3916,6 +3930,24 @@ export class MobileAuthService {
   }
 
   /**
+   * A sincronização do porteiro com o app (sincronizarUsuarioMobile) acha a conta só por `Users.login` e lhe
+   * dá vínculo de equipe com todas as flags. Conta que ainda não é da equipe deste condomínio passa pela mesma
+   * verificação de posse/colisão do cadastro (assertLoginLivreParaPortaria): um login de portaria cujo texto
+   * coincide com o login de OUTRA pessoa não liga a conta dela em silêncio.
+   */
+  private async assertPosseDaContaDoLoginDePortaria(login: string, idCondominio: number, idSolicitante?: number | null) {
+    if (!login) return;
+    const conta = await this.prisma.users.findFirst({ where: { login }, select: { id: true } });
+    if (!conta) return;
+    const equipeAqui = await this.prisma.funcionarios.findFirst({
+      where: { id_user: conta.id, id_condominio: idCondominio },
+      select: { id: true },
+    });
+    if (equipeAqui) return;
+    await this.assertContaLivreParaPortaria(conta.id, idCondominio, idSolicitante);
+  }
+
+  /**
    * O login do porteiro (Funcionarios_Portaria) é único só na própria tabela. Sem esta checagem,
    * um síndico (inclusive de signup anônimo) cadastrava um porteiro com o e-mail de OUTRA pessoa
    * (síndico/morador de outro condomínio) e, pelo loginFuncionario/selecionarCondominio, herdava a conta dela.
@@ -3931,13 +3963,18 @@ export class MobileAuthService {
       select: { id: true },
     });
     if (!u) return;
-    if (idSolicitante && u.id === idSolicitante) return;
-    if (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, u.id, idCondominio)) {
+    await this.assertContaLivreParaPortaria(u.id, idCondominio, idSolicitante);
+  }
+
+  /** Regra de posse de assertLoginLivreParaPortaria, para uma conta já identificada. */
+  private async assertContaLivreParaPortaria(idConta: number, idCondominio: number, idSolicitante?: number | null) {
+    if (idSolicitante && idConta === idSolicitante) return;
+    if (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, idConta, idCondominio)) {
       throw new BadRequestException('Já existe uma conta com este e-mail. Use outro e-mail para o porteiro.');
     }
     // Conta existente sem vínculo nenhum (síndico que se cadastrou e ainda não registrou prédio, morador
     // que saiu de todas as unidades): nada prova que quem cadastra o porteiro é o dono dela.
-    if (!(await usuarioTemVinculoNoCondominio(this.prisma as any, u.id, idCondominio))) {
+    if (!(await usuarioTemVinculoNoCondominio(this.prisma as any, idConta, idCondominio))) {
       throw new BadRequestException('Já existe uma conta com este e-mail. Use outro e-mail para o porteiro.');
     }
   }
