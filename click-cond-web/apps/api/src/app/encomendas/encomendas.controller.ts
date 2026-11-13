@@ -94,6 +94,25 @@ export class EncomendasController {
     return this.service.receber(id, user);
   }
 
+  // Porteiro corrige a unidade de uma encomenda que ainda aguarda retirada
+  // (apartamento errado no recebimento); a nova unidade é avisada.
+  @SkipAudit()
+  @Patch(':id')
+  corrigirUnidade(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { destinatario_apto?: string; destinatario_bloco?: string | null },
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'corrigir a unidade da encomenda');
+    return this.service.corrigirUnidade(
+      idCondominio,
+      id,
+      { destinatario_apto: body?.destinatario_apto, destinatario_bloco: body?.destinatario_bloco },
+      user,
+    );
+  }
+
   @SkipAudit()
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
