@@ -3413,6 +3413,9 @@ export class MobileAuthService {
     if (tipo === 'Funcionario') {
       return this.getMeuCadastroFuncionario(requester);
     }
+    // Mesma regra do getAllFuncionarios: e-mail (ou o login do console), telefone e foto da equipe são
+    // das telas de staff. Sem isto o morador lia um a um pelo id sequencial.
+    assertOperador(requester, 'ver os dados de um funcionário do condomínio');
 
     const f = await this.prisma.funcionarios_Portaria.findUnique({ where: { id: Number(id) } });
     if (!f) throw new NotFoundException('Funcionário não encontrado.');
