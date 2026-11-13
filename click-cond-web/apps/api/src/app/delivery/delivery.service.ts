@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { isOperador } from '../auth/tenant.util';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import {
@@ -222,7 +223,7 @@ export class DeliveryService {
     if (['RECUSADA', 'CANCELADA'].includes(statusNovo) && !dto.motivo?.trim()) {
       throw new BadRequestException(`${statusNovo} exige motivo.`);
     }
-    if (statusNovo === 'CANCELADA' && atendimento.id_morador_user !== this.idUsuario(user) && !isOperador(user)) {
+    if (statusNovo === 'CANCELADA' && !isOperador(user) && atendimento.id_morador_user !== this.idUsuario(user)) {
       throw new ForbiddenException('Somente o morador solicitante pode cancelar este aviso.');
     }
     // O morador que abriu o aviso responde ao pedido de autorização da
@@ -415,7 +416,7 @@ export class DeliveryService {
   }
 
   private async registrarEvento(db: any, idAtendimento: number, anterior: DeliveryStatus | null, novo: DeliveryStatus, user: JwtPayload, mensagem?: string) {
-    return db.deliveryEventos.create({ data: { id_atendimento: idAtendimento, status_anterior: anterior, status_novo: novo, id_usuario_autor: this.idUsuario(user), autor_nome: user.nome ?? user.user?.name ?? null, mensagem: mensagem?.trim() || null } });
+    return db.deliveryEventos.create({ data: { id_atendimento: idAtendimento, status_anterior: anterior, status_novo: novo, id_usuario_autor: idUsuarioDoToken(user), autor_nome: user.nome ?? user.user?.name ?? null, mensagem: mensagem?.trim() || null } });
   }
 
   private async notificarMorador(idApartamento: number, idMorador: number, status: DeliveryStatus, idAtendimento: number, motivo?: string) {
@@ -451,7 +452,7 @@ export class DeliveryService {
     } = atendimento;
     return seguro;
   }
-  private idUsuario(user: JwtPayload) { const id = Number(user?.user?.id ?? user?.sub); if (!id) throw new ForbiddenException('Sessão sem usuário válido.'); return id; }
+  private idUsuario(user: JwtPayload) { const id = idUsuarioDoToken(user); if (!id) throw new ForbiddenException('Sessão sem usuário válido.'); return id; }
   private assertOperador(user: JwtPayload, contexto: string) { if (!isOperador(user)) throw new ForbiddenException(`Acesso negado: ${contexto} exige operador.`); }
   private assertGestorEntregadores(user: JwtPayload) {
     const papel = String(user?.typeAccess ?? user?.user?.typeAccess ?? user?.role ?? '')

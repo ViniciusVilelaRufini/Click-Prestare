@@ -700,4 +700,25 @@ describe('DeliveryService', () => {
       await expect(service.resumo(1, undefined, undefined, morador)).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
+
+  describe('token do porteiro do console não age como Users.id', () => {
+    const porteiroConsole = { sub: 10, nome: 'Portaria', id_condominio: 1, turno: 'Manha', tipo_sub: 'funcionario_portaria' } as any;
+
+    it('porteiro cujo sub coincide com o morador não abre aviso em nome dele', async () => {
+      const { service, atendimentos } = montar();
+      await expect(service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, porteiroConsole))
+        .rejects.toBeInstanceOf(ForbiddenException);
+      expect(atendimentos).toHaveLength(0);
+    });
+
+    it('evento registrado pela portaria fica sem id_usuario_autor; o do síndico guarda o Users.id', async () => {
+      const { service, eventos } = montar();
+      const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+      await service.atualizarStatus(aviso.id, { status: 'CHEGOU', id_entregador: 7 }, porteiro);
+      await service.atualizarStatus(aviso.id, { status: 'AUTORIZADA' }, sindico);
+      expect(eventos[0].id_usuario_autor).toBe(10);
+      expect(eventos[1].id_usuario_autor).toBeNull();
+      expect(eventos[2].id_usuario_autor).toBe(30);
+    });
+  });
 });
