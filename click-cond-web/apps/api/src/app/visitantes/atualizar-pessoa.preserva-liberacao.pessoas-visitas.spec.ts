@@ -16,11 +16,11 @@ describe('atualizarPessoa (Pessoas/Visitas) — editar não revoga liberação',
     else process.env['PESSOAS_MIGRATION_ENABLED'] = original;
   });
 
-  function montar(pessoaBloqueada: 0 | 1) {
+  function montar(pessoaBloqueada: 0 | 1, tipo: 'visitante' | 'prestador' = 'visitante') {
     const prisma: any = {
       isConnected: true,
       pessoas: {
-        findUnique: jest.fn(async () => ({ id: 20, id_condominio: 1, nome: 'Antigo', bloqueado: pessoaBloqueada })),
+        findUnique: jest.fn(async () => ({ id: 20, id_condominio: 1, nome: 'Antigo', bloqueado: pessoaBloqueada, tipo_pessoa: tipo })),
         update: jest.fn(async () => ({})),
       },
       visitas: { updateMany: jest.fn(async () => ({ count: 1 })) },
@@ -29,8 +29,8 @@ describe('atualizarPessoa (Pessoas/Visitas) — editar não revoga liberação',
       prisma, {} as any, { isDataUrl: () => false } as any, {} as any, { registrar: jest.fn() } as any, {} as any,
       { emitToCondominio: jest.fn() } as any,
     );
-    jest.spyOn(svc as any, 'fireFacialSyncPessoa').mockImplementation(() => undefined);
-    return { svc, prisma };
+    const sync = jest.spyOn(svc as any, 'fireFacialSyncPessoa').mockImplementation(() => undefined);
+    return { svc, prisma, sync };
   }
 
   it('bloqueado igual ao atual (0 → 0): não mexe em liberado', async () => {
@@ -46,6 +46,23 @@ describe('atualizarPessoa (Pessoas/Visitas) — editar não revoga liberação',
     await svc.atualizarPessoa(1, 20, { bloqueado: 0 } as any);
     const datas = prisma.visitas.updateMany.mock.calls.map(([arg]: any) => arg.data.liberado);
     expect(datas.sort()).toEqual([0, 1]);
+  });
+
+  // Prestador tem acesso contínuo; visitante não. Rebaixar o tipo corta o
+  // acesso (era o que acontecia antes, por tabela, via `bloqueado: 0`).
+  it('prestador → visitante corta a liberação e sincroniza o facial', async () => {
+    const { svc, prisma, sync } = montar(0, 'prestador');
+    await svc.atualizarPessoa(1, 20, { is_prestador: 0, is_visitante: 1 } as any);
+    const data = prisma.visitas.updateMany.mock.calls[0][0].data;
+    expect(data.is_prestador).toBe(0);
+    expect(data.liberado).toBe(0);
+    expect(sync).toHaveBeenCalledWith(20);
+  });
+
+  it('visitante → prestador não mexe em liberado', async () => {
+    const { svc, prisma } = montar(0, 'visitante');
+    await svc.atualizarPessoa(1, 20, { is_prestador: 1, is_visitante: 0 } as any);
+    expect(prisma.visitas.updateMany.mock.calls[0][0].data).not.toHaveProperty('liberado');
   });
 
   it('bloquear continua revogando liberado e PIN', async () => {

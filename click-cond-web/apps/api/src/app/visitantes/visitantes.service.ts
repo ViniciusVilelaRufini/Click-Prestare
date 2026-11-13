@@ -3191,6 +3191,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         desbloqueioPorRegistro = true;
       }
     }
+    // Prestador → visitante: o acesso contínuo do prestador acaba — visitante
+    // só entra com uma nova liberação/pedido (e o facial sincroniza abaixo).
+    if (
+      Number(dto.is_prestador) === 0 &&
+      dto.is_prestador !== undefined &&
+      pessoa.tipo_pessoa === 'prestador' &&
+      visitaData.liberado === undefined &&
+      !desbloqueioPorRegistro
+    ) {
+      visitaData.liberado = 0;
+    }
 
     if (Object.keys(pessoaData).length > 0) {
       await this.prisma.pessoas.update({ where: { id: pessoa.id }, data: pessoaData });
