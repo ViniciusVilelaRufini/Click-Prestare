@@ -27,6 +27,7 @@ function montar(opts: { emailExiste?: boolean; upload?: string | null } = {}) {
         return { id: 77, photo: args.data.photo };
       }),
     },
+    funcionarios_Portaria: { findFirst: jest.fn(async () => null) },
     sindicos: {
       create: jest.fn(async () => {
         ordem.push('sindicos.create');

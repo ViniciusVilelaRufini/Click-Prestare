@@ -46,6 +46,7 @@ describe('signupSindico — mensagem genérica', () => {
           return null;
         }),
       },
+      funcionarios_Portaria: { findFirst: jest.fn(async () => null) },
     };
     return new MobileAuthService(prisma, { sign: jest.fn() } as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
   }

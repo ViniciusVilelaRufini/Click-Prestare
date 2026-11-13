@@ -338,6 +338,9 @@ export class MobileAuthService {
     if (existing) {
       throw new BadRequestException(MSG_SIGNUP_GENERICA);
     }
+    // Login de portaria com o mesmo texto: o loginFuncionario trataria a conta nova como a do porteiro.
+    // Mesma mensagem do e-mail indisponível (não revela que é login de portaria).
+    await this.assertEmailLivreNaPortaria(emailNormalized, MSG_SIGNUP_GENERICA);
 
     const pwdRaw = body.password ?? body.senha ?? '';
     if (!pwdRaw) {
