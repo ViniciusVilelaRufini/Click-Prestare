@@ -28,7 +28,16 @@
         }
       </div>
 
-      @if (acoes()?.primaria || acoes()?.secundarias?.length || acoes()?.recusar) {
+      @if (encerrado()) {
+        <div class="border border-slate-200 p-3 text-sm">
+          <span class="block text-xs text-slate-500">Desfecho</span>
+          <p class="font-medium text-white">{{ desfecho(a) }}</p>
+          @if (a.motivo) { <p class="mt-1 text-slate-300">Motivo: {{ a.motivo }}</p> }
+          @if (store.selecionadoSaiu()) { <p class="mt-1 text-xs text-slate-500">Este atendimento saiu da fila.</p> }
+        </div>
+      }
+
+      @if (acoes()?.primaria || acoes()?.secundarias?.length || acoes()?.recusar || acoes()?.cancelar) {
         <label class="block">
           <span class="ps-label mb-1.5 block">Identificar entregador</span>
           <select class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white focus:outline-none focus:border-[var(--ink)]"
@@ -41,7 +50,7 @@
         </label>
         <button type="button" class="text-xs font-medium text-slate-300 hover:underline" (click)="store.iniciarCadastroNoAtendimento()">+ Cadastrar novo entregador</button>
 
-        @if (!confirmandoRecusa()) {
+        @if (!confirmandoMotivo()) {
           <div class="space-y-2">
             @if (acoes()?.primaria; as primaria) {
               <button type="button" (click)="executar(primaria)" [disabled]="desabilitada(primaria)"
@@ -62,17 +71,22 @@
               <button type="button" (click)="abrirRecusa()"
                 class="ps-btn ps-btn-danger w-full">Recusar entrega</button>
             }
+            @if (acoes()?.cancelar) {
+              <button type="button" (click)="abrirCancelamento()"
+                class="ps-btn ps-btn-danger w-full">Cancelar aviso</button>
+            }
           </div>
         } @else {
           <div class="space-y-2 border border-slate-300 p-3">
             <label class="block">
-              <span class="ps-label mb-1.5 block !text-red-700 dark:!text-red-300">Motivo da recusa *</span>
+              <span class="ps-label mb-1.5 block !text-red-700 dark:!text-red-300">{{ confirmandoMotivo() === 'CANCELADA' ? 'Motivo do cancelamento *' : 'Motivo da recusa *' }}</span>
               <input name="motivoRecusa" class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white focus:outline-none focus:border-[var(--ink)]"
-                [ngModel]="store.motivo()" (ngModelChange)="store.motivo.set($event)" placeholder="Ex.: pedido não reconhecido pelo morador">
+                [ngModel]="store.motivo()" (ngModelChange)="store.motivo.set($event)"
+                [placeholder]="confirmandoMotivo() === 'CANCELADA' ? 'Ex.: entregador não apareceu' : 'Ex.: pedido não reconhecido pelo morador'">
             </label>
             <div class="flex gap-2">
               <button type="button" (click)="fecharRecusa()" class="ps-btn ps-btn-sec flex-1">Voltar</button>
-              <button type="button" (click)="confirmarRecusa()" [disabled]="store.carregando()" class="ps-btn ps-btn-danger flex-1 disabled:opacity-40">Confirmar recusa</button>
+              <button type="button" (click)="confirmarMotivo()" [disabled]="store.carregando()" class="ps-btn ps-btn-danger flex-1 disabled:opacity-40">{{ confirmandoMotivo() === 'CANCELADA' ? 'Confirmar cancelamento' : 'Confirmar recusa' }}</button>
             </div>
           </div>
         }

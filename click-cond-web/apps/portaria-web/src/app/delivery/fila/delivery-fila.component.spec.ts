@@ -134,6 +134,42 @@ describe('DeliveryFilaComponent', () => {
     expect(botaoCom(fixture.nativeElement, 'Confirmar recusa').classList.contains('ps-btn-danger')).toBe(true);
   });
 
+  it('A2: recusado pelo morador aparece com selo e motivo, sem botões de ação', () => {
+    const fixture = montar();
+    const recusado = { ...ATENDIMENTOS[0], status: 'RECUSADA' as const, motivo: 'Não pedi nada' };
+    store.ativos.set([recusado, ATENDIMENTOS[1]]);
+    store.selecionar(recusado);
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    const painel = el.querySelector('aside') as HTMLElement;
+    expect(el.textContent).toContain('Recusada');
+    expect(painel.textContent).toContain('Não pedi nada');
+    expect(botaoCom(painel, 'Recusar entrega')).toBeUndefined();
+    expect(botaoCom(painel, 'Autorizar subida')).toBeUndefined();
+  });
+
+  it('A1: cancelar aviso agendado abre o motivo antes de enviar', () => {
+    const fixture = montar();
+    const api = TestBed.inject(DeliveryApi) as unknown as DeliveryApiStub;
+    store.selecionar(ATENDIMENTOS[1]);
+    fixture.detectChanges();
+    botaoCom(fixture.nativeElement, 'Cancelar aviso').click();
+    fixture.detectChanges();
+    expect(api.atualizarStatus).not.toHaveBeenCalled();
+    store.motivo.set('Entregador não apareceu');
+    botaoCom(fixture.nativeElement, 'Confirmar cancelamento').click();
+    expect(api.atualizarStatus).toHaveBeenCalledWith(2, 'CANCELADA', expect.objectContaining({ motivo: 'Entregador não apareceu' }));
+  });
+
+  it('M4: entrega na portaria oferece "Deixar na portaria" como botão principal habilitado', () => {
+    const fixture = montar();
+    store.selecionar({ ...ATENDIMENTOS[1], status: 'CHEGOU' });
+    fixture.detectChanges();
+    const principal = botaoCom(fixture.nativeElement.querySelector('aside'), 'Deixar na portaria');
+    expect(principal.classList.contains('ps-btn-sec')).toBe(false);
+    expect(principal.disabled).toBe(false);
+  });
+
   it('não mostra "Nenhuma entrega na fila" enquanto a primeira carga está em andamento', () => {
     const fixture = montar();
     store.ativos.set([]);

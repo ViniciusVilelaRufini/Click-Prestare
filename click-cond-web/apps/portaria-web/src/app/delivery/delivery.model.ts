@@ -54,6 +54,8 @@ export interface DeliveryAtendimento {
   chegou_em?: string | null;
   autorizado_em?: string | null;
   concluido_em?: string | null;
+  cancelado_em?: string | null;
+  recusado_em?: string | null;
   updated_at?: string | null;
 }
 

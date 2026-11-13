@@ -1,10 +1,12 @@
 import { DeliveryStatus } from '../delivery.model';
 
-export const STATUS_CARDS: readonly DeliveryStatus[] = ['AGENDADA', 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA'];
-export const STATUS_FILTRO: readonly DeliveryStatus[] = [...STATUS_CARDS, 'RETIRADA_NA_PORTARIA'];
+export const STATUS_CARDS: readonly DeliveryStatus[] = ['AGENDADA', 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'RETIRADA_NA_PORTARIA'];
+export const STATUS_FILTRO: readonly DeliveryStatus[] = STATUS_CARDS;
+export const STATUS_TERMINAIS: readonly DeliveryStatus[] = ['CONCLUIDA', 'CANCELADA', 'RECUSADA'];
+export const ehTerminal = (s: DeliveryStatus): boolean => STATUS_TERMINAIS.includes(s);
 
 export const PROXIMOS_STATUS: Record<DeliveryStatus, readonly DeliveryStatus[]> = {
-  AGENDADA: ['CHEGOU'],
+  AGENDADA: ['CHEGOU', 'CANCELADA'],
   CHEGOU: ['AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'RETIRADA_NA_PORTARIA', 'RECUSADA'],
   AGUARDANDO_AUTORIZACAO: ['AUTORIZADA', 'RETIRADA_NA_PORTARIA', 'RECUSADA'],
   AUTORIZADA: ['CONCLUIDA'],
@@ -21,9 +23,9 @@ const INFO: Record<DeliveryStatus, { rotulo: string; tom: TomStatus; verbo: stri
   CHEGOU: { rotulo: 'Chegou', tom: 'amber', verbo: 'Registrar chegada' },
   AGUARDANDO_AUTORIZACAO: { rotulo: 'Aguardando autorização', tom: 'sky', verbo: 'Pedir autorização ao morador' },
   AUTORIZADA: { rotulo: 'Autorizada', tom: 'emerald', verbo: 'Autorizar subida' },
-  RETIRADA_NA_PORTARIA: { rotulo: 'Retirada na portaria', tom: 'violet', verbo: 'Deixar na portaria' },
+  RETIRADA_NA_PORTARIA: { rotulo: 'Na portaria – aguardando retirada', tom: 'violet', verbo: 'Deixar na portaria' },
   CONCLUIDA: { rotulo: 'Concluída', tom: 'emerald', verbo: 'Concluir' },
-  CANCELADA: { rotulo: 'Cancelada', tom: 'slate', verbo: 'Cancelar' },
+  CANCELADA: { rotulo: 'Cancelada', tom: 'slate', verbo: 'Cancelar aviso' },
   RECUSADA: { rotulo: 'Recusada', tom: 'red', verbo: 'Recusar' },
 };
 
@@ -42,13 +44,21 @@ export const tomStatus = (s: DeliveryStatus): TomStatus => INFO[s]?.tom ?? 'slat
 export const verboAcao = (s: DeliveryStatus): string => INFO[s]?.verbo ?? rotuloStatus(s);
 export const classesStatus = (s: DeliveryStatus) => CLASSES_TOM[tomStatus(s)];
 
-export function organizarAcoes(proximos: readonly DeliveryStatus[]): {
+/**
+ * Recusar e cancelar pedem motivo e ficam fora dos botões comuns. Entrega na
+ * portaria (o morador desce para buscar): a ação principal é deixar na
+ * portaria, que não depende de identificar o entregador.
+ */
+export function organizarAcoes(proximos: readonly DeliveryStatus[], modo?: 'UNIDADE' | 'PORTARIA'): {
   primaria: DeliveryStatus | null;
   secundarias: DeliveryStatus[];
   recusar: boolean;
+  cancelar: boolean;
 } {
   const recusar = proximos.includes('RECUSADA');
-  const restantes = proximos.filter((s) => s !== 'RECUSADA');
-  const primaria: DeliveryStatus | null = restantes.includes('AUTORIZADA') ? 'AUTORIZADA' : restantes[0] ?? null;
-  return { primaria, secundarias: restantes.filter((s) => s !== primaria), recusar };
+  const cancelar = proximos.includes('CANCELADA');
+  const restantes = proximos.filter((s) => s !== 'RECUSADA' && s !== 'CANCELADA');
+  const preferida: DeliveryStatus = modo === 'PORTARIA' ? 'RETIRADA_NA_PORTARIA' : 'AUTORIZADA';
+  const primaria: DeliveryStatus | null = restantes.includes(preferida) ? preferida : restantes[0] ?? null;
+  return { primaria, secundarias: restantes.filter((s) => s !== primaria), recusar, cancelar };
 }

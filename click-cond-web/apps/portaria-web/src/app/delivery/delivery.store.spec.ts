@@ -143,6 +143,65 @@ describe('DeliveryStore', () => {
     expect(store.carregando()).toBe(false);
   });
 
+  describe('ciclos do porteiro', () => {
+    it('A1: cancelar aviso agendado exige motivo', () => {
+      store.selecionar(ATENDIMENTOS[1]);
+      store.atualizarStatus('CANCELADA');
+      expect(api.atualizarStatus).not.toHaveBeenCalled();
+      expect(store.erro()).toBe('Informe o motivo do cancelamento.');
+      store.motivo.set('Entregador não apareceu');
+      store.atualizarStatus('CANCELADA');
+      expect(api.atualizarStatus).toHaveBeenCalledWith(2, 'CANCELADA', { id_entregador: undefined, motivo: 'Entregador não apareceu' });
+    });
+
+    it('A2: atendimento aberto que vira recusado continua no painel com o desfecho e sem ações', () => {
+      store.selecionar(ATENDIMENTOS[0]);
+      const recusado = { ...ATENDIMENTOS[0], status: 'RECUSADA' as const, motivo: 'Não pedi nada' };
+      api.listAtivos.mockReturnValueOnce(of([recusado, ATENDIMENTOS[1]]));
+      store.carregarFila({ silencioso: true });
+      expect(store.selecionado()).toMatchObject({ id: 1, status: 'RECUSADA', motivo: 'Não pedi nada' });
+      expect(store.proximosStatus(store.selecionado()!)).toEqual([]);
+    });
+
+    it('A2: atendimento aberto que sai da fila não some do painel: fica marcado como fora da fila', () => {
+      store.selecionar(ATENDIMENTOS[0]);
+      api.listAtivos.mockReturnValueOnce(of([ATENDIMENTOS[1]]));
+      store.carregarFila({ silencioso: true });
+      expect(store.selecionado()?.id).toBe(1);
+      expect(store.selecionadoSaiu()).toBe(true);
+      expect(store.proximosStatus(store.selecionado()!)).toEqual([]);
+      store.selecionar(ATENDIMENTOS[1]);
+      expect(store.selecionadoSaiu()).toBe(false);
+    });
+
+    it('A2: a ação do porteiro grava o desfecho no painel antes de recarregar', () => {
+      store.selecionar(ATENDIMENTOS[0]);
+      store.motivo.set('Pedido errado');
+      api.atualizarStatus.mockReturnValueOnce(of({ ...ATENDIMENTOS[0], status: 'RECUSADA', motivo: 'Pedido errado' }));
+      api.listAtivos.mockReturnValueOnce(of([ATENDIMENTOS[1]]));
+      store.atualizarStatus('RECUSADA');
+      expect(store.selecionado()).toMatchObject({ id: 1, status: 'RECUSADA', motivo: 'Pedido errado' });
+    });
+
+    it('A2: recusados e cancelados vão para o fim da fila', () => {
+      const cancelado = { ...ATENDIMENTOS[1], id: 3, status: 'CANCELADA' as const };
+      api.listAtivos.mockReturnValueOnce(of([cancelado, ...ATENDIMENTOS]));
+      store.carregarFila();
+      expect(store.fila().map((a) => a.id)).toEqual([1, 2, 3]);
+    });
+
+    it('M10: 409 ao mudar o status recarrega a fila', () => {
+      store.selecionar(ATENDIMENTOS[0]);
+      store.motivo.set('x');
+      api.listAtivos.mockClear();
+      api.atualizarStatus.mockReturnValueOnce(throwError(() => ({ status: 409, error: { message: 'O atendimento foi alterado por outra operação.' } })));
+      store.atualizarStatus('RECUSADA');
+      expect(store.erro()).toBe('O atendimento foi alterado por outra operação.');
+      expect(api.listAtivos).toHaveBeenCalledTimes(1);
+      expect(store.carregando()).toBe(false);
+    });
+  });
+
   it('mostra o veículo devolvido no cadastro e volta para a fila', () => {
     api.criarEntregador.mockReturnValue(of({ id: 31, nome: 'Maria Moto', status: 'ATIVO', veiculos: [{ id: 81, placa: 'XYZ9A87' }] }));
     store.aba.set('entregadores');
