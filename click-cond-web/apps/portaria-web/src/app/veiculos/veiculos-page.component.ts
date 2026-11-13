@@ -217,8 +217,15 @@ export class VeiculosPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.remove(v.id).subscribe({ next: () => this.carregar() });
+    this.erroAcaoVeiculo.set(null);
+    this.api.remove(v.id).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.erroAcaoVeiculo.set(mensagemDaApi(e, e?.message ?? 'Falha ao remover o veículo.')),
+    });
   }
+
+  /** Erro da última ação sobre um veículo da lista (ex.: remover). */
+  readonly erroAcaoVeiculo = signal<string | null>(null);
 
   // ===== Tag: modal criar =====
   readonly modalTag = signal(false);
