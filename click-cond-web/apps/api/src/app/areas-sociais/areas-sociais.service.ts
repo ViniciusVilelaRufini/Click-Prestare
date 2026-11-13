@@ -12,7 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { type Gravados, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
-import { assertOperador } from '../auth/tenant.util';
+import { assertOperador, isOperador } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 
@@ -701,7 +701,7 @@ export class AreasSociaisService {
   // ==========================================
   // AGENDAMENTOS E RESERVAS
   // ==========================================
-  async insertAgendamento(agendamento: any, userId: number, typeAccess: string, user?: JwtPayload) {
+  async insertAgendamento(agendamento: any, userId: number | null, typeAccess: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
 
     // A área precisa existir e pertencer ao condomínio do operador — sem
@@ -737,7 +737,7 @@ export class AreasSociaisService {
       // por aqui — ver areas-sociais.permissao.spec.
       await this.tenant.assertPermissaoFuncionario(areaAlvo.id_condominio, 'areas_sociais', user);
     }
-    let donoReservaId = Number(userId);
+    let donoReservaId: number | null = userId ? Number(userId) : null;
 
     if (peloSindico) {
       // O apartamento vem do corpo: precisa ser do condomínio da área, senão
@@ -770,15 +770,21 @@ export class AreasSociaisService {
         donoReservaId = idOperador;
       }
     } else if (typeAccess === 'Morador') {
-      // Validação de isolamento para moradores
+      // Validação de isolamento para moradores: o apartamento é dele E do condomínio da área
+      // (senão a reserva de uma área daqui saía em nome de uma unidade de outro prédio).
       const aptosUser = await this.prisma.apartamentos_Users.findMany({
-        where: { id_user: Number(userId) },
+        where: { id_user: Number(userId), apartamento: { id_condominio: areaAlvo.id_condominio } },
         select: { id_apto: true },
       });
       const idsPermitidos = aptosUser.map(a => a.id_apto);
       if (!idsPermitidos.includes(Number(agendamento.id_apartamento))) {
         throw new ForbiddenException('Você só pode agendar para o seu próprio apartamento.');
       }
+    }
+
+    // Operador sem Users.id (porteiro do console) só reserva "em nome do apartamento".
+    if (!donoReservaId) {
+      throw new BadRequestException('Escolha o apartamento e reserve em nome dele.');
     }
 
     // Converter string DD/MM/YYYY para Date
@@ -923,7 +929,7 @@ export class AreasSociaisService {
     return { success: true, status: statusInicial };
   }
 
-  async removeAgendamento(id: number, userId: number, typeAccess: string, user?: JwtPayload) {
+  async removeAgendamento(id: number, userId: number | null, typeAccess: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
 
     const agTenantCheck = await this.prisma.areas_Sociais_Agendamentos.findUnique({
@@ -978,7 +984,7 @@ export class AreasSociaisService {
    * horário da PRIMEIRA confirmação) nem reexecuta side-effect nenhum — não
    * há nenhum aqui, mas o não-regravar já evita um update supérfluo.
    */
-  async confirmarAgendamento(id: number, userId: number, typeAccess: string, user?: JwtPayload) {
+  async confirmarAgendamento(id: number, userId: number | null, typeAccess: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
 
     const ag = await this.prisma.areas_Sociais_Agendamentos.findUnique({
@@ -1273,8 +1279,9 @@ export class AreasSociaisService {
       novoStatus = String(statusRaw).toLowerCase();
     }
 
-    const idUser = user?.user?.id ?? user?.sub;
-    const typeAccess = user?.typeAccess ?? user?.user?.typeAccess ?? 'Morador';
+    const idUser = idUsuarioDoToken(user);
+    // Porteiro do console (sem typeAccess) é operador; só token sem papel nenhum cai na regra restritiva.
+    const typeAccess = user?.typeAccess ?? user?.user?.typeAccess ?? (isOperador(user) ? 'Operador' : 'Morador');
 
     if (novoStatus === 'cancelado') {
       // Morador cancelando a própria reserva OU Síndico cancelando

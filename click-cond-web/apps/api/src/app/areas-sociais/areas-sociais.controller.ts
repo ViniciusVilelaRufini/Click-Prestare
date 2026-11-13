@@ -2,6 +2,8 @@ import { Body, Controller, ForbiddenException, Get, HttpCode, Post, Query } from
 import { AreasSociaisService } from './areas-sociais.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { isOperador } from '../auth/tenant.util';
 
 @Controller(['areasSociais', 'areas-sociais'])
 export class AreasSociaisController {
@@ -47,9 +49,8 @@ export class AreasSociaisController {
     @Body() body: { agendamento: any },
     @ReqUser() payload: JwtPayload,
   ) {
-    const idUser = payload.user?.id ?? payload.sub;
-    const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Morador';
-    return this.service.insertAgendamento(body.agendamento, Number(idUser), typeAccess, payload);
+    const { idUser, typeAccess } = this.sessao(payload);
+    return this.service.insertAgendamento(body.agendamento, idUser, typeAccess, payload);
   }
 
   @Post('agendamento/remove')
@@ -58,9 +59,8 @@ export class AreasSociaisController {
     @Body() body: { id: string | number },
     @ReqUser() payload: JwtPayload,
   ) {
-    const idUser = payload.user?.id ?? payload.sub;
-    const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Morador';
-    return this.service.removeAgendamento(Number(body.id), Number(idUser), typeAccess, payload);
+    const { idUser, typeAccess } = this.sessao(payload);
+    return this.service.removeAgendamento(Number(body.id), idUser, typeAccess, payload);
   }
 
   @Post('agendamento/confirmar')
@@ -69,9 +69,8 @@ export class AreasSociaisController {
     @Body() body: { id: string | number },
     @ReqUser() payload: JwtPayload,
   ) {
-    const idUser = payload.user?.id ?? payload.sub;
-    const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Morador';
-    return this.service.confirmarAgendamento(Number(body.id), Number(idUser), typeAccess, payload);
+    const { idUser, typeAccess } = this.sessao(payload);
+    return this.service.confirmarAgendamento(Number(body.id), idUser, typeAccess, payload);
   }
 
   @Get('agendamentos/get-all')
@@ -89,7 +88,7 @@ export class AreasSociaisController {
     // caso o payload viesse sem id. Não acontece hoje (o JwtAuthGuard é
     // global), mas é um default que falha ABERTO — entrega dado de outra
     // pessoa em vez de recusar.
-    const idUser = payload?.user?.id ?? payload?.sub;
+    const idUser = idUsuarioDoToken(payload);
     if (!idUser) {
       throw new ForbiddenException('Sessão sem usuário válido.');
     }
@@ -151,5 +150,16 @@ export class AreasSociaisController {
     @ReqUser() payload?: JwtPayload,
   ) {
     return this.service.getAllManutencoes(Number(idCondominio), idAreaSocial ? Number(idAreaSocial) : undefined, payload);
+  }
+
+  /**
+   * Users.id e papel de quem chama. O porteiro do console tem `sub = Funcionarios_Portaria.id` e
+   * nenhum typeAccess: não tem Users.id e o papel é de operador — nunca "Morador" com o sub dele.
+   */
+  private sessao(payload: JwtPayload): { idUser: number | null; typeAccess: string } {
+    const tipo = payload?.typeAccess ?? payload?.user?.typeAccess;
+    if (tipo) return { idUser: idUsuarioDoToken(payload), typeAccess: String(tipo) };
+    if (isOperador(payload)) return { idUser: null, typeAccess: 'Operador' };
+    throw new ForbiddenException('Sessão sem usuário válido.');
   }
 }
