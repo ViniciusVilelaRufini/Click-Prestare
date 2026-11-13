@@ -2356,6 +2356,7 @@ export class MobileAuthService {
     cardTokenInicio?: string,
     cardAndroid?: boolean,
     cardTema?: string,
+    cardVersao?: number,
   ) {
     if (!this.prisma.isConnected) return { success: true };
     if (!idUser || Number.isNaN(idUser)) {
@@ -2377,6 +2378,12 @@ export class MobileAuthService {
     // Tema do app (o card do iPhone segue Claro/Escuro/Sistema). Ausente ou
     // inválido = não mexe (app antigo).
     const tema = temaValido(cardTema);
+    // Versão do card que o app sabe desenhar (2 = também o de delivery).
+    // Ausente ou inválida = não mexe (app antigo fica na 1, o padrão).
+    const versao =
+      typeof cardVersao === 'number' && Number.isInteger(cardVersao) && cardVersao >= 1 && cardVersao <= 99
+        ? cardVersao
+        : null;
 
     // O token é único na tabela: o upsert é o que migra o aparelho de dono.
     await this.prisma.users_Devices.upsert({
@@ -2388,6 +2395,7 @@ export class MobileAuthService {
         ...(card ? { card_token_inicio: card } : {}),
         ...(cardAndroid === true ? { card_android: 1 } : {}),
         ...(tema ? { card_tema: tema } : {}),
+        ...(versao ? { card_versao: versao } : {}),
       },
       update: {
         id_user: idUser,
@@ -2396,6 +2404,7 @@ export class MobileAuthService {
         // App Android 1.2.42+ monta o card ao vivo; o antigo não manda o campo.
         ...(cardAndroid === true ? { card_android: 1 } : {}),
         ...(tema ? { card_tema: tema } : {}),
+        ...(versao ? { card_versao: versao } : {}),
       },
     });
 

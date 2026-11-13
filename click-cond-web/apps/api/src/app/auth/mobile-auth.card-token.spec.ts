@@ -71,6 +71,25 @@ describe('MobileAuthService — card ao vivo', () => {
     expect('card_tema' in args.update).toBe(false);
   });
 
+  it('grava card_versao 2 do app novo; ausente ou inválido não mexe', async () => {
+    const { svc, prisma } = build();
+    await svc.updateFcmToken(1, 'fcm-x', 'iOS', undefined, false, undefined, 2);
+    let args = prisma.users_Devices.upsert.mock.calls[0][0];
+    expect(args.create.card_versao).toBe(2);
+    expect(args.update.card_versao).toBe(2);
+
+    await svc.updateFcmToken(1, 'fcm-x', 'iOS');
+    expect('card_versao' in prisma.users_Devices.upsert.mock.calls[1][0].update).toBe(false);
+
+    for (const ruim of [0, 100, '2' as any, 1.5]) {
+      prisma.users_Devices.upsert.mockClear();
+      await svc.updateFcmToken(1, 'fcm-x', 'iOS', undefined, false, undefined, ruim);
+      args = prisma.users_Devices.upsert.mock.calls[0][0];
+      expect('card_versao' in args.update).toBe(false);
+      expect('card_versao' in args.create).toBe(false);
+    }
+  });
+
   it('logout encerra os cards do usuário antes de apagar os tokens', async () => {
     const { svc, prisma, card } = build();
     await svc.removeFcmToken(1, 'fcm-x');

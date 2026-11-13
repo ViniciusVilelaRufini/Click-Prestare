@@ -157,6 +157,10 @@ model Users_Devices {
   /// Tema escolhido no app ("claro", "escuro" ou "sistema"): o card ao vivo
   /// do iPhone segue o tema do app. Null = app antigo, segue o do aparelho.
   card_tema         String?  @db.VarChar(10)
+  /// Versão do card ao vivo que o app sabe desenhar: 1 = só portaria
+  /// (1.2.42–1.2.45); 2 = também o de delivery. O card de delivery só vai
+  /// para aparelho com 2 ou mais.
+  card_versao       Int      @default(1)
   created_at DateTime @default(now()) @db.DateTime(0)
   updated_at DateTime @default(now()) @updatedAt @db.DateTime(0)
   user       Users    @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_users_devices_user")
