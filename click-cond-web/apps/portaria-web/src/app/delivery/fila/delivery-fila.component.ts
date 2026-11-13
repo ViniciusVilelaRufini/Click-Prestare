@@ -1,4 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DeliveryAtendimento, DeliveryStatus } from '../delivery.model';
 import { DeliveryStore } from '../delivery.store';
@@ -11,7 +12,7 @@ import { DeliveryDetalheComponent } from './delivery-detalhe.component';
   selector: 'app-delivery-fila',
   standalone: true,
   host: { class: 'block' },
-  imports: [FormsModule, DeliveryStatusBadgeComponent, DeliveryDetalheComponent],
+  imports: [DatePipe, FormsModule, DeliveryStatusBadgeComponent, DeliveryDetalheComponent],
   templateUrl: './delivery-fila.component.html',
 })
 export class DeliveryFilaComponent {

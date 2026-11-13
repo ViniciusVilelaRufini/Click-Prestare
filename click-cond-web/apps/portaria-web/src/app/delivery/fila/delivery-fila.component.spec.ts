@@ -148,6 +148,13 @@ describe('DeliveryFilaComponent', () => {
     expect(botaoCom(painel, 'Autorizar subida')).toBeUndefined();
   });
 
+  it('B5: aviso agendado mostra a previsão de chegada informada pelo morador', () => {
+    const fixture = montar();
+    store.ativos.set([{ ...ATENDIMENTOS[1], previsao_em: '2026-09-27T14:30:00' }]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Previsto 14:30');
+  });
+
   it('A1: cancelar aviso agendado abre o motivo antes de enviar', () => {
     const fixture = montar();
     const api = TestBed.inject(DeliveryApi) as unknown as DeliveryApiStub;
