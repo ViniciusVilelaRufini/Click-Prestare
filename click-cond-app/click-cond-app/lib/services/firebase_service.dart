@@ -222,6 +222,9 @@ class FirebaseService {
     _navigateByType(type, message.data);
   }
 
+  /// Abre a tela de um tipo de aviso (toque no card ao vivo do iPhone).
+  void abrirTela(String tipo) => _navigateByType(tipo, const {});
+
   void _navigateByType(String type, Map<String, dynamic> data, [int attempts = 0]) {
     final nav = NavigationService.navigatorKey.currentState;
     final ctx = NavigationService.navigatorKey.currentContext;

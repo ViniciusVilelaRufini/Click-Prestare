@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:app_links/app_links.dart';
+import 'package:click/services/card_ao_vivo/link_card.dart';
 import 'package:click/pages/auth/redefinir_senha_page.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/router.dart';
@@ -111,6 +112,12 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   void _processDeepLink(Uri uri) {
+    // Toque no card ao vivo do iPhone (portaria remota ou delivery).
+    final telaDoCard = telaDoLinkCard(uri);
+    if (telaDoCard != null) {
+      FirebaseService.instance.abrirTela(telaDoCard);
+      return;
+    }
     if (uri.scheme == 'clickprestare' &&
         (uri.host == 'redefinir-senha' || uri.path.contains('redefinir-senha'))) {
       final token = uri.queryParameters['token'] ?? '';

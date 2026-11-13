@@ -91,6 +91,29 @@ describe('DeliveryService — card ao vivo', () => {
     );
   });
 
+  it('Final: card reaberto pela mudança (abriu): a notificação de hoje não vai de novo', async () => {
+    const { service, notifications } = montar({
+      status: 'CHEGOU',
+      card: { atualizarDelivery: jest.fn(async () => ({ cobertos: new Set<string>(), abriu: true })) },
+    });
+    await service.atualizarStatus(9, { status: 'AGUARDANDO_AUTORIZACAO' } as any, porteiro);
+    expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+  });
+
+  it('Final: card que não responde não segura a resposta HTTP do PATCH (teto de 2 s)', async () => {
+    jest.useFakeTimers();
+    try {
+      const { service } = montar({ status: 'AGENDADA', card: { abrirDelivery: jest.fn(() => new Promise(() => undefined)) } });
+      let terminou = false;
+      const p = service.atualizarStatus(9, { status: 'CHEGOU' } as any, porteiro).then(() => (terminou = true));
+      await jest.advanceTimersByTimeAsync(2_100);
+      await p;
+      expect(terminou).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('[RF 3] morador autoriza pela tela do app: card com voceRespondeu e nenhuma notificação', async () => {
     const { service, card, notifications } = montar({ status: 'AGUARDANDO_AUTORIZACAO' });
     await service.atualizarStatus(9, { status: 'AUTORIZADA' } as any, morador);

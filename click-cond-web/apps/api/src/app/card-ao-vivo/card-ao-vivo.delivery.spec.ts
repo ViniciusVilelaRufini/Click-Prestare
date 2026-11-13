@@ -122,9 +122,20 @@ describe('CardAoVivoService — delivery', () => {
     expect([...cobertos]).toEqual(['fcm-iphone']);
   });
 
+  it('Final: sem card aberto, morador respondeu pela tela: reabre dizendo "você" e sem a notificação comum', async () => {
+    const velho = { ...iphone, card_versao: 1 };
+    const { svc, apns, notifications } = montarCard({ aparelhos: [iphone, { ...velho, fcm_token: 'fcm-velho' }], usuarios });
+    const r = await svc.atualizarDelivery({ ...a, status: 'AUTORIZADA', autorizado_em: new Date(T0) }, 1, { voceRespondeu: true });
+    expect(r.abriu).toBe(true);
+    expect(ultimoApns(apns).aps['content-state']).toMatchObject({ fase: 'autorizado', voceRespondeu: true });
+    // O próprio morador agiu: o aparelho sem card não recebe aviso do que ele fez.
+    expect(notifications.enviarParaAparelho).not.toHaveBeenCalled();
+  });
+
   it('sem card aberto e status não-final: abre ali', async () => {
     const { svc, apns } = montarCard({ aparelhos: [iphone], usuarios });
-    const { cobertos } = await svc.atualizarDelivery({ ...a, status: 'AGUARDANDO_AUTORIZACAO' }, 1, { voceRespondeu: false });
+    const { cobertos, abriu } = await svc.atualizarDelivery({ ...a, status: 'AGUARDANDO_AUTORIZACAO' }, 1, { voceRespondeu: false });
+    expect(abriu).toBe(true);
     expect(cobertos.size).toBe(0);
     const corpo = ultimoApns(apns);
     expect(corpo.aps.event).toBe('start');

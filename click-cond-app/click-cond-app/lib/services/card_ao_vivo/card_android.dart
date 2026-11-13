@@ -287,6 +287,11 @@ class _PayloadCard {
   const _PayloadCard({required this.idCartao, required this.idPedido, required this.origem, required this.conteudo});
 }
 
+/// Resposta recusada pelo servidor: 400 (pedido que já não aceita resposta)
+/// ou 409 (a portaria mudou o atendimento antes) fecham o card. Sem rede,
+/// timeout ou sessão vencida: o card fica, para o morador tentar de novo.
+bool respostaRecusadaFechaCard(int? statusHttp) => statusHttp == 400 || statusHttp == 409;
+
 /// NEGAR tocado na notificação, com o app fechado (isolate de segundo plano)
 /// ou aberto. Não pede desbloqueio: negar é seguro.
 @pragma('vm:entry-point')
@@ -314,9 +319,9 @@ Future<void> respostaCardSegundoPlano(NotificationResponse r) async {
           },
         );
       } else {
+        logDebug('Card ao vivo: recusar não aceito (${r.statusCode}): ${r.message}');
         // A portaria já mudou o atendimento: o card não fica parado na tela.
-        logDebug('Card ao vivo: recusar não aceito: ${r.message}');
-        await CardAndroid._plugin.cancel(id: p.idCartao);
+        if (respostaRecusadaFechaCard(r.statusCode)) await CardAndroid._plugin.cancel(id: p.idCartao);
       }
       return;
     }

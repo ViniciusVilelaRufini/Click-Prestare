@@ -48,6 +48,8 @@ const TERMINAIS: readonly DeliveryStatus[] = ['CONCLUIDA', 'CANCELADA', 'RECUSAD
 const LIMITE_HISTORICO = 500;
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 const DIA_MS = 86_400_000;
+/** Quanto a resposta do PATCH espera pelo aviso ao morador (card + notificação). */
+export const TETO_AVISO_MS = 2_000;
 
 @Injectable()
 export class DeliveryService {
@@ -288,7 +290,21 @@ export class DeliveryService {
     // Recusada e retirada na portaria também mudam o que o morador precisa
     // fazer (buscar lá embaixo / saber que não vem) — ficavam sem aviso.
     // Quem respondeu foi o próprio morador: não há o que avisar a ele.
-    await this.avisarMorador(atualizado, statusNovo, !isOperador(user), respostaDoMorador, dto.motivo);
+    // O aviso (card ao vivo + notificação) espera no máximo TETO_AVISO_MS: o
+    // clique do porteiro e o botão do card do morador não podem ficar presos
+    // em foto/APNs lentos. Passado o teto, ele segue em segundo plano.
+    const aviso = this.avisarMorador(atualizado, statusNovo, !isOperador(user), respostaDoMorador, dto.motivo).catch((e: any) =>
+      this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`),
+    );
+    let teto: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      aviso,
+      new Promise<void>((r) => {
+        teto = setTimeout(r, TETO_AVISO_MS);
+        (teto as any)?.unref?.();
+      }),
+    ]);
+    if (teto) clearTimeout(teto);
     return isOperador(user) ? atualizado : this.paraMorador(atualizado);
   }
 
@@ -444,9 +460,12 @@ export class DeliveryService {
           await this.cardAoVivo.abrirDelivery(atendimento, registro.id_morador_user);
           viaCard = true;
         } else {
-          ({ cobertos } = await this.cardAoVivo.atualizarDelivery(atendimento, registro.id_morador_user, {
+          const r = await this.cardAoVivo.atualizarDelivery(atendimento, registro.id_morador_user, {
             voceRespondeu: acaoDoMorador,
-          }));
+          });
+          cobertos = r.cobertos;
+          // Card reaberto: ele mesmo já avisou quem não tem card.
+          viaCard = !!r.abriu;
         }
       } catch (e: any) {
         this.logger.warn(`Card ao vivo do delivery ${registro.id}: ${e?.message ?? e}`);

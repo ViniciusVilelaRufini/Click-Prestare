@@ -80,6 +80,12 @@ describe('conteúdo do card do delivery', () => {
     expect(rec.horaResposta).toBe(seg(recusadoEm));
   });
 
+  it('Final: motivo de recusa longo é cortado em 200 caracteres (o push não passa de 4 KB)', () => {
+    const c = conteudoDelivery({ ...a, motivo: 'x'.repeat(5000) }, 'recusado', { voceRespondeu: false }, agora);
+    expect(c.motivo!.length).toBeLessThanOrEqual(200);
+    expect(c.motivo!.endsWith('…')).toBe(true);
+  });
+
   it('foto do entregador vai no estado quando há', () => {
     expect(conteudoDelivery(a, 'chegou', { voceRespondeu: false, foto: 'QUJD' }, agora).foto).toBe('QUJD');
   });

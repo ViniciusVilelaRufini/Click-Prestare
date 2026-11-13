@@ -20,7 +20,11 @@ struct CardPortariaBundle: WidgetBundle {
   }
 }
 
+/// Toque no card: abre a tela do pedido no app (lib/services/card_ao_vivo/link_card.dart).
 private let urlSolicitacoes = URL(string: "clickprestare://solicitacoes")
+private let urlDelivery = URL(string: "clickprestare://delivery")
+
+private func urlDoCard(_ a: CardPortariaAttributes) -> URL? { a.ehDelivery ? urlDelivery : urlSolicitacoes }
 
 /// Delivery tem 2 h de vida (DELIVERY_MAX_SEG no servidor): o número à
 /// direita conta PARA CIMA desde a chegada do entregador.
@@ -37,7 +41,7 @@ struct CardPortariaLiveActivity: Widget {
         attributes: context.attributes,
         estado: estadoVisivel(context.state, vencido: context.isStale, delivery: context.attributes.ehDelivery)
       )
-      .widgetURL(urlSolicitacoes)
+      .widgetURL(urlDoCard(context.attributes))
     } dynamicIsland: { context in
       let delivery = context.attributes.ehDelivery
       let estado = estadoVisivel(context.state, vencido: context.isStale, delivery: delivery)
@@ -73,7 +77,7 @@ struct CardPortariaLiveActivity: Widget {
         LogoPrestare(tamanho: 16)
           .environment(\.paleta, .ilha)
       }
-      .widgetURL(urlSolicitacoes)
+      .widgetURL(urlDoCard(context.attributes))
       .keylineTint(Paleta.ilha.marca)
     }
   }

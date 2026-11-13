@@ -70,7 +70,8 @@ interface OpcoesAbertura {
   id: number;
   idsUsuarios: number[];
   conteudo: ConteudoCard;
-  pushComum: PushComum;
+  /** null = nenhum aviso comum (a ação foi do próprio morador). */
+  pushComum: PushComum | null;
   foto: () => Promise<string | null>;
   /** Delivery: a foto vai no estado (pode chegar depois); portaria: no atributo. */
   fotoNoEstado: boolean;
@@ -181,17 +182,21 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
    * `card_versao >= 2` (o app que sabe desenhar o delivery); os outros
    * recebem a notificação de hoje.
    */
-  async abrirDelivery(a: AtendimentoCard, idUser: number): Promise<void> {
+  async abrirDelivery(
+    a: AtendimentoCard,
+    idUser: number,
+    opts: { voceRespondeu?: boolean; semAvisoComum?: boolean } = {},
+  ): Promise<void> {
     const fase = faseDoStatus(a.status);
     if (!fase || fase === 'encerrar' || !idUser) return;
     await this.encerrar('delivery', a.id);
-    const conteudo = conteudoDelivery(a, fase, { voceRespondeu: false }, epochSeg(new Date(this.agora())));
+    const conteudo = conteudoDelivery(a, fase, { voceRespondeu: !!opts.voceRespondeu }, epochSeg(new Date(this.agora())));
     await this.abrirNucleo({
       origem: 'delivery',
       id: a.id,
       idsUsuarios: [idUser],
       conteudo,
-      pushComum: this.pushComumDelivery(a.id, a.status, a.motivo),
+      pushComum: opts.semAvisoComum ? null : this.pushComumDelivery(a.id, a.status, a.motivo),
       foto: () => (a.fotoEntregador ? this.fotoDoCard({ fotoOrigem: a.fotoEntregador }) : Promise.resolve(null)),
       fotoNoEstado: true,
       versaoMinima: 2,
@@ -208,7 +213,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     a: AtendimentoCard,
     idUser: number,
     opts: { voceRespondeu: boolean },
-  ): Promise<{ cobertos: Set<string> }> {
+  ): Promise<{ cobertos: Set<string>; abriu?: boolean }> {
     const cobertos = new Set<string>();
     const fase = faseDoStatus(a.status);
     if (!fase) return { cobertos };
@@ -219,15 +224,21 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       return { cobertos };
     }
     if (!abertas.length) {
-      if (dismissalDelivery(fase) === null) await this.abrirDelivery(a, idUser);
-      return { cobertos };
+      if (dismissalDelivery(fase) !== null) return { cobertos };
+      // Reabre (o card já manda o aviso de hoje a quem não tem card): quem
+      // chama não manda de novo. Ação do próprio morador: sem aviso comum.
+      await this.abrirDelivery(a, idUser, { voceRespondeu: opts.voceRespondeu, semAvisoComum: opts.voceRespondeu });
+      return { cobertos, abriu: true };
     }
     const foto = a.fotoEntregador ? await this.fotoDoCard({ fotoOrigem: a.fotoEntregador }) : null;
     const seg = epochSeg(new Date(this.agora()));
     const alerta = alertaDelivery(fase, { nome: a.estabelecimento?.trim() || 'Delivery' });
     let c = conteudoDelivery(a, fase, { voceRespondeu: opts.voceRespondeu, foto }, seg);
     // Foto no estado: o push (APNs ou dados do Android) não pode passar de 4 KB.
-    if (c.foto && (!cabeNoPush(payloadAtualizacao(c, seg, alerta)) || !cabeNoPush(this.dadosAndroid(abertas[0], c)))) {
+    // Mede o push que vai sair de fato (fim no entregue/recusado, atualização no resto).
+    const dismissal = dismissalDelivery(fase);
+    const corpoDe = (x: ConteudoCard) => (dismissal === null ? payloadAtualizacao(x, seg, alerta) : payloadFim(x, seg, dismissal));
+    if (c.foto && (!cabeNoPush(corpoDe(c)) || !cabeNoPush(this.dadosAndroid(abertas[0], c)))) {
       c = conteudoDelivery(a, fase, { voceRespondeu: opts.voceRespondeu }, seg);
     }
     await this.aplicarConteudo(abertas, () => c, dismissalDelivery(fase), null, alerta);
@@ -316,15 +327,15 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       const r = await this.notifications.enviarDados(a.fcm_token, this.dadosAndroid(linha, o.conteudo, foto));
       if (r !== 'ok') {
         await this.marcar(linha.id, { encerrado_em: agora, reserva_enviada_em: agora });
-        if (r !== 'morto') await this.notifications.enviarParaAparelho(a.fcm_token, push.titulo, push.corpo, push.dados);
+        if (r !== 'morto' && push) await this.notifications.enviarParaAparelho(a.fcm_token, push.titulo, push.corpo, push.dados);
       }
     } else {
       // App antigo (não monta o card) ou iPhone sem token: o push de hoje.
-      await this.notifications.enviarParaAparelho(a.fcm_token, push.titulo, push.corpo, push.dados);
+      if (push) await this.notifications.enviarParaAparelho(a.fcm_token, push.titulo, push.corpo, push.dados);
     }
   }
 
-  private async falhouAbrir(linha: Linha, r: RespostaApns, push: PushComum) {
+  private async falhouAbrir(linha: Linha, r: RespostaApns, push: PushComum | null) {
     const agora = new Date(this.agora());
     if (tokenMorto(r)) {
       await this.prisma.users_Devices
@@ -334,7 +345,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`APNs recusou o card ${linha.id}: ${r.status} ${r.motivo ?? ''}`);
     }
     await this.marcar(linha.id, { encerrado_em: agora, reserva_enviada_em: agora });
-    await this.notifications.enviarParaAparelho(linha.fcm_token, push.titulo, push.corpo, push.dados);
+    if (push) await this.notifications.enviarParaAparelho(linha.fcm_token, push.titulo, push.corpo, push.dados);
   }
 
   // ─────────────────────────────────────────── confirmação e reserva

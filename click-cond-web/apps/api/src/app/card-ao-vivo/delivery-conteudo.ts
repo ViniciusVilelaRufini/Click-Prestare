@@ -60,6 +60,12 @@ export function faseDoStatus(s: StatusDelivery): FaseCard | 'encerrar' | null {
 
 const seg = (d: Date | null) => (d ? epochSeg(new Date(d)) : null);
 
+/** Texto livre da portaria no card: o push inteiro não pode passar de 4 KB. */
+function cortar(t: string | null, max: number): string | null {
+  if (!t || t.length <= max) return t;
+  return `${t.slice(0, max - 1).trimEnd()}…`;
+}
+
 export function conteudoDelivery(
   a: AtendimentoCard,
   fase: FaseCard,
@@ -81,7 +87,7 @@ export function conteudoDelivery(
     pelaPortaria: respondeu && !extras.voceRespondeu,
     horaResposta: fase === 'recusado' ? seg(a.recusado_em) : seg(a.autorizado_em),
     horaEntrada: seg(a.concluido_em),
-    ...(fase === 'recusado' ? { motivo: a.motivo?.trim() || null } : {}),
+    ...(fase === 'recusado' ? { motivo: cortar(a.motivo?.trim() || null, 200) } : {}),
   };
   if (extras.foto) c.foto = extras.foto;
   return c;

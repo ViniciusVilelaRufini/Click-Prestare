@@ -10,13 +10,16 @@ class DeliveryResult {
   final DeliveryModel? delivery;
   final String? message;
 
-  const DeliveryResult._({required this.success, this.delivery, this.message});
+  /// Status HTTP da recusa do servidor; null = não houve resposta (rede).
+  final int? statusCode;
+
+  const DeliveryResult._({required this.success, this.delivery, this.message, this.statusCode});
 
   factory DeliveryResult.ok(DeliveryModel delivery) =>
       DeliveryResult._(success: true, delivery: delivery);
 
-  factory DeliveryResult.error(String message) =>
-      DeliveryResult._(success: false, message: message);
+  factory DeliveryResult.error(String message, {int? statusCode}) =>
+      DeliveryResult._(success: false, message: message, statusCode: statusCode);
 }
 
 class DeliveryListResult {
@@ -187,7 +190,7 @@ Future<DeliveryResult> apiResponderDeliveryPorId(int id,
           : {'status': 'RECUSADA', 'motivo': 'Recusada pelo morador.'}),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      return DeliveryResult.error(mensagemDeErroApi(response.body));
+      return DeliveryResult.error(mensagemDeErroApi(response.body), statusCode: response.statusCode);
     }
     final decoded = jsonDecode(response.body);
     if (decoded is! Map) {
