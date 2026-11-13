@@ -103,11 +103,17 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   /**
    * API sem a rota (deploy da tela antes da API): cai na sessão — atende,
    * e só o síndico administra e conversa. A API continua decidindo.
+   * Só o 404 (rota inexistente) libera esse fallback: qualquer outro erro
+   * aparece e a tela fica sem ações.
    */
   carregarAcesso() {
     this.api.acesso().subscribe({
       next: (a) => this.acesso.set(a),
-      error: () => {
+      error: (e) => {
+        if (e?.status !== 404) {
+          this.error.set(msgErro(e, 'Erro ao carregar as permissões da sessão.'));
+          return;
+        }
         const sindico = this.auth.porteiroInfo()?.turno === 'Síndico';
         this.acesso.set({ operar: true, administrar: sindico, conversar: sindico });
       },

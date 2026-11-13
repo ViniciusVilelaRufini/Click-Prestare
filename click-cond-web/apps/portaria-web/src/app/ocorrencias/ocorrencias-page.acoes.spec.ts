@@ -181,6 +181,17 @@ describe('OcorrenciasPageComponent — ações conforme o acesso', () => {
     comp.ngOnDestroy();
   });
 
+  it('erro da rota de acesso que não é 404: mostra o erro e não libera o atendimento', () => {
+    const { el, fixture, comp } = render(SINDICO, [base], {
+      acesso: jest.fn(() => throwError(() => ({ status: 500, error: { message: 'Banco indisponível.' } }))),
+    });
+    fixture.detectChanges();
+    expect(el.textContent).toContain('Banco indisponível.');
+    expect(botao(el, 'Solucionar')).toBeUndefined();
+    expect(comp.acesso()).toEqual({ operar: false, administrar: false, conversar: false });
+    comp.ngOnDestroy();
+  });
+
   it('sem a rota de acesso (API antiga), cai na sessão: porteiro sem Remover', () => {
     const { el, comp } = render(SINDICO, [base], { acesso: jest.fn(() => throwError(() => ({ status: 404 }))) });
     // Sem porteiroInfo no teste a sessão é nula: atende, mas não administra nem conversa.
