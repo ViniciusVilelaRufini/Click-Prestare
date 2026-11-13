@@ -526,6 +526,45 @@ export class MobileAuthService {
     if (linha) throw new BadRequestException(mensagem);
   }
 
+  /**
+   * E-mail novo de prestador de um condomínio onde a conta é equipe: como o login de portaria da conta vai
+   * junto na troca (levarLoginDePortariaJunto), o PrestadoresService passaria a tratá-lo como o DO prestador
+   * (mesmo motivo do saveFuncionario). O prestador da própria conta tem como e-mail um dos logins antigos,
+   * que a troca nunca repete (ehTrocaDoEmailDaConta), e é levado junto.
+   */
+  private async assertEmailLivreDePrestadorDaEquipe(idUser: number, email: string, mensagem: string) {
+    const doPrestador = await this.prisma.prestadores_servico.findFirst({
+      where: { email, condominio: { funcionarios: { some: { id_user: idUser } } } },
+      select: { id: true },
+    });
+    if (doPrestador) throw new BadRequestException(mensagem);
+  }
+
+  /**
+   * Na troca do e-mail/login da PRÓPRIA conta, o login de portaria dela (ligado por texto ao login/e-mail
+   * antigo) muda junto, só nos condomínios em que ela é da equipe. Antes ficava um login de portaria sem dono,
+   * que outra conta adotava ao trocar o próprio e-mail para ele. O prestador dessa conta também: o login de
+   * portaria dele é achado pelo e-mail gravado no prestador (loginPortariaDoPrestador).
+   */
+  private async levarLoginDePortariaJunto(
+    tx: any,
+    idUser: number,
+    contaAntiga: { login?: string | null; email?: string | null } | null | undefined,
+    novo: string,
+  ) {
+    const loginsAntigos = [...new Set([contaAntiga?.login, contaAntiga?.email].filter((v): v is string => !!v))];
+    if (!novo || loginsAntigos.length === 0) return;
+    const daEquipe = { funcionarios: { some: { id_user: idUser } } };
+    await tx.funcionarios_Portaria.updateMany({
+      where: { login: { in: loginsAntigos }, condominio: daEquipe },
+      data: { login: novo, email: novo },
+    });
+    await tx.prestadores_servico.updateMany({
+      where: { email: { in: loginsAntigos }, condominio: daEquipe },
+      data: { email: novo },
+    });
+  }
+
   async updateSindico(idUser: number, body: {
     nome?: string;
     email?: string;
@@ -570,6 +609,7 @@ export class MobileAuthService {
         throw new BadRequestException('Este e-mail já está sendo utilizado por outro usuário.');
       }
       await this.assertEmailLivreNaPortaria(emailNormalized!, 'Este e-mail já está sendo utilizado por outro usuário.');
+      await this.assertEmailLivreDePrestadorDaEquipe(idUser, emailNormalized!, 'Este e-mail já está sendo utilizado por outro usuário.');
     }
 
     let parsedBirth: Date | null = s.date_birth;
@@ -607,6 +647,8 @@ export class MobileAuthService {
           photo: fotoUrl !== undefined ? fotoUrl : user.photo,
         }
       });
+      // Síndico com login de portaria próprio: ele muda junto (senão fica órfão).
+      if (trocaEmail) await this.levarLoginDePortariaJunto(tx, idUser, user, emailNormalized!);
 
       // 2. Atualizar tabela sindicos
       await tx.sindicos.update({
@@ -3607,15 +3649,7 @@ export class MobileAuthService {
         });
         if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
         await this.assertEmailLivreNaPortaria(email, 'Já existe outro usuário com este e-mail.');
-        // E-mail de prestador de um condomínio onde a conta é equipe: o PrestadoresService trataria o login
-        // de portaria desta conta como o DO prestador (mesmo motivo do saveFuncionario). O prestador da
-        // própria conta tem como e-mail um dos logins antigos, que a troca nunca repete (ehTrocaDoEmailDaConta),
-        // e é levado junto na transação abaixo.
-        const doPrestador = await this.prisma.prestadores_servico.findFirst({
-          where: { email, condominio: { funcionarios: { some: { id_user: idUser } } } },
-          select: { id: true },
-        });
-        if (doPrestador) throw new BadRequestException('Já existe outro usuário com este e-mail.');
+        await this.assertEmailLivreDePrestadorDaEquipe(idUser, email, 'Já existe outro usuário com este e-mail.');
       }
     }
 
@@ -3654,22 +3688,7 @@ export class MobileAuthService {
           ...(photoUrl !== null && { photo: photoUrl, profile_image: photoUrl }),
         },
       });
-      // O login de portaria desta conta (ligado por texto ao login/e-mail dela) muda junto, só nos condomínios
-      // em que ela é da equipe. Antes ficava um login de portaria sem dono, que outra conta adotava ao trocar
-      // o próprio e-mail para ele.
-      const loginsAntigos = [...new Set([contaAtual?.login, contaAtual?.email].filter((v): v is string => !!v))];
-      if (trocaEmail && loginsAntigos.length > 0) {
-        await tx.funcionarios_Portaria.updateMany({
-          where: { login: { in: loginsAntigos }, condominio: { funcionarios: { some: { id_user: idUser } } } },
-          data: { login: email as string, email },
-        });
-        // E o prestador dessa conta: o login de portaria dele é achado pelo e-mail gravado no prestador
-        // (loginPortariaDoPrestador). Sem isto, remover/revogar o prestador não achava mais o login.
-        await tx.prestadores_servico.updateMany({
-          where: { email: { in: loginsAntigos }, condominio: { funcionarios: { some: { id_user: idUser } } } },
-          data: { email },
-        });
-      }
+      if (trocaEmail) await this.levarLoginDePortariaJunto(tx, idUser, contaAtual, email as string);
     });
 
     // Reemite a sessão com os dados atualizados (mesmo shape do loginFuncionario,
@@ -4335,6 +4354,7 @@ export class MobileAuthService {
           // userPatch abaixo): esse login também não pode ser login/e-mail de uma linha de portaria.
           if (trocaDaConta && autoedicao) {
             await this.assertEmailLivreNaPortaria(emailBusca, 'Já existe outro usuário com este e-mail.');
+            await this.assertEmailLivreDePrestadorDaEquipe(atual.id_user as number, emailBusca, 'Já existe outro usuário com este e-mail.');
           }
         }
 
@@ -4403,6 +4423,9 @@ export class MobileAuthService {
           }
           if (Object.keys(userPatch).length > 0 && atual.id_user && !contaDeOutroCondominio) {
             await tx.users.update({ where: { id: atual.id_user }, data: userPatch });
+            // Autoedição que trocou o login da conta: o login de portaria dela (morador que também é
+            // porteiro) muda junto, com o mesmo texto gravado em Users.login.
+            if (userPatch.login) await this.levarLoginDePortariaJunto(tx, atual.id_user, atual.user, userPatch.login);
           }
         });
 
