@@ -39,7 +39,7 @@ export class CrmController {
     @Body() body: { nome: string; prioridade?: number; sla_horas?: number | null },
     @ReqUser() payload: JwtPayload,
   ) {
-    return this.categoriasOcorrencia.createCategoria(body, payload);
+    return this.categoriasOcorrencia.createCategoria(body, payload, { viaCrm: true });
   }
 
   @UseGuards(CrmAdminGuard)
@@ -49,13 +49,13 @@ export class CrmController {
     @Body() body: { nome?: string; prioridade?: number; sla_horas?: number | null },
     @ReqUser() payload: JwtPayload,
   ) {
-    return this.categoriasOcorrencia.updateCategoria(catId, body, payload);
+    return this.categoriasOcorrencia.updateCategoria(catId, body, payload, { viaCrm: true });
   }
 
   @UseGuards(CrmAdminGuard)
   @Delete('ocorrencias/categorias/:catId')
   async removerCategoria(@Param('catId', ParseIntPipe) catId: number, @ReqUser() payload: JwtPayload) {
-    await this.categoriasOcorrencia.removeCategoria(catId, payload);
+    await this.categoriasOcorrencia.removeCategoria(catId, payload, { viaCrm: true });
     return { ok: true };
   }
 
@@ -235,7 +235,7 @@ export class CrmController {
     @Body() dto: any,
     @ReqUser() user: JwtPayload,
   ) {
-    return this.apartamentos.create({ ...dto, id_condominio: id }, user);
+    return this.apartamentos.create({ ...dto, id_condominio: id }, user, { viaCrm: true });
   }
 
   @UseGuards(CrmAdminGuard)
@@ -245,7 +245,7 @@ export class CrmController {
     @Body() dto: any,
     @ReqUser() user: JwtPayload,
   ) {
-    return this.apartamentos.update(idApto, dto, user);
+    return this.apartamentos.update(idApto, dto, user, { viaCrm: true });
   }
 
   /** Remove a unidade. A resposta traz `arrastados`: o que caiu em cascata. */
@@ -255,7 +255,7 @@ export class CrmController {
     @Param('idApto', ParseIntPipe) idApto: number,
     @ReqUser() user: JwtPayload,
   ) {
-    return this.apartamentos.remove(idApto, user);
+    return this.apartamentos.remove(idApto, user, { viaCrm: true });
   }
 
   /** Criação em lote de unidades (blocos × andares × unidades por andar). */

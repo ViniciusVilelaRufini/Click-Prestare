@@ -117,13 +117,16 @@ export class ApartamentosService {
    * A checagem fica aqui, e não afrouxando assertStaff, porque aquele helper é
    * compartilhado por uma dezena de services de tenant: mexer nele abriria
    * agenda, áreas sociais e afins de uma vez só.
+   *
+   * A claim sozinha não basta — a mesma função está montada na rota de tenant,
+   * sem o guard; só o CrmController passa `viaCrm`.
    */
-  private viaOperadora(user?: JwtPayload): boolean {
-    return (user as any)?.role === 'crm_admin';
+  private viaOperadora(user?: JwtPayload, opcoes: { viaCrm?: boolean } = {}): boolean {
+    return opcoes.viaCrm === true && (user as any)?.role === 'crm_admin';
   }
 
-  async create(dto: CreateApartamentoDto, user?: JwtPayload) {
-    if (!this.viaOperadora(user)) {
+  async create(dto: CreateApartamentoDto, user?: JwtPayload, opcoes: { viaCrm?: boolean } = {}) {
+    if (!this.viaOperadora(user, opcoes)) {
       assertStaff(user, 'cadastrar apartamento');
       await this.tenant.assertCondominio(dto.id_condominio, user);
       // assertStaff so garante "nao e morador". A flag e o que o sindico
@@ -172,8 +175,8 @@ export class ApartamentosService {
     }
   }
 
-  async update(id: number, dto: Partial<CreateApartamentoDto>, user?: JwtPayload) {
-    if (!this.viaOperadora(user)) assertStaff(user, 'editar apartamento');
+  async update(id: number, dto: Partial<CreateApartamentoDto>, user?: JwtPayload, opcoes: { viaCrm?: boolean } = {}) {
+    if (!this.viaOperadora(user, opcoes)) assertStaff(user, 'editar apartamento');
     if (!this.prisma.isConnected) {
       return { success: true, id };
     }
@@ -183,7 +186,7 @@ export class ApartamentosService {
       select: { apto: true, bloco: true, id_condominio: true },
     });
     if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
-    if (!this.viaOperadora(user)) {
+    if (!this.viaOperadora(user, opcoes)) {
       await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
       await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'apartamentos', user);
     }
@@ -237,15 +240,15 @@ export class ApartamentosService {
    * explicar depois — o módulo inteiro não tinha auditoria nenhuma, sendo o
    * único com uma operação em cascata desse tamanho.
    */
-  async remove(id: number, user?: JwtPayload) {
-    if (!this.viaOperadora(user)) assertStaff(user, 'remover apartamento');
+  async remove(id: number, user?: JwtPayload, opcoes: { viaCrm?: boolean } = {}) {
+    if (!this.viaOperadora(user, opcoes)) assertStaff(user, 'remover apartamento');
     if (!this.prisma.isConnected) return { success: true };
     const atual = await this.prisma.apartamentos.findUnique({
       where: { id: Number(id) },
       select: { id_condominio: true, apto: true, bloco: true },
     });
     if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
-    if (!this.viaOperadora(user)) {
+    if (!this.viaOperadora(user, opcoes)) {
       await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
       await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'apartamentos', user);
     }

@@ -65,9 +65,13 @@ const CATEGORIAS_PADRAO = [
   { nome: 'Outros', prioridade: 4, sla_horas: null },
 ];
 
-/** Categorias são globais e definidas pela operadora, não pelo condomínio. */
-function assertAdminCrm(user?: JwtPayload): void {
-  if (user?.role !== 'crm_admin') {
+/**
+ * Categorias são globais e definidas pela operadora, não pelo condomínio.
+ * A claim `role` só vale vinda das rotas do CRM (CrmAdminGuard reconfere crm_admins.ativo); a rota de
+ * tenant monta os mesmos métodos sem o guard.
+ */
+function assertAdminCrm(user?: JwtPayload, opcoes: { viaCrm?: boolean } = {}): void {
+  if (opcoes.viaCrm !== true || user?.role !== 'crm_admin') {
     throw new ForbiddenException('As categorias são definidas pela Prestare.');
   }
 }
@@ -167,8 +171,12 @@ export class OcorrenciasService {
   // Categorias são globais (tabela sem id_condominio): não há dono por tenant,
   // então síndico de um prédio não pode editá-las para todos. Só o administrador
   // do CRM (role 'crm_admin', rotas sob CrmAdminGuard) escreve; os demais leem.
-  async createCategoria(data: { nome: string; prioridade?: number; sla_horas?: number | null }, user?: JwtPayload) {
-    assertAdminCrm(user);
+  async createCategoria(
+    data: { nome: string; prioridade?: number; sla_horas?: number | null },
+    user?: JwtPayload,
+    opcoes: { viaCrm?: boolean } = {},
+  ) {
+    assertAdminCrm(user, opcoes);
     return this.prisma.ocorrencias_Categorias.create({
       data: {
         nome: data.nome,
@@ -178,8 +186,13 @@ export class OcorrenciasService {
     });
   }
 
-  async updateCategoria(id: number, data: { nome?: string; prioridade?: number; sla_horas?: number | null }, user?: JwtPayload) {
-    assertAdminCrm(user);
+  async updateCategoria(
+    id: number,
+    data: { nome?: string; prioridade?: number; sla_horas?: number | null },
+    user?: JwtPayload,
+    opcoes: { viaCrm?: boolean } = {},
+  ) {
+    assertAdminCrm(user, opcoes);
     try {
       return await this.prisma.ocorrencias_Categorias.update({
         where: { id },
@@ -194,8 +207,8 @@ export class OcorrenciasService {
     }
   }
 
-  async removeCategoria(id: number, user?: JwtPayload) {
-    assertAdminCrm(user);
+  async removeCategoria(id: number, user?: JwtPayload, opcoes: { viaCrm?: boolean } = {}) {
+    assertAdminCrm(user, opcoes);
     try {
       await this.prisma.ocorrencias_Categorias.delete({ where: { id } });
     } catch {

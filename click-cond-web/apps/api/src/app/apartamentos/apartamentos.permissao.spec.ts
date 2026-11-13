@@ -93,7 +93,7 @@ describe('ApartamentosService — exige a flag apartamentos', () => {
   /// O console administrativo nao tem flag de funcionario e nao pode ser barrado.
   it('não interfere no caminho da operadora', async () => {
     const { service, prisma, tenant } = build();
-    await service.create(dto, operadora);
+    await service.create(dto, operadora, { viaCrm: true });
     expect(prisma.apartamentos.create).toHaveBeenCalled();
     expect(tenant.assertPermissaoFuncionario).not.toHaveBeenCalled();
   });

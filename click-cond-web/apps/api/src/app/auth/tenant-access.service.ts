@@ -59,6 +59,12 @@ export class TenantAccessService {
       throw new ForbiddenException('Acesso negado: condomínio inválido.');
     }
 
+    // Token do CRM (sub = crm_admins.id) não pertence a condomínio nenhum: o sub dele não pode ser lido
+    // como Users.id no ramo do morador. A operadora entra pelas rotas /crm (CrmAdminGuard).
+    if ((payload as any).role === 'crm_admin') {
+      throw new ForbiddenException('Acesso negado: sessão sem vínculo com este condomínio.');
+    }
+
     // Porteiro/portaria-web: condomínio fixo no token.
     if (payload.id_condominio) {
       if (payload.id_condominio !== condId) {

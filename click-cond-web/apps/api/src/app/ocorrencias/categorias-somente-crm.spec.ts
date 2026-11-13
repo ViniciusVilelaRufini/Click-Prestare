@@ -50,9 +50,9 @@ describe('Categorias de ocorrência: escrita só pelo CRM', () => {
 
   it('service permite o administrador do CRM', async () => {
     const { svc, prisma } = build();
-    await svc.createCategoria({ nome: 'X', sla_horas: 4 }, admin);
-    await svc.updateCategoria(1, { nome: 'Y' }, admin);
-    await svc.removeCategoria(1, admin);
+    await svc.createCategoria({ nome: 'X', sla_horas: 4 }, admin, { viaCrm: true });
+    await svc.updateCategoria(1, { nome: 'Y' }, admin, { viaCrm: true });
+    await svc.removeCategoria(1, admin, { viaCrm: true });
     expect(prisma.ocorrencias_Categorias.create).toHaveBeenCalled();
     expect(prisma.ocorrencias_Categorias.update).toHaveBeenCalled();
     expect(prisma.ocorrencias_Categorias.delete).toHaveBeenCalled();
