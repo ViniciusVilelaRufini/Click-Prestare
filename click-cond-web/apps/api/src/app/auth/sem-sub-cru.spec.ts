@@ -6,8 +6,10 @@ import { join, relative } from 'path';
  * Funcionarios_Portaria.id: lido como Users.id, atribui registros a outra pessoa. O id do usuário
  * sai de idUsuarioDoToken / autorDoToken (auth/usuario-do-token.util.ts) — nunca de `.sub`.
  * O chat-ia fica atrás do UsuarioAppGuard, mas grava e executa ações como Users.id: mesma regra.
+ * Mudanças (também atrás do UsuarioAppGuard) e ocorrências: o serviço é usado por outras
+ * superfícies (chat-ia, app, CRM), então a mesma regra vale no serviço.
  */
-const MODULOS = ['encomendas', 'areas-sociais', 'delivery', 'consentimentos', 'visitantes', 'chat-ia'];
+const MODULOS = ['encomendas', 'areas-sociais', 'delivery', 'consentimentos', 'visitantes', 'chat-ia', 'mudancas', 'ocorrencias'];
 const LEITURA_CRUA = /\.sub\b|\[\s*['"]sub['"]\s*\]/;
 const APP = join(__dirname, '..');
 

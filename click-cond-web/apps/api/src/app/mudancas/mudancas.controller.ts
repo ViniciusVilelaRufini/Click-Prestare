@@ -3,6 +3,7 @@ import { UsuarioAppGuard } from '../auth/usuario-app.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { MudancasService } from './mudancas.service';
 
 // Rotas do app: o `sub` só é Users.id em token de usuário do app. O do
@@ -40,7 +41,7 @@ export class MudancasController {
   @Post('insert')
   @HttpCode(200)
   async insert(@Body() body: any, @ReqUser() payload: JwtPayload) {
-    const idUser = payload?.user?.id ?? payload?.sub ?? null;
+    const idUser = idUsuarioDoToken(payload);
     const data = body.mudanca ?? body.Mudanca ?? {};
     const idCondominio = Number(body.id_condominio);
     return this.service.create({
@@ -48,7 +49,7 @@ export class MudancasController {
       hora_inicio: data.hora_inicio ?? null,
       id_apartamento: Number(data.id_apartamento),
       id_condominio: idCondominio,
-      user: idUser ? Number(idUser) : null,
+      user: idUser,
     }, payload);
   }
 

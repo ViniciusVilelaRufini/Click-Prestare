@@ -266,7 +266,7 @@ export class OcorrenciasService {
   async findAll(idCondominio: number, status?: string, requester?: JwtPayload) {
     const typeAccess = requester?.typeAccess ?? requester?.user?.typeAccess;
     const isStaff = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
-    const callerId = Number(requester?.user?.id ?? requester?.sub) || -1;
+    const callerId = idUsuarioDoToken(requester) ?? -1;
     // Operador do console (token com id_condominio) também administra.
     // Funcionário sem a flag `ocorrencias` fica com o recorte do morador.
     const podeVerTudo =

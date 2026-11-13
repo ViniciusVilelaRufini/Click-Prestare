@@ -52,6 +52,13 @@ describe('OcorrenciasService.findAll — respeita público/privado', () => {
     expect(whereUsado().OR).toBeUndefined();
   });
 
+  it('token de porteiro (sub = Funcionarios_Portaria.id) sem condomínio no token não é lido como Users.id', async () => {
+    const { svc, whereUsado } = build();
+    const porteiroSemCondominio: JwtPayload = { sub: 52, nome: 'Porteiro', tipo_sub: 'funcionario_portaria' } as any;
+    await svc.findAll(1, undefined, porteiroSemCondominio);
+    expect(whereUsado().OR).toEqual([{ publica: true }, { user: -1 }]);
+  });
+
   it('o filtro de status continua funcionando junto com o recorte', async () => {
     const { svc, whereUsado } = build();
     await svc.findAll(1, 'pendente', morador);

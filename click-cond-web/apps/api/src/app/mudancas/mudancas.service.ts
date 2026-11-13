@@ -60,7 +60,7 @@ export class MudancasService {
 
   /** Users.id do morador e os apartamentos dele neste condomínio. */
   private async aptosDoMorador(idCondominio: number, user: JwtPayload) {
-    const userId = Number(user.user?.id ?? user.sub);
+    const userId = idUsuarioDoToken(user);
     if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
     const vinculos = await this.prisma.apartamentos_Users.findMany({
       where: { id_user: userId, apartamento: { id_condominio: Number(idCondominio) } },
@@ -124,8 +124,9 @@ export class MudancasService {
     });
     if (!atual) throw new NotFoundException(`Mudança ${id} não encontrada`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
-    const callerId = user?.user?.id ?? user?.sub;
-    if (atual.user !== callerId) {
+    // Token sem Users.id (porteiro do console) nunca é o dono.
+    const callerId = idUsuarioDoToken(user);
+    if (callerId === null || atual.user !== callerId) {
       assertStaff(user, 'editar mudança de outro morador');
       // Mesma flag do updateStatus: gerir mudança alheia é "agendar mudança".
       await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'agendar_mudanca', user);
@@ -184,8 +185,8 @@ export class MudancasService {
     const atual = await this.prisma.mudancas.findUnique({ where: { id: Number(id) }, select: { id_condominio: true, user: true } });
     if (!atual) throw new NotFoundException(`Mudança ${id} não encontrada`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
-    const callerId = user?.user?.id ?? user?.sub;
-    if (atual.user !== callerId) {
+    const callerId = idUsuarioDoToken(user);
+    if (callerId === null || atual.user !== callerId) {
       assertStaff(user, 'remover mudança de outro morador');
       await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'agendar_mudanca', user);
     }
