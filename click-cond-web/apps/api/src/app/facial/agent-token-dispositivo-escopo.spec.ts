@@ -85,6 +85,22 @@ describe('Agente — token de dispositivo nas rotas condo/*: escopo só do dispo
     expect(descoberta.receber).not.toHaveBeenCalled();
   });
 
+  it('versao com token de dispositivo continua valendo (auto-atualização do agente antigo)', async () => {
+    const { service, bridge, descoberta } = montar();
+    const info = { versao: '2026.11.13', url: 'https://gh/click-agent.exe', sha256: 'a'.repeat(64) };
+    const agentVersion: any = { getLatest: jest.fn(async () => info) };
+    const ctrl = new AgentController(service, bridge, agentVersion, descoberta);
+    await expect(ctrl.condoVersao('tok-5')).resolves.toEqual(info);
+    expect(service.resolveAgente).toHaveBeenCalledWith('tok-5');
+  });
+
+  it('poll com token de dispositivo continua entregando (e consumindo) o verificar_atualizacao', async () => {
+    const { ctrl, bridge } = montar();
+    await bridge.pedirVerificacaoDeAtualizacao(7);
+    expect((await ctrl.condoPoll('tok-5')).verificar_atualizacao).toBe(true);
+    expect((await ctrl.condoPoll('tok-5')).verificar_atualizacao).toBe(false);
+  });
+
   describe('FacialService', () => {
     function build() {
       const prisma: any = {

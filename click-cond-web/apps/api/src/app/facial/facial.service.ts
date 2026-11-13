@@ -1067,7 +1067,7 @@ export class FacialService {
   }
 
   /**
-   * Mesma resolução de `resolveCondominioForAgent`, dizendo também SE a
+   * Resolve o token do agente (agent_token ou webhook_token), dizendo também SE a
    * autenticação veio pelo token de um dispositivo (e de qual). Esse caminho
    * é compatibilidade com agente antigo: o token de UM aparelho é aceito nas
    * rotas `condo/:token/*`, mas recortado ao próprio aparelho (`idDispositivo`). Fica
