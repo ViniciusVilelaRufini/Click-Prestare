@@ -9,6 +9,7 @@ describe('saveFuncionario — sem senha padrão', () => {
     const prisma: any = {
       isConnected: true,
       sindicos_Condominios: { findFirst: jest.fn(async () => ({ id: 1 })) },
+      prestadores_servico: { findFirst: jest.fn(async () => null) },
       funcionarios_Portaria: {
         findUnique: jest.fn(async ({ where }: any) => (where.id === 50 ? { ...atual } : null)),
         findFirst: jest.fn(async () => null),

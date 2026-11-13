@@ -17,6 +17,7 @@ describe('MobileAuthService — gestão de funcionários (takeover crítico)', (
   function build(overrides: Partial<any> = {}) {
     const prisma: any = {
       isConnected: true,
+      prestadores_servico: { findFirst: jest.fn(async () => null) },
       funcionarios_Portaria: {
         findUnique: jest.fn(async ({ where }: any) => (where.id === 50 ? { ...funcionarioCond2 } : null)),
         create: jest.fn(async () => ({ id: 999, ...funcionarioCond2 })),

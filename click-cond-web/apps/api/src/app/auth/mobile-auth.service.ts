@@ -3757,6 +3757,12 @@ export class MobileAuthService {
           select: { id: true },
         });
         if (conflito) throw new BadRequestException('Já existe outro funcionário com este e-mail.');
+        // Login = e-mail de um prestador daqui seria tratado como o login DO prestador (PrestadoresService).
+        const doPrestador = await this.prisma.prestadores_servico.findFirst({
+          where: { email: emailEdit, id_condominio: atual.id_condominio },
+          select: { id: true },
+        });
+        if (doPrestador) throw new BadRequestException('Já existe outro funcionário com este e-mail.');
         await this.assertLoginLivreParaPortaria(emailEdit, atual.id_condominio, idUsuarioDoToken(user));
         data.login = emailEdit;
       }
@@ -3779,6 +3785,12 @@ export class MobileAuthService {
 
     const conflito = await this.prisma.funcionarios_Portaria.findUnique({ where: { login: loginFinal } });
     if (conflito) throw new BadRequestException('Já existe um funcionário com este e-mail.');
+    // Login = e-mail de um prestador daqui seria tratado como o login DO prestador (PrestadoresService).
+    const doPrestador = await this.prisma.prestadores_servico.findFirst({
+      where: { email: loginFinal, id_condominio: idCondominio },
+      select: { id: true },
+    });
+    if (doPrestador) throw new BadRequestException('Já existe um funcionário com este e-mail.');
     await this.assertLoginLivreParaPortaria(loginFinal, idCondominio, idUsuarioDoToken(user));
     // Porteiro novo não tem foto gravada: URL do bucket nunca é dele.
     const photoUrl = await resolverFoto([]);

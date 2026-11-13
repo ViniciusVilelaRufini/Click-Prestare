@@ -22,6 +22,7 @@ export function prismaFalso(opts: {
   perfisSindico?: number[];
   funcionariosRows?: any[];
   portaria?: any;
+  prestadores?: Array<{ id: number; email: string; id_condominio: number }>;
 }) {
   // Respeita `id_condominio: n`, `{ not: n }` e ausência de filtro, como o Prisma.
   const casa = (v: Vinculo, where: any) =>
@@ -71,6 +72,11 @@ export function prismaFalso(opts: {
       findFirst: jest.fn(async () => opts.portaria ?? null),
       create: jest.fn(async ({ data }: any) => ({ id: 70, ...data })),
       update: jest.fn(async ({ data }: any) => ({ ...opts.portaria, ...data })),
+    },
+    prestadores_servico: {
+      findFirst: jest.fn(async ({ where }: any) =>
+        (opts.prestadores ?? []).find((p) => p.email === where.email && p.id_condominio === where.id_condominio) ?? null,
+      ),
     },
   } as any;
 }
@@ -126,6 +132,64 @@ describe('saveFuncionario — conta existente com o mesmo e-mail', () => {
     expect(prisma.funcionarios.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ id_user: 30, id_condominio: 2 }),
     });
+  });
+});
+
+// PrestadoresService trata a linha de portaria com login = e-mail do prestador, mesmo condomínio e turno 'Geral'
+// como o login DO prestador: um funcionário com esse login seria re-credenciado/apagado pelo cadastro dele.
+describe('saveFuncionario — login igual ao e-mail de um prestador do condomínio', () => {
+  const prestadores = [{ id: 3, email: 'eletricista@x.com', id_condominio: 2 }];
+
+  it('cadastro com o e-mail de um prestador deste condomínio → 400 neutro e nada é criado', async () => {
+    const prisma = prismaFalso({ sindicos: [{ id_user: 20, id_condominio: 2 }], prestadores });
+    const { svc } = servico(prisma);
+
+    await expect(
+      svc.saveFuncionario({ id_condominio: 2, funcionario: { nome: 'P', email: ' eletricista@x.com ', senha: 'Escolhida#1' } }, false, atacante),
+    ).rejects.toThrow('Já existe um funcionário com este e-mail.');
+    expect(prisma.prestadores_servico.findFirst).toHaveBeenCalledWith({
+      where: { email: 'eletricista@x.com', id_condominio: 2 },
+      select: { id: true },
+    });
+    expect(prisma.funcionarios_Portaria.create).not.toHaveBeenCalled();
+    expect(prisma.users.create).not.toHaveBeenCalled();
+  });
+
+  it('cadastro com o e-mail de prestador de OUTRO condomínio continua permitido', async () => {
+    const prisma = prismaFalso({ sindicos: [{ id_user: 20, id_condominio: 2 }], prestadores: [{ id: 4, email: 'p@x.com', id_condominio: 1 }] });
+    const { svc } = servico(prisma);
+
+    await svc.saveFuncionario({ id_condominio: 2, funcionario: { nome: 'P', email: 'p@x.com', senha: 'Escolhida#1' } }, false, atacante);
+    expect(prisma.funcionarios_Portaria.create).toHaveBeenCalled();
+  });
+
+  it('edição que troca o login para o e-mail de um prestador deste condomínio → 400 neutro e nada é gravado', async () => {
+    const prisma = prismaFalso({
+      sindicos: [{ id_user: 20, id_condominio: 2 }],
+      prestadores,
+      portaria: { id: 50, login: 'p@t', email: 'p@t', password: '$2b$04$hash', nome: 'P', telefone: null, turno: 'Diurno', id_condominio: 2 },
+    });
+    // Nenhum outro login de portaria com o e-mail pedido.
+    prisma.funcionarios_Portaria.findFirst = jest.fn(async () => null);
+    const { svc } = servico(prisma);
+
+    await expect(
+      svc.saveFuncionario({ id_condominio: 2, funcionario: { id: 50, email: 'eletricista@x.com' } }, true, atacante),
+    ).rejects.toThrow('Já existe outro funcionário com este e-mail.');
+    expect(prisma.funcionarios_Portaria.update).not.toHaveBeenCalled();
+  });
+
+  it('edição sem troca de login não consulta prestadores', async () => {
+    const prisma = prismaFalso({
+      sindicos: [{ id_user: 20, id_condominio: 2 }],
+      prestadores: [{ id: 5, email: 'p@t', id_condominio: 2 }],
+      portaria: { id: 50, login: 'p@t', email: 'p@t', password: '$2b$04$hash', nome: 'P', telefone: null, turno: 'Diurno', id_condominio: 2 },
+    });
+    const { svc } = servico(prisma);
+
+    await svc.saveFuncionario({ id_condominio: 2, funcionario: { id: 50, nome: 'Novo Nome', email: 'p@t' } }, true, atacante);
+    expect(prisma.prestadores_servico.findFirst).not.toHaveBeenCalled();
+    expect(prisma.funcionarios_Portaria.update).toHaveBeenCalled();
   });
 });
 

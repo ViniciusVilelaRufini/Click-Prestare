@@ -158,6 +158,7 @@ describe('mobile-auth — campos de arquivo recebidos do cliente', () => {
     function build() {
       const prisma: any = {
         isConnected: true,
+        prestadores_servico: { findFirst: jest.fn(async () => null) },
         funcionarios_Portaria: {
           findUnique: jest.fn(async ({ where }: any) =>
             where.id === 5 ? { id: 5, login: 'porteiro@x.com', id_condominio: 1 } : null,

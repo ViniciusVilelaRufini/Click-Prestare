@@ -32,6 +32,7 @@ function mobile() {
     sindicos_Condominios: { count: zero() },
     funcionarios: { count: zero(), findFirst: jest.fn(async () => null), create: jest.fn(async () => ({})), update: jest.fn(async () => ({})) },
     apartamentos_Users: { count: zero() },
+    prestadores_servico: { findFirst: jest.fn(async () => null) },
     funcionarios_Portaria: {
       findUnique: jest.fn(async () => ({ id: 50, login: 'p@x.com', email: 'p@x.com', id_condominio: 1, password: '$2b$04$h', nome: 'P', telefone: null, turno: null })),
       findFirst: jest.fn(async () => null),
