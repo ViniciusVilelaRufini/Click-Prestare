@@ -24,6 +24,9 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { isOperador } from '../auth/tenant.util';
 import { gerarPinUnicoVisita, novaVisitaEmOutraUnidade, visitaParaNovaPassagem } from '../common/visita-passagem.util';
+// Vaga de visitante com `fim` no passado não vale: sem isso a lista mostrava "Liberado" + selo de vaga
+// para quem o terminal já tinha deixado de liberar.
+import { whereVagaVigente } from '../vagas/vaga-vigente.util';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PessoasService, pessoaTemVisitaForaDosAptos } from '../pessoas/pessoas.service';
@@ -999,7 +1002,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         const idsVisitas = pessoasCadastradas.flatMap((p) => p.visitas?.map((v) => v.id) ?? []);
         const vagasAtivas = idsVisitas.length && this.prisma.vagas
           ? await this.prisma.vagas.findMany({
-              where: { id_visita: { in: idsVisitas }, ativo: 1 },
+              where: { id_visita: { in: idsVisitas }, ativo: 1, ...whereVagaVigente() },
               include: { titular: { select: { nome: true } } },
             })
           : [];
@@ -1342,7 +1345,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const idsTodos = todas.map((v) => v.id);
     const vagasAtivas = idsTodos.length
       ? await this.prisma.vagas.findMany({
-          where: { id_visitante: { in: idsTodos }, ativo: 1 },
+          where: { id_visitante: { in: idsTodos }, ativo: 1, ...whereVagaVigente() },
           include: { titular: { select: { nome: true } } },
         })
       : [];
@@ -3988,6 +3991,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       where: {
         id_visita: { in: todasVisitas.map((x) => x.id) },
         ativo: 1,
+        ...whereVagaVigente(),
       },
       include: { titular: { select: { nome: true } } },
       orderBy: { id: 'desc' },
@@ -4739,7 +4743,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // Vaga vinculada ativa (o morador reservou uma vaga p/ o carro do visitante).
     // Mostra quem vinculou (titular da vaga) + placa/janela.
     const vagaAtiva = await this.prisma.vagas.findFirst({
-      where: { id_visitante: { in: todosVisIds }, ativo: 1 },
+      where: { id_visitante: { in: todosVisIds }, ativo: 1, ...whereVagaVigente() },
       include: { titular: { select: { nome: true } } },
       orderBy: { id: 'desc' },
     });
