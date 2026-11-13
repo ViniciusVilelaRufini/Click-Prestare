@@ -4035,6 +4035,14 @@ export class MobileAuthService {
       dobString = `${day}/${month}/${year}`;
     }
 
+    // Conta que também é de OUTRO condomínio não empresta a foto global (Users) a quem vê de fora — mesma
+    // regra do MoradoresService.findOne. O próprio dono continua vendo a foto dele.
+    const fotoConta =
+      m.user?.photo && m.id_user !== idUser && m.id_user != null && m.id_condominio != null &&
+      (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, m.id_user, m.id_condominio))
+        ? null
+        : m.user?.photo;
+
     return {
       id: m.id,
       nome: m.nome ?? '',
@@ -4044,8 +4052,8 @@ export class MobileAuthService {
       data_nascimento: dobString,
       bloco: m.bloco ?? '',
       apartamento: m.apartamento ?? '',
-      photo: m.user?.photo || m.foto_pessoa || '',
-      foto_pessoa: m.foto_pessoa || m.user?.photo || '',
+      photo: fotoConta || m.foto_pessoa || '',
+      foto_pessoa: m.foto_pessoa || fotoConta || '',
       vinculo: m.tipo ?? 'proprietario',
       tipo: m.tipo ?? 'proprietario',
       extra1: m.extra1 ?? '',

@@ -88,4 +88,36 @@ describe('Listas de morador — conta com vínculo em outro condomínio', () => 
     expect(um.foto_pessoa).toBeNull();
     expect(um.user?.photo ?? null).toBeNull();
   });
+
+  it('app getMoradorById: a foto da conta compartilhada não entra; a da conta só daqui continua', async () => {
+    const linhas: Record<number, any> = {
+      500: { ...cadastro(500, COMPARTILHADA), user: conta(COMPARTILHADA) },
+      501: { ...cadastro(501, LOCAL), user: conta(LOCAL) },
+    };
+    const prisma = base({
+      moradores: {
+        findUnique: jest.fn(async ({ where }: any) => linhas[where.id] ?? null),
+        count: jest.fn(async ({ where }: any) => (ehFora(where) && where.id_user === COMPARTILHADA ? 1 : 0)),
+      },
+      apartamentos_Users: { count: jest.fn(async () => 0) },
+    });
+    const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, {} as any, { assertEntidade: jest.fn(async () => undefined) } as any);
+    const compartilhada = await svc.getMoradorById(500, 1, undefined, sindico);
+    expect(compartilhada).toMatchObject({ photo: '', foto_pessoa: '', email: '', telefone: '', documento: '' });
+    const local = await svc.getMoradorById(501, 1, undefined, sindico);
+    expect(local).toMatchObject({ photo: 'https://s3/u71.jpg', foto_pessoa: 'https://s3/u71.jpg' });
+  });
+
+  it('app getMoradorById: o próprio dono da conta compartilhada vê a foto dele', async () => {
+    const prisma = base({
+      moradores: {
+        findFirst: jest.fn(async () => ({ ...cadastro(500, COMPARTILHADA), user: conta(COMPARTILHADA) })),
+        count: jest.fn(async ({ where }: any) => (ehFora(where) && where.id_user === COMPARTILHADA ? 1 : 0)),
+      },
+      apartamentos_Users: { count: jest.fn(async () => 0) },
+    });
+    const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const eu = await svc.getMoradorById(0, COMPARTILHADA, 1, { sub: COMPARTILHADA, typeAccess: 'Morador' } as any);
+    expect(eu.photo).toBe('https://s3/u70.jpg');
+  });
 });
