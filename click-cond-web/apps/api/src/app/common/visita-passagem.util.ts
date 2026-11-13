@@ -52,7 +52,7 @@ export async function visitaParaNovaPassagem(prisma: any, ref: any): Promise<num
  * Visita nova da mesma pessoa em OUTRA unidade, para um pedido de autorização
  * a uma unidade que ela ainda não visitou. Antes a visita de referência era
  * movida de apartamento — levando junto a liberação/PIN da unidade original.
- * Nasce sem entrada, saída, PIN, tag nem liberação.
+ * Nasce sem entrada, saída, PIN, tag, liberação nem autor (user).
  */
 export async function novaVisitaEmOutraUnidade(prisma: any, ref: any, idApartamento: number): Promise<number> {
   if (ref.data_entrada && !ref.data_saida) {
@@ -65,7 +65,8 @@ export async function novaVisitaEmOutraUnidade(prisma: any, ref: any, idApartame
       id_pessoa: ref.id_pessoa,
       id_condominio: ref.id_condominio,
       id_apartamento: Number(idApartamento),
-      user: ref.user ?? null,
+      // Quem convidou na unidade de origem não convidou nesta (coluna opcional).
+      user: null,
       is_visitante: ref.is_visitante,
       is_prestador: ref.is_prestador,
       data_hora_inicio: ref.data_hora_inicio,

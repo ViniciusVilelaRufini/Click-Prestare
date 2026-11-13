@@ -107,6 +107,8 @@ describe('solicitarAutorizacao (Pessoas/Visitas) — unidade escolhida e janela 
       expect(nova).toEqual(
         expect.objectContaining({ id_pessoa: 2000001, id_apartamento: 107, codigo_acesso: null, liberado: 0, auth_status: 'pendente' }),
       );
+      // Quem convidou na unidade 106 não é quem convidou na 107.
+      expect(nova.user).toBeNull();
       expect(visitas.get(1000004)).toEqual(expect.objectContaining({ id_apartamento: 106, liberado: 1, auth_status: null }));
     });
 
