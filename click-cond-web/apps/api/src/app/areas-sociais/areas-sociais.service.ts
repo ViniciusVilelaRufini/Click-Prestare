@@ -1359,10 +1359,21 @@ export class AreasSociaisService {
     // aprovar/recusar só valem sobre 'pendente'; cancelar, sobre 'aprovado' —
     // e também sobre 'pendente', porque o app do morador oferece cancelar o
     // próprio pedido ainda não decidido (cell_my_agendamento.dart).
-    const origens = ORIGENS_TRANSICAO_RESERVA[novoStatus];
+    // Só chave própria: "constructor"/"toString" vindos do corpo não podem achar o protótipo.
+    const origens = Object.prototype.hasOwnProperty.call(ORIGENS_TRANSICAO_RESERVA, novoStatus)
+      ? ORIGENS_TRANSICAO_RESERVA[novoStatus]
+      : null;
     if (!origens) throw new BadRequestException('Status de reserva inválido.');
     if (!origens.includes(agAlvo.status)) {
       throw new ConflictException(mensagemReservaJaMudou(agAlvo.status));
+    }
+    // Cancelar o que já aconteceu não libera horário nenhum e reescreve o histórico.
+    if (
+      novoStatus === 'cancelado' &&
+      agAlvo.data &&
+      this.fimDaReserva(agAlvo.data, agAlvo.hora_ate) <= this.agoraNoFusoDoCondominio()
+    ) {
+      throw new ConflictException('Esta reserva já aconteceu.');
     }
 
     // Mesma checagem de horário da criação: outra reserva já aprovada no

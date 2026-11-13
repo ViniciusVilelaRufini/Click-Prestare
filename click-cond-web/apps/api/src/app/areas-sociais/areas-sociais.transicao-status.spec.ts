@@ -11,6 +11,10 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
  * tempo, ficavam duas reservas aprovadas no mesmo horário.
  */
 describe('AreasSociaisService — transição de status da reserva', () => {
+  // As reservas destes testes são de 10/06/2026; o relógio fica antes delas.
+  beforeAll(() => jest.useFakeTimers({ advanceTimers: true }).setSystemTime(new Date(Date.UTC(2026, 0, 1, 12, 0, 0))));
+  afterAll(() => jest.useRealTimers());
+
   const funcionario: JwtPayload = { sub: 6, nome: 'Porteiro Y', id_condominio: 2, typeAccess: 'Funcionario' };
   const morador: JwtPayload = { sub: 5, nome: 'Morador X', typeAccess: 'Morador' };
 
@@ -175,5 +179,34 @@ describe('AreasSociaisService — transição de status da reserva', () => {
     const { svc, linhas } = build([reserva({ status: 'aprovado' })]);
     await expect(svc.updateStatusAgendamento(500, 'pendente', '', funcionario)).rejects.toBeInstanceOf(BadRequestException);
     expect(linhas[0].status).toBe('aprovado');
+  });
+
+  it('status com nome de propriedade herdada ("constructor"): 400, não 500', async () => {
+    const { svc, linhas } = build([reserva({ status: 'pendente' })]);
+    await expect(svc.updateStatusAgendamento(500, 'constructor', '', funcionario)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.updateStatusAgendamento(500, 'toString', '', funcionario)).rejects.toBeInstanceOf(BadRequestException);
+    expect(linhas[0].status).toBe('pendente');
+  });
+
+  describe('cancelar reserva que já aconteceu', () => {
+    // 10/06/2026 às 13:00 em Brasília; a reserva é das 10:00 às 12:00 do mesmo dia.
+    beforeEach(() => jest.setSystemTime(new Date(Date.UTC(2026, 5, 10, 16, 0, 0))));
+    afterEach(() => jest.setSystemTime(new Date(Date.UTC(2026, 0, 1, 12, 0, 0))));
+
+    it('fim já passou: 409 "Esta reserva já aconteceu." e o status não muda', async () => {
+      const { svc, linhas } = build([reserva({ status: 'aprovado' })]);
+      const erro = await svc.updateStatusAgendamento(500, 'cancelado', '', funcionario).catch((e) => e);
+      expect(erro).toBeInstanceOf(ConflictException);
+      expect(erro.message).toBe('Esta reserva já aconteceu.');
+      expect(linhas[0].status).toBe('aprovado');
+    });
+
+    it('reserva da noite do mesmo dia ainda pode ser cancelada', async () => {
+      const { svc, linhas } = build([
+        reserva({ status: 'aprovado', hora_de: new Date(1970, 0, 1, 20, 0, 0), hora_ate: new Date(1970, 0, 1, 0, 0, 0) }),
+      ]);
+      await svc.updateStatusAgendamento(500, 'cancelado', '', funcionario);
+      expect(linhas[0].status).toBe('cancelado');
+    });
   });
 });
