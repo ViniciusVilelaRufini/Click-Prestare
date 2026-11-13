@@ -100,7 +100,7 @@ describe('VisitantesService — portaria remota', () => {
   });
 
   it('autorizar (morador dono) → liberado=1, autorizado, enrola no facial', async () => {
-    const { svc, prisma, facial } = build();
+    const { svc, prisma, facial } = build({ auth_status: 'pendente', auth_solicitado_em: new Date() });
     const res = await svc.autorizar(5, moradorDono);
 
     expect(res).toEqual({ ok: true });
@@ -118,7 +118,7 @@ describe('VisitantesService — portaria remota', () => {
   });
 
   it('autorizar com darEntrada=true → liberado=1, data_entrada preenchida, enrola no facial e emite checkin', async () => {
-    const { svc, prisma, facial, realtime } = build();
+    const { svc, prisma, facial, realtime } = build({ auth_status: 'pendente', auth_solicitado_em: new Date() });
     const res = await svc.autorizar(5, moradorDono, true);
 
     expect(res).toEqual({ ok: true });
@@ -144,7 +144,7 @@ describe('VisitantesService — portaria remota', () => {
   });
 
   it('negar (morador dono) → negado, liberado=0', async () => {
-    const { svc, prisma } = build();
+    const { svc, prisma } = build({ auth_status: 'pendente', auth_solicitado_em: new Date() });
     await svc.negar(5, moradorDono);
     expect(prisma.visitantes.update).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -124,7 +124,8 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       }),
     ]);
 
-    const conteudo = montarConteudo(p, 'aguardando');
+    // Unidade e hora vêm do banco (quem chama nem sempre tem o apartamento).
+    const conteudo = montarConteudo((await this.carregarBase(p.origem, p.id)) ?? p, 'aguardando');
     const pushComum = this.pushComum(p, conteudo);
     const agora = new Date(this.agora());
     const cobertos = new Set<string>();
@@ -236,7 +237,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
       });
       if (!r.count || !base) continue;
       const c = montarConteudo(base, 'aguardando');
-      const push = this.pushComum({ ...base, origem: l.origem as OrigemPedido, id: l.id_pedido }, c);
+      const push = this.pushComum({ id: l.id_pedido }, c);
       await this.notifications.enviarParaAparelho(l.fcm_token, push.titulo, push.corpo, push.dados);
     }
   }

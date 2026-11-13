@@ -5,9 +5,10 @@ import { FacialModule } from '../facial/facial.module';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
 import { PessoasModule } from '../pessoas/pessoas.module';
 import { VisitasModule } from '../visitas/visitas.module';
+import { CardAoVivoModule } from '../card-ao-vivo/card-ao-vivo.module';
 
 @Module({
-  imports: [FacialModule, AuditoriaModule, PessoasModule, VisitasModule],
+  imports: [FacialModule, AuditoriaModule, PessoasModule, VisitasModule, CardAoVivoModule],
   controllers: [VisitantesController, VisitantesGlobalController],
   providers: [VisitantesService],
   // Exportado para o ChatIaModule cadastrar visitantes propostos pelo assistente.

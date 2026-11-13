@@ -8,6 +8,7 @@ import {
   ConflictException,
   OnModuleInit,
   OnModuleDestroy,
+  Optional,
 } from '@nestjs/common';
 import { randomInt } from 'crypto';
 import { erroDocumento, erroVisita } from '../common/documento.util';
@@ -27,6 +28,7 @@ import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PessoasService, pessoaTemVisitaForaDosAptos } from '../pessoas/pessoas.service';
 import { VisitasService } from '../visitas/visitas.service';
+import { CardAoVivoService, type QuemRespondeu } from '../card-ao-vivo/card-ao-vivo.service';
 
 /**
  * Migração Visitantes → Pessoas/Visitas: as tabelas `pessoas`/`visitas` estão
@@ -176,7 +178,31 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // segunda injeção aqui; só o normalizador estático é usado diretamente
     // (`PessoasService.normalizarDoc`).
     private readonly visitasService: VisitasService,
+    // Card ao vivo da portaria remota. Por último e opcional pelo mesmo motivo
+    // do visitasService: specs antigos instanciam com a lista curta.
+    @Optional() private readonly cardAoVivo?: CardAoVivoService,
   ) {}
+
+  /**
+   * Atualiza o card ao vivo sem esperar nem propagar erro: o card é acessório,
+   * a resposta ao porteiro/morador nunca depende dele.
+   */
+  private card(acao: (c: CardAoVivoService) => Promise<unknown>) {
+    if (!this.cardAoVivo) return;
+    try {
+      void acao(this.cardAoVivo).catch((e) =>
+        this.logger.warn(`Card ao vivo: ${(e as any)?.message ?? e}`),
+      );
+    } catch (e) {
+      this.logger.warn(`Card ao vivo: ${(e as any)?.message ?? e}`);
+    }
+  }
+
+  /** Quem respondeu, para o card: porteiro do console não tem Users.id. */
+  private quemDoToken(payload?: JwtPayload): QuemRespondeu {
+    const idUser = idUsuarioDoToken(payload);
+    return { idUser, pelaPortaria: idUser == null };
+  }
 
   onModuleInit() {
     if (process.env['NODE_ENV'] === 'test') return;
@@ -3152,6 +3178,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       detalhes: ctx ?? undefined,
     });
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.checkin', { id: v.id });
+    // O card é do pedido (ref.id); a passagem nova (v.id) só existe se a visita já tinha sido usada.
+    this.card(async (c) => {
+      if (ref.auth_status === 'pendente') await c.respondido('visita', ref.id, 'liberado', this.quemDoToken(payload));
+      await c.entrou('visita', ref.id);
+    });
     return { ok: true };
   }
 
@@ -3220,6 +3251,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     await this.desativarOutrosCodigosVisita(v.id_condominio, v.id_pessoa, v.id, await this.aptosDoMoradorMobile(payload));
 
     this.fireFacialSyncPessoa(v.id_pessoa);
+    if (ref.auth_status === 'pendente') {
+      this.card((c) => c.respondido('visita', ref.id, 'liberado', this.quemDoToken(payload)));
+    }
     return { ok: true };
   }
 
@@ -3273,6 +3307,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       descricao: `Check-out de ${label} "${v.pessoa?.nome}" do ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
+    this.card((c) => c.encerrar('visita', v.id));
     return { ok: true };
   }
 
@@ -3315,7 +3350,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       id_apartamento: v.id_apartamento,
       is_prestador: v.is_prestador,
       foto_pessoa: v.pessoa.foto_pessoa,
-    });
+      auth_solicitado_em: v.auth_solicitado_em,
+    }, 'visita');
     const ctx = this.construirContextoAuditoria(v);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
     await this.auditoria.registrar({
@@ -3387,6 +3423,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       descricao: acaoDesc,
       detalhes: ctx ?? undefined,
     });
+    this.card(async (c) => {
+      await c.respondido('visita', v.id, 'liberado', { idUser: respondidoPor, pelaPortaria: false });
+      if (darEntrada) await c.entrou('visita', v.id);
+    });
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizado', {
       id: v.id,
       darEntrada: !!darEntrada,
@@ -3427,6 +3467,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       descricao: `Visitante negado pelo morador: "${v.pessoa.nome}" no ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
+    this.card((c) => c.respondido('visita', v.id, 'negado', { idUser: respondidoPor, pelaPortaria: false }));
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.negado', { id: v.id });
     return { ok: true };
   }
@@ -4099,12 +4140,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // "existe" em Visitantes por coincidência apagaria o cadastro, a vaga e
     // o rosto de uma pessoa completamente diferente.
     if (pessoasMigrationEnabled(this.prisma)) {
-      return this.removeViaPessoasVisitas(id, payload);
+      const r = await this.removeViaPessoasVisitas(id, payload);
+      this.card((c) => c.encerrar('visita', Number(id)));
+      return r;
     }
 
     // Morador só apaga visita de apartamento dele; porteiro/síndico, do
     // condomínio deles. Mesma regra de todas as outras ações da visita.
     const refLegado = await this.assertPodeAcessarVisitante(id, payload);
+    // Visitante apagado leva o card junto (melhor esforço; se a exclusão
+    // falhar abaixo, o card some igual — o pedido já não faz sentido na tela).
+    this.card((c) => c.encerrar('visitante', Number(id)));
     await this.assertFlagCadastrarVisitante(refLegado.id_condominio, payload);
 
     const v = await this.prisma.visitantes.findUnique({
@@ -4623,6 +4669,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       descricao: `Check-in de ${label} "${v.nome}" no ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
+    this.card(async (c) => {
+      if (ref.auth_status === 'pendente') await c.respondido('visitante', v.id, 'liberado', this.quemDoToken(payload));
+      await c.entrou('visitante', v.id);
+    });
     return { ok: true };
   }
 
@@ -4675,6 +4725,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     );
     // Enrola (ou re-enrola) o rosto no terminal facial agora que liberado=1.
     this.fireFacialSync(v.id);
+    if (ref.auth_status === 'pendente') {
+      this.card((c) => c.respondido('visitante', v.id, 'liberado', this.quemDoToken(payload)));
+    }
     return { ok: true };
   }
 
@@ -4715,6 +4768,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       descricao: `Check-out de ${label} "${v.nome}" do ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
+    this.card((c) => c.encerrar('visitante', v.id));
     return { ok: true };
   }
 
@@ -4722,14 +4776,19 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   // PORTARIA REMOTA — autorização de visitante em tempo real
   // ==========================================================================
 
-  /** Notifica os moradores do apto que um visitante pede autorização (push + WhatsApp). */
+  /**
+   * Notifica os moradores do apto que um visitante pede autorização: card ao
+   * vivo (ou push comum, aparelho a aparelho — ver CardAoVivoService.abrir) +
+   * WhatsApp. Sem o serviço do card, o push comum de sempre.
+   */
   private async notificarMoradoresAutorizacao(v: {
     id: number;
     nome: string;
     id_apartamento: number;
     is_prestador: number;
     foto_pessoa?: string | null;
-  }) {
+    auth_solicitado_em?: Date | null;
+  }, origem: 'visitante' | 'visita' = 'visitante') {
     try {
       const moradores = await this.prisma.users.findMany({
         where: {
@@ -4744,8 +4803,30 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         v.foto_pessoa && !v.foto_pessoa.startsWith('data:') && v.foto_pessoa.length < 500
           ? v.foto_pessoa
           : '';
+      let viaCard = false;
+      if (this.cardAoVivo && moradores.length) {
+        try {
+          await this.cardAoVivo.abrir(
+            {
+              origem,
+              id: v.id,
+              nome: v.nome,
+              isPrestador: v.is_prestador === 1,
+              bloco: null,
+              apto: null,
+              solicitadoEm: v.auth_solicitado_em ?? new Date(),
+              fotoUrl: photoUrl || null,
+            },
+            moradores.map((m) => m.id),
+          );
+          viaCard = true;
+        } catch (e) {
+          // Card falhou no meio: cai no push comum para ninguém ficar sem aviso.
+          this.logger.warn(`Card ao vivo não abriu (${v.id}): ${(e as any)?.message ?? e}`);
+        }
+      }
       for (const m of moradores) {
-        if (m.fcm_token && m.fcm_token.trim().length > 10) {
+        if (!viaCard && m.fcm_token && m.fcm_token.trim().length > 10) {
           await this.notifications.sendPushNotification(
             m.fcm_token.trim(),
             `${tipo} na portaria`,
@@ -4841,9 +4922,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Este visitante está bloqueado no condomínio.');
     }
+    // Primeira resposta vale (como no caminho de Pessoas/Visitas): com o card
+    // ao vivo, dois moradores tocam quase juntos, e a segunda resposta
+    // reescrevia a primeira — um "negar" atrasado tirava o acesso já dado.
+    this.assertPedidoPendente(ref);
     if (ref.auth_solicitado_em) {
       const ms = Date.now() - new Date(ref.auth_solicitado_em).getTime();
-      if (ms > 15 * 60 * 1000) {
+      if (ms > AUTORIZACAO_EXPIRACAO_MS) {
         throw new BadRequestException('Esta solicitação de autorização expirou (limite de 10 minutos).');
       }
     }
@@ -4881,6 +4966,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (darEntrada) {
       this.realtime.emitToCondominio(v.id_condominio, 'visitante.checkin', { id: v.id });
     }
+    this.card(async (c) => {
+      await c.respondido('visitante', v.id, 'liberado', { idUser: respondidoPor, pelaPortaria: false });
+      if (darEntrada) await c.entrou('visitante', v.id);
+    });
     return { ok: true };
   }
 
@@ -4889,7 +4978,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (pessoasMigrationEnabled(this.prisma)) {
       return this.negarViaPessoasVisitas(id, payload);
     }
-    await this.assertPodeAcessarVisitante(id, payload);
+    const refNegar = await this.assertPodeAcessarVisitante(id, payload);
+    this.assertPedidoPendente(refNegar);
     const respondidoPor = idUsuarioDoToken(payload);
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
@@ -4914,6 +5004,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       detalhes: ctx ?? undefined,
     });
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.negado', { id: v.id });
+    this.card((c) => c.respondido('visitante', v.id, 'negado', { idUser: respondidoPor, pelaPortaria: false }));
     return { ok: true };
   }
 

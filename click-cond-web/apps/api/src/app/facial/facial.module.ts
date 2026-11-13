@@ -14,6 +14,7 @@ import { AccessStateService } from './access-state.service';
 import { AgentBridgeService } from './agent-bridge.service';
 import { AgentVersionService } from './agent-version.service';
 import { DescobertaService } from './descoberta.service';
+import { CardAoVivoModule } from '../card-ao-vivo/card-ao-vivo.module';
 
 /**
  * O simulador de terminal e a botoeira mock são andaimes de teste — existem
@@ -33,6 +34,8 @@ const simuladorHabilitado =
   String(process.env['FACIAL_SIMULATOR_ENABLED'] ?? '').toLowerCase() === 'true';
 
 @Module({
+  // Card ao vivo: a entrada pelo terminal leva o card da portaria remota a ENTROU.
+  imports: [CardAoVivoModule],
   controllers: [
     FacialController,
     FacialWebhookController,

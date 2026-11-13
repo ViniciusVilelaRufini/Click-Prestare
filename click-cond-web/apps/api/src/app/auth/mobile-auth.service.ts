@@ -19,6 +19,7 @@ import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usua
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
 import { assertStaff, assertSindico, assertSindicoEstrito, assertOperador, isOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
@@ -89,6 +90,8 @@ export class MobileAuthService {
     private readonly notifications: NotificationsService,
     private readonly superlogicaWrite: SuperlogicaWriteService,
     @Optional() private readonly mfa?: MfaService,
+    // Card ao vivo da portaria remota: logout encerra os cards abertos.
+    @Optional() private readonly cardAoVivo?: CardAoVivoService,
   ) {}
 
   /** Estado entre instâncias (trava da senha do perfil); criado sob demanda. */
@@ -2276,7 +2279,7 @@ export class MobileAuthService {
    * (o porteiro sai, o morador entra), o registro MIGRA para o novo usuário,
    * senão a notificação do novo continuaria caindo na conta antiga.
    */
-  async updateFcmToken(idUser: number, fcmToken: string, plataforma?: string) {
+  async updateFcmToken(idUser: number, fcmToken: string, plataforma?: string, cardTokenInicio?: string) {
     if (!this.prisma.isConnected) return { success: true };
     if (!idUser || Number.isNaN(idUser)) {
       throw new BadRequestException('Usuário inválido');
@@ -2286,11 +2289,24 @@ export class MobileAuthService {
       throw new BadRequestException('FCM Token é obrigatório');
     }
 
+    // Token de push-to-start do card ao vivo (iPhone 17.2+). Ausente = não
+    // mexe (app antigo, Android); string vazia = o aparelho deixou de ter.
+    const card =
+      cardTokenInicio === undefined || cardTokenInicio === null
+        ? undefined
+        : /^[0-9a-fA-F]{16,200}$/.test(cardTokenInicio.trim())
+          ? cardTokenInicio.trim()
+          : null;
+
     // O token é único na tabela: o upsert é o que migra o aparelho de dono.
     await this.prisma.users_Devices.upsert({
       where: { fcm_token: token },
-      create: { id_user: idUser, fcm_token: token, plataforma: plataforma ?? null },
-      update: { id_user: idUser, plataforma: plataforma ?? undefined },
+      create: { id_user: idUser, fcm_token: token, plataforma: plataforma ?? null, ...(card ? { card_token_inicio: card } : {}) },
+      update: {
+        id_user: idUser,
+        plataforma: plataforma ?? undefined,
+        ...(card !== undefined ? { card_token_inicio: card } : {}),
+      },
     });
 
     // Remove tokens antigos/desconectados deste usuário
@@ -2320,6 +2336,10 @@ export class MobileAuthService {
    */
   async removeFcmToken(idUser: number, fcmToken?: string) {
     if (!this.prisma.isConnected) return { success: true };
+    // Antes de apagar os tokens: o Android precisa do token para fechar a notificação.
+    if (this.cardAoVivo && idUser && !Number.isNaN(idUser)) {
+      await this.cardAoVivo.encerrarDoUsuario(idUser).catch(() => undefined);
+    }
     const token = (fcmToken ?? '').trim();
     if (token) {
       await this.prisma.users_Devices.deleteMany({

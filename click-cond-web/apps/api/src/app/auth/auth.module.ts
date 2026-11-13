@@ -30,6 +30,7 @@ import { FinanceiroModule } from '../financeiro/financeiro.module';
 import { ApartamentosModule } from '../apartamentos/apartamentos.module';
 import { EncomendasModule } from '../encomendas/encomendas.module';
 import { SuperlogicaModule } from '../superlogica/superlogica.module';
+import { CardAoVivoModule } from '../card-ao-vivo/card-ao-vivo.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SuperlogicaModule } from '../superlogica/superlogica.module';
     }),
     OcorrenciasModule,
     FacialModule,
+    CardAoVivoModule,
     // O saldo do card do dashboard vem do mesmo cálculo da tela de Financeiro.
     FinanceiroModule,
     // removeApto delega a exclusao (e a auditoria da cascata) para ca.

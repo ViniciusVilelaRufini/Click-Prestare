@@ -6,8 +6,10 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -512,6 +514,8 @@ export class FacialService {
     private readonly consentimentosTerceiros: ConsentimentosTerceirosService,
     // Bucket privado: a foto que vai ao terminal é baixada por link assinado.
     private readonly storage?: StorageService,
+    // Card ao vivo da portaria remota (opcional: specs instanciam com a lista curta).
+    @Optional() private readonly cardAoVivo?: CardAoVivoService,
   ) {
     // Re-sincroniza quem tem restrição de dia da semana ao virar o dia (0h BRT).
     // Delay de 5 min no boot para aguardar banco conectar após deploy.
@@ -6065,6 +6069,15 @@ export class FacialService {
           throw new BadRequestException(
             'Acesso negado: A liberação deste visitante foi revogada ou já consumida.',
           );
+        }
+
+        // Card ao vivo: o morador vê o visitante ENTROU (melhor esforço).
+        if (this.cardAoVivo) {
+          const origemCard = visitaAtivaMigrada ? 'visita' : 'visitante';
+          const idCard = visitaAtivaMigrada ? visitaAtivaMigrada.id : v.id;
+          void this.cardAoVivo
+            .entrou(origemCard, idCard, timestamp)
+            .catch((err) => this.logger.warn(`Card ao vivo (entrada ${idCard}): ${err?.message ?? err}`));
         }
 
         // A entrada consumiu uso(s) do contador local do aparelho (UseTime) —
