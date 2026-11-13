@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:click/controllers/controller_delivery.dart';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/services/card_ao_vivo/textos_card.dart';
 import 'package:click/utils/api_client.dart';
@@ -31,10 +32,11 @@ class CardAndroid {
   static Future<void>? _iniciando;
 
   /// Chamado pela UI quando o morador toca em AUTORIZAR (app aberto/abrindo).
-  static void Function(int idPedido)? aoAutorizarPelaNotificacao;
+  /// `origem`: visitante | visita | delivery.
+  static void Function(int idPedido, String origem)? aoAutorizarPelaNotificacao;
 
   /// Chamado pela UI quando o morador toca no corpo da notificação.
-  static VoidCallback? aoTocarNoCard;
+  static void Function(String origem)? aoTocarNoCard;
 
   static bool get _suportado => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
@@ -98,9 +100,9 @@ class CardAndroid {
     if (r.actionId == acaoNegar) {
       respostaCardSegundoPlano(r);
     } else if (r.actionId == acaoAutorizar) {
-      aoAutorizarPelaNotificacao?.call(dados.idPedido);
+      aoAutorizarPelaNotificacao?.call(dados.idPedido, dados.origem);
     } else {
-      aoTocarNoCard?.call();
+      aoTocarNoCard?.call(dados.origem);
     }
   }
 
@@ -117,18 +119,23 @@ class CardAndroid {
       await _apagarFoto(idCartao);
       return;
     }
-    // A foto só vem na abertura; as fases seguintes reusam o arquivo.
-    final foto = data['foto'];
-    if (foto is String && foto.isNotEmpty) await _guardarFoto(idCartao, foto);
     Map<String, dynamic> conteudo;
     try {
       conteudo = Map<String, dynamic>.from(jsonDecode('${data['conteudo']}') as Map);
     } catch (_) {
       return;
     }
-    await mostrar(idCartao: idCartao, idPedido: idPedido, origem: '${data['origem'] ?? ''}', conteudo: conteudo);
+    final origem = '${data['origem'] ?? ''}';
+    // Portaria: a foto vem só na abertura (data['foto']). Delivery: no próprio
+    // conteúdo, em toda fase (o entregador pode ser identificado depois).
+    // O arquivo guardado é reusado nas fases seguintes.
+    final foto = data['foto'] ?? conteudo.remove('foto');
+    if (foto is String && foto.isNotEmpty) await _guardarFoto(idCartao, foto);
+    await mostrar(idCartao: idCartao, idPedido: idPedido, origem: origem, conteudo: conteudo);
 
-    if (conteudo['fase'] == 'aguardando') await _confirmar(idCartao);
+    // Confirma que o card abriu (sem isto o servidor manda o aviso comum em
+    // 10 s). O delivery abre em fases variadas; confirmar de novo não faz mal.
+    if (conteudo['fase'] == 'aguardando' || origem == 'delivery') await _confirmar(idCartao);
   }
 
   static Future<void> mostrar({
@@ -137,16 +144,31 @@ class CardAndroid {
     required String origem,
     required Map<String, dynamic> conteudo,
   }) async {
-    final t = textosCard(conteudo);
+    final delivery = origem == 'delivery';
+    final t = textosCard(conteudo, origem: origem);
     final fase = '${conteudo['fase']}';
     final agoraMs = DateTime.now().millisecondsSinceEpoch;
     final expiraMs = ((conteudo['expiraEm'] as num?) ?? 0) * 1000;
-    final duracao = switch (fase) {
-      'aguardando' => (expiraMs - agoraMs).clamp(5000, 180000).toInt() + 30000,
-      'liberado' => 10 * 60 * 1000,
-      'entrou' => 5 * 60 * 1000,
-      _ => 2 * 60 * 1000,
-    };
+    final chegouMs = ((conteudo['chegouEm'] as num?) ?? 0) * 1000;
+    final duracao = delivery
+        ? switch (fase) {
+            'entregue' => 5 * 60 * 1000,
+            'recusado' => 2 * 60 * 1000,
+            _ => 2 * 60 * 60 * 1000,
+          }
+        : switch (fase) {
+            'aguardando' => (expiraMs - agoraMs).clamp(5000, 180000).toInt() + 30000,
+            'liberado' => 10 * 60 * 1000,
+            'entrou' => 5 * 60 * 1000,
+            _ => 2 * 60 * 1000,
+          };
+    // Portaria: contagem regressiva até o fim da janela de resposta.
+    // Delivery: tempo que o entregador espera, contando para cima.
+    final regressiva = !delivery && fase == 'aguardando';
+    final progressiva = delivery && (fase == 'chegou' || fase == 'aguardando');
+    // Toca na chegada do pedido; no delivery, também quando pede autorização
+    // ou quando é para descer à portaria.
+    final toca = delivery ? const ['chegou', 'aguardando', 'retirar'].contains(fase) : fase == 'aguardando';
     final foto = await _arquivoFoto(idCartao);
     final detalhes = AndroidNotificationDetails(
       canalId,
@@ -159,19 +181,17 @@ class CardAndroid {
       visibility: NotificationVisibility.public,
       ongoing: t.emAndamento,
       autoCancel: !t.emAndamento,
-      // Só a chegada do pedido toca; as mudanças de fase atualizam em silêncio.
-      onlyAlertOnce: fase != 'aguardando',
+      onlyAlertOnce: !toca,
       timeoutAfter: duracao,
-      // Contagem regressiva até o fim da janela de resposta.
-      showWhen: fase == 'aguardando',
-      when: fase == 'aguardando' ? expiraMs.toInt() : null,
-      usesChronometer: fase == 'aguardando',
-      chronometerCountDown: fase == 'aguardando',
+      showWhen: regressiva || progressiva,
+      when: regressiva ? expiraMs.toInt() : (progressiva ? chegouMs.toInt() : null),
+      usesChronometer: regressiva || progressiva,
+      chronometerCountDown: regressiva,
       color: _corDaFase(fase),
       actions: t.comBotoes
-          ? const [
-              AndroidNotificationAction(acaoNegar, 'NEGAR', cancelNotification: false),
-              AndroidNotificationAction(acaoAutorizar, 'AUTORIZAR', showsUserInterface: true, cancelNotification: false),
+          ? [
+              AndroidNotificationAction(acaoNegar, delivery ? 'RECUSAR' : 'NEGAR', cancelNotification: false),
+              const AndroidNotificationAction(acaoAutorizar, 'AUTORIZAR', showsUserInterface: true, cancelNotification: false),
             ]
           : null,
     );
@@ -237,9 +257,9 @@ class CardAndroid {
   }
 
   static Color _corDaFase(String fase) => switch (fase) {
-        'aguardando' => const Color(0xFFFFC83D),
-        'liberado' || 'entrou' => const Color(0xFF5EC28A),
-        'negado' => const Color(0xFFFF6B6B),
+        'aguardando' || 'chegou' || 'retirar' => const Color(0xFFFFC83D),
+        'liberado' || 'entrou' || 'autorizado' || 'entregue' => const Color(0xFF5EC28A),
+        'negado' || 'recusado' => const Color(0xFFFF6B6B),
         _ => const Color(0xFF666666),
       };
 
@@ -277,6 +297,29 @@ Future<void> respostaCardSegundoPlano(NotificationResponse r) async {
   if (p == null) return;
   try {
     await ensureStorageReady();
+    if (p.origem == 'delivery') {
+      // RECUSAR do delivery (mesmo motivo da tela do app).
+      final r = await apiResponderDeliveryPorId(p.idPedido, autorizar: false);
+      if (r.success) {
+        await CardAndroid.mostrar(
+          idCartao: p.idCartao,
+          idPedido: p.idPedido,
+          origem: p.origem,
+          conteudo: {
+            ...p.conteudo,
+            'fase': 'recusado',
+            'voceRespondeu': true,
+            'pelaPortaria': false,
+            'horaResposta': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          },
+        );
+      } else {
+        // A portaria já mudou o atendimento: o card não fica parado na tela.
+        logDebug('Card ao vivo: recusar não aceito: ${r.message}');
+        await CardAndroid._plugin.cancel(id: p.idCartao);
+      }
+      return;
+    }
     final res = await apiResponderAutorizacao(p.idPedido, false);
     if (res is Map) {
       // Mostra o resultado na hora; o push do servidor confirma em seguida.

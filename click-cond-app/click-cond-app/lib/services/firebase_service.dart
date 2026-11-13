@@ -6,6 +6,7 @@ import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
+import 'package:click/controllers/controller_delivery.dart';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/services/card_ao_vivo/card_android.dart';
@@ -86,7 +87,8 @@ class FirebaseService {
     // o token de push-to-start do iPhone junto.
     CardAoVivoIos.iniciar(aoMudarToken: () => registrarNoServidor());
     ThemeController.instance.addListener(_aoMudarTema);
-    CardAndroid.aoTocarNoCard = () => _navigateByType('autorizacao_visitante', const {});
+    CardAndroid.aoTocarNoCard =
+        (origem) => _navigateByType(origem == 'delivery' ? 'delivery' : 'autorizacao_visitante', const {});
     CardAndroid.aoAutorizarPelaNotificacao = _autorizarPelaNotificacao;
     try {
       await CardAndroid.iniciar();
@@ -137,7 +139,9 @@ class FirebaseService {
       final type = message.data['type']?.toString();
       if (type == 'card_portaria') {
         CardAndroid.exibir(message.data);
-        if (message.data['fase'] == 'aguardando') {
+        // Diálogo de visitante só para a portaria remota; o delivery fica na
+        // notificação fixa (RECUSAR/AUTORIZAR nela mesma).
+        if (message.data['fase'] == 'aguardando' && message.data['origem'] != 'delivery') {
           final id = int.tryParse('${message.data['id_pedido']}');
           String? nome;
           try {
@@ -181,7 +185,19 @@ class FirebaseService {
 
   /// AUTORIZAR tocado na notificação do card (Android). O app só abre depois
   /// do desbloqueio, que é a exigência de segurança do AUTORIZAR.
-  Future<void> _autorizarPelaNotificacao(int idPedido) async {
+  Future<void> _autorizarPelaNotificacao(int idPedido, String origem) async {
+    if (origem == 'delivery') {
+      final r = await apiResponderDeliveryPorId(idPedido, autorizar: true);
+      _navigateByType('delivery', const {});
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = NavigationService.navigatorKey.currentContext;
+        if (ctx == null) return;
+        ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
+          content: Text(r.success ? 'Entrega autorizada.' : (r.message ?? 'Não foi possível autorizar.')),
+        ));
+      });
+      return;
+    }
     final res = await apiResponderAutorizacao(idPedido, true);
     _navigateByType('autorizacao_visitante', const {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -244,6 +260,10 @@ class FirebaseService {
               builder: (_) => const ListEncomendas(),
             ),
           );
+          break;
+        // Card ao vivo do delivery (toque ou AUTORIZAR na notificação fixa).
+        case 'delivery':
+          nav.pushNamed('/delivery');
           break;
         case 'ocorrencia_chat':
         case 'ocorrencia_atribuida':
@@ -309,6 +329,9 @@ class FirebaseService {
           // só de dados apenas para aparelhos com esta marca).
           if (defaultTargetPlatform == TargetPlatform.android) 'card_android': true,
           'card_tema': tema,
+          // Versão do card que este app desenha: 2 = também o do delivery
+          // (o servidor só manda card de delivery a partir dela).
+          'card_versao': 2,
         }),
       );
       _temaEnviado = tema;

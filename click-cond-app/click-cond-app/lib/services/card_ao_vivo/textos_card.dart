@@ -31,7 +31,64 @@ String horaDoEpoch(dynamic epochSeg) {
   return DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch((n * 1000).round()).toLocal());
 }
 
-TextosCard textosCard(Map<String, dynamic> c) {
+/// Delivery (spec 2026-11-13-card-ao-vivo-delivery-design.md): `nome` é o
+/// estabelecimento, `tipo` o entregador, `horaEntrada` a hora da entrega.
+TextosCard _textosDelivery(Map<String, dynamic> c) {
+  final fase = '${c['fase'] ?? ''}';
+  final nome = '${c['nome'] ?? 'Delivery'}';
+  final tipo = '${c['tipo'] ?? 'Entregador'}';
+  final unidade = '${c['unidade'] ?? ''}';
+  final linha = unidade.isEmpty ? tipo : '$tipo · $unidade';
+  final motivo = (c['motivo'] ?? '').toString().trim();
+  switch (fase) {
+    case 'chegou':
+      return TextosCard(titulo: '$nome · na portaria', corpo: linha, emAndamento: true, comBotoes: false);
+    case 'aguardando':
+      return TextosCard(
+        titulo: '$nome · na portaria',
+        corpo: 'A portaria aguarda sua autorização · $linha',
+        emAndamento: true,
+        comBotoes: true,
+      );
+    case 'autorizado':
+      return TextosCard(
+        titulo: '$nome · autorizado',
+        corpo: c['voceRespondeu'] == true
+            ? 'Você autorizou. A caminho da sua unidade.'
+            : 'Autorizado pela portaria. A caminho da sua unidade.',
+        emAndamento: true,
+        comBotoes: false,
+      );
+    case 'retirar':
+      return TextosCard(
+        titulo: '$nome · retire na portaria',
+        corpo: 'Sua entrega está na portaria. Retire quando puder.',
+        emAndamento: true,
+        comBotoes: false,
+      );
+    case 'entregue':
+      return TextosCard(
+        titulo: '$nome · entregue',
+        corpo: 'Entregue às ${horaDoEpoch(c['horaEntrada'])}.',
+        emAndamento: false,
+        comBotoes: false,
+      );
+    case 'recusado':
+      return TextosCard(
+        titulo: '$nome · recusado',
+        corpo: c['voceRespondeu'] == true
+            ? 'Você recusou a entrega.'
+            : 'Recusado pela portaria${motivo.isEmpty ? '.' : ': $motivo'}',
+        emAndamento: false,
+        comBotoes: false,
+      );
+    default:
+      return TextosCard(titulo: 'Delivery', corpo: nome, emAndamento: false, comBotoes: false);
+  }
+}
+
+TextosCard textosCard(Map<String, dynamic> c, {String origem = 'visitante'}) {
+  if (origem == 'delivery') return _textosDelivery(c);
   final fase = '${c['fase'] ?? ''}';
   final nome = '${c['nome'] ?? 'Visitante'}';
   final tipo = '${c['tipo'] ?? 'Visitante'}';

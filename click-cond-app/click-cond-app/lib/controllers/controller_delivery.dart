@@ -175,6 +175,32 @@ Future<DeliveryResult> apiResponderDelivery(DeliveryModel delivery,
   }
 }
 
+/// Resposta pelo card ao vivo (notificação fixa do Android): só o id, sem o
+/// modelo — o servidor recusa se o atendimento não estiver aguardando.
+Future<DeliveryResult> apiResponderDeliveryPorId(int id,
+    {required bool autorizar}) async {
+  try {
+    final response = await ApiClient.patch(
+      ApiConfig.buildUri('/delivery/$id'),
+      body: jsonEncode(autorizar
+          ? {'status': 'AUTORIZADA'}
+          : {'status': 'RECUSADA', 'motivo': 'Recusada pelo morador.'}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return DeliveryResult.error(mensagemDeErroApi(response.body));
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      return DeliveryResult.error('A resposta da portaria é inválida.');
+    }
+    return DeliveryResult.ok(
+        DeliveryModel.fromJson(Map<String, dynamic>.from(decoded)));
+  } catch (_) {
+    return DeliveryResult.error(
+        'Não foi possível enviar sua resposta. Verifique a conexão e tente novamente.');
+  }
+}
+
 Future<DeliveryResult> apiCancelDelivery(DeliveryModel delivery) async {
   if (delivery.id == null || !delivery.canCancel) {
     return DeliveryResult.error(

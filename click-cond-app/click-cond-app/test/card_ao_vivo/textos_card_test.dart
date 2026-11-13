@@ -62,4 +62,50 @@ void main() {
     final t = textosCard(com({'fase': 'aguardando', 'tipo': 'Prestador', 'unidade': ''}));
     expect(t.corpo.startsWith('Prestador · responda até'), isTrue);
   });
+
+  group('delivery', () {
+    final d = <String, dynamic>{
+      ...base,
+      'nome': 'Burger King',
+      'tipo': 'Carlos · iFood',
+      'expiraEm': chegou + 7200,
+      'horaResposta': null,
+    };
+    TextosCard t(Map<String, dynamic> m) => textosCard({...d, ...m}, origem: 'delivery');
+
+    test('chegou: fixa, sem botões, entregador e unidade', () {
+      final x = t({'fase': 'chegou'});
+      expect(x.titulo, 'Burger King · na portaria');
+      expect(x.corpo, 'Carlos · iFood · Bloco A · Apto 106');
+      expect(x.emAndamento, isTrue);
+      expect(x.comBotoes, isFalse);
+    });
+
+    test('aguardando: com botões e o pedido da portaria', () {
+      final x = t({'fase': 'aguardando'});
+      expect(x.comBotoes, isTrue);
+      expect(x.emAndamento, isTrue);
+      expect(x.corpo, contains('aguarda sua autorização'));
+    });
+
+    test('autorizado: você ou a portaria', () {
+      expect(t({'fase': 'autorizado', 'voceRespondeu': true}).corpo, 'Você autorizou. A caminho da sua unidade.');
+      expect(t({'fase': 'autorizado', 'pelaPortaria': true}).corpo, 'Autorizado pela portaria. A caminho da sua unidade.');
+    });
+
+    test('retirar: título pede para descer', () {
+      final x = t({'fase': 'retirar'});
+      expect(x.titulo, 'Burger King · retire na portaria');
+      expect(x.emAndamento, isTrue);
+    });
+
+    test('entregue sai do fixo; recusado mostra o motivo', () {
+      expect(t({'fase': 'entregue'}).emAndamento, isFalse);
+      expect(t({'fase': 'entregue'}).corpo, 'Entregue às ${horaDoEpoch(chegou + 300)}.');
+      final r = t({'fase': 'recusado', 'motivo': 'Sem documento'});
+      expect(r.corpo, contains('Sem documento'));
+      expect(r.emAndamento, isFalse);
+      expect(t({'fase': 'recusado', 'voceRespondeu': true}).corpo, 'Você recusou a entrega.');
+    });
+  });
 }
