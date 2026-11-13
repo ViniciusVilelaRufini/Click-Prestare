@@ -444,6 +444,8 @@ describe('DeliveryService', () => {
       const m = montar();
       const aviso = await aguardando(m);
       const vizinho = { sub: 99, typeAccess: 'Morador' } as any;
+      // Sem vínculo com a unidade do aviso.
+      m.prisma.apartamentos_Users.findFirst.mockImplementation(async ({ where }: any) => (where.id_user === 99 ? null : { id: 1 }));
 
       await expect(m.service.atualizarStatus(aviso.id, { status: 'AUTORIZADA' }, vizinho))
         .rejects.toBeInstanceOf(ForbiddenException);
@@ -582,11 +584,11 @@ describe('DeliveryService', () => {
   describe('escopos da listagem operacional', () => {
     afterEach(() => jest.useRealTimers());
 
-    it('escopo=ativos exclui terminais', async () => {
+    it('escopo=ativos não filtra por data de criação', async () => {
       const { service, prisma } = montar();
       await service.listarAtendimentos(1, undefined, porteiro, { escopo: 'ativos' });
       const { where } = prisma.deliveryAtendimentos.findMany.mock.calls[0][0];
-      expect(where.AND).toEqual([{ status: { notIn: ['CONCLUIDA', 'CANCELADA', 'RECUSADA'] } }]);
+      expect(where.AND[0].OR[0]).toEqual({ status: { notIn: ['CONCLUIDA', 'CANCELADA', 'RECUSADA'] } });
       expect(where.created_at).toBeUndefined();
     });
 
@@ -649,7 +651,10 @@ describe('DeliveryService', () => {
       const { service, prisma } = montar();
       await service.listarAtendimentos(1, undefined, morador, { escopo: 'tudo' });
       const args = prisma.deliveryAtendimentos.findMany.mock.calls[0][0];
-      expect(args.where).toEqual({ id_condominio: 1, id_morador_user: 10 });
+      expect(args.where).toEqual({
+        id_condominio: 1,
+        OR: [{ id_morador_user: 10 }, { apartamento: { users: { some: { id_user: 10 } } } }],
+      });
       expect(args.take).toBeUndefined();
     });
 
@@ -698,6 +703,101 @@ describe('DeliveryService', () => {
     it('nega resumo ao morador', async () => {
       const { service } = montar();
       await expect(service.resumo(1, undefined, undefined, morador)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('ciclos do porteiro (A1, A2, M3)', () => {
+    afterEach(() => jest.useRealTimers());
+
+    it('A1: portaria cancela aviso AGENDADA com motivo e o morador é avisado', async () => {
+      const { service, atendimentos, notifications } = montar();
+      const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+
+      await expect(service.atualizarStatus(aviso.id, { status: 'CANCELADA' }, porteiro))
+        .rejects.toBeInstanceOf(BadRequestException);
+      await service.atualizarStatus(aviso.id, { status: 'CANCELADA', motivo: 'Entregador não apareceu' }, porteiro);
+
+      expect(atendimentos[0]).toMatchObject({ status: 'CANCELADA', motivo: 'Entregador não apareceu', cancelado_em: expect.any(Date) });
+      expect(notifications.sendPushNotification).toHaveBeenCalledWith(
+        'token-morador',
+        'Delivery',
+        'Seu aviso de delivery foi cancelado pela portaria. Motivo: Entregador não apareceu',
+        expect.objectContaining({ status: 'CANCELADA' }),
+      );
+    });
+
+    it('A1: morador que cancela o próprio aviso não recebe aviso da própria ação', async () => {
+      const { service, notifications } = montar();
+      const aviso = await service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+      await service.atualizarStatus(aviso.id, { status: 'CANCELADA', motivo: 'Desisti' }, morador);
+      expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+    });
+
+    it('A2: escopo=ativos inclui recusados e cancelados das últimas 2 horas', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-13T15:00:00Z'));
+      const { service, prisma } = montar();
+      await service.listarAtendimentos(1, undefined, porteiro, { escopo: 'ativos' });
+      const { where } = prisma.deliveryAtendimentos.findMany.mock.calls[0][0];
+      const limite = new Date('2026-11-13T13:00:00Z');
+      expect(where.AND).toEqual([{
+        OR: [
+          { status: { notIn: ['CONCLUIDA', 'CANCELADA', 'RECUSADA'] } },
+          { status: 'RECUSADA', recusado_em: { gte: limite } },
+          { status: 'CANCELADA', cancelado_em: { gte: limite } },
+        ],
+      }]);
+    });
+
+    function comVizinho(m: ReturnType<typeof montar>) {
+      m.prisma.apartamentos_Users.findFirst.mockImplementation(async ({ where }: any) => {
+        if (where.id_user === 10) return { id: 1, user: { fcm_token: 'token-morador' } };
+        if (where.id_user === 11 && where.id_apto === 101) return { id: 2, user: { fcm_token: 'token-vizinho' } };
+        return null;
+      });
+      m.prisma.apartamentos_Users.findMany.mockImplementation(async ({ where }: any) =>
+        where?.id_apto === 101
+          ? [
+              { id_user: 10, user: { fcm_token: 'token-morador' } },
+              { id_user: 11, user: { fcm_token: 'token-vizinho' } },
+              { id_user: 12, user: { fcm_token: null } },
+            ]
+          : [],
+      );
+    }
+
+    it('M3: outro morador com vínculo na unidade responde ao pedido de autorização', async () => {
+      const m = montar();
+      comVizinho(m);
+      const aviso = await m.service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+      await m.service.atualizarStatus(aviso.id, { status: 'CHEGOU' }, porteiro);
+      await m.service.atualizarStatus(aviso.id, { status: 'AGUARDANDO_AUTORIZACAO' }, porteiro);
+
+      const vizinho = { sub: 11, typeAccess: 'Morador' } as any;
+      await m.service.atualizarStatus(aviso.id, { status: 'AUTORIZADA' }, vizinho);
+      expect(m.atendimentos[0]).toMatchObject({ status: 'AUTORIZADA' });
+    });
+
+    it('M3: o pedido de autorização chega também aos outros moradores da unidade, sem repetir quem criou', async () => {
+      const m = montar();
+      comVizinho(m);
+      const aviso = await m.service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+      await m.service.atualizarStatus(aviso.id, { status: 'CHEGOU' }, porteiro);
+      m.notifications.sendPushNotification.mockClear();
+
+      await m.service.atualizarStatus(aviso.id, { status: 'AGUARDANDO_AUTORIZACAO' }, porteiro);
+
+      const tokens = m.notifications.sendPushNotification.mock.calls.map((c: any[]) => c[0]);
+      expect(tokens.sort()).toEqual(['token-morador', 'token-vizinho']);
+    });
+
+    it('M3: morador lista os atendimentos das unidades em que tem vínculo', async () => {
+      const { service, prisma } = montar();
+      await service.listarAtendimentos(1, undefined, morador);
+      const args = prisma.deliveryAtendimentos.findMany.mock.calls[0][0];
+      expect(args.where).toEqual({
+        id_condominio: 1,
+        OR: [{ id_morador_user: 10 }, { apartamento: { users: { some: { id_user: 10 } } } }],
+      });
     });
   });
 

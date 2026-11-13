@@ -116,6 +116,7 @@ export function mensagemDelivery(status: StatusDelivery, motivo?: string | null)
     CONCLUIDA: 'Sua entrega foi concluída.',
     RECUSADA: `Sua entrega foi recusada pela portaria.${motivo?.trim() ? ` Motivo: ${motivo.trim()}` : ''}`,
     RETIRADA_NA_PORTARIA: 'Sua entrega ficou na portaria. Retire quando puder.',
+    CANCELADA: `Seu aviso de delivery foi cancelado pela portaria.${motivo?.trim() ? ` Motivo: ${motivo.trim()}` : ''}`,
   };
   return mensagens[status] ?? 'Atualização no seu atendimento.';
 }

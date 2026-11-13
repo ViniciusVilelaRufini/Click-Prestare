@@ -48,6 +48,8 @@ const TERMINAIS: readonly DeliveryStatus[] = ['CONCLUIDA', 'CANCELADA', 'RECUSAD
 const LIMITE_HISTORICO = 500;
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 const DIA_MS = 86_400_000;
+/** Recusados/cancelados continuam na fila da portaria por este tempo, com o desfecho. */
+export const TERMINAIS_NA_FILA_MS = 2 * 3_600_000;
 /** Quanto a resposta do PATCH espera pelo aviso ao morador (card + notificação). */
 export const TETO_AVISO_MS = 2_000;
 
@@ -165,11 +167,23 @@ export class DeliveryService {
     const where: any = { id_condominio: Number(idCondominio) };
     if (status) where.status = status;
     const operador = isOperador(user);
-    if (!operador) where.id_morador_user = this.idUsuario(user);
+    if (!operador) {
+      // Quem tem vínculo com a unidade também acompanha (e responde) o aviso.
+      const idMorador = this.idUsuario(user);
+      where.OR = [{ id_morador_user: idMorador }, { apartamento: { users: { some: { id_user: idMorador } } } }];
+    }
     if (operador) {
       let take: number | undefined;
       if (filtro.escopo === 'ativos') {
-        where.AND = [{ status: { notIn: [...TERMINAIS] } }];
+        // Recusa/cancelamento recentes ficam na fila com o desfecho, sem sumir em silêncio.
+        const desde = new Date(Date.now() - TERMINAIS_NA_FILA_MS);
+        where.AND = [{
+          OR: [
+            { status: { notIn: [...TERMINAIS] } },
+            { status: 'RECUSADA', recusado_em: { gte: desde } },
+            { status: 'CANCELADA', cancelado_em: { gte: desde } },
+          ],
+        }];
       } else if (filtro.escopo === 'historico') {
         const { gte, lte } = this.periodo(filtro.de, filtro.ate);
         where.AND = [{ status: { in: [...TERMINAIS] } }];
@@ -235,13 +249,15 @@ export class DeliveryService {
     if (statusNovo === 'CANCELADA' && !isOperador(user) && atendimento.id_morador_user !== this.idUsuario(user)) {
       throw new ForbiddenException('Somente o morador solicitante pode cancelar este aviso.');
     }
-    // O morador que abriu o aviso responde ao pedido de autorização da
-    // portaria (autorizar ou recusar). Qualquer outra mudança é da portaria.
+    // Quem abriu o aviso ou outro morador com vínculo na unidade responde ao
+    // pedido de autorização da portaria (autorizar ou recusar). Qualquer
+    // outra mudança é da portaria.
     const respostaDoMorador =
       !isOperador(user) &&
       statusAtual === 'AGUARDANDO_AUTORIZACAO' &&
       ['AUTORIZADA', 'RECUSADA'].includes(statusNovo) &&
-      atendimento.id_morador_user === this.idUsuario(user);
+      (atendimento.id_morador_user === this.idUsuario(user) ||
+        (await this.temVinculoNaUnidade(atendimento.id_apartamento, this.idUsuario(user))));
     if (statusNovo !== 'CANCELADA' && !isOperador(user) && !respostaDoMorador) {
       throw new ForbiddenException('Apenas a portaria pode atualizar este atendimento.');
     }
@@ -450,7 +466,9 @@ export class DeliveryService {
   ) {
     const notificavel =
       !respostaDoMorador &&
-      ['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'].includes(statusNovo);
+      (['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'].includes(statusNovo) ||
+        // Cancelamento pela portaria; o do próprio morador não volta a ele.
+        (statusNovo === 'CANCELADA' && !acaoDoMorador));
     let cobertos = new Set<string>();
     let viaCard = false;
     if (this.cardAoVivo) {
@@ -470,6 +488,12 @@ export class DeliveryService {
       } catch (e: any) {
         this.logger.warn(`Card ao vivo do delivery ${registro.id}: ${e?.message ?? e}`);
       }
+    }
+    // Pedido de autorização: os outros moradores da unidade também podem responder.
+    if (statusNovo === 'AGUARDANDO_AUTORIZACAO') {
+      await this.notificarOutrosDaUnidade(registro.id_apartamento, registro.id_morador_user, registro.id).catch((e: any) =>
+        this.logger.warn(`Aviso do delivery ${registro.id} aos outros moradores: ${e?.message ?? e}`),
+      );
     }
     if (!notificavel || viaCard) return;
     await this.notificarMorador(registro.id_apartamento, registro.id_morador_user, statusNovo, registro.id, motivo, cobertos);
@@ -514,6 +538,30 @@ export class DeliveryService {
     const token = vinculo?.user?.fcm_token ?? '';
     if (token && cobertos.has(token)) return;
     await this.notifications.sendPushNotification(token, 'Delivery', mensagemDelivery(status, motivo), { id_delivery: String(idAtendimento), status });
+  }
+
+  /** A notificação de hoje do pedido de autorização aos outros moradores da unidade (um token por usuário). */
+  private async notificarOutrosDaUnidade(idApartamento: number, idCriador: number, idAtendimento: number) {
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_apto: idApartamento },
+      select: { id_user: true, user: { select: { fcm_token: true } } },
+    });
+    const doCriador = (vinculos as any[]).find((v) => v.id_user === idCriador)?.user?.fcm_token;
+    const tokens = new Set<string>();
+    for (const v of vinculos as any[]) {
+      const token = v.user?.fcm_token;
+      if (v.id_user === idCriador || !token || token === doCriador) continue;
+      tokens.add(token);
+    }
+    const status: DeliveryStatus = 'AGUARDANDO_AUTORIZACAO';
+    for (const token of tokens) {
+      await this.notifications.sendPushNotification(token, 'Delivery', mensagemDelivery(status), { id_delivery: String(idAtendimento), status });
+    }
+  }
+
+  private async temVinculoNaUnidade(idApartamento: number, idUser: number) {
+    const vinculo = await this.prisma.apartamentos_Users.findFirst({ where: { id_apto: idApartamento, id_user: idUser }, select: { id: true } });
+    return !!vinculo;
   }
 
   private async criarVeiculo(db: any, idEntregador: number, idCondominio: number, veiculo: { tipo?: string; placa?: string; modelo?: string; cor?: string }) {
