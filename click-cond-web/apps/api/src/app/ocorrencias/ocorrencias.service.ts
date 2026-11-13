@@ -794,6 +794,15 @@ export class OcorrenciasService {
     return msg;
   }
 
+  /**
+   * Quem é avisado decide-se por QUEM escreveu em relação ao AUTOR, não pelo
+   * `is_sindico` do remetente (assim o funcionário que respondia no chat
+   * avisava os síndicos e o morador nunca sabia):
+   *  - quem escreve não é o autor (equipe ou suporte) → avisa o autor;
+   *  - quem escreve é o autor → avisa os síndicos e o responsável atribuído.
+   * Ninguém recebe push da própria mensagem. `nomeRemetente` só vem da
+   * mensagem do sistema, que nunca é do autor, mesmo gravada em nome dele.
+   */
   private async sendChatNotification(
     idOcorrencia: number,
     idUsuarioSender: number,
@@ -813,38 +822,51 @@ export class OcorrenciasService {
       select: { name: true, is_sindico: true },
     });
     const senderName = nomeRemetente || sender?.name || 'Sistema';
+    const remetenteEhAutor = !nomeRemetente && o.user != null && o.user === idUsuarioSender;
+    const dados = { id: idOcorrencia.toString(), type: 'ocorrencia_chat' };
 
-    if (sender?.is_sindico === 1) {
-      if (o.criadoPor?.fcm_token) {
+    if (!remetenteEhAutor) {
+      if (o.criadoPor?.fcm_token && (nomeRemetente || o.criadoPor.id !== idUsuarioSender)) {
         await this.notifications.sendPushNotification(
           o.criadoPor.fcm_token,
           'Nova mensagem na sua Ocorrência',
           `${senderName}: ${mensagem}`,
-          { id: idOcorrencia.toString(), type: 'ocorrencia_chat' },
+          dados,
         );
       }
-    } else {
-      const sindicos = await this.prisma.users.findMany({
-        where: {
-          is_sindico: 1,
-          sindicosCondominios: {
-            some: { id_condominio: o.id_condominio },
-          },
-          fcm_token: { not: null },
+      return;
+    }
+
+    const sindicos = await this.prisma.users.findMany({
+      where: {
+        is_sindico: 1,
+        sindicosCondominios: {
+          some: { id_condominio: o.id_condominio },
         },
+        fcm_token: { not: null },
+      },
+      select: { id: true, fcm_token: true },
+    });
+    const tokens = new Set<string>();
+    for (const s of sindicos) {
+      if (s.fcm_token && s.id !== idUsuarioSender) tokens.add(s.fcm_token);
+    }
+    // Responsável é Users.id (a conta do porteiro, ligada pelo login — ver
+    // listFuncionariosAtribuiveis); recebe se usa o app e tem token de push.
+    if (o.id_responsavel && o.id_responsavel !== idUsuarioSender) {
+      const resp = await this.prisma.users.findUnique({
+        where: { id: o.id_responsavel },
         select: { fcm_token: true },
       });
-
-      for (const s of sindicos) {
-        if (s.fcm_token) {
-          await this.notifications.sendPushNotification(
-            s.fcm_token,
-            `Nova mensagem na Ocorrência #${idOcorrencia}`,
-            `${senderName}: ${mensagem}`,
-            { id: idOcorrencia.toString(), type: 'ocorrencia_chat' },
-          );
-        }
-      }
+      if (resp?.fcm_token) tokens.add(resp.fcm_token);
+    }
+    for (const token of tokens) {
+      await this.notifications.sendPushNotification(
+        token,
+        `Nova mensagem na Ocorrência #${idOcorrencia}`,
+        `${senderName}: ${mensagem}`,
+        dados,
+      );
     }
   }
 }
