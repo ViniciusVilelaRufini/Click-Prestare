@@ -281,7 +281,9 @@ export class VisitantesService {
 
   validarCodigo(codigo: string): Observable<any> {
     const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
-    return this.http.get<any>(`${API_BASE}/visitantes/validar/${codigo}`, {
+    // O PIN é mostrado como "123-456": tira hífen, espaço e ponto (Dashboard e Visitantes).
+    const pin = (codigo ?? '').replace(/[\s.\-]/g, '');
+    return this.http.get<any>(`${API_BASE}/visitantes/validar/${encodeURIComponent(pin)}`, {
       params: new HttpParams().set('id_condominio', cid.toString())
     });
   }
