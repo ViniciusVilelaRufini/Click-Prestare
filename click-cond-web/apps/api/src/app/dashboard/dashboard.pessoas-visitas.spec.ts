@@ -188,6 +188,20 @@ describe('DashboardService — summary() (Pessoas/Visitas)', () => {
     expect(prisma.visitantes.findMany).not.toHaveBeenCalled();
   });
 
+  it('flag OFF: foto/doc/apto do card "Acesso Facial" são buscados só em Visitantes do condomínio do painel', async () => {
+    process.env['PESSOAS_MIGRATION_ENABLED'] = 'false';
+    const { svc, prisma } = build();
+    prisma.acessos_Facial.findMany = jest.fn(async () => [{
+      id: 903, id_condominio: 7, timestamp: new Date('2026-01-01T11:00:00Z'),
+      nome_pessoa: 'Carlos Visitante', tipo_pessoa: 'visitante', tipo_dispositivo: 'facial',
+      evento: 'entrada', confianca: 0.9, id_device: 5, id_pessoa: 1,
+    }]);
+    await svc.summary(7);
+    const hidratacao = prisma.visitantes.findMany.mock.calls.find(([a]: any) => a?.where?.id?.in);
+    expect(hidratacao).toBeDefined();
+    expect(hidratacao[0].where).toEqual({ id: { in: [1] }, id_condominio: 7 });
+  });
+
   it('histórico facial dos visitantes do painel é consultado só no condomínio do painel', async () => {
     process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
     const { svc, prisma } = build();

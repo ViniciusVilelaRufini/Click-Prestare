@@ -653,7 +653,7 @@ export class DashboardService {
           ? resolverInfoVisitantesPorIdAcessoFacial(this.prisma, idsVisitante, idCondominio)
           : idsVisitante.length > 0
             ? this.prisma.visitantes.findMany({
-                where: { id: { in: idsVisitante } },
+                where: { id: { in: idsVisitante }, id_condominio: idCondominio },
                 select: {
                   id: true,
                   foto_pessoa: true,

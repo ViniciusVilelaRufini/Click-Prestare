@@ -116,6 +116,23 @@ describe('RelatoriosService — leituras de visitantes (Pessoas/Visitas)', () =>
       expect(prisma.visitantes.findMany).not.toHaveBeenCalled();
     });
 
+    it('flag OFF: correlação de Acessos_Facial.id_pessoa busca Visitantes só do condomínio do relatório', async () => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'false';
+      const { svc, prisma, espinha } = build();
+      espinha([['facial', 3]]);
+      prisma.acessos_Facial.findMany = jest.fn(async () => [{
+        id: 3, id_condominio: 7, timestamp: new Date('2026-09-05T08:00:00Z'),
+        nome_pessoa: 'Maria Legado', tipo_pessoa: 'visitante', tipo_dispositivo: 'facial',
+        evento: 'entrada', confianca: 0.9, id_device: 1, id_pessoa: 30,
+      }]);
+      await svc.getEventos(7);
+      const hidratacao = prisma.visitantes.findMany.mock.calls.find(
+        ([a]: any) => a?.where?.id?.in && a?.select?.doc_identificacao && !a?.select?.nome,
+      );
+      expect(hidratacao).toBeDefined();
+      expect(hidratacao[0].where).toEqual({ id: { in: [30] }, id_condominio: 7 });
+    });
+
     it('flag ON: correlação de Acessos_Facial.id_pessoa faz merge Pessoas+Visitas (um id de cada espaço)', async () => {
       process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
       const { svc, prisma, espinha } = build();
