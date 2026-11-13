@@ -737,6 +737,11 @@ export class MoradoresService {
       return newM;
     }
 
+    // Mesma guarda do update: objeto/array no e-mail estourava no toLowerCase (500).
+    if (dto.email != null && typeof dto.email !== 'string') {
+      throw new BadRequestException('E-mail inválido.');
+    }
+
     // Validar duplicidade
     const emailNorm = dto.email ? dto.email.toLowerCase().trim() : null;
     const docNorm = dto.documento ? dto.documento.trim() : null;
