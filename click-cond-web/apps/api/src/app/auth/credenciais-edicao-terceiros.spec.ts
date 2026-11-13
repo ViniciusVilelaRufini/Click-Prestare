@@ -52,6 +52,7 @@ describe('Credenciais da conta — edição por terceiros e autoedição', () =>
       sindicos_Condominios: { count: jest.fn(async () => 0) },
       apartamentos_Users: { count: jest.fn(async () => 0) },
       funcionarios_Portaria: { findFirst: jest.fn(async () => null) },
+      prestadores_servico: { findFirst: jest.fn(async () => null) },
       $transaction: jest.fn(async (fn: any) => fn(tx)),
     };
     // Funcionário com a flag `apartamentos` (editar morador alheio exige a flag).

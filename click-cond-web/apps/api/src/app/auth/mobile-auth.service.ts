@@ -3573,6 +3573,15 @@ export class MobileAuthService {
         });
         if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
         await this.assertEmailLivreNaPortaria(email, 'Já existe outro usuário com este e-mail.');
+        // E-mail de prestador de um condomínio onde a conta é equipe: o PrestadoresService trataria o login
+        // de portaria desta conta como o DO prestador (mesmo motivo do saveFuncionario). O prestador da
+        // própria conta tem como e-mail um dos logins antigos, que a troca nunca repete (ehTrocaDoEmailDaConta),
+        // e é levado junto na transação abaixo.
+        const doPrestador = await this.prisma.prestadores_servico.findFirst({
+          where: { email, condominio: { funcionarios: { some: { id_user: idUser } } } },
+          select: { id: true },
+        });
+        if (doPrestador) throw new BadRequestException('Já existe outro usuário com este e-mail.');
       }
     }
 

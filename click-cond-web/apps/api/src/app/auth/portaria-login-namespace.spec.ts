@@ -50,6 +50,7 @@ describe('R12 — e-mail da conta × logins da portaria', () => {
           portarias.find((p) => (where.OR ?? []).some((c: any) => c.login === p.login || c.email === p.email)) ?? null,
         ),
       },
+      prestadores_servico: { findFirst: jest.fn(async () => null) },
       $transaction: jest.fn(async (fn: any) => fn(tx)),
     };
     const tenant: any = {
