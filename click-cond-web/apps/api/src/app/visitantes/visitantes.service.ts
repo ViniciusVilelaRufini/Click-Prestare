@@ -192,7 +192,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Ciclo de vida de retenção de dados pessoais (Art. 15 e 16 da LGPD):
-   * Visitas com data_saida anterior ao prazo de retenção (padrão: 90 dias) têm suas fotos
+   * Visitas cujo fim (saída; sem ela, fim da autorização; sem os dois, última atividade) é
+   * anterior ao prazo de retenção (padrão: 90 dias) têm suas fotos
    * de rosto e documentos removidas fisicamente do Storage e expurgadas do banco (null),
    * preservando o registro histórico auditável da passagem.
    */
@@ -202,10 +203,25 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       const limiteRetencao = new Date(Date.now() - diasRetencao * 24 * 60 * 60 * 1000);
       const paraExpurgo = await this.prisma.visitantes.findMany({
         where: {
-          data_saida: { lte: limiteRetencao },
-          OR: [
-            { foto_pessoa: { not: null } },
-            { foto_documento: { not: null } },
+          AND: [
+            { OR: [{ foto_pessoa: { not: null } }, { foto_documento: { not: null } }] },
+            // Fim da visita: a saída registrada; sem ela, o fim da autorização; sem os dois, a última
+            // atividade. Só a saída contava — visita nunca encerrada guardava as fotos para sempre.
+            {
+              OR: [
+                { data_saida: { lte: limiteRetencao } },
+                { data_saida: null, data_hora_termino: { lte: limiteRetencao } },
+                {
+                  data_saida: null,
+                  data_hora_termino: null,
+                  created_at: { lte: limiteRetencao },
+                  AND: [
+                    { OR: [{ data_entrada: null }, { data_entrada: { lte: limiteRetencao } }] },
+                    { OR: [{ data_hora_inicio: null }, { data_hora_inicio: { lte: limiteRetencao } }] },
+                  ],
+                },
+              ],
+            },
           ],
         },
         select: {
@@ -273,12 +289,29 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   private async tickRetencaoDadosPessoas(diasRetencao: number, limiteRetencao: Date): Promise<number> {
     const paraExpurgo = await this.prisma.pessoas.findMany({
       where: {
-        OR: [{ foto_pessoa: { not: null } }, { foto_documento: { not: null } }],
-        visitas: { some: {} },
+        AND: [
+          { OR: [{ foto_pessoa: { not: null } }, { foto_documento: { not: null } }] },
+          // Sem nenhuma visita (cancelada/apagada, ou Pessoa criada sem visita): conta pela última
+          // alteração da própria Pessoa.
+          { OR: [{ visitas: { some: {} } }, { updated_at: { lte: limiteRetencao } }] },
+        ],
+        // Nenhuma visita ainda dentro do prazo — mesmo "fim da visita" do ramo legado.
         NOT: {
           visitas: {
             some: {
-              OR: [{ data_saida: null }, { data_saida: { gt: limiteRetencao } }],
+              OR: [
+                { data_saida: { gt: limiteRetencao } },
+                { data_saida: null, data_hora_termino: { gt: limiteRetencao } },
+                {
+                  data_saida: null,
+                  data_hora_termino: null,
+                  OR: [
+                    { created_at: { gt: limiteRetencao } },
+                    { data_entrada: { gt: limiteRetencao } },
+                    { data_hora_inicio: { gt: limiteRetencao } },
+                  ],
+                },
+              ],
             },
           },
         },
