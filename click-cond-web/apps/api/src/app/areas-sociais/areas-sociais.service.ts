@@ -259,6 +259,14 @@ export class AreasSociaisService {
     });
   }
 
+  /** Fim da reserva no relógio do condomínio; término 00:00 (ou sem hora) é a meia-noite do fim do dia. */
+  private fimDaReserva(data: Date, horaAte: Date | null | undefined): Date {
+    if (!horaAte || (horaAte.getHours() === 0 && horaAte.getMinutes() === 0)) {
+      return new Date(data.getFullYear(), data.getMonth(), data.getDate() + 1, 0, 0, 0, 0);
+    }
+    return this.combineDateTime(data, horaAte);
+  }
+
   // Colisão de intervalos [inicio, fim): true quando o bloco intersecta
   // alguma das janelas (parcial ou totalmente), tocar na borda não conta.
   private colideComJanela(inicioBloco: Date, fimBloco: Date, janelas: Array<{ inicio: Date; fim: Date }>): boolean {
@@ -905,7 +913,15 @@ export class AreasSociaisService {
         },
       });
 
-      if (agendamentosNoMes.length >= areaAlvo.limite_mensal_apto) {
+      // Pedido pendente cujo horário já terminou não vai mais acontecer
+      // (ninguém decidiu a tempo): não come a cota do mês. Aprovada que já
+      // passou continua contando — o apartamento usou a área.
+      const agoraBr = this.agoraNoFusoDoCondominio();
+      const queContam = agendamentosNoMes.filter(
+        (a) => a.status !== 'pendente' || !a.data || this.fimDaReserva(a.data, a.hora_ate) > agoraBr,
+      );
+
+      if (queContam.length >= areaAlvo.limite_mensal_apto) {
         const nomeMes = primeiroDiaMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
         throw new BadRequestException(
           `Este apartamento já atingiu o limite de ${areaAlvo.limite_mensal_apto} reserva(s) por mês nesta área em ${nomeMes}.`,
