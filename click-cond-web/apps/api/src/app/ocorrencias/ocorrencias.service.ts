@@ -839,7 +839,10 @@ export class OcorrenciasService {
    * `is_sindico` do remetente (assim o funcionário que respondia no chat
    * avisava os síndicos e o morador nunca sabia):
    *  - quem escreve não é o autor (equipe ou suporte) → avisa o autor;
-   *  - quem escreve é o autor → avisa os síndicos e o responsável atribuído.
+   *  - quem escreve é o autor → avisa os síndicos e o responsável atribuído;
+   *  - ocorrência sem autor em Users (portaria, CRM, monitor) → avisa os
+   *    síndicos e o responsável, como se a equipe fosse o autor (antes não
+   *    avisava ninguém).
    * Ninguém recebe push da própria mensagem. `nomeRemetente` só vem da
    * mensagem do sistema, que nunca é do autor, mesmo gravada em nome dele.
    */
@@ -865,7 +868,7 @@ export class OcorrenciasService {
     const remetenteEhAutor = !nomeRemetente && o.user != null && o.user === idUsuarioSender;
     const dados = { id: idOcorrencia.toString(), type: 'ocorrencia_chat' };
 
-    if (!remetenteEhAutor) {
+    if (o.user != null && !remetenteEhAutor) {
       if (o.criadoPor?.fcm_token && (nomeRemetente || o.criadoPor.id !== idUsuarioSender)) {
         await this.notifications.sendPushNotification(
           o.criadoPor.fcm_token,
@@ -888,15 +891,17 @@ export class OcorrenciasService {
       select: { id: true, fcm_token: true },
     });
     const tokens = new Set<string>();
+    // A mensagem do sistema vai gravada em nome do síndico, mas não é dele.
+    const proprio = nomeRemetente ? null : idUsuarioSender;
     for (const s of sindicos) {
-      if (s.fcm_token && s.id !== idUsuarioSender) tokens.add(s.fcm_token);
+      if (s.fcm_token && s.id !== proprio) tokens.add(s.fcm_token);
     }
     // Responsável é Users.id (a conta do porteiro, ligada pelo login — ver
     // listFuncionariosAtribuiveis); recebe se usa o app, tem token de push e
     // ainda pode ler a ocorrência (responsavelPodeLer).
     if (
       o.id_responsavel &&
-      o.id_responsavel !== idUsuarioSender &&
+      o.id_responsavel !== proprio &&
       (await this.responsavelPodeLer(o, o.id_responsavel))
     ) {
       const resp = await this.prisma.users.findUnique({
