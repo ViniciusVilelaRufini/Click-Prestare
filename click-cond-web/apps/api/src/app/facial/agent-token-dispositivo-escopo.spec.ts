@@ -11,15 +11,22 @@ import { FacialService } from './facial.service';
  */
 describe('Agente — token de dispositivo nas rotas condo/*: escopo só do dispositivo', () => {
   // Condomínio 7: devices 5 (tok-5) e 6 (tok-6); agent_token do condomínio: tok-condo-7.
+  // Condomínio 8: device 9 (tok-9) e nenhum agent_token configurado (agente instalado com a URL do webhook).
   const devices = [
     { id: 5, id_condominio: 7, nome: 'T5', tipo: 'facial', fabricante: 'intelbras', ip: '192.168.1.5', porta: 80, api_user: 'admin', api_password: 'senha-5', ultima_sincr: new Date() },
     { id: 6, id_condominio: 7, nome: 'T6', tipo: 'facial', fabricante: 'intelbras', ip: '192.168.1.6', porta: 80, api_user: 'admin', api_password: 'senha-6', ultima_sincr: new Date() },
+    { id: 9, id_condominio: 8, nome: 'T9', tipo: 'facial', fabricante: 'intelbras', ip: '192.168.1.9', porta: 80, api_user: 'admin', api_password: 'senha-9', ultima_sincr: new Date() },
   ];
   const resolver = async (token: string) => {
     if (token === 'tok-condo-7') return { idCondominio: 7 };
     const d = devices.find((x) => `tok-${x.id}` === token);
     if (!d) throw new UnauthorizedException('Token do agente inválido');
-    return { idCondominio: 7, viaTokenDispositivo: true, idDispositivo: d.id };
+    return {
+      idCondominio: d.id_condominio,
+      viaTokenDispositivo: true,
+      idDispositivo: d.id,
+      ...(d.id_condominio === 8 && { condominioSemAgentToken: true }),
+    };
   };
 
   function montar() {
@@ -27,7 +34,7 @@ describe('Agente — token de dispositivo nas rotas condo/*: escopo só do dispo
       resolveAgente: jest.fn(resolver),
       // Comportamento atual (escopo amplo) — o controller não deve mais depender dele.
       resolveCondominioForAgent: jest.fn(async (t: string) => (await resolver(t)).idCondominio),
-      getActiveDevices: jest.fn(async () => devices.map((d) => ({ ...d }))),
+      getActiveDevices: jest.fn(async (id: number) => devices.filter((d) => d.id_condominio === id).map((d) => ({ ...d }))),
       syncAllForCondominio: jest.fn(async () => undefined),
       reportDeviceStatuses: jest.fn(async () => ({ ok: true })),
     };
@@ -105,13 +112,30 @@ describe('Agente — token de dispositivo nas rotas condo/*: escopo só do dispo
     expect((await ctrl.condoPoll('tok-condo-7')).verificar_atualizacao).toBe(false);
   });
 
+  // Instalações em que o agente foi configurado com a URL do webhook de um dispositivo: o condomínio não
+  // tem agent_token, então o "Atualizar agora" do portal só chega por esse token.
+  it('condomínio SEM agent_token: o token de dispositivo consome o verificar_atualizacao uma vez', async () => {
+    const { ctrl, bridge } = montar();
+    await bridge.pedirVerificacaoDeAtualizacao(8);
+    expect((await ctrl.condoPoll('tok-9')).verificar_atualizacao).toBe(true);
+    expect((await ctrl.condoPoll('tok-9')).verificar_atualizacao).toBe(false);
+  });
+
+  it('condomínio SEM agent_token: o token de dispositivo continua sem consumir a descoberta', async () => {
+    const { ctrl, descoberta } = montar();
+    expect((await ctrl.condoPoll('tok-9')).descobrir).toBe(false);
+    expect(descoberta.consumirPedido).not.toHaveBeenCalled();
+  });
+
   describe('FacialService', () => {
     function build() {
       const prisma: any = {
         condominios: { findFirst: jest.fn(async ({ where }: any) => (where.agent_token === 'tok-condo-7' ? { id: 7 } : null)) },
         facial_Devices: {
           findFirst: jest.fn(async ({ where }: any) => {
-            if (where.webhook_token) return where.webhook_token === 'tok-5' ? { id: 5, id_condominio: 7 } : null;
+            if (where.webhook_token === 'tok-9') return { id: 9, id_condominio: 8, condominio: { agent_token: null } };
+            if (where.webhook_token === 'tok-vazio') return { id: 10, id_condominio: 8, condominio: { agent_token: '  ' } };
+            if (where.webhook_token) return where.webhook_token === 'tok-5' ? { id: 5, id_condominio: 7, condominio: { agent_token: 'tok-condo-7' } } : null;
             return where.id === 6 ? { id: 6, id_condominio: 7, tipo: 'lpr', ativo: 1 } : where.id === 5 ? { id: 5, id_condominio: 7, tipo: 'facial', ativo: 1 } : null;
           }),
         },
@@ -134,6 +158,16 @@ describe('Agente — token de dispositivo nas rotas condo/*: escopo só do dispo
       const { svc, runWebhook } = build();
       await svc.processAgentEvent('tok-5', 5, { external_id: 'm-1' } as any);
       expect(runWebhook).toHaveBeenCalled();
+    });
+
+    it('resolveAgente diz quando o condomínio do dispositivo não tem agent_token (nulo ou vazio)', async () => {
+      const { svc } = build();
+      await expect(svc.resolveAgente('tok-9')).resolves.toEqual({
+        idCondominio: 8, viaTokenDispositivo: true, idDispositivo: 9, condominioSemAgentToken: true,
+      });
+      await expect(svc.resolveAgente('tok-vazio')).resolves.toMatchObject({ condominioSemAgentToken: true });
+      const comAgentToken: any = await svc.resolveAgente('tok-5');
+      expect(comAgentToken.condominioSemAgentToken).toBeFalsy();
     });
 
     it('resolveCondominioForAgent (escopo do condomínio) só aceita o agent_token', async () => {
