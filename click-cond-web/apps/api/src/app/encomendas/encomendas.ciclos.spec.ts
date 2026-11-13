@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { EncomendasController } from './encomendas.controller';
 import { EncomendasService } from './encomendas.service';
 
@@ -38,6 +38,18 @@ describe('Encomendas — ciclos do porteiro', () => {
         }),
       },
       users: { findMany: jest.fn(async () => opts.moradores ?? []) },
+      apartamentos: {
+        findFirst: jest.fn(async ({ where }: any) => {
+          const existentes = [
+            { id_condominio: 1, bloco: 'A', apto: '101' },
+            { id_condominio: 1, bloco: 'B', apto: '202' },
+            { id_condominio: 1, bloco: null, apto: '7' },
+          ];
+          return existentes.find((a) =>
+            a.id_condominio === where.id_condominio && a.apto === where.apto &&
+            (where.OR ? where.OR.some((o: any) => o.bloco === a.bloco) : a.bloco === where.bloco)) ?? null;
+        }),
+      },
     };
     const notifications: any = {
       sendPushNotification: jest.fn(async () => opts.push ?? null),
@@ -145,6 +157,32 @@ describe('Encomendas — ciclos do porteiro', () => {
       expect(prisma.users.findMany.mock.calls[0][0].where.moradores.some).toMatchObject({ apartamento: '202', bloco: 'B' });
       expect(notifications.sendPushNotification).toHaveBeenCalledTimes(1);
       expect(r.avisados).toBe(1);
+    });
+
+    it('unidade sem bloco fica com bloco vazio, igual ao recebimento do console', async () => {
+      const { svc, registros } = build();
+      registros.push({ id: 5, ...dto, status: 'Aguardando' });
+      await svc.corrigirUnidade(1, 5, { destinatario_apto: '7', destinatario_bloco: '' }, porteiro);
+      expect(registros[0]).toMatchObject({ destinatario_apto: '7', destinatario_bloco: '' });
+      const novo = build();
+      await novo.svc.create({ ...dto, destinatario_apto: '7', destinatario_bloco: '' }, porteiro);
+      expect(novo.registros[0].destinatario_bloco).toBe('');
+    });
+
+    it('unidade que não existe no condomínio: 400', async () => {
+      const { svc, registros } = build();
+      registros.push({ id: 5, ...dto, status: 'Aguardando' });
+      await expect(svc.corrigirUnidade(1, 5, { destinatario_apto: '999', destinatario_bloco: 'Z' }, porteiro))
+        .rejects.toBeInstanceOf(BadRequestException);
+      expect(registros[0].destinatario_apto).toBe('101');
+    });
+
+    it('mesma unidade atual: 400 sem reenviar aviso', async () => {
+      const { svc, registros, notifications } = build({ moradores: [{ fcm_token: 't2', name: 'Caio', phone: null }], push: 'ok' });
+      registros.push({ id: 5, ...dto, status: 'Aguardando' });
+      await expect(svc.corrigirUnidade(1, 5, { destinatario_apto: '101', destinatario_bloco: 'A' }, porteiro))
+        .rejects.toThrow('A encomenda já está nesta unidade.');
+      expect(notifications.sendPushNotification).not.toHaveBeenCalled();
     });
 
     it('encomenda já retirada não muda (409)', async () => {

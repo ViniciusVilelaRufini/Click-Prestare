@@ -661,7 +661,9 @@ export class EncomendasService implements OnModuleInit {
   ) {
     const apto = String(dto?.destinatario_apto ?? '').trim();
     if (!apto) throw new BadRequestException('Informe o apartamento de destino.');
-    const bloco = String(dto?.destinatario_bloco ?? '').trim() || null;
+    // Sem bloco grava '' — o mesmo que o recebimento do console grava —, para a
+    // mesma unidade não se separar no lote de retirada (que compara o texto).
+    const bloco = String(dto?.destinatario_bloco ?? '').trim();
 
     const atual = await this.prisma.encomendas.findUnique({ where: { id: Number(id) } });
     if (!atual) throw new NotFoundException(`Encomenda ${id} não encontrada`);
@@ -672,6 +674,14 @@ export class EncomendasService implements OnModuleInit {
     if (atual.status !== 'Aguardando') {
       throw new ConflictException('Só é possível corrigir a unidade de encomenda aguardando retirada.');
     }
+    if (atual.destinatario_apto.trim() === apto && (atual.destinatario_bloco ?? '').trim() === bloco) {
+      throw new BadRequestException('A encomenda já está nesta unidade.');
+    }
+    const unidade = await this.prisma.apartamentos.findFirst({
+      where: { id_condominio: atual.id_condominio, apto, ...(bloco ? { bloco } : { OR: [{ bloco: null }, { bloco: '' }] }) },
+      select: { id: true },
+    });
+    if (!unidade) throw new BadRequestException('Unidade não encontrada neste condomínio.');
 
     const transicao = await this.prisma.encomendas.updateMany({
       where: { id: Number(id), status: 'Aguardando' },
