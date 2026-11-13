@@ -2,7 +2,7 @@ import { MoradoresService } from './moradores.service';
 
 /** Mesma regra no cadastro do console (e no import-bulk, que chama create por linha). */
 describe('MoradoresService.create — conta existente com vínculo em outro condomínio', () => {
-  const MSG = 'Não foi possível concluir o cadastro com este e-mail/CPF. Peça para a pessoa vincular a unidade pelo próprio app ou fale com o suporte.';
+  const MSG = 'Não foi possível concluir o cadastro com este e-mail/CPF. Fale com o suporte para vincular a unidade.';
   const existente = { id: 70, email: 'v@x.com', login: null, password: '$2b$10$senhaDaVitima', photo: null };
 
   function build(vinculoFora: boolean) {
@@ -20,7 +20,7 @@ describe('MoradoresService.create — conta existente com vínculo em outro cond
         create: jest.fn(),
         update: jest.fn(async () => ({})),
       },
-      apartamentos: { findUnique: jest.fn(async () => null) },
+      apartamentos: { findUnique: jest.fn(async () => ({ id: 55, id_condominio: 1, bloco: 'A', apto: '101' })) },
       apartamentos_Users: { create: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
       sindicos_Condominios: { count: jest.fn(async () => 0) },
       funcionarios: { count: jest.fn(async () => 0) },
@@ -51,5 +51,30 @@ describe('MoradoresService.create — conta existente com vínculo em outro cond
       where: { id: 70 },
       data: expect.objectContaining({ login: 'v@x.com', password: expect.stringMatching(/^\$2/) }),
     });
+  });
+
+  // CRM (criar morador e importação de contatos da Superlógica): chamadores confiáveis, sem token de usuário.
+  it('com permitirContaDeOutroCondominio a conta é ligada à unidade e o Users dela não é tocado', async () => {
+    const { svc, prisma, mail } = build(true);
+    await svc.create({ ...dto, id_apartamento: 55 } as any, undefined, {
+      permitirContaDeOutroCondominio: true,
+    });
+    expect(prisma.apartamentos_Users.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ id_apto: 55, id_user: 70 }),
+    });
+    expect(prisma.moradores.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ id_user: 70, id_condominio: 1 }),
+    });
+    expect(prisma.users.update).not.toHaveBeenCalled();
+    expect(prisma.users.create).not.toHaveBeenCalled();
+    // Sem senha nova: só o aviso de conta existente, sem credencial.
+    expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
+  });
+
+  it('sem a opção a recusa continua (mesmo com unidade)', async () => {
+    const { svc, prisma } = build(true);
+    await expect(svc.create({ ...dto, id_apartamento: 55 } as any)).rejects.toThrow(MSG);
+    expect(prisma.apartamentos_Users.create).not.toHaveBeenCalled();
+    expect(prisma.moradores.create).not.toHaveBeenCalled();
   });
 });

@@ -8,7 +8,7 @@ import { MobileAuthService } from './mobile-auth.service';
  */
 describe('saveMorador — conta existente com vínculo em outro condomínio', () => {
   const CPF = '52998224725';
-  const MSG = 'Não foi possível concluir o cadastro com este e-mail/CPF. Peça para a pessoa vincular a unidade pelo próprio app ou fale com o suporte.';
+  const MSG = 'Não foi possível concluir o cadastro com este e-mail/CPF. Fale com o suporte para vincular a unidade.';
   const sindico = { sub: 1, nome: 'Síndico A', typeAccess: 'Sindico' } as any;
   const vitima = { id: 70, cpf: CPF, email: null, login: null, password: null, name: 'Vítima', phone: '17999990000' };
 

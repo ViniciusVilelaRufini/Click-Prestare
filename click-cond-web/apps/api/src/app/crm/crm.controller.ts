@@ -198,7 +198,8 @@ export class CrmController {
     @Body() dto: any,
     @ReqUser() user: JwtPayload,
   ) {
-    return this.moradores.create({ ...dto, id_condominio: id }, user);
+    // Suporte é chamador confiável: liga também conta que já existe em outro condomínio (sem tocar nela).
+    return this.moradores.create({ ...dto, id_condominio: id }, user, { permitirContaDeOutroCondominio: true });
   }
 
   /**

@@ -708,7 +708,12 @@ export class MoradoresService {
    * Criação simplificada: assumimos que o porteiro está só registrando dados
    * básicos. Cria um Users mínimo se ainda não existir e vincula via id_user.
    */
-  async create(dto: CreateMoradorDto, operador?: JwtPayload) {
+  /**
+   * `opts.permitirContaDeOutroCondominio`: só para os chamadores confiáveis do CRM (criar morador e importação
+   * de contatos da Superlógica). Pula APENAS a recusa de ligar conta que já tem vínculo em outro condomínio;
+   * as credenciais e o perfil dessa conta continuam intocados.
+   */
+  async create(dto: CreateMoradorDto, operador?: JwtPayload, opts?: { permitirContaDeOutroCondominio?: boolean }) {
     if (!this.prisma.isConnected) {
       const newM = {
         id: MoradoresService.mockMoradores.length + 1,
@@ -823,7 +828,7 @@ export class MoradoresService {
         // Users é global: conta com vínculo em OUTRO condomínio só é ligada a este cadastro.
         // Login, senha e foto dela não são tocados (vinculos-usuario.util; mesma regra do sendCredentials).
         const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, dto.id_condominio);
-        if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(operador)) {
+        if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(operador) && !opts?.permitirContaDeOutroCondominio) {
           throw new BadRequestException(MSG_CONTA_DE_OUTRO_CONDOMINIO);
         }
         // Atualiza login e password caso estejam vazios para permitir acesso, e as fotos

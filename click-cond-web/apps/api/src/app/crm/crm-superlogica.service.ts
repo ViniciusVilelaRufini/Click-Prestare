@@ -346,6 +346,8 @@ export class CrmSuperlogicaService {
         }
 
         try {
+          // Importação feita pelo CRM (confiável): conta que já existe em outro condomínio também é ligada,
+          // sem tocar nas credenciais dela. Antes o 400 era contado em silêncio como jaExistiam.
           const criado = await this.moradores.create({
             nome,
             email: (contato.st_email_con ?? '').trim() || undefined,
@@ -362,7 +364,7 @@ export class CrmSuperlogicaService {
             // Estas pessoas VIERAM do ERP. Sem isso, o envio automático as
             // mandaria de volta e criaria contato duplicado na unidade.
             skipSuperlogica: true,
-          });
+          }, undefined, { permitirContaDeOutroCondominio: true });
 
           // Grava de onde ele veio. Sem isso, "Reenviar moradores" o trataria
           // como pendente e o mandaria de volta ao ERP — e como os contatos de

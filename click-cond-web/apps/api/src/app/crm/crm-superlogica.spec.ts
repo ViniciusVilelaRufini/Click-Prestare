@@ -214,6 +214,15 @@ describe('CrmSuperlogicaService — importação de moradores', () => {
     expect(dto.skipSuperlogica).toBe(true);
   });
 
+  it('liga contato cuja conta já existe em outro condomínio (opção confiável do CRM)', async () => {
+    // Sem a opção, o 400 de "conta de outro condomínio" era contado em silêncio como jaExistiam.
+    const { service, criarMorador } = montarImport([{ st_nome_con: 'Fulano', st_email_con: 'f@x.com' }]);
+
+    await service.importarUnidades(7, 'Erika', true);
+
+    expect(criarMorador).toHaveBeenCalledWith(expect.anything(), undefined, { permitirContaDeOutroCondominio: true });
+  });
+
   it('marca o morador importado com o id do contato de origem', async () => {
     // Sem isso, "Reenviar moradores" o trataria como pendente e o devolveria ao
     // ERP. Como os contatos de lá costumam vir sem CPF nem e-mail, a checagem

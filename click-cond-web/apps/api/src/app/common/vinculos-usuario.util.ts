@@ -43,9 +43,12 @@ export async function usuarioTemVinculoNoCondominio(
   return s + f + m + a > 0;
 }
 
-/** Recusa neutra de ligar a este condomínio uma conta que já é de outro (não diz qual nem onde). */
+/**
+ * Recusa neutra de ligar a este condomínio uma conta que já é de outro (não diz qual nem onde). Não há fluxo
+ * de o morador vincular a unidade sozinho: quem liga é o suporte (CRM).
+ */
 export const MSG_CONTA_DE_OUTRO_CONDOMINIO =
-  'Não foi possível concluir o cadastro com este e-mail/CPF. Peça para a pessoa vincular a unidade pelo próprio app ou fale com o suporte.';
+  'Não foi possível concluir o cadastro com este e-mail/CPF. Fale com o suporte para vincular a unidade.';
 
 type PrismaLikeLista = {
   sindicos_Condominios: { findMany: (a: any) => Promise<Array<{ id_user: number | null }>> };
