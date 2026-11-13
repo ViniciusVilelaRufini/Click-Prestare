@@ -149,10 +149,10 @@ describe('resultado de comando: só de device do token que postou', () => {
           if (!d) throw new Error('Token de webhook inválido');
           return d;
         }),
-        resolveCondominioForAgent: jest.fn(async (token: string) => {
+        resolveAgente: jest.fn(async (token: string) => {
           const m = /^tok-condo-(\d+)$/.exec(token);
           if (!m) throw new Error('Token do agente inválido');
-          return Number(m[1]);
+          return { idCondominio: Number(m[1]) };
         }),
         getActiveDevices: jest.fn(async (id: number) => devices.filter((d) => d.id_condominio === id)),
         syncAllForCondominio: jest.fn(),
@@ -333,7 +333,7 @@ describe('ttl_ms: o poll diz ao agente quanto falta para a nuvem desistir do com
 describe('poll do condomínio: uma leitura da fila para todos os devices', () => {
   function montarCondo(prisma: any, ids: number[]) {
     const service: any = {
-      resolveCondominioForAgent: jest.fn(async () => 7),
+      resolveAgente: jest.fn(async () => ({ idCondominio: 7 })),
       getActiveDevices: jest.fn(async () =>
         ids.map((id) => ({ id, nome: `T${id}`, tipo: 'catraca', fabricante: 'intelbras', ip: `192.168.1.${id}`, porta: 80, api_user: 'admin', api_password: 'x' })),
       ),

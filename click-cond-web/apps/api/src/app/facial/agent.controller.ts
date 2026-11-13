@@ -89,15 +89,16 @@ export class AgentController {
 
   // ----- Modo condomínio: UM token gerencia TODOS os dispositivos do condomínio -----
   // Mais simples de configurar (o agente precisa de 1 token só). O token é o
-  // webhook_token de qualquer dispositivo ativo — resolve o condomínio e o
-  // agente recebe todos os aparelhos dele de uma vez. Continua isolado por
-  // condomínio (o token só enxerga o próprio tenant).
+  // agent_token do condomínio. O webhook_token de um dispositivo ainda é
+  // aceito (agente antigo), mas só enxerga e age sobre aquele dispositivo.
+  // Continua isolado por condomínio (o token só enxerga o próprio tenant).
 
   @Public()
   @Get('condo/:token/poll')
   async condoPoll(@Param('token') token: string) {
-    const idCondominio = await this.service.resolveCondominioForAgent(token);
-    const devices = await this.service.getActiveDevices(idCondominio);
+    const { idCondominio, soDispositivo } = await this.escopo(token);
+    const todos = await this.service.getActiveDevices(idCondominio);
+    const devices = soDispositivo == null ? todos : todos.filter((d) => d.id === soDispositivo);
     // Antes do poll (que marca o heartbeat): quem estava offline até agora.
     const reconectados = new Set(devices.filter((d) => !this.bridge.isOnline(d.id)).map((d) => d.id));
     // Uma leitura da fila para o condomínio inteiro, em vez de uma por device.
@@ -143,7 +144,8 @@ export class AgentController {
       poll_interval_ms: this.bridge.pollIntervalMs,
       // Etapa 3: pedido de descoberta feito pelo portal (DescobertaService.pedirProcura).
       // Consumido aqui — true só uma vez por pedido — para o agente disparar a varredura da LAN.
-      descobrir: await this.descoberta.consumirPedido(idCondominio),
+      // A descoberta é do condomínio inteiro: só o agent_token consome o pedido.
+      descobrir: soDispositivo == null ? await this.descoberta.consumirPedido(idCondominio) : false,
       // "Atualizar agora" do portal (AgentBridgeService.pedirVerificacaoDeAtualizacao):
       // true só uma vez por pedido, para o agente conferir a versão já. Agente antigo ignora.
       verificar_atualizacao: await this.bridge.consumirPedidoDeAtualizacao(idCondominio),
@@ -156,13 +158,14 @@ export class AgentController {
     @Param('token') token: string,
     @Body() body: { commandId: string } & AgentResult,
   ) {
-    const idCondominio = await this.service.resolveCondominioForAgent(token);
+    const { idCondominio, soDispositivo } = await this.escopo(token);
     const { commandId, ...result } = body ?? ({} as any);
     if (commandId) {
-      // Só resolve comando de device DESTE condomínio; de outro é tratado como
-      // comando desconhecido (mesma resposta, sem efeito).
-      const devices = await this.service.getActiveDevices(idCondominio);
-      await this.bridge.submitResult(commandId, result, devices.map((d) => d.id));
+      // Só resolve comando de device DESTE condomínio (ou só do dispositivo do token); de outro é
+      // tratado como comando desconhecido (mesma resposta, sem efeito).
+      const ids =
+        soDispositivo != null ? [soDispositivo] : (await this.service.getActiveDevices(idCondominio)).map((d) => d.id);
+      await this.bridge.submitResult(commandId, result, ids);
     }
     return { ok: true };
   }
@@ -193,8 +196,12 @@ export class AgentController {
     @Param('token') token: string,
     @Body() body: { statuses?: { deviceId: number; online: boolean }[] },
   ) {
-    const idCondominio = await this.service.resolveCondominioForAgent(token);
-    return this.service.reportDeviceStatuses(idCondominio, body?.statuses ?? []);
+    const { idCondominio, soDispositivo } = await this.escopo(token);
+    const statuses = body?.statuses ?? [];
+    return this.service.reportDeviceStatuses(
+      idCondominio,
+      soDispositivo == null ? statuses : statuses.filter((s) => Number(s?.deviceId) === soDispositivo),
+    );
   }
 
   /**
@@ -211,8 +218,9 @@ export class AgentController {
   @Public()
   @Post('condo/:token/telemetria')
   async condoTelemetria(@Param('token') token: string, @Body() body: unknown) {
-    const idCondominio = await this.service.resolveCondominioForAgent(token);
-    await this.bridge.setTelemetria(idCondominio, body);
+    const { idCondominio, soDispositivo } = await this.escopo(token);
+    // Telemetria é do agente do condomínio: token de um dispositivo não sobrescreve.
+    if (soDispositivo == null) await this.bridge.setTelemetria(idCondominio, body);
     return { ok: true };
   }
 
@@ -224,7 +232,9 @@ export class AgentController {
   @Public()
   @Post('condo/:token/descobertos')
   async condoDescobertos(@Param('token') token: string, @Body() body: unknown) {
-    const idCondominio = await this.service.resolveCondominioForAgent(token);
+    const { idCondominio, soDispositivo } = await this.escopo(token);
+    // Reescreve MAC/IP de qualquer aparelho do condomínio: só com o agent_token.
+    if (soDispositivo != null) return { ok: true as const, ips_corrigidos: 0, macs_aprendidos: 0 };
     return this.descoberta.receber(idCondominio, body);
   }
 
@@ -238,7 +248,17 @@ export class AgentController {
   @Public()
   @Get('condo/:token/versao')
   async condoVersao(@Param('token') token: string) {
-    await this.service.resolveCondominioForAgent(token);
+    // Aceita os dois tokens: mantém a auto-atualização do agente antigo.
+    await this.service.resolveAgente(token);
     return this.agentVersion.getLatest();
+  }
+
+  /**
+   * agent_token → condomínio inteiro. webhook_token de um dispositivo (agente antigo) → só ele
+   * (`soDispositivo`). Ver FacialService.resolveAgente.
+   */
+  private async escopo(token: string): Promise<{ idCondominio: number; soDispositivo: number | null }> {
+    const a = await this.service.resolveAgente(token);
+    return { idCondominio: a.idCondominio, soDispositivo: a.viaTokenDispositivo ? Number(a.idDispositivo) : null };
   }
 }

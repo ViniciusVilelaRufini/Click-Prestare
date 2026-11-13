@@ -26,7 +26,7 @@ describe('POST facial/agent/condo/:token/telemetria', () => {
 
   it('token inválido: recusa como as outras rotas condo/*', async () => {
     const service: any = {
-      resolveCondominioForAgent: jest.fn(async () => {
+      resolveAgente: jest.fn(async () => {
         throw new UnauthorizedException('Token do agente inválido');
       }),
     };
@@ -38,7 +38,7 @@ describe('POST facial/agent/condo/:token/telemetria', () => {
   });
 
   it('token válido: guarda a telemetria no bridge, sob o id do condomínio resolvido', async () => {
-    const service: any = { resolveCondominioForAgent: jest.fn(async () => 7) };
+    const service: any = { resolveAgente: jest.fn(async () => ({ idCondominio: 7 })) };
     const bridge = new AgentBridgeService();
     const ctrl = new AgentController(service, bridge);
 

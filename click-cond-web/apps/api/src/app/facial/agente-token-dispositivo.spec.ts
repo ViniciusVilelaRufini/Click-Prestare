@@ -3,7 +3,9 @@ import { FacialService } from './facial.service';
 
 /**
  * Token de DISPOSITIVO usado como token do AGENTE (compatibilidade com agente
- * antigo). O fallback continua valendo; o que muda é que o serviço passa a
+ * antigo). O fallback continua aceito por `resolveAgente`, recortado ao
+ * dispositivo; `resolveCondominioForAgent` (escopo do condomínio) não o aceita
+ * mais. O que muda é que o serviço passa a
  * dizer que a autenticação veio por esse caminho (e por qual dispositivo) e
  * avisa no log — no máximo uma vez por token a cada hora.
  */
@@ -61,11 +63,11 @@ describe('FacialService — autenticação do agente por token de dispositivo', 
     });
   });
 
-  it('resolveCondominioForAgent continua devolvendo só o id do condomínio (chamadores atuais)', async () => {
+  it('resolveCondominioForAgent (escopo do condomínio) só aceita o agent_token', async () => {
     const { svc } = build();
 
     await expect(svc.resolveCondominioForAgent('tok-agente')).resolves.toBe(10);
-    await expect(svc.resolveCondominioForAgent('tok-device')).resolves.toBe(10);
+    await expect(svc.resolveCondominioForAgent('tok-device')).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('token inválido continua 401', async () => {
@@ -78,8 +80,8 @@ describe('FacialService — autenticação do agente por token de dispositivo', 
   it('avisa no log uma vez por token a cada hora, sem escrever o token', async () => {
     const { svc } = build();
 
-    await svc.resolveCondominioForAgent('tok-device');
-    await svc.resolveCondominioForAgent('tok-device');
+    await svc.resolveAgente('tok-device');
+    await svc.resolveAgente('tok-device');
     await svc.resolveAgente('tok-device');
     expect(avisos()).toHaveLength(1);
     expect(String(avisos()[0][0])).toMatch(/dispositivo 7/);
@@ -87,15 +89,15 @@ describe('FacialService — autenticação do agente por token de dispositivo', 
     expect(String(avisos()[0][0])).not.toContain('tok-device');
 
     // Outro token tem o seu próprio limite.
-    await svc.resolveCondominioForAgent('tok-device-2');
+    await svc.resolveAgente('tok-device-2');
     expect(avisos()).toHaveLength(2);
 
     jest.advanceTimersByTime(59 * 60 * 1000);
-    await svc.resolveCondominioForAgent('tok-device');
+    await svc.resolveAgente('tok-device');
     expect(avisos()).toHaveLength(2);
 
     jest.advanceTimersByTime(2 * 60 * 1000);
-    await svc.resolveCondominioForAgent('tok-device');
+    await svc.resolveAgente('tok-device');
     expect(avisos()).toHaveLength(3);
   });
 });

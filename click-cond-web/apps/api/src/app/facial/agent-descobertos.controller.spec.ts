@@ -14,9 +14,9 @@ import { DescobertaService } from './descoberta.service';
 describe('AgentController — descoberta na rede', () => {
   function montar() {
     const service: any = {
-      resolveCondominioForAgent: jest.fn(async (token: string) => {
+      resolveAgente: jest.fn(async (token: string) => {
         if (token !== 'token-ok') throw new Error('token inválido');
-        return 7;
+        return { idCondominio: 7 };
       }),
       getActiveDevices: jest.fn(async () => []),
       syncAllForCondominio: jest.fn(),
@@ -46,7 +46,7 @@ describe('AgentController — descoberta na rede', () => {
     const receber = jest.spyOn(descoberta, 'receber').mockResolvedValue({ ok: true, ips_corrigidos: 0, macs_aprendidos: 0 });
     const corpo = { achados: [], macs_cadastrados: [] };
     await expect(ctrl.condoDescobertos('token-ok', corpo)).resolves.toEqual({ ok: true, ips_corrigidos: 0, macs_aprendidos: 0 });
-    expect(service.resolveCondominioForAgent).toHaveBeenCalledWith('token-ok');
+    expect(service.resolveAgente).toHaveBeenCalledWith('token-ok');
     expect(receber).toHaveBeenCalledWith(7, corpo);
   });
 

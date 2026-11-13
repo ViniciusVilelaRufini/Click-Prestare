@@ -302,7 +302,7 @@ function respostaTexto(texto: string) {
 describe('GET facial/agent/condo/:token/versao', () => {
   it('token inválido: recusa como as outras rotas condo/*', async () => {
     const service: any = {
-      resolveCondominioForAgent: jest.fn(async () => {
+      resolveAgente: jest.fn(async () => {
         throw new UnauthorizedException('Token do agente inválido');
       }),
     };
@@ -313,7 +313,7 @@ describe('GET facial/agent/condo/:token/versao', () => {
   });
 
   it('token válido: devolve o que o AgentVersionService resolver', async () => {
-    const service: any = { resolveCondominioForAgent: jest.fn(async () => 7) };
+    const service: any = { resolveAgente: jest.fn(async () => ({ idCondominio: 7 })) };
     const info = { versao: '2026.09.25', url: 'https://gh/click-agent.exe', sha256: 'a'.repeat(64) };
     const agentVersion: any = { getLatest: jest.fn(async () => info) };
     const ctrl = new AgentController(service, {} as any, agentVersion);
@@ -324,7 +324,7 @@ describe('GET facial/agent/condo/:token/versao', () => {
   });
 
   it('nada publicado / falha: devolve { versao: null, url: null, sha256: null }', async () => {
-    const service: any = { resolveCondominioForAgent: jest.fn(async () => 7) };
+    const service: any = { resolveAgente: jest.fn(async () => ({ idCondominio: 7 })) };
     const agentVersion: any = {
       getLatest: jest.fn(async () => ({ versao: null, url: null, sha256: null })),
     };

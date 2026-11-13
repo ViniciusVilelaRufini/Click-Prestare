@@ -1049,9 +1049,9 @@ export class FacialService {
   }
 
   /**
-   * Resolve o condomínio a partir do token do agente. Aceita o agent_token
-   * (dedicado do condomínio, preferido) ou, por compatibilidade, o
-   * webhook_token de um dispositivo ativo.
+   * Resolve o condomínio a partir do token do agente. Aceita só o agent_token
+   * (escopo do condomínio); o webhook_token de um dispositivo é recusado aqui
+   * (ver `resolveAgente`, que o aceita recortado ao próprio dispositivo).
    *
    * Condomínio desativado (`ativo = 0`) é recusado nos dois caminhos: a
    * desativação comercial precisa parar o controle de acesso físico junto,
@@ -1059,14 +1059,18 @@ export class FacialService {
    * cliente já foi desligado do sistema.
    */
   async resolveCondominioForAgent(token: string): Promise<number> {
-    return (await this.resolveAgente(token)).idCondominio;
+    // Escopo do condomínio inteiro é só do agent_token. O webhook_token de um dispositivo vale só para
+    // ele (as rotas condo/* usam resolveAgente e recortam pelo idDispositivo).
+    const agente = await this.resolveAgente(token);
+    if (agente.viaTokenDispositivo) throw new UnauthorizedException('Token do agente inválido');
+    return agente.idCondominio;
   }
 
   /**
    * Mesma resolução de `resolveCondominioForAgent`, dizendo também SE a
    * autenticação veio pelo token de um dispositivo (e de qual). Esse caminho
-   * é compatibilidade com agente antigo: o token de UM aparelho passa a valer
-   * para as rotas `condo/:token/*`, que enxergam o condomínio inteiro. Fica
+   * é compatibilidade com agente antigo: o token de UM aparelho é aceito nas
+   * rotas `condo/:token/*`, mas recortado ao próprio aparelho (`idDispositivo`). Fica
    * registrado em log (uma vez por token a cada hora) para sabermos se ainda
    * há alguém dependendo dele antes de restringir.
    */
@@ -4688,7 +4692,12 @@ export class FacialService {
     if (!Number.isInteger(deviceId)) {
       throw new BadRequestException('deviceId inválido');
     }
-    const idCondominio = await this.resolveCondominioForAgent(agentToken);
+    const agente = await this.resolveAgente(agentToken);
+    // Token de dispositivo (agente antigo) só fala pelo próprio dispositivo.
+    if (agente.viaTokenDispositivo && deviceId !== agente.idDispositivo) {
+      throw new UnauthorizedException('Dispositivo inválido para este agente');
+    }
+    const idCondominio = agente.idCondominio;
     const device = await this.prisma.facial_Devices.findFirst({
       where: { id: deviceId, ativo: 1 },
     });

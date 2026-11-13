@@ -29,9 +29,9 @@ const morador = { sub: 50, nome: 'QA morador', typeAccess: 'Morador' } as any;
 
 function montarAgente(bridge = new AgentBridgeService()) {
   const service: any = {
-    resolveCondominioForAgent: jest.fn(async (token: string) => {
+    resolveAgente: jest.fn(async (token: string) => {
       if (token !== 'token-ok') throw new Error('token inválido');
-      return 7;
+      return { idCondominio: 7 };
     }),
     getActiveDevices: jest.fn(async () => []),
     syncAllForCondominio: jest.fn(),
