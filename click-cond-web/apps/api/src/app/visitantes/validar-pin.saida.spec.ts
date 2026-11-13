@@ -60,6 +60,15 @@ describe('validar PIN — saída de quem está dentro', () => {
       const r: any = await svc({ data_entrada: new Date(Date.now() - 5 * H) }).validarCodigo(1, '123456');
       expect(r.id).toBe(1000009);
       expect(r.data_entrada).toBeTruthy();
+      // A tela habilita "Confirmar Saída" por estes campos — não por "EXPIRADO".
+      expect(r.status_vigencia).toBe('SAIDA');
+      expect(r.acao).toBe('saida');
+    });
+
+    it('fora, janela valendo: ação de entrada', async () => {
+      const r: any = await svc({ data_hora_termino: new Date(Date.now() + H) }).validarCodigo(1, '123456');
+      expect(r.status_vigencia).toBe('ATIVO');
+      expect(r.acao).toBe('entrada');
     });
 
     it('dentro, dia não permitido: valida para a saída', async () => {

@@ -1425,6 +1425,19 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** PIN de quem está dentro é para a SAÍDA: só a ENTRADA fora da vigência é recusada. */
+  pinRecusado(res: { data_entrada?: string | null; status_vigencia?: string; acao?: string } | null): boolean {
+    if (!res) return true;
+    if (res.data_entrada || res.acao === 'saida') return false;
+    return res.status_vigencia === 'EXPIRADO';
+  }
+
+  /** Selo do resultado: "Registrar saída" para quem está dentro; senão a vigência. */
+  rotuloVigenciaPin(res: { data_entrada?: string | null; status_vigencia?: string; acao?: string } | null): string {
+    if (!res) return '';
+    return res.data_entrada || res.acao === 'saida' ? 'Registrar saída' : (res.status_vigencia ?? '');
+  }
+
   confirmarEntradaPIN() {
     const res = this.validationResult();
     if (!res || !res.id) return;

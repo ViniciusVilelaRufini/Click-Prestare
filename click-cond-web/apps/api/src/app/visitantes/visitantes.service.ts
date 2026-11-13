@@ -3692,7 +3692,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       apto: v.apartamento?.apto ?? null,
       apto_bloco: v.apartamento?.bloco ?? null,
       morador_nome: v.criadoPor?.name ?? 'Morador',
-      status_vigencia: status,
+      // Dentro: o PIN serve para a SAÍDA (a janela não importa mais).
+      status_vigencia: dentro ? 'SAIDA' : status,
+      acao: dentro ? 'saida' : 'entrada',
       codigo_acesso: null,
       temPinAtivo: !!v.codigo_acesso,
       data_entrada: v.data_entrada,
@@ -4427,7 +4429,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       apto: v.apartamento?.apto ?? null,
       apto_bloco: v.apartamento?.bloco ?? null,
       morador_nome: v.criadoPor?.name ?? 'Morador',
-      status_vigencia: status,
+      // Dentro: o PIN serve para a SAÍDA (a janela não importa mais).
+      status_vigencia: dentro ? 'SAIDA' : status,
+      acao: dentro ? 'saida' : 'entrada',
       codigo_acesso: null, // Sanitizado conforme LGPD
       temPinAtivo: !!v.codigo_acesso,
       data_entrada: v.data_entrada,

@@ -2393,7 +2393,7 @@
                       validationResult().status_vigencia === 'EXPIRADO'
                     "
                   >
-                    {{ validationResult().status_vigencia }}
+                    {{ rotuloVigenciaPin(validationResult()) }}
                   </span>
                 </div>
 
@@ -2466,10 +2466,7 @@
                 </button>
                 <button
                   (click)="confirmarEntradaPIN()"
-                  [disabled]="
-                    checkingIn() ||
-                    validationResult().status_vigencia === 'EXPIRADO'
-                  "
+                  [disabled]="checkingIn() || pinRecusado(validationResult())"
                   [ngClass]="validationResult().data_entrada ? 'bg-rose-500 hover:bg-rose-600 shadow-lg shadow-rose-500/10' : 'bg-emerald-500 hover:bg-emerald-600'"
                   class="flex-1 py-2.5 rounded-lg font-medium text-sm text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
                 >
