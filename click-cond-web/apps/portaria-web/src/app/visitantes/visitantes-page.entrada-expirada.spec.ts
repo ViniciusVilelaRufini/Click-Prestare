@@ -90,6 +90,18 @@ describe('VisitantesPageComponent — entrada com autorização expirada', () =>
     expect(service.checkIn).not.toHaveBeenCalled();
   });
 
+  it('"Registrar Entrada Manual" da janela de autorização usa o mesmo modal (pede nova janela se expirada)', () => {
+    const tela = build();
+    const p = pessoa(true);
+    tela.pessoas.set([p]);
+    tela.authModalPessoaId.set(tela.chavePessoa(p));
+    tela.registrarEntradaEFechar(p);
+    expect(service.checkIn).not.toHaveBeenCalled();
+    expect(tela.authModalPessoaId()).toBeNull();
+    expect(tela.entradaModalPessoa()).toBe(p);
+    expect(tela.entradaPrecisaNovaJanela()).toBe(true);
+  });
+
   it('não expirada: registra a entrada na própria visita, como antes', () => {
     const tela = build();
     tela.registrarEntradaManual(pessoa(false));

@@ -3220,7 +3220,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
-    if (ref.auth_status === 'autorizado' && !isAutorizacaoAtual(ref)) {
+    // Só numa visita ainda NÃO encerrada: a saída pelo facial não limpa
+    // auth_status, e o check-in numa visita usada abre uma passagem nova, que
+    // não depende daquela autorização.
+    if (ref.auth_status === 'autorizado' && !ref.data_saida && !isAutorizacaoAtual(ref)) {
       throw new BadRequestException('A autorização desta visita está expirada.');
     }
     const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;

@@ -622,19 +622,14 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.authModalPessoaId.set(null);
   }
 
-  /** Registra a entrada direto da janela de autorização e fecha. */
+  /**
+   * "Registrar Entrada Manual" da janela de autorização: fecha a janela e abre
+   * o MESMO modal da linha (registrarEntradaManual). O check-in direto falhava
+   * com a autorização vencida — o modal da linha pede uma nova janela.
+   */
   registrarEntradaEFechar(p: Pessoa) {
-    const aptos = p.apartamentosVisitados ?? [];
-    const apto = aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ?? aptos[0];
-    const targetId = apto?.visitanteId ?? p.id;
-    const targetAptoId = apto?.id ?? p.id_apartamento;
-    this.service.checkIn(targetId, targetAptoId).subscribe({
-      next: () => {
-        this.fecharAuthModal();
-        this.carregar();
-      },
-      error: (e) => this.error.set(`Falha ao registrar entrada: ${e?.message ?? e}`),
-    });
+    this.fecharAuthModal();
+    this.registrarEntradaManual(p);
   }
 
   /**
