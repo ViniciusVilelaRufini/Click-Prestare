@@ -8,7 +8,7 @@ import {
   DeliveryStatus,
 } from './delivery.model';
 import { DeliveryApi } from './delivery.service';
-import { PROXIMOS_STATUS } from './shared/delivery-status';
+import { PROXIMOS_STATUS, ehTerminal } from './shared/delivery-status';
 
 export type AbaDelivery = 'fila' | 'entregadores' | 'historico';
 
@@ -26,6 +26,8 @@ export class DeliveryStore {
   readonly busca = signal('');
   readonly filtroStatus = signal<DeliveryStatus | ''>('');
   readonly selecionado = signal<DeliveryAtendimento | null>(null);
+  /** O atendimento aberto no painel não veio na última carga (encerrou e saiu da fila). */
+  readonly selecionadoSaiu = signal(false);
   readonly carregando = signal(false);
   readonly erro = signal<string | null>(null);
   readonly entregadorSelecionadoId = signal<number | null>(null);
@@ -43,7 +45,9 @@ export class DeliveryStore {
   readonly fila = computed(() => {
     const busca = this.normalizar(this.busca());
     const status = this.filtroStatus();
-    return this.ativos().filter((a) => (!status || a.status === status) && this.correspondeBusca(a, busca));
+    const lista = this.ativos().filter((a) => (!status || a.status === status) && this.correspondeBusca(a, busca));
+    // Recusados/cancelados recentes ficam no fim, depois do que ainda pede ação.
+    return [...lista.filter((a) => !ehTerminal(a.status)), ...lista.filter((a) => ehTerminal(a.status))];
   });
 
   readonly entregadoresVisiveis = computed(() => this.entregadoresBusca() ?? this.entregadores());
@@ -69,7 +73,7 @@ export class DeliveryStore {
     this.filtroStatus.update((atual) => (atual === status ? '' : status));
   }
 
-  carregarFila(opts: { silencioso?: boolean } = {}): void {
+  carregarFila(opts: { silencioso?: boolean; manterErro?: boolean } = {}): void {
     // Uma carga mais nova cancela a anterior: resposta atrasada não sobrescreve dados recentes.
     this.cargaFila?.unsubscribe();
     if (!opts.silencioso) {
@@ -80,11 +84,16 @@ export class DeliveryStore {
       next: (lista) => {
         this.ativos.set(lista);
         this.agora.set(new Date());
-        // Mantém o painel no mesmo atendimento com dados novos; some se saiu da fila.
+        // Mantém o painel no mesmo atendimento com dados novos. Se ele saiu da
+        // fila, continua aberto com o último estado conhecido, sem ações.
         const aberto = this.selecionado();
-        if (aberto) this.selecionado.set(lista.find((a) => a.id === aberto.id) ?? null);
+        if (aberto) {
+          const atual = lista.find((a) => a.id === aberto.id);
+          if (atual) this.selecionado.set(atual);
+          this.selecionadoSaiu.set(!atual);
+        }
         // Recarga automática que voltou a funcionar: some o aviso de conexão.
-        if (opts.silencioso) this.erro.set(null);
+        if (opts.silencioso && !opts.manterErro) this.erro.set(null);
         this.encerrarCargaNormal();
       },
       error: (error) => {
@@ -127,11 +136,18 @@ export class DeliveryStore {
 
   selecionar(a: DeliveryAtendimento): void {
     this.selecionado.set(a);
+    this.selecionadoSaiu.set(false);
     this.entregadorSelecionadoId.set(a.entregador?.id ?? null);
     this.motivo.set('');
   }
 
+  fecharPainel(): void {
+    this.selecionado.set(null);
+    this.selecionadoSaiu.set(false);
+  }
+
   proximosStatus(a: DeliveryAtendimento): readonly DeliveryStatus[] {
+    if (this.selecionadoSaiu() && this.selecionado()?.id === a.id) return [];
     return PROXIMOS_STATUS[a.status] ?? [];
   }
 
@@ -172,17 +188,29 @@ export class DeliveryStore {
       this.erro.set('Informe o motivo da recusa.');
       return;
     }
+    if (status === 'CANCELADA' && !motivo) {
+      this.erro.set('Informe o motivo do cancelamento.');
+      return;
+    }
     this.carregando.set(true);
     this.api.atualizarStatus(a.id, status, {
       id_entregador: this.entregadorSelecionadoId() ?? undefined,
       motivo: motivo || undefined,
     }).subscribe({
-      next: () => {
+      next: (atualizado) => {
         this.motivo.set('');
         this.erro.set(null);
+        // O painel mostra o desfecho mesmo que o atendimento saia da fila na recarga.
+        this.selecionado.update((s) => (s && s.id === a.id
+          ? { ...s, status: atualizado?.status ?? status, motivo: atualizado?.motivo ?? s.motivo }
+          : s));
         this.carregarFila();
       },
-      error: (error) => this.definirErro(error, 'Não foi possível atualizar o atendimento.'),
+      error: (error) => {
+        this.definirErro(error, 'Não foi possível atualizar o atendimento.');
+        // Outra pessoa mudou o atendimento antes: a fila na tela está velha.
+        if ((error as { status?: number })?.status === 409) this.carregarFila({ silencioso: true, manterErro: true });
+      },
     });
   }
 

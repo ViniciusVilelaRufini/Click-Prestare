@@ -290,7 +290,8 @@ export class DashboardService {
             select: { data_entrada: true },
           }),
       this.prisma.encomendas.findMany({
-        where: { id_condominio: idCondominio, recebido_em: { gte: oitoDiasAtras } },
+        // `Esperando` é só o aviso do morador: não chegou à portaria.
+        where: { id_condominio: idCondominio, recebido_em: { gte: oitoDiasAtras }, status: { not: 'Esperando' } },
         select: { recebido_em: true },
       }),
       this.prisma.ocorrencias.findMany({

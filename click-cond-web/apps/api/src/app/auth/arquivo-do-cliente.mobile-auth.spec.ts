@@ -270,7 +270,7 @@ describe('mobile-auth — campos de arquivo recebidos do cliente', () => {
           findUnique: jest.fn(async () => ({
             id: 3, id_condominio: 1, destinatario_apto: '1', destinatario_bloco: 'A', status: 'Aguardando', retirado_foto: null,
           })),
-          update: jest.fn(async () => ({})),
+          updateMany: jest.fn(async () => ({ count: 1 })),
         },
         moradores: { findMany: jest.fn(async () => [{ id_condominio: 1, apartamento: '1', bloco: 'A', nome: 'M' }]) },
       };
@@ -280,13 +280,13 @@ describe('mobile-auth — campos de arquivo recebidos do cliente', () => {
     it('URL do bucket que não é a desta encomenda: 400', async () => {
       const { service, prisma } = build();
       await arquivoInvalido(service.retirarEncomendaMorador(7, 3, ALHEIA));
-      expect(prisma.encomendas.update).not.toHaveBeenCalled();
+      expect(prisma.encomendas.updateMany).not.toHaveBeenCalled();
     });
 
     it('data URL vira upload', async () => {
       const { service, prisma } = build();
       await service.retirarEncomendaMorador(7, 3, DATA_URL);
-      expect(prisma.encomendas.update.mock.calls[0][0].data.retirado_foto).toBe(NOVA);
+      expect(prisma.encomendas.updateMany.mock.calls[0][0].data.retirado_foto).toBe(NOVA);
     });
   });
 });

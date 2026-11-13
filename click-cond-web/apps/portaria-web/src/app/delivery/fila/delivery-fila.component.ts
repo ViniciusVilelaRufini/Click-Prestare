@@ -1,8 +1,9 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DeliveryAtendimento, DeliveryStatus } from '../delivery.model';
 import { DeliveryStore } from '../delivery.store';
-import { STATUS_CARDS, STATUS_FILTRO, classesStatus, rotuloStatus } from '../shared/delivery-status';
+import { STATUS_CARDS, STATUS_FILTRO, classesStatus, ehTerminal, rotuloStatus } from '../shared/delivery-status';
 import { DeliveryStatusBadgeComponent } from '../shared/delivery-status-badge.component';
 import { emAtencao, inicioEspera, minutosDesde, textoEspera } from '../shared/tempo';
 import { DeliveryDetalheComponent } from './delivery-detalhe.component';
@@ -11,7 +12,7 @@ import { DeliveryDetalheComponent } from './delivery-detalhe.component';
   selector: 'app-delivery-fila',
   standalone: true,
   host: { class: 'block' },
-  imports: [FormsModule, DeliveryStatusBadgeComponent, DeliveryDetalheComponent],
+  imports: [DatePipe, FormsModule, DeliveryStatusBadgeComponent, DeliveryDetalheComponent],
   templateUrl: './delivery-fila.component.html',
 })
 export class DeliveryFilaComponent {
@@ -20,9 +21,18 @@ export class DeliveryFilaComponent {
   readonly opcoesFiltro = STATUS_FILTRO;
   readonly rotulo = rotuloStatus;
   readonly cls = classesStatus;
+  readonly terminal = (a: DeliveryAtendimento) => ehTerminal(a.status);
+  /** Contagem do cabeçalho: só o que ainda pede ação (recusados/cancelados recentes ficam de fora). */
+  readonly pendentes = computed(() => this.store.fila().filter((a) => !ehTerminal(a.status)).length);
 
+  /** Tempo da etapa atual, com o que ela significa quando não é a espera na portaria. */
   espera(a: DeliveryAtendimento): string {
-    return textoEspera(minutosDesde(inicioEspera(a), this.store.agora()));
+    const texto = textoEspera(minutosDesde(inicioEspera(a), this.store.agora()));
+    if (a.status === 'AUTORIZADA') return `Subiu ${texto}`;
+    if (a.status === 'RETIRADA_NA_PORTARIA') return `Na portaria ${texto}`;
+    if (a.status === 'RECUSADA') return `Recusada ${texto}`;
+    if (a.status === 'CANCELADA') return `Cancelada ${texto}`;
+    return texto;
   }
 
   atencao(a: DeliveryAtendimento): boolean {

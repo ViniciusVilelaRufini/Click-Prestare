@@ -46,6 +46,8 @@ export interface DeliveryAtendimento {
   telefone_entregador?: string | null;
   modo_entrega: 'UNIDADE' | 'PORTARIA';
   observacao_morador?: string | null;
+  /** Horário previsto informado pelo morador no aviso. */
+  previsao_em?: string | null;
   motivo?: string | null;
   apartamento: { id: number; bloco?: string | null; apto: string };
   entregador?: DeliveryEntregador | null;
@@ -54,6 +56,8 @@ export interface DeliveryAtendimento {
   chegou_em?: string | null;
   autorizado_em?: string | null;
   concluido_em?: string | null;
+  cancelado_em?: string | null;
+  recusado_em?: string | null;
   updated_at?: string | null;
 }
 

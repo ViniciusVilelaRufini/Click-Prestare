@@ -52,6 +52,21 @@ describe('DashboardService — summary() dataEntrada das encomendas', () => {
     expect((await eventoEncomenda('esperando')).detalhes.dataEntrada).toBeNull();
   });
 
+  it('B6: a tendência de encomendas não conta pré-registro (Esperando)', async () => {
+    delete process.env['PESSOAS_MIGRATION_ENABLED'];
+    const findMany = jest.fn(async () => []);
+    const vazio = { count: jest.fn(async () => 0), findMany: jest.fn(async () => []) };
+    const prisma: any = {
+      isConnected: true,
+      visitantes: vazio, visitas: vazio, pessoas: vazio, prestadores_servico: vazio, ocorrencias: vazio,
+      encomendas: { count: jest.fn(async () => 0), findMany },
+      comunicados: vazio, apartamentos: vazio, moradores: vazio, acessos_Facial: vazio, auditLog: vazio, facial_Devices: vazio,
+    };
+    await new DashboardService(prisma).summary(1);
+    const tendencia = (findMany.mock.calls as any[]).map((c) => c[0]).find((a: any) => a?.where?.recebido_em?.gte);
+    expect(tendencia.where.status).toEqual({ not: 'Esperando' });
+  });
+
   it('Aguardando e Retirada: dataEntrada continua sendo recebido_em', async () => {
     expect((await eventoEncomenda('Aguardando')).detalhes.dataEntrada).toBe(recebido_em.toISOString());
     expect((await eventoEncomenda('Retirada')).detalhes.dataEntrada).toBe(recebido_em.toISOString());

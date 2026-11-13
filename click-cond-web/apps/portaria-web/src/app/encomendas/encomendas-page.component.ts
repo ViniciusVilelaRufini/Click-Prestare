@@ -1,7 +1,8 @@
-import { ChangeDetectorRef, Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { Subscription, lastValueFrom } from 'rxjs';
 import {
   CreateEncomenda, Encomenda, EncomendasApi,
 } from './encomendas.service';
@@ -24,6 +25,17 @@ function esc(v: unknown): string {
 }
 
 const FOTO_ILEGIVEL = 'Não foi possível abrir a foto';
+/** Recarga automática da lista (mesmo ritmo da fila de delivery). */
+const INTERVALO_RECARGA_MS = 20_000;
+const NINGUEM_AVISADO = 'Ninguém foi avisado: a unidade não tem morador com aviso de encomendas ligado no app ou WhatsApp.';
+const STATUS_DA_ROTA = ['Esperando', 'Aguardando', 'Retirada'];
+
+/** Mensagem de erro da API (Nest pode mandar lista) ou do próprio erro. */
+function mensagemErro(e: any, padrao: string): string {
+  const m = e?.error?.message ?? e?.message;
+  if (Array.isArray(m)) return m.join(', ');
+  return m || padrao;
+}
 
 @Component({
   selector: 'app-encomendas-page',
@@ -37,6 +49,7 @@ export class EncomendasPageComponent implements OnInit {
   private confirm = inject(ConfirmService);
   private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
 
   constructor() {
     effect(() => {
@@ -66,6 +79,22 @@ export class EncomendasPageComponent implements OnInit {
   readonly selecionadas = signal<Set<number>>(new Set());
   readonly retirandoEncomenda = signal<Encomenda | null>(null);
   isBatchRetirada = false;
+  /** Envio da retirada em andamento: Confirmar fica desabilitado (sem duplo envio). */
+  readonly retirando = signal(false);
+  /** Erro da retirada, mostrado dentro do modal (o banner da página fica atrás do scrim). */
+  readonly retiradaErro = signal<string | null>(null);
+  /** Envio do recebimento em andamento. */
+  readonly salvando = signal(false);
+  /** Aviso informativo da última ação (ninguém avisado, resumo do lote). */
+  readonly aviso = signal<string | null>(null);
+  /** Encomenda com o formulário "Corrigir unidade" aberto. */
+  readonly corrigindo = signal<Encomenda | null>(null);
+  readonly correcaoErro = signal<string | null>(null);
+  readonly salvandoCorrecao = signal(false);
+  novaUnidade: Apartamento | null = null;
+  private recargaSilenciosa?: Subscription;
+  /** A última recarga automática falhou: a lista na tela pode estar velha. */
+  readonly semConexao = signal(false);
 
   retiranteNome = '';
   retiranteDocumento = '';
@@ -181,8 +210,20 @@ export class EncomendasPageComponent implements OnInit {
     return this.encomendasFiltradas().filter(e => e.status === 'Aguardando');
   });
 
-  readonly todasSelecionadas = computed(() => {
+  /**
+   * O que "Selecionar todas" marca: o lote é de um destinatário só, então são
+   * as aguardando da unidade já selecionada (ou da primeira da lista).
+   */
+  readonly selecionaveisDoLote = computed(() => {
     const list = this.totalAguardandoFiltradas();
+    if (list.length === 0) return [];
+    const sel = this.selecionadas();
+    const ref = (sel.size > 0 ? this.encomendas().find((item) => sel.has(item.id)) : undefined) ?? list[0];
+    return list.filter((e) => e.destinatario_apto === ref.destinatario_apto && e.destinatario_bloco === ref.destinatario_bloco);
+  });
+
+  readonly todasSelecionadas = computed(() => {
+    const list = this.selecionaveisDoLote();
     if (list.length === 0) return false;
     const sel = this.selecionadas();
     return list.every(e => sel.has(e.id));
@@ -251,28 +292,85 @@ export class EncomendasPageComponent implements OnInit {
     this.limparFoto();
   }
 
-  ngOnInit() { 
-    this.carregar(); 
+  ngOnInit() {
+    this.carregar();
     this.carregarApartamentos();
     this.route.queryParams.subscribe((params) => {
       if (params['novo'] === 'true') {
         this.formError.set(null);
         this.showForm = true;
       }
+      // Atalho do painel ("Aguardando retirada") abre já filtrado.
+      if (STATUS_DA_ROTA.includes(params['status'])) this.filtro.set(params['status']);
+    });
+    // Recarga silenciosa com a aba visível: encomenda recebida/retirada em
+    // outro posto aparece sem o porteiro recarregar a página.
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      this.recarregarSilencioso();
+    }, INTERVALO_RECARGA_MS);
+    this.destroyRef.onDestroy(() => {
+      clearInterval(timer);
+      this.recargaSilenciosa?.unsubscribe();
+      this.stopCamera();
     });
   }
 
   carregar() {
+    // Resposta atrasada da recarga automática não sobrescreve a carga nova.
+    this.recargaSilenciosa?.unsubscribe();
     this.error.set(null);
     this.loading.set(true);
     this.api.list().subscribe({
-      next: (data) => { 
-        this.encomendas.set(data); 
+      next: (data) => {
+        const antes = this.encomendas();
+        this.encomendas.set(data);
         this.pagina.set(1);
-        this.loading.set(false); 
+        this.manterSelecaoValida(antes, data);
+        this.semConexao.set(false);
+        this.loading.set(false);
       },
-      error: (e) => { this.error.set(e?.message ?? 'Erro'); this.loading.set(false); },
+      error: (e) => { this.error.set(mensagemErro(e, 'Erro')); this.loading.set(false); },
     });
+  }
+
+  /** Recarga sem spinner nem banner: mantém página, seleção válida e modais abertos. */
+  recarregarSilencioso() {
+    // Carga normal ou retirada em andamento: a recarga automática espera a próxima vez.
+    if (this.loading() || this.retirando()) return;
+    this.recargaSilenciosa?.unsubscribe();
+    this.recargaSilenciosa = this.api.list().subscribe({
+      next: (data) => {
+        const antes = this.encomendas();
+        this.encomendas.set(data);
+        const total = Math.max(1, Math.ceil(this.encomendasFiltradas().length / this.itensPorPagina));
+        if (this.pagina() > total) this.pagina.set(total);
+        this.manterSelecaoValida(antes, data);
+        this.semConexao.set(false);
+      },
+      // Falha passageira: a lista na tela continua, com um aviso discreto; o
+      // erro de ação (banner) não é tocado.
+      error: () => this.semConexao.set(true),
+    });
+  }
+
+  /**
+   * Tira da seleção o que não está mais aguardando retirada (retirada em outro
+   * posto, removida) e o que mudou de unidade (o lote é de um destinatário só).
+   */
+  private manterSelecaoValida(antes: Encomenda[], data: Encomenda[]) {
+    const sel = this.selecionadas();
+    if (sel.size === 0) return;
+    const unidade = (e: Encomenda) => `${(e.destinatario_bloco ?? '').trim()}|${e.destinatario_apto.trim()}`;
+    const anterior = new Map(antes.map((e) => [e.id, unidade(e)]));
+    const atual = new Map(data.filter((e) => e.status === 'Aguardando').map((e) => [e.id, unidade(e)]));
+    const valida = new Set([...sel].filter((id) => atual.has(id) && (!anterior.has(id) || anterior.get(id) === atual.get(id))));
+    if (valida.size !== sel.size) this.selecionadas.set(valida);
+  }
+
+  /** "Ninguém foi avisado" quando a API diz que o aviso não alcançou ninguém. */
+  private avisarSeNinguem(r: { avisados?: number } | null | undefined) {
+    if (r?.avisados === 0) this.aviso.set(NINGUEM_AVISADO);
   }
 
   carregarApartamentos() {
@@ -288,6 +386,7 @@ export class EncomendasPageComponent implements OnInit {
   }
 
   registrar() {
+    if (this.salvando()) return;
     this.formError.set(null);
     if (!this.novo.descricao?.trim() || !this.selectedApto) {
       this.formError.set('Descrição e apto destinatário são obrigatórios.');
@@ -301,28 +400,37 @@ export class EncomendasPageComponent implements OnInit {
     const foto = this.fotoVolume();
     if (foto) dto.foto_volume = foto;
 
+    this.aviso.set(null);
+    this.salvando.set(true);
     this.api.create(dto).subscribe({
-      next: () => { 
+      next: (r) => {
+        this.salvando.set(false);
         this.formError.set(null);
-        this.showForm = false; 
-        this.novo = this.estadoInicial(); 
+        this.showForm = false;
+        this.novo = this.estadoInicial();
         this.selectedApto = null;
         this.limparFoto();
-        this.carregar(); 
+        this.avisarSeNinguem(r);
+        this.carregar();
       },
-      error: (e) => this.formError.set(e?.message ?? 'Erro'),
+      error: (e) => {
+        this.salvando.set(false);
+        this.formError.set(mensagemErro(e, 'Erro'));
+      },
     });
   }
 
   notificar(e: Encomenda) {
     this.error.set(null);
+    this.aviso.set(null);
     this.loading.set(true);
     this.api.notificar(e.id).subscribe({
-      next: () => {
+      next: (r) => {
+        this.avisarSeNinguem(r);
         this.carregar();
       },
       error: (err) => {
-        this.error.set(err?.message ?? 'Erro ao notificar morador');
+        this.error.set(mensagemErro(err, 'Erro ao notificar morador'));
         this.loading.set(false);
       }
     });
@@ -331,12 +439,57 @@ export class EncomendasPageComponent implements OnInit {
   /** Porteiro confirma o recebimento de uma encomenda "a chegar" (Esperando). */
   receber(e: Encomenda) {
     this.error.set(null);
+    this.aviso.set(null);
     this.loading.set(true);
     this.api.receber(e.id).subscribe({
-      next: () => this.carregar(),
+      next: (r) => {
+        this.avisarSeNinguem(r);
+        this.carregar();
+      },
       error: (err) => {
-        this.error.set(err?.message ?? 'Erro ao receber encomenda');
+        this.error.set(mensagemErro(err, 'Erro ao receber encomenda'));
         this.loading.set(false);
+      },
+    });
+  }
+
+  abrirCorrecao(e: Encomenda) {
+    this.corrigindo.set(e);
+    this.correcaoErro.set(null);
+    this.novaUnidade = null;
+  }
+
+  fecharCorrecao() {
+    this.corrigindo.set(null);
+    this.correcaoErro.set(null);
+    this.novaUnidade = null;
+  }
+
+  /** Grava a unidade certa; a nova unidade é avisada pela API. */
+  salvarCorrecao() {
+    const e = this.corrigindo();
+    if (!e || this.salvandoCorrecao()) return;
+    if (!this.novaUnidade) {
+      this.correcaoErro.set('Escolha a unidade certa.');
+      return;
+    }
+    this.correcaoErro.set(null);
+    this.aviso.set(null);
+    this.salvandoCorrecao.set(true);
+    this.api.corrigirUnidade(e.id, {
+      destinatario_apto: this.novaUnidade.apto,
+      destinatario_bloco: this.novaUnidade.bloco || '',
+    }).subscribe({
+      next: (r) => {
+        this.salvandoCorrecao.set(false);
+        this.fecharCorrecao();
+        this.avisarSeNinguem(r);
+        this.carregar();
+      },
+      error: (err) => {
+        this.salvandoCorrecao.set(false);
+        this.correcaoErro.set(mensagemErro(err, 'Não foi possível corrigir a unidade.'));
+        if (err?.status === 409) this.recarregarSilencioso();
       },
     });
   }
@@ -344,6 +497,7 @@ export class EncomendasPageComponent implements OnInit {
   abrirRetirada(e: Encomenda) {
     this.retirandoEncomenda.set(e);
     this.isBatchRetirada = false;
+    this.retiradaErro.set(null);
     this.retiranteNome = '';
     this.retiranteDocumento = '';
     this.retiranteParentesco = 'Morador';
@@ -355,6 +509,7 @@ export class EncomendasPageComponent implements OnInit {
     if (this.selecionadas().size === 0) return;
     this.retirandoEncomenda.set(null);
     this.isBatchRetirada = true;
+    this.retiradaErro.set(null);
     this.retiranteNome = '';
     this.retiranteDocumento = '';
     this.retiranteParentesco = 'Morador';
@@ -365,13 +520,16 @@ export class EncomendasPageComponent implements OnInit {
   fecharRetirada() {
     this.retirandoEncomenda.set(null);
     this.isBatchRetirada = false;
+    this.retiradaErro.set(null);
     this.capturedPhoto = null;
     this.stopCamera();
+    this.cdr.markForCheck();
   }
 
-  confirmarRetirada() {
+  async confirmarRetirada(): Promise<void> {
+    if (this.retirando()) return;
     if (!this.retiranteNome.trim()) {
-      alert('Nome do retirante é obrigatório.');
+      this.retiradaErro.set('Nome do retirante é obrigatório.');
       return;
     }
 
@@ -390,57 +548,85 @@ export class EncomendasPageComponent implements OnInit {
     const details = `${this.retiranteNome} (${this.retiranteParentesco})`;
 
     this.error.set(null);
-    this.loading.set(true);
+    this.aviso.set(null);
+    this.retiradaErro.set(null);
     if (this.isBatchRetirada) {
-      const sel = Array.from(this.selecionadas());
-      import('rxjs').then(async ({ lastValueFrom }) => {
-        try {
-          let currentSignature: string | undefined = signature || undefined;
-          let currentPhoto: string | undefined = photo || undefined;
-
-          for (let i = 0; i < sel.length; i++) {
-            const id = sel[i];
-            const res = await lastValueFrom(
-              this.api.retirar(
-                id,
-                details,
-                this.retiranteDocumento || undefined,
-                currentSignature,
-                currentPhoto
-              )
-            );
-            // Once uploaded on backend (first package), update reference with the public URL
-            // for subsequent packages so we avoid redundant concurrent base64 uploads.
-            if (res.retirado_assinatura) {
-              currentSignature = res.retirado_assinatura;
-            }
-            if (res.retirado_foto) {
-              currentPhoto = res.retirado_foto;
-            }
-          }
-
-          this.selecionadas.set(new Set());
-          this.fecharRetirada();
-          this.carregar();
-        } catch (e: any) {
-          this.error.set(e?.error?.message ?? e?.message ?? 'Erro ao retirar lote');
-          this.loading.set(false);
-        }
-      });
-    } else {
-      const e = this.retirandoEncomenda();
-      if (!e) return;
-      this.api.retirar(e.id, details, this.retiranteDocumento || undefined, signature || undefined, photo || undefined).subscribe({
-        next: () => {
-          this.fecharRetirada();
-          this.carregar();
-        },
-        error: (err) => {
-          this.error.set(err?.message ?? 'Erro ao registrar retirada');
-          this.loading.set(false);
-        }
-      });
+      await this.retirarLote(Array.from(this.selecionadas()), details, signature, photo);
+      return;
     }
+    const e = this.retirandoEncomenda();
+    if (!e) return;
+    this.retirando.set(true);
+    this.api.retirar(e.id, details, this.retiranteDocumento || undefined, signature || undefined, photo || undefined).subscribe({
+      next: () => {
+        this.retirando.set(false);
+        this.fecharRetirada();
+        this.carregar();
+      },
+      error: (err) => {
+        this.retirando.set(false);
+        const msg = mensagemErro(err, 'Erro ao registrar retirada');
+        if (err?.status === 409) {
+          // Já retirada (outro posto, outro clique): a lista na tela estava velha.
+          this.fecharRetirada();
+          this.carregar();
+          this.error.set(msg);
+          return;
+        }
+        this.retiradaErro.set(msg);
+      }
+    });
+  }
+
+  /**
+   * Retirada em lote, uma por vez (a 1ª sobe assinatura/foto; as seguintes
+   * reaproveitam a URL). Já retiradas (409) são puladas e contadas; outro erro
+   * para o lote e aparece no modal, com o que já saiu fora da seleção.
+   */
+  private async retirarLote(ids: number[], details: string, signature: string | null, photo: string | null) {
+    this.retirando.set(true);
+    let currentSignature: string | undefined = signature || undefined;
+    let currentPhoto: string | undefined = photo || undefined;
+    let retiradas = 0;
+    let jaRetiradas = 0;
+    const tirarDaSelecao = (id: number) => {
+      const s = new Set(this.selecionadas());
+      s.delete(id);
+      this.selecionadas.set(s);
+    };
+    for (const id of ids) {
+      try {
+        const res = await lastValueFrom(
+          this.api.retirar(id, details, this.retiranteDocumento || undefined, currentSignature, currentPhoto),
+        );
+        if (res?.retirado_assinatura) currentSignature = res.retirado_assinatura;
+        if (res?.retirado_foto) currentPhoto = res.retirado_foto;
+        retiradas++;
+        tirarDaSelecao(id);
+      } catch (e: any) {
+        if (e?.status === 409) {
+          jaRetiradas++;
+          tirarDaSelecao(id);
+          continue;
+        }
+        this.retirando.set(false);
+        const feitas = retiradas ? ` (${this.resumoLote(retiradas, jaRetiradas)} antes da falha)` : '';
+        this.retiradaErro.set(mensagemErro(e, 'Erro ao retirar lote') + feitas);
+        this.recarregarSilencioso();
+        this.cdr.markForCheck();
+        return;
+      }
+    }
+    this.retirando.set(false);
+    this.fecharRetirada();
+    this.carregar();
+    this.aviso.set(`${this.resumoLote(retiradas, jaRetiradas)}.`);
+  }
+
+  private resumoLote(retiradas: number, jaRetiradas: number): string {
+    const feitas = retiradas === 1 ? '1 retirada' : `${retiradas} retiradas`;
+    if (!jaRetiradas) return feitas;
+    return `${feitas}, ${jaRetiradas === 1 ? '1 já estava retirada' : `${jaRetiradas} já estavam retiradas`}`;
   }
 
   toggleSelecionado(id: number) {
@@ -454,35 +640,14 @@ export class EncomendasPageComponent implements OnInit {
   }
 
   toggleSelecionarTodos() {
-    const list = this.totalAguardandoFiltradas();
+    const list = this.selecionaveisDoLote();
     if (list.length === 0) return;
 
     const current = new Set(this.selecionadas());
-    const allSelected = this.todasSelecionadas();
-
-    if (allSelected) {
+    if (this.todasSelecionadas()) {
       list.forEach(e => current.delete(e.id));
     } else {
-      let refApto = '';
-      let refBloco: string | null = null;
-
-      if (current.size > 0) {
-        const refId = Array.from(current)[0];
-        const ref = this.encomendas().find(item => item.id === refId);
-        if (ref) {
-          refApto = ref.destinatario_apto;
-          refBloco = ref.destinatario_bloco;
-        }
-      } else {
-        refApto = list[0].destinatario_apto;
-        refBloco = list[0].destinatario_bloco;
-      }
-
-      list.forEach(e => {
-        if (e.destinatario_apto === refApto && e.destinatario_bloco === refBloco) {
-          current.add(e.id);
-        }
-      });
+      list.forEach(e => current.add(e.id));
     }
     this.selecionadas.set(current);
   }
@@ -503,16 +668,19 @@ export class EncomendasPageComponent implements OnInit {
     if (sel.length === 0) return;
     
     this.error.set(null);
+    this.aviso.set(null);
     this.loading.set(true);
     import('rxjs').then(({ forkJoin }) => {
       const requests = sel.map(id => this.api.notificar(id));
       forkJoin(requests).subscribe({
-        next: () => {
+        next: (respostas) => {
+          // O lote é de uma unidade só: todas sem ninguém alcançado = ninguém avisado.
+          if (respostas.length && respostas.every((r) => r?.avisados === 0)) this.aviso.set(NINGUEM_AVISADO);
           this.selecionadas.set(new Set());
           this.carregar();
         },
         error: (e) => {
-          this.error.set(e?.message ?? 'Erro ao notificar lote');
+          this.error.set(mensagemErro(e, 'Erro ao notificar lote'));
           this.loading.set(false);
         }
       });
@@ -596,13 +764,19 @@ export class EncomendasPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.remove(e.id).subscribe({ next: () => this.carregar() });
+    this.error.set(null);
+    this.api.remove(e.id).subscribe({
+      next: () => this.carregar(),
+      error: (err) => this.error.set(mensagemErro(err, 'Não foi possível remover a encomenda.')),
+    });
   }
 
+  /** Dias de calendário na portaria (recebida ontem às 23 h é "há 1 dia" às 8 h de hoje). */
   diasArmazenada(e: Encomenda): number {
-    const recebido = new Date(e.recebido_em).getTime();
-    const ref = e.retirado_em ? new Date(e.retirado_em).getTime() : Date.now();
-    return Math.floor((ref - recebido) / 86400000);
+    const recebido = new Date(e.recebido_em);
+    const ref = e.retirado_em ? new Date(e.retirado_em) : new Date();
+    const dia = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+    return Math.max(0, Math.round((dia(ref) - dia(recebido)) / 86400000));
   }
 
   /** "hoje" / "há 1 dia" / "há N dias" — tempo que a encomenda ficou (ou está) na portaria. */

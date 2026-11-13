@@ -5475,7 +5475,6 @@ export class MobileAuthService {
     if (norm(encomenda.status) === 'retirada') {
       throw new BadRequestException('Esta encomenda já foi retirada.');
     }
-
     // Foto chega como data URL do app; o storage devolve a URL pública.
     let fotoUrl: string | null = fotoDataUrl ?? null;
     await this.storage.exigirArquivoDoRegistro(fotoUrl, [encomenda.retirado_foto]);
@@ -5486,8 +5485,10 @@ export class MobileAuthService {
       }
     }
 
-    return this.prisma.encomendas.update({
-      where: { id: encomenda.id },
+    // Baixa atômica: só de 'Aguardando' ou do pré-registro 'Esperando' (o
+    // morador pode ter pego direto); outra baixa no meio não grava por cima.
+    const transicao = await this.prisma.encomendas.updateMany({
+      where: { id: encomenda.id, status: { in: ['Aguardando', 'Esperando'] } },
       data: {
         retirado_em: new Date(),
         retirado_por: dono.nome,
@@ -5496,6 +5497,10 @@ export class MobileAuthService {
         entregue_por_user: idUser,
       },
     });
+    if (transicao.count === 0) {
+      throw new BadRequestException('Esta encomenda já foi retirada.');
+    }
+    return this.prisma.encomendas.findUnique({ where: { id: encomenda.id } });
   }
 
   async updatePassword(idUser: number, newPasswordPlana: string, typeAccess: string, senhaAtual?: string) {

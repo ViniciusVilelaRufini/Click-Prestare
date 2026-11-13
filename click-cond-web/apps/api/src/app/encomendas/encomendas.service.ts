@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
 import { IaClient } from '../chat-ia/ia.client';
 import { casarMorador, extrairLeitura, leituraVazia, LeituraEtiqueta } from './ler-etiqueta';
 import { PrismaService } from '../prisma/prisma.service';
@@ -32,6 +32,15 @@ const PROMPT_ETIQUETA =
   'descricao (tipo e tamanho do volume que aparece na foto, ex.: "Caixa média", "Envelope", "Sacola"). ' +
   'Use null quando não estiver legível. Não invente dados. ' +
   'Nunca comente a qualidade da foto em nenhum campo.';
+
+/** Destino de uma encomenda: quem mora na unidade recebe o aviso. */
+type DestinoEncomenda = {
+  id: number;
+  id_condominio: number;
+  destinatario_apto: string;
+  destinatario_bloco: string | null;
+  descricao: string;
+};
 
 /** Retirada em lote: as encomendas seguintes reaproveitam a assinatura/foto da 1ª nesta janela. */
 const JANELA_LOTE_RETIRADA_MS = 15 * 60_000;
@@ -309,6 +318,8 @@ export class EncomendasService implements OnModuleInit {
           },
         });
         if (expected) {
+          // Chegou agora: mesmo registro do recebimento confirmado (receber), não
+          // a data do pré-registro feito pelo morador.
           encomenda = await this.prisma.encomendas.update({
             where: { id: expected.id },
             data: {
@@ -318,8 +329,10 @@ export class EncomendasService implements OnModuleInit {
               recebido_de: dto.recebido_de ?? expected.recebido_de,
               foto_volume: fotoUrl,
               status: 'Aguardando',
-              notificado: 1,
-              notificado_em: new Date(),
+              recebido_em: new Date(),
+              recebido_por_user: idUsuarioDoToken(operador),
+              notificado: 0,
+              notificado_em: null,
             },
           });
         }
@@ -335,8 +348,8 @@ export class EncomendasService implements OnModuleInit {
             foto_volume: fotoUrl,
             status: 'Aguardando',
             id_condominio: dto.id_condominio,
-            notificado: 1,
-            notificado_em: new Date(),
+            notificado: 0,
+            recebido_por_user: idUsuarioDoToken(operador),
             codigo_rastreio: dto.codigo_rastreio ?? null,
           },
         });
@@ -347,40 +360,19 @@ export class EncomendasService implements OnModuleInit {
       );
     }
 
-    // Notificar moradores do apartamento
-    try {
-      const moradores = await this.prisma.users.findMany({
-        where: {
-          moradores: {
-            some: {
-              id_condominio: dto.id_condominio,
-              apartamento: dto.destinatario_apto,
-              ...(dto.destinatario_bloco ? { bloco: dto.destinatario_bloco } : {}),
-            },
-          },
-          notif_encomendas: 1,
-        },
-        select: { fcm_token: true, name: true, phone: true },
-      });
-
-      for (const morador of moradores) {
-        if (morador.fcm_token) {
-          await this.notifications.sendPushNotification(
-            morador.fcm_token,
-            'Nova Encomenda!',
-            `Uma encomenda (${dto.descricao}) chegou para o seu apartamento.`,
-            { id: encomenda.id.toString(), type: 'encomenda' },
-          );
-        }
-        if (morador.phone) {
-          const transportadora = dto.recebido_de ? `de ${dto.recebido_de}` : 'entregador';
-          const waMessage = `Olá, ${morador.name}! Uma nova encomenda (${dto.descricao}) ${transportadora} chegou na portaria para o seu apartamento. Retire quando puder!`;
-          await this.notifications.sendWhatsApp(morador.phone, waMessage);
-        }
-      }
-    } catch (error) {
-      console.error('Falha ao notificar moradores:', error);
-    }
+    // Notificar moradores do apartamento (o destino é o gravado: no casamento
+    // com pré-registro sem apto no formulário, vale o do pré-registro).
+    const avisados = await this.avisarUnidade(
+      encomenda,
+      'Nova Encomenda!',
+      `Uma encomenda (${dto.descricao}) chegou para o seu apartamento.`,
+      (nome) => {
+        const transportadora = dto.recebido_de ? `de ${dto.recebido_de}` : 'entregador';
+        return `Olá, ${nome}! Uma nova encomenda (${dto.descricao}) ${transportadora} chegou na portaria para o seu apartamento. Retire quando puder!`;
+      },
+      'notificar moradores',
+    );
+    encomenda = await this.marcarNotificada(encomenda, avisados);
 
     const ctx = await this.carregarContextoEncomenda(encomenda.id);
     await this.auditoria.registrar({
@@ -393,7 +385,66 @@ export class EncomendasService implements OnModuleInit {
       detalhes: ctx ?? undefined,
     });
 
-    return encomenda;
+    return { ...encomenda, avisados };
+  }
+
+  /**
+   * Avisa (push e WhatsApp) quem mora na unidade de destino. Devolve quantos
+   * moradores ao menos um envio alcançou; falha de envio não derruba a rota.
+   */
+  private async avisarUnidade(
+    e: DestinoEncomenda,
+    titulo: string,
+    corpo: string,
+    whatsapp: (nome: string) => string,
+    contexto: string,
+  ): Promise<number> {
+    let avisados = 0;
+    try {
+      const moradores = await this.prisma.users.findMany({
+        where: {
+          moradores: {
+            some: {
+              id_condominio: e.id_condominio,
+              apartamento: e.destinatario_apto,
+              ...(e.destinatario_bloco ? { bloco: e.destinatario_bloco } : {}),
+            },
+          },
+          notif_encomendas: 1,
+        },
+        select: { fcm_token: true, name: true, phone: true },
+      });
+
+      for (const morador of moradores) {
+        let alcancou = false;
+        if (morador.fcm_token) {
+          const r = await this.notifications.sendPushNotification(
+            morador.fcm_token,
+            titulo,
+            corpo,
+            { id: e.id.toString(), type: 'encomenda' },
+          );
+          if (r) alcancou = true;
+        }
+        if (morador.phone) {
+          const r = await this.notifications.sendWhatsApp(morador.phone, whatsapp(morador.name ?? ''));
+          if (r) alcancou = true;
+        }
+        if (alcancou) avisados++;
+      }
+    } catch (error) {
+      console.error(`Falha ao ${contexto}:`, error);
+    }
+    return avisados;
+  }
+
+  /** `notificado` só vira 1 quando o aviso alcançou alguém. */
+  private async marcarNotificada<T extends { id: number }>(encomenda: T, avisados: number): Promise<T> {
+    if (avisados <= 0) return encomenda;
+    return (await this.prisma.encomendas.update({
+      where: { id: encomenda.id },
+      data: { notificado: 1, notificado_em: new Date() },
+    })) as unknown as T;
   }
 
   async retirar(
@@ -512,46 +563,17 @@ export class EncomendasService implements OnModuleInit {
     await this.assertEncomendaDoTenant(id, operador);
 
     try {
-      const e = await this.prisma.encomendas.update({
-        where: { id: Number(id) },
-        data: {
-          notificado: 1,
-          notificado_em: new Date(),
-        },
-      });
+      const atual = await this.prisma.encomendas.findUnique({ where: { id: Number(id) } });
+      if (!atual) throw new NotFoundException(`Encomenda ${id} não encontrada`);
 
-      try {
-        const moradores = await this.prisma.users.findMany({
-          where: {
-            moradores: {
-              some: {
-                id_condominio: e.id_condominio,
-                apartamento: e.destinatario_apto,
-                ...(e.destinatario_bloco ? { bloco: e.destinatario_bloco } : {}),
-              },
-            },
-            notif_encomendas: 1,
-          },
-          select: { fcm_token: true, name: true, phone: true },
-        });
-
-        for (const morador of moradores) {
-          if (morador.fcm_token) {
-            await this.notifications.sendPushNotification(
-              morador.fcm_token,
-              'Aviso de Encomenda Pendente!',
-              `Você tem uma encomenda pendente (${e.descricao}) aguardando retirada.`,
-              { id: e.id.toString(), type: 'encomenda' },
-            );
-          }
-          if (morador.phone) {
-            const waMessage = `Olá, ${morador.name}! Lembramos que você tem uma encomenda pendente (${e.descricao}) aguardando retirada na portaria do condomínio.`;
-            await this.notifications.sendWhatsApp(morador.phone, waMessage);
-          }
-        }
-      } catch (err) {
-        console.error('Falha ao reenviar notificação:', err);
-      }
+      const avisados = await this.avisarUnidade(
+        atual,
+        'Aviso de Encomenda Pendente!',
+        `Você tem uma encomenda pendente (${atual.descricao}) aguardando retirada.`,
+        (nome) => `Olá, ${nome}! Lembramos que você tem uma encomenda pendente (${atual.descricao}) aguardando retirada na portaria do condomínio.`,
+        'reenviar notificação',
+      );
+      const e = await this.marcarNotificada(atual, avisados);
 
       const ctx = await this.carregarContextoEncomenda(e.id);
       await this.auditoria.registrar({
@@ -564,7 +586,7 @@ export class EncomendasService implements OnModuleInit {
         detalhes: ctx ?? undefined,
       });
 
-      return e;
+      return { ...e, avisados };
     } catch {
       throw new NotFoundException(`Encomenda ${id} não encontrada`);
     }
@@ -590,51 +612,27 @@ export class EncomendasService implements OnModuleInit {
         status: 'Aguardando',
         recebido_em: agora,
         recebido_por_user: idUsuarioDoToken(operador),
-        notificado: 1,
-        notificado_em: agora,
+        notificado: 0,
+        notificado_em: null,
       },
     });
     if (transicao.count === 0) {
       throw new ConflictException('Esta encomenda já foi recebida ou não está aguardando confirmação.');
     }
-    const encomenda = await this.prisma.encomendas.findUnique({
+    const recebida = await this.prisma.encomendas.findUnique({
       where: { id: Number(id) },
     });
-    if (!encomenda) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    if (!recebida) throw new NotFoundException(`Encomenda ${id} não encontrada`);
 
     // Notifica o(s) morador(es) do apartamento que a encomenda chegou.
-    try {
-      const moradores = await this.prisma.users.findMany({
-        where: {
-          moradores: {
-            some: {
-              id_condominio: encomenda.id_condominio,
-              apartamento: encomenda.destinatario_apto,
-              ...(encomenda.destinatario_bloco ? { bloco: encomenda.destinatario_bloco } : {}),
-            },
-          },
-          notif_encomendas: 1,
-        },
-        select: { fcm_token: true, name: true, phone: true },
-      });
-
-      for (const morador of moradores) {
-        if (morador.fcm_token) {
-          await this.notifications.sendPushNotification(
-            morador.fcm_token,
-            'Encomenda recebida!',
-            `Sua encomenda (${encomenda.descricao}) chegou na portaria.`,
-            { id: encomenda.id.toString(), type: 'encomenda' },
-          );
-        }
-        if (morador.phone) {
-          const waMessage = `Olá, ${morador.name}! Sua encomenda (${encomenda.descricao}) chegou na portaria do condomínio. Retire quando puder!`;
-          await this.notifications.sendWhatsApp(morador.phone, waMessage);
-        }
-      }
-    } catch (error) {
-      console.error('Falha ao notificar moradores (receber):', error);
-    }
+    const avisados = await this.avisarUnidade(
+      recebida,
+      'Encomenda recebida!',
+      `Sua encomenda (${recebida.descricao}) chegou na portaria.`,
+      (nome) => `Olá, ${nome}! Sua encomenda (${recebida.descricao}) chegou na portaria do condomínio. Retire quando puder!`,
+      'notificar moradores (receber)',
+    );
+    const encomenda = await this.marcarNotificada(recebida, avisados);
 
     const ctx = await this.carregarContextoEncomenda(encomenda.id);
     await this.auditoria.registrar({
@@ -647,7 +645,78 @@ export class EncomendasService implements OnModuleInit {
       detalhes: ctx ?? undefined,
     });
 
-    return encomenda;
+    return { ...encomenda, avisados };
+  }
+
+  /**
+   * Console: corrige a unidade de uma encomenda que ainda aguarda retirada
+   * (o porteiro escolheu o apartamento errado). A nova unidade é avisada; a
+   * troca só vale enquanto o status lido continua 'Aguardando'.
+   */
+  async corrigirUnidade(
+    idCondominio: number,
+    id: number,
+    dto: { destinatario_apto?: string; destinatario_bloco?: string | null },
+    operador?: JwtPayload,
+  ) {
+    const apto = String(dto?.destinatario_apto ?? '').trim();
+    if (!apto) throw new BadRequestException('Informe o apartamento de destino.');
+    // Sem bloco grava '' — o mesmo que o recebimento do console grava —, para a
+    // mesma unidade não se separar no lote de retirada (que compara o texto).
+    const bloco = String(dto?.destinatario_bloco ?? '').trim();
+
+    const atual = await this.prisma.encomendas.findUnique({ where: { id: Number(id) } });
+    if (!atual) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    await this.tenant.assertEntidade(atual.id_condominio, operador, `encomenda #${id}`);
+    if (atual.id_condominio !== Number(idCondominio)) {
+      throw new ForbiddenException('Encomenda não pertence a este condomínio.');
+    }
+    if (atual.status !== 'Aguardando') {
+      throw new ConflictException('Só é possível corrigir a unidade de encomenda aguardando retirada.');
+    }
+    if (atual.destinatario_apto.trim() === apto && (atual.destinatario_bloco ?? '').trim() === bloco) {
+      throw new BadRequestException('A encomenda já está nesta unidade.');
+    }
+    const unidade = await this.prisma.apartamentos.findFirst({
+      where: { id_condominio: atual.id_condominio, apto, ...(bloco ? { bloco } : { OR: [{ bloco: null }, { bloco: '' }] }) },
+      select: { id: true },
+    });
+    if (!unidade) throw new BadRequestException('Unidade não encontrada neste condomínio.');
+
+    const transicao = await this.prisma.encomendas.updateMany({
+      where: { id: Number(id), status: 'Aguardando' },
+      data: { destinatario_apto: apto, destinatario_bloco: bloco, notificado: 0, notificado_em: null },
+    });
+    if (transicao.count === 0) {
+      throw new ConflictException('A encomenda mudou enquanto você corrigia. Recarregue a lista.');
+    }
+    const corrigida = await this.prisma.encomendas.findUnique({ where: { id: Number(id) } });
+    if (!corrigida) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+
+    const avisados = await this.avisarUnidade(
+      corrigida,
+      'Nova Encomenda!',
+      `Uma encomenda (${corrigida.descricao}) chegou para o seu apartamento.`,
+      (nome) => `Olá, ${nome}! Uma nova encomenda (${corrigida.descricao}) chegou na portaria para o seu apartamento. Retire quando puder!`,
+      'notificar moradores (correção de unidade)',
+    );
+    const encomenda = await this.marcarNotificada(corrigida, avisados);
+
+    const ctx = await this.carregarContextoEncomenda(encomenda.id);
+    const de = atual.destinatario_bloco
+      ? `${rotuloBloco(atual.destinatario_bloco)}, Apto ${atual.destinatario_apto}`
+      : `Apto ${atual.destinatario_apto}`;
+    await this.auditoria.registrar({
+      id_condominio: encomenda.id_condominio,
+      usuario_nome: operador?.nome ?? 'Portaria',
+      acao: 'UPDATE',
+      modulo: 'encomendas',
+      entidade_id: encomenda.id,
+      descricao: `Corrigiu a unidade de "${encomenda.descricao}": ${de} → ${ctx?.destinatario.label ?? 'apto'}`,
+      detalhes: ctx ?? undefined,
+    });
+
+    return { ...encomenda, avisados };
   }
 
   async update(id: number, dto: Partial<CreateEncomendaDto>, operador?: JwtPayload) {

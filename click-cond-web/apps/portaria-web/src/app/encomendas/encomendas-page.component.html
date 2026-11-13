@@ -262,8 +262,8 @@
         <button (click)="fecharForm()" class="ps-btn ps-btn-sec">
           Cancelar
         </button>
-        <button (click)="registrar()" class="ps-btn">
-          Confirmar recebimento
+        <button (click)="registrar()" [disabled]="salvando()" class="ps-btn disabled:opacity-50">
+          {{ salvando() ? 'Salvando…' : 'Confirmar recebimento' }}
         </button>
       </div>
     </div>
@@ -271,6 +271,17 @@
 
   @if (error()) {
     <div class="p-3 border border-[var(--signal-danger)] text-sm text-[var(--signal-danger)]">{{ error() }}</div>
+  }
+  @if (semConexao()) {
+    <p role="status" class="text-xs text-[var(--signal-warn)]">Sem conexão — a lista pode estar desatualizada.</p>
+  }
+  @if (aviso()) {
+    <div role="status" class="p-3 border border-[var(--signal-warn)] text-sm text-[var(--signal-warn)] flex items-start justify-between gap-3">
+      <span>{{ aviso() }}</span>
+      <button type="button" (click)="aviso.set(null)" class="ps-ibtn shrink-0" aria-label="Fechar aviso">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
   }
 
   <!-- Tabela -->
@@ -343,15 +354,15 @@
                 </button>
               }
               @if (e.status === 'Aguardando') {
-                @if (!e.notificado) {
-                  <button (click)="notificar(e)" class="ps-btn ps-btn-sec ps-btn-sm">Notificar</button>
-                } @else {
+                @if (e.notificado) {
                   <span class="inline-flex items-center gap-1 text-[11px] text-[var(--signal-ok)] font-medium"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Notificado</span>
                 }
+                <button (click)="notificar(e)" class="ps-btn ps-btn-sec ps-btn-sm">Notificar</button>
                 <button (click)="abrirRetirada(e)" class="ps-btn ps-btn-sm">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                   Marcar retirada
                 </button>
+                <button (click)="abrirCorrecao(e)" class="ps-btn ps-btn-ghost ps-btn-sm">Corrigir unidade</button>
               }
               <button (click)="imprimir(e)" title="Imprimir etiqueta" aria-label="Imprimir etiqueta" class="ps-ibtn">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
@@ -508,6 +519,9 @@
                       </button>
                     }
                     @if (e.status === 'Aguardando') {
+                      <button (click)="abrirCorrecao(e); $event.stopPropagation()" title="Corrigir unidade" aria-label="Corrigir unidade" class="ps-ibtn">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M9 13l6.232-6.232a2.5 2.5 0 113.536 3.536L12.536 16.536 8 17l.464-4.536z"/></svg>
+                      </button>
                       <button (click)="notificar(e); $event.stopPropagation()"
                               [title]="e.notificado ? 'Notificar o morador de novo' : 'Notificar o morador'"
                               [attr.aria-label]="e.notificado ? 'Notificar o morador de novo' : 'Notificar o morador'"
@@ -584,7 +598,7 @@
             </svg>
             <h3 class="ps-h2 !text-[13px]">Registrar Retirada de Encomenda</h3>
           </div>
-          <button (click)="retirandoEncomenda.set(null); isBatchRetirada = false" aria-label="Fechar modal" class="ps-ibtn">
+          <button (click)="fecharRetirada()" [disabled]="retirando()" aria-label="Fechar modal" class="ps-ibtn disabled:opacity-40">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -695,13 +709,60 @@
           </div>
         </div>
 
+        @if (retiradaErro()) {
+          <div role="alert" class="mx-6 mb-2 p-3 border border-[var(--signal-danger)] text-sm text-[var(--signal-danger)]">{{ retiradaErro() }}</div>
+        }
+
         <!-- Footer -->
         <div class="px-6 py-4 border-t border-[var(--line-100)] flex justify-end gap-2">
-          <button (click)="retirandoEncomenda.set(null); isBatchRetirada = false" class="ps-btn ps-btn-sec">
+          <button (click)="fecharRetirada()" [disabled]="retirando()" class="ps-btn ps-btn-sec disabled:opacity-50">
             Cancelar
           </button>
-          <button (click)="confirmarRetirada()" [disabled]="!retiranteNome.trim()" class="ps-btn disabled:opacity-50">
-            Confirmar Retirada
+          <button (click)="confirmarRetirada()" [disabled]="!retiranteNome.trim() || retirando()" class="ps-btn disabled:opacity-50">
+            {{ retirando() ? 'Registrando…' : 'Confirmar Retirada' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Modal: corrigir a unidade de uma encomenda aguardando retirada -->
+  @if (corrigindo(); as c) {
+    <div class="ps-scrim on !z-[60]">
+      <div class="ps-modal on !p-0 !gap-0 overflow-y-auto max-h-[90vh] !w-[min(400px,calc(100%-32px))]">
+        <div class="px-6 py-4 border-b border-[var(--line-100)] flex items-center justify-between">
+          <h3 class="ps-h2 !text-[13px]">Corrigir unidade</h3>
+          <button (click)="fecharCorrecao()" aria-label="Fechar correção" class="ps-ibtn">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="p-6 space-y-4">
+          <div class="p-3.5 border border-[var(--line-100)] space-y-1">
+            <span class="ps-label block">Encomenda</span>
+            <p class="text-sm font-medium text-[var(--ink)]">{{ c.descricao }}</p>
+            <p class="text-xs text-[var(--ink-muted)]">Hoje: <span class="text-[var(--ink)]">{{ rotuloDestino(c) }}</span></p>
+          </div>
+          <label class="block">
+            <span class="ps-label mb-1.5 block">Unidade certa *</span>
+            <span class="ps-field">
+              <select [(ngModel)]="novaUnidade" aria-label="Unidade certa">
+                <option [ngValue]="null">Selecione a unidade...</option>
+                @for (a of apartamentos(); track a.id) {
+                  <option [ngValue]="a">{{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}</option>
+                }
+              </select>
+              <svg class="w-4 h-4 shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"/></svg>
+            </span>
+          </label>
+          <p class="text-xs text-[var(--ink-subtle)]">Os moradores da unidade certa recebem o aviso da encomenda.</p>
+          @if (correcaoErro()) {
+            <div role="alert" class="p-3 border border-[var(--signal-danger)] text-sm text-[var(--signal-danger)]">{{ correcaoErro() }}</div>
+          }
+        </div>
+        <div class="px-6 py-4 border-t border-[var(--line-100)] flex justify-end gap-2">
+          <button (click)="fecharCorrecao()" class="ps-btn ps-btn-sec">Cancelar</button>
+          <button (click)="salvarCorrecao()" [disabled]="!novaUnidade || salvandoCorrecao()" class="ps-btn disabled:opacity-50">
+            {{ salvandoCorrecao() ? 'Salvando…' : 'Salvar' }}
           </button>
         </div>
       </div>
