@@ -46,7 +46,16 @@ describe('Revogação de biometria pelo operador — só no condomínio dele', (
       funcionarios: { count: jest.fn(async () => 0) },
       apartamentos_Users: { count: jest.fn(async () => 0) },
       users: {
-        updateMany: jest.fn(async () => ({ count: 1 })),
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          let count = 0;
+          for (const k of ['photo', 'profile_image'] as const) {
+            if (where.id === 7 && k in data && where[k]?.in?.includes(user[k])) {
+              user[k] = data[k];
+              count = 1;
+            }
+          }
+          return { count };
+        }),
         count: jest.fn(async ({ where }: any) =>
           where.id === 7 &&
           (where.OR ?? []).some(
@@ -59,7 +68,7 @@ describe('Revogação de biometria pelo operador — só no condomínio dele', (
     };
     const facial: any = { unsyncMorador: jest.fn(async () => true) };
     const storage: any = { deleteUrl: jest.fn(async () => true) };
-    return { svc: new ConsentimentosService(prisma, facial, storage), prisma, facial, storage, rows };
+    return { svc: new ConsentimentosService(prisma, facial, storage), prisma, facial, storage, rows, user };
   }
 
   it('não grava recusa global e não toca o cadastro do outro condomínio', async () => {
@@ -81,11 +90,12 @@ describe('Revogação de biometria pelo operador — só no condomínio dele', (
     expect(prisma.users.updateMany).not.toHaveBeenCalled();
   });
 
-  it('foto que também é a da conta (Users.photo) fica no storage e em Users', async () => {
-    const { svc, prisma, storage } = build({ rows: [daqui()], user: { photo: FOTO_1, profile_image: null } });
+  it('conta compartilhada com outro condomínio: foto que também é a da conta (Users.photo) fica no storage e em Users', async () => {
+    const { svc, prisma, storage, user } = build({ rows: [daqui()], user: { photo: FOTO_1, profile_image: null }, sindicoFora: 1 });
     await svc.revogarBiometria(7, 'Portaria', 1);
     expect(storage.deleteUrl).not.toHaveBeenCalled();
     expect(prisma.users.updateMany).not.toHaveBeenCalled();
+    expect(user.photo).toBe(FOTO_1);
   });
 
   it('foto que também está no cadastro de outro condomínio fica no storage', async () => {
@@ -102,11 +112,14 @@ describe('Revogação de biometria pelo operador — só no condomínio dele', (
     expect(prisma.users.updateMany).not.toHaveBeenCalled();
   });
 
-  it('conta só deste condomínio: a foto sai do storage, sem recusa global e sem mexer em Users', async () => {
-    const { svc, prisma, storage } = build({ rows: [daqui()] });
+  it('conta só deste condomínio: a foto sai do storage e da conta, como antes (sem recusa global)', async () => {
+    const { svc, prisma, storage, user } = build({ rows: [daqui()], user: { photo: FOTO_1, profile_image: PERFIL } });
     await svc.revogarBiometria(7, 'Portaria', 1);
+    expect(prisma.users.updateMany).toHaveBeenCalledWith({ where: { id: 7, photo: { in: [FOTO_1] } }, data: { photo: null } });
+    expect(user.photo).toBeNull();
+    expect(user.profile_image).toBe(PERFIL);
     expect(storage.deleteUrl).toHaveBeenCalledWith(FOTO_1, expect.anything());
-    expect(prisma.users.updateMany).not.toHaveBeenCalled();
+    expect(storage.deleteUrl).not.toHaveBeenCalledWith(PERFIL, expect.anything());
     expect(prisma.consentimentos.create).not.toHaveBeenCalled();
   });
 
