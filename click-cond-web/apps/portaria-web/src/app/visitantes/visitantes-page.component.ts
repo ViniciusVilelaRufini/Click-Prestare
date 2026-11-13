@@ -851,6 +851,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     } as CreateVisitante;
     const cats = ((v as any).categorias ?? '').split(';').map((x: string) => x.trim()).filter(Boolean);
     this.categoriasSelecionadas.set(new Set(cats));
+    this.editOriginal = {
+      is_prestador: Number(this.novo.is_prestador ?? 0),
+      tag_rfid: (this.novo.tag_rfid ?? '').trim(),
+      bloqueado: Number(this.novo.bloqueado ?? 0),
+      dias_semana: this.novo.dias_semana ?? '',
+      categorias: cats.join(';'),
+    };
     this.fotoPessoaBase64.set(v.foto_pessoa ?? null);
     this.fotoDocumentoBase64.set(v.foto_documento ?? null);
     this.error.set(null);
@@ -858,11 +865,25 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  /**
+   * Valores do cadastro ao abrir a edição. O save só envia tipo, tag,
+   * bloqueio, dias e categorias quando o operador os mudou: reenviar tudo
+   * fazia a API revogar liberações (bloqueado), apagar a tag e trocar o tipo.
+   */
+  private editOriginal: {
+    is_prestador: number;
+    tag_rfid: string;
+    bloqueado: number;
+    dias_semana: string;
+    categorias: string;
+  } | null = null;
+
   cancelarForm() {
     this.fecharCamera();
     this.showForm = false;
     this.editingId = null;
     this.editingIdPessoa = null;
+    this.editOriginal = null;
     this.editandoIdentidade.set(false);
     this.novaVisitaPara.set(null);
     this.fotoPessoaBase64.set(null);
@@ -939,17 +960,22 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       // atribui `editingIdPessoa` com o mesmo fallback, então este `??` aqui
       // é redundante NO CAMINHO NOVO — mas é o que mantém o caminho legado
       // funcionando enquanto ele existir. Não remover.
+      const o = this.editOriginal;
+      const tag = (this.novo.tag_rfid ?? '').trim();
+      const mudou = <T>(atual: T, antes: T | undefined) => !o || atual !== antes;
       this.service.atualizarPessoa(this.editingIdPessoa ?? this.editingId, {
         nome: this.novo.nome,
         doc_identificacao: this.novo.doc_identificacao,
         foto_pessoa: this.novo.foto_pessoa ?? undefined,
         foto_documento: this.novo.foto_documento ?? undefined,
-        is_visitante: this.novo.is_visitante,
-        is_prestador: this.novo.is_prestador,
-        tag_rfid: (this.novo.tag_rfid ?? '').trim() || null,
-        dias_semana: this.novo.dias_semana,
-        categorias: this.novo.categorias,
-        bloqueado: this.novo.bloqueado,
+        ...(mudou(Number(this.novo.is_prestador ?? 0), o?.is_prestador) && {
+          is_visitante: this.novo.is_visitante,
+          is_prestador: this.novo.is_prestador,
+        }),
+        ...(mudou(tag, o?.tag_rfid) && { tag_rfid: tag || null }),
+        ...(mudou(this.novo.dias_semana ?? '', o?.dias_semana) && { dias_semana: this.novo.dias_semana }),
+        ...(mudou(this.novo.categorias ?? '', o?.categorias) && { categorias: this.novo.categorias }),
+        ...(mudou(Number(this.novo.bloqueado ?? 0), o?.bloqueado) && { bloqueado: this.novo.bloqueado }),
       }).subscribe({
         next: () => {
           if (this.novo.foto_pessoa && this.editingId) {

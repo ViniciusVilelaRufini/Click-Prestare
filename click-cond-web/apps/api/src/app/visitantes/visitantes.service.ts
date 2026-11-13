@@ -3147,12 +3147,18 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // is_prestador nesta chamada, então `liberado` já é uniforme e cabe no
     // `updateMany` único de baixo.
     let desbloqueioPorRegistro = false;
+    // `bloqueado: 0` numa pessoa que já não estava bloqueada não é
+    // desbloqueio: a tela reenvia o campo a cada edição, e repor `liberado`
+    // aqui revogava a liberação de quem só teve o nome corrigido.
+    const mudouBloqueio = dto.bloqueado !== undefined && Number(dto.bloqueado) !== Number(pessoa.bloqueado ?? 0);
     if (dto.bloqueado !== undefined) {
       const bloqueadoNum = Number(dto.bloqueado);
       visitaData.bloqueado = bloqueadoNum;
       if (bloqueadoNum === 1) {
         visitaData.liberado = 0;
         visitaData.codigo_acesso = null;
+      } else if (!mudouBloqueio) {
+        // Continua desbloqueada: liberações intactas.
       } else if (dto.is_prestador !== undefined) {
         visitaData.liberado = dto.is_prestador === 1 ? 1 : 0;
       } else {
