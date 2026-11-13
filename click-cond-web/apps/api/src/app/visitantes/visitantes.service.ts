@@ -2171,6 +2171,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       return this.createViaPessoasVisitas(dto, operador, opcoes);
     }
 
+    // "Cadastrar e pedir autorização" só existe no caminho Pessoas/Visitas.
+    // Aqui o create liberaria tudo (PIN, facial, "chegou") — recusa antes.
+    if (dto.pedir_autorizacao === true && isOperador(operador)) {
+      throw new BadRequestException('Cadastrar e pedir autorização não está disponível neste condomínio.');
+    }
+
     const blocked = await this.verificarSeBloqueado(dto.id_condominio, dto.nome, dto.doc_identificacao);
     if (blocked) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');

@@ -98,4 +98,17 @@ describe('create (Pessoas/Visitas) — Cadastrar e pedir autorização', () => {
     expect(visitasService.criarVisita.mock.calls[0][0].liberado).toBe(1);
     expect(s.solicitarAutorizacaoViaPessoasVisitas).not.toHaveBeenCalled();
   });
+
+  // Caminho legado (Visitantes): o fluxo não existe lá — o create ignorava o
+  // campo e liberava tudo. Agora recusa antes de criar qualquer coisa.
+  it('legado: pedir autorização é recusado e nada é criado', async () => {
+    process.env['PESSOAS_MIGRATION_ENABLED'] = 'false';
+    const { svc, s, prisma } = montar();
+    prisma.visitantes = { create: jest.fn(), findFirst: jest.fn(async () => null) };
+    await expect(svc.create({ ...dto, pedir_autorizacao: true } as any, porteiro)).rejects.toThrow(
+      'Cadastrar e pedir autorização não está disponível neste condomínio.',
+    );
+    expect(prisma.visitantes.create).not.toHaveBeenCalled();
+    expect(s.fireFacialSyncPessoa).not.toHaveBeenCalled();
+  });
 });
