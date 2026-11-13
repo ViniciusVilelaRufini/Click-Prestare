@@ -653,7 +653,10 @@ describe('DeliveryService', () => {
       const args = prisma.deliveryAtendimentos.findMany.mock.calls[0][0];
       expect(args.where).toEqual({
         id_condominio: 1,
-        OR: [{ id_morador_user: 10 }, { apartamento: { users: { some: { id_user: 10 } } } }],
+        OR: [
+          { id_morador_user: 10 },
+          { status: { not: 'AGENDADA' }, apartamento: { users: { some: { id_user: 10 } } } },
+        ],
       });
       expect(args.take).toBeUndefined();
     });
@@ -836,6 +839,32 @@ describe('DeliveryService', () => {
       expect(m.notifications.sendPushNotification).not.toHaveBeenCalled();
     });
 
+    it('M3: o morador vê os próprios avisos em qualquer status e os da unidade só fora de AGENDADA, com "proprio"', async () => {
+      const { service, prisma } = montar();
+      const base = { id_condominio: 1, apartamento: { bloco: 'A', apto: '101' }, eventos: [] };
+      const dados = [
+        { ...base, id: 1, id_morador_user: 10, id_apartamento: 101, status: 'AGENDADA' },
+        { ...base, id: 2, id_morador_user: 11, id_apartamento: 101, status: 'AGENDADA' },
+        { ...base, id: 3, id_morador_user: 11, id_apartamento: 101, status: 'AGUARDANDO_AUTORIZACAO' },
+        { ...base, id: 4, id_morador_user: 12, id_apartamento: 999, status: 'CHEGOU' },
+      ];
+      const vinculos = [{ id_user: 10, id_apto: 101 }, { id_user: 11, id_apto: 101 }];
+      const casa = (r: any, w: any): boolean =>
+        Object.entries(w).every(([k, v]: [string, any]) => {
+          if (k === 'OR') return v.some((alt: any) => casa(r, alt));
+          if (k === 'apartamento') return vinculos.some((x) => x.id_apto === r.id_apartamento && x.id_user === v.users.some.id_user);
+          if (v && typeof v === 'object' && 'not' in v) return r[k] !== v.not;
+          return r[k] === v;
+        });
+      prisma.deliveryAtendimentos.findMany.mockImplementation(async ({ where, select }: any) =>
+        dados.filter((r) => casa(r, where)).map((r) => Object.fromEntries(Object.keys(select).map((c) => [c, (r as any)[c]]))),
+      );
+
+      const lista = await service.listarAtendimentos(1, undefined, morador);
+
+      expect(lista.map((a: any) => [a.id, a.proprio])).toEqual([[1, true], [3, false]]);
+      expect(lista[0]).not.toHaveProperty('id_morador_user');
+    });
   });
 
   describe('token do porteiro do console não age como Users.id', () => {

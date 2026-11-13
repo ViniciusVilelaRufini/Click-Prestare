@@ -167,10 +167,15 @@ export class DeliveryService {
     const where: any = { id_condominio: Number(idCondominio) };
     if (status) where.status = status;
     const operador = isOperador(user);
-    if (!operador) {
-      // Quem tem vínculo com a unidade também acompanha (e responde) o aviso.
-      const idMorador = this.idUsuario(user);
-      where.OR = [{ id_morador_user: idMorador }, { apartamento: { users: { some: { id_user: idMorador } } } }];
+    const idMorador = operador ? null : this.idUsuario(user);
+    if (idMorador) {
+      // Os próprios avisos em qualquer status; os de outros moradores da
+      // unidade só quando já pedem ação ou tiveram desfecho (o agendado alheio
+      // não é dele para cancelar).
+      where.OR = [
+        { id_morador_user: idMorador },
+        { status: { not: 'AGENDADA' }, apartamento: { users: { some: { id_user: idMorador } } } },
+      ];
     }
     if (operador) {
       let take: number | undefined;
@@ -203,10 +208,11 @@ export class DeliveryService {
         ...(take ? { take } : {}),
       });
     }
-    return (this.prisma as any).deliveryAtendimentos.findMany({
+    const lista = await (this.prisma as any).deliveryAtendimentos.findMany({
       where,
       select: {
         id: true,
+        id_morador_user: true,
         estabelecimento: true,
         previsao_em: true,
         observacao_morador: true,
@@ -231,6 +237,8 @@ export class DeliveryService {
       },
       orderBy: { created_at: 'desc' },
     });
+    // `proprio`: este morador criou o aviso (só ele cancela). O id de quem criou não sai.
+    return (lista as any[]).map(({ id_morador_user, ...a }) => ({ ...a, proprio: id_morador_user === idMorador }));
   }
 
   async atualizarStatus(id: number, dto: AtualizarStatusDeliveryDto, user: JwtPayload) {
