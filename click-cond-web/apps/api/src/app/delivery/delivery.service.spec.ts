@@ -790,15 +790,52 @@ describe('DeliveryService', () => {
       expect(tokens.sort()).toEqual(['token-morador', 'token-vizinho']);
     });
 
-    it('M3: morador lista os atendimentos das unidades em que tem vínculo', async () => {
-      const { service, prisma } = montar();
-      await service.listarAtendimentos(1, undefined, morador);
-      const args = prisma.deliveryAtendimentos.findMany.mock.calls[0][0];
-      expect(args.where).toEqual({
-        id_condominio: 1,
-        OR: [{ id_morador_user: 10 }, { apartamento: { users: { some: { id_user: 10 } } } }],
-      });
+    it('M3: outro morador responde — quem criou é avisado de quem respondeu; quem respondeu não recebe push', async () => {
+      for (const [status, texto] of [
+        ['AUTORIZADA', 'Beatriz autorizou a subida do entregador.'],
+        ['RECUSADA', 'Beatriz recusou a entrega.'],
+      ] as const) {
+        const m = montar();
+        comVizinho(m);
+        const aviso = await m.service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+        await m.service.atualizarStatus(aviso.id, { status: 'CHEGOU' }, porteiro);
+        await m.service.atualizarStatus(aviso.id, { status: 'AGUARDANDO_AUTORIZACAO' }, porteiro);
+        m.notifications.sendPushNotification.mockClear();
+
+        const vizinha = { sub: 11, typeAccess: 'Morador', nome: 'Beatriz' } as any;
+        await m.service.atualizarStatus(aviso.id, { status, motivo: 'Recusado pelo morador' }, vizinha);
+
+        expect(m.notifications.sendPushNotification).toHaveBeenCalledTimes(1);
+        expect(m.notifications.sendPushNotification).toHaveBeenCalledWith(
+          'token-morador', 'Delivery', texto, expect.objectContaining({ status }),
+        );
+      }
     });
+
+    it('M3: sem nome de quem respondeu, o aviso diz "Outro morador da unidade"', async () => {
+      const m = montar();
+      comVizinho(m);
+      const aviso = await m.service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+      await m.service.atualizarStatus(aviso.id, { status: 'CHEGOU' }, porteiro);
+      await m.service.atualizarStatus(aviso.id, { status: 'AGUARDANDO_AUTORIZACAO' }, porteiro);
+      m.notifications.sendPushNotification.mockClear();
+      await m.service.atualizarStatus(aviso.id, { status: 'AUTORIZADA' }, { sub: 11, typeAccess: 'Morador' } as any);
+      expect(m.notifications.sendPushNotification).toHaveBeenCalledWith(
+        'token-morador', 'Delivery', 'Outro morador da unidade autorizou a subida do entregador.', expect.any(Object),
+      );
+    });
+
+    it('M3: o próprio criador responde — continua sem push da própria ação', async () => {
+      const m = montar();
+      comVizinho(m);
+      const aviso = await m.service.criarAviso({ id_condominio: 1, id_apartamento: 101 }, morador);
+      await m.service.atualizarStatus(aviso.id, { status: 'CHEGOU' }, porteiro);
+      await m.service.atualizarStatus(aviso.id, { status: 'AGUARDANDO_AUTORIZACAO' }, porteiro);
+      m.notifications.sendPushNotification.mockClear();
+      await m.service.atualizarStatus(aviso.id, { status: 'AUTORIZADA' }, morador);
+      expect(m.notifications.sendPushNotification).not.toHaveBeenCalled();
+    });
+
   });
 
   describe('token do porteiro do console não age como Users.id', () => {

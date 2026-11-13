@@ -309,7 +309,12 @@ export class DeliveryService {
     // O aviso (card ao vivo + notificação) espera no máximo TETO_AVISO_MS: o
     // clique do porteiro e o botão do card do morador não podem ficar presos
     // em foto/APNs lentos. Passado o teto, ele segue em segundo plano.
-    const aviso = this.avisarMorador(atualizado, statusNovo, !isOperador(user), respostaDoMorador, dto.motivo).catch((e: any) =>
+    // Outro morador da unidade respondeu: quem criou o aviso precisa saber quem foi.
+    const respondeuOProprioCriador = !isOperador(user) && atendimento.id_morador_user === this.idUsuario(user);
+    const outroRespondeu = respostaDoMorador && !respondeuOProprioCriador
+      ? (user.nome ?? user.user?.name ?? '').toString().trim() || 'Outro morador da unidade'
+      : null;
+    const aviso = this.avisarMorador(atualizado, statusNovo, !isOperador(user), respostaDoMorador, dto.motivo, outroRespondeu).catch((e: any) =>
       this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`),
     );
     let teto: ReturnType<typeof setTimeout> | undefined;
@@ -463,6 +468,8 @@ export class DeliveryService {
     acaoDoMorador: boolean,
     respostaDoMorador: boolean,
     motivo?: string,
+    /** Nome do outro morador que respondeu ao pedido (null: foi o criador ou a portaria). */
+    outroRespondeu: string | null = null,
   ) {
     const notificavel =
       !respostaDoMorador &&
@@ -478,6 +485,7 @@ export class DeliveryService {
           await this.cardAoVivo.abrirDelivery(atendimento, registro.id_morador_user);
           viaCard = true;
         } else {
+          // "Você" no card vale pela unidade: outro morador respondendo também conta.
           const r = await this.cardAoVivo.atualizarDelivery(atendimento, registro.id_morador_user, {
             voceRespondeu: acaoDoMorador,
           });
@@ -494,6 +502,15 @@ export class DeliveryService {
       await this.notificarOutrosDaUnidade(registro.id_apartamento, registro.id_morador_user, registro.id).catch((e: any) =>
         this.logger.warn(`Aviso do delivery ${registro.id} aos outros moradores: ${e?.message ?? e}`),
       );
+    }
+    // Resposta de outro morador: quem criou recebe a notificação dizendo quem
+    // respondeu, mesmo com card (o card só diz "Você", pela unidade).
+    if (outroRespondeu) {
+      const texto = statusNovo === 'AUTORIZADA'
+        ? `${outroRespondeu} autorizou a subida do entregador.`
+        : `${outroRespondeu} recusou a entrega.`;
+      await this.notificarMorador(registro.id_apartamento, registro.id_morador_user, statusNovo, registro.id, motivo, new Set(), texto);
+      return;
     }
     if (!notificavel || viaCard) return;
     await this.notificarMorador(registro.id_apartamento, registro.id_morador_user, statusNovo, registro.id, motivo, cobertos);
@@ -533,11 +550,12 @@ export class DeliveryService {
     idAtendimento: number,
     motivo?: string,
     cobertos: Set<string> = new Set(),
+    texto?: string,
   ) {
     const vinculo = await this.prisma.apartamentos_Users.findFirst({ where: { id_apto: idApartamento, id_user: idMorador }, include: { user: { select: { fcm_token: true } } } });
     const token = vinculo?.user?.fcm_token ?? '';
     if (token && cobertos.has(token)) return;
-    await this.notifications.sendPushNotification(token, 'Delivery', mensagemDelivery(status, motivo), { id_delivery: String(idAtendimento), status });
+    await this.notifications.sendPushNotification(token, 'Delivery', texto ?? mensagemDelivery(status, motivo), { id_delivery: String(idAtendimento), status });
   }
 
   /** A notificação de hoje do pedido de autorização aos outros moradores da unidade (um token por usuário). */
