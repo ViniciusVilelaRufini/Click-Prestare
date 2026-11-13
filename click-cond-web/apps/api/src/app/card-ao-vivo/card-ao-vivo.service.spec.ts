@@ -232,7 +232,15 @@ describe('CardAoVivoService — abrir, reserva, tique', () => {
     expect(notifications.enviarParaAparelho).toHaveBeenCalledTimes(1);
   });
 
-  it('tique: AGUARDANDO de 4 min vira EXPIRADO; LIBERADO de 11 min é encerrado', async () => {
+  it('tique: AGUARDANDO de 4 min ainda vale (o morador pode responder até 10 min)', async () => {
+    const { svc, prisma, avancar } = montarCard({ aparelhos, usuarios: [usuarios[0]] });
+    await svc.abrir(pedido, [1]);
+    avancar(4 * 60_000);
+    await svc.tick();
+    expect(prisma.cards_Ao_Vivo.rows.some((r: any) => !r.encerrado_em)).toBe(true);
+  });
+
+  it('tique: AGUARDANDO de 11 min vira EXPIRADO', async () => {
     const { svc, prisma, notifications, apns, avancar } = montarCard({ aparelhos, usuarios: [usuarios[0]] });
     await svc.abrir(pedido, [1]);
     const ios = prisma.cards_Ao_Vivo.rows.find((r: any) => r.plataforma === 'ios');
@@ -241,7 +249,7 @@ describe('CardAoVivoService — abrir, reserva, tique', () => {
     await svc.confirmar(1, android.id);
     apns.enviar.mockClear();
 
-    avancar(4 * 60_000);
+    avancar(11 * 60_000);
     await svc.tick();
     const fim = apns.enviar.mock.calls[0] as any[];
     expect(fim[0]).toBe('ffee0011ffee0011');
@@ -477,7 +485,7 @@ describe('CardAoVivoService — fases', () => {
     const { svc, apns, avancar } = await abertoEConfirmado();
     await svc.respondido('visitante', 5, 'liberado', { idUser: 1, pelaPortaria: false });
     apns.enviar.mockClear();
-    avancar(4 * 60_000);
+    avancar(11 * 60_000);
     await svc.tick();
     const fases = (apns.enviar.mock.calls as any[]).map((c) => c[1].aps['content-state']?.fase);
     expect(fases).not.toContain('expirado');

@@ -1,3 +1,4 @@
+import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
 /**
  * Conteúdo do card ao vivo da portaria remota.
  *
@@ -32,8 +33,8 @@ export interface AlertaCard {
   corpo: string;
 }
 
-/** Janela de resposta do morador (igual ao "Sem resposta" da portaria-web). */
-export const JANELA_RESPOSTA_SEG = 180;
+/** Janela de resposta do morador: o mesmo prazo da API (o morador não autoriza depois dele). */
+export const JANELA_RESPOSTA_SEG = AUTORIZACAO_EXPIRACAO_MS / 1000;
 
 export interface BaseCard {
   nome: string;

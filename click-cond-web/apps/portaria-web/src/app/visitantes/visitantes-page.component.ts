@@ -4,7 +4,15 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { VisitantesService, VisitanteDetalhes, PessoaEncontrada, Pessoa, ApartamentoVisitado } from './visitantes.service';
+import {
+  VisitantesService,
+  VisitanteDetalhes,
+  PessoaEncontrada,
+  Pessoa,
+  ApartamentoVisitado,
+  AUTORIZACAO_EXPIRACAO_MS,
+  AUTORIZACAO_SEM_RESPOSTA_MS,
+} from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
 import { ConfirmService } from '../shared/confirm.service';
@@ -662,14 +670,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   /** Pedido pendente ou autorizado há mais que 10 minutos (expirado). */
   autorizacaoExpirada(p: Pessoa | Visitante): boolean {
     if (!p) return false;
-    const AUTH_EXPIRATION_MS = 10 * 60 * 1000; // 10 min
     const now = Date.now();
 
     // Se estiver pendente há mais de 10 min
     if ((p as Pessoa).auth_status === 'pendente') {
       const sol = (p as Pessoa).auth_solicitado_em;
       if (!sol) return false;
-      return now - new Date(sol).getTime() > AUTH_EXPIRATION_MS;
+      return now - new Date(sol).getTime() > AUTORIZACAO_EXPIRACAO_MS;
     }
 
     // Se estiver autorizado há mais de 10 min e o visitante não estiver dentro do condomínio
@@ -677,7 +684,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       if (p.data_entrada && !p.data_saida) return false; // presente no condomínio
       const refTime = (p as Pessoa).auth_respondido_em || (p as Pessoa).auth_solicitado_em;
       if (!refTime) return false;
-      return now - new Date(refTime).getTime() > AUTH_EXPIRATION_MS;
+      return now - new Date(refTime).getTime() > AUTORIZACAO_EXPIRACAO_MS;
     }
 
     return false;
@@ -700,13 +707,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Pedido pendente há mais que o TIMEOUT (3 min) e dentro do limite de 10 min. */
+  /** Pedido pendente há mais que AUTORIZACAO_SEM_RESPOSTA_MS e ainda dentro do prazo. */
   autorizacaoSemResposta(p: Pessoa): boolean {
     if (p.auth_status !== 'pendente' || !p.auth_solicitado_em) return false;
     const diff = Date.now() - new Date(p.auth_solicitado_em).getTime();
-    const AUTH_TIMEOUT_MS = 3 * 60 * 1000; // 3 min
-    const AUTH_EXPIRATION_MS = 10 * 60 * 1000; // 10 min
-    return diff > AUTH_TIMEOUT_MS && diff <= AUTH_EXPIRATION_MS;
+    return diff > AUTORIZACAO_SEM_RESPOSTA_MS && diff <= AUTORIZACAO_EXPIRACAO_MS;
   }
 
   formatarApartamentosTooltip(apts?: { id: number; label: string }[]): string {

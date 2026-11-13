@@ -29,6 +29,7 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PessoasService, pessoaTemVisitaForaDosAptos } from '../pessoas/pessoas.service';
 import { VisitasService } from '../visitas/visitas.service';
 import { CardAoVivoService, type QuemRespondeu } from '../card-ao-vivo/card-ao-vivo.service';
+import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
 
 /**
  * Migração Visitantes → Pessoas/Visitas: as tabelas `pessoas`/`visitas` estão
@@ -52,7 +53,8 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
   return true;
 }
 
-const AUTORIZACAO_EXPIRACAO_MS = 10 * 60 * 1000;
+// Prazo único do pedido/autorização — o card ao vivo usa o mesmo.
+export { AUTORIZACAO_EXPIRACAO_MS };
 /** Janela da visita aberta por um pedido de autorização: agora → +4 h. */
 const JANELA_PEDIDO_MS = 4 * 60 * 60 * 1000;
 
@@ -995,7 +997,6 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         }
 
         const now = Date.now();
-        const AUTH_EXPIRACAO_MS = 10 * 60 * 1000;
 
         return pessoasCadastradas.map((p) => {
           const arr = p.visitas ?? [];
@@ -1054,7 +1055,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               const solEm = (r as any).auth_solicitado_em
                 ? new Date((r as any).auth_solicitado_em).getTime()
                 : (r.created_at ? new Date(r.created_at).getTime() : 0);
-              return (now - solEm) <= AUTH_EXPIRACAO_MS;
+              return (now - solEm) <= AUTORIZACAO_EXPIRACAO_MS;
             });
 
             const isAutorizado = regs.some((r) => isAutorizacaoAtual(r, now));
@@ -1074,7 +1075,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
                   ? new Date((r as any).auth_respondido_em).getTime()
                   : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
                 const refTime = respEm || (r.created_at ? new Date(r.created_at).getTime() : 0);
-                return (now - refTime) <= AUTH_EXPIRACAO_MS;
+                return (now - refTime) <= AUTORIZACAO_EXPIRACAO_MS;
               }
               return false;
             });
@@ -1389,7 +1390,6 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
 
       const now = Date.now();
-      const AUTH_EXPIRACAO_MS = 10 * 60 * 1000; // 10 minutos de validade para autorização e pedidos
 
       const apartamentosVisitados = Array.from(aptosMap.entries()).map(([aptoId, regs]) => {
         regs.sort((a, b) => score(b) - score(a));
@@ -1402,7 +1402,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           const solEm = (r as any).auth_solicitado_em
             ? new Date((r as any).auth_solicitado_em).getTime()
             : (r.created_at ? new Date(r.created_at).getTime() : 0);
-          return (now - solEm) <= AUTH_EXPIRACAO_MS;
+          return (now - solEm) <= AUTORIZACAO_EXPIRACAO_MS;
         });
 
         const isAutorizado = regs.some((r) => {
@@ -1417,7 +1417,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           const respEm = (r as any).auth_respondido_em
             ? new Date((r as any).auth_respondido_em).getTime()
             : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
-          return (now - respEm) <= AUTH_EXPIRACAO_MS;
+          return (now - respEm) <= AUTORIZACAO_EXPIRACAO_MS;
         });
 
         const isLiberado = regs.some((r) => {
@@ -1435,7 +1435,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               ? new Date((r as any).auth_respondido_em).getTime()
               : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
             const refTime = respEm || (r.created_at ? new Date(r.created_at).getTime() : 0);
-            return (now - refTime) <= AUTH_EXPIRACAO_MS;
+            return (now - refTime) <= AUTORIZACAO_EXPIRACAO_MS;
           }
           return false;
         });
@@ -1508,7 +1508,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               ? new Date((r as any).auth_respondido_em).getTime()
               : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
             const refTime = respEm || (r.created_at ? new Date(r.created_at).getTime() : 0);
-            return (now - refTime) <= AUTH_EXPIRACAO_MS;
+            return (now - refTime) <= AUTORIZACAO_EXPIRACAO_MS;
           }
           return false;
         }) ? 1 : 0,
@@ -4138,7 +4138,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
     const aptoIds = vinculos.map((x: any) => x.id_apto);
     if (aptoIds.length === 0) return [];
-    const dezMinAtras = new Date(Date.now() - 10 * 60 * 1000);
+    const dezMinAtras = new Date(Date.now() - AUTORIZACAO_EXPIRACAO_MS);
     const pendentes = await this.prisma.visitas.findMany({
       where: {
         id_apartamento: { in: aptoIds },
@@ -5176,7 +5176,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
     const aptoIds = vinculos.map((x) => x.id_apto);
     if (aptoIds.length === 0) return [];
-    const dezMinAtras = new Date(Date.now() - 10 * 60 * 1000);
+    const dezMinAtras = new Date(Date.now() - AUTORIZACAO_EXPIRACAO_MS);
     const pendentes = await this.prisma.visitantes.findMany({
       where: {
         id_apartamento: { in: aptoIds },

@@ -143,12 +143,12 @@ describe('CardAoVivoService — delivery', () => {
     expect(corpo.aps.alert.title).toBe('Autorize a entrega');
   });
 
-  it('[RF 1] tique: delivery em aguardando há 10 min não expira; visitante em aguardando há 4 min expira', async () => {
+  it('[RF 1] tique: delivery em aguardando há 11 min não expira; visitante em aguardando há 11 min expira (prazo da API, 10 min)', async () => {
     const aberto = { encerrado_em: null, confirmado_em: new Date(T0), reserva_enviada_em: null, token_atualizacao: null, plataforma: 'android', fcm_token: 'x', id_user: 1 };
     const { svc, prisma } = montarCard({
       cards: [
-        { ...aberto, id: 1, origem: 'delivery', id_pedido: 9, fase: 'aguardando', fase_em: new Date(T0 - 600_000), created_at: new Date(T0 - 600_000) },
-        { ...aberto, id: 2, origem: 'visitante', id_pedido: 5, fase: 'aguardando', fase_em: new Date(T0 - 240_000), created_at: new Date(T0 - 240_000) },
+        { ...aberto, id: 1, origem: 'delivery', id_pedido: 9, fase: 'aguardando', fase_em: new Date(T0 - 660_000), created_at: new Date(T0 - 660_000) },
+        { ...aberto, id: 2, origem: 'visitante', id_pedido: 5, fase: 'aguardando', fase_em: new Date(T0 - 660_000), created_at: new Date(T0 - 660_000) },
       ],
     });
     await svc.tick();

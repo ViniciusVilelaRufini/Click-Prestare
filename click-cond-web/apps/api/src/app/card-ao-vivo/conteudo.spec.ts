@@ -10,10 +10,12 @@ describe('conteúdo do card ao vivo', () => {
   };
   const chegou = Math.floor(base.solicitadoEm.getTime() / 1000);
 
-  it('aguardando expira 3 minutos depois do pedido', () => {
+  // Mesmo prazo da API (AUTORIZACAO_EXPIRACAO_MS): depois de 10 min o
+  // morador não consegue mais autorizar — o card não pode vencer antes.
+  it('aguardando expira 10 minutos depois do pedido (prazo da API)', () => {
     const c = montarConteudo(base, 'aguardando');
     expect(c.chegouEm).toBe(chegou);
-    expect(c.expiraEm).toBe(chegou + 180);
+    expect(c.expiraEm).toBe(chegou + 600);
     expect(c.tipo).toBe('Visitante');
     expect(c.unidade).toBe('Bloco A · Apto 106');
     expect(c.voceRespondeu).toBe(false);

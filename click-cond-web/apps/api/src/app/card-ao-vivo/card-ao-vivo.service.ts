@@ -21,6 +21,7 @@ import {
   ConteudoCard,
   DELIVERY_MAX_SEG,
   FaseCard,
+  JANELA_RESPOSTA_SEG,
   epochSeg,
   montarConteudo,
   payloadAtualizacao,
@@ -488,7 +489,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
         encerrado_em: null,
         origem: { not: 'delivery' },
         fase: 'aguardando',
-        fase_em: { lte: new Date(agora - 180_000) },
+        fase_em: { lte: new Date(agora - JANELA_RESPOSTA_SEG * 1000) },
       },
     })) as Linha[];
     for (const [chave, linhas] of agrupar(vencidos)) {

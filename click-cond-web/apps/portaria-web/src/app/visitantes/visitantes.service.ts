@@ -5,6 +5,14 @@ import { CreateVisitante, Visitante } from './visitante.model';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
 
+/**
+ * Prazo do pedido de autorização ao morador — o mesmo da API
+ * (`AUTORIZACAO_EXPIRACAO_MS`) e do card ao vivo. Único ponto no front.
+ */
+export const AUTORIZACAO_EXPIRACAO_MS = 10 * 60 * 1000;
+/** Sem resposta há esse tempo: a portaria já pode agir sem esperar o morador. */
+export const AUTORIZACAO_SEM_RESPOSTA_MS = 3 * 60 * 1000;
+
 export interface VisitanteTimelineEntry {
   evento: 'entrada' | 'saida' | 'negado';
   timestamp: string;
