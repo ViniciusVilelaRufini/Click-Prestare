@@ -3907,9 +3907,16 @@ export class MobileAuthService {
       const t = this.normalizeTipo(raw);
       return t === 'membro' ? 'dependente' : t;
     };
+    // Conta que também é de OUTRO condomínio não empresta a foto global (Users) a esta lista.
+    const compartilhadas = await usuariosComVinculoEmOutroCondominio(
+      this.prisma as any,
+      reais.filter((m) => m.user?.photo).map((m) => m.id_user),
+      Number(idCond),
+    );
     return reais.map(m => {
       const k = `${m.id_user}|${chaveUnidade(m.bloco, m.apartamento)}`;
       const tipo = tipoParaApp(tipoPorVinculo.has(k) ? tipoPorVinculo.get(k) : m.tipo);
+      const fotoConta = m.id_user != null && compartilhadas.has(m.id_user) ? null : m.user?.photo;
       return {
       id: m.id,
       nome: m.nome ?? '',
@@ -3919,8 +3926,8 @@ export class MobileAuthService {
       data_nascimento: m.data_nascimento ?? null,
       bloco: m.bloco ?? '',
       apartamento: m.apartamento ?? '',
-      photo: m.user?.photo || m.foto_pessoa || '',
-      foto_pessoa: m.foto_pessoa || m.user?.photo || '',
+      photo: fotoConta || m.foto_pessoa || '',
+      foto_pessoa: m.foto_pessoa || fotoConta || '',
       vinculo: tipo,
       tipo,
       extra1: m.extra1 ?? '',
@@ -4604,6 +4611,13 @@ export class MobileAuthService {
         user: { include: { moradores: true } },
       },
     });
+    // Users é global: conta que também é de OUTRO condomínio não empresta e-mail, telefone, CPF e foto
+    // dela a esta lista — valem só os dados do cadastro daqui (Moradores).
+    const compartilhadas = await usuariosComVinculoEmOutroCondominio(
+      this.prisma as any,
+      rels.filter((r) => r.user?.photo || r.user?.email || r.user?.phone || r.user?.cpf).map((r) => r.id_user),
+      apto.id_condominio,
+    );
 
     // De-dup por id_user (não há unique em Apartamentos_Users) e aplica o filtro de tipo.
     const seen = new Set<number>();
@@ -4626,18 +4640,19 @@ export class MobileAuthService {
         );
         continue;
       }
+      const u = compartilhadas.has(r.id_user) ? null : r.user;
       result.push({
         id: m.id, // Flutter usa esse id para abrir o detalhe
         id_user: r.id_user,
-        nome: m?.nome ?? r.user?.name ?? '',
-        documento: m?.documento ?? r.user?.cpf ?? '',
-        email: m?.email ?? r.user?.email ?? '',
-        telefone: m?.telefone ?? r.user?.phone ?? '',
+        nome: m?.nome ?? u?.name ?? '',
+        documento: m?.documento ?? u?.cpf ?? '',
+        email: m?.email ?? u?.email ?? '',
+        telefone: m?.telefone ?? u?.phone ?? '',
         data_nascimento: m?.data_nascimento ?? null,
         bloco: m?.bloco ?? '',
         apartamento: m?.apartamento ?? '',
-        photo: r.user?.photo || m?.foto_pessoa || '',
-        foto_pessoa: m?.foto_pessoa || r.user?.photo || '',
+        photo: u?.photo || m?.foto_pessoa || '',
+        foto_pessoa: m?.foto_pessoa || u?.photo || '',
         tipo: tipoNorm,
         extra1: m?.extra1 ?? '',
         extra2: m?.extra2 ?? '',

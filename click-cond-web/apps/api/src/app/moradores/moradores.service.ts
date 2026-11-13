@@ -338,6 +338,13 @@ export class MoradoresService {
           user: { include: { moradores: true } },
         },
       });
+      // Users é global: conta que também é de OUTRO condomínio não empresta CPF, e-mail, telefone e
+      // foto dela a esta lista — valem só os dados do cadastro daqui (Moradores).
+      const compartilhadas = await usuariosComVinculoEmOutroCondominio(
+        this.prisma as any,
+        rels.filter((r) => r.user?.photo || r.user?.email || r.user?.phone || r.user?.cpf).map((r) => r.id_user),
+        Number(idCondominio),
+      );
       const seen = new Set<number>();
       const out: any[] = [];
       for (const r of rels) {
@@ -354,13 +361,14 @@ export class MoradoresService {
           this.logger.warn(`[moradores.findAll] vínculo sem cadastro: apto ${idApto}, user ${r.id_user} — omitido`);
           continue;
         }
-        const fotoFinal = m?.foto_pessoa ?? r.user?.photo ?? null;
+        const u = compartilhadas.has(r.id_user) ? null : r.user;
+        const fotoFinal = m?.foto_pessoa ?? u?.photo ?? null;
         out.push({
           id: m.id,
-          nome: m?.nome ?? r.user?.name ?? '',
-          documento: m?.documento ?? r.user?.cpf ?? null,
-          email: m?.email ?? r.user?.email ?? null,
-          telefone: m?.telefone ?? r.user?.phone ?? null,
+          nome: m?.nome ?? u?.name ?? '',
+          documento: m?.documento ?? u?.cpf ?? null,
+          email: m?.email ?? u?.email ?? null,
+          telefone: m?.telefone ?? u?.phone ?? null,
           data_nascimento: m?.data_nascimento ?? null,
           tipo: r.tipo ?? m?.tipo ?? null,
           bloco: m?.bloco ?? r.apartamento?.bloco ?? null,
@@ -425,9 +433,15 @@ export class MoradoresService {
       orderBy: { nome: 'asc' },
     });
 
+    // Conta que também é de OUTRO condomínio não empresta a foto global (Users) a esta lista.
+    const compartilhadas = await usuariosComVinculoEmOutroCondominio(
+      this.prisma as any,
+      list.filter((m) => !m.foto_pessoa && m.user?.photo).map((m) => m.id_user),
+      Number(idCondominio),
+    );
     return list.map((m) => {
       const idAptoMapped = m.user?.apartamentosUsers?.[0]?.id_apto ?? 0;
-      const fotoFinal = m.foto_pessoa ?? m.user?.photo ?? null;
+      const fotoFinal = m.foto_pessoa ?? (m.id_user != null && compartilhadas.has(m.id_user) ? null : m.user?.photo) ?? null;
       return {
         id: m.id,
         nome: m.nome,
@@ -472,10 +486,15 @@ export class MoradoresService {
       },
     });
     if (!m) throw new NotFoundException(`Morador ${id} não encontrado`);
-    const fotoFinal = m.foto_pessoa ?? m.user?.photo ?? null;
+    // Conta que também é de outro condomínio: a foto global dela não entra (nem no `user` aninhado).
+    const contaCompartilhada =
+      !!m.user?.photo && m.id_user != null && m.id_condominio != null &&
+      (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, m.id_user, m.id_condominio));
+    const fotoFinal = m.foto_pessoa ?? (contaCompartilhada ? null : m.user?.photo) ?? null;
     const idAptoMapped = m.user?.apartamentosUsers?.[0]?.id_apto ?? 0;
     return {
       ...m,
+      ...(contaCompartilhada && m.user && { user: { ...m.user, photo: null } }),
       id_apartamento: idAptoMapped,
       photo: fotoFinal,
       foto_pessoa: fotoFinal,
