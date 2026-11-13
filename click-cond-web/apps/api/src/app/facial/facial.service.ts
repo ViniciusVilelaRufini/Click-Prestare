@@ -6588,6 +6588,7 @@ export class FacialService {
       todosVisIds.length > 0
         ? await this.prisma.acessos_Facial.findMany({
             where: {
+              id_condominio: v.id_condominio,
               tipo_pessoa: 'visitante',
               id_pessoa: { in: todosVisIds },
             },
