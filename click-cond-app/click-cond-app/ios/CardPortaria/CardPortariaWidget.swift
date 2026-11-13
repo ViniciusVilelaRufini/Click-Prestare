@@ -1,11 +1,12 @@
-// Card ao vivo da portaria remota — Live Activity (tela de bloqueio e Ilha
-// Dinâmica). Visual aprovado: docs/superpowers/specs/2026-11-13-card-ao-vivo-portaria-remota/
-// e a prévia de 13/11 (iniciais, rótulo sob o número, barra de tempo e
-// AUTORIZAR em amarelo, tema claro).
+// Card ao vivo — Live Activity (tela de bloqueio e Ilha Dinâmica) da portaria
+// remota e do delivery. Visual aprovado: docs/superpowers/specs/2026-11-13-card-ao-vivo-portaria-remota/,
+// a prévia de 13/11 (iniciais, rótulo sob o número, barra de tempo e AUTORIZAR
+// em amarelo, tema claro) e a prévia do delivery (card-preview/delivery.html).
 //
-// O conteúdo vem inteiro do servidor (push-to-start / update / end). Os botões
-// só existem na fase "aguardando". A tela de bloqueio segue o tema escolhido
-// no app (atributo `tema`); a Ilha Dinâmica é sempre preta.
+// O conteúdo vem inteiro do servidor (push-to-start / update / end); o layout
+// sai do atributo `origem` ("delivery" ou o pedido de visitante). Os botões só
+// existem na fase "aguardando". A tela de bloqueio segue o tema escolhido no
+// app (atributo `tema`); a Ilha Dinâmica é sempre preta.
 
 import ActivityKit
 import AppIntents
@@ -21,27 +22,36 @@ struct CardPortariaBundle: WidgetBundle {
 
 private let urlSolicitacoes = URL(string: "clickprestare://solicitacoes")
 
+/// Delivery tem 2 h de vida (DELIVERY_MAX_SEG no servidor): o número à
+/// direita conta PARA CIMA desde a chegada do entregador.
+private let deliveryMaxSeg: TimeInterval = 7200
+
+extension CardPortariaAttributes {
+  var ehDelivery: Bool { origem == "delivery" }
+}
+
 struct CardPortariaLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: CardPortariaAttributes.self) { context in
       CardTelaBloqueio(
         attributes: context.attributes,
-        estado: estadoVisivel(context.state, vencido: context.isStale)
+        estado: estadoVisivel(context.state, vencido: context.isStale, delivery: context.attributes.ehDelivery)
       )
       .widgetURL(urlSolicitacoes)
     } dynamicIsland: { context in
-      let estado = estadoVisivel(context.state, vencido: context.isStale)
+      let delivery = context.attributes.ehDelivery
+      let estado = estadoVisivel(context.state, vencido: context.isStale, delivery: delivery)
       // A ilha expandida tem teto de altura (~160 pt no total): pessoa nas
-      // regiões de cima (iniciais | nome | contagem) para sobrar espaço
-      // embaixo para a barra e os botões.
+      // regiões de cima (foto | nome | número) para sobrar espaço embaixo
+      // para a barra e os botões.
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          AvatarPessoa(nome: estado.nome, foto: context.attributes.foto, tamanho: 36)
+          AvatarPessoa(nome: estado.nome, foto: context.attributes.foto ?? estado.foto, tamanho: 36)
             .padding(.leading, 4)
             .environment(\.paleta, .ilha)
         }
         DynamicIslandExpandedRegion(.trailing) {
-          NumeroDireita(estado: estado, tamanho: 24, comRotulo: false)
+          NumeroDireita(estado: estado, delivery: delivery, tamanho: 24, comRotulo: false)
             .padding(.trailing, 4)
             .environment(\.paleta, .ilha)
         }
@@ -57,7 +67,7 @@ struct CardPortariaLiveActivity: Widget {
         LogoPrestare(tamanho: 18)
           .environment(\.paleta, .ilha)
       } compactTrailing: {
-        CompactoDireita(estado: estado)
+        CompactoDireita(estado: estado, delivery: delivery)
           .environment(\.paleta, .ilha)
       } minimal: {
         LogoPrestare(tamanho: 16)
@@ -69,25 +79,44 @@ struct CardPortariaLiveActivity: Widget {
   }
 }
 
-/// Card AGUARDANDO que passou do prazo (o iOS marca como "stale" pelo
-/// stale-date do push) aparece como EXPIRADO mesmo se o push do servidor não
-/// chegar — app fechado à força, sem rede.
-func estadoVisivel(_ e: CardPortariaAttributes.ContentState, vencido: Bool) -> CardPortariaAttributes.ContentState {
-  guard vencido, e.fase == "aguardando" else { return e }
+/// Card AGUARDANDO da portaria que passou do prazo (o iOS marca como "stale"
+/// pelo stale-date do push) aparece como EXPIRADO mesmo se o push do servidor
+/// não chegar — app fechado à força, sem rede. O delivery não tem prazo.
+func estadoVisivel(_ e: CardPortariaAttributes.ContentState, vencido: Bool, delivery: Bool) -> CardPortariaAttributes.ContentState {
+  guard vencido, !delivery, e.fase == "aguardando" else { return e }
   var s = e
   s.fase = "expirado"
   return s
 }
 
-/// "Visitante · Bloco A · Apto 106".
+/// "Visitante · Bloco A · Apto 106" / "Carlos · iFood · Bloco A · Apto 106".
 func linhaPessoa(_ e: CardPortariaAttributes.ContentState) -> String {
   e.unidade.isEmpty ? e.tipo : "\(e.tipo) · \(e.unidade)"
 }
 
-/// Número grande à direita com o rótulo embaixo: contagem (aguardando), hora
-/// da resposta (liberado/negado), hora da entrada, 0:00 (expirado).
+/// Tempo desde a chegada do entregador, contando para cima.
+struct TempoNaPortaria: View {
+  let estado: CardPortariaAttributes.ContentState
+  let tamanho: CGFloat
+  @Environment(\.paleta) private var p
+
+  var body: some View {
+    Text(timerInterval: estado.dataChegada...estado.dataChegada.addingTimeInterval(deliveryMaxSeg), countsDown: false)
+      .font(Fonte.numero(tamanho))
+      .monospacedDigit()
+      .foregroundColor(p.ink)
+      .multilineTextAlignment(.trailing)
+      .frame(maxWidth: tamanho * 2.4, alignment: .trailing)
+  }
+}
+
+/// Número grande à direita com o rótulo embaixo.
+/// Portaria: contagem (aguardando), hora da resposta, da entrada, 0:00 (expirado).
+/// Delivery: tempo na portaria (chegou/aguardando), hora da autorização, da
+/// chegada (retirar), da entrega ou da recusa.
 struct NumeroDireita: View {
   let estado: CardPortariaAttributes.ContentState
+  var delivery = false
   var tamanho: CGFloat = 36
   var comRotulo = true
   @Environment(\.paleta) private var p
@@ -102,6 +131,16 @@ struct NumeroDireita: View {
   }
 
   private var rotulo: String? {
+    if delivery {
+      switch estado.fase {
+      case "chegou", "aguardando": return "Na portaria"
+      case "autorizado": return "Autorizado"
+      case "retirar": return "Aguardando você"
+      case "entregue": return "Entregue"
+      case "recusado": return "Recusado"
+      default: return nil
+      }
+    }
     switch estado.fase {
     case "aguardando": return "Para responder"
     case "liberado": return "Autorizado"
@@ -112,40 +151,54 @@ struct NumeroDireita: View {
     }
   }
 
+  private func hora(_ data: Date?) -> some View {
+    Text(horaCurta(data))
+      .font(Fonte.numero(tamanho))
+      .foregroundColor(p.ink)
+  }
+
   @ViewBuilder private var numero: some View {
-    switch estado.fase {
-    case "aguardando":
-      Text(timerInterval: estado.dataChegada...max(estado.dataChegada, estado.dataExpira), countsDown: true)
-        .font(Fonte.numero(tamanho))
-        .monospacedDigit()
-        .foregroundColor(p.ink)
-        .multilineTextAlignment(.trailing)
-        .frame(maxWidth: tamanho * 2.4, alignment: .trailing)
-    case "liberado", "negado":
-      Text(horaCurta(estado.dataResposta))
-        .font(Fonte.numero(tamanho))
-        .foregroundColor(p.ink)
-    case "entrou":
-      Text(horaCurta(estado.dataEntrada))
-        .font(Fonte.numero(tamanho))
-        .foregroundColor(p.ink)
-    case "expirado":
-      Text("0:00")
-        .font(Fonte.numero(tamanho))
-        .foregroundColor(p.inkSubtle)
-    default:
-      EmptyView()
+    if delivery {
+      switch estado.fase {
+      case "chegou", "aguardando": TempoNaPortaria(estado: estado, tamanho: tamanho)
+      case "autorizado", "recusado": hora(estado.dataResposta)
+      case "retirar": hora(estado.dataChegada)
+      case "entregue": hora(estado.dataEntrada)
+      default: EmptyView()
+      }
+    } else {
+      switch estado.fase {
+      case "aguardando":
+        Text(timerInterval: estado.dataChegada...max(estado.dataChegada, estado.dataExpira), countsDown: true)
+          .font(Fonte.numero(tamanho))
+          .monospacedDigit()
+          .foregroundColor(p.ink)
+          .multilineTextAlignment(.trailing)
+          .frame(maxWidth: tamanho * 2.4, alignment: .trailing)
+      case "liberado", "negado": hora(estado.dataResposta)
+      case "entrou": hora(estado.dataEntrada)
+      case "expirado":
+        Text("0:00")
+          .font(Fonte.numero(tamanho))
+          .foregroundColor(p.inkSubtle)
+      default:
+        EmptyView()
+      }
     }
   }
 }
 
-/// Ilha compacta, à direita: a contagem ou a fase.
+/// Ilha compacta, à direita: a contagem (ou o tempo na portaria) ou a fase.
 struct CompactoDireita: View {
   let estado: CardPortariaAttributes.ContentState
+  var delivery = false
   @Environment(\.paleta) private var p
 
   var body: some View {
-    if estado.fase == "aguardando" {
+    if delivery && (estado.fase == "chegou" || estado.fase == "aguardando") {
+      TempoNaPortaria(estado: estado, tamanho: 17)
+        .frame(maxWidth: 44)
+    } else if !delivery && estado.fase == "aguardando" {
       Text(timerInterval: estado.dataChegada...max(estado.dataChegada, estado.dataExpira), countsDown: true)
         .font(Fonte.numero(17))
         .monospacedDigit()
@@ -165,11 +218,11 @@ struct Botoes: View {
 
   var body: some View {
     HStack(spacing: 8) {
-      Button(intent: NegarCardIntent(idCartao: attributes.idCartao, idPedido: attributes.idPedido)) {
-        BotaoCard(titulo: "Negar", simbolo: "xmark", solido: false)
+      Button(intent: NegarCardIntent(idCartao: attributes.idCartao, idPedido: attributes.idPedido, origem: attributes.origem)) {
+        BotaoCard(titulo: attributes.ehDelivery ? "Recusar" : "Negar", simbolo: "xmark", solido: false)
       }
       .buttonStyle(.plain)
-      Button(intent: AutorizarCardIntent(idCartao: attributes.idCartao, idPedido: attributes.idPedido)) {
+      Button(intent: AutorizarCardIntent(idCartao: attributes.idCartao, idPedido: attributes.idPedido, origem: attributes.origem)) {
         BotaoCard(titulo: "Autorizar", simbolo: "checkmark", solido: true)
       }
       .buttonStyle(.plain)
@@ -199,7 +252,7 @@ struct NomeEUnidade: View {
   }
 }
 
-/// Pessoa: iniciais, nome, tipo e unidade.
+/// Pessoa: foto (ou iniciais), nome, tipo e unidade.
 struct LinhaVisitante: View {
   let estado: CardPortariaAttributes.ContentState
   var foto: String? = nil
@@ -237,39 +290,43 @@ struct CardTelaBloqueio: View {
 ///
 /// O iOS dá no máximo ~160 pt de altura à Live Activity e CORTA o que passar
 /// (o 1.2.43 perdeu o topo e os botões). Orçamento da fase mais alta
-/// (aguardando): 12 + cabeçalho 18 + 10 + pessoa 42 + 10 + barra 4 + 10 +
-/// botões 36 + 12 = 154 pt. Mexeu em tamanho ou espaço, refaça a conta.
+/// (aguardando da portaria): 12 + cabeçalho 18 + 10 + pessoa 42 + 10 + barra
+/// 4 + 10 + botões 36 + 12 = 154 pt. As fases com etapas (12 + 18 + 10 + 42 +
+/// 17 + 20 + 6 + 16 + 12 = 153 pt) também cabem. Mexeu em tamanho ou espaço,
+/// refaça a conta.
 struct TelaBloqueio: View {
   let attributes: CardPortariaAttributes
   let estado: CardPortariaAttributes.ContentState
   @Environment(\.paleta) private var p
 
   var body: some View {
+    let delivery = attributes.ehDelivery
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 8) {
         LogoPrestare(tamanho: 18)
-        Rotulo(texto: "Portaria remota", tamanho: 11)
+        Rotulo(texto: delivery ? "Delivery" : "Portaria remota", tamanho: 11)
         Spacer(minLength: 8)
         TagFase(fase: estado.fase)
       }
       .frame(height: 18)
 
       HStack(alignment: .center, spacing: 8) {
-        LinhaVisitante(estado: estado, foto: attributes.foto)
-        NumeroDireita(estado: estado, tamanho: 30)
+        LinhaVisitante(estado: estado, foto: attributes.foto ?? estado.foto)
+        NumeroDireita(estado: estado, delivery: delivery, tamanho: 30)
       }
       .padding(.top, 10)
 
-      switch estado.fase {
-      case "aguardando":
-        BarraTempo(estado: estado).padding(.top, 10)
-        Botoes(attributes: attributes).padding(.top, 10)
-      case "liberado", "entrou":
+      if let etapas = etapasDoCard(fase: estado.fase, delivery: delivery) {
         Rectangle().fill(p.divisor).frame(height: 1).padding(.vertical, 8)
-        Etapas(fase: estado.fase)
-        LinhaStatus(estado: estado).padding(.top, 6)
-      default:
-        LinhaStatus(estado: estado).padding(.top, 8)
+        Etapas(nomes: etapas.nomes, feitas: etapas.feitas)
+        LinhaStatus(estado: estado, delivery: delivery).padding(.top, 6)
+      } else if estado.fase == "aguardando" {
+        if !delivery {
+          BarraTempo(estado: estado).padding(.top, 10)
+        }
+        Botoes(attributes: attributes).padding(.top, 10)
+      } else {
+        LinhaStatus(estado: estado, delivery: delivery).padding(.top, 8)
       }
     }
     .padding(.horizontal, 16)
@@ -296,14 +353,16 @@ struct IlhaExpandida: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       if estado.fase == "aguardando" {
-        BarraTempo(estado: estado)
+        if !attributes.ehDelivery {
+          BarraTempo(estado: estado)
+        }
         Botoes(attributes: attributes)
       } else {
         HStack(spacing: 6) {
           Ponto(cor: InfoFase(estado.fase, p).cor)
           Rotulo(texto: InfoFase(estado.fase, p).rotulo, tamanho: 10)
         }
-        LinhaStatus(estado: estado)
+        LinhaStatus(estado: estado, delivery: attributes.ehDelivery)
       }
     }
     .padding(.horizontal, 4)

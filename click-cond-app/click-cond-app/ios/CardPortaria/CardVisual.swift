@@ -160,6 +160,11 @@ struct InfoFase {
     case "liberado": rotulo = "Liberado"; cor = p.ok
     case "entrou": rotulo = "No local"; cor = p.ok
     case "negado": rotulo = "Negado"; cor = p.perigo
+    // delivery
+    case "chegou", "retirar": rotulo = "Na portaria"; cor = p.marca
+    case "autorizado": rotulo = "Autorizado"; cor = p.ok
+    case "entregue": rotulo = "Entregue"; cor = p.ok
+    case "recusado": rotulo = "Recusado"; cor = p.perigo
     default: rotulo = "Expirado"; cor = p.borda
     }
   }
@@ -245,17 +250,37 @@ struct BarraTempo: View {
   }
 }
 
-/// PEDIDO → AUTORIZADO → ENTROU.
+/// Etapas do card (nil = a fase não mostra etapas).
+/// Portaria: PEDIDO → AUTORIZADO → ENTROU.
+/// Delivery: CHEGOU → AUTORIZADO → ENTREGUE, ou CHEGOU → NA PORTARIA → RETIRADO.
+func etapasDoCard(fase: String, delivery: Bool) -> (nomes: [String], feitas: Int)? {
+  if delivery {
+    switch fase {
+    case "chegou": return (["Chegou", "Autorizado", "Entregue"], 1)
+    case "autorizado": return (["Chegou", "Autorizado", "Entregue"], 2)
+    case "retirar": return (["Chegou", "Na portaria", "Retirado"], 2)
+    case "entregue": return (["Chegou", "Autorizado", "Entregue"], 3)
+    default: return nil
+    }
+  }
+  switch fase {
+  case "liberado": return (["Pedido", "Autorizado", "Entrou"], 2)
+  case "entrou": return (["Pedido", "Autorizado", "Entrou"], 3)
+  default: return nil
+  }
+}
+
+/// Três etapas com traço amarelo nas feitas.
 struct Etapas: View {
-  let fase: String
+  let nomes: [String]
+  let feitas: Int
   @Environment(\.paleta) private var p
 
   var body: some View {
-    let feitas = fase == "entrou" ? 3 : 2
     HStack(alignment: .top, spacing: 6) {
-      etapa("Pedido", feita: feitas >= 1)
-      etapa("Autorizado", feita: feitas >= 2)
-      etapa("Entrou", feita: feitas >= 3)
+      ForEach(Array(nomes.enumerated()), id: \.offset) { i, nome in
+        etapa(nome, feita: i < feitas)
+      }
     }
   }
 
@@ -291,11 +316,45 @@ struct BotaoCard: View {
 /// Linha de status das fases depois da resposta (a hora fica no número à direita).
 struct LinhaStatus: View {
   let estado: CardPortariaAttributes.ContentState
+  var delivery = false
   @Environment(\.paleta) private var p
 
   var body: some View {
+    if delivery {
+      linhaDelivery
+        .font(Fonte.texto(13))
+        .foregroundColor(p.inkMuted)
+        .lineLimit(2)
+    } else {
+      linhaPortaria
+    }
+  }
+
+  @ViewBuilder private var linhaDelivery: some View {
+    switch estado.fase {
+    case "chegou":
+      Text("Entregador chegou à portaria.")
+    case "autorizado":
+      Text(estado.voceRespondeu ? "Você autorizou. A caminho da sua unidade." : "Autorizado pela portaria. A caminho da sua unidade.")
+    case "retirar":
+      Text("Sua entrega está na portaria. Retire quando puder.")
+    case "entregue":
+      Text("Entregue").foregroundColor(p.ok) + Text(" às \(horaCurta(estado.dataEntrada)).")
+    case "recusado":
+      let motivo = (estado.motivo ?? "").trimmingCharacters(in: .whitespaces)
+      if estado.voceRespondeu {
+        Text("Você recusou").foregroundColor(p.perigo) + Text(" a entrega.")
+      } else {
+        Text("Recusado pela portaria").foregroundColor(p.perigo) + Text(motivo.isEmpty ? "." : ": \(motivo)")
+      }
+    default:
+      Text("")
+    }
+  }
+
+  private var linhaPortaria: some View {
     let quem = (estado.respondidoPor ?? "").isEmpty ? "outro morador" : (estado.respondidoPor ?? "")
-    Group {
+    return Group {
       switch estado.fase {
       case "liberado":
         if estado.voceRespondeu {

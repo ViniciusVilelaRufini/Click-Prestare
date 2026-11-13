@@ -30,13 +30,18 @@ struct CardPortariaAttributes: ActivityAttributes {
     var pelaPortaria: Bool
     var horaResposta: Double?
     var horaEntrada: Double?
+    /// Delivery: miniatura da foto do entregador (base64). Fica no estado, e
+    /// não no atributo, porque a portaria pode identificá-lo depois da chegada.
+    var foto: String?
+    /// Delivery recusado: motivo informado pela portaria.
+    var motivo: String?
   }
 
   /// Cards_Ao_Vivo.id no servidor (confirmação e botões).
   var idCartao: String
   /// Visitantes.id ou Visitas.id — é o id das rotas /visitantes/:id/autorizar|negar.
   var idPedido: String
-  /// visitante | visita
+  /// visitante | visita | delivery (escolhe o layout e a rota dos botões)
   var origem: String
   /// Tema escolhido no app: claro | escuro | sistema. Ausente (servidor ou
   /// app antigo) = segue o aparelho.

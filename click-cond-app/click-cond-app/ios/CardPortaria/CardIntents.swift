@@ -75,11 +75,17 @@ enum CardApi {
   /// POST na API do Prestare com a sessão do app. Devolve o status HTTP.
   @discardableResult
   static func post(_ caminho: String, corpo: [String: Any]) async throws -> Int {
+    try await enviar("POST", caminho, corpo: corpo)
+  }
+
+  /// Chamada à API do Prestare com a sessão do app. Devolve o status HTTP.
+  @discardableResult
+  static func enviar(_ metodo: String, _ caminho: String, corpo: [String: Any]) async throws -> Int {
     guard let sessao = CardSessao.ler(), let url = URL(string: sessao.baseUrl + caminho) else {
       throw Erro.semSessao
     }
     var req = URLRequest(url: url, timeoutInterval: 15)
-    req.httpMethod = "POST"
+    req.httpMethod = metodo
     // Mesmo formato do app Flutter: o token vai cru no Authorization.
     req.setValue(sessao.token, forHTTPHeaderField: "Authorization")
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -103,7 +109,7 @@ enum CardLocal {
     for activity in Activity<CardPortariaAttributes>.activities where activity.attributes.idCartao == idCartao {
       let estado = activity.content.state.respondido(fase: fase)
       let conteudo = ActivityContent(state: estado, staleDate: nil)
-      if fase == "negado" {
+      if fase == "negado" || fase == "recusado" {
         await activity.end(conteudo, dismissalPolicy: .after(Date().addingTimeInterval(120)))
       } else {
         await activity.update(conteudo)
@@ -120,13 +126,14 @@ enum CardLocal {
   }
 }
 
-/// Resposta do botão: 400 = pedido que já não aceita resposta.
+/// Resposta do botão. 400 = pedido que já não aceita resposta; 409 = a
+/// portaria mudou o delivery antes (o card sai da tela em vez de ficar parado).
 @available(iOS 17.0, *)
-private func responder(_ caminho: String, corpo: [String: Any], idCartao: String, fase: String) async throws {
+private func responder(_ metodo: String, _ caminho: String, corpo: [String: Any], idCartao: String, fase: String) async throws {
   do {
-    try await CardApi.post(caminho, corpo: corpo)
+    try await CardApi.enviar(metodo, caminho, corpo: corpo)
     await CardLocal.responder(idCartao: idCartao, fase: fase)
-  } catch CardApi.Erro.http(let status, _) where status == 400 {
+  } catch CardApi.Erro.http(let status, _) where status == 400 || status == 409 {
     await CardLocal.encerrar(idCartao: idCartao)
   }
 }
@@ -135,44 +142,59 @@ private func responder(_ caminho: String, corpo: [String: Any], idCartao: String
 
 @available(iOS 17.0, *)
 struct NegarCardIntent: LiveActivityIntent {
-  static let title: LocalizedStringResource = "Negar entrada"
+  static let title: LocalizedStringResource = "Negar"
   static let isDiscoverable = false
 
   @Parameter(title: "Cartão") var idCartao: String
   @Parameter(title: "Pedido") var idPedido: String
+  /// visitante | visita | delivery
+  @Parameter(title: "Origem") var origem: String
 
   init() {}
 
-  init(idCartao: String, idPedido: String) {
+  init(idCartao: String, idPedido: String, origem: String = "visitante") {
     self.idCartao = idCartao
     self.idPedido = idPedido
+    self.origem = origem
   }
 
   func perform() async throws -> some IntentResult {
-    try await responder("/visitantes/\(idPedido)/negar", corpo: [:], idCartao: idCartao, fase: "negado")
+    if origem == "delivery" {
+      // Mesmo motivo da tela do app (o servidor exige motivo na recusa).
+      try await responder("PATCH", "/delivery/\(idPedido)", corpo: ["status": "RECUSADA", "motivo": "Recusada pelo morador."], idCartao: idCartao, fase: "recusado")
+    } else {
+      try await responder("POST", "/visitantes/\(idPedido)/negar", corpo: [:], idCartao: idCartao, fase: "negado")
+    }
     return .result()
   }
 }
 
 @available(iOS 17.0, *)
 struct AutorizarCardIntent: LiveActivityIntent {
-  static let title: LocalizedStringResource = "Autorizar entrada"
+  static let title: LocalizedStringResource = "Autorizar"
   static let isDiscoverable = false
   /// Liberar a portaria para um estranho exige o dono do aparelho.
   static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
 
   @Parameter(title: "Cartão") var idCartao: String
   @Parameter(title: "Pedido") var idPedido: String
+  /// visitante | visita | delivery
+  @Parameter(title: "Origem") var origem: String
 
   init() {}
 
-  init(idCartao: String, idPedido: String) {
+  init(idCartao: String, idPedido: String, origem: String = "visitante") {
     self.idCartao = idCartao
     self.idPedido = idPedido
+    self.origem = origem
   }
 
   func perform() async throws -> some IntentResult {
-    try await responder("/visitantes/\(idPedido)/autorizar", corpo: ["darEntrada": false], idCartao: idCartao, fase: "liberado")
+    if origem == "delivery" {
+      try await responder("PATCH", "/delivery/\(idPedido)", corpo: ["status": "AUTORIZADA"], idCartao: idCartao, fase: "autorizado")
+    } else {
+      try await responder("POST", "/visitantes/\(idPedido)/autorizar", corpo: ["darEntrada": false], idCartao: idCartao, fase: "liberado")
+    }
     return .result()
   }
 }
