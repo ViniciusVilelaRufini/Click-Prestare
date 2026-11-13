@@ -1,4 +1,5 @@
 import { VisitantesService } from './visitantes.service';
+import { PREFIXOS_FOTO_VISITANTE } from '../common/storage/storage.service';
 
 /**
  * O prazo LGPD de 90 dias contava só a partir de `data_saida`: visita que ninguém encerrou (visitante
@@ -22,6 +23,7 @@ describe('Expurgo LGPD — fim da visita sem data_saida e Pessoa sem visita', ()
       if (cond && typeof cond === 'object' && !(cond instanceof Date)) {
         if ('some' in cond) return Array.isArray(v) && v.some((x: any) => casa(x, cond.some));
         if ('in' in cond) return cond.in.includes(v);
+        if ('notIn' in cond) return !cond.notIn.includes(v);
         if ('not' in cond && cond.not === null) return v != null;
         if ('lte' in cond) return v != null && +v <= +cond.lte;
         if ('gt' in cond) return v != null && +v > +cond.gt;
@@ -61,11 +63,12 @@ describe('Expurgo LGPD — fim da visita sem data_saida e Pessoa sem visita', ()
         updateMany: jest.fn(async () => ({ count: 1 })),
       },
     };
+    const storage: any = { deleteUrl: jest.fn(async () => undefined) };
     const svc = new VisitantesService(
-      prisma, {} as any, { deleteUrl: jest.fn(async () => undefined) } as any, {} as any,
+      prisma, {} as any, storage, {} as any,
       { registrar: jest.fn(async () => undefined) } as any, {} as any, {} as any, {} as any,
     );
-    return { svc, prisma };
+    return { svc, prisma, storage };
   }
 
   it('legado: expurga pela autorização vencida ou pela última atividade quando não há saída', async () => {
@@ -109,6 +112,38 @@ describe('Expurgo LGPD — fim da visita sem data_saida e Pessoa sem visita', ()
       await svc.tickRetencaoDadosVisitantes(90);
       const ids = prisma.pessoas.updateMany.mock.calls.map(([a]: any) => a.where.id);
       expect(ids).toEqual([33]);
+    });
+  });
+
+  // `novaVisitaParaPessoa` (flag desligada) copia foto_pessoa/foto_documento para a linha nova:
+  // apagar o arquivo ao expurgar a linha antiga deixava a linha nova apontando para o nada.
+  describe('legado: arquivo ainda usado por outra linha Visitantes', () => {
+    const ROSTO = 'https://r2/visitantes/compartilhado-r.jpg';
+    const DOC = 'https://r2/visitantes/compartilhado-d.jpg';
+
+    it('só a linha antiga expira: ela é anulada, mas o arquivo que a nova ainda aponta não é apagado', async () => {
+      const { svc, prisma, storage } = build(
+        [
+          { id: 41, foto_pessoa: ROSTO, foto_documento: DOC, ...visita({ data_saida: ha(100) }) },
+          { id: 42, foto_pessoa: ROSTO, foto_documento: DOC, ...visita({ created_at: ha(5) }) },
+        ],
+        [],
+      );
+      await svc.tickRetencaoDadosVisitantes(90);
+      expect(prisma.visitantes.updateMany.mock.calls[0][0].where.id.in).toEqual([41]);
+      expect(storage.deleteUrl).not.toHaveBeenCalledWith(ROSTO, expect.anything());
+      expect(storage.deleteUrl).not.toHaveBeenCalledWith(DOC, expect.anything());
+    });
+
+    it('com uma linha só, o arquivo é apagado', async () => {
+      const { svc, prisma, storage } = build(
+        [{ id: 43, foto_pessoa: ROSTO, foto_documento: DOC, ...visita({ data_saida: ha(100) }) }],
+        [],
+      );
+      await svc.tickRetencaoDadosVisitantes(90);
+      expect(prisma.visitantes.updateMany.mock.calls[0][0].where.id.in).toEqual([43]);
+      expect(storage.deleteUrl).toHaveBeenCalledWith(ROSTO, PREFIXOS_FOTO_VISITANTE);
+      expect(storage.deleteUrl).toHaveBeenCalledWith(DOC, PREFIXOS_FOTO_VISITANTE);
     });
   });
 });

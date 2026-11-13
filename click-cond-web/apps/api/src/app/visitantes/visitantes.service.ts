@@ -241,15 +241,32 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       // recriado o no-op que este fix existe pra eliminar.
       let totalVisitantes = 0;
       if (paraExpurgo.length > 0) {
+        const ids = paraExpurgo.map((v) => v.id);
+        // `novaVisitaParaPessoa` copia as fotos para a linha nova: arquivo ainda apontado por
+        // outra linha Visitantes fora deste lote não é apagado (a linha expurgada é anulada igual).
+        const urls = [...new Set(paraExpurgo.flatMap((v) => [v.foto_pessoa, v.foto_documento]).filter((u): u is string => !!u))];
+        const emUso = new Set<string>();
+        if (urls.length > 0) {
+          const outras = await this.prisma.visitantes.findMany({
+            where: {
+              id: { notIn: ids },
+              OR: [{ foto_pessoa: { in: urls } }, { foto_documento: { in: urls } }],
+            },
+            select: { foto_pessoa: true, foto_documento: true },
+          });
+          for (const o of outras) {
+            if (o.foto_pessoa) emUso.add(o.foto_pessoa);
+            if (o.foto_documento) emUso.add(o.foto_documento);
+          }
+        }
+
         // Expurga arquivos físicos no Cloudflare R2 / S3
         await Promise.all(
-          paraExpurgo.flatMap((v) => [
-            this.storage.deleteUrl(v.foto_pessoa, PREFIXOS_FOTO_VISITANTE),
-            this.storage.deleteUrl(v.foto_documento, PREFIXOS_FOTO_VISITANTE),
-          ]),
+          paraExpurgo.flatMap((v) => [v.foto_pessoa, v.foto_documento])
+            .filter((u) => !(u && emUso.has(u)))
+            .map((u) => this.storage.deleteUrl(u, PREFIXOS_FOTO_VISITANTE)),
         );
 
-        const ids = paraExpurgo.map((v) => v.id);
         const resultado = await this.prisma.visitantes.updateMany({
           where: { id: { in: ids } },
           data: {

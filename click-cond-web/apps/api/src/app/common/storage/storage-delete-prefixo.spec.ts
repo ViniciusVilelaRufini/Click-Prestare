@@ -55,9 +55,12 @@ describe('VisitantesService.tickRetencaoDadosVisitantes — passa o prefixo de f
     const prisma: any = {
       isConnected: true,
       visitantes: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: 1, foto_pessoa: 'https://pub.example.com/documentos/ata.pdf', foto_documento: null },
-        ]),
+        // 1ª leitura: o lote a expurgar; 2ª: outras linhas que ainda apontam para os arquivos (nenhuma).
+        findMany: jest.fn()
+          .mockResolvedValueOnce([
+            { id: 1, foto_pessoa: 'https://pub.example.com/documentos/ata.pdf', foto_documento: null },
+          ])
+          .mockResolvedValue([]),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       pessoas: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
