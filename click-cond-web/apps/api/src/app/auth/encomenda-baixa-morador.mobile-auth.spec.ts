@@ -3,8 +3,9 @@ import { MobileAuthService } from './mobile-auth.service';
 
 /**
  * B8 (auditoria de ciclos 13/11): a baixa do morador gravava 'Retirada' sem
- * condição de status — pré-registro que ainda não chegou ('Esperando') virava
- * retirado, e duas baixas simultâneas passavam as duas.
+ * condição de status — duas baixas simultâneas passavam as duas. A baixa de
+ * pré-registro ('Esperando', ex.: comida que o morador pegou direto) continua
+ * valendo.
  */
 describe('MobileAuthService.retirarEncomendaMorador — condição de status', () => {
   function build(status: string, opts: { concorrente?: boolean } = {}) {
@@ -15,7 +16,7 @@ describe('MobileAuthService.retirarEncomendaMorador — condição de status', (
         findUnique: jest.fn(async () => ({ ...registro })),
         update: jest.fn(async ({ data }: any) => ({ ...registro, ...data })),
         updateMany: jest.fn(async ({ where, data }: any) => {
-          if (opts.concorrente || where.status !== registro.status) return { count: 0 };
+          if (opts.concorrente || !where.status.in.includes(registro.status)) return { count: 0 };
           Object.assign(registro, data);
           return { count: 1 };
         }),
@@ -31,15 +32,21 @@ describe('MobileAuthService.retirarEncomendaMorador — condição de status', (
   it('encomenda aguardando: dá baixa só se ainda estiver aguardando', async () => {
     const { service, prisma, registro } = build('Aguardando');
     const r: any = await service.retirarEncomendaMorador(7, 3);
-    expect(prisma.encomendas.updateMany.mock.calls[0][0].where).toEqual({ id: 3, status: 'Aguardando' });
+    expect(prisma.encomendas.updateMany.mock.calls[0][0].where).toEqual({ id: 3, status: { in: ['Aguardando', 'Esperando'] } });
     expect(registro.status).toBe('Retirada');
     expect(r).toMatchObject({ id: 3, status: 'Retirada', retirado_por: 'M' });
   });
 
-  it('pré-registro que ainda não chegou não é retirado', async () => {
+  it('pré-registro (Esperando) continua podendo receber baixa do morador', async () => {
     const { service, registro } = build('Esperando');
+    await service.retirarEncomendaMorador(7, 3);
+    expect(registro.status).toBe('Retirada');
+  });
+
+  it('já retirada: recusa sem gravar', async () => {
+    const { service, prisma } = build('Retirada');
     await expect(service.retirarEncomendaMorador(7, 3)).rejects.toBeInstanceOf(BadRequestException);
-    expect(registro.status).toBe('Esperando');
+    expect(prisma.encomendas.updateMany).not.toHaveBeenCalled();
   });
 
   it('outra baixa no meio: recusa em vez de gravar de novo', async () => {
