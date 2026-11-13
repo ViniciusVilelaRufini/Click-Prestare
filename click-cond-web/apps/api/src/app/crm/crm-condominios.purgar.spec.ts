@@ -21,6 +21,7 @@ describe('CrmCondominiosService.purgar — refusal when Acessos_Facial has histo
         count: jest.fn(async () => 0),
       },
       sindicos_Condominios: { findMany: jest.fn(async () => []) },
+      vagas: { deleteMany: jest.fn(async () => ({ count: 0 })) },
       moradores: {
         findMany: jest.fn(async () => []),
         count: jest.fn(async () => 0),

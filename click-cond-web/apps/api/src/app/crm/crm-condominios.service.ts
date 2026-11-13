@@ -611,6 +611,10 @@ export class CrmCondominiosService {
     // delete do condomínio (tudo ou nada). O histórico de acessos só quando
     // o operador pediu; senão o delete já teria sido recusado acima.
     await this.prisma.$transaction([
+      // Vagas já morrem na cascata de fk_vaga_cond, mas fk_vaga_benef
+      // (id_morador_beneficiario → Moradores) é RESTRICT e barraria o delete
+      // dos Moradores logo abaixo: saem primeiro.
+      this.prisma.vagas.deleteMany({ where: { id_condominio: id } }),
       this.prisma.moradores.deleteMany({ where: { id_condominio: id } }),
       ...(purgarHistorico && totalAcessos > 0
         ? [this.prisma.acessos_Facial.deleteMany({ where: { id_condominio: id } })]

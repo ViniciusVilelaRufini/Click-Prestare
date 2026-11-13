@@ -20,6 +20,12 @@ describe('CrmCondominiosService.purgar — cadastros de morador não ficam órf�
           return {};
         }),
       },
+      vagas: {
+        deleteMany: jest.fn(async () => {
+          ordem.push('delete-vagas');
+          return { count: 1 };
+        }),
+      },
       acessos_Facial: { count: jest.fn(async () => 0), deleteMany: jest.fn() },
       facial_Devices: { findMany: jest.fn(async () => []), count: jest.fn(async () => 0) },
       sindicos_Condominios: { findMany: jest.fn(async () => []), count: jest.fn(async () => 0) },
@@ -59,7 +65,13 @@ describe('CrmCondominiosService.purgar — cadastros de morador não ficam órf�
     await svc.purgar(1, 'Cond QA', 'op@x.com');
     expect(prisma.moradores.deleteMany).toHaveBeenCalledWith({ where: { id_condominio: 1 } });
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(ordem).toEqual(['delete-moradores', 'delete-condominio']);
+    expect(ordem).toEqual(['delete-vagas', 'delete-moradores', 'delete-condominio']);
+  });
+
+  it('apaga as Vagas do condomínio antes dos Moradores (fk_vaga_benef é RESTRICT)', async () => {
+    const { svc, prisma } = build();
+    await svc.purgar(1, 'Cond QA', 'op@x.com');
+    expect(prisma.vagas.deleteMany).toHaveBeenCalledWith({ where: { id_condominio: 1 } });
   });
 
   it('linha órfã (id_condominio NULL) não preserva a conta', async () => {
