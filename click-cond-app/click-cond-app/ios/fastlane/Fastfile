@@ -18,6 +18,10 @@
 default_platform(:ios)
 
 APP_ID = "br.com.clickprestare.app"
+# Extensão do card ao vivo da portaria remota (Live Activity). O alvo é criado
+# no CI por scripts/criar_alvo_card.rb; aqui ela ganha perfil próprio.
+EXT_ID = "#{APP_ID}.CardPortaria"
+EXT_TARGET = "CardPortaria"
 
 # O time é o da conta dona da chave da App Store Connect. Fixar um ID aqui já
 # quebrou o build uma vez: o match emitiu o perfil no time da chave e o
@@ -113,7 +117,7 @@ platform :ios do
     # só cria a chance de ele divergir do time que realmente emite o perfil.
     match(
       type: "appstore",
-      app_identifier: APP_ID,
+      app_identifier: [APP_ID, EXT_ID],
       api_key: api_key,
       # readonly: false porque na primeira execução não existe nada para ler —
       # é esta rodada que cria o certificado e o perfil.
@@ -122,13 +126,17 @@ platform :ios do
       keychain_password: kc_password,
     )
 
-    profile_name = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING][APP_ID]
-    profile_path = ENV["sigh_profile_path"] || lane_context[SharedValues::SIGH_PROFILE_PATH]
+    mapa = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING]
+    profile_name = mapa[APP_ID]
+    ext_profile_name = mapa[EXT_ID]
 
-    # Copia o perfil para o diretório onde o xcodebuild procura — sem isto
+    # Copia os perfis para o diretório onde o xcodebuild procura — sem isto
     # o Xcode não encontra o perfil e falha com "No profile for team matching".
-    if profile_path && File.exist?(profile_path)
-      install_provisioning_profile(path: profile_path)
+    # Com dois app ids, o match publica um caminho por id.
+    [APP_ID, EXT_ID].each do |id|
+      caminho = ENV["sigh_#{id}_appstore_profile-path"]
+      caminho = ENV["sigh_profile_path"] || lane_context[SharedValues::SIGH_PROFILE_PATH] if caminho.to_s.empty? && id == APP_ID
+      install_provisioning_profile(path: caminho) if caminho && File.exist?(caminho)
     end
 
     # O match publica o time do perfil nesta variável. É a única fonte que não
@@ -137,7 +145,9 @@ platform :ios do
     team_id = TEAM_ID if team_id.empty?
     UI.message("Assinando com o time #{team_id} e o perfil '#{profile_name}'")
 
-    { name: profile_name, team_id: team_id }
+    UI.message("Extensão #{EXT_ID} com o perfil '#{ext_profile_name}'")
+
+    { name: profile_name, ext_name: ext_profile_name, team_id: team_id }
   end
 
   def arquivar(profile)
@@ -156,6 +166,15 @@ platform :ios do
       profile_name: profile_name,
       targets: ["Runner"],
     )
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Runner.xcodeproj",
+      team_id: team_id,
+      bundle_identifier: EXT_ID,
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile[:ext_name],
+      targets: [EXT_TARGET],
+    )
 
     build_app(
       workspace: "Runner.xcworkspace",
@@ -169,7 +188,7 @@ platform :ios do
       # Silencia o aviso de bitcode (aposentado pela Apple) e garante que o
       # export use exatamente o perfil do match.
       export_options: {
-        provisioningProfiles: { APP_ID => profile_name },
+        provisioningProfiles: { APP_ID => profile_name, EXT_ID => profile[:ext_name] },
         signingStyle: "manual",
         teamID: team_id,
       },

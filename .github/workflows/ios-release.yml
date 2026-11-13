@@ -77,6 +77,12 @@ jobs:
           bundler-cache: true
           working-directory: click-cond-app/click-cond-app/ios
 
+      # Extensão do card ao vivo da portaria remota (Live Activity). Sem Mac, o
+      # alvo não vive no pbxproj versionado: o script o cria aqui (idempotente)
+      # com o gem xcodeproj, antes do CocoaPods reescrever o projeto.
+      - name: Alvo do card ao vivo (extensão CardPortaria)
+        run: bundle exec ruby scripts/criar_alvo_card.rb
+
       # O Podfile.lock versionado é anterior à entrada do Firebase, então a
       # primeira execução resolve a árvore do zero. `pod install --repo-update`
       # evita falhar por índice velho do CocoaPods na imagem do runner.

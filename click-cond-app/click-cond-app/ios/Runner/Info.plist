@@ -80,6 +80,9 @@
 		<string>Permite escolher na sua galeria a foto de cadastro de moradores, visitantes, prestadores e funcionários, além de comprovantes de encomendas e despesas do condomínio.</string>
 		<key>NSFaceIDUsageDescription</key>
 		<string>Permite autenticar de forma rápida e segura usando o Face ID para acessar sua conta de morador, síndico ou portaria.</string>
+		<!-- Card ao vivo da portaria remota (Live Activity, extensão CardPortaria). -->
+		<key>NSSupportsLiveActivities</key>
+		<true/>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UILaunchStoryboardName</key>

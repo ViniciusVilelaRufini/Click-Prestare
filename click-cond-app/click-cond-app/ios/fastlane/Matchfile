@@ -7,4 +7,4 @@
 git_url(ENV.fetch("MATCH_GIT_URL"))
 storage_mode("git")
 type("appstore")
-app_identifier(["br.com.clickprestare.app"])
+app_identifier(["br.com.clickprestare.app", "br.com.clickprestare.app.CardPortaria"])

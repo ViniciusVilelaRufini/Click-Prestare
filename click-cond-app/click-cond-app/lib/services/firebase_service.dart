@@ -5,7 +5,10 @@ import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
+import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
+import 'package:click/services/card_ao_vivo/card_android.dart';
+import 'package:click/services/card_ao_vivo/card_ao_vivo_ios.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/local_storage.dart';
@@ -51,6 +54,18 @@ class FirebaseService {
 
     FirebaseMessaging messaging = FirebaseMessaging.instance;
 
+    // Card ao vivo da portaria remota (Android: notificação fixa; iPhone:
+    // Live Activity pela ponte Swift). Antes do registro do token, que leva
+    // o token de push-to-start do iPhone junto.
+    CardAoVivoIos.iniciar(aoMudarToken: () => registrarNoServidor());
+    CardAndroid.aoTocarNoCard = () => _navigateByType('autorizacao_visitante', const {});
+    CardAndroid.aoAutorizarPelaNotificacao = _autorizarPelaNotificacao;
+    try {
+      await CardAndroid.iniciar();
+    } catch (e) {
+      logDebug('Card ao vivo (Android) indisponível: $e');
+    }
+
     // Request permissions (iOS/Android 13+)
     NotificationSettings settings = await messaging.requestPermission(
       alert: true,
@@ -92,7 +107,17 @@ class FirebaseService {
       }
 
       final type = message.data['type']?.toString();
-      if (type == 'autorizacao_visitante') {
+      if (type == 'card_portaria') {
+        CardAndroid.exibir(message.data);
+        if (message.data['fase'] == 'aguardando') {
+          final id = int.tryParse('${message.data['id_pedido']}');
+          String? nome;
+          try {
+            nome = (jsonDecode('${message.data['conteudo']}') as Map)['nome']?.toString();
+          } catch (_) {}
+          if (id != null) mostrarDialogoAutorizacaoVisitante(id: id, nome: nome);
+        }
+      } else if (type == 'autorizacao_visitante') {
         final idStr = message.data['id']?.toString();
         final id = int.tryParse(idStr ?? '');
         if (id != null) {
@@ -120,6 +145,23 @@ class FirebaseService {
         logDebug('Notification opened the app from background. Data: ${message.data}');
       }
       handleNotificationNavigation(message);
+    });
+
+    // App aberto pela notificação do card (AUTORIZAR ou toque) estando fechado.
+    CardAndroid.tratarAbertura();
+  }
+
+  /// AUTORIZAR tocado na notificação do card (Android). O app só abre depois
+  /// do desbloqueio, que é a exigência de segurança do AUTORIZAR.
+  Future<void> _autorizarPelaNotificacao(int idPedido) async {
+    final res = await apiResponderAutorizacao(idPedido, true);
+    _navigateByType('autorizacao_visitante', const {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = NavigationService.navigatorKey.currentContext;
+      if (ctx == null) return;
+      ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
+        content: Text(res is Map ? 'Entrada autorizada.' : '$res'),
+      ));
     });
   }
 
@@ -221,6 +263,11 @@ class FirebaseService {
     final jwt = getToken();
     if (jwt.isEmpty) return;
 
+    // Sessão para os botões do card no iPhone (o Swift chama a API sozinho).
+    final base = ApiConfig.buildUri('').toString().replaceAll(RegExp(r'/+$'), '');
+    await CardAoVivoIos.definirSessao(jwt, base);
+    final cardTokenInicio = await CardAoVivoIos.obterTokenInicio();
+
     try {
       await ApiClient.post(
         ApiConfig.buildUri('/users/update-fcm-token'),
@@ -228,6 +275,7 @@ class FirebaseService {
         body: jsonEncode({
           'fcm_token': tokenFcm,
           'plataforma': defaultTargetPlatform.name,
+          if (cardTokenInicio != null) 'card_token_inicio': cardTokenInicio,
         }),
       );
     } catch (e) {
@@ -250,6 +298,8 @@ class FirebaseService {
     bool outraSessao() => jwt != null && getToken().isNotEmpty;
 
     if (outraSessao()) return;
+    await CardAoVivoIos.limparSessao();
+    await CardAndroid.limpar();
     String? token;
     try {
       token = await obterTokenFcm().timeout(limiteFcm);
@@ -286,5 +336,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   if (kDebugMode) {
     logDebug("Handling a background message: ${message.messageId}");
+  }
+  // Card ao vivo no Android: o push só de dados vira a notificação fixa.
+  if (message.data['type'] == 'card_portaria') {
+    await CardAndroid.exibir(message.data);
   }
 }
