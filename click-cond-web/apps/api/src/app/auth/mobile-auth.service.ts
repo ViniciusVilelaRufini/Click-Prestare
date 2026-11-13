@@ -3901,6 +3901,9 @@ export class MobileAuthService {
     });
     if (doPrestador) throw new BadRequestException('Já existe um funcionário com este e-mail.');
     await this.assertLoginLivreParaPortaria(loginFinal, idCondominio, idUsuarioDoToken(user));
+    // Mesma prova da edição, antes de gravar: a sincronização abaixo recusaria a conta achada pelo login
+    // depois do create, e a linha de portaria ficaria gravada (a nova tentativa caía em "já existe").
+    await this.assertPosseDaContaDoLoginDePortaria(loginFinal, idCondominio, idSolicitante);
     // Porteiro novo não tem foto gravada: URL do bucket nunca é dele.
     const photoUrl = await resolverFoto([]);
 
