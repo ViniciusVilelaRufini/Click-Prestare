@@ -373,6 +373,7 @@ export class DashboardService {
       uniqueVisitanteIds.length > 0
         ? this.prisma.acessos_Facial.findMany({
             where: {
+              id_condominio: idCondominio,
               tipo_pessoa: 'visitante',
               id_pessoa: { in: uniqueVisitanteIds },
             },
@@ -649,7 +650,7 @@ export class DashboardService {
         // OUTRA pessoa ao evento. A função resolve consultando as duas e
         // mesclando por quem encontrou a linha.
         pessoasMigrationEnabled(this.prisma)
-          ? resolverInfoVisitantesPorIdAcessoFacial(this.prisma, idsVisitante)
+          ? resolverInfoVisitantesPorIdAcessoFacial(this.prisma, idsVisitante, idCondominio)
           : idsVisitante.length > 0
             ? this.prisma.visitantes.findMany({
                 where: { id: { in: idsVisitante } },

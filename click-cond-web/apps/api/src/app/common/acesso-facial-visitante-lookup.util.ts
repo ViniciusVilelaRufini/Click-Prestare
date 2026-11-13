@@ -19,6 +19,11 @@
  * evento aparece sem nome/foto — degradação aceitável para um recurso de
  * exibição.
  *
+ * As duas consultas filtram pelo condomínio dos eventos: a colisão de faixas
+ * nunca traz pessoa de outro condomínio; dentro do mesmo condomínio continua
+ * dependendo das faixas disjuntas (correção definitiva = discriminador no
+ * schema).
+ *
  * Extraído de `RelatoriosService` (onde foi introduzido primeiro) pra ser
  * reaproveitado por qualquer leitura que precise da mesma resolução —
  * hoje `RelatoriosService.getEventos` e `DashboardService.summary`.
@@ -26,6 +31,8 @@
 export async function resolverInfoVisitantesPorIdAcessoFacial(
   prisma: any,
   ids: number[],
+  // Condomínio dos eventos: o id polimórfico só pode casar Pessoa/Visita DELE.
+  idCondominio: number,
 ): Promise<
   Map<
     number,
@@ -52,11 +59,11 @@ export async function resolverInfoVisitantesPorIdAcessoFacial(
 
   const [pessoasFound, visitasFound] = await Promise.all([
     prisma.pessoas.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, id_condominio: Number(idCondominio) },
       select: { id: true, foto_pessoa: true, doc_identificacao: true, tipo_pessoa: true },
     }),
     prisma.visitas.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, id_condominio: Number(idCondominio) },
       select: {
         id: true,
         apartamento: { select: { bloco: true, apto: true } },

@@ -187,4 +187,13 @@ describe('DashboardService — summary() (Pessoas/Visitas)', () => {
     expect(card!.detalhes.blocoApto).toContain('101');
     expect(prisma.visitantes.findMany).not.toHaveBeenCalled();
   });
+
+  it('histórico facial dos visitantes do painel é consultado só no condomínio do painel', async () => {
+    process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+    const { svc, prisma } = build();
+    await svc.summary(1);
+    const chamada = prisma.acessos_Facial.findMany.mock.calls.find(([a]: any) => a?.where?.id_pessoa?.in);
+    expect(chamada).toBeDefined();
+    expect(chamada[0].where.id_condominio).toBe(1);
+  });
 });

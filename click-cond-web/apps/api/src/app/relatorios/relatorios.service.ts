@@ -1111,7 +1111,7 @@ export class RelatoriosService {
             })
           : Promise.resolve([]),
         migrado
-          ? resolverInfoVisitantesPorIdAcessoFacial(this.prisma, idsVisitante)
+          ? resolverInfoVisitantesPorIdAcessoFacial(this.prisma, idsVisitante, idCondominio)
           : idsVisitante.length > 0
             ? this.prisma.visitantes.findMany({
                 where: { id: { in: idsVisitante } },
