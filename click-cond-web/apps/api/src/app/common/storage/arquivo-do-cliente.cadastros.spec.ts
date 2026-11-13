@@ -339,7 +339,7 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
         },
       };
       const service = new PessoasService(prisma);
-      return { ctrl: new PessoasController(service, storageReal()), prisma };
+      return { ctrl: new PessoasController(service, storageReal(), { assertPermissaoFuncionario: jest.fn(async () => undefined) } as any), prisma };
     }
 
     it('pessoa nova com URL do bucket: 400', async () => {
