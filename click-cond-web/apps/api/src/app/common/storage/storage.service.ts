@@ -228,6 +228,20 @@ export class StorageService {
   }
 
   /**
+   * Valor SEM esquema (`moradores/<ms>-<uuid>.jpg`, `/visitantes/...`): é como uma chave crua do
+   * bucket chegaria do cliente. A API nunca grava assim (uploadDataUrl devolve `${publicUrl}/${key}`).
+   * Com vírgula não é chave (`<prefixo>/<ms>-<uuid>.<ext>` nunca tem): assembleias/ocorrências
+   * conferem cada parte de uma data URL dividida por ';', e a metade `base64,...` não pode virar 400.
+   * Valor sem esquema com vírgula é inerte: deleteUrl recusa todo valor sem esquema.
+   */
+  private chaveCrua(valor: unknown): string | null {
+    if (typeof valor !== 'string') return null;
+    const v = valor.trim();
+    if (!v || v.includes(',') || /^[a-z][a-z0-9+.-]*:/i.test(v)) return null;
+    return v.replace(/^\/+/, '').split(/[?#]/)[0] || null;
+  }
+
+  /**
    * Forma canônica (sem assinatura) de uma URL do bucket — é o que vai para o
    * banco. O cliente devolve a URL assinada que recebeu ao salvar um cadastro;
    * gravada assim, ela expiraria junto com o link.
@@ -253,19 +267,21 @@ export class StorageService {
    * uma URL do bucket qualquer era trocar uma URL guardada (de um ex-porteiro,
    * por exemplo) por link novo para sempre. O campo só aceita:
    *  (a) data URL nova — quem chama faz o upload;
-   *  (b) a MESMA chave já gravada naquela entidade (o cliente reenvia o que
-   *      recebeu, assinado ou não: a comparação é pela chave do objeto);
+   *  (b) a MESMA chave já gravada naquela entidade (como URL do bucket ou chave
+   *      crua sem esquema) (o cliente reenvia o que recebeu, assinado ou não: a
+   *      comparação é pela chave do objeto);
    *  (c) vazio.
-   * Outra URL do bucket: 400. URL fora do bucket segue a regra de cada campo.
+   * Outra URL do bucket ou outra chave crua: 400. URL fora do bucket segue a regra de cada campo.
    *
    * `gravados` são os valores atuais da entidade; como função, só é carregada
    * quando o valor de fato é URL do bucket (o caso comum não consulta o banco).
    */
   async exigirArquivoDoRegistro(valor: unknown, gravados: Gravados): Promise<void> {
-    const key = this.keyDoBucket(valor);
+    // Chave crua (sem esquema) segue a mesma regra da URL do bucket: só a já gravada.
+    const key = this.keyDoBucket(valor) ?? this.chaveCrua(valor);
     if (!key) return;
     const atuais = typeof gravados === 'function' ? await gravados() : gravados;
-    if ((atuais ?? []).some((g) => this.keyDoBucket(g) === key)) return;
+    if ((atuais ?? []).some((g) => (this.keyDoBucket(g) ?? this.chaveCrua(g)) === key)) return;
     throw new BadRequestException(MSG_ARQUIVO_INVALIDO);
   }
 
@@ -292,7 +308,7 @@ export class StorageService {
   }
 
   /**
-   * Remove um arquivo do R2/S3 a partir de sua URL pública ou key (expurgo LGPD).
+   * Remove um arquivo do R2/S3 a partir da URL do nosso storage (expurgo LGPD); chave crua sem esquema não é aceita.
    * Só apaga se a key estiver dentro de um dos `prefixosPermitidos` (pasta do
    * dono — ver PREFIXOS_FOTO_*); lista vazia não apaga nada.
    */
@@ -316,11 +332,12 @@ export class StorageService {
         key = doBucket;
       } else if (this.publicUrl && url.startsWith(this.publicUrl + '/')) {
         key = url.slice(this.publicUrl.length).replace(/^\/+/, '');
-      } else if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
-        this.logger.warn('deleteUrl: URL fora do storage público, ignorada.');
-        return false;
       } else {
-        key = url.replace(/^\/+/, '');
+        // Sem esquema ("moradores/<ms>-<uuid>.jpg") ou de outro host: nunca vira chave. A API só
+        // grava `${publicUrl}/${key}`; valor cru veio do cliente e pode ser a chave de um objeto de
+        // outro condomínio (as chaves não têm segmento de tenant).
+        this.logger.warn('deleteUrl: valor fora do storage público, ignorado.');
+        return false;
       }
       key = key.split(/[?#]/)[0];
 
