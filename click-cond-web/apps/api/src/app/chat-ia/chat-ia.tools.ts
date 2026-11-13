@@ -588,7 +588,13 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
           return { total: 0, encomendas: [], observacao: 'Usuário sem apartamento vinculado.' };
         }
         where.destinatario_apto = cad.apartamento;
-        if (cad.bloco) where.destinatario_bloco = cad.bloco;
+        // Mesma regra de listEncomendasByUser: sem bloco no cadastro, só encomendas SEM bloco —
+        // senão "101" casa com o 101 de todos os blocos.
+        if (cad.bloco?.trim()) {
+          where.destinatario_bloco = cad.bloco;
+        } else {
+          where.OR = [{ destinatario_bloco: null }, { destinatario_bloco: '' }];
+        }
       }
 
       const lista = await ctx.prisma.encomendas.findMany({
