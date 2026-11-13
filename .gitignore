@@ -59,3 +59,6 @@ brand_kit_click_prestare.pdf
 
 # Planilhas comerciais (telefones de portaria, nomes de sindicos, receita). Repositorio nao e lugar de dado pessoal.
 comercial/
+
+# Artefatos do Playwright MCP (capturas e logs de sessao de navegador)
+.playwright-mcp/
