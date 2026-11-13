@@ -26,6 +26,7 @@ describe('Credenciais da conta — edição por terceiros e autoedição', () =>
       sindicos: { update: jest.fn(async () => ({})) },
       funcionarios: { update: jest.fn(async () => ({})) },
       funcionarios_Portaria: { updateMany: jest.fn(async () => ({ count: 0 })) },
+      prestadores_servico: { updateMany: jest.fn(async () => ({ count: 0 })) },
     };
     const prisma: any = {
       isConnected: true,

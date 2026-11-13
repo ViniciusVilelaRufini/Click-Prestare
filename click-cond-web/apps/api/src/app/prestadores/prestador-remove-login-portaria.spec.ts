@@ -13,12 +13,14 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
   const vitima = { id: 9, login: 'b@x.com', email: 'b@x.com', id_condominio: 1, turno: 'Diurno', password: '$2b$04$vitima' };
   // Login que o próprio prestador recebeu pelo cadastro de prestador.
   const proprio = { id: 12, login: 'p@x.com', email: 'p@x.com', id_condominio: 1, turno: 'Geral', password: '$2b$04$proprio' };
+  // Login do prestador depois que ele trocou o próprio e-mail pelo app (updateInfosFuncionario leva os dois).
+  const trocado = { id: 13, login: 'trocado@x.com', email: 'trocado@x.com', id_condominio: 1, turno: 'Geral', password: '$2b$04$trocado' };
 
   const casa = (valor: any, cond: any) => cond === undefined || valor === cond;
 
   function build(emailDoPrestador: string | null) {
     const prestador = { id: 1, id_condominio: 1, id_apartamento: null, face_id: null, email: emailDoPrestador, nome: 'Eletricista', telefone: null, foto_pessoa: null, foto_documento: null };
-    const logins = [vitima, proprio];
+    const logins = [vitima, proprio, trocado];
     const prisma: any = {
       isConnected: true,
       prestadores_servico: {
@@ -83,6 +85,13 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
     await svc.remove(1, 1, porteiroConsole);
     expect(prisma.funcionarios_Portaria.deleteMany).toHaveBeenCalledTimes(1);
     expect(prisma.funcionarios_Portaria.deleteMany).toHaveBeenCalledWith({ where: { id: 12 } });
+  });
+
+  it('remove acha e apaga o login quando prestador e login estão no e-mail novo (troca feita pelo app)', async () => {
+    const { svc, prisma } = build('trocado@x.com');
+    await svc.remove(1, 1, porteiroConsole);
+    expect(prisma.funcionarios_Portaria.deleteMany).toHaveBeenCalledTimes(1);
+    expect(prisma.funcionarios_Portaria.deleteMany).toHaveBeenCalledWith({ where: { id: 13 } });
   });
 
   it('revogar o acesso (hasPortariaAccess: false) não apaga o login de outro porteiro', async () => {

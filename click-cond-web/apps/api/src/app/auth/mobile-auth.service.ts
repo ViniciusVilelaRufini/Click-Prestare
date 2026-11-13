@@ -3587,6 +3587,12 @@ export class MobileAuthService {
           where: { login: { in: loginsAntigos }, condominio: { funcionarios: { some: { id_user: idUser } } } },
           data: { login: email as string, email },
         });
+        // E o prestador dessa conta: o login de portaria dele é achado pelo e-mail gravado no prestador
+        // (loginPortariaDoPrestador). Sem isto, remover/revogar o prestador não achava mais o login.
+        await tx.prestadores_servico.updateMany({
+          where: { email: { in: loginsAntigos }, condominio: { funcionarios: { some: { id_user: idUser } } } },
+          data: { email },
+        });
       }
     });
 

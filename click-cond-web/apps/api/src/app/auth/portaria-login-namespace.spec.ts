@@ -24,6 +24,7 @@ describe('R12 — e-mail da conta × logins da portaria', () => {
       sindicos: { update: jest.fn(async () => ({})) },
       funcionarios: { update: jest.fn(async () => ({})) },
       funcionarios_Portaria: { updateMany: jest.fn(async () => ({ count: 1 })) },
+      prestadores_servico: { updateMany: jest.fn(async () => ({ count: 1 })) },
     };
     const prisma: any = {
       isConnected: true,
@@ -98,6 +99,21 @@ describe('R12 — e-mail da conta × logins da portaria', () => {
       where: { login: { in: ['conta@x.com'] }, condominio: { funcionarios: { some: { id_user: 40 } } } },
       data: { login: 'novo@x.com', email: 'novo@x.com' },
     });
+  });
+
+  it('updateInfosFuncionario: o e-mail do prestador da conta muda junto (o login de portaria dele é achado por ele)', async () => {
+    const { svc, tx } = build();
+    await svc.updateInfosFuncionario({ funcionario: { email: 'novo@x.com', senha_atual: SENHA } }, funcionario);
+    expect(tx.prestadores_servico.updateMany).toHaveBeenCalledWith({
+      where: { email: { in: ['conta@x.com'] }, condominio: { funcionarios: { some: { id_user: 40 } } } },
+      data: { email: 'novo@x.com' },
+    });
+  });
+
+  it('updateInfosFuncionario: sem troca de e-mail o prestador não é tocado', async () => {
+    const { svc, tx } = build();
+    await svc.updateInfosFuncionario({ funcionario: { nome: 'Outro Nome' } }, funcionario);
+    expect(tx.prestadores_servico.updateMany).not.toHaveBeenCalled();
   });
 
   it('updateSindico: trocar para um e-mail livre continua funcionando', async () => {
