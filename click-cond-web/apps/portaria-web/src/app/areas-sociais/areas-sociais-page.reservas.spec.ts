@@ -166,4 +166,25 @@ describe('AreasSociaisPageComponent — ações nas reservas', () => {
     expect(api.listAgendamentos).toHaveBeenCalledTimes(1);
     vis.mockRestore();
   });
+
+  it('falha da recarga automática não apaga a mensagem de erro da ação', () => {
+    jest.useFakeTimers();
+    const { f, api, el } = build({
+      lista: [reserva()],
+      api: { updateStatus: jest.fn(() => throwError(() => conflito)) },
+    });
+    botao(el, 'Aprovar')!.click();
+    f.detectChanges();
+    api.listAgendamentos.mockReturnValue(throwError(() => ({ error: { message: 'Sem conexão' } })));
+    jest.advanceTimersByTime(30_000);
+    f.detectChanges();
+    expect(el.textContent).toContain('Esta reserva já foi cancelada.');
+    expect(el.textContent).toContain('Sem conexão');
+    // Voltou a carregar: o aviso da recarga some, o da ação continua.
+    api.listAgendamentos.mockReturnValue(of([reserva()]));
+    jest.advanceTimersByTime(30_000);
+    f.detectChanges();
+    expect(el.textContent).not.toContain('Sem conexão');
+    expect(el.textContent).toContain('Esta reserva já foi cancelada.');
+  });
 });

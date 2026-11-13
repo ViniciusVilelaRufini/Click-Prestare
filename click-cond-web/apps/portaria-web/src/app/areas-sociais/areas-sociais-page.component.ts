@@ -28,6 +28,8 @@ export class AreasSociaisPageComponent implements OnInit {
   readonly tab = signal<'areas' | 'reservas'>('areas');
   /** Erro da última ação sobre uma reserva (aprovar, recusar, cancelar…). */
   readonly acaoErro = signal<string | null>(null);
+  /** Falha da recarga da lista (automática ou depois de uma ação); some quando volta a carregar. */
+  readonly recargaErro = signal<string | null>(null);
 
   // Controle do Modal
   readonly modalAberto = signal(false);
@@ -101,8 +103,12 @@ export class AreasSociaisPageComponent implements OnInit {
   /** Busca só a lista de reservas, sem o spinner da página. */
   recarregarAgendamentos() {
     this.api.listAgendamentos().subscribe({
-      next: (ag) => this.agendamentos.set(ag),
-      error: (e) => this.acaoErro.set('Falha ao atualizar as reservas: ' + (e?.error?.message ?? e?.message ?? 'erro')),
+      next: (ag) => {
+        this.agendamentos.set(ag);
+        this.recargaErro.set(null);
+      },
+      // Aviso próprio: não pode cobrir o erro de uma ação que o porteiro precisa ler.
+      error: (e) => this.recargaErro.set('Falha ao atualizar as reservas: ' + (e?.error?.message ?? e?.message ?? 'erro')),
     });
   }
 

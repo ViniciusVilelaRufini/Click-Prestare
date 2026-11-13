@@ -184,6 +184,9 @@
         </button>
       </div>
     }
+    @if (recargaErro()) {
+      <p class="text-xs text-[var(--signal-warn)] mb-3" role="status">{{ recargaErro() }}</p>
+    }
     @if (agendamentos().length === 0) {
       <div class="ps-panel ps-empty">
         <p class="text-sm text-slate-300 font-medium">Nenhuma solicitação de reserva encontrada</p>
