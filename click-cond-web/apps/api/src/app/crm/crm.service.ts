@@ -4,6 +4,7 @@ import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { INCLUDE_AUTOR_MENSAGEM, mensagemParaResposta } from '../ocorrencias/mensagem-ocorrencia.util';
 import { AgentBridgeService } from '../facial/agent-bridge.service';
 import { csvCelula } from '../common/csv.util';
+import { assertEmailNaoReservado } from '../common/email-reservado.util';
 
 
 /**
@@ -155,6 +156,8 @@ export class CrmService {
   }
 
   async atualizarCliente(id: number, data: any): Promise<CrmClienteResumo | null> {
+    // O e-mail do síndico é gravado em Users: o domínio das lápides de revogação é recusado.
+    assertEmailNaoReservado(data?.sindicoEmail);
     if (!this.prisma.isConnected) {
       // Mock update
       console.log('📝 CRM em modo mock: simulação de atualização recebida para condomínio', id, data);

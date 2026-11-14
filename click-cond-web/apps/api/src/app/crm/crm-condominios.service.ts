@@ -10,6 +10,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
+import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { autorDoToken } from '../auth/usuario-do-token.util';
 import { usuarioTemVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage.service';
@@ -114,6 +115,8 @@ export class CrmCondominiosService {
   async criar(dto: CriarCondominioDto, operador: string) {
     const nome = (dto?.nome ?? '').trim();
     if (!nome) throw new BadRequestException('Informe o nome do condomínio.');
+    // E-mail do síndico vira login da conta: o domínio das lápides de revogação é recusado.
+    assertEmailNaoReservado(dto.sindico?.email);
 
     if (dto.sindico?.email) {
       const emailExistente = await this.prisma.users.findFirst({
@@ -325,6 +328,7 @@ export class CrmCondominiosService {
     if (!email || email.length > 255 || !EMAIL_RE.test(email)) {
       throw new BadRequestException('Informe um e-mail válido.');
     }
+    assertEmailNaoReservado(email);
     const motivo = typeof body?.motivo === 'string' ? body.motivo.trim() : '';
     if (!motivo) throw new BadRequestException('Informe o motivo da correção.');
     if (motivo.length > MOTIVO_MAX) {

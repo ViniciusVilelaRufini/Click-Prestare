@@ -1,4 +1,5 @@
 import { BadRequestException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
 import { type Gravados, PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage.service';
@@ -885,6 +886,8 @@ export class MoradoresService {
     if (dto.email != null && typeof dto.email !== 'string') {
       throw new BadRequestException('E-mail inválido.');
     }
+    // O e-mail vira login da conta: o domínio das lápides de revogação é recusado.
+    assertEmailNaoReservado(dto.email);
 
     // Validar duplicidade
     const emailNorm = dto.email ? dto.email.toLowerCase().trim() : null;
@@ -1179,6 +1182,8 @@ export class MoradoresService {
       include: { user: true },
     });
     if (!atual) throw new NotFoundException(`Morador ${id} não encontrado`);
+    // E-mail novo vira login da conta: o domínio das lápides de revogação é recusado.
+    if (dto.email !== undefined && dto.email !== atual.email) assertEmailNaoReservado(dto.email);
 
     // Depois de carregar o atual: a tela reenvia a foto que recebeu (de
     // Moradores ou de Users), e só ela vale como URL do bucket.
