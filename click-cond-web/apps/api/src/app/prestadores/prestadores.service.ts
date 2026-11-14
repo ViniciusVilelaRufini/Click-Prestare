@@ -25,6 +25,11 @@ export interface CreatePrestadorDto {
   dias_semana?: string;
 }
 
+/** Turno 'Síndico' (com ou sem acento, qualquer caixa): é o login de portaria do síndico, nunca de um prestador. */
+function ehTurnoSindico(turno: string | null | undefined): boolean {
+  return (turno ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase() === 'sindico';
+}
+
 /**
  * Unidade do prestador. Sem unidade (null) = funcionário/prestador do
  * condomínio, visível para todos os moradores. O console manda 0 quando
@@ -228,9 +233,9 @@ export class PrestadoresService {
     });
     const chave = (login: string) => login.toLowerCase().trim();
     const loginSet = new Set(portariaLogins.filter((f) => f.ativo === 1).map((f) => chave(f.login)));
-    // Login que o próprio cadastro recebeu (turno 'Geral', ativo ou não) — o mesmo critério de
+    // Login que o próprio cadastro recebeu (ativo ou não, qualquer turno menos 'Síndico') — o mesmo critério de
     // loginPortariaDoPrestador, que decide quando remover/revogar exige síndico. Campo novo na resposta.
-    const loginProprioSet = new Set(portariaLogins.filter((f) => f.turno === 'Geral').map((f) => chave(f.login)));
+    const loginProprioSet = new Set(portariaLogins.filter((f) => !ehTurnoSindico(f.turno)).map((f) => chave(f.login)));
 
     // Morador (resposta recortada): sem foto do documento nem biometria, que
     // são da portaria. Quem recebe `{}` de escopo é staff e vê tudo.
@@ -446,16 +451,20 @@ export class PrestadoresService {
   }
 
   /**
-   * Login de portaria que ESTE prestador recebeu: login = e-mail gravado nele, mesmo condomínio e turno
-   * 'Geral' (só o acesso concedido pelo cadastro de prestador grava esse turno). Linha com o mesmo login e
-   * outro turno é de outra pessoa da equipe — nunca é re-credenciada nem apagada a partir do prestador.
+   * Login de portaria que ESTE prestador recebeu: login = e-mail gravado nele e mesmo condomínio. O acesso nasce
+   * com turno 'Geral', mas o síndico pode mudar o turno pelo app (saveFuncionario) — exigir 'Geral' travava o
+   * cadastro: toda edição achava o próprio login como de outra pessoa e desligar a chave não revogava nada.
+   * O login de outra pessoa não chega aqui: o prestador não grava como e-mail um login existente
+   * (assertEmailLivreNaPortaria) e o app não cria nem renomeia login para o e-mail de um prestador daqui. A linha
+   * com turno 'Síndico' (o login de portaria do próprio síndico) nunca é tratada como do prestador.
    */
-  private loginPortariaDoPrestador(p: { email: string | null; id_condominio: number }) {
+  private async loginPortariaDoPrestador(p: { email: string | null; id_condominio: number }) {
     const login = (p.email ?? '').trim();
-    if (!login) return Promise.resolve(null);
-    return this.prisma.funcionarios_Portaria.findFirst({
-      where: { login, id_condominio: p.id_condominio, turno: 'Geral' },
+    if (!login) return null;
+    const fp = await this.prisma.funcionarios_Portaria.findFirst({
+      where: { login, id_condominio: p.id_condominio },
     });
+    return fp && !ehTurnoSindico(fp.turno) ? fp : null;
   }
 
   /**
@@ -964,7 +973,7 @@ export class PrestadoresService {
     await this.assertPodeGerenciarPrestador(atual, user);
     await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'prestadores_servico', user);
 
-    // Só o login de portaria que ESTE prestador recebeu (e-mail dele + condomínio + turno 'Geral'). Antes:
+    // Só o login de portaria que ESTE prestador recebeu (e-mail dele + condomínio). Antes:
     // deleteMany por e-mail — gravar o login de um porteiro como e-mail do prestador e removê-lo apagava a
     // conta do porteiro. Remover quem tem login é revogar esse login: do síndico, e antes de apagar o cadastro
     // (sem o prestador, o login fica sem caminho para ser revogado). Falha na revogação = nada é apagado.

@@ -411,4 +411,47 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
     contaInutilizada(conta(db, 5));
     expect(conta(db, 4)).toEqual(expect.objectContaining({ login: 'outro-login', email: 'a@x.com', password: 'x', senha_alterada_em: null }));
   });
+
+  describe('Rodada 3 (raia s) — M8: turno do login mudado no app', () => {
+    // O síndico cria o acesso no console (turno 'Geral') e muda o turno no app (saveFuncionario grava `turno`).
+    const turnoMudado = (db: any) => { db.fp[0].turno = 'Manhã'; };
+
+    it('editar o cadastro com a chave como está (o console reenvia hasPortariaAccess) não dá "Já existe um funcionário"', async () => {
+      const { svc, db } = banco();
+      turnoMudado(db);
+      await svc.update(1, { nome: 'Eletricista', telefone: '(11) 7777', email: 'a@x.com', hasPortariaAccess: true, senha: '' }, 1, porteiro);
+      expect(db.prestadores[0].telefone).toBe('(11) 7777');
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'a@x.com', turno: 'Manhã' })]);
+    });
+
+    it('desligar a chave revoga de fato (login, vínculo e conta)', async () => {
+      const { svc, db } = banco();
+      turnoMudado(db);
+      await svc.update(1, { email: 'a@x.com', hasPortariaAccess: false }, 1, sindico);
+      expect(db.fp).toHaveLength(0);
+      expect(equipeAqui(db)).toHaveLength(0);
+      contaInutilizada(conta(db, 5));
+    });
+
+    it('a lista mostra o login como próprio do cadastro, e remover exige síndico e revoga', async () => {
+      const { svc, db } = banco();
+      turnoMudado(db);
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p).toEqual(expect.objectContaining({ hasPortariaAccess: true, loginPortariaProprio: true }));
+      await expect(svc.remove(1, 1, porteiro)).rejects.toThrow('exige síndico');
+      await svc.remove(1, 1, sindico);
+      expect(db.fp).toHaveLength(0);
+      expect(equipeAqui(db)).toHaveLength(0);
+    });
+
+    it('linha de portaria com turno "Síndico" nunca é tratada como login do prestador', async () => {
+      const { svc, db } = banco();
+      db.fp[0].turno = 'Síndico';
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p.loginPortariaProprio).toBe(false);
+      await svc.remove(1, 1, sindico);
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, turno: 'Síndico' })]);
+      expect(equipeAqui(db)).toHaveLength(1);
+    });
+  });
 });

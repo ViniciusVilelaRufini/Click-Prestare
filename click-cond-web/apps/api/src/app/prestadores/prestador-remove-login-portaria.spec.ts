@@ -11,8 +11,9 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
   const porteiroConsole = { sub: 3, nome: 'Porteiro A', id_condominio: 1 } as any;
   // Conceder, mudar ou revogar o login de portaria (e remover quem o tem) é do síndico (A5).
   const sindicoConsole = { sub: 51, nome: 'Síndico', id_condominio: 1, typeAccess: 'Sindico' } as any;
-  // Login de outro porteiro (tela de funcionários: turno livre, não 'Geral').
-  const vitima = { id: 9, login: 'b@x.com', email: 'b@x.com', id_condominio: 1, turno: 'Diurno', password: '$2b$04$vitima' };
+  // Login de portaria de outra pessoa: o do síndico (turno 'Síndico'). Rodada 3 (M8): em qualquer outro turno o login
+  // com o e-mail do prestador é o dele (o app muda o turno); um colega não coincide porque as telas recusam a gravação.
+  const vitima = { id: 9, login: 'b@x.com', email: 'b@x.com', id_condominio: 1, turno: 'Síndico', password: '$2b$04$vitima' };
   // Login que o próprio prestador recebeu pelo cadastro de prestador.
   const proprio = { id: 12, login: 'p@x.com', email: 'p@x.com', id_condominio: 1, turno: 'Geral', password: '$2b$04$proprio' };
   // Login do prestador depois que ele trocou o próprio e-mail pelo app (updateInfosFuncionario leva os dois).
