@@ -1,9 +1,17 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Assembleia, AssembleiasApi, Votacao } from './assembleias.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { AuthService } from '../auth/auth.service';
+import { papelDoToken } from '../auth/papel';
+
+/** Mensagem do servidor quando houver; senão a do cliente; senão a padrão. */
+function msgErro(e: any, padrao: string): string {
+  const m = e?.error?.message ?? e?.message;
+  return (Array.isArray(m) ? m.join(' ') : m) || padrao;
+}
 
 @Component({
   selector: 'app-assembleias-page',
@@ -14,6 +22,32 @@ import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 export class AssembleiasPageComponent implements OnInit {
   private api = inject(AssembleiasApi);
   private confirm = inject(ConfirmService);
+  private auth = inject(AuthService);
+
+  /**
+   * Agendar, criar pauta/enquete, excluir, encerrar e finalizar são do síndico
+   * e do funcionário do app: a API recusa o porteiro de login/senha
+   * (assertStaff). Mesmo critério de comunicados — papel do token; a API
+   * segue decidindo.
+   */
+  readonly podeGerir = computed(() => {
+    this.auth.porteiroInfo(); // recalcula ao entrar / trocar de condomínio
+    const papel = papelDoToken(this.auth.token);
+    return papel === 'sindico' || papel === 'funcionario';
+  });
+
+  /** Erro da página (lista, painel, excluir, encerrar). */
+  readonly erro = signal<string | null>(null);
+  /** Erro dentro do drawer de agendar. */
+  readonly erroAssembleia = signal<string | null>(null);
+
+  // Finalizar: a ATA em PDF é obrigatória (a API recusa sem ela).
+  readonly modalFinalizar = signal(false);
+  readonly finalizando = signal(false);
+  readonly erroAta = signal<string | null>(null);
+  readonly ataNomeArquivo = signal('');
+  ataBase64 = '';
+  private assembleiaAFinalizar: Assembleia | null = null;
 
   readonly assembleias = signal<Assembleia[]>([]);
   readonly enquetes = signal<Votacao[]>([]);
@@ -38,20 +72,40 @@ export class AssembleiasPageComponent implements OnInit {
 
   carregarGeral() {
     this.loading.set(true);
-    this.api.listAssembleias().subscribe(assemb => {
-      this.assembleias.set(assemb);
-      this.api.listEnquetes().subscribe(enq => {
-        this.enquetes.set(enq);
+    this.erro.set(null);
+    this.api.listAssembleias().subscribe({
+      next: (assemb) => {
+        this.assembleias.set(assemb);
+        this.api.listEnquetes().subscribe({
+          next: (enq) => {
+            this.enquetes.set(enq);
+            this.loading.set(false);
+          },
+          error: (e) => {
+            this.loading.set(false);
+            this.erro.set(msgErro(e, 'Falha ao carregar as enquetes.'));
+          },
+        });
+      },
+      error: (e) => {
         this.loading.set(false);
-      });
+        this.erro.set(msgErro(e, 'Falha ao carregar as assembleias.'));
+      },
     });
   }
 
   verAssembleia(id: number) {
     this.loading.set(true);
-    this.api.getAssembleia(id).subscribe(data => {
-      this.selectedAssembleia.set(data);
-      this.loading.set(false);
+    this.erro.set(null);
+    this.api.getAssembleia(id).subscribe({
+      next: (data) => {
+        this.selectedAssembleia.set(data);
+        this.loading.set(false);
+      },
+      error: (e) => {
+        this.loading.set(false);
+        this.erro.set(msgErro(e, 'Falha ao abrir a assembleia.'));
+      },
     });
   }
 
@@ -60,17 +114,56 @@ export class AssembleiasPageComponent implements OnInit {
     this.carregarGeral();
   }
 
-  async finalizarAssembleia(assemb: Assembleia) {
-    const ok = await this.confirm.ask({
-      title: 'Encerrar assembleia',
-      message: 'A assembleia será encerrada e a ATA oficial gerada automaticamente na seção de Documentos. Continuar?',
-      confirmLabel: 'Encerrar e gerar ATA',
-      variant: 'primary',
-    });
-    if (!ok) return;
-    this.api.finishAssembleia(assemb).subscribe(res => {
-      alert(res?.message || 'Assembleia finalizada com sucesso!');
-      this.voltarLista();
+  /** "Finalizar e Gerar ATA": pede o PDF da ATA antes de chamar a API. */
+  abrirFinalizar(assemb: Assembleia) {
+    this.assembleiaAFinalizar = assemb;
+    this.ataBase64 = '';
+    this.ataNomeArquivo.set('');
+    this.erroAta.set(null);
+    this.modalFinalizar.set(true);
+  }
+
+  fecharFinalizar() {
+    if (this.finalizando()) return;
+    this.modalFinalizar.set(false);
+  }
+
+  onAtaSelecionada(event: any) {
+    const file: File | undefined = event.target.files?.[0];
+    this.ataBase64 = '';
+    this.ataNomeArquivo.set('');
+    this.erroAta.set(null);
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+      this.erroAta.set('Escolha um arquivo PDF.');
+      return;
+    }
+    this.ataNomeArquivo.set(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Sem o tipo no arquivo, o navegador devolve "data:application/octet-stream".
+      this.ataBase64 = String(reader.result ?? '').replace(/^data:[^;,]*/, 'data:application/pdf');
+    };
+    reader.onerror = () => this.erroAta.set('Não foi possível ler o arquivo.');
+    reader.readAsDataURL(file);
+  }
+
+  confirmarFinalizacao() {
+    const assemb = this.assembleiaAFinalizar;
+    if (!assemb || !this.ataBase64 || this.finalizando()) return;
+    this.finalizando.set(true);
+    this.erroAta.set(null);
+    this.api.finishAssembleia({ ...assemb, doc: this.ataBase64 }).subscribe({
+      next: (res) => {
+        this.finalizando.set(false);
+        this.modalFinalizar.set(false);
+        alert(res?.message || 'Assembleia finalizada com sucesso!');
+        this.voltarLista();
+      },
+      error: (e) => {
+        this.finalizando.set(false);
+        this.erroAta.set(msgErro(e, 'Não foi possível finalizar a assembleia.'));
+      },
     });
   }
 
@@ -82,8 +175,10 @@ export class AssembleiasPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.removeAssembleia(id).subscribe(() => {
-      this.assembleias.update(l => l.filter(a => a.id !== id));
+    this.erro.set(null);
+    this.api.removeAssembleia(id).subscribe({
+      next: () => this.assembleias.update(l => l.filter(a => a.id !== id)),
+      error: (e) => this.erro.set(msgErro(e, 'Não foi possível excluir a assembleia.')),
     });
   }
 
@@ -92,13 +187,18 @@ export class AssembleiasPageComponent implements OnInit {
     const hoje = new Date();
     const dataStr = hoje.toLocaleDateString('pt-BR');
     this.novaAssembleia = { titulo: '', descricao: '', data: dataStr, hora: '19:30', local: 'Salão Principal', link: '' };
+    this.erroAssembleia.set(null);
     this.modalAssembleia.set(true);
   }
 
   salvarAssembleia() {
-    this.api.insertAssembleia(this.novaAssembleia).subscribe(() => {
-      this.modalAssembleia.set(false);
-      this.carregarGeral();
+    this.erroAssembleia.set(null);
+    this.api.insertAssembleia(this.novaAssembleia).subscribe({
+      next: () => {
+        this.modalAssembleia.set(false);
+        this.carregarGeral();
+      },
+      error: (e) => this.erroAssembleia.set(msgErro(e, 'Não foi possível agendar. Confira os dados e tente novamente.')),
     });
   }
 
@@ -145,7 +245,7 @@ export class AssembleiasPageComponent implements OnInit {
           this.carregarGeral();
         }
       },
-      error: (e) => this.erroModal.set(e?.error?.message ?? 'Não foi possível salvar. Confira os dados e tente novamente.'),
+      error: (e) => this.erroModal.set(msgErro(e, 'Não foi possível salvar. Confira os dados e tente novamente.')),
     });
   }
 
@@ -157,18 +257,24 @@ export class AssembleiasPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.removeVotacao(id).subscribe(() => {
-      if (idAssembleiaRefresh) {
-        this.verAssembleia(idAssembleiaRefresh);
-      } else {
-        this.enquetes.update(l => l.filter(e => e.id !== id));
-      }
+    this.erro.set(null);
+    this.api.removeVotacao(id).subscribe({
+      next: () => {
+        if (idAssembleiaRefresh) {
+          this.verAssembleia(idAssembleiaRefresh);
+        } else {
+          this.enquetes.update(l => l.filter(e => e.id !== id));
+        }
+      },
+      error: (e) => this.erro.set(msgErro(e, 'Não foi possível excluir a votação.')),
     });
   }
 
   encerrarVotacao(id: number) {
-    this.api.finishVotacao(id).subscribe(() => {
-      this.carregarGeral();
+    this.erro.set(null);
+    this.api.finishVotacao(id).subscribe({
+      next: () => this.carregarGeral(),
+      error: (e) => this.erro.set(msgErro(e, 'Não foi possível encerrar a enquete.')),
     });
   }
 

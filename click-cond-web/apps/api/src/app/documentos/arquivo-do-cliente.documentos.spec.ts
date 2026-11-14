@@ -112,7 +112,10 @@ describe('documentos e assembleias — arquivos recebidos do cliente', () => {
           delete: jest.fn(async () => ({})),
         },
         documentos: { create: jest.fn(async () => ({ id: 9 })) },
+        // finish: lê as pautas (para guardar a apuração) e grava numa transação.
+        votacoes: { findMany: jest.fn(async () => []) },
       };
+      prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
       return { service: new AssembleiasService(prisma, storageReal(), tenant), prisma };
     }
 

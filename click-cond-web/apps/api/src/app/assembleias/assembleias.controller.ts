@@ -3,6 +3,7 @@ import { AssembleiasService } from './assembleias.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { isOperador } from '../auth/tenant.util';
 
 /**
  * O id do usuário vinha com `?? 1` como fallback em cinco rotas. Sem id no
@@ -62,8 +63,11 @@ export class AssembleiasController {
     @Query('id') id: string,
     @ReqUser() payload: JwtPayload,
   ) {
-    const userId = exigirUsuario(payload);
-    return this.service.get(Number(idCondominio), Number(id), Number(userId), payload);
+    // O porteiro do console não tem Users.id: lê a assembleia e as pautas,
+    // sem os campos de voto próprio. Quem não é nem usuário nem operador: 403.
+    const userId = idUsuarioDoToken(payload);
+    if (!userId && !isOperador(payload)) throw new ForbiddenException('Sessão sem usuário válido.');
+    return this.service.get(Number(idCondominio), Number(id), userId, payload);
   }
 
   @Post('finish/insert')

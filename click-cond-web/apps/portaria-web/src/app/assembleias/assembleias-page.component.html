@@ -7,18 +7,20 @@
       <p class="text-sm">Convocações oficiais, deliberações remotas e enquetes de engajamento</p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-3">
-      <button (click)="abrirModalEnquete()" class="ps-btn ps-btn-sec">
-        Nova Enquete
-      </button>
+    @if (podeGerir()) {
+      <div class="flex flex-wrap items-center gap-3">
+        <button (click)="abrirModalEnquete()" class="ps-btn ps-btn-sec">
+          Nova Enquete
+        </button>
 
-      <button (click)="abrirModalAssembleia()" class="ps-btn">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/>
-        </svg>
-        Agendar Assembleia
-      </button>
-    </div>
+        <button (click)="abrirModalAssembleia()" class="ps-btn">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/>
+          </svg>
+          Agendar Assembleia
+        </button>
+      </div>
+    }
   </div>
 
   <!-- Abas (Tabs) -->
@@ -43,6 +45,10 @@
     </button>
   </div>
 
+  @if (erro()) {
+    <div class="ps-panel p-3 text-sm text-red-400" role="alert">{{ erro() }}</div>
+  }
+
   <!-- CONTEÚDO -->
   @if (loading()) {
     <div class="ps-panel p-12 text-center">
@@ -65,22 +71,24 @@
             </p>
           </div>
 
-          <div class="flex items-center gap-2">
-            <button
-              (click)="abrirModalPauta(sel.assembleia.id)"
-              class="ps-btn ps-btn-sec ps-btn-sm"
-            >
-              + Adicionar Pauta de Votação
-            </button>
+          @if (podeGerir()) {
+            <div class="flex items-center gap-2">
+              <button
+                (click)="abrirModalPauta(sel.assembleia.id)"
+                class="ps-btn ps-btn-sec ps-btn-sm"
+              >
+                + Adicionar Pauta de Votação
+              </button>
 
-            <button
-              (click)="finalizarAssembleia(sel.assembleia)"
-              class="ps-btn ps-btn-sm"
-              title="Encerra a assembleia e gera documento de ATA oficial"
-            >
-              Finalizar e Gerar ATA
-            </button>
-          </div>
+              <button
+                (click)="abrirFinalizar(sel.assembleia)"
+                class="ps-btn ps-btn-sm"
+                title="Encerra a assembleia e publica a ATA em PDF em Documentos"
+              >
+                Finalizar e Gerar ATA
+              </button>
+            </div>
+          }
         </div>
 
         @if (sel.assembleia.descricao) {
@@ -109,7 +117,9 @@
                   <div>
                     <div class="flex items-center justify-between gap-2 mb-1.5">
                       <h4 class="text-sm font-bold text-slate-200">{{ v.titulo }}</h4>
-                      <button (click)="removerVotacao(v.id, sel.assembleia.id)" class="ps-btn ps-btn-ghost ps-btn-sm hover:!text-red-400">Excluir</button>
+                      @if (podeGerir()) {
+                        <button (click)="removerVotacao(v.id, sel.assembleia.id)" class="ps-btn ps-btn-ghost ps-btn-sm hover:!text-red-400">Excluir</button>
+                      }
                     </div>
                     @if (v.descricao) {
                       <p class="text-xs text-slate-400 mb-3">{{ v.descricao }}</p>
@@ -181,15 +191,17 @@
                 </span>
 
                 <div class="flex items-center gap-1.5">
-                  <button
-                    (click)="excluirAssembleia(a.id)"
-                    class="ps-ibtn hover:!text-red-400"
-                    title="Excluir" aria-label="Excluir"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                  </button>
+                  @if (podeGerir()) {
+                    <button
+                      (click)="excluirAssembleia(a.id)"
+                      class="ps-ibtn hover:!text-red-400"
+                      title="Excluir" aria-label="Excluir"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                      </svg>
+                    </button>
+                  }
 
                   <button
                     (click)="verAssembleia(a.id)"
@@ -230,7 +242,9 @@
 
                 <div class="flex items-center gap-2">
                   <span class="text-xs text-slate-500 font-mono">{{ e.data_inicio }} a {{ e.data_termino }}</span>
-                  <button (click)="removerVotacao(e.id)" class="ps-ibtn hover:!text-red-400" aria-label="Excluir enquete" title="Excluir enquete">×</button>
+                  @if (podeGerir()) {
+                    <button (click)="removerVotacao(e.id)" class="ps-ibtn hover:!text-red-400" aria-label="Excluir enquete" title="Excluir enquete">×</button>
+                  }
                 </div>
               </div>
 
@@ -260,7 +274,7 @@
 
             <div class="flex items-center justify-between pt-3 border-t border-slate-200 text-xs text-slate-500 font-mono mt-2">
               <span>Total apurado: {{ getTotalVotos(e.opcoes) }}</span>
-              @if (e.status === 1) {
+              @if (e.status === 1 && podeGerir()) {
                 <button (click)="encerrarVotacao(e.id)" class="ps-btn ps-btn-sec ps-btn-sm">Encerrar Imediatamente</button>
               }
             </div>
@@ -343,6 +357,9 @@
           </div>
         </div>
 
+        @if (erroAssembleia()) {
+          <p class="mx-6 mb-3 px-3 py-2 border border-slate-300 text-xs text-red-400" role="alert">{{ erroAssembleia() }}</p>
+        }
         <div class="ps-drawer-foot">
           <button (click)="modalAssembleia.set(false)" class="ps-btn ps-btn-sec">Cancelar</button>
           <button
@@ -351,6 +368,55 @@
             class="ps-btn disabled:opacity-50"
           >
             Concluir Agendamento
+          </button>
+        </div>
+    </div>
+  }
+
+  <!-- FINALIZAR: pede o PDF da ATA -->
+  @if (modalFinalizar()) {
+    <div class="ps-scrim on"></div>
+    <div class="ps-drawer on !w-[min(560px,100%)]">
+        <div class="ps-drawer-head gap-3">
+          <h3 class="ps-h2">Finalizar assembleia</h3>
+          <button (click)="fecharFinalizar()" class="ps-ibtn" aria-label="Fechar" title="Fechar">×</button>
+        </div>
+
+        <div class="ps-drawer-body">
+          <p class="text-sm text-slate-300">
+            Anexe o PDF da ATA. A assembleia sai da lista; a ATA e a apuração das pautas ficam em
+            Documentos, na aba Atas de Assembleia.
+          </p>
+
+          <div>
+            <span class="ps-label block mb-1.5">PDF da ATA</span>
+            <div class="border-2 border-dashed border-line-200 p-6 text-center space-y-2 hover:border-ink-muted transition cursor-pointer relative">
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                aria-label="PDF da ATA"
+                (change)="onAtaSelecionada($event)"
+                class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+              <p class="text-xs font-medium text-slate-300">
+                {{ ataNomeArquivo() || 'Clique ou arraste o arquivo PDF aqui' }}
+              </p>
+              <p class="text-[10px] text-slate-500">Tamanho máximo suportado: 15MB</p>
+            </div>
+          </div>
+        </div>
+
+        @if (erroAta()) {
+          <p class="mx-6 mb-3 px-3 py-2 border border-slate-300 text-xs text-red-400" role="alert">{{ erroAta() }}</p>
+        }
+        <div class="ps-drawer-foot">
+          <button (click)="fecharFinalizar()" class="ps-btn ps-btn-sec" [disabled]="finalizando()">Cancelar</button>
+          <button
+            (click)="confirmarFinalizacao()"
+            [disabled]="!ataBase64 || finalizando()"
+            class="ps-btn disabled:opacity-50"
+          >
+            {{ finalizando() ? 'Finalizando…' : 'Finalizar e publicar ATA' }}
           </button>
         </div>
     </div>

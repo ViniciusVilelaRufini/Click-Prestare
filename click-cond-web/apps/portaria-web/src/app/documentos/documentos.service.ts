@@ -1,7 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Observable } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
 
@@ -23,20 +22,8 @@ export class DocumentosApi {
   listDocumentos(isAta: boolean): Observable<DocumentoItem[]> {
     const isAtaStr = isAta ? '1' : '0';
     const url = `${API_BASE}/documentos/get-all?id_condominio=${this.cid}&is_ata=${isAtaStr}`;
-    return this.http.get<DocumentoItem[]>(url).pipe(
-      catchError(() => {
-        if (isAta) {
-          return of([
-            { id: 101, nome: 'ATA da Assembleia Geral Ordinária - 2026', link_doc: 'https://example.com/ata_2026.pdf' },
-          ]);
-        } else {
-          return of([
-            { id: 201, nome: 'Regimento Interno e Normas', link_doc: 'https://example.com/regimento.pdf' },
-            { id: 202, nome: 'Convenção do Condomínio', link_doc: 'https://example.com/convencao.pdf' },
-          ]);
-        }
-      })
-    );
+    // Sem fallback: o erro antes virava uma lista de documentos inventados.
+    return this.http.get<DocumentoItem[]>(url);
   }
 
   insertDocumento(nome: string, isAta: boolean, docBase64: string): Observable<any> {
