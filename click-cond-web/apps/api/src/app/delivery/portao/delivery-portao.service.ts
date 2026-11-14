@@ -74,6 +74,9 @@ const JANELA_LIMITE_PORTAO_MS = 10 * 60_000;
 const MSG_LIMITE_PORTAO = 'Muitos pedidos neste portão. Aguarde alguns minutos.';
 const MSG_TREGUA = 'Esta unidade já recusou uma entrega há pouco. Procure a portaria.';
 const MSG_TETO_UNIDADE = 'Muitas entregas para esta unidade agora. Procure a portaria.';
+const MSG_UNIDADE_AGUARDANDO = 'Já há uma entrega aguardando esta unidade. Tente em alguns minutos.';
+/** Motivo do cancelamento pelo prazo (rotina) e pelo pedido novo da unidade. */
+const MOTIVO_SEM_RESPOSTA = 'Sem resposta do morador';
 /** Token do QR do portão (48 hex no gerado; tolerante a tamanho, mas sem caracteres de caminho). */
 const TOKEN_PORTAO = /^[A-Za-z0-9_-]{16,64}$/;
 const TOKEN_PEDIDO = /^[0-9a-f]{64}$/;
@@ -231,7 +234,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
         select: { id: true },
         take: LOTE_ROTINA,
       });
-      await this.transicionarCada(lista, 'CANCELADA', 'Sem resposta do morador');
+      await this.transicionarCada(lista, 'CANCELADA', MOTIVO_SEM_RESPOSTA);
     });
 
     await this.etapa('concluir após a entrada', async () => {
@@ -374,32 +377,50 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     if ((await this.pedidosRecentesDoPortao(portao.id, agora)) >= MAX_PEDIDOS_PORTAO_10MIN) {
       throw new HttpException(MSG_LIMITE_PORTAO, 429);
     }
-    const { pedido, tokenPedido } = await this.comVagaNoPortao(portao.id, async () => {
-      // Limite do portão recontado dentro do lock do portão (duas instâncias
-      // não passam as duas com 19). Ordem fixa portão → unidade: sem espera circular.
-      const r = await comLockSemSegurarConexao(
-        this.prisma,
-        `delivery-portao:portao:${portao.id}`,
-        async () => {
-          if ((await this.pedidosRecentesDoPortao(portao.id, agora)) >= MAX_PEDIDOS_PORTAO_10MIN) {
-            throw new HttpException(MSG_LIMITE_PORTAO, 429);
-          }
-          // Um pedido pendente por unidade: dois entregadores no mesmo segundo,
-          // em duas instâncias da API, só um passa (o outro espera e vê o pendente).
-          const u = await comLockSemSegurarConexao(
-            this.prisma,
-            `delivery-portao:apto:${idApartamento}`,
-            () => this.gravarPedido(portao, idApartamento, nome, plataforma, fotoLimpa, agora),
-            { esperaMs: ESPERA_LOCK_MS, duracaoMaximaMs: 60_000 },
-          );
-          if (!u.obtido) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
-          return u.valor;
-        },
-        { esperaMs: ESPERA_LOCK_MS, duracaoMaximaMs: 90_000 },
-      );
-      if (!r.obtido) throw new HttpException(MSG_LIMITE_PORTAO, 429);
-      return r.valor;
+    const { pedido, tokenPedido, semResposta } = await this.comVagaNoPortao(portao.id, async () => {
+      // As regras da unidade antes de subir a foto (sem lock): pedido que vai
+      // ser recusado não sobe nada. Dentro do lock elas valem de novo.
+      await this.conferirUnidade(portao, idApartamento, agora);
+      // A foto sobe ANTES dos locks: dentro deles só há banco (o S3 lento
+      // não estoura o prazo do lock no meio da gravação).
+      const url = await this.subirFoto(fotoLimpa);
+      try {
+        // Limite do portão recontado dentro do lock do portão (duas instâncias
+        // não passam as duas com 19). Ordem fixa portão → unidade: sem espera circular.
+        const r = await comLockSemSegurarConexao(
+          this.prisma,
+          `delivery-portao:portao:${portao.id}`,
+          async () => {
+            if ((await this.pedidosRecentesDoPortao(portao.id, agora)) >= MAX_PEDIDOS_PORTAO_10MIN) {
+              throw new HttpException(MSG_LIMITE_PORTAO, 429);
+            }
+            // Um pedido pendente por unidade: dois entregadores no mesmo segundo,
+            // em duas instâncias da API, só um passa (o outro espera e vê o pendente).
+            const u = await comLockSemSegurarConexao(
+              this.prisma,
+              `delivery-portao:apto:${idApartamento}`,
+              () => this.gravarPedido(portao, idApartamento, nome, plataforma, url, agora),
+              { esperaMs: ESPERA_LOCK_MS, duracaoMaximaMs: 60_000 },
+            );
+            if (!u.obtido) throw new ConflictException(MSG_UNIDADE_AGUARDANDO);
+            return u.valor;
+          },
+          { esperaMs: ESPERA_LOCK_MS, duracaoMaximaMs: 90_000 },
+        );
+        if (!r.obtido) throw new HttpException(MSG_LIMITE_PORTAO, 429);
+        return r.valor;
+      } catch (e) {
+        await this.storage.deleteUrl(url, PREFIXOS_FOTO_PEDIDO_PORTAO).catch(() => false);
+        throw e;
+      }
     });
+    // Fora dos locks: cancelamento (card e notificação) dos atendimentos da
+    // unidade cujo pedido de portão venceu sem resposta.
+    for (const id of semResposta) {
+      await this.delivery
+        .transicionarPeloSistema(id, 'CANCELADA', MOTIVO_SEM_RESPOSTA)
+        .catch((e: any) => this.logger.warn(`Cancelamento do delivery ${id} sem resposta: ${e?.message ?? e}`));
+    }
     // Já ligado dentro do lock; aqui só abre o card (fora do lock: o APNs não segura a unidade).
     await this.delivery.vincularPedidoPortao(pedido.id_atendimento, pedido.id);
     // O token em claro sai uma única vez.
@@ -430,20 +451,18 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     }
   }
 
-  private async gravarPedido(portao: Portao, idApartamento: number, nome: string, plataforma: string | null, foto: string, agora: Date) {
+  /**
+   * Regras da unidade: um pedido pendente por vez, trégua depois de recusa ou
+   * "vou buscar", teto por hora e a portaria não pode estar atendendo.
+   */
+  private async conferirUnidade(portao: Portao, idApartamento: number, agora: Date): Promise<void> {
     const db = (this.prisma as any).deliveryPedidosPortao;
-    // Vencido não bloqueia a unidade.
-    await db.updateMany({
-      where: { status: 'pendente', expira_em: { lte: agora }, atendimento: { id_apartamento: idApartamento } },
-      data: { status: 'expirado' },
-    });
+    const daUnidade = { atendimento: { id_apartamento: idApartamento } };
     const pendente = await db.findFirst({
-      where: { status: 'pendente', expira_em: { gt: agora }, atendimento: { id_apartamento: idApartamento } },
+      where: { ...daUnidade, status: 'pendente', expira_em: { gt: agora } },
       select: { id: true },
     });
-    if (pendente) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
-    // Contados no banco, dentro do lock da unidade (vale com várias instâncias).
-    const daUnidade = { atendimento: { id_apartamento: idApartamento } };
+    if (pendente) throw new ConflictException(MSG_UNIDADE_AGUARDANDO);
     const recusouHaPouco = await db.count({
       where: {
         ...daUnidade,
@@ -454,13 +473,37 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     if (recusouHaPouco > 0) throw new HttpException(MSG_TREGUA, 429);
     const naHora = await db.count({ where: { ...daUnidade, criado_em: { gte: new Date(agora.getTime() - 3_600_000) } } });
     if (naHora >= MAX_PEDIDOS_UNIDADE_HORA) throw new HttpException(MSG_TETO_UNIDADE, 429);
-    // Antes de subir a foto: a portaria atendendo a unidade recusa o pedido.
     await this.delivery.assertPortariaNaoAtendendo(portao.id_condominio, idApartamento);
+  }
+
+  /** Sobe a selfie já recodificada; devolve a URL no bucket. */
+  private async subirFoto(fotoLimpa: string): Promise<string> {
+    const url = await this.storage.uploadDataUrl(fotoLimpa, 'delivery-portao');
+    if (!url) throw new BadRequestException(MSG_FORMATO);
+    // Storage fora devolve a própria data URL: não cabe na coluna e não é privado.
+    if (url.startsWith('data:')) throw new ServiceUnavailableException('Não foi possível guardar a foto. Tente novamente.');
+    return url;
+  }
+
+  /**
+   * Dentro dos locks do portão e da unidade: só banco. Devolve os
+   * atendimentos da unidade a cancelar (pedido vencido sem resposta); quem
+   * chama os cancela depois de soltar os locks.
+   */
+  private async gravarPedido(portao: Portao, idApartamento: number, nome: string, plataforma: string | null, url: string, agora: Date) {
+    const db = (this.prisma as any).deliveryPedidosPortao;
+    // Vencido não bloqueia a unidade.
+    await db.updateMany({
+      where: { status: 'pendente', expira_em: { lte: agora }, atendimento: { id_apartamento: idApartamento } },
+      data: { status: 'expirado' },
+    });
+    // Contados no banco, dentro do lock da unidade (vale com várias instâncias).
+    await this.conferirUnidade(portao, idApartamento, agora);
 
     // Atendimentos da unidade ainda abertos cujo pedido de portão venceu sem
     // resposta: o pedido novo nunca entra neles (um pedido por atendimento);
     // eles são cancelados depois que o novo estiver gravado.
-    const semResposta = (await (this.prisma as any).deliveryAtendimentos.findMany({
+    const abertos = (await (this.prisma as any).deliveryAtendimentos.findMany({
       where: {
         id_condominio: portao.id_condominio,
         id_apartamento: idApartamento,
@@ -470,43 +513,28 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
       select: { id: true },
     })) as { id: number }[];
 
-    const url = await this.storage.uploadDataUrl(foto, 'delivery-portao');
-    if (!url) throw new BadRequestException(MSG_FORMATO);
-    // Storage fora devolve a própria data URL: não cabe na coluna e não é privado.
-    if (url.startsWith('data:')) throw new ServiceUnavailableException('Não foi possível guardar a foto. Tente novamente.');
     const tokenPedido = novoToken();
-    let chegada: { id: number; pedido: any };
-    try {
-      // Pedido criado e ligado ao atendimento na mesma transação, dentro do lock da unidade.
-      chegada = await this.delivery.registrarChegadaAutoatendimento(
-        { idCondominio: portao.id_condominio, idApartamento, nomeEntregador: nome, plataforma },
-        (tx, idAtendimento) =>
-          tx.deliveryPedidosPortao.create({
-            data: {
-              id_atendimento: idAtendimento,
-              id_device: portao.id,
-              nome,
-              plataforma,
-              foto: url,
-              token_hash: hashToken(tokenPedido),
-              status: 'pendente',
-              visto_em: agora,
-              criado_em: agora,
-              expira_em: new Date(agora.getTime() + PEDIDO_EXPIRA_MS),
-            },
-          }),
-      );
-    } catch (e) {
-      await this.storage.deleteUrl(url, PREFIXOS_FOTO_PEDIDO_PORTAO).catch(() => false);
-      throw e;
-    }
-    for (const a of semResposta) {
-      if (a.id === chegada.id) continue;
-      await this.delivery
-        .transicionarPeloSistema(a.id, 'CANCELADA', 'Sem resposta do morador')
-        .catch((e: any) => this.logger.warn(`Cancelamento do delivery ${a.id} sem resposta: ${e?.message ?? e}`));
-    }
-    return { pedido: chegada.pedido, tokenPedido };
+    // Pedido criado e ligado ao atendimento na mesma transação, dentro do lock da unidade.
+    const chegada = await this.delivery.registrarChegadaAutoatendimento(
+      { idCondominio: portao.id_condominio, idApartamento, nomeEntregador: nome, plataforma },
+      (tx, idAtendimento) =>
+        tx.deliveryPedidosPortao.create({
+          data: {
+            id_atendimento: idAtendimento,
+            id_device: portao.id,
+            nome,
+            plataforma,
+            foto: url,
+            token_hash: hashToken(tokenPedido),
+            status: 'pendente',
+            visto_em: agora,
+            criado_em: agora,
+            expira_em: new Date(agora.getTime() + PEDIDO_EXPIRA_MS),
+          },
+        }),
+    );
+    const semResposta = abertos.map((a) => a.id).filter((id) => id !== chegada.id);
+    return { pedido: chegada.pedido, tokenPedido, semResposta };
   }
 
   /** A página consulta a cada poucos segundos (é a presença do entregador). */
