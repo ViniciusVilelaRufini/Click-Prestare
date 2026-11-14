@@ -126,6 +126,18 @@ export function contadorDe(instante: Date): number {
   return Math.floor(instante.getTime() / INTERVALO_MS);
 }
 
+/** Brasília é UTC−3 o ano todo (sem horário de verão desde 2019). */
+const DESLOCAMENTO_BRASILIA_MS = 3 * 3600 * 1000;
+const DIA_MS = 86_400_000;
+
+/**
+ * Contador do código diário `P2` (passe da carteira): dias desde 01/01/1970 no
+ * fuso de Brasília. O dia vira às 03:00 UTC.
+ */
+export function diaBrasiliaDe(instante: Date): number {
+  return Math.floor((instante.getTime() - DESLOCAMENTO_BRASILIA_MS) / DIA_MS);
+}
+
 /**
  * Rótulo seguro para log e para Acessos_Facial.face_id: `cred:<id>` quando o
  * valor é um código dinâmico decodificável, `cred:?` quando parece um (começa
