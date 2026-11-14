@@ -2,7 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { FacialService } from './facial.service';
 
 describe('FacialService.removeDevice — recusa quando o terminal tem histórico de acessos', () => {
-  function build(totalAcessos: number) {
+  function build(totalAcessos: number, totalPedidosPortao = 0) {
     const device = {
       id: 9,
       id_condominio: 1,
@@ -20,6 +20,9 @@ describe('FacialService.removeDevice — recusa quando o terminal tem histórico
       },
       acessos_Facial: {
         count: jest.fn(async () => totalAcessos),
+      },
+      deliveryPedidosPortao: {
+        count: jest.fn(async () => totalPedidosPortao),
       },
       regras_Dispositivos: {
         findMany: jest.fn(async () => []),
@@ -84,6 +87,21 @@ describe('FacialService.removeDevice — recusa quando o terminal tem histórico
     expect(auditoria.registrar).toHaveBeenCalledTimes(1);
     expect(auditoria.registrar).toHaveBeenCalledWith(
       expect.objectContaining({ acao: 'DEVICE_CHANGE', entidade_id: 9 }),
+    );
+  });
+  it('aparelho com pedidos de entrega no portão: 409 amigável, sem apagar (nada de P2003 cru)', async () => {
+    const { svc, prisma } = build(0, 3);
+    await expect(svc.removeDevice(9)).rejects.toThrow(
+      new ConflictException('Este aparelho tem histórico de entregas; desative-o em vez de excluir.'),
+    );
+    expect(prisma.facial_Devices.delete).not.toHaveBeenCalled();
+  });
+
+  it('corrida (pedido gravado entre a contagem e o delete): o P2003 vira o mesmo 409', async () => {
+    const { svc, prisma } = build(0, 0);
+    prisma.facial_Devices.delete.mockRejectedValueOnce(Object.assign(new Error('Foreign key constraint failed'), { code: 'P2003', meta: { field_name: 'fk_delivery_pedido_device (index)' } }));
+    await expect(svc.removeDevice(9)).rejects.toThrow(
+      new ConflictException('Este aparelho tem histórico de entregas; desative-o em vez de excluir.'),
     );
   });
 });

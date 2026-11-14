@@ -24,6 +24,7 @@ describe('FacialService — chamado de aparelho offline órfão ao renomear/excl
         delete: jest.fn(async () => device),
       },
       acessos_Facial: { count: jest.fn(async () => 0) },
+      deliveryPedidosPortao: { count: jest.fn(async () => 0) },
       regras_Dispositivos: { findMany: jest.fn(async () => []) },
       ocorrencias: { updateMany: jest.fn(async () => ({ count: 1 })) },
     };

@@ -69,6 +69,7 @@ import { ehCodigoDinamico, rotuloDeCredencial } from '../credenciais/codigo-dina
  * é validada; só a gravação do evento repetido é contida.
  */
 const JANELA_RUIDO_QR_MS = 10 * 1000;
+const MSG_DEVICE_COM_ENTREGAS = 'Este aparelho tem histórico de entregas; desative-o em vez de excluir.';
 const MOTIVOS_RUIDO_QR: ReadonlySet<string> = new Set(['desconhecida', 'assinatura']);
 
 /** Validade da marca de bulk sync em andamento (instância que morreu no meio não trava o condomínio para sempre). */
@@ -1802,7 +1803,20 @@ export class FacialService {
       );
     }
 
-    await this.prisma.facial_Devices.delete({ where: { id } });
+    // fk_delivery_pedido_device (RESTRICT): pedidos de entrega no portão
+    // (selfie, horários) são histórico do condomínio, como os acessos.
+    const totalPedidosPortao = await (this.prisma as any).deliveryPedidosPortao.count({ where: { id_device: id } });
+    if (totalPedidosPortao > 0) throw new ConflictException(MSG_DEVICE_COM_ENTREGAS);
+
+    try {
+      await this.prisma.facial_Devices.delete({ where: { id } });
+    } catch (err: any) {
+      // Pedido gravado entre a contagem e o delete.
+      if (err?.code === 'P2003' && String(err?.meta?.field_name ?? '').includes('delivery_pedido')) {
+        throw new ConflictException(MSG_DEVICE_COM_ENTREGAS);
+      }
+      throw err;
+    }
     await this.auditoria.registrar({
       id_condominio: device.id_condominio,
       usuario_nome: operador?.nome ?? 'sistema',
