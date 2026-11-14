@@ -11,6 +11,13 @@ import { EncomendasService } from './encomendas.service';
  *  - 22: bloco null x '' separava a mesma unidade no "Retirar lote".
  */
 describe('Encomendas — rodada 3', () => {
+  // 101 só existe no bloco A (bloco único para esse número); 7 sem bloco; 30 em dois blocos.
+  const APTOS = [
+    { id: 1, bloco: 'A', apto: '101' },
+    { id: 2, bloco: null, apto: '7' },
+    { id: 3, bloco: 'A', apto: '30' },
+    { id: 4, bloco: 'B', apto: '30' },
+  ];
   const porteiro = { sub: 7, nome: 'Portaria', id_condominio: 1, turno: 'Manha', tipo_sub: 'funcionario_portaria' } as any;
 
   function build(registros: any[] = [], moradores: any[] = [{ fcm_token: 't1', name: 'Ana', phone: null }]) {
@@ -43,8 +50,9 @@ describe('Encomendas — rodada 3', () => {
       users: { findMany: jest.fn(async () => moradores) },
       apartamentos: {
         findFirst: jest.fn(async ({ where }: any) =>
-          [{ id: 1, bloco: 'A', apto: '101' }, { id: 2, bloco: null, apto: '7' }].find((a) =>
+          APTOS.find((a) =>
             a.apto === where.apto && (where.OR ? where.OR.some((o: any) => o.bloco === a.bloco) : a.bloco === where.bloco)) ?? null),
+        findMany: jest.fn(async ({ where }: any) => APTOS.filter((a) => a.apto === where.apto)),
       },
     };
     const notifications: any = { sendPushNotification: jest.fn(async () => 'ok'), sendWhatsApp: jest.fn(async () => null) };
@@ -118,6 +126,38 @@ describe('Encomendas — rodada 3', () => {
       expect(e).toBeInstanceOf(BadRequestException);
       expect(registros[0].destinatario_apto).toBe('101');
       expect(registros[0].descricao).toBe('Caixa');
+    });
+
+    it('bloco preenchido sozinho pelo app leva ao mesmo apartamento: não é troca', async () => {
+      // Gravada sem bloco; o app manda bloco 'A' (o único com o 101).
+      const { svc, registros, notifications, prisma } = build([enc({ destinatario_bloco: '' })]);
+      await svc.update(5, { destinatario_apto: '101', destinatario_bloco: 'A', descricao: 'Envelope' }, porteiro);
+      expect(registros[0].descricao).toBe('Envelope');
+      expect(registros[0].destinatario_bloco).toBe('');
+      expect(registros[0].notificado).toBe(1);
+      expect(prisma.encomendas.updateMany).not.toHaveBeenCalled();
+      expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+    });
+
+    it('troca de verdade: uma escrita só (unidade + campos), push depois com a descrição nova', async () => {
+      const { svc, prisma, notifications } = build([enc()]);
+      await svc.update(5, { destinatario_apto: '30', destinatario_bloco: 'B', descricao: 'Caixa grande' }, porteiro);
+      // update só para marcar notificado depois do aviso (marcarNotificada).
+      for (const c of prisma.encomendas.update.mock.calls) expect(Object.keys(c[0].data).sort()).toEqual(['notificado', 'notificado_em']);
+      expect(prisma.encomendas.updateMany).toHaveBeenCalledTimes(1);
+      const { where, data } = prisma.encomendas.updateMany.mock.calls[0][0];
+      expect(where).toEqual({ id: 5, status: 'Aguardando' });
+      expect(data).toMatchObject({ descricao: 'Caixa grande', destinatario_apto: '30', destinatario_bloco: 'B', notificado: 0 });
+      const ordemEscrita = prisma.encomendas.updateMany.mock.invocationCallOrder[0];
+      expect(notifications.sendPushNotification.mock.invocationCallOrder[0]).toBeGreaterThan(ordemEscrita);
+      expect(notifications.sendPushNotification.mock.calls[0][2]).toContain('Caixa grande');
+    });
+
+    it('número em dois blocos sem bloco informado: ambíguo, 400', async () => {
+      const { svc, registros } = build([enc()]);
+      const e = await svc.update(5, { destinatario_apto: '30', destinatario_bloco: '' }, porteiro).catch((x) => x);
+      expect(e).toBeInstanceOf(BadRequestException);
+      expect(registros[0].destinatario_apto).toBe('101');
     });
 
     it('mesma unidade (bloco null x "" igual): edição comum, sem aviso', async () => {
