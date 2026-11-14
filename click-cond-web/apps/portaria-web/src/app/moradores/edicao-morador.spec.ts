@@ -1,4 +1,4 @@
-import { payloadEdicaoMorador } from './edicao-morador';
+import { payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
 import type { CreateMorador } from './moradores.service';
 
 const base: CreateMorador = {
@@ -61,5 +61,16 @@ describe('payloadEdicaoMorador', () => {
     payloadEdicaoMorador(original, novo);
     expect(novo.tag_rfid).toBe('ABC123');
     expect(novo.id_apartamento).toBe(7);
+  });
+});
+
+describe('payloadCadastroMorador', () => {
+  it('sem e-mail não pede o envio de credenciais, mesmo com a caixa marcada', () => {
+    expect(payloadCadastroMorador({ nome: 'Ana', id_apartamento: 7, email: '  ', sendCredentials: true }).sendCredentials).toBe(false);
+  });
+
+  it('com e-mail mantém a escolha do operador', () => {
+    expect(payloadCadastroMorador({ nome: 'Ana', id_apartamento: 7, email: 'a@b.com', sendCredentials: true }).sendCredentials).toBe(true);
+    expect(payloadCadastroMorador({ nome: 'Ana', id_apartamento: 7, email: 'a@b.com', sendCredentials: false }).sendCredentials).toBe(false);
   });
 });

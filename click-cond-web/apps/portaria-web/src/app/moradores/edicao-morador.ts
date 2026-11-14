@@ -8,6 +8,14 @@ export interface OriginalEdicaoMorador {
   tipo?: string | null;
 }
 
+/**
+ * Corpo do POST do cadastro novo. "Enviar credenciais" só vale com e-mail: sem ele nenhuma conta
+ * de app é criada, e o pedido marcado fazia a API exigir a data de nascimento à toa.
+ */
+export function payloadCadastroMorador(novo: CreateMorador): CreateMorador {
+  return { ...novo, sendCredentials: !!(novo.email ?? '').trim() && novo.sendCredentials !== false };
+}
+
 /** "Proprietário", "proprietario " e "PROPRIETARIO" são o mesmo tipo. */
 function chaveTipo(tipo: string | null | undefined): string {
   return (tipo ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();

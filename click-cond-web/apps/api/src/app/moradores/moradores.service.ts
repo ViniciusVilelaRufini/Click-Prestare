@@ -944,7 +944,9 @@ export class MoradoresService {
     // permitida quando o cadastro NÃO carrega foto facial nem cria
     // credenciais de acesso — nesses casos a data é obrigatória e
     // validarMaioridade() lança se estiver ausente (não apenas se for menor).
-    if (dto.email || dto.sendCredentials) {
+    // Só o e-mail cria conta de app: sendCredentials sem e-mail não envia nada
+    // (a tela e a importação o mandam marcado por padrão).
+    if (dto.email) {
       validarMaioridade(dto.data_nascimento, 'criação de conta de usuário no aplicativo');
     }
 

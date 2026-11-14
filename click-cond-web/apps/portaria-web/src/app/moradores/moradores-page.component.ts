@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
 import { VeiculosApi, Veiculo, Tag, CreateVeiculo } from './veiculos.service';
-import { OriginalEdicaoMorador, payloadEdicaoMorador } from './edicao-morador';
+import { OriginalEdicaoMorador, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
 import { ActivatedRoute } from '@angular/router';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
@@ -507,7 +507,7 @@ export class MoradoresPageComponent implements OnInit {
     this.saving.set(true);
     const obs = this.editingId
       ? this.api.update(this.editingId, payloadEdicaoMorador(this.originalEdicao, this.novo))
-      : this.api.create(this.novo);
+      : this.api.create(payloadCadastroMorador(this.novo));
     obs.subscribe({
       next: () => {
         this.saving.set(false);
@@ -931,7 +931,8 @@ export class MoradoresPageComponent implements OnInit {
                   lote: cols[5] || '',
                   tipo: cols[6] || 'proprietario',
                   data_nascimento: cols[7] || '',
-                  sendCredentials: true,
+                  // Sem e-mail não há conta a criar nem credencial a enviar.
+                  sendCredentials: !!(cols[2] || '').trim(),
                 });
               }
             }
@@ -962,7 +963,7 @@ export class MoradoresPageComponent implements OnInit {
                   lote: row['Lote/Apto'] || row['Lote'] || row['Apto'] || '',
                   tipo: row['Vínculo'] || row['Tipo'] || 'proprietario',
                   data_nascimento: dataNasc ? String(dataNasc).trim() : '',
-                  sendCredentials: true,
+                  sendCredentials: !!String(row['E-mail'] || row['Email'] || row['email'] || '').trim(),
                 });
               }
             });

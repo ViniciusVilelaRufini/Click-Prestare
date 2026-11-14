@@ -1024,7 +1024,7 @@
                           </span>
                         </td>
                         <td class="p-2.5 text-center">
-                          <input type="checkbox" [(ngModel)]="item.sendCredentials" class="rounded bg-graphite-200 border-white/20 text-accent accent-accent"/>
+                          <input type="checkbox" [(ngModel)]="item.sendCredentials" [disabled]="!item.email" [title]="item.email ? '' : 'Sem e-mail: nenhuma credencial é enviada'" class="rounded bg-graphite-200 border-white/20 text-accent accent-accent"/>
                         </td>
                       </tr>
                     }
