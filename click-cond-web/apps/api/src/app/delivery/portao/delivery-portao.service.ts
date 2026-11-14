@@ -29,9 +29,11 @@ import {
   JANELA_ABERTURA_MS,
   MAX_FOTO_BYTES,
   MAX_PEDIDOS_PORTAO_10MIN,
+  MAX_PEDIDOS_UNIDADE_HORA,
   PEDIDO_EXPIRA_MS,
   PRESENCA_MS,
   SAIDA_MS,
+  TREGUA_UNIDADE_MS,
   dentroDoHorario,
   estadoDoPedido,
   hashToken,
@@ -67,6 +69,9 @@ const MSG_INDISPONIVEL = 'Autoatendimento de entregas indisponível agora.';
 const MSG_PEDIDO = 'Pedido não encontrado.';
 const MSG_FORMATO = 'Envie uma foto em JPEG, PNG ou WebP.';
 const JANELA_LIMITE_PORTAO_MS = 10 * 60_000;
+const MSG_LIMITE_PORTAO = 'Muitos pedidos neste portão. Aguarde alguns minutos.';
+const MSG_TREGUA = 'Esta unidade já recusou uma entrega há pouco. Procure a portaria.';
+const MSG_TETO_UNIDADE = 'Muitas entregas para esta unidade agora. Procure a portaria.';
 /** Token do QR do portão (48 hex no gerado; tolerante a tamanho, mas sem caracteres de caminho). */
 const TOKEN_PORTAO = /^[A-Za-z0-9_-]{16,64}$/;
 const TOKEN_PEDIDO = /^[0-9a-f]{64}$/;
@@ -318,22 +323,31 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     if (foto.length > MAX_FOTO_BYTES) throw new BadRequestException('Foto muito grande. Tente novamente.');
 
     const agora = new Date(this.agora());
-    const recentes = await (this.prisma as any).deliveryPedidosPortao.count({
-      where: { id_device: portao.id, criado_em: { gte: new Date(agora.getTime() - JANELA_LIMITE_PORTAO_MS) } },
-    });
-    if (recentes >= MAX_PEDIDOS_PORTAO_10MIN) {
-      throw new HttpException('Muitos pedidos neste portão. Aguarde alguns minutos.', 429);
-    }
-
-    // Um pedido pendente por unidade: dois entregadores no mesmo segundo,
-    // em duas instâncias da API, só um passa (o outro espera e vê o pendente).
+    // Limite do portão contado no banco dentro do lock do portão (duas
+    // instâncias não passam as duas com 19). Ordem fixa portão → unidade:
+    // sem espera circular.
     const r = await comLock(
       this.prisma,
-      `delivery-portao:apto:${idApartamento}`,
-      () => this.gravarPedido(portao, idApartamento, nome, plataforma, foto, agora),
-      { esperaSegundos: 5, duracaoMaximaMs: 60_000 },
+      `delivery-portao:portao:${portao.id}`,
+      async () => {
+        const recentes = await (this.prisma as any).deliveryPedidosPortao.count({
+          where: { id_device: portao.id, criado_em: { gte: new Date(agora.getTime() - JANELA_LIMITE_PORTAO_MS) } },
+        });
+        if (recentes >= MAX_PEDIDOS_PORTAO_10MIN) throw new HttpException(MSG_LIMITE_PORTAO, 429);
+        // Um pedido pendente por unidade: dois entregadores no mesmo segundo,
+        // em duas instâncias da API, só um passa (o outro espera e vê o pendente).
+        const u = await comLock(
+          this.prisma,
+          `delivery-portao:apto:${idApartamento}`,
+          () => this.gravarPedido(portao, idApartamento, nome, plataforma, foto, agora),
+          { esperaSegundos: 5, duracaoMaximaMs: 60_000 },
+        );
+        if (!u.obtido) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
+        return u.valor;
+      },
+      { esperaSegundos: 10, duracaoMaximaMs: 90_000 },
     );
-    if (!r.obtido) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
+    if (!r.obtido) throw new HttpException(MSG_LIMITE_PORTAO, 429);
     const { pedido, tokenPedido } = r.valor;
     // Já ligado dentro do lock; aqui só abre o card (fora do lock: o APNs não segura a unidade).
     await this.delivery.vincularPedidoPortao(pedido.id_atendimento, pedido.id);
@@ -353,6 +367,18 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
       select: { id: true },
     });
     if (pendente) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
+    // Contados no banco, dentro do lock da unidade (vale com várias instâncias).
+    const daUnidade = { atendimento: { id_apartamento: idApartamento } };
+    const recusouHaPouco = await db.count({
+      where: {
+        ...daUnidade,
+        status: { in: ['recusado', 'vou_buscar'] },
+        respondido_em: { gte: new Date(agora.getTime() - TREGUA_UNIDADE_MS) },
+      },
+    });
+    if (recusouHaPouco > 0) throw new HttpException(MSG_TREGUA, 429);
+    const naHora = await db.count({ where: { ...daUnidade, criado_em: { gte: new Date(agora.getTime() - 3_600_000) } } });
+    if (naHora >= MAX_PEDIDOS_UNIDADE_HORA) throw new HttpException(MSG_TETO_UNIDADE, 429);
     // Antes de subir a foto: a portaria atendendo a unidade recusa o pedido.
     await this.delivery.assertPortariaNaoAtendendo(portao.id_condominio, idApartamento);
 
@@ -550,7 +576,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
         case 'AUTORIZADA': {
           if (quem.operador) {
             // Porteiro autorizou: ele abre pelo meio de sempre; a nuvem não abre.
-            await db.updateMany({ where: pendente, data: { status: 'liberado', liberado_ate: null } });
+            await db.updateMany({ where: pendente, data: { status: 'liberado', respondido_em: agora, liberado_ate: null } });
             return;
           }
           if (quem.sistema) return;
@@ -561,7 +587,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
           }
           const liberado = await db.updateMany({
             where: pendente,
-            data: { status: 'liberado', liberado_ate: new Date(agora.getTime() + JANELA_ABERTURA_MS) },
+            data: { status: 'liberado', respondido_em: agora, liberado_ate: new Date(agora.getTime() + JANELA_ABERTURA_MS) },
           });
           if (liberado.count !== 1) return;
           const visto = pedido.visto_em ? new Date(pedido.visto_em).getTime() : null;
@@ -571,11 +597,15 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
           }
           return;
         }
+        // respondido_em: começa a trégua da unidade (criarPedido).
         case 'RETIRADA_NA_PORTARIA':
-          await db.updateMany({ where: pendente, data: { status: 'vou_buscar' } });
+          await db.updateMany({ where: pendente, data: { status: 'vou_buscar', respondido_em: agora } });
           return;
         case 'RECUSADA':
+          await db.updateMany({ where: pendente, data: { status: 'recusado', respondido_em: agora } });
+          return;
         case 'CANCELADA':
+          // Cancelamento não é recusa da unidade: sem trégua.
           await db.updateMany({ where: pendente, data: { status: 'recusado' } });
           return;
         default:
