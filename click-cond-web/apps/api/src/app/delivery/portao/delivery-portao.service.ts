@@ -364,7 +364,9 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     // O prefixo é só o que a página diz: os bytes são decodificados.
     const selfie = await conferirSelfie(foto);
     if (selfie === 'sem_conferencia') throw new ServiceUnavailableException('Não foi possível conferir a foto. Tente novamente.');
-    if (selfie !== 'ok') throw new BadRequestException(MSG_FORMATO);
+    if (selfie === 'invalida') throw new BadRequestException(MSG_FORMATO);
+    // Grava a saída do sharp (JPEG sem EXIF/GPS), não os bytes recebidos.
+    const fotoLimpa = selfie.dataUrl;
 
     const agora = new Date(this.agora());
     // Recusa rápida, sem lock nem transação: portão acima do limite não
@@ -387,7 +389,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
           const u = await comLockSemSegurarConexao(
             this.prisma,
             `delivery-portao:apto:${idApartamento}`,
-            () => this.gravarPedido(portao, idApartamento, nome, plataforma, foto, agora),
+            () => this.gravarPedido(portao, idApartamento, nome, plataforma, fotoLimpa, agora),
             { esperaMs: ESPERA_LOCK_MS, duracaoMaximaMs: 60_000 },
           );
           if (!u.obtido) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
