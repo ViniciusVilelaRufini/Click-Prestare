@@ -21,7 +21,11 @@ describe('solicitarAutorizacao (Pessoas/Visitas) — estado atual e avisados', (
   const H = 60 * 60 * 1000;
   const operador = { sub: 3, nome: 'QA', id_condominio: 1 } as any;
 
-  function montar(extra: Record<string, unknown>, moradores: any[] = [], opts: { card?: boolean } = {}) {
+  function montar(
+    extra: Record<string, unknown>,
+    moradores: any[] = [],
+    opts: { card?: boolean; vagaVigente?: any } = {},
+  ) {
     process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
     const pessoa = { id: 2000001, nome: 'QA_Solicitar', bloqueado: 0, foto_pessoa: null };
     const visita: any = {
@@ -44,6 +48,7 @@ describe('solicitarAutorizacao (Pessoas/Visitas) — estado atual e avisados', (
     const prisma: any = {
       isConnected: true,
       users: { findMany: jest.fn(async () => moradores) },
+      vagas: { findFirst: jest.fn(async () => opts.vagaVigente ?? null) },
       visitas: {
         update: jest.fn(async ({ data }: any) => comRelacoes(Object.assign(visita, data))),
       },
@@ -92,6 +97,27 @@ describe('solicitarAutorizacao (Pessoas/Visitas) — estado atual e avisados', (
       const { svc, facial } = montar({ liberado: 1 });
       await svc.solicitarAutorizacao(1000004, operador);
       expect(facial.syncPessoa).toHaveBeenCalledWith(2000001);
+    });
+  });
+
+  // Revisão M-3: a tela trata visita com vaga vigente como acesso contínuo
+  // ("Liberado"); a API não pode derrubar essa liberação com um pedido.
+  describe('vaga vigente', () => {
+    it('visita usada que segue liberada pela vaga: 409, nada muda', async () => {
+      const { svc, prisma, visita } = montar(
+        { liberado: 1, data_entrada: new Date(Date.now() - 5 * H), data_saida: new Date(Date.now() - 4 * H) },
+        [],
+        { vagaVigente: { id: 9 } },
+      );
+      await expect(svc.solicitarAutorizacao(1000004, operador)).rejects.toMatchObject({ status: 409 });
+      expect(prisma.visitas.update).not.toHaveBeenCalled();
+      expect(visita.liberado).toBe(1);
+    });
+
+    it('vaga vencida (não vigente): o pedido segue', async () => {
+      const { svc, visita } = montar({ liberado: 1 }, [], { vagaVigente: null });
+      await svc.solicitarAutorizacao(1000004, operador);
+      expect(visita.auth_status).toBe('pendente');
     });
   });
 

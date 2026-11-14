@@ -3580,13 +3580,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
         }
         ref = daUnidade;
-        this.assertSemAutorizacaoValendo(daUnidade);
+        await this.assertSemLiberacaoValendo(daUnidade);
         idVisita = await this.visitaParaNovaPassagem(daUnidade);
       } else {
         idVisita = await novaVisitaEmOutraUnidade(this.prisma, principal, Number(idApartamento));
       }
     } else {
-      this.assertSemAutorizacaoValendo(principal);
+      await this.assertSemLiberacaoValendo(principal);
       idVisita = await this.visitaParaNovaPassagem(principal);
     }
     // Visita copiada (herda a janela da antiga) ou janela já vencida: o
@@ -3649,10 +3649,22 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * autorizou) voltava a visita para `pendente`/`liberado 0` e mandava um
    * segundo pedido. Autorização que ainda vale não é pedida de novo.
    */
-  private assertSemAutorizacaoValendo(ref: any) {
+  private async assertSemLiberacaoValendo(ref: any) {
     const dentro = !!ref.data_entrada && !ref.data_saida;
-    if (!dentro && isAutorizacaoAtual(ref)) {
+    if (dentro) return; // visitaParaNovaPassagem recusa com a mensagem própria
+    if (isAutorizacaoAtual(ref)) {
       throw new ConflictException('O morador já autorizou esta visita. Atualize a lista.');
+    }
+    // Vaga cedida pelo morador ainda valendo: a saída manteve a liberação e a
+    // tela mostra "Liberado" (acesso contínuo). O pedido a derrubaria.
+    if (ref.liberado === 1) {
+      const vaga = await this.prisma.vagas.findFirst({
+        where: { id_visita: Number(ref.id), ativo: 1, ...whereVagaVigente() },
+        select: { id: true },
+      });
+      if (vaga) {
+        throw new ConflictException('Este visitante tem vaga vigente cedida pelo morador e continua liberado. Registre a entrada.');
+      }
     }
   }
 
