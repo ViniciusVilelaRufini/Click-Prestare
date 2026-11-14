@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CredenciaisNucleoModule } from '../credenciais/credenciais-nucleo.module';
+import { AppleServicoController } from './apple-servico.controller';
 import { WalletChavesService } from './wallet-chaves.service';
 import { WalletController } from './wallet.controller';
 import { WalletService } from './wallet.service';
@@ -12,7 +13,7 @@ import { WalletService } from './wallet.service';
  */
 @Module({
   imports: [CredenciaisNucleoModule],
-  controllers: [WalletController],
+  controllers: [WalletController, AppleServicoController],
   providers: [WalletService, WalletChavesService],
   exports: [WalletService, WalletChavesService],
 })
