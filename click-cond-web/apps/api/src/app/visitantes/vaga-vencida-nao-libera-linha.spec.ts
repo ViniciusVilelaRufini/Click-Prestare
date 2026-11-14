@@ -83,12 +83,15 @@ describe('listarPessoas (Pessoas/Visitas) — vaga de visitante vencida não seg
     const [p]: any[] = await servico(new Date(Date.now() - 2 * H)).listarPessoas(1);
     expect(p.apartamentosVisitados[0].liberado).toBe(false);
     expect(p.vagaMorador).toBeNull();
+    expect(p.temVaga).toBe(false);
   });
 
   it('vaga ainda vigente: continua liberando a unidade', async () => {
     const [p]: any[] = await servico(new Date(Date.now() + 2 * H)).listarPessoas(1);
     expect(p.apartamentosVisitados[0].liberado).toBe(true);
     expect(p.vagaMorador).toBe('Morador');
+    // Rodada 3, item 6: a tela usa `temVaga` para manter "Liberado" após a saída.
+    expect(p.temVaga).toBe(true);
   });
 
   it('vaga sem fim: continua liberando a unidade', async () => {

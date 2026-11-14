@@ -80,15 +80,18 @@ export function isAutorizacaoAtual(registro: any, agora = Date.now()): boolean {
 }
 
 /**
- * A saída mantém `liberado`? Prestador sempre; visitante recorrente (dias da
- * semana) só com término no FUTURO — sem término viraria acesso permanente.
- * Mesma regra da saída pelo terminal (facial.service).
+ * A saída mantém `liberado`? Prestador sempre; visitante com vaga vigente
+ * (o morador cedeu a vaga por dias); visitante recorrente (dias da semana) só
+ * com término no FUTURO — sem término viraria acesso permanente. Mesma regra
+ * da saída pelo terminal (facial.service, que já mantém com vaga vigente).
  */
 export function mantemLiberadoNaSaida(
   v: { is_prestador?: number | null; dias_semana?: string | null; data_hora_termino?: Date | string | null },
   agora = Date.now(),
+  temVagaVigente = false,
 ): boolean {
   if (v.is_prestador === 1) return true;
+  if (temVagaVigente) return true;
   if (!String(v.dias_semana ?? '').trim() || !v.data_hora_termino) return false;
   return new Date(v.data_hora_termino).getTime() > agora;
 }
@@ -1270,6 +1273,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             dias_semana: diasSemanaPessoa,
             categorias: categoriasPessoa,
             vagaMorador: principal ? (vagaPorVisita.get(principal.id) ?? null) : null,
+            // Alguma visita da pessoa com vaga vigente (mesmo campo do legado):
+            // a saída mantém a liberação, e a linha não vira "Saiu | Solicitar".
+            temVaga: arr.some((r) => vagaPorVisita.has(r.id)),
           };
         });
       }
@@ -3443,14 +3449,20 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (!ref.data_entrada || ref.data_saida) {
       throw new BadRequestException('Este visitante não está no condomínio.');
     }
+    // Vaga cedida pelo morador ainda valendo: a baixa é só a saída de hoje (como
+    // a saída pelo terminal). Desativá-la sumia com a vaga do painel e do app.
+    const vagaVigente = await this.prisma.vagas.findFirst({
+      where: { id_visita: Number(id), ativo: 1, ...whereVagaVigente() },
+      select: { id: true },
+    });
     const v = await this.prisma.visitas.update({
       where: { id: Number(id) },
       data: {
         data_saida: new Date(),
         codigo_acesso: null,
-        // Prestador e visitante recorrente (com término futuro) voltam outro
-        // dia: a saída não revoga a liberação. Avulso perde na saída.
-        liberado: mantemLiberadoNaSaida(ref) ? 1 : 0,
+        // Prestador, visitante com vaga vigente e recorrente (com término
+        // futuro) voltam outro dia: a saída não revoga a liberação. Avulso perde.
+        liberado: mantemLiberadoNaSaida(ref, Date.now(), !!vagaVigente) ? 1 : 0,
         auth_status: null,
         auth_solicitado_em: null,
         auth_respondido_em: null,
@@ -3463,7 +3475,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
 
     await this.prisma.vagas.updateMany({
-      where: { id_visita: Number(id) },
+      where: { id_visita: Number(id), ...(vagaVigente ? { id: { not: vagaVigente.id } } : {}) },
       data: {
         ativo: 0,
         id_visita: null,

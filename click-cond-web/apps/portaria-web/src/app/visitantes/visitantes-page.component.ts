@@ -1230,9 +1230,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   }
 
   async darBaixa(v: Visitante | Pessoa) {
+    // Vaga vigente cedida pelo morador não é desfeita pela baixa (é só a saída de hoje).
+    const vaga = (v as Pessoa).vagaMorador;
     const ok = await this.confirm.ask({
       title: 'Dar baixa (Saída)',
-      message: `Confirmar a saída de ${v.nome}?`,
+      message: (v as Pessoa).temVaga
+        ? `Confirmar a saída de ${v.nome}? A vaga cedida${vaga ? ` por ${vaga}` : ''} continua valendo; para encerrá-la, revogue em Vagas.`
+        : `Confirmar a saída de ${v.nome}?`,
       confirmLabel: 'Confirmar Saída',
       variant: 'primary',
     });
@@ -1420,6 +1424,15 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     return this.relogio ? this.relogio.agora().getTime() : Date.now();
   }
 
+  /** Permanência acima disso sem baixa: provavelmente saiu sem passar pelo terminal. */
+  static readonly PERMANENCIA_LONGA_MS = 12 * 3600_000;
+
+  /** Dentro há mais de 12 h: a linha avisa (o estado não expira sozinho). */
+  dentroHaMuitoTempo(v: Visitante | Pessoa): boolean {
+    if (!v.data_entrada || v.data_saida) return false;
+    return this.agoraMs() - new Date(v.data_entrada).getTime() > VisitantesPageComponent.PERMANENCIA_LONGA_MS;
+  }
+
   /** Liberado, mas a janela da visita já terminou: o terminal recusa a entrada. */
   janelaEncerrada(v: Visitante | Pessoa): boolean {
     if ((v as any).liberado !== 1 || (v.data_entrada && !v.data_saida)) return false;
@@ -1435,8 +1448,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     // os botões "Dar Baixa" e "Liberar entrada". Prestador e visitante
     // recorrente (dias da semana) mantêm a liberação na saída: continuam
     // "Liberado" (antes: "Saiu" + Solicitar, que derrubava o acesso).
+    // Visitante com vaga vigente também: a saída (terminal ou baixa) mantém a
+    // liberação — a linha dizia "Saiu | Solicitar" e o terminal seguia abrindo.
     const acessoContinuo =
-      liberado && ((v as any).is_prestador === 1 || !!String((v as any).dias_semana ?? '').trim());
+      liberado &&
+      ((v as any).is_prestador === 1 ||
+        !!String((v as any).dias_semana ?? '').trim() ||
+        (v as Pessoa).temVaga === true);
     if (v.data_saida && !acessoContinuo) return 'saiu';
     // 3. Autorização do morador vencida numa visita não usada: o check-in
     // seria recusado — não é "Liberado" (o botão só falhava).

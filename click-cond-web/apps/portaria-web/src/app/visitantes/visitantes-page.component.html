@@ -892,6 +892,12 @@
                       <span class="ps-dot ps-dot-ok ps-dot-pulse"></span>
                       No condomínio
                     </span>
+                    @if (dentroHaMuitoTempo(v)) {
+                      <span class="ps-tag" title="Sem baixa há mais de 12 h. Se a pessoa já saiu, dê baixa.">
+                        <span class="ps-dot ps-dot-warn"></span>
+                        Dentro há mais de 12 h
+                      </span>
+                    }
                   } @else if (v.auth_status === 'pendente' && !autorizacaoExpirada(v)) {
                     @if (autorizacaoSemResposta(v)) {
                       <button
@@ -1364,6 +1370,12 @@
                       <span class="ps-dot ps-dot-ok"></span>
                       No condomínio
                     </span>
+                    @if (dentroHaMuitoTempo(v)) {
+                      <span class="ps-tag" title="Sem baixa há mais de 12 h. Se a pessoa já saiu, dê baixa.">
+                        <span class="ps-dot ps-dot-warn"></span>
+                        Dentro há mais de 12 h
+                      </span>
+                    }
                   } @else if (v.auth_status === 'pendente' && !autorizacaoExpirada(v)) {
                     @if (autorizacaoSemResposta(v)) {
                       <button
