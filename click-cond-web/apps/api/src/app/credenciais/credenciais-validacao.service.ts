@@ -6,6 +6,7 @@ import {
   conferirMac,
   contadorDe,
   decodificarCodigo,
+  diaBrasiliaDe,
   normalizarLeitura,
   rotuloDeCredencial,
 } from './codigo-dinamico.util';
@@ -20,6 +21,8 @@ export type MotivoNegacao =
   | 'reuso'
   | 'visita_encerrada'
   | 'morador_removido'
+  /** Código P2 (passe da carteira) com "Passe na carteira" desligado no condomínio. */
+  | 'carteira_desligada'
   /** Código dinâmico em evento reenviado pela fila offline do agente (decidido no webhook). */
   | 'backlog';
 
@@ -33,6 +36,7 @@ export const TEXTO_NEGACAO: Record<MotivoNegacao, string> = {
   reuso: 'QR já usado neste leitor',
   visita_encerrada: 'Visita encerrada',
   morador_removido: 'Morador não encontrado',
+  carteira_desligada: 'Passe na carteira desligado neste condomínio',
   backlog: 'QR lido sem internet não vale',
 };
 
@@ -84,6 +88,20 @@ export class CredenciaisValidacaoService {
     return !!cond?.qr_app_habilitado;
   }
 
+  /** "Passe na carteira" só vale com "QR no app" ligado também. */
+  async walletHabilitado(idCondominio: number): Promise<boolean> {
+    const o = await this.opcoes(idCondominio);
+    return o.qr && o.wallet;
+  }
+
+  private async opcoes(idCondominio: number): Promise<{ qr: boolean; wallet: boolean }> {
+    const cond = await (this.prisma as any).condominios.findUnique({
+      where: { id: idCondominio },
+      select: { qr_app_habilitado: true, wallet_habilitado: true },
+    });
+    return { qr: !!cond?.qr_app_habilitado, wallet: !!cond?.wallet_habilitado };
+  }
+
   async validarLeitura(
     valorLido: string,
     device: { id: number; id_condominio: number },
@@ -103,6 +121,18 @@ export class CredenciaisValidacaoService {
     const cred = await p.credenciais_Acesso.findUnique({ where: { id: dec.id } });
     if (!cred || cred.id_condominio !== device.id_condominio) return naoAutenticada('desconhecida');
 
+    // 2b. Prefixo × origem. P1 (30 s, anti-reuso) é do app e do link; P2
+    //     (diário, sem anti-reuso) é só do passe da carteira de um morador.
+    //     Sem isto, quem tem o segredo do app (o próprio app) calcularia um P2
+    //     que vale o dia inteiro e escapa do anti-reuso. Mesmo motivo e rótulo
+    //     da credencial inexistente: nada é revelado antes do MAC.
+    const diario = dec.prefixo === 'P2';
+    const origem = String(cred.origem ?? '');
+    const casa = diario
+      ? origem.startsWith('wallet_') && cred.tipo_pessoa === 'morador'
+      : origem === 'app' || origem === 'link';
+    if (!casa) return naoAutenticada('desconhecida');
+
     // 3. Assinatura, antes de qualquer estado da credencial: um código forjado
     //    não descobre se ela está revogada, fora da validade ou com a opção
     //    desligada, e não é atribuído a ela no registro.
@@ -113,8 +143,10 @@ export class CredenciaisValidacaoService {
     const rotulo = rotuloDeCredencial(valorLido);
     const negar = (motivo: MotivoNegacao): ResultadoLeitura => ({ ok: false, rotulo, motivo });
 
-    // 4. Opção do condomínio.
-    if (!(await this.qrAppHabilitado(device.id_condominio))) return negar('opcao_desligada');
+    // 4. Opção do condomínio ("Passe na carteira" só para o P2).
+    const opcoes = await this.opcoes(device.id_condominio);
+    if (!opcoes.qr) return negar('opcao_desligada');
+    if (diario && !opcoes.wallet) return negar('carteira_desligada');
 
     // 5. Revogação.
     if (cred.revogada_em) return negar('revogada');
@@ -124,8 +156,15 @@ export class CredenciaisValidacaoService {
     if (cred.valido_de && t < new Date(cred.valido_de).getTime()) return negar('fora_validade');
     if (cred.valido_ate && t > new Date(cred.valido_ate).getTime()) return negar('fora_validade');
 
-    // 7. Janela do contador: atual, anterior e seguinte.
-    if (Math.abs(dec.contador - contadorDe(instante)) > 1) return negar('expirado');
+    // 7. Janela do contador. P1: atual, anterior e seguinte (30 s cada). P2:
+    //    o dia de Brasília atual e o anterior (celular sem internet na virada);
+    //    o de amanhã também é vencido.
+    if (diario) {
+      const hoje = diaBrasiliaDe(instante);
+      if (dec.contador !== hoje && dec.contador !== hoje - 1) return negar('expirado');
+    } else if (Math.abs(dec.contador - contadorDe(instante)) > 1) {
+      return negar('expirado');
+    }
 
     // 8. Alvo.
     let alvo:
@@ -159,7 +198,9 @@ export class CredenciaisValidacaoService {
       return negar('desconhecida');
     }
 
-    // 9. Anti-reuso por leitor.
+    // 9. Anti-reuso por leitor. O P2 é reutilizado o dia inteiro por
+    //    natureza (o passe só muda quando o servidor manda): não grava.
+    if (diario) return { ok: true, rotulo, idCredencial: cred.id, contador: dec.contador, alvo };
     try {
       await p.credenciais_Leituras.create({
         data: { id_credencial: cred.id, id_device: device.id, contador: dec.contador },
