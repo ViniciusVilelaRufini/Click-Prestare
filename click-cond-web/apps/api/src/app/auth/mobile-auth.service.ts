@@ -6242,9 +6242,13 @@ export class MobileAuthService {
     // Exceção: o mesmo visitante tem OUTRA vaga vigente (cedida de novo, na
     // mesma visita). Revogar esta — vencida, por exemplo — não pode tirar o
     // acesso daquela: só a vaga vira ativo=0. Mesma regra de VagasService.revogar.
+    // Vaga já vencida também não mexe: o liberado/PIN atual da visita pode ser
+    // de uma autorização nova (Solicitar depois do prazo reaproveita a visita).
     const whereOutra = vaga.tipo_ocupacao === 'visitante' ? whereOutraVagaVigenteDoVisitante(vaga) : null;
     const mexeNoVisitante =
-      vaga.tipo_ocupacao === 'visitante' && (!whereOutra || (await this.prisma.vagas.count({ where: whereOutra })) === 0);
+      vaga.tipo_ocupacao === 'visitante' &&
+      !vagaVencida(vaga) &&
+      (!whereOutra || (await this.prisma.vagas.count({ where: whereOutra })) === 0);
 
     const updates: any[] = [this.prisma.vagas.update({ where: { id: vaga.id }, data: { ativo: 0 } })];
     if (mexeNoVisitante && vaga.id_visita) {

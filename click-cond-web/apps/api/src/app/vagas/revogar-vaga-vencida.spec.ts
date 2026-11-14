@@ -11,8 +11,7 @@ import { MobileAuthService } from '../auth/mobile-auth.service';
  *
  * Rodada 3 (console): revogar uma vaga VENCIDA nunca mexe na visita — mesmo
  * sem outra vaga. O morador pode ter autorizado a mesma visita de novo (via
- * Solicitar) depois do prazo. A mesma regra no app (MobileAuthService.revogarVaga)
- * fica com a raia de auth/**.
+ * Solicitar) depois do prazo. A mesma regra vale no app (MobileAuthService.revogarVaga).
  */
 const AGORA = new Date('2026-11-13T15:00:00.000Z');
 const ONTEM = new Date('2026-11-12T15:00:00.000Z');
@@ -95,14 +94,7 @@ describe.each(servicos)('%s — vaga vencida com outra vaga vigente do mesmo vis
       expect(facial.syncVisitante).not.toHaveBeenCalled();
     });
 
-    // A metade do app (MobileAuthService.revogarVaga, em auth/**) é de outra
-    // raia e ainda não tem a regra: fica como skip visível até ser corrigida.
-    const doApp = _nome.startsWith('MobileAuthService');
-    (doApp ? it.skip : it)(
-      doApp
-        ? 'PENDENTE (app, auth/** de outra raia): sem outra vaga vigente, revogar a vencida não derruba a autorização nova'
-        : 'sem outra vaga vigente: revoga a vaga e não derruba a autorização nova da visita',
-      async () => {
+    it('sem outra vaga vigente: revoga a vaga e não derruba a autorização nova da visita', async () => {
       // Vaga vencida já não dá acesso. O liberado/PIN que a visita tem agora
       // pode ser de um Solicitar autorizado depois do prazo (mesma visita,
       // ainda não usada): revogar a vencida só tira a linha da lista.
@@ -112,8 +104,7 @@ describe.each(servicos)('%s — vaga vencida com outra vaga vigente do mesmo vis
       expect(prisma.visitas.update).not.toHaveBeenCalled();
       expect(prisma.visitantes.update).not.toHaveBeenCalled();
       expect(facial.syncVisitante).not.toHaveBeenCalled();
-      },
-    );
+    });
 
     it('vaga ainda vigente, sem outra: revoga a vaga, o PIN e sincroniza o facial', async () => {
       const { prisma, facial, vagas } = cenario(ref, false);
