@@ -6,6 +6,7 @@ import 'package:click/pages/shared/visitantes/acessos_facial_list.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/shared/visitantes/convites_visita.dart';
+import 'package:click/pages/shared/visitantes/compartilhar_passe.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/visitantes_presenca.dart';
 import 'package:click/utils/visitantes_pessoas.dart';
@@ -24,9 +25,7 @@ import 'package:click/widgets/app/cabecalho_pessoa.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:click/utils/access_invite_message.dart';
 
 class ListVisitantes extends StatefulWidget {
   final bool allCondos;
@@ -224,7 +223,6 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     final _sw = MediaQuery.of(context).size.width;
     final _sh = MediaQuery.of(context).size.height;
     final _hPad = _sw < 360 ? 14.0 : 20.0;
-    final _qrSize = (_sw * 0.52).clamp(120.0, 200.0);
     final _pinSize = _sw < 360 ? 26.0 : 32.0;
     final _initSize = _sh < 700 ? 0.95 : 0.88;
 
@@ -607,31 +605,6 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                     ),
                                   ),
                                   if (temPinParaExibir(item)) ...[
-                                    // QR Code
-                                    Container(
-                                      margin: const EdgeInsets.symmetric(
-                                          horizontal: AppSpacing.md),
-                                      padding:
-                                          const EdgeInsets.all(AppSpacing.sm),
-                                      color: AppColors.qrPaper,
-                                      child: QrImageView(
-                                        data: item['codigo_acesso'].toString(),
-                                        version: QrVersions.auto,
-                                        size: _qrSize,
-                                        padding: const EdgeInsets.all(12),
-                                        backgroundColor: AppColors.qrPaper,
-                                        eyeStyle: const QrEyeStyle(
-                                          eyeShape: QrEyeShape.square,
-                                          color: AppColors.qrInk,
-                                        ),
-                                        dataModuleStyle:
-                                            const QrDataModuleStyle(
-                                          dataModuleShape:
-                                              QrDataModuleShape.square,
-                                          color: AppColors.qrInk,
-                                        ),
-                                      ),
-                                    ),
                                     const SizedBox(height: 10),
                                     // PIN numérico
                                     Text(
@@ -656,27 +629,13 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       ),
                                     ),
                                     const SizedBox(height: 12),
-                                    // Botões de ação do QR Code / PIN
+                                    // Passe (link com QR que muda a cada 30 s) e o PIN para copiar.
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: AppSpacing.md),
                                       child: Column(
                                         children: [
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: ElevatedButton.icon(
-                                              icon: const Icon(PhosphorIcons.whatsappLogo, size: 18),
-                                              label: Text('Enviar QR code completo'.toUpperCase()),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: AppColors.brand,
-                                                foregroundColor: AppColors.onBrand,
-                                                minimumSize: const Size(0, 48),
-                                                elevation: 0,
-                                                shape: const RoundedRectangleBorder(),
-                                              ),
-                                              onPressed: () => _enviarQrCodeCompleto(item),
-                                            ),
-                                          ),
+                                          BotoesPasse(item: item),
                                           const SizedBox(height: 8),
                                           SizedBox(
                                             width: double.infinity,
@@ -715,7 +674,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                     ),
                                     const SizedBox(height: AppSpacing.md),
                                     Text(
-                                      'Apresente o QR Code ou informe o PIN ao porteiro.',
+                                      'O visitante abre o passe e mostra o QR no leitor, ou informa o PIN na portaria.',
                                       textAlign: TextAlign.center,
                                       style:
                                           AppTypography.tiny(context).copyWith(
@@ -975,22 +934,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     );
   }
 
-  String _formatPeriod(dynamic start, dynamic end) {
-    if (start == null) return 'Qualquer data';
-    final s = parseDataApi(start);
-    final e = parseDataApi(end);
-
-    if (s == null) return 'Qualquer data';
-
-    String pad(int n) => n.toString().padLeft(2, '0');
-    String format(DateTime d) =>
-        '${pad(d.day)}/${pad(d.month)}/${d.year} ${pad(d.hour)}:${pad(d.minute)}';
-
-    if (e == null) {
-      return 'A partir de ${format(s)}';
-    }
-    return '${format(s)} até ${format(e)}';
-  }
+  String _formatPeriod(dynamic start, dynamic end) => periodoDoConvite(start, end);
 
   String _formatDateTimeString(dynamic val) {
     if (val == null) return '';
@@ -998,80 +942,6 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     if (d == null) return val.toString();
     String pad(int n) => n.toString().padLeft(2, '0');
     return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
-  }
-
-  Future<void> _enviarQrCodeCompleto(dynamic item) async {
-    final nomeVisitante = (item['nome'] ?? 'Visitante').toString().trim();
-    final isPrestador = item['is_prestador'] == 1;
-    final tipoPessoa = isPrestador ? 'Prestador(a) de Serviço' : 'Visitante';
-
-    final condNome = (item['condominio_nome'] ?? '').toString().trim().isNotEmpty
-        ? item['condominio_nome'].toString().trim()
-        : (Singleton.instance.condominio_nome.isNotEmpty
-            ? Singleton.instance.condominio_nome
-            : 'Condomínio');
-
-    final bloco = (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim();
-    final apto = (item['apto'] ?? '').toString().trim();
-
-    final moradorName = (item['morador_nome'] ?? '').toString().trim().isNotEmpty
-        ? item['morador_nome'].toString().trim()
-        : (getUsername().isNotEmpty ? getUsername() : 'Morador');
-
-    final rawCode = (item['codigo_acesso'] ?? '').toString().trim();
-    final formattedCode = rawCode.length == 6
-        ? "${rawCode.substring(0, 3)}-${rawCode.substring(3, 6)}"
-        : rawCode;
-
-    final periodo = _formatPeriod(item['data_hora_inicio'], item['data_hora_termino']);
-
-    final qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${Uri.encodeComponent(rawCode)}';
-
-    final shareText = buildVisitorAccessInvite(
-      condominioNome: condNome,
-      bloco: bloco,
-      apartamento: apto,
-      autorizadoPor: moradorName,
-      codigo: formattedCode,
-      visitanteNome: nomeVisitante,
-      tipoPessoa: tipoPessoa,
-      periodo: periodo,
-      qrCodeUrl: qrUrl,
-    );
-
-    // Se tiver telefone do visitante cadastrado, envia direto
-    String? phone = (item['telefone'] ?? item['celular'] ?? item['whatsapp'] ?? item['phone'])?.toString();
-    phone = phone?.replaceAll(RegExp(r'\D'), '');
-    if (phone != null && phone.isNotEmpty && !phone.startsWith('55') && (phone.length == 10 || phone.length == 11)) {
-      phone = '55$phone';
-    }
-
-    final String whatsappUrlString = (phone != null && phone.isNotEmpty)
-        ? 'https://wa.me/$phone?text=${Uri.encodeComponent(shareText)}'
-        : 'https://wa.me/?text=${Uri.encodeComponent(shareText)}';
-
-    final uri = Uri.parse(whatsappUrlString);
-    bool abriu = false;
-    try {
-      if (await canLaunchUrl(uri)) {
-        abriu = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (_) {
-      abriu = false;
-    }
-
-    if (!abriu) {
-      await Clipboard.setData(ClipboardData(text: shareText));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('WhatsApp não aberto. Informações do convite copiadas para a área de transferência!'),
-            backgroundColor: AppColors.brand,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    }
   }
 
   /// Mesma checagem de `_temApto` em my_condominium.dart.

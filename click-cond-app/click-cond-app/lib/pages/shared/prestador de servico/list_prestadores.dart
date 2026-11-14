@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:click/controllers/controller_visitantes.dart';
+import 'package:click/pages/shared/visitantes/compartilhar_passe.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -14,7 +15,6 @@ import 'package:click/utils/datas.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 class ListPrestadores extends StatefulWidget {
   final bool allCondos;
@@ -271,30 +271,6 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                         ),
                       ),
                       if (item['codigo_acesso'] != null) ...[
-                        // QR Code
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                          padding: const EdgeInsets.all(AppSpacing.sm),
-                          decoration: BoxDecoration(
-                            color: AppColors.qrPaper,
-                            borderRadius: BorderRadius.zero,
-                          ),
-                          child: QrImageView(
-                            data: item['codigo_acesso'].toString(),
-                            version: QrVersions.auto,
-                            size: 180,
-                            backgroundColor: AppColors.qrPaper,
-                            eyeStyle: const QrEyeStyle(
-                              eyeShape: QrEyeShape.square,
-                              color: AppColors.qrInk,
-                            ),
-                            dataModuleStyle: const QrDataModuleStyle(
-                              dataModuleShape: QrDataModuleShape.square,
-                              color: AppColors.qrInk,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
                         // PIN numérico
                         Text(
                           'PIN',
@@ -316,6 +292,12 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                           ),
                         ),
                         const SizedBox(height: AppSpacing.md),
+                        // Passe (link com QR que muda a cada 30 s) e o PIN para copiar.
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                          child: BotoesPasse(item: item),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
                         // Botão copiar
                         SizedBox(
                           width: double.infinity,
@@ -348,7 +330,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                         ),
                         const SizedBox(height: AppSpacing.md),
                         Text(
-                          'Apresente o QR Code ou informe o PIN ao porteiro.',
+                          'O prestador abre o passe e mostra o QR no leitor, ou informa o PIN na portaria.',
                           textAlign: TextAlign.center,
                           style: AppTypography.tiny(context).copyWith(
                             color: AppColors.textTertiary(context),

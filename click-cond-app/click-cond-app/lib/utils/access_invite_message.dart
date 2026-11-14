@@ -8,7 +8,7 @@ String buildVisitorAccessInvite({
   String? visitanteNome,
   String? tipoPessoa,
   String? periodo,
-  String? qrCodeUrl,
+  String? passeUrl,
 }) {
   final nomeCondominio =
       condominioNome.trim().isEmpty ? 'Condominio' : condominioNome.trim();
@@ -46,12 +46,18 @@ String buildVisitorAccessInvite({
 
   sb.writeln('🔑 *Código de Acesso (PIN):* $codigo\n');
 
-  if (qrCodeUrl != null && qrCodeUrl.trim().isNotEmpty) {
-    sb.writeln('📲 *QR Code de Acesso:*');
-    sb.writeln('Acesse o link abaixo para visualizar seu QR Code:');
-    sb.writeln('${qrCodeUrl.trim()}\n');
+  // Link do passe: a página mostra um QR que muda a cada 30 s. O PIN não sai
+  // mais da Prestare para virar imagem em serviço de terceiro.
+  final link = passeUrl?.trim() ?? '';
+  if (link.isNotEmpty) {
+    sb.writeln('📲 *Passe de acesso (QR):*');
+    sb.writeln('Abra o link ao chegar e mostre o QR no leitor:');
+    sb.writeln(link);
+    sb.writeln();
+    sb.write('Se preferir, informe o PIN na portaria.');
+    return sb.toString();
   }
 
-  sb.write('Apresente este código ou o QR Code ao chegar na portaria para liberação da sua entrada.');
+  sb.write('Informe este código ao chegar na portaria para liberação da sua entrada.');
   return sb.toString();
 }
