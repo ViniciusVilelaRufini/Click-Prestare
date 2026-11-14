@@ -40,6 +40,7 @@ import {
   hashToken,
   novoToken,
 } from './portao-regras';
+import { conferirSelfie } from './selfie';
 
 /**
  * Autoatendimento de entregas no portão
@@ -322,6 +323,10 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     if (!foto || /^data:[^,]*,\s*$/.test(foto)) throw new BadRequestException('Envie uma foto do seu rosto.');
     if (!FOTO_MIME.test(foto)) throw new BadRequestException(MSG_FORMATO);
     if (foto.length > MAX_FOTO_BYTES) throw new BadRequestException('Foto muito grande. Tente novamente.');
+    // O prefixo é só o que a página diz: os bytes são decodificados.
+    const selfie = await conferirSelfie(foto);
+    if (selfie === 'sem_conferencia') throw new ServiceUnavailableException('Não foi possível conferir a foto. Tente novamente.');
+    if (selfie !== 'ok') throw new BadRequestException(MSG_FORMATO);
 
     const agora = new Date(this.agora());
     // Limite do portão contado no banco dentro do lock do portão (duas

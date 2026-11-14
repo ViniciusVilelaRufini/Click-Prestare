@@ -11,7 +11,13 @@ import { criarBancoFalso } from './banco-falso.spec';
 export const T0 = new Date('2026-11-14T15:00:00Z').getTime();
 export const TOKEN_PORTAO = 'a'.repeat(48);
 export const TOKEN_OUTRO_PORTAO = 'b'.repeat(48);
-export const FOTO = `data:image/jpeg;base64,${'A'.repeat(4000)}`;
+/** JPEG 16×16 de verdade (a selfie é decodificada antes de subir). */
+export const FOTO =
+  'data:image/jpeg;base64,/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAQABADASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAT/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAABv/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/ALwBkxf/2Q==';
+export const PNG_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAGUlEQVR4nGM4URFAEmIY1VAxGkonhmvSAAAe+5AQDWncSQAAAABJRU5ErkJggg==';
+export const WEBP_B64 = 'UklGRjgAAABXRUJQVlA4ICwAAADQAQCdASoQABAAAUAmJaACdLoB+AADsAD+2O7/4s5GI7PN/8zRMcx+vQAAAA==';
+export const GIF_B64 = 'R0lGODlhEAAQAIAAAExpcch4UCH5BAUAAAAALAAAAAAQABAAAAIOjI+py+0Po5y02ouzPgUAOw==';
 
 export function montarPortao(
   opts: {
