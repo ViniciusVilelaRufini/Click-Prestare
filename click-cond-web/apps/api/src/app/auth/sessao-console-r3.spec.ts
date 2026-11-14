@@ -186,4 +186,68 @@ describe('AuthService — sessão do console (rodada 3)', () => {
       expect(await svc.getQrStatus(s2.qrToken)).toMatchObject({ status: 'confirmed', turno: 'Porteiro (App)', condominios: [] });
     });
   });
+
+  describe('Correção 1, I2 — a troca de senha do porteiro no console vale também para o app', () => {
+    const sessao: JwtPayload = { sub: 3, nome: 'P', id_condominio: 7, tipo_sub: 'funcionario_portaria' };
+
+    function build(conta: Record<string, any> | null, extra: { moradores?: number; equipeFora?: number } = {}) {
+      const contas = conta ? [{ ...conta }] : [];
+      const prisma: any = {
+        isConnected: true,
+        funcionarios_Portaria: {
+          findUnique: jest.fn(async () => ({ id: 3, login: 'p@x.com', password: hashPortaria, id_condominio: 7 })),
+          update: jest.fn(async () => ({})),
+        },
+        users: {
+          // Só acha a conta que tem vínculo de equipe neste condomínio (o filtro `funcionarios.some`).
+          findFirst: jest.fn(async ({ where }: any) =>
+            contas.find((c) => where.funcionarios?.some?.id_condominio === 7 ? c.equipeAqui : true) ?? null,
+          ),
+          update: jest.fn(async ({ data }: any) => Object.assign(contas[0], data)),
+        },
+        sindicos: { count: jest.fn(async () => 0) },
+        sindicos_Condominios: { count: jest.fn(async () => 0) },
+        moradores: { count: jest.fn(async () => extra.moradores ?? 0) },
+        apartamentos_Users: { count: jest.fn(async () => 0) },
+        funcionarios: { count: jest.fn(async () => extra.equipeFora ?? 0) },
+      };
+      prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
+      const svc = new AuthService(prisma, { sign: jest.fn(() => 't') } as any, {} as any);
+      return { svc, prisma, contas };
+    }
+
+    it('conta só desta equipe: a senha do app vira a nova e os tokens dela caem', async () => {
+      const { svc, contas } = build({ id: 5, login: 'p@x.com', password: '$2b$04$antiga', is_sindico: 0, is_morador: 0, equipeAqui: true });
+      await svc.changePassword(3, 'senha-antiga-da-portaria', 'Nova#123', undefined, sessao);
+      expect(await bcrypt.compare('Nova#123', contas[0].password)).toBe(true);
+      expect(contas[0].senha_alterada_em).toBeInstanceOf(Date);
+    });
+
+    it('conta compartilhada (também morador): só os tokens caem, a senha dela fica', async () => {
+      const { svc, contas } = build({ id: 5, login: 'p@x.com', password: '$2b$04$antiga', is_sindico: 0, is_morador: 0, equipeAqui: true }, { moradores: 1 });
+      await svc.changePassword(3, 'senha-antiga-da-portaria', 'Nova#123', undefined, sessao);
+      expect(contas[0].password).toBe('$2b$04$antiga');
+      expect(contas[0].senha_alterada_em).toBeInstanceOf(Date);
+    });
+
+    it('conta com o mesmo e-mail que não é da equipe daqui não é tocada', async () => {
+      const { svc, prisma } = build({ id: 9, login: 'p@x.com', password: '$2b$04$dele', is_sindico: 0, is_morador: 0, equipeAqui: false });
+      await svc.changePassword(3, 'senha-antiga-da-portaria', 'Nova#123', undefined, sessao);
+      expect(prisma.users.update).not.toHaveBeenCalled();
+      expect(prisma.funcionarios_Portaria.update).toHaveBeenCalled();
+    });
+
+    it.each([
+      [undefined, 'Nova#123', 'Informe a senha atual.'],
+      ['senha-antiga-da-portaria', undefined, 'A nova senha deve ter no mínimo 6 caracteres.'],
+      ['senha-antiga-da-portaria', '12345', 'A nova senha deve ter no mínimo 6 caracteres.'],
+      ['senha-antiga-da-portaria', { not: '' }, 'A nova senha deve ter no mínimo 6 caracteres.'],
+    ])('senha atual %p / nova %p → 400 "%s", nada gravado', async (atual, nova, msg) => {
+      const { svc, prisma } = build(null);
+      const p = svc.changePassword(3, atual as any, nova as any, undefined, sessao);
+      await expect(p).rejects.toBeInstanceOf(BadRequestException);
+      await expect(p).rejects.toThrow(msg);
+      expect(prisma.funcionarios_Portaria.update).not.toHaveBeenCalled();
+    });
+  });
 });

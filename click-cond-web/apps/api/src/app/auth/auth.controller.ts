@@ -90,6 +90,8 @@ export class AuthController {
     return this.authService.selecionarCondominio(payload, Number(body.id_condominio));
   }
 
+  // Confere a senha atual: sem limite próprio, uma sessão aberta testava senhas no ritmo do throttle global.
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('change-password')
   @HttpCode(200)
   changePassword(

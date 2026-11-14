@@ -11,6 +11,7 @@ import { TenantAccessService } from './tenant-access.service';
 import { MfaService } from './mfa/mfa.service';
 import { momentoTrocaSenha } from './senha-alterada.util';
 import { carimboCredencialPortaria } from './credencial-portaria.util';
+import { contaSoDaEquipeDoCondominio } from './conta-so-de-equipe.util';
 import { AuditoriaService, type AuditoriaAutorTipo } from '../auditoria/auditoria.service';
 
 /**
@@ -653,9 +654,41 @@ export class AuthService {
     };
   }
 
+  /**
+   * A conta do app (Users, mesmo login ou e-mail) do porteiro que trocou a senha no console. Mesma regra da
+   * redefinição (mobile-auth, confirmarRedefinicaoSenha), um pouco mais estrita: só a conta que JÁ é da equipe deste
+   * condomínio é tocada — uma conta achada só pelo texto do e-mail (signup público, de outra pessoa) nunca. Dela, a
+   * senha acompanha a nova só quando a conta é exclusivamente desta equipe (sem flags nem vínculos de síndico ou
+   * morador, sem equipe em outro prédio); senha_alterada_em é gravado sempre, e os tokens 'Funcionario' (sub =
+   * Users.id) emitidos com a senha anterior caem.
+   */
+  private async sincronizarContaDoPorteiro(tx: any, fp: { login: string; id_condominio: number }, hash: string) {
+    const conta = await tx.users.findFirst({
+      where: {
+        OR: [{ login: fp.login }, { email: fp.login }],
+        funcionarios: { some: { id_condominio: Number(fp.id_condominio) } },
+      },
+      orderBy: { id: 'asc' },
+    });
+    if (!conta) return;
+    const soDaqui =
+      !conta.is_sindico && !conta.is_morador && (await contaSoDaEquipeDoCondominio(tx, conta.id, fp.id_condominio));
+    await tx.users.update({
+      where: { id: conta.id },
+      data: soDaqui ? { password: hash, senha_alterada_em: momentoTrocaSenha() } : { senha_alterada_em: momentoTrocaSenha() },
+    });
+  }
+
   async changePassword(id: number, senhaAtual: string, novaSenha: string, typeAccess?: string, sessao?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
+    }
+    // Corpo sem DTO: senha ausente ou não-texto estourava no bcrypt (500). Mesmo mínimo da tela e da redefinição.
+    if (typeof senhaAtual !== 'string' || !senhaAtual) {
+      throw new BadRequestException('Informe a senha atual.');
+    }
+    if (typeof novaSenha !== 'string' || novaSenha.trim().length < 6) {
+      throw new BadRequestException('A nova senha deve ter no mínimo 6 caracteres.');
     }
 
     // Síndicos logados via portaria-web têm sub = users.id e typeAccess = 'Sindico'.
@@ -714,9 +747,10 @@ export class AuthService {
     }
 
     const newHash = await bcrypt.hash(novaSenha, 12);
-    await this.prisma.funcionarios_Portaria.update({
-      where: { id },
-      data: { password: newHash },
+    // Login de portaria e conta do app no mesmo ato. Sem a conta, a senha antiga seguia entrando no app e no QR.
+    await this.prisma.$transaction(async (tx: any) => {
+      await tx.funcionarios_Portaria.update({ where: { id }, data: { password: newHash } });
+      await this.sincronizarContaDoPorteiro(tx, funcionario, newHash);
     });
 
     // A senha nova muda o carimbo da credencial: as sessões abertas com a anterior caem (JwtStrategy). Esta, que

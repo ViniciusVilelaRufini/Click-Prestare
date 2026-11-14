@@ -3,6 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { createHash, createHmac } from 'crypto';
+import { carimboCredencialPortaria } from './credencial-portaria.util';
+import { resolveJwtSecret } from './jwt-secret';
 
 /**
  * I-f1 (revisão final da rodada 2): trocar o e-mail ou re-credenciar um login de portaria mantém o mesmo
@@ -34,6 +37,7 @@ describe('Sessão do porteiro × credencial do login de portaria (I-f1)', () => 
       // O login não é de síndico.
       users: { findFirst: jest.fn(async () => null) },
     };
+    prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
     const jwt = new JwtService({ secret: 'test' });
     const auth = new AuthService(prisma, jwt, { get: jest.fn(), confirm: jest.fn() } as any);
     (auth as any).isLocked = jest.fn(async () => false);
@@ -79,5 +83,13 @@ describe('Sessão do porteiro × credencial do login de portaria (I-f1)', () => 
     const { nova, jwt } = build();
     const legado = jwt.sign({ sub: 3, nome: 'P', id_condominio: 7, tipo_sub: 'funcionario_portaria' });
     await expect(Promise.resolve().then(() => nova().validate(jwt.verify(legado)))).resolves.toBeTruthy();
+  });
+
+  it('o carimbo é HMAC com o segredo do JWT (não é um sha256 que qualquer um recalcula)', () => {
+    const fp = { login: 'p@x.com', password: '5f4dcc3b5aa765d61d8327deb882cf99' };
+    const semSegredo = createHash('sha256').update(`p@x.com\n${fp.password}`).digest('base64url').slice(0, 22);
+    const esperado = createHmac('sha256', resolveJwtSecret()).update(`p@x.com\n${fp.password}`).digest('base64url').slice(0, 22);
+    expect(carimboCredencialPortaria(fp)).toBe(esperado);
+    expect(carimboCredencialPortaria(fp)).not.toBe(semSegredo);
   });
 });
