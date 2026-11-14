@@ -33,11 +33,15 @@ function exigirId(valor: string): number {
 export class ConvitesController {
   constructor(private readonly service: ConvitesService) {}
 
-  /** Morador gera o link. O tipo é o ÚNICO campo aceito do cliente. */
+  /**
+   * Morador gera o link. Aceita do cliente só o tipo e, opcional, a unidade
+   * (`id_apartamento`), que o service confere contra os vínculos do morador.
+   */
   @Post()
   @HttpCode(200)
-  gerar(@Body() body: { is_prestador?: boolean }, @ReqUser() user: JwtPayload) {
-    return this.service.gerar(user, body?.is_prestador === true);
+  gerar(@Body() body: { is_prestador?: boolean; id_apartamento?: number }, @ReqUser() user: JwtPayload) {
+    const idApto = Number(body?.id_apartamento);
+    return this.service.gerar(user, body?.is_prestador === true, Number.isInteger(idApto) && idApto > 0 ? idApto : undefined);
   }
 
   /** Convites preenchidos esperando decisão deste morador. */
