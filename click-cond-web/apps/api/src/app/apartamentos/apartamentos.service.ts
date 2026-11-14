@@ -238,6 +238,7 @@ export class ApartamentosService {
    * com o vínculo. Linhas dos moradores vinculados: mesma chave do cadastro de moradores (bloco
    * normalizado, "Bloco A" = "A"; apto sem espaços nem caixa). Linhas sem conta (id_user nulo): só
    * pelo texto antigo EXATO, deste condomínio — "A"/101 e "Bloco A"/101 podem ser unidades diferentes.
+   * A única equivalência é bloco nulo = '' (o cadastro grava `bloco || null`).
    */
   private async propagarRenomeParaMoradores(
     tx: any,
@@ -254,13 +255,17 @@ export class ApartamentosService {
       select: { id_user: true },
     });
     const idsUsers = [...new Set(vinculos.map((v) => v.id_user))];
+    const semBloco = (b: string | null | undefined) => b == null || b === '';
+    const blocoAntigoIgual = (b: string | null) => (semBloco(antes.bloco) ? semBloco(b) : b === antes.bloco);
     const linhas: { id: number; id_user: number | null; bloco: string | null; apartamento: string | null }[] =
       await tx.moradores.findMany({
         where: {
           id_condominio: antes.id_condominio,
           OR: [
             ...(idsUsers.length > 0 ? [{ id_user: { in: idsUsers } }] : []),
-            { id_user: null, bloco: antes.bloco, apartamento: antes.apto },
+            semBloco(antes.bloco)
+              ? { id_user: null, apartamento: antes.apto, OR: [{ bloco: null }, { bloco: '' }] }
+              : { id_user: null, bloco: antes.bloco, apartamento: antes.apto },
           ],
         },
         select: { id: true, id_user: true, bloco: true, apartamento: true },
@@ -268,7 +273,7 @@ export class ApartamentosService {
     const ids = linhas
       .filter((l) =>
         l.id_user == null
-          ? l.bloco === antes.bloco && l.apartamento === antes.apto
+          ? blocoAntigoIgual(l.bloco) && l.apartamento === antes.apto
           : chave(l.bloco, l.apartamento) === chaveAntiga,
       )
       .map((l) => l.id);

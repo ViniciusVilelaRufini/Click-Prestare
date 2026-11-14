@@ -78,4 +78,38 @@ describe('ApartamentosService.update — renomear a unidade atualiza o cadastro 
 
     expect(tx.moradores.updateMany).not.toHaveBeenCalled();
   });
+
+  // O cadastro grava `bloco || null`: uma unidade sem bloco pode ter linhas
+  // sem conta com bloco null ou ''. As duas são a mesma unidade.
+  it('unidade sem bloco: linhas sem conta com bloco null ou "" são renomeadas; o resto segue exato', async () => {
+    const linhas = [
+      { id: 1, id_user: null, bloco: null, apartamento: '7' },
+      { id: 2, id_user: null, bloco: '', apartamento: '7' },
+      { id: 3, id_user: null, bloco: 'A', apartamento: '7' }, // outra unidade: fica
+      { id: 4, id_user: null, bloco: '', apartamento: '07' }, // apto diferente: fica
+    ];
+    const tx: any = {
+      apartamentos: { update: jest.fn(async ({ data }: any) => ({ id: 5, id_condominio: 1, apto: '7', bloco: null, ...data })) },
+      apartamentos_Users: { findMany: jest.fn(async () => []) },
+      moradores: { findMany: jest.fn(async () => linhas), updateMany: jest.fn(async () => ({ count: 2 })) },
+    };
+    const prisma: any = {
+      isConnected: true,
+      apartamentos: { findUnique: jest.fn(async () => ({ id_condominio: 1, apto: '7', bloco: null })) },
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+    };
+    const tenant: any = { assertEntidade: jest.fn(async () => undefined), assertPermissaoFuncionario: jest.fn(async () => undefined) };
+    const svc = new ApartamentosService(prisma, tenant, { registrar: jest.fn() } as any);
+
+    await svc.update(5, { apto: '8' }, sindico);
+
+    expect(tx.moradores.findMany.mock.calls[0][0].where).toEqual({
+      id_condominio: 1,
+      OR: [{ id_user: null, apartamento: '7', OR: [{ bloco: null }, { bloco: '' }] }],
+    });
+    expect(tx.moradores.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: [1, 2] } },
+      data: { bloco: null, apartamento: '8' },
+    });
+  });
 });
