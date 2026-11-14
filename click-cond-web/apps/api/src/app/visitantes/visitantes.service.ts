@@ -3783,6 +3783,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (!dentro && v.liberado !== 1) {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
+    // Mesma regra do check-in: a autorização do morador vale 10 min numa
+    // visita não usada. Sem isto o PIN dizia ATIVO e "Confirmar Entrada" falhava.
+    if (!dentro && !v.data_saida && v.auth_status === 'autorizado' && !isAutorizacaoAtual(v)) {
+      throw new BadRequestException('A autorização desta visita está expirada.');
+    }
 
     const formatarData = (d: Date | null) => formatarDataHoraBrasilia(d);
 
