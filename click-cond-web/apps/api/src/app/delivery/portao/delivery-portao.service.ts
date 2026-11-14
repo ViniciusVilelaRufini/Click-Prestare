@@ -1,0 +1,412 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  HttpException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { FacialService } from '../../facial/facial.service';
+import { PREFIXOS_FOTO_PEDIDO_PORTAO, StorageService } from '../../common/storage/storage.service';
+import { comLock } from '../../common/lock-distribuido';
+import { DeliveryService, DeliveryStatus, GanchoPortao } from '../delivery.service';
+import {
+  EstadoPedido,
+  FOTO_MIME,
+  JANELA_ABERTURA_MS,
+  MAX_FOTO_BYTES,
+  MAX_PEDIDOS_PORTAO_10MIN,
+  PEDIDO_EXPIRA_MS,
+  PRESENCA_MS,
+  SAIDA_MS,
+  dentroDoHorario,
+  estadoDoPedido,
+  hashToken,
+  novoToken,
+} from './portao-regras';
+
+/**
+ * Autoatendimento de entregas no portão
+ * (spec docs/superpowers/specs/2026-11-13-entregador-autoatendimento-portao-design.md).
+ *
+ * O entregador lê o QR fixo do portão (`Facial_Devices.token_entrega`),
+ * escolhe a unidade, tira uma selfie e pede a entrada. Cada página aberta é
+ * um pedido (`DeliveryPedidosPortao`), identificado pelo token que só a
+ * página guarda (no banco, o hash). O morador responde pelo card; liberado,
+ * abre o portão DO PEDIDO (`id_device`), uma vez, dentro da janela.
+ *
+ * Nada que sai daqui para a página tem nome, telefone ou id de morador, nem
+ * a selfie.
+ */
+
+export interface PortaoPublico {
+  condominio: string;
+  portao: string;
+  disponivel: boolean;
+  motivo?: 'desligado' | 'fora_horario';
+  horario?: { inicio: string; fim: string };
+  /** Vazio quando indisponível. */
+  unidades: { id: number; bloco: string | null; apto: string | null }[];
+}
+
+const MSG_PORTAO = 'QR de entregas indisponível.';
+const MSG_INDISPONIVEL = 'Autoatendimento de entregas indisponível agora.';
+const MSG_PEDIDO = 'Pedido não encontrado.';
+const MSG_FORMATO = 'Envie uma foto em JPEG, PNG ou WebP.';
+const JANELA_LIMITE_PORTAO_MS = 10 * 60_000;
+/** Token do QR do portão (48 hex no gerado; tolerante a tamanho, mas sem caracteres de caminho). */
+const TOKEN_PORTAO = /^[A-Za-z0-9_-]{16,64}$/;
+const TOKEN_PEDIDO = /^[0-9a-f]{64}$/;
+
+type Portao = {
+  id: number;
+  id_condominio: number;
+  nome: string;
+  condominio: {
+    id: number;
+    nome: string;
+    delivery_autoatendimento: boolean;
+    delivery_auto_inicio: string | null;
+    delivery_auto_fim: string | null;
+  };
+};
+
+@Injectable()
+export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DeliveryPortaoService.name);
+  /** Público para os testes; em produção é Date.now. */
+  agora: () => number = () => Date.now();
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly delivery: DeliveryService,
+    private readonly facial: FacialService,
+    private readonly storage: StorageService,
+  ) {
+    // Mão única: o DeliveryService só conhece o gancho.
+    this.delivery.registrarGanchoPortao(this);
+  }
+
+  onModuleInit() {
+    // Rotina agendada (Tarefa 8).
+  }
+
+  onModuleDestroy() {
+    // Rotina agendada (Tarefa 8).
+  }
+
+  // ─────────────────────────────────────────── página pública
+
+  async lerPortao(token: string): Promise<PortaoPublico> {
+    const portao = await this.carregarPortao(token);
+    const c = portao.condominio;
+    const horario =
+      c.delivery_auto_inicio && c.delivery_auto_fim ? { inicio: c.delivery_auto_inicio, fim: c.delivery_auto_fim } : null;
+    const base = { condominio: c.nome, portao: portao.nome };
+    const motivo = this.motivoIndisponivel(portao);
+    if (motivo) {
+      return { ...base, disponivel: false, motivo, ...(motivo === 'fora_horario' && horario ? { horario } : {}), unidades: [] };
+    }
+    const unidades = await this.prisma.apartamentos.findMany({
+      where: { id_condominio: portao.id_condominio },
+      select: { id: true, bloco: true, apto: true },
+    });
+    return {
+      ...base,
+      disponivel: true,
+      ...(horario ? { horario } : {}),
+      unidades: (unidades as any[])
+        .map((u) => ({ id: u.id, bloco: u.bloco ?? null, apto: u.apto ?? null }))
+        .sort((a, b) => {
+          const bloco = (a.bloco ?? '').localeCompare(b.bloco ?? '', 'pt-BR', { numeric: true });
+          return bloco || (a.apto ?? '').localeCompare(b.apto ?? '', 'pt-BR', { numeric: true });
+        }),
+    };
+  }
+
+  async criarPedido(
+    token: string,
+    d: { id_apartamento: unknown; nome: unknown; plataforma?: unknown; foto: unknown },
+  ): Promise<EstadoPedido & { pedido: string }> {
+    const portao = await this.carregarPortao(token);
+    if (this.motivoIndisponivel(portao)) throw new ForbiddenException(MSG_INDISPONIVEL);
+
+    // Tudo validado antes de gravar qualquer coisa.
+    const idApartamento = Number(d?.id_apartamento);
+    if (typeof d?.id_apartamento === 'boolean' || !Number.isInteger(idApartamento) || idApartamento <= 0) {
+      throw new BadRequestException('Unidade inválida.');
+    }
+    const apto = await this.prisma.apartamentos.findUnique({ where: { id: idApartamento }, select: { id_condominio: true } });
+    if (!apto || apto.id_condominio !== portao.id_condominio) throw new BadRequestException('Unidade inválida.');
+    const nome = typeof d?.nome === 'string' ? d.nome.trim().replace(/\s+/g, ' ') : '';
+    if (nome.length < 2 || nome.length > 80) throw new BadRequestException('Informe seu nome.');
+    const plataforma = typeof d?.plataforma === 'string' ? d.plataforma.trim().slice(0, 40) || null : null;
+    const foto = typeof d?.foto === 'string' ? d.foto.trim() : '';
+    if (!foto || /^data:[^,]*,\s*$/.test(foto)) throw new BadRequestException('Envie uma foto do seu rosto.');
+    if (!FOTO_MIME.test(foto)) throw new BadRequestException(MSG_FORMATO);
+    if (foto.length > MAX_FOTO_BYTES) throw new BadRequestException('Foto muito grande. Tente novamente.');
+
+    const agora = new Date(this.agora());
+    const recentes = await (this.prisma as any).deliveryPedidosPortao.count({
+      where: { id_device: portao.id, criado_em: { gte: new Date(agora.getTime() - JANELA_LIMITE_PORTAO_MS) } },
+    });
+    if (recentes >= MAX_PEDIDOS_PORTAO_10MIN) {
+      throw new HttpException('Muitos pedidos neste portão. Aguarde alguns minutos.', 429);
+    }
+
+    // Um pedido pendente por unidade: dois entregadores no mesmo segundo,
+    // em duas instâncias da API, só um passa (o outro espera e vê o pendente).
+    const r = await comLock(
+      this.prisma,
+      `delivery-portao:apto:${idApartamento}`,
+      () => this.gravarPedido(portao, idApartamento, nome, plataforma, foto, agora),
+      { esperaSegundos: 5, duracaoMaximaMs: 60_000 },
+    );
+    if (!r.obtido) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
+    const { pedido, tokenPedido } = r.valor;
+    await this.delivery.vincularPedidoPortao(pedido.id_atendimento, pedido.id);
+    // O token em claro sai uma única vez.
+    return { ...estadoDoPedido(pedido, agora), pedido: tokenPedido };
+  }
+
+  private async gravarPedido(portao: Portao, idApartamento: number, nome: string, plataforma: string | null, foto: string, agora: Date) {
+    const db = (this.prisma as any).deliveryPedidosPortao;
+    // Vencido não bloqueia a unidade.
+    await db.updateMany({
+      where: { status: 'pendente', expira_em: { lte: agora }, atendimento: { id_apartamento: idApartamento } },
+      data: { status: 'expirado' },
+    });
+    const pendente = await db.findFirst({
+      where: { status: 'pendente', expira_em: { gt: agora }, atendimento: { id_apartamento: idApartamento } },
+      select: { id: true },
+    });
+    if (pendente) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
+
+    const url = await this.storage.uploadDataUrl(foto, 'delivery-portao');
+    if (!url) throw new BadRequestException(MSG_FORMATO);
+    // Storage fora devolve a própria data URL: não cabe na coluna e não é privado.
+    if (url.startsWith('data:')) throw new ServiceUnavailableException('Não foi possível guardar a foto. Tente novamente.');
+    try {
+      const chegada = await this.delivery.registrarChegadaAutoatendimento({
+        idCondominio: portao.id_condominio,
+        idApartamento,
+        nomeEntregador: nome,
+        plataforma,
+      });
+      const tokenPedido = novoToken();
+      const pedido = await db.create({
+        data: {
+          id_atendimento: chegada.id,
+          id_device: portao.id,
+          nome,
+          plataforma,
+          foto: url,
+          token_hash: hashToken(tokenPedido),
+          status: 'pendente',
+          visto_em: agora,
+          criado_em: agora,
+          expira_em: new Date(agora.getTime() + PEDIDO_EXPIRA_MS),
+        },
+      });
+      return { pedido, tokenPedido };
+    } catch (e) {
+      await this.storage.deleteUrl(url, PREFIXOS_FOTO_PEDIDO_PORTAO).catch(() => false);
+      throw e;
+    }
+  }
+
+  /** A página consulta a cada poucos segundos (é a presença do entregador). */
+  async consultar(token: string, tokenPedido: string): Promise<EstadoPedido & { falha_abertura: boolean }> {
+    const pedido = await this.carregarPedido(token, tokenPedido);
+    const agora = new Date(this.agora());
+    const atual = await this.marcarVisto(pedido, agora);
+    return { ...estadoDoPedido(atual, agora), falha_abertura: !!atual.falha_abertura_em && !atual.aberto_em };
+  }
+
+  /** Botão "Abrir portão" (a página voltou depois de o morador liberar). */
+  async abrir(token: string, tokenPedido: string): Promise<EstadoPedido & { abriu: boolean }> {
+    const pedido = await this.carregarPedido(token, tokenPedido);
+    const agora = new Date(this.agora());
+    await this.marcarVisto(pedido, agora);
+    const abriu = await this.abrirEntrada(pedido, agora);
+    const atual = await this.relerPedido(pedido.id);
+    return { ...estadoDoPedido(atual, agora), abriu };
+  }
+
+  /** "Abrir para sair": uma vez, no mesmo aparelho, até 30 min depois da entrada. Conclui o atendimento. */
+  async sair(token: string, tokenPedido: string): Promise<EstadoPedido & { abriu: boolean }> {
+    const pedido = await this.carregarPedido(token, tokenPedido);
+    const agora = new Date(this.agora());
+    await this.marcarVisto(pedido, agora);
+    const db = (this.prisma as any).deliveryPedidosPortao;
+    const reserva = await db.updateMany({
+      where: {
+        id: pedido.id,
+        status: 'liberado',
+        aberto_em: { gte: new Date(agora.getTime() - SAIDA_MS) },
+        saida_aberta_em: null,
+      },
+      data: { saida_aberta_em: agora },
+    });
+    let abriu = false;
+    if (reserva.count === 1) {
+      const r = await this.facial.abrirDispositivoInterno(pedido.id_device, this.contextoAbertura(pedido));
+      if (r.ok) {
+        abriu = true;
+        await this.delivery
+          .transicionarPeloSistema(pedido.id_atendimento, 'CONCLUIDA', 'Concluído na saída do entregador')
+          .catch((e: any) => this.logger.warn(`Conclusão do delivery ${pedido.id_atendimento} na saída: ${e?.message ?? e}`));
+      } else {
+        // Devolve a vez: o entregador pode tentar de novo.
+        await db.update({ where: { id: pedido.id }, data: { saida_aberta_em: null, falha_abertura_em: agora } });
+      }
+    }
+    const atual = await this.relerPedido(pedido.id);
+    return { ...estadoDoPedido(atual, agora), abriu };
+  }
+
+  // ─────────────────────────────────────────── gancho do DeliveryService
+
+  async aoMudarStatus(
+    atendimento: { id: number; origem: string; id_pedido_portao: number | null },
+    statusNovo: DeliveryStatus,
+    quem: { idUser: number | null; operador: boolean; sistema: boolean },
+  ): Promise<void> {
+    if (!atendimento.id_pedido_portao) return;
+    try {
+      const db = (this.prisma as any).deliveryPedidosPortao;
+      const pedido = await db.findUnique({ where: { id: Number(atendimento.id_pedido_portao) } });
+      if (!pedido || pedido.status !== 'pendente') return;
+      const agora = new Date(this.agora());
+      const pendente = { id: pedido.id, status: 'pendente' };
+      switch (statusNovo) {
+        case 'AUTORIZADA': {
+          if (quem.operador) {
+            // Porteiro autorizou: ele abre pelo meio de sempre; a nuvem não abre.
+            await db.updateMany({ where: pendente, data: { status: 'liberado', liberado_ate: null } });
+            return;
+          }
+          if (quem.sistema) return;
+          if (agora.getTime() >= new Date(pedido.expira_em).getTime()) {
+            // Resposta tarde: o atendimento fica AUTORIZADA, nada abre.
+            await db.updateMany({ where: pendente, data: { status: 'expirado' } });
+            return;
+          }
+          const liberado = await db.updateMany({
+            where: pendente,
+            data: { status: 'liberado', liberado_ate: new Date(agora.getTime() + JANELA_ABERTURA_MS) },
+          });
+          if (liberado.count !== 1) return;
+          const visto = pedido.visto_em ? new Date(pedido.visto_em).getTime() : null;
+          // Página presente: abre já. Ausente: o botão vale até liberado_ate.
+          if (visto !== null && agora.getTime() - visto <= PRESENCA_MS) {
+            await this.abrirEntrada({ ...pedido, status: 'liberado' }, agora);
+          }
+          return;
+        }
+        case 'RETIRADA_NA_PORTARIA':
+          await db.updateMany({ where: pendente, data: { status: 'vou_buscar' } });
+          return;
+        case 'RECUSADA':
+        case 'CANCELADA':
+          await db.updateMany({ where: pendente, data: { status: 'recusado' } });
+          return;
+        default:
+          return;
+      }
+    } catch (e: any) {
+      this.logger.warn(`Pedido de portão do delivery ${atendimento.id}: ${e?.message ?? e}`);
+    }
+  }
+
+  // ─────────────────────────────────────────── internos
+
+  /**
+   * Reserva a abertura (só um chamador passa) e aciona o aparelho do pedido.
+   * Falhou: desfaz a reserva e marca a falha, para nova tentativa dentro da
+   * janela.
+   */
+  private async abrirEntrada(pedido: any, agora: Date): Promise<boolean> {
+    const db = (this.prisma as any).deliveryPedidosPortao;
+    const reserva = await db.updateMany({
+      where: { id: pedido.id, status: 'liberado', aberto_em: null, liberado_ate: { gte: agora } },
+      data: { aberto_em: agora },
+    });
+    if (reserva.count !== 1) return false;
+    const r = await this.facial.abrirDispositivoInterno(pedido.id_device, this.contextoAbertura(pedido));
+    if (r.ok) {
+      await db.update({ where: { id: pedido.id }, data: { falha_abertura_em: null } }).catch(() => undefined);
+      return true;
+    }
+    await db.update({ where: { id: pedido.id }, data: { aberto_em: null, falha_abertura_em: agora } });
+    return false;
+  }
+
+  private contextoAbertura(pedido: any) {
+    return {
+      origem: 'delivery_portao' as const,
+      tipoPessoa: 'entregador',
+      idPessoa: null,
+      nomePessoa: pedido.nome,
+      credencial: `delivery:${pedido.id_atendimento}`,
+    };
+  }
+
+  private async marcarVisto(pedido: any, agora: Date) {
+    const db = (this.prisma as any).deliveryPedidosPortao;
+    await db.update({ where: { id: pedido.id }, data: { visto_em: agora } });
+    if (pedido.status === 'pendente' && agora.getTime() >= new Date(pedido.expira_em).getTime()) {
+      await db.updateMany({ where: { id: pedido.id, status: 'pendente' }, data: { status: 'expirado' } });
+    }
+    return this.relerPedido(pedido.id);
+  }
+
+  private async relerPedido(id: number) {
+    return (this.prisma as any).deliveryPedidosPortao.findUnique({ where: { id } });
+  }
+
+  private async carregarPortao(token: string): Promise<Portao> {
+    if (typeof token !== 'string' || !TOKEN_PORTAO.test(token)) throw new NotFoundException(MSG_PORTAO);
+    const d = await (this.prisma as any).facial_Devices.findFirst({
+      where: { token_entrega: token, ativo: 1 },
+      select: {
+        id: true,
+        id_condominio: true,
+        nome: true,
+        condominio: {
+          select: {
+            id: true,
+            nome: true,
+            ativo: true,
+            delivery_autoatendimento: true,
+            delivery_auto_inicio: true,
+            delivery_auto_fim: true,
+          },
+        },
+      },
+    });
+    if (!d || !d.condominio || d.condominio.ativo !== 1) throw new NotFoundException(MSG_PORTAO);
+    return d as Portao;
+  }
+
+  private async carregarPedido(token: string, tokenPedido: string) {
+    const portao = await this.carregarPortao(token);
+    if (typeof tokenPedido !== 'string' || !TOKEN_PEDIDO.test(tokenPedido)) throw new NotFoundException(MSG_PEDIDO);
+    const pedido = await (this.prisma as any).deliveryPedidosPortao.findUnique({ where: { token_hash: hashToken(tokenPedido) } });
+    // Pedido de outro portão não é lido nem aberto por este QR.
+    if (!pedido || pedido.id_device !== portao.id) throw new NotFoundException(MSG_PEDIDO);
+    return pedido;
+  }
+
+  private motivoIndisponivel(portao: Portao): 'desligado' | 'fora_horario' | null {
+    const c = portao.condominio;
+    if (!c.delivery_autoatendimento) return 'desligado';
+    if (!dentroDoHorario(c.delivery_auto_inicio, c.delivery_auto_fim, new Date(this.agora()))) return 'fora_horario';
+    return null;
+  }
+}

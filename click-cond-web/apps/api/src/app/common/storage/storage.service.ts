@@ -52,6 +52,8 @@ export const PREFIXOS_FOTO_CONVITE: readonly string[] = ['convites/'];
 export const PREFIXOS_FOTO_VISITANTE: readonly string[] = ['visitantes/', 'convites/'];
 /** Foto de morador (rosto do facial) nasce em moradores/ (MoradoresService.resolveFoto e saveMorador). */
 export const PREFIXOS_FOTO_MORADOR: readonly string[] = ['moradores/'];
+/** Selfie do entregador no autoatendimento do portão (DeliveryPortaoService). */
+export const PREFIXOS_FOTO_PEDIDO_PORTAO: readonly string[] = ['delivery-portao/'];
 
 /**
  * Links assinados de leitura (bucket privado). Validade fixa de 1 h, contada a
