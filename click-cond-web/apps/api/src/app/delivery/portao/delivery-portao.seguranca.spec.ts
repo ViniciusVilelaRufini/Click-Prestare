@@ -70,4 +70,31 @@ describe('autoatendimento no portão — revisão de segurança', () => {
       expect(k.tabela('deliveryPedidosPortao')[0].status).toBe('pendente');
     });
   });
+
+  describe('[2] não reaproveita o atendimento que a portaria está atendendo', () => {
+    it('unidade com atendimento CHEGOU/AGUARDANDO_AUTORIZACAO da portaria: 409, sem foto, sem pedido, sem card', async () => {
+      for (const status of ['CHEGOU', 'AGUARDANDO_AUTORIZACAO']) {
+        const k = montarPortao({
+          atendimentos: [
+            { id: 4, id_condominio: 1, id_apartamento: 101, id_morador_user: 7, origem: 'portaria', status, nome_entregador: 'Joao', id_pedido_portao: null, chegou_em: new Date(T0 - M) },
+          ],
+        });
+        await expect(k.svc.criarPedido(TOKEN_PORTAO, entrada)).rejects.toThrow(
+          new ConflictException('A portaria já está atendendo uma entrega para esta unidade. Procure a portaria.'),
+        );
+        expect(k.storage.uploadDataUrl).not.toHaveBeenCalled();
+        expect(k.tabela('deliveryPedidosPortao')).toHaveLength(0);
+        expect(k.tabela('deliveryAtendimentos')).toEqual([expect.objectContaining({ id: 4, status, id_pedido_portao: null })]);
+        expect(k.card.abrirDelivery).not.toHaveBeenCalled();
+      }
+    });
+
+    it('aviso AGENDADA do morador sem pedido anterior é reaproveitado', async () => {
+      const k = montarPortao({
+        atendimentos: [{ id: 4, id_condominio: 1, id_apartamento: 101, id_morador_user: 7, origem: 'portaria', status: 'AGENDADA', id_pedido_portao: null }],
+      });
+      await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      expect(k.tabela('deliveryAtendimentos')).toEqual([expect.objectContaining({ id: 4, status: 'AGUARDANDO_AUTORIZACAO', id_pedido_portao: 1 })]);
+    });
+  });
 });

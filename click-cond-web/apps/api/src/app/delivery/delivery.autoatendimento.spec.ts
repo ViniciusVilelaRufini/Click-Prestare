@@ -123,16 +123,29 @@ describe('DeliveryService — autoatendimento no portão', () => {
     expect(tabela('deliveryEventos').map((e) => e.status_novo)).toEqual(['CHEGOU', 'AGUARDANDO_AUTORIZACAO']);
   });
 
-  it('chegada em atendimento já em CHEGOU grava um evento; já em AGUARDANDO_AUTORIZACAO, nenhum; nome do entregador não é trocado', async () => {
-    const chegou = montar({ atendimentos: [atendimentoAuto({ status: 'CHEGOU', origem: 'portaria', id_morador_user: 7, nome_entregador: 'Joao', id_pedido_portao: null })] });
-    await chegou.svc.registrarChegadaAutoatendimento({ idCondominio: 1, idApartamento: 101, nomeEntregador: 'Carlos', plataforma: null });
-    expect(chegou.tabela('deliveryEventos').map((e) => e.status_novo)).toEqual(['AGUARDANDO_AUTORIZACAO']);
-    expect(chegou.tabela('deliveryAtendimentos')[0].nome_entregador).toBe('Joao');
+  it('chegada com a portaria já atendendo a unidade (CHEGOU ou AGUARDANDO_AUTORIZACAO sem pedido de portão): 409 e nada muda', async () => {
+    const msg = new ConflictException('A portaria já está atendendo uma entrega para esta unidade. Procure a portaria.');
+    for (const status of ['CHEGOU', 'AGUARDANDO_AUTORIZACAO']) {
+      const k = montar({ atendimentos: [atendimentoAuto({ status, origem: 'portaria', id_morador_user: 7, nome_entregador: 'Joao', id_pedido_portao: null })] });
+      const criarPedido = jest.fn(async () => ({ id: 77 }));
+      await expect(
+        k.svc.registrarChegadaAutoatendimento({ idCondominio: 1, idApartamento: 101, nomeEntregador: 'Carlos', plataforma: null }, criarPedido),
+      ).rejects.toThrow(msg);
+      expect(criarPedido).not.toHaveBeenCalled();
+      expect(k.tabela('deliveryAtendimentos')).toHaveLength(1);
+      expect(k.tabela('deliveryAtendimentos')[0]).toMatchObject({ status, nome_entregador: 'Joao', id_pedido_portao: null });
+      expect(k.tabela('deliveryEventos')).toHaveLength(0);
+    }
+  });
 
-    const aguardando = montar({ atendimentos: [atendimentoAuto({ id_pedido_portao: null })] });
-    const r = await aguardando.svc.registrarChegadaAutoatendimento({ idCondominio: 1, idApartamento: 101, nomeEntregador: 'Duda', plataforma: null });
-    expect(r).toEqual({ id: 1, criado: false, pedido: null });
-    expect(aguardando.tabela('deliveryEventos')).toHaveLength(0);
+  it('chegada só reaproveita AGENDADA sem pedido de portão anterior', async () => {
+    const k = montar({
+      atendimentos: [atendimentoAuto({ id: 4, status: 'AGENDADA', origem: 'portaria', id_morador_user: 7, id_pedido_portao: null, chegou_em: null })],
+      pedidos: [{ ...pedidoPendente({ id: 49, id_atendimento: 4, status: 'expirado' }) }],
+    });
+    const r = await k.svc.registrarChegadaAutoatendimento({ idCondominio: 1, idApartamento: 101, nomeEntregador: 'Carlos', plataforma: null });
+    expect(r.criado).toBe(true);
+    expect(k.tabela('deliveryAtendimentos')[0].status).toBe('AGENDADA');
   });
 
   it('chegada não reaproveita atendimento de outra unidade nem um já autorizado', async () => {
