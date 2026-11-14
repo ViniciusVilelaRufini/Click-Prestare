@@ -103,6 +103,26 @@ describe('conteúdo do card do delivery', () => {
     expect(alertaDelivery('recusado', c)).toBeNull();
   });
 
+  it('delivery comum: o conteúdo não tem a chave portao', () => {
+    for (const fase of ['chegou', 'aguardando', 'autorizado', 'retirar', 'entregue', 'recusado'] as const) {
+      expect('portao' in conteudoDelivery(a, fase, { voceRespondeu: false }, agora)).toBe(false);
+    }
+  });
+
+  it('pedido de portão pendente: fase aguardando leva portao:true; fase autorizado não', () => {
+    const p = { ...a, status: 'AGUARDANDO_AUTORIZACAO' as const, portao: true };
+    expect(conteudoDelivery(p, 'aguardando', { voceRespondeu: false }, agora).portao).toBe(true);
+    expect('portao' in conteudoDelivery(p, 'autorizado', { voceRespondeu: false }, agora)).toBe(false);
+    expect('portao' in conteudoDelivery({ ...p, portao: false }, 'aguardando', { voceRespondeu: false }, agora)).toBe(false);
+  });
+
+  it('alerta do portão: título "Entregador no portão", corpo "Carlos · iFood pede para entrar."', () => {
+    const c = conteudoDelivery({ ...a, portao: true }, 'aguardando', { voceRespondeu: false }, agora);
+    expect(alertaDelivery('aguardando', c)).toEqual({ titulo: 'Entregador no portão', corpo: 'Carlos · iFood pede para entrar.' });
+    // Sem a variante, o texto de hoje.
+    expect(alertaDelivery('aguardando', { ...c, portao: undefined })?.titulo).toBe('Autorize a entrega');
+  });
+
   it('textos da notificação de hoje não mudam', () => {
     expect(mensagemDelivery('CHEGOU')).toBe('Seu entregador chegou à portaria.');
     expect(mensagemDelivery('RECUSADA', ' Sem documento ')).toBe('Sua entrega foi recusada pela portaria. Motivo: Sem documento');

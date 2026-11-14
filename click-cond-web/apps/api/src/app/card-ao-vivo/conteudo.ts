@@ -62,6 +62,13 @@ export interface ConteudoCard {
   foto?: string;
   /** Delivery recusado: motivo informado. */
   motivo?: string | null;
+  /**
+   * Delivery pedido pelo entregador no QR do portão, ainda pendente: o app
+   * novo troca os botões por VOU BUSCAR / LIBERAR ENTRADA. Ausente nos outros
+   * casos (o push dos deliveries comuns sai idêntico ao de antes); app antigo
+   * ignora a chave e mostra RECUSAR / AUTORIZAR.
+   */
+  portao?: boolean;
 }
 
 export interface AtributosCard {
