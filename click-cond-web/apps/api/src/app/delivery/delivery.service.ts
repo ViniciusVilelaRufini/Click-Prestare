@@ -16,6 +16,7 @@ import { isOperador } from '../auth/tenant.util';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
+import { parseLocalTimeToUTCNullable } from '../visitantes/visitantes.service';
 import {
   AtualizarEntregadorDto,
   AtualizarStatusDeliveryDto,
@@ -79,7 +80,9 @@ export class DeliveryService {
           id_apartamento: idApartamento,
           id_morador_user: idMorador,
           estabelecimento: dto.estabelecimento?.trim() || null,
-          previsao_em: dto.previsao_em ? new Date(dto.previsao_em) : null,
+          // O app manda a hora local sem fuso ("…T19:00:00.000"): é Brasília,
+          // não UTC (o console mostrava 3 h adiantado).
+          previsao_em: parseLocalTimeToUTCNullable(dto.previsao_em),
           observacao_morador: dto.observacao_morador?.trim() || null,
           nome_entregador: dto.nome_entregador?.trim() || null,
           telefone_entregador: dto.telefone_entregador?.trim() || null,
@@ -334,7 +337,39 @@ export class DeliveryService {
       }),
     ]);
     if (teto) clearTimeout(teto);
-    return isOperador(user) ? atualizado : this.paraMorador(atualizado);
+    if (!isOperador(user)) return this.paraMorador(atualizado);
+    // Pedido de autorização: a portaria precisa saber se alguém pode receber
+    // (com 0, a tela manda interfonar em vez de esperar sem prazo).
+    if (statusNovo === 'AGUARDANDO_AUTORIZACAO') {
+      const avisados = await this.alcancaveisNaUnidade(atualizado.id_apartamento, atualizado.id_morador_user);
+      if (avisados !== null) return { ...atualizado, avisados };
+    }
+    return atualizado;
+  }
+
+  /**
+   * Quantas pessoas podem receber o pedido de autorização: os moradores da
+   * unidade com aparelho registrado (Users.fcm_token) e o criador do aviso,
+   * que recebe o card mesmo desvinculado e pode responder. Cada pessoa conta
+   * uma vez. Falha na contagem → null (a resposta sai sem o campo).
+   */
+  private async alcancaveisNaUnidade(idApartamento: number, idCriador: number): Promise<number | null> {
+    try {
+      const vinculos = await this.prisma.apartamentos_Users.findMany({
+        where: { id_apto: idApartamento },
+        select: { id_user: true, user: { select: { fcm_token: true } } },
+      });
+      const ids = new Set<number>();
+      for (const v of vinculos as any[]) if (v.user?.fcm_token) ids.add(v.id_user);
+      if (idCriador && !ids.has(idCriador)) {
+        const criador = await this.prisma.users.findUnique({ where: { id: idCriador }, select: { fcm_token: true } });
+        if (criador?.fcm_token) ids.add(idCriador);
+      }
+      return ids.size;
+    } catch (e: any) {
+      this.logger.warn(`Contagem de quem recebe o pedido do delivery: ${e?.message ?? e}`);
+      return null;
+    }
   }
 
   async listarEntregadores(idCondominio: number, busca: string | undefined, user: JwtPayload) {
