@@ -2,6 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { tap } from 'rxjs/operators';
+import { Subject } from 'rxjs';
 
 export interface CondominioVinculo {
   id: number;
@@ -54,6 +55,12 @@ export class AuthService {
     () => this._info()?.condominios ?? [],
   );
   readonly temMultiplosCondominios = computed(() => this.condominios().length > 1);
+
+  /**
+   * A sessão trocou de token sem sair (troca de senha, troca de condomínio). Quem mantém conexão aberta com o
+   * token antigo — o socket do tempo real — reconecta com o novo: o antigo deixa de valer na API.
+   */
+  readonly tokenRenovado$ = new Subject<string>();
 
   get token(): string | null {
     return localStorage.getItem(TOKEN_KEY);
@@ -142,7 +149,10 @@ export class AuthService {
       .pipe(
         // A resposta da troca não repete a lista de vínculos; preserva a atual
         // para o seletor continuar disponível.
-        tap((res) => this._persist({ ...res, condominios: this.condominios() })),
+        tap((res) => {
+          this._persist({ ...res, condominios: this.condominios() });
+          this.tokenRenovado$.next(res.access_token);
+        }),
       );
   }
 
@@ -171,7 +181,14 @@ export class AuthService {
         novaSenha,
       })
       // A troca de senha do síndico derruba as sessões anteriores; a API devolve o token que continua valendo.
-      .pipe(tap((res) => { if (res?.access_token) localStorage.setItem(TOKEN_KEY, res.access_token); }));
+      .pipe(
+        tap((res) => {
+          if (res?.access_token) {
+            localStorage.setItem(TOKEN_KEY, res.access_token);
+            this.tokenRenovado$.next(res.access_token);
+          }
+        }),
+      );
   }
 
   logout() {

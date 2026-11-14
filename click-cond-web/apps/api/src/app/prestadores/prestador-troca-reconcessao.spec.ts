@@ -411,4 +411,132 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
     contaInutilizada(conta(db, 5));
     expect(conta(db, 4)).toEqual(expect.objectContaining({ login: 'outro-login', email: 'a@x.com', password: 'x', senha_alterada_em: null }));
   });
+
+  describe('Rodada 3 (raia s) — M8: turno do login mudado no app', () => {
+    // O síndico cria o acesso no console (turno 'Geral') e muda o turno no app (saveFuncionario grava `turno`).
+    // O nome do login de portaria continua o do prestador ("Eletricista"): é a corroboração de que é a mesma pessoa.
+    const turnoMudado = (db: any) => { db.fp[0].turno = 'Manhã'; };
+
+    it('o nome confere mesmo com caixa, acento e espaços diferentes', async () => {
+      const { svc, db } = banco();
+      turnoMudado(db);
+      db.fp[0].nome = '  ELETRICISTA ';
+      db.prestadores[0].nome = 'Eletricísta';
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p.loginPortariaProprio).toBe(true);
+    });
+
+    it('editar o cadastro com a chave como está (o console reenvia hasPortariaAccess) não dá "Já existe um funcionário"', async () => {
+      const { svc, db } = banco();
+      turnoMudado(db);
+      await svc.update(1, { nome: 'Eletricista', telefone: '(11) 7777', email: 'a@x.com', hasPortariaAccess: true, senha: '' }, 1, porteiro);
+      expect(db.prestadores[0].telefone).toBe('(11) 7777');
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'a@x.com', turno: 'Manhã' })]);
+    });
+
+    it('desligar a chave revoga de fato (login, vínculo e conta)', async () => {
+      const { svc, db } = banco();
+      turnoMudado(db);
+      await svc.update(1, { email: 'a@x.com', hasPortariaAccess: false }, 1, sindico);
+      expect(db.fp).toHaveLength(0);
+      expect(equipeAqui(db)).toHaveLength(0);
+      contaInutilizada(conta(db, 5));
+    });
+
+    it('a lista mostra o login como próprio do cadastro, e remover exige síndico e revoga', async () => {
+      const { svc, db } = banco();
+      turnoMudado(db);
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p).toEqual(expect.objectContaining({ hasPortariaAccess: true, loginPortariaProprio: true }));
+      await expect(svc.remove(1, 1, porteiro)).rejects.toThrow('exige síndico');
+      await svc.remove(1, 1, sindico);
+      expect(db.fp).toHaveLength(0);
+      expect(equipeAqui(db)).toHaveLength(0);
+    });
+
+  });
+
+  describe('Rodada 3 (raia s), correção 1 — login de um COLEGA com o mesmo e-mail do prestador', () => {
+    // Porteiro do app (turno 'Diurno', outro nome) cujo login coincide com o e-mail gravado no prestador (dado
+    // antigo, de antes das checagens nas duas telas). Nada dele pode mudar a partir do cadastro do prestador.
+    const colega = (db: any) => {
+      Object.assign(db.fp[0], { nome: 'Porteiro C', turno: 'Diurno' });
+      return JSON.parse(JSON.stringify({ fp: db.fp[0], conta: conta(db, 5), equipe: equipeAqui(db) }));
+    };
+    const intacto = (db: any, antes: any) => {
+      expect(db.fp[0]).toEqual(antes.fp);
+      expect(JSON.parse(JSON.stringify(conta(db, 5)))).toEqual(antes.conta);
+      expect(equipeAqui(db)).toEqual(antes.equipe);
+    };
+
+    it('a lista não mostra o login do colega como acesso do prestador', async () => {
+      const { svc, db } = banco();
+      colega(db);
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p).toEqual(expect.objectContaining({ hasPortariaAccess: false, loginPortariaProprio: false }));
+    });
+
+    it('desligar a chave do prestador não revoga o colega', async () => {
+      const { svc, db } = banco();
+      const antes = colega(db);
+      await svc.update(1, { email: 'a@x.com', hasPortariaAccess: false }, 1, sindico);
+      intacto(db, antes);
+    });
+
+    it('remover o prestador não apaga o login nem a conta do colega', async () => {
+      const { svc, db } = banco();
+      const antes = colega(db);
+      await svc.remove(1, 1, sindico);
+      expect(db.prestadores).toHaveLength(0);
+      intacto(db, antes);
+    });
+
+    it('definir senha (pedir acesso) com esse e-mail é recusado e a senha do colega não muda', async () => {
+      const { svc, db } = banco();
+      const antes = colega(db);
+      await expect(svc.update(1, { hasPortariaAccess: true, senha: 'Nova#123' }, 1, sindico)).rejects.toThrow(
+        'Já existe um funcionário com este e-mail.',
+      );
+      intacto(db, antes);
+    });
+  });
+
+  describe('Rodada 3 (raia s) — M-f1: troca de e-mail num ato só', () => {
+    // Falha ao gravar o prestador logo depois de revogar a conta antiga: antes o login de portaria ficava com o
+    // e-mail e a senha antigos (o dono do e-mail antigo seguia entrando no console) e o prestador sem a troca.
+    it.each([
+      ['sem a chave', { email: 'b@x.com', senha: 'Nova#123' }],
+      ['com a chave', { email: 'b@x.com', hasPortariaAccess: true, senha: 'Nova#123' }],
+    ])('%s: falha ao gravar o prestador desfaz tudo (conta, vínculo e login de portaria intactos)', async (_n, dto) => {
+      const { svc, db, prisma } = banco();
+      prisma.prestadores_servico.update.mockRejectedValueOnce(new Error('banco caiu'));
+      await expect(svc.update(1, dto as any, 1, sindico)).rejects.toThrow(BadRequestException);
+      expect(db.prestadores[0].email).toBe('a@x.com');
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'a@x.com', email: 'a@x.com', password: '$2b$04$doLogin' })]);
+      expect(equipeAqui(db)).toHaveLength(1);
+      expect(conta(db, 5)).toEqual(expect.objectContaining({ login: 'a@x.com', password: '$2b$04$antiga', senha_alterada_em: null }));
+    });
+
+    it('"Novo" do síndico com outro e-mail (upsert): falha ao gravar o prestador desfaz tudo', async () => {
+      const { svc, db, prisma } = banco();
+      prisma.prestadores_servico.update.mockRejectedValueOnce(new Error('banco caiu'));
+      await expect(
+        svc.create({ id_condominio: 1, nome: 'Eletricista', email: 'b@x.com', senha: 'Nova#123', hasPortariaAccess: false } as any, sindico),
+      ).rejects.toThrow(BadRequestException);
+      expect(db.prestadores[0].email).toBe('a@x.com');
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'a@x.com', password: '$2b$04$doLogin' })]);
+      expect(equipeAqui(db)).toHaveLength(1);
+    });
+  });
+
+  describe('Rodada 3 (raia s) — Menor 4: permissões do vínculo de equipe na troca de e-mail com a chave', () => {
+    it('a conta nova herda as permissões que o síndico tinha definido, em vez de todas ligadas', async () => {
+      const flags = { areas_sociais: 1, comunicados: 0, ocorrencias: 1, manutencoes_programadas: 0, prestadores_servico: 1, agendar_mudanca: 0, cadastrar_visitante: 1, apartamentos: 0 };
+      const { svc, db } = banco();
+      Object.assign(db.func[0], flags, { funcao: 'Zelador', ch: 'Noite' });
+      await svc.update(1, { email: 'b@x.com', hasPortariaAccess: true, senha: 'Nova#123' }, 1, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'b@x.com')!;
+      expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...flags, funcao: 'Zelador', ch: 'Noite' })]);
+    });
+  });
 });

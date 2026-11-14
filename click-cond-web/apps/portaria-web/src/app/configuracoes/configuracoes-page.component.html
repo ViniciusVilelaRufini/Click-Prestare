@@ -19,31 +19,33 @@
     <span class="ps-seg-pill ps-slide-ind"></span>
     <button
       (click)="currentTab.set('conta')"
-      [class.on]="currentTab() === 'conta'"
+      [class.on]="abaAtual() === 'conta'"
     >
       Segurança e Perfil
     </button>
-    <button
-      (click)="currentTab.set('terminais')"
-      [class.on]="currentTab() === 'terminais'"
-    >
-      Terminais de Dispositivos
-    </button>
-    <button
-      (click)="currentTab.set('regras')"
-      [class.on]="currentTab() === 'regras'"
-    >
-      Regras de Acesso
-    </button>
-    <button
-      (click)="currentTab.set('caminho')"
-      [class.on]="currentTab() === 'caminho'"
-    >
-      Caminho de Leitores
-    </button>
+    @if (!ehPorteiro()) {
+      <button
+        (click)="currentTab.set('terminais')"
+        [class.on]="abaAtual() === 'terminais'"
+      >
+        Terminais de Dispositivos
+      </button>
+      <button
+        (click)="currentTab.set('regras')"
+        [class.on]="abaAtual() === 'regras'"
+      >
+        Regras de Acesso
+      </button>
+      <button
+        (click)="currentTab.set('caminho')"
+        [class.on]="abaAtual() === 'caminho'"
+      >
+        Caminho de Leitores
+      </button>
+    }
   </div>
 
-  @if (currentTab() === 'conta') {
+  @if (abaAtual() === 'conta') {
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 animate-fadeIn">
 
       <!-- Perfil -->
@@ -169,15 +171,15 @@
       </section>
 
     </div>
-  } @else if (currentTab() === 'terminais') {
+  } @else if (abaAtual() === 'terminais') {
     <div class="ps-panel p-6 animate-fadeIn">
       <app-terminais-faciais-page [embedded]="true" />
     </div>
-  } @else if (currentTab() === 'regras') {
+  } @else if (abaAtual() === 'regras') {
     <div class="ps-panel p-6 animate-fadeIn">
       <app-regras-acesso />
     </div>
-  } @else if (currentTab() === 'caminho') {
+  } @else if (abaAtual() === 'caminho') {
     <app-caminho-leitores class="block" />
   }
 

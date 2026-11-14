@@ -13,5 +13,10 @@ export interface JwtPayload {
    * que tabela é o `sub` lê isto, nunca a forma do token.
    */
   tipo_sub?: 'funcionario_portaria';
+  /**
+   * Token do porteiro do console: carimbo da credencial (login + senha) com que ele entrou
+   * (credencial-portaria.util). O JwtStrategy recusa o token quando a credencial da linha mudou.
+   */
+  cred?: string;
   user?: any;
 }

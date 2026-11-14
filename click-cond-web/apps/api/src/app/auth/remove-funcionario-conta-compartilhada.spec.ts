@@ -46,6 +46,17 @@ describe('removeFuncionario — a conta só é apagada sem nenhum outro vínculo
     expect(prisma.funcionarios_Portaria.delete).toHaveBeenCalledWith({ where: { id: 50 } });
   });
 
+  // Rodada 3 (M-f4): a contagem roda no `tx` da transação, não no cliente de fora.
+  it('a contagem de vínculos usa a transação: o vínculo visto só dentro dela impede apagar a conta', async () => {
+    const { svc, prisma } = build({});
+    const tx = { ...prisma, moradores: { count: jest.fn(async () => 1) } };
+    prisma.$transaction = jest.fn(async (fn: any) => fn(tx));
+    await svc.removeFuncionario(50, sindico);
+    expect(tx.moradores.count).toHaveBeenCalled();
+    expect(prisma.moradores.count).not.toHaveBeenCalled();
+    expect(prisma.users.delete).not.toHaveBeenCalled();
+  });
+
   it('apaga a conta quando ela era só da equipe deste condomínio', async () => {
     const { svc, prisma } = build({});
     await svc.removeFuncionario(50, sindico);

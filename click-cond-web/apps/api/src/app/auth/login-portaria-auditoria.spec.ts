@@ -1,5 +1,5 @@
 import * as bcrypt from 'bcrypt';
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { SKIP_AUDIT_KEY } from '../common/interceptors/skip-audit.decorator';
@@ -200,8 +200,10 @@ describe('AuthService — login do console no log de auditoria', () => {
       await expect(svc.loginPortaria('conta@demo.com', 'errada')).rejects.toBeInstanceOf(UnauthorizedException);
       await assentar();
 
+      // Rodada 3 (M12): a linha de portaria cujo login é o síndico do condomínio não confere senha (só a conta do
+      // síndico vale), então a falha é da conta do síndico nos dois condomínios.
       expect(linhas().map((l) => [l.id_condominio, l.acao, l.autor_tipo])).toEqual([
-        [7, 'LOGIN_FALHA', 'funcionario_portaria'],
+        [7, 'LOGIN_FALHA', 'user'],
         [8, 'LOGIN_FALHA', 'user'],
       ]);
     });
@@ -311,7 +313,7 @@ describe('AuthService — login do console no log de auditoria', () => {
     it('selecionar-condominio recusado não grava nada', async () => {
       const { svc, registrar } = buildTroca();
       const sindico: JwtPayload = { sub: 42, nome: 'Sindica', id_condominio: 7, turno: 'Síndico', typeAccess: 'Sindico' };
-      await expect(svc.selecionarCondominio(sindico, 99)).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(svc.selecionarCondominio(sindico, 99)).rejects.toBeInstanceOf(ForbiddenException);
       await assentar();
       expect(registrar).not.toHaveBeenCalled();
     });

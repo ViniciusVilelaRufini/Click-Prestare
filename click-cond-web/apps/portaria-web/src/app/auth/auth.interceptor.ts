@@ -42,7 +42,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       // A resposta de erro também traz o header, e é justamente quando a rede
       // está ruim que o relógio importa. Aproveita antes de repassar.
       clock.registrar(error.headers?.get('Date') ?? null, enviadoEm);
-      if (error.status === 401) {
+      // 401 de uma requisição COM sessão = sessão encerrada. Sem token (login com senha errada, pedido público),
+      // não há sessão a encerrar: o logout apagaria o aparelho confiável do síndico a cada senha digitada errado.
+      if (error.status === 401 && token) {
         auth.logout();
       }
 

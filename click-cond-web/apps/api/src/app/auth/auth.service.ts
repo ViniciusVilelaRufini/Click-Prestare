@@ -10,6 +10,8 @@ import { autorDoToken, idUsuarioDoToken } from './usuario-do-token.util';
 import { TenantAccessService } from './tenant-access.service';
 import { MfaService } from './mfa/mfa.service';
 import { momentoTrocaSenha } from './senha-alterada.util';
+import { carimboCredencialPortaria } from './credencial-portaria.util';
+import { contaSoDaEquipeDoCondominio } from './conta-so-de-equipe.util';
 import { AuditoriaService, type AuditoriaAutorTipo } from '../auditoria/auditoria.service';
 
 /**
@@ -155,6 +157,8 @@ export class AuthService {
       include: {
         sindicos: { select: { id: true } },
         sindicosCondominios: {
+          // Condomínio desativado no CRM não entra na lista: escolhê-lo era recusado (o mesmo corte do loginPortaria).
+          where: { condominio: { ativo: 1 } },
           include: { condominio: { select: { nome: true } } },
           orderBy: { id: 'asc' },
         },
@@ -211,7 +215,7 @@ export class AuthService {
    * intencional, não um efeito colateral.
    */
   private async montarSessaoPortaria(
-    funcionario: { id: number; nome: string; turno: string | null; id_condominio: number },
+    funcionario: { id: number; nome: string; turno: string | null; id_condominio: number; login: string; password: string },
     login: string,
     deviceToken?: string,
   ) {
@@ -237,6 +241,8 @@ export class AuthService {
           turno: funcionario.turno,
           // sub = Funcionarios_Portaria.id: declarado, para ninguém inferir pela forma do token.
           tipo_sub: 'funcionario_portaria',
+          // Trocar o e-mail ou a senha mantém o id: o carimbo é o que derruba a sessão aberta (JwtStrategy).
+          cred: carimboCredencialPortaria(funcionario),
         };
 
     const resposta = {
@@ -302,7 +308,14 @@ export class AuthService {
       }
     };
 
-    if (funcionario) {
+    // Linha de portaria cujo login é o do SÍNDICO deste condomínio: a sessão emitida seria de síndico, então só a
+    // senha da conta do síndico (Users, logo abaixo) vale. Conferir a senha desta linha antes deixava a senha antiga
+    // entrando depois de o síndico trocar ou redefinir a dele, que só grava Users.
+    const linhaDoSindico = funcionario
+      ? !!(await this.sindicoDoLoginNoCondominio(login, funcionario.id_condominio))
+      : false;
+
+    if (funcionario && !linhaDoSindico) {
       const isBcrypt = funcionario.password.startsWith('$2');
       let isMatch = false;
 
@@ -317,6 +330,8 @@ export class AuthService {
             where: { id: funcionario.id },
             data: { password: newHash },
           });
+          // O carimbo da sessão (cred) é do hash que fica gravado.
+          funcionario.password = newHash;
         }
       }
 
@@ -356,12 +371,6 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
-    if (!user.sindicosCondominios || user.sindicosCondominios.length === 0) {
-      await this.registrarFalha(login);
-      auditarFalhas();
-      throw new UnauthorizedException('Síndico sem condomínio ativo vinculado.');
-    }
-
     const pwdStored = user.password ?? '';
     const isBcryptSindico = pwdStored.startsWith('$2');
     let sindicoMatch = false;
@@ -396,6 +405,12 @@ export class AuthService {
       }
       auditarFalhas();
       throw new UnauthorizedException('Credenciais inválidas.');
+    }
+
+    // Depois da senha: antes saía para qualquer um que digitasse o login, e revelava que a conta é de síndico.
+    if (!user.sindicosCondominios || user.sindicosCondominios.length === 0) {
+      auditarFalhas();
+      throw new UnauthorizedException('Síndico sem condomínio ativo vinculado.');
     }
 
     await this.limparFalhas(login);
@@ -549,7 +564,7 @@ export class AuthService {
     // login — o caso comum na web. Resolve o Users.id em ambos.
     let idUserSindico: number | null = null;
     if ((payload as any).role === 'crm_admin') {
-      throw new UnauthorizedException('Apenas síndicos podem trocar de condomínio.');
+      throw new ForbiddenException('Apenas síndicos podem trocar de condomínio.');
     }
     if (payload.typeAccess === 'Sindico') {
       idUserSindico = payload.sub;
@@ -579,7 +594,7 @@ export class AuthService {
     }
 
     if (!idUserSindico) {
-      throw new UnauthorizedException('Apenas síndicos podem trocar de condomínio.');
+      throw new ForbiddenException('Apenas síndicos podem trocar de condomínio.');
     }
 
     const vinculo = await this.prisma.sindicos_Condominios.findFirst({
@@ -588,7 +603,7 @@ export class AuthService {
       include: { condominio: { select: { nome: true } } },
     });
     if (!vinculo) {
-      throw new UnauthorizedException('Você não administra este condomínio.');
+      throw new ForbiddenException('Você não administra este condomínio.');
     }
 
     // Preserva a identidade do token (sub/turno/typeAccess) e troca só o escopo:
@@ -639,9 +654,41 @@ export class AuthService {
     };
   }
 
+  /**
+   * A conta do app (Users, mesmo login ou e-mail) do porteiro que trocou a senha no console. Mesma regra da
+   * redefinição (mobile-auth, confirmarRedefinicaoSenha), um pouco mais estrita: só a conta que JÁ é da equipe deste
+   * condomínio é tocada — uma conta achada só pelo texto do e-mail (signup público, de outra pessoa) nunca. Dela, a
+   * senha acompanha a nova só quando a conta é exclusivamente desta equipe (sem flags nem vínculos de síndico ou
+   * morador, sem equipe em outro prédio); senha_alterada_em é gravado sempre, e os tokens 'Funcionario' (sub =
+   * Users.id) emitidos com a senha anterior caem.
+   */
+  private async sincronizarContaDoPorteiro(tx: any, fp: { login: string; id_condominio: number }, hash: string) {
+    const conta = await tx.users.findFirst({
+      where: {
+        OR: [{ login: fp.login }, { email: fp.login }],
+        funcionarios: { some: { id_condominio: Number(fp.id_condominio) } },
+      },
+      orderBy: { id: 'asc' },
+    });
+    if (!conta) return;
+    const soDaqui =
+      !conta.is_sindico && !conta.is_morador && (await contaSoDaEquipeDoCondominio(tx, conta.id, fp.id_condominio));
+    await tx.users.update({
+      where: { id: conta.id },
+      data: soDaqui ? { password: hash, senha_alterada_em: momentoTrocaSenha() } : { senha_alterada_em: momentoTrocaSenha() },
+    });
+  }
+
   async changePassword(id: number, senhaAtual: string, novaSenha: string, typeAccess?: string, sessao?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
+    }
+    // Corpo sem DTO: senha ausente ou não-texto estourava no bcrypt (500). Mesmo mínimo da tela e da redefinição.
+    if (typeof senhaAtual !== 'string' || !senhaAtual) {
+      throw new BadRequestException('Informe a senha atual.');
+    }
+    if (typeof novaSenha !== 'string' || novaSenha.trim().length < 6) {
+      throw new BadRequestException('A nova senha deve ter no mínimo 6 caracteres.');
     }
 
     // Síndicos logados via portaria-web têm sub = users.id e typeAccess = 'Sindico'.
@@ -654,7 +701,7 @@ export class AuthService {
         ? await bcrypt.compare(senhaAtual, stored)
         : stored === createHash('md5').update(senhaAtual).digest('hex');
 
-      if (!isMatch) throw new UnauthorizedException('Senha atual incorreta.');
+      if (!isMatch) throw new BadRequestException('Senha atual incorreta.');
 
       const newHash = await bcrypt.hash(novaSenha, 12);
       await this.prisma.users.update({ where: { id }, data: { password: newHash, senha_alterada_em: momentoTrocaSenha() } });
@@ -696,16 +743,24 @@ export class AuthService {
     }
 
     if (!isMatch) {
-      throw new UnauthorizedException('Senha atual incorreta.');
+      throw new BadRequestException('Senha atual incorreta.');
     }
 
     const newHash = await bcrypt.hash(novaSenha, 12);
-    await this.prisma.funcionarios_Portaria.update({
-      where: { id },
-      data: { password: newHash },
+    // Login de portaria e conta do app no mesmo ato. Sem a conta, a senha antiga seguia entrando no app e no QR.
+    await this.prisma.$transaction(async (tx: any) => {
+      await tx.funcionarios_Portaria.update({ where: { id }, data: { password: newHash } });
+      await this.sincronizarContaDoPorteiro(tx, funcionario, newHash);
     });
 
-    return { success: true, message: 'Senha updated com sucesso.' };
+    // A senha nova muda o carimbo da credencial: as sessões abertas com a anterior caem (JwtStrategy). Esta, que
+    // fez a troca, recebe um token novo com o mesmo escopo, como no síndico.
+    const novoPayload: any = { ...sessao, cred: carimboCredencialPortaria({ login: funcionario.login, password: newHash }) };
+    delete novoPayload.iat;
+    delete novoPayload.exp;
+    const access_token = this.jwt.sign(novoPayload, { expiresIn: this.portariaJwtExpiresIn });
+
+    return { success: true, message: 'Senha atualizada com sucesso.', access_token };
   }
 
   async getCondominioNome(id: number, payload: JwtPayload | undefined) {
@@ -776,6 +831,21 @@ export class AuthService {
     return { qrToken: session.qrToken, expiresAt: session.expiresAt };
   }
 
+  /** Condomínios ativos que o síndico administra, no formato da resposta de login. Falha → lista vazia. */
+  private async condominiosAtivosDoSindico(idUser: number) {
+    try {
+      const vinculos = await this.prisma.sindicos_Condominios.findMany({
+        where: { id_user: idUser, condominio: { ativo: 1 } },
+        include: { condominio: { select: { nome: true } } },
+        orderBy: { id: 'asc' },
+      });
+      return vinculos.map((v: any) => ({ id: v.id_condominio, nome: v.condominio?.nome || 'Condomínio' }));
+    } catch (e: any) {
+      this.logger.warn(`Lista de condomínios do síndico ${idUser} indisponível no QR: ${e?.message ?? e}`);
+      return [];
+    }
+  }
+
   async getQrStatus(qrToken: string) {
     const atual = await this.qrStore.get(qrToken);
     if (!atual) {
@@ -789,14 +859,17 @@ export class AuthService {
       // diferentes) — só a que apagou leva o token.
       const session = await this.qrStore.consumir(qrToken);
       if (!session) return { status: 'expired' };
+      const sindico = session.typeAccess === 'Sindico';
       return {
         status: 'confirmed',
         access_token: session.access_token,
         id: session.idUser,
         nome: session.nome,
-        turno: session.typeAccess === 'Sindico' ? 'Síndico' : 'Porteiro (App)',
+        turno: sindico ? 'Síndico' : 'Porteiro (App)',
         id_condominio: session.id_condominio,
         condominio_nome: session.condominio_nome,
+        // Como no login por senha: o síndico que entra pelo QR ganha o seletor de condomínio (campo novo).
+        condominios: sindico && session.idUser ? await this.condominiosAtivosDoSindico(Number(session.idUser)) : [],
       };
     }
 
