@@ -1795,9 +1795,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       categorias: ultimaVisita?.categorias ?? null,
     } as any);
 
-    await this.desativarOutrosCodigosVisita(
-      visita.id_condominio, visita.id_pessoa, visita.id, await this.aptosDoMoradorMobile(payload), visita.id_apartamento,
-    );
+    await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id, await this.aptosDoMoradorMobile(payload));
 
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = this.construirContextoAuditoria(visita);
@@ -2589,9 +2587,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // doc/nome que o caminho legado precisa porque Visitantes não tem esse
     // vínculo estrutural.
     if (!pedirAutorizacao) {
-      await this.desativarOutrosCodigosVisita(
-        visita.id_condominio, visita.id_pessoa, visita.id, aptosDoChamador, visita.id_apartamento,
-      );
+      await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id, aptosDoChamador);
     }
 
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
@@ -2744,13 +2740,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // Morador: só revoga códigos das visitas dos apartamentos DELE. A visita
     // em aberto do vizinho para a mesma Pessoa não é dele para derrubar.
     aptosDoChamador?: number[],
-    // Operador (portaria/síndico): só a unidade da visita atual. Revogar no
-    // condomínio inteiro derrubava a pré-autorização que o morador de OUTRA
-    // unidade deu para a mesma pessoa — o PIN dele era recusado, sem aviso.
-    idApartamentoAtual?: number | null,
   ): Promise<void> {
     if (!this.prisma.isConnected) return;
-    const escopo = aptosDoChamador ?? (idApartamentoAtual != null ? [Number(idApartamentoAtual)] : undefined);
     await this.prisma.visitas.updateMany({
       where: {
         id_condominio: Number(idCondominio),
@@ -2758,7 +2749,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         id: { not: Number(idVisitaAtual) },
         data_entrada: null,
         data_saida: null,
-        ...(escopo ? { id_apartamento: { in: escopo } } : {}),
+        ...(aptosDoChamador ? { id_apartamento: { in: aptosDoChamador } } : {}),
       },
       data: {
         liberado: 0,
@@ -3476,9 +3467,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       descricao: `Acesso liberado: ${label} "${v.pessoa?.nome}" no ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
-    await this.desativarOutrosCodigosVisita(
-      v.id_condominio, v.id_pessoa, v.id, await this.aptosDoMoradorMobile(payload), v.id_apartamento,
-    );
+    await this.desativarOutrosCodigosVisita(v.id_condominio, v.id_pessoa, v.id, await this.aptosDoMoradorMobile(payload));
 
     this.fireFacialSyncPessoa(v.id_pessoa);
     if (ref.auth_status === 'pendente') {

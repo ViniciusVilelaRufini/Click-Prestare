@@ -2,8 +2,8 @@ import { VisitantesService } from './visitantes.service';
 
 /**
  * Pessoa/visitante compartilhado entre unidades: o morador do apto 10 que libera a PRÓPRIA visita
- * derrubava o PIN da visita aberta da mesma pessoa no apto 20. No caminho Pessoas/Visitas o
- * operador também revoga só na unidade da visita (rodada 3, item 5); o legado segue como era.
+ * derrubava o PIN da visita aberta da mesma pessoa no apto 20. Operador continua revogando no
+ * condomínio inteiro.
  */
 describe('Liberar visita — revogação de outros PINs só nas unidades do morador', () => {
   const ENV = process.env['PESSOAS_MIGRATION_ENABLED'];
@@ -97,22 +97,10 @@ describe('Liberar visita — revogação de outros PINs só nas unidades do mora
       );
     });
 
-    // Rodada 3, item 5: o porteiro revogava a pré-autorização que o morador de
-    // OUTRA unidade deu para a mesma pessoa (PIN recusado no dia, sem aviso).
-    it('operador: revoga só na unidade da visita liberada', async () => {
+    it('operador: sem recorte por apartamento', async () => {
       const { svc, prisma } = build();
       await svc.liberarAcesso(50, porteiro);
-      expect(prisma.visitas.updateMany.mock.calls[0][0].where).toEqual(
-        expect.objectContaining({ id_pessoa: 7, id_apartamento: { in: [10] } }),
-      );
-    });
-
-    it('Nova Visita / cadastro pela portaria: a revogação usa a unidade da visita nova', async () => {
-      const { svc, prisma } = build();
-      await (svc as any).desativarOutrosCodigosVisita(1, 7, 99, undefined, 20);
-      expect(prisma.visitas.updateMany.mock.calls[0][0].where).toEqual(
-        expect.objectContaining({ id_pessoa: 7, id: { not: 99 }, id_apartamento: { in: [20] } }),
-      );
+      expect(prisma.visitas.updateMany.mock.calls[0][0].where).not.toHaveProperty('id_apartamento');
     });
   });
 });

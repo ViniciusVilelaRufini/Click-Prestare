@@ -183,18 +183,10 @@ describe('Pessoa compartilhada entre apartamentos — morador não reescreve ide
     expect(anterior.codigo_acesso).toBeNull();
   });
 
-  // Rodada 3, item 5: o PIN que o morador de OUTRA unidade deu continua valendo;
-  // o operador só revoga o PIN anterior da MESMA unidade.
-  it('operador corrige a identidade e não derruba a pré-autorização de outra unidade', async () => {
+  it('operador continua corrigindo a identidade e revogando o PIN anterior', async () => {
     const { service, pessoas, visitas } = build({ aptoDaVisitaExistente: 200 });
     await service.create({ ...novaVisita } as any, porteiro);
     expect(pessoas[0].nome).toBe('Z');
-    expect(visitas.find((v) => v.id === 50).liberado).toBe(1);
-  });
-
-  it('operador revoga o PIN anterior da mesma unidade', async () => {
-    const { service, visitas } = build({ aptoDaVisitaExistente: 100 });
-    await service.create({ ...novaVisita } as any, porteiro);
     expect(visitas.find((v) => v.id === 50).liberado).toBe(0);
   });
 
