@@ -414,7 +414,17 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
 
   describe('Rodada 3 (raia s) — M8: turno do login mudado no app', () => {
     // O síndico cria o acesso no console (turno 'Geral') e muda o turno no app (saveFuncionario grava `turno`).
+    // O nome do login de portaria continua o do prestador ("Eletricista"): é a corroboração de que é a mesma pessoa.
     const turnoMudado = (db: any) => { db.fp[0].turno = 'Manhã'; };
+
+    it('o nome confere mesmo com caixa, acento e espaços diferentes', async () => {
+      const { svc, db } = banco();
+      turnoMudado(db);
+      db.fp[0].nome = '  ELETRICISTA ';
+      db.prestadores[0].nome = 'Eletricísta';
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p.loginPortariaProprio).toBe(true);
+    });
 
     it('editar o cadastro com a chave como está (o console reenvia hasPortariaAccess) não dá "Já existe um funcionário"', async () => {
       const { svc, db } = banco();
@@ -444,14 +454,50 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
       expect(equipeAqui(db)).toHaveLength(0);
     });
 
-    it('linha de portaria com turno "Síndico" nunca é tratada como login do prestador', async () => {
+  });
+
+  describe('Rodada 3 (raia s), correção 1 — login de um COLEGA com o mesmo e-mail do prestador', () => {
+    // Porteiro do app (turno 'Diurno', outro nome) cujo login coincide com o e-mail gravado no prestador (dado
+    // antigo, de antes das checagens nas duas telas). Nada dele pode mudar a partir do cadastro do prestador.
+    const colega = (db: any) => {
+      Object.assign(db.fp[0], { nome: 'Porteiro C', turno: 'Diurno' });
+      return JSON.parse(JSON.stringify({ fp: db.fp[0], conta: conta(db, 5), equipe: equipeAqui(db) }));
+    };
+    const intacto = (db: any, antes: any) => {
+      expect(db.fp[0]).toEqual(antes.fp);
+      expect(JSON.parse(JSON.stringify(conta(db, 5)))).toEqual(antes.conta);
+      expect(equipeAqui(db)).toEqual(antes.equipe);
+    };
+
+    it('a lista não mostra o login do colega como acesso do prestador', async () => {
       const { svc, db } = banco();
-      db.fp[0].turno = 'Síndico';
+      colega(db);
       const [p] = await svc.findAll(1, undefined, sindico);
-      expect(p.loginPortariaProprio).toBe(false);
+      expect(p).toEqual(expect.objectContaining({ hasPortariaAccess: false, loginPortariaProprio: false }));
+    });
+
+    it('desligar a chave do prestador não revoga o colega', async () => {
+      const { svc, db } = banco();
+      const antes = colega(db);
+      await svc.update(1, { email: 'a@x.com', hasPortariaAccess: false }, 1, sindico);
+      intacto(db, antes);
+    });
+
+    it('remover o prestador não apaga o login nem a conta do colega', async () => {
+      const { svc, db } = banco();
+      const antes = colega(db);
       await svc.remove(1, 1, sindico);
-      expect(db.fp).toEqual([expect.objectContaining({ id: 12, turno: 'Síndico' })]);
-      expect(equipeAqui(db)).toHaveLength(1);
+      expect(db.prestadores).toHaveLength(0);
+      intacto(db, antes);
+    });
+
+    it('definir senha (pedir acesso) com esse e-mail é recusado e a senha do colega não muda', async () => {
+      const { svc, db } = banco();
+      const antes = colega(db);
+      await expect(svc.update(1, { hasPortariaAccess: true, senha: 'Nova#123' }, 1, sindico)).rejects.toThrow(
+        'Já existe um funcionário com este e-mail.',
+      );
+      intacto(db, antes);
     });
   });
 

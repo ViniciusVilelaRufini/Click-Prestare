@@ -9,10 +9,8 @@ describe('PrestadoresService.update — só o login de portaria do próprio pres
   const porteiroConsole = { sub: 3, nome: 'Porteiro A', id_condominio: 1 } as any;
   // Pedir/re-credenciar o login de portaria é do síndico (A5).
   const sindicoConsole = { sub: 51, nome: 'Síndico', id_condominio: 1, typeAccess: 'Sindico' } as any;
-  // Login de portaria de outra pessoa: o do síndico (turno 'Síndico'). Rodada 3 (M8): o login do prestador é achado
-  // por login + condomínio em qualquer outro turno (o app muda o turno); um colega de turno livre não coincide com o
-  // e-mail de um prestador porque as duas telas recusam essa gravação.
-  const vitima = { id: 9, login: 'b@x.com', email: 'b@x.com', id_condominio: 1, turno: 'Síndico', nome: 'Porteiro B', telefone: null, ativo: 1, password: '$2b$04$vitima' };
+  // Login de outro porteiro, criado pela tela de funcionários (turno livre, não 'Geral').
+  const vitima = { id: 9, login: 'b@x.com', email: 'b@x.com', id_condominio: 1, turno: 'Diurno', nome: 'Porteiro B', telefone: null, ativo: 1, password: '$2b$04$vitima' };
   // Login que o próprio prestador recebeu pelo cadastro de prestador (turno 'Geral').
   const proprio = { id: 12, login: 'p@x.com', email: 'p@x.com', id_condominio: 1, turno: 'Geral', nome: 'Eletricista', telefone: null, ativo: 1, password: '$2b$04$proprio' };
 
