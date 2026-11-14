@@ -30,6 +30,25 @@ const TEMPO_LIMITE_MS = 10_000;
 const CHAVE_ABA = 'prestare_passe_token';
 /** Margem branca obrigatória do QR, em módulos. */
 const MARGEM_MODULOS = 4;
+/** O QR aparece a partir de 15 min antes do início da visita (chegar cedo é comum). */
+const ANTECEDENCIA_MS = 15 * 60_000;
+/** Teto do setTimeout no navegador (~24,8 dias). */
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
+/** Onde o relógio está em relação à janela da visita. */
+export type ForaDaJanela = { tipo: 'vencido' } | { tipo: 'cedo'; valido_de: string };
+
+/**
+ * `valido_ate` no passado → vencido; `valido_de` a mais de 15 min → cedo.
+ * Datas ilegíveis não bloqueiam (quem decide de verdade é o leitor).
+ */
+export function foraDaJanela(d: Pick<PassePublico, 'valido_de' | 'valido_ate'>, agora: number): ForaDaJanela | null {
+  const ate = d.valido_ate ? Date.parse(d.valido_ate) : NaN;
+  if (Number.isFinite(ate) && ate < agora) return { tipo: 'vencido' };
+  const de = d.valido_de ? Date.parse(d.valido_de) : NaN;
+  if (Number.isFinite(de) && de - ANTECEDENCIA_MS > agora) return { tipo: 'cedo', valido_de: d.valido_de as string };
+  return null;
+}
 
 /**
  * Página que o VISITANTE abre pelo link do passe (WhatsApp). Não exige conta.
@@ -84,6 +103,27 @@ const MARGEM_MODULOS = 4;
             <p class="text-sm text-slate-400">
               Este passe expirou ou foi cancelado. Peça um novo para quem te convidou.
             </p>
+          </div>
+        } @else if (fora(); as f) {
+          <div class="ps-panel p-8 text-center space-y-3" data-passe-fora>
+            <div class="w-14 h-14 border flex items-center justify-center mx-auto" style="border-color: var(--line-200)">
+              <svg class="w-7 h-7 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            @if (dados(); as d) {
+              <h1 class="ps-h1">{{ d.condominio }}</h1>
+              <p class="text-sm text-slate-400">{{ d.unidade }}</p>
+            }
+            @if (f.tipo === 'vencido') {
+              <p class="text-sm text-slate-300">Este passe está fora da validade.</p>
+              <p class="text-[11px] text-slate-500">Peça um novo para quem te convidou.</p>
+            } @else {
+              <p class="text-sm text-slate-300">
+                Este passe ainda não começou a valer. Válido a partir de {{ f.valido_de | date: "dd/MM 'às' HH:mm" }}.
+              </p>
+              <p class="text-[11px] text-slate-500">O QR aparece aqui 15 minutos antes.</p>
+            }
           </div>
         } @else if (dados(); as d) {
 
@@ -180,6 +220,12 @@ export class PassePageComponent implements OnInit, OnDestroy {
   readonly indisponivel = signal(false);
   readonly semConexao = signal(false);
   readonly dados = signal<PassePublico | null>(null);
+  /**
+   * Fora da janela da visita: sem QR e sem buscar códigos. A API pode
+   * devolver o código mesmo assim (a janela dela é a da credencial); a
+   * página não mostra um QR que o leitor vai negar.
+   */
+  readonly fora = signal<ForaDaJanela | null>(null);
   /** Instante (Date.now) em que o código atual chegou. */
   private readonly recebidoEm = signal<number | null>(null);
   /** Relógio da tela, andando de segundo em segundo. */
@@ -214,6 +260,7 @@ export class PassePageComponent implements OnInit, OnDestroy {
 
   private readonly aoMudarVisibilidade = () => {
     if (this.parado || this.document.visibilityState !== 'visible') return;
+    if (this.conferirJanela()) return;
     // Volta do segundo plano: o relógio da tela anda na hora (o QR velho some
     // se passou do prazo) e o código é buscado sem esperar o temporizador.
     this.agora.set(Date.now());
@@ -234,7 +281,10 @@ export class PassePageComponent implements OnInit, OnDestroy {
     }
 
     this.document.addEventListener('visibilitychange', this.aoMudarVisibilidade);
-    this.relogio = setInterval(() => this.agora.set(Date.now()), 1000);
+    this.relogio = setInterval(() => {
+      this.agora.set(Date.now());
+      this.conferirJanela();
+    }, 1000);
     this.buscar();
   }
 
@@ -245,7 +295,7 @@ export class PassePageComponent implements OnInit, OnDestroy {
   }
 
   private buscar() {
-    if (this.parado || this.busca) return;
+    if (this.parado || this.busca || this.fora()) return;
     this.limparProxima();
 
     // POST com o token no corpo: na URL ele ficaria nos logs de acesso do
@@ -262,6 +312,7 @@ export class PassePageComponent implements OnInit, OnDestroy {
           this.recebidoEm.set(agora);
           this.agora.set(agora);
           this.semConexao.set(false);
+          if (this.conferirJanela()) return;
           const troca = Number.isFinite(d?.troca_em_s) ? Math.max(1, d.troca_em_s) : 1;
           this.agendar(Math.min(troca * 1000, BUSCA_MAX_MS));
         },
@@ -281,6 +332,41 @@ export class PassePageComponent implements OnInit, OnDestroy {
           this.agendar(NOVA_TENTATIVA_MS);
         },
       });
+  }
+
+  /**
+   * Confere a janela da visita com o relógio de agora. Fora dela, tira o QR e
+   * para de buscar: vencido é definitivo; cedo volta a buscar sozinho quando
+   * faltarem 15 min para o início. Devolve true quando está fora.
+   */
+  private conferirJanela(): boolean {
+    const d = this.dados();
+    if (!d) return false;
+    const agora = Date.now();
+    const fora = foraDaJanela(d, agora);
+    const antes = this.fora();
+    if (fora?.tipo === antes?.tipo) return !!fora;
+    this.fora.set(fora);
+    if (!fora) {
+      // Chegou a hora (15 min antes do início): volta a buscar o código.
+      this.buscar();
+      return false;
+    }
+
+    this.busca?.unsubscribe();
+    this.busca = null;
+    this.limparProxima();
+    this.semConexao.set(false);
+    if (fora.tipo === 'vencido') {
+      this.parar();
+    } else {
+      const espera = Date.parse(fora.valido_de) - ANTECEDENCIA_MS - agora;
+      this.proxima = setTimeout(() => {
+        this.proxima = null;
+        this.conferirJanela();
+      }, Math.min(Math.max(espera, 0), MAX_TIMEOUT_MS));
+    }
+    return true;
   }
 
   private agendar(ms: number) {
