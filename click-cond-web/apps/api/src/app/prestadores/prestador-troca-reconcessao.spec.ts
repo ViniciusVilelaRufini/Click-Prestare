@@ -147,14 +147,15 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
       }
     });
 
-    it('síndico com o e-mail vazio: revoga como no update (login, equipe e tokens)', async () => {
+    // O upsert nunca revoga: a tela nem mostra o e-mail com a chave desligada, e recadastrar um nome não pode
+    // derrubar o acesso por acidente. Revogar é pelo update com a chave desligada ou pelo remover.
+    it.each([[''], [undefined]])('síndico com o e-mail %p: preserva e-mail, login, equipe e tokens; os campos comuns atualizam', async (email) => {
       const { svc, db } = banco();
-      await svc.create({ id_condominio: 1, nome: 'Eletricista', email: '', hasPortariaAccess: false } as any, sindico);
-      expect(db.prestadores[0].email).toBeNull();
-      expect(db.fp).toHaveLength(0);
-      expect(equipeAqui(db)).toHaveLength(0);
-      expect(conta(db, 5).senha_alterada_em).toBeInstanceOf(Date);
-      expect(db.users).toHaveLength(1);
+      await svc.create({ id_condominio: 1, nome: 'Eletricista', email, telefone: '(11) 8888', hasPortariaAccess: false } as any, sindico);
+      expect(db.prestadores[0]).toEqual(expect.objectContaining({ email: 'a@x.com', telefone: '(11) 8888' }));
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'a@x.com', ativo: 1 })]);
+      expect(equipeAqui(db)).toHaveLength(1);
+      expect(conta(db, 5).senha_alterada_em).toBeNull();
     });
 
     it('síndico com outro e-mail: a conta antiga sai da equipe e o login acompanha o e-mail novo', async () => {

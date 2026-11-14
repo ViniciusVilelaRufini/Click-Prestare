@@ -461,17 +461,20 @@ export class PrestadoresService {
     // Mesmo nome de quem tem login de portaria: o e-mail do cadastro É o login (não há FK). O console manda
     // email '' no "Novo", e o upsert gravava null sem checar alçada — login, conta e vínculo ficavam vivos, a lista
     // mostrava "sem acesso" e o síndico perdia o caminho para revogar. Quem não é síndico não mexe nesse e-mail
-    // (os demais campos seguem como sempre); para o síndico vale a regra do update: e-mail vazio revoga, e-mail
-    // novo desliga a conta antiga e leva o login (ou, com a chave, concede de novo para o e-mail novo).
+    // (os demais campos seguem como sempre). O upsert NUNCA revoga: e-mail vazio/ausente preserva o e-mail e o
+    // acesso também para o síndico — a tela nem mostra o campo com a chave desligada, e revogar por acidente ao
+    // recadastrar um nome é armadilha. Revogar é só pelo caminho explícito (update com a chave desligada, remover).
+    // O síndico com e-mail NÃO vazio segue a regra do update: desliga a conta antiga e leva o login (ou, com a
+    // chave, concede de novo para o e-mail novo).
     const loginDoExistente = existing ? await this.loginPortariaDoPrestador(existing) : null;
     let revogarExistente: 'tudo' | 'conta' | null = null;
     if (loginDoExistente && dto.email !== undefined) {
       const emailNovo = (dto.email ?? '').trim();
       const muda = emailNovo.toLowerCase() !== (existing!.email ?? '').trim().toLowerCase();
-      if (muda && !isSindicoEstrito(user)) {
+      if (muda && (!emailNovo || !isSindicoEstrito(user))) {
         dto = { ...dto, email: undefined };
       } else if (muda) {
-        revogarExistente = !emailNovo || dto.hasPortariaAccess ? 'tudo' : 'conta';
+        revogarExistente = dto.hasPortariaAccess ? 'tudo' : 'conta';
       }
     }
 
