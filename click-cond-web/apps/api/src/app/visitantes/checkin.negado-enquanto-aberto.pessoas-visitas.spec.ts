@@ -120,4 +120,35 @@ describe('check-in (Pessoas/Visitas) — negativa que chegou com o modal aberto'
       expect(visita.liberado).toBe(1);
     });
   });
+
+  // Onda final: visita negada que voltou a liberado=1 (vaga cedida pelo
+  // morador) aparece na tela sem a negativa — o mesmo critério da unidade
+  // (negado só com liberado !== 1). A trava usava só o auth_status e dava 409
+  // eterno em Registrar Entrada, Liberar e Confirmar Entrada do Validar PIN.
+  describe('negativa antiga com a visita liberada de novo (vaga cedida)', () => {
+    it('Registrar Entrada (a tela viu sem pedido): entra', async () => {
+      const { svc, visita } = montar({ liberado: 1 });
+      await svc.checkIn(1000004, porteiro, undefined, null);
+      expect(visita.data_entrada).toBeInstanceOf(Date);
+    });
+
+    it('Confirmar Entrada do Validar PIN (console sem `esperado`): entra', async () => {
+      const { svc, visita } = montar({ liberado: 1 });
+      await svc.checkIn(1000004, porteiro);
+      expect(visita.data_entrada).toBeInstanceOf(Date);
+    });
+
+    it('Liberar: libera', async () => {
+      const { svc, prisma } = montar({ liberado: 1 });
+      await svc.liberarAcesso(1000004, porteiro, undefined, null);
+      expect(prisma.visitas.update).toHaveBeenCalled();
+    });
+
+    it('I-1 continua: negada com liberado=0 no momento do clique, sem o porteiro ver: 409', async () => {
+      const { svc, prisma } = montar({ liberado: 0 });
+      await expect(svc.checkIn(1000004, porteiro, undefined, null)).rejects.toMatchObject({ status: 409 });
+      await expect(svc.liberarAcesso(1000004, porteiro, undefined, 'pendente')).rejects.toMatchObject({ status: 409 });
+      expect(prisma.visitas.update).not.toHaveBeenCalled();
+    });
+  });
 });

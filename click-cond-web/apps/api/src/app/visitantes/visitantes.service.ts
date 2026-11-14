@@ -3444,14 +3444,20 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * negativa sem o porteiro saber. No console (token com id_condominio) a falta
    * de `esperado` conta como "não viu a negativa". O app manda só `{ id }`
    * (apiCheckInVisitante) e o token dele não tem id_condominio: segue como antes.
+   *
+   * A negativa só trava com a visita NÃO liberada — o mesmo critério da
+   * unidade para exibir "negado" (listarPessoas). Visita negada que voltou a
+   * liberado=1 (vaga cedida pelo morador) aparece sem a negativa, e a trava
+   * dava 409 eterno. No caso de o morador negar com o modal aberto, liberado
+   * ainda é 0 no clique, então ele continua travado.
    */
   private assertNegativaConhecida(
-    ref: { auth_status?: string | null },
+    ref: { auth_status?: string | null; liberado?: number | null },
     esperado: string | null | undefined,
     payload?: JwtPayload,
   ) {
     if (esperado === undefined && !payload?.id_condominio) return;
-    if (ref.auth_status === 'negado' && esperado !== 'negado') {
+    if (ref.auth_status === 'negado' && ref.liberado !== 1 && esperado !== 'negado') {
       throw new ConflictException('O morador acabou de negar esta entrada. Confira antes de registrar.');
     }
   }
