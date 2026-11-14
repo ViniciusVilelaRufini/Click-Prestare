@@ -8,12 +8,7 @@ import { csvCelula } from '../common/csv.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 import { formatarApto } from '../common/formatar-apto.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
-import { STATUS_SOLUCIONADO } from '../dashboard/dashboard.service';
-
-/** Ocorrência fechada — a mesma lista do cartão do dashboard e do app. */
-function solucionada(status: string | null | undefined): boolean {
-  return (STATUS_SOLUCIONADO as readonly string[]).includes(String(status ?? ''));
-}
+import { ocorrenciaSolucionada as solucionada } from '../common/status-ocorrencia.util';
 import {
   FiltroEspinha,
   FonteEvento,
@@ -73,6 +68,16 @@ const formatDateOnly = (d: Date | null | undefined): string => {
     month: '2-digit',
     year: 'numeric',
   });
+};
+
+/**
+ * Coluna @db.Date (`data`, `data_vencimento`): o Prisma devolve meia-noite
+ * UTC, que em America/Sao_Paulo é o dia anterior — o vencimento 20/11 saía
+ * como 19/11. Formata em UTC; nulo: '-'.
+ */
+const formatDiaDb = (d: Date | null | undefined): string => {
+  if (!d) return '-';
+  return new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
 const getTimestamp = (): string => {
@@ -450,7 +455,9 @@ export class RelatoriosService {
         Nome: f.nome || '-',
         Tipo: isRevenue ? 'Receita' : 'Despesa',
         Valor: isRevenue ? rawVal : -rawVal,
-        Vencimento: f.data_vencimento ? formatDateOnly(f.data_vencimento) : '-',
+        Vencimento: formatDiaDb(f.data_vencimento),
+        // O período é pela data do pagamento (competência): ela precisa aparecer.
+        'Pago em': formatDiaDb(f.data),
         Categoria: f.categoria || 'Geral',
         Status: f.status || (f.pago === 1 ? 'Pago' : 'Pendente'),
         Pagamento: f.forma_pagamento || '-',
@@ -482,9 +489,9 @@ export class RelatoriosService {
           { label: 'Balanço Geral', value: `R$ ${(totalReceitas - totalDespesas).toFixed(2)}` },
         ],
         table: {
-          widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
+          widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
           body: [
-            ['Descrição', 'Tipo', 'Valor', 'Vencimento', 'Categoria', 'Status'].map((h) => ({
+            ['Descrição', 'Tipo', 'Valor', 'Vencimento', 'Pago em', 'Categoria', 'Status'].map((h) => ({
               text: h,
               style: 'tableHeader',
             })),
@@ -496,7 +503,8 @@ export class RelatoriosService {
                 f.nome || '-',
                 isRevenue ? 'Receita' : 'Despesa',
                 valStr,
-                f.data_vencimento ? formatDateOnly(f.data_vencimento) : '-',
+                formatDiaDb(f.data_vencimento),
+                formatDiaDb(f.data),
                 f.categoria || '-',
                 f.status || (f.pago === 1 ? 'Pago' : 'Pendente'),
               ];

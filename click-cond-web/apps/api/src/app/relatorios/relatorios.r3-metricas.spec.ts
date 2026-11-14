@@ -31,11 +31,11 @@ describe('RelatoriosService.generate — rodada 3', () => {
       financeiro: { findMany: jest.fn(async () => dados.financeiro ?? []) },
     };
     const svc = new RelatoriosService(prisma);
-    jest.spyOn(svc as any, 'generateExcel').mockReturnValue(Buffer.from('x'));
+    const excel = jest.spyOn(svc as any, 'generateExcel').mockReturnValue(Buffer.from('x'));
     const pdf = jest.spyOn(svc as any, 'generatePdf').mockResolvedValue(Buffer.from('x'));
     const metrica = (label: string) =>
       (pdf.mock.calls[pdf.mock.calls.length - 1][0] as any).metrics.find((m: any) => m.label === label)?.value;
-    return { svc, prisma, pdf, metrica };
+    return { svc, prisma, pdf, excel, metrica };
   }
 
   it('B2: encomendas — "Retiradas" conta o status gravado na retirada', async () => {
@@ -112,6 +112,39 @@ describe('RelatoriosService.generate — rodada 3', () => {
       const { svc, prisma } = build();
       await svc.generate(1, 'financeiro', 'xlsx');
       expect(prisma.financeiro.findMany.mock.calls[0][0].where.OR).toBeUndefined();
+    });
+  });
+
+  describe('PDF/XLSX financeiro: data do pagamento', () => {
+    const lanc = (extra: Record<string, unknown>) => ({
+      id: 1, nome: 'Manutenção', tipo: 'D', valor: 100, categoria: 'Obras', status: null, pago: 1,
+      forma_pagamento: 'Pix', data_vencimento: new Date('2026-11-20T00:00:00Z'), data: null, ...extra,
+    });
+
+    it('mostra "Pago em" com a data do pagamento (e o vencimento no dia certo)', async () => {
+      const { svc, pdf, excel } = build({ financeiro: [lanc({ data: new Date('2026-11-01T00:00:00Z') })] });
+      await svc.generate(1, 'financeiro', 'pdf');
+      const body = (pdf.mock.calls[0][0] as any).table.body;
+      const cab = body[0].map((c: any) => c.text);
+      expect(cab).toContain('Pago em');
+      // @db.Date é meia-noite UTC: em America/Sao_Paulo virava o dia anterior.
+      expect(body[1][cab.indexOf('Pago em')]).toBe('01/11/2026');
+      expect(body[1][cab.indexOf('Vencimento')]).toBe('20/11/2026');
+      expect((pdf.mock.calls[0][0] as any).table.widths).toHaveLength(cab.length);
+
+      await svc.generate(1, 'financeiro', 'xlsx');
+      const linha = (excel.mock.calls[0][0] as any)[0];
+      expect(linha['Pago em']).toBe('01/11/2026');
+      expect(linha.Vencimento).toBe('20/11/2026');
+      expect(linha.Pagamento).toBe('Pix');
+    });
+
+    it('sem pagamento: "-"', async () => {
+      const { svc, pdf } = build({ financeiro: [lanc({ pago: 0 })] });
+      await svc.generate(1, 'financeiro', 'pdf');
+      const body = (pdf.mock.calls[0][0] as any).table.body;
+      const cab = body[0].map((c: any) => c.text);
+      expect(body[1][cab.indexOf('Pago em')]).toBe('-');
     });
   });
 });

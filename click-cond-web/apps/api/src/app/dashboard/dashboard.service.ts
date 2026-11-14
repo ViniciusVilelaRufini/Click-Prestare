@@ -5,6 +5,7 @@ import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 import { formatarApto } from '../common/formatar-apto.util';
 import { formatarDataHoraBrasilia, horaBrasilia } from '../common/hora-brasilia.util';
+import { STATUS_SOLUCIONADO } from '../common/status-ocorrencia.util';
 
 export interface DashboardSummary {
   visitantesAtivos: number;
@@ -64,7 +65,6 @@ export interface DashboardSummary {
   }[];
 }
 
-/** Status de ocorrência fechada — a mesma lista do app (mobile-auth.service). */
 /**
  * Pessoa no caminho legado (Visitantes, uma linha por visita): documento;
  * sem documento, o nome — cópia da chave privada de VisitantesService.
@@ -73,8 +73,6 @@ function chavePessoaLegado(v: { doc_identificacao?: string | null; nome?: string
   const doc = (v.doc_identificacao ?? '').trim().toLowerCase();
   return doc || `nome:${(v.nome ?? '').trim().toLowerCase()}`;
 }
-
-export const STATUS_SOLUCIONADO =['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] as const;
 
 @Injectable()
 export class DashboardService {

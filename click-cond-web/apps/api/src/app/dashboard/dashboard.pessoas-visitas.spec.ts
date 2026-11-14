@@ -219,6 +219,8 @@ describe('DashboardService — summary() (Pessoas/Visitas)', () => {
         // Como o banco: com distinct id_pessoa, uma linha por pessoa.
         args?.distinct ? [{ id_pessoa: 800 }] : [visitaMigrada, { ...visitaMigrada, id: 502 }],
       );
+      // Contar visitas (o código antigo) daria 2: as duas abertas.
+      prisma.visitas.count = jest.fn(async () => 2);
       const r = await svc.summary(1);
       expect(r.visitantesAtivos).toBe(1);
     });
