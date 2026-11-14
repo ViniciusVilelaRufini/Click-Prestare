@@ -363,7 +363,11 @@
                   <p class="text-[11px] text-slate-400">
                     Necessária para sincronização com os terminais faciais.
                   </p>
-                  @if (!editingId || biometriaAutorizadaEdicao === false) {
+                  @if (editingId && semContaAppEdicao) {
+                    <p class="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                      Morador sem acesso ao app. Envie o acesso primeiro: o rosto só vai para os terminais depois que ele aceitar a biometria no app.
+                    </p>
+                  } @else if (!editingId || biometriaAutorizadaEdicao === false) {
                     <p class="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
                       O rosto só vai para os terminais depois que o morador aceitar a biometria no app.
                     </p>
@@ -664,8 +668,12 @@
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]"><span class="ps-dot ps-dot-warn"></span>Sinc.</span>
                   } @else if (m.face_sync_status === 'error') {
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" [title]="m.face_sync_error || 'Erro na sincronização facial'"><span class="ps-dot ps-dot-danger"></span>Erro</span>
+                  } @else if (m.face_sync_status === 'revoked') {
+                    <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]"><span class="ps-dot"></span>Biometria revogada</span>
                   } @else if (m.aguardando_aceite_biometria) {
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>Aguardando aceite</span>
+                  } @else if (m.biometria_sem_conta_app) {
+                    <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" title="Envie o acesso ao app: o rosto só vai para os terminais depois que o morador aceitar a biometria"><span class="ps-dot ps-dot-warn"></span>Sem acesso ao app</span>
                   }
                   <span class="ps-tag {{ tipoColor(m.tipo) }}">{{ tipoLabel(m.tipo) }}</span>
                 </div>
@@ -733,8 +741,12 @@
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="Sincronização pendente"><span class="ps-dot ps-dot-warn"></span>Sinc.</span>
                       } @else if (m.face_sync_status === 'error') {
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" [title]="m.face_sync_error || 'Erro na sincronização facial'"><span class="ps-dot ps-dot-danger"></span>Erro</span>
+                      } @else if (m.face_sync_status === 'revoked') {
+                        <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="Biometria revogada"><span class="ps-dot"></span>Biometria revogada</span>
                       } @else if (m.aguardando_aceite_biometria) {
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>Aguardando aceite</span>
+                      } @else if (m.biometria_sem_conta_app) {
+                        <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="Envie o acesso ao app: o rosto só vai para os terminais depois que o morador aceitar a biometria"><span class="ps-dot ps-dot-warn"></span>Sem acesso ao app</span>
                       }
                     </div>
                     @if (m.email) { <p class="text-[11px] text-slate-500 truncate">{{ m.email }}</p> }
@@ -1142,6 +1154,10 @@
             } @else if (selectedMorador()!.aguardando_aceite_biometria) {
               <span class="ps-tag" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>
                 Aguardando aceite no app
+              </span>
+            } @else if (selectedMorador()!.biometria_sem_conta_app) {
+              <span class="ps-tag" title="Envie o acesso ao app: o rosto só vai para os terminais depois que o morador aceitar a biometria"><span class="ps-dot ps-dot-warn"></span>
+                Sem acesso ao app
               </span>
             }
           </div>

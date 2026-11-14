@@ -28,6 +28,10 @@ export interface Morador {
   biometria_autorizada?: boolean | null;
   /** Tem foto do rosto no cadastro, mas ela espera o aceite do morador no app para ir aos terminais. */
   aguardando_aceite_biometria?: boolean;
+  /** O morador tem conta que entra no app (Users com login). */
+  tem_conta_app?: boolean;
+  /** Tem foto do rosto, mas sem conta no app não há como aceitar a biometria: falta enviar o acesso. */
+  biometria_sem_conta_app?: boolean;
 }
 
 export interface CreateMorador {

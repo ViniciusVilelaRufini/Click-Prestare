@@ -220,6 +220,8 @@ export class MoradoresPageComponent implements OnInit {
   private originalEdicao: OriginalEdicaoMorador = { id_apartamento: 0, tag_rfid: null, qrcode_acesso: null };
   /** Aceite de biometria do morador em edição (null no cadastro novo ou quando não se sabe). */
   biometriaAutorizadaEdicao: boolean | null = null;
+  /** Morador em edição sem conta que entra no app: o aceite da biometria depende de enviar o acesso. */
+  semContaAppEdicao = false;
   readonly saving = signal(false);
   readonly revogandoBiometria = signal(false);
 
@@ -337,6 +339,7 @@ export class MoradoresPageComponent implements OnInit {
     this.dataNascimentoMasked = '';
     this.novo = this.estadoInicial();
     this.biometriaAutorizadaEdicao = null;
+    this.semContaAppEdicao = false;
     this.veiculos.set([]);
     this.resetNovoVeiculo();
     this.error.set(null);
@@ -361,8 +364,9 @@ export class MoradoresPageComponent implements OnInit {
       tag_rfid: m.tag_rfid ?? '',
       qrcode_acesso: m.qrcode_acesso ?? '',
     };
-    this.originalEdicao = { id_apartamento: m.id_apartamento, tag_rfid: m.tag_rfid, qrcode_acesso: m.qrcode_acesso };
+    this.originalEdicao = { id_apartamento: m.id_apartamento, tag_rfid: m.tag_rfid, qrcode_acesso: m.qrcode_acesso, tipo: m.tipo };
     this.biometriaAutorizadaEdicao = m.biometria_autorizada ?? null;
+    this.semContaAppEdicao = m.tem_conta_app === false;
     this.error.set(null);
     this.showForm = true;
     this.resetNovoVeiculo();

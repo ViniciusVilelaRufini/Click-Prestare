@@ -46,6 +46,16 @@ describe('payloadEdicaoMorador', () => {
     expect(p).not.toHaveProperty('id_apartamento');
   });
 
+  it('tipo que não mudou não vai (a API aplicaria ao vínculo)', () => {
+    const p = payloadEdicaoMorador({ ...original, tipo: 'Proprietário' }, { ...base, tipo: 'proprietario' });
+    expect(p).not.toHaveProperty('tipo');
+  });
+
+  it('tipo alterado vai', () => {
+    const p = payloadEdicaoMorador({ ...original, tipo: 'proprietario' }, { ...base, tipo: 'inquilino' });
+    expect(p.tipo).toBe('inquilino');
+  });
+
   it('não altera o objeto do formulário', () => {
     const novo = { ...base };
     payloadEdicaoMorador(original, novo);

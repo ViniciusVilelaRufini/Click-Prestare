@@ -30,7 +30,7 @@ function linha(over: any = {}) {
     face_id: null,
     face_sync_status: null,
     face_sync_error: null,
-    user: { photo: null, apartamentosUsers: [{ id_apto: 7 }] },
+    user: { photo: null, login: 'ana@teste.com', apartamentosUsers: [{ id_apto: 7 }] },
     ...over,
   };
 }
@@ -92,11 +92,44 @@ describe('A6 — lista de moradores avisa quando o rosto espera o aceite no app'
         id_apto: 7,
         tipo: 'proprietario',
         apartamento: { id: 7, id_condominio: 1, bloco: 'A', apto: '101' },
-        user: { id: 41, photo: null, email: null, phone: null, cpf: null, moradores: [linha()] },
+        user: { id: 41, photo: null, login: 'ana@teste.com', email: null, phone: null, cpf: null, moradores: [linha()] },
       },
     ]);
     const [m] = await servico(prisma).findAll(1, undefined, 7);
     expect(m).toEqual(expect.objectContaining({ biometria_autorizada: false, aguardando_aceite_biometria: true }));
+  });
+
+  it('rosto já no terminal (tem face_id): não aguarda aceite', async () => {
+    const [m] = await servico(prismaCom([linha({ face_id: 'morador_43' })], [])).findAll(1);
+    expect(m.aguardando_aceite_biometria).toBe(false);
+    expect(m.biometria_sem_conta_app).toBe(false);
+  });
+
+  it('cadastro sem conta (id_user nulo): não aguarda aceite no app, falta enviar o acesso', async () => {
+    const [m] = await servico(prismaCom([linha({ id_user: null, user: null })], [])).findAll(1);
+    expect(m).toEqual(
+      expect.objectContaining({
+        tem_conta_app: false,
+        biometria_autorizada: false,
+        aguardando_aceite_biometria: false,
+        biometria_sem_conta_app: true,
+      }),
+    );
+  });
+
+  it('conta sem login (cadastro sem e-mail): também falta enviar o acesso', async () => {
+    const [m] = await servico(
+      prismaCom([linha({ user: { photo: null, login: null, apartamentosUsers: [{ id_apto: 7 }] } })], []),
+    ).findAll(1);
+    expect(m.tem_conta_app).toBe(false);
+    expect(m.aguardando_aceite_biometria).toBe(false);
+    expect(m.biometria_sem_conta_app).toBe(true);
+  });
+
+  it('com conta no app: tem_conta_app e nenhum aviso de acesso', async () => {
+    const [m] = await servico(prismaCom([linha()], [])).findAll(1);
+    expect(m.tem_conta_app).toBe(true);
+    expect(m.biometria_sem_conta_app).toBe(false);
   });
 
   it('falha ao ler os consentimentos não derruba a lista (o aviso some)', async () => {
