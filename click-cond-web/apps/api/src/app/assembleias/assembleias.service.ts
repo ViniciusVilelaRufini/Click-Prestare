@@ -17,15 +17,19 @@ function tituloObrigatorio(valor: unknown): string {
 
 /**
  * Data da assembleia em DD/MM/AAAA (meia-noite local, como antes) ou
- * AAAA-MM-DD (meia-noite UTC, como antes). Vazio: sem data. Fora do padrão ou
- * dia inexistente ("20/11", "20-11-2026", "32/11/2026", "2026-02-30"): 400 —
- * antes virava Invalid Date (ou rolava para outro mês) e o Prisma dava 500.
+ * AAAA-MM-DD, com hora opcional depois (`[ T]HH:mm[:ss[.sss]][Z]`), da qual só
+ * vale a data, em meia-noite UTC. O app do síndico manda o `toString()` de um
+ * DateTime do Dart, "2026-11-20 00:00:00.000" (convertStringToDate em
+ * utils.dart); com o servidor em UTC, `new Date(...)` dava o mesmo valor.
+ * Vazio: sem data. Fora do padrão ou dia inexistente ("20/11", "20-11-2026",
+ * "32/11/2026", "2026-02-30"): 400 — antes virava Invalid Date (ou rolava
+ * para outro mês) e o Prisma dava 500.
  */
 function dataDaAssembleia(valor: unknown): Date | undefined {
   const s = String(valor ?? '').trim();
   if (!s) return undefined;
   const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?Z?)?$/);
   const [ano, mes, dia] = br
     ? [Number(br[3]), Number(br[2]), Number(br[1])]
     : iso

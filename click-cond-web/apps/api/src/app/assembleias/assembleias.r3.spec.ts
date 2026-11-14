@@ -49,7 +49,9 @@ describe('AssembleiasService — rodada 3', () => {
       expect((service as any).calcStatusInt(new Date('2026-11-01T00:00:00Z'), termino)).toBe(2);
     });
 
-    it('de manhã também: ontem de Brasília', async () => {
+    // Guarda de regressão (passa antes e depois da correção): de manhã o dia
+    // UTC e o de Brasília coincidem; o defeito só aparece entre 21h e 24h.
+    it('regressão: de manhã continua gravando ontem', async () => {
       jest.useFakeTimers({ now: new Date('2026-11-12T12:00:00Z') });
       const { service, prisma } = build();
       await service.finishVotacao(9, sindico);
@@ -77,6 +79,33 @@ describe('AssembleiasService — rodada 3', () => {
       );
       expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
     });
+
+    // O app do síndico manda `DateFormat("dd/MM/yyyy").parseStrict(...).toString()`
+    // (new_assembleia.dart → utils.dart convertStringToDate): "2026-11-20 00:00:00.000".
+    it.each([
+      ['2026-11-20 00:00:00.000'],
+      ['2026-11-20T00:00:00.000Z'],
+      ['2026-11-20'],
+      ['2026-11-20 00:00'],
+      ['2026-11-20T00:00:00'],
+    ])('app: insert e update com %j gravam 20/11 à meia-noite UTC', async (data) => {
+      const { service, prisma } = build();
+      await service.insert(1, { titulo: 'AGE', data }, 1, sindico);
+      await service.update(1, { id: 5, titulo: 'AGE', data }, 1, sindico);
+      const criada: Date = prisma.assembleias.create.mock.calls[0][0].data.data;
+      const editada: Date = prisma.assembleias.updateMany.mock.calls[0][0].data.data;
+      expect(criada.toISOString()).toBe('2026-11-20T00:00:00.000Z');
+      expect(editada.toISOString()).toBe('2026-11-20T00:00:00.000Z');
+    });
+
+    it.each(['2026-11-20 lixo', '2026-11-20T', '2026-11-20 00:00:00.000 extra', '2026-11-31 00:00:00.000'])(
+      'continua recusando %j',
+      async (data) => {
+        const { service, prisma } = build();
+        await expect(service.insert(1, { titulo: 'AGE', data }, 1, sindico)).rejects.toThrow('Data inválida');
+        expect(prisma.assembleias.create).not.toHaveBeenCalled();
+      },
+    );
 
     it.each([
       ['20/11/2026', 2026, 10, 20],
