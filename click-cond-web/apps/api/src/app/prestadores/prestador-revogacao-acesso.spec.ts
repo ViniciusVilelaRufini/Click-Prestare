@@ -37,7 +37,7 @@ describe('Prestador × login de portaria — revogação e alçada do síndico',
       },
       funcionarios_Portaria: {
         findFirst: jest.fn(async ({ where }: any) =>
-          logins.find((l) => casa(l.login, where.login) && casa(l.id_condominio, where.id_condominio) && casa(l.turno, where.turno)) ?? null,
+          logins.find((l) => casa(l.login, where.login) && casa(l.email, where.email) && casa(l.id_condominio, where.id_condominio) && casa(l.turno, where.turno) && !(where.NOT && l.id === where.NOT.id)) ?? null,
         ),
         deleteMany: jest.fn(async () => ({ count: 1 })),
         create: jest.fn(async () => ({})),
@@ -56,7 +56,13 @@ describe('Prestador × login de portaria — revogação e alçada do síndico',
         create: jest.fn(async () => ({})),
         update: jest.fn(async () => ({})),
         deleteMany: jest.fn(async () => ({ count: 1 })),
+        count: jest.fn(async () => 0),
       },
+      // A revogação confere se a conta era só desta equipe (aí ela recebe lápide no login/e-mail).
+      sindicos: { count: jest.fn(async () => 0) },
+      sindicos_Condominios: { count: jest.fn(async () => 0) },
+      moradores: { count: jest.fn(async () => 0) },
+      apartamentos_Users: { count: jest.fn(async () => 0) },
     };
     const tenant: any = {
       assertCondominio: jest.fn(async () => undefined),
@@ -73,7 +79,7 @@ describe('Prestador × login de portaria — revogação e alçada do síndico',
     expect(prisma.funcionarios.deleteMany).toHaveBeenCalledWith({ where: { id_user: 5, id_condominio: 1 } });
     expect(prisma.users.update).toHaveBeenCalledWith({
       where: { id: 5 },
-      data: { senha_alterada_em: expect.any(Date) },
+      data: expect.objectContaining({ senha_alterada_em: expect.any(Date) }),
     });
     // A conta nunca é apagada: o mesmo e-mail pode ser de um síndico ou morador.
     expect(prisma.users.delete).not.toHaveBeenCalled();

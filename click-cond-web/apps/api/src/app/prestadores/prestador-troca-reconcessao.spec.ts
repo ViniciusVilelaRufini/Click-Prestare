@@ -13,6 +13,14 @@ import { PrestadoresService } from './prestadores.service';
  * I3 — Revogar e religar a chave com o mesmo e-mail dava 400 "Já existe uma conta com este e-mail": a revogação
  *      mantém o Users (nunca apagamos) e a checagem exigia Funcionarios neste condomínio.
  * (6) — Users.login e Users.email são únicos cada um: login OU e-mail pode achar duas contas; vale a da equipe daqui.
+ *
+ * Rodada 2:
+ * - Reconcessão por "conta só de equipe" permitia tomar uma conta órfã de OUTRO condomínio (is_funcionario=1, sem
+ *   vínculo): a senha dela virava a de quem concedia. Volta a regra da base (conta existente só se já é da equipe
+ *   daqui); a prova de origem é tirada na revogação, que libera login/e-mail (lápide) da conta que era só daqui.
+ * - Trocar o e-mail de acesso exige senha nova e grava `email` junto com `login` no login de portaria: com a senha
+ *   antiga, o dono do e-mail antigo achava o login pelo app e o vínculo era recriado.
+ * - M1: o e-mail do prestador não pode ser o `email` de outro login de portaria deste condomínio.
  */
 describe('Prestador × login de portaria — troca de e-mail, upsert por nome e reconcessão', () => {
   const sindico = { sub: 51, nome: 'Síndico', id_condominio: 1, typeAccess: 'Sindico' } as any;
@@ -42,6 +50,7 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
     const casa = (row: Linha, where: Linha = {}): boolean =>
       Object.entries(where).every(([k, v]) => {
         if (k === 'OR') return (v as Linha[]).some((w) => casa(row, w));
+        if (k === 'NOT') return !casa(row, v);
         if (k === 'funcionarios') return db.func.some((f) => f.id_user === row.id && casa(f, v.some));
         if (v && typeof v === 'object' && 'not' in v) return row[k] !== v.not;
         return row[k] === v;
@@ -102,17 +111,46 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
   }
 
   const equipeAqui = (db: any) => db.func.filter((f: Linha) => f.id_condominio === 1);
+  const MSG_OUTRA_CONTA = 'Este e-mail já pertence a outra conta do sistema. Use outro e-mail para o acesso à portaria.';
+  /** O que o loginFuncionario do app acharia com este e-mail: conta (login OU e-mail) e login de portaria idem. */
+  const appAcha = (db: any, email: string) => ({
+    conta: db.users.find((u: Linha) => u.login === email || u.email === email) ?? null,
+    portaria: db.fp.find((f: Linha) => f.login === email || f.email === email) ?? null,
+  });
+  /** A conta não autentica mais: login/e-mail viraram lápide e a senha não é bcrypt nem md5 de nada. */
+  const contaInutilizada = (u: Linha) => {
+    expect(u.login).toMatch(/@conta-revogada\.invalid$/);
+    expect(u.email).toBe(u.login);
+    expect(u.password.startsWith('$2')).toBe(false);
+    expect(u.password).not.toMatch(/^[0-9a-f]{32}$/);
+    expect(u.senha_alterada_em).toBeInstanceOf(Date);
+  };
   const conta = (db: any, id: number) => db.users.find((u: Linha) => u.id === id);
 
   describe('I1 — trocar o e-mail de quem tem login desliga a conta antiga', () => {
+    it('trocar o e-mail de quem tem login sem senha nova → 400 e nada é gravado', async () => {
+      const { svc, db, prisma } = banco();
+      for (const dto of [{ email: 'b@x.com' }, { email: 'b@x.com', hasPortariaAccess: true, senha: '' }]) {
+        await expect(svc.update(1, dto as any, 1, sindico)).rejects.toThrow(
+          new BadRequestException('Defina uma nova senha ao trocar o e-mail de acesso.'),
+        );
+      }
+      expect(prisma.prestadores_servico.update).not.toHaveBeenCalled();
+      expect(db.fp).toEqual([expect.objectContaining({ login: 'a@x.com', email: 'a@x.com' })]);
+      expect(equipeAqui(db)).toHaveLength(1);
+    });
+
     it('troca a@→b@ sem a chave e depois desliga a chave: nenhuma conta fica na equipe deste condomínio', async () => {
       const { svc, db } = banco();
-      await svc.update(1, { email: 'b@x.com' }, 1, sindico);
-      // A conta antiga sai da equipe no mesmo ato e os tokens dela caem.
+      await svc.update(1, { email: 'b@x.com', senha: 'Nova#123' }, 1, sindico);
+      // A conta antiga (só desta equipe) sai da equipe no mesmo ato e deixa de autenticar.
       expect(equipeAqui(db)).toHaveLength(0);
-      expect(conta(db, 5).senha_alterada_em).toBeInstanceOf(Date);
-      // O login de portaria acompanha o e-mail novo.
-      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'b@x.com' })]);
+      contaInutilizada(conta(db, 5));
+      // O login de portaria acompanha o e-mail novo — login E e-mail — com a senha nova.
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'b@x.com', email: 'b@x.com' })]);
+      expect(await bcrypt.compare('Nova#123', db.fp[0].password)).toBe(true);
+      // O app, com a@ e a senha antiga, não acha mais nem conta nem login de portaria: nada a recriar.
+      expect(appAcha(db, 'a@x.com')).toEqual({ conta: null, portaria: null });
 
       await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
       expect(equipeAqui(db)).toHaveLength(0);
@@ -125,8 +163,10 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
       await svc.update(1, { email: 'b@x.com', hasPortariaAccess: true, senha: 'Nova#123' }, 1, sindico);
       const nova = db.users.find((u: Linha) => u.login === 'b@x.com');
       expect(nova).toBeTruthy();
+      expect(await bcrypt.compare('Nova#123', nova!.password)).toBe(true); // nunca a senha antiga
       expect(equipeAqui(db).map((f: Linha) => f.id_user)).toEqual([nova!.id]); // só a conta nova
-      expect(conta(db, 5).senha_alterada_em).toBeInstanceOf(Date);
+      contaInutilizada(conta(db, 5));
+      expect(appAcha(db, 'a@x.com')).toEqual({ conta: null, portaria: null });
 
       await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
       expect(equipeAqui(db)).toHaveLength(0);
@@ -158,49 +198,88 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
       expect(conta(db, 5).senha_alterada_em).toBeNull();
     });
 
-    it('síndico com outro e-mail: a conta antiga sai da equipe e o login acompanha o e-mail novo', async () => {
+    it('síndico com outro e-mail e senha nova: a conta antiga sai e o login (login e e-mail) acompanha com a senha nova', async () => {
       const { svc, db } = banco();
-      await svc.create({ id_condominio: 1, nome: 'Eletricista', email: 'b@x.com', hasPortariaAccess: false } as any, sindico);
+      await svc.create({ id_condominio: 1, nome: 'Eletricista', email: 'b@x.com', senha: 'Nova#123', hasPortariaAccess: false } as any, sindico);
       expect(db.prestadores[0].email).toBe('b@x.com');
-      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'b@x.com' })]);
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'b@x.com', email: 'b@x.com' })]);
+      expect(await bcrypt.compare('Nova#123', db.fp[0].password)).toBe(true);
       expect(equipeAqui(db)).toHaveLength(0);
-      expect(conta(db, 5).senha_alterada_em).toBeInstanceOf(Date);
+      contaInutilizada(conta(db, 5));
+      expect(appAcha(db, 'a@x.com')).toEqual({ conta: null, portaria: null });
+    });
+
+    it('síndico com outro e-mail e sem senha nova → 400 e nada muda', async () => {
+      const { svc, db, prisma } = banco();
+      await expect(
+        svc.create({ id_condominio: 1, nome: 'Eletricista', email: 'b@x.com', hasPortariaAccess: false } as any, sindico),
+      ).rejects.toThrow(new BadRequestException('Defina uma nova senha ao trocar o e-mail de acesso.'));
+      expect(prisma.prestadores_servico.update).not.toHaveBeenCalled();
+      expect(db.fp).toEqual([expect.objectContaining({ login: 'a@x.com', email: 'a@x.com' })]);
+      expect(equipeAqui(db)).toHaveLength(1);
     });
   });
 
-  describe('I3 — religar a chave depois de revogar', () => {
-    it('conta só de equipe: reconcede, recria o vínculo e a senha do app passa a ser a nova', async () => {
+  describe('I3 — religar a chave depois de revogar (rodada 2: prova de origem na revogação)', () => {
+    it('conta só desta equipe: a revogação a inutiliza, e religar cria uma conta nova com a senha nova', async () => {
       const { svc, db } = banco();
       await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
       expect(equipeAqui(db)).toHaveLength(0);
-      conta(db, 5).senha_alterada_em = null;
+      contaInutilizada(conta(db, 5));
+      expect(db.users).toHaveLength(1); // nunca apaga Users
 
       await svc.update(1, { hasPortariaAccess: true, senha: 'Volta#123' }, 1, sindico);
-      expect(db.fp).toEqual([expect.objectContaining({ login: 'a@x.com', turno: 'Geral', ativo: 1 })]);
-      expect(equipeAqui(db).map((f: Linha) => f.id_user)).toEqual([5]);
-      expect(await bcrypt.compare('Volta#123', conta(db, 5).password)).toBe(true);
-      expect(await bcrypt.compare('Volta#123', db.fp[0].password)).toBe(true);
-      expect(conta(db, 5).senha_alterada_em).toBeInstanceOf(Date);
-      expect(db.users).toHaveLength(1);
+      expect(db.fp).toEqual([expect.objectContaining({ login: 'a@x.com', email: 'a@x.com', turno: 'Geral', ativo: 1 })]);
+      const nova = db.users.find((u: Linha) => u.login === 'a@x.com');
+      expect(nova && nova.id).not.toBe(5);
+      expect(await bcrypt.compare('Volta#123', nova!.password)).toBe(true);
+      expect(equipeAqui(db).map((f: Linha) => f.id_user)).toEqual([nova!.id]);
+      // A conta antiga continua sem autenticar.
+      contaInutilizada(conta(db, 5));
     });
 
     it.each([
-      ['também é morador', { moradores: [{ id: 1, id_user: 5, id_condominio: 2 }] }, {}],
-      ['veio do cadastro público (sem is_funcionario)', {}, { is_funcionario: 0 }],
-      ['é da equipe de outro condomínio', { func: [{ id: 78, id_user: 5, id_condominio: 2 }] }, {}],
-    ])('conta que %s: segue recusada e a senha não é tocada', async (_n, extra, patch) => {
+      ['também é morador', { moradores: [{ id: 1, id_user: 5, id_condominio: 2 }] }],
+      ['é da equipe de outro condomínio', { func: [{ id: 78, id_user: 5, id_condominio: 2 }] }],
+    ])('conta compartilhada (%s): e-mail e senha intactos após revogar; religar é recusado com a mensagem nova', async (_n, extra) => {
       const { svc, db } = banco(extra as any);
       await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
-      Object.assign(conta(db, 5), patch);
-      const senhaAntes = conta(db, 5).password;
+      expect(conta(db, 5)).toEqual(expect.objectContaining({ login: 'a@x.com', email: 'a@x.com', password: '$2b$04$antiga' }));
+      expect(conta(db, 5).senha_alterada_em).toBeInstanceOf(Date);
+      expect(equipeAqui(db)).toHaveLength(0);
 
       await expect(svc.update(1, { hasPortariaAccess: true, senha: 'Volta#123' }, 1, sindico)).rejects.toThrow(
-        new BadRequestException('Já existe uma conta com este e-mail. Use outro e-mail para o acesso à portaria.'),
+        new BadRequestException(MSG_OUTRA_CONTA),
       );
-      expect(conta(db, 5).password).toBe(senhaAntes);
+      expect(conta(db, 5).password).toBe('$2b$04$antiga');
       expect(db.fp).toHaveLength(0);
       expect(equipeAqui(db)).toHaveLength(0);
     });
+
+    it('conta órfã de outro condomínio (is_funcionario=1, sem vínculo): concessão em A recusada, senha intacta', async () => {
+      const orfa = { id: 9, login: 'e@x.com', email: 'e@x.com', password: '$2b$04$daOrfa', is_funcionario: 1, is_sindico: 0, is_morador: 0, senha_alterada_em: null };
+      const { svc, db } = banco({ users: [orfa] });
+      await expect(
+        svc.create({ id_condominio: 1, nome: 'Novo', email: 'e@x.com', hasPortariaAccess: true, senha: 'Minha#123' } as any, sindico),
+      ).rejects.toThrow(new BadRequestException(MSG_OUTRA_CONTA));
+      expect(conta(db, 9)).toEqual(expect.objectContaining({ password: '$2b$04$daOrfa', senha_alterada_em: null }));
+      expect(db.func.filter((f: Linha) => f.id_user === 9)).toHaveLength(0);
+      expect(db.fp.filter((f: Linha) => f.login === 'e@x.com')).toHaveLength(0);
+      expect(db.prestadores).toHaveLength(1);
+    });
+  });
+
+  it('M1 — e-mail do prestador igual ao `email` de outro login de portaria deste condomínio → 400', async () => {
+    const { svc, db } = banco();
+    db.fp.push({ id: 30, nome: 'Porteiro C', login: 'c-login', email: 'c@x.com', telefone: null, turno: 'Diurno', ativo: 1, id_condominio: 1, password: '$2b$04$colega' });
+    await expect(svc.update(1, { email: 'c@x.com', senha: 'Nova#123' }, 1, sindico)).rejects.toThrow('Já existe um funcionário com este e-mail.');
+    await expect(
+      svc.create({ id_condominio: 1, nome: 'Outro', email: 'c@x.com', hasPortariaAccess: true, senha: 'Nova#123' } as any, sindico),
+    ).rejects.toThrow('Já existe um funcionário com este e-mail.');
+    await expect(svc.create({ id_condominio: 1, nome: 'Outro', email: 'c@x.com' } as any, porteiro)).rejects.toThrow(
+      'Já existe um funcionário com este e-mail.',
+    );
+    expect(db.fp.find((f: Linha) => f.id === 30)!.password).toBe('$2b$04$colega');
   });
 
   it('(8) a lista diz se o cadastro tem login próprio, mesmo inativo (é o que faz remover exigir síndico)', async () => {
@@ -218,7 +297,7 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
     db.users.unshift({ id: 4, login: 'outro-login', email: 'a@x.com', password: 'x', is_funcionario: 0, is_sindico: 0, is_morador: 1, senha_alterada_em: null });
     await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
     expect(equipeAqui(db)).toHaveLength(0);
-    expect(conta(db, 5).senha_alterada_em).toBeInstanceOf(Date);
-    expect(conta(db, 4).senha_alterada_em).toBeNull();
+    contaInutilizada(conta(db, 5));
+    expect(conta(db, 4)).toEqual(expect.objectContaining({ login: 'outro-login', email: 'a@x.com', password: 'x', senha_alterada_em: null }));
   });
 });

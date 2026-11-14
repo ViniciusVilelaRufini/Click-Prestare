@@ -29,7 +29,7 @@ describe('PrestadoresService.update — só o login de portaria do próprio pres
       },
       funcionarios_Portaria: {
         findFirst: jest.fn(async ({ where }: any) =>
-          logins.find((l) => casa(l.login, where.login) && casa(l.id_condominio, where.id_condominio) && casa(l.turno, where.turno)) ?? null,
+          logins.find((l) => casa(l.login, where.login) && casa(l.email, where.email) && casa(l.id_condominio, where.id_condominio) && casa(l.turno, where.turno) && !(where.NOT && l.id === where.NOT.id)) ?? null,
         ),
         create: jest.fn(async () => ({})),
         update: jest.fn(async () => ({})),

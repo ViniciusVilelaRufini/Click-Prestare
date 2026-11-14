@@ -34,7 +34,7 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
       },
       funcionarios_Portaria: {
         findFirst: jest.fn(async ({ where }: any) =>
-          logins.find((l) => casa(l.login, where.login) && casa(l.id_condominio, where.id_condominio) && casa(l.turno, where.turno)) ?? null,
+          logins.find((l) => casa(l.login, where.login) && casa(l.email, where.email) && casa(l.id_condominio, where.id_condominio) && casa(l.turno, where.turno) && !(where.NOT && l.id === where.NOT.id)) ?? null,
         ),
         deleteMany: jest.fn(async () => ({ count: 1 })),
         create: jest.fn(async () => ({})),
@@ -106,14 +106,18 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
 
   // Sem isto, o prestador ficava com o e-mail novo e o login dele com o antigo: inalcançável para
   // re-credenciar, revogar e remover (todos acham o login pelo e-mail gravado no prestador).
-  it('trocar o e-mail sem a flag leva junto o login de portaria do próprio prestador (só o campo login)', async () => {
+  // Rodada 2: login E e-mail vão juntos (o app acha o login por qualquer dos dois) e a troca exige senha nova.
+  it('trocar o e-mail sem a flag leva junto o login de portaria do próprio prestador (login, e-mail e senha nova)', async () => {
     const { svc, prisma } = build('p@x.com');
-    await svc.update(1, { email: ' novo@x.com ' }, 1, sindicoConsole);
+    await svc.update(1, { email: ' novo@x.com ', senha: 'Nova#123' }, 1, sindicoConsole);
     expect(prisma.prestadores_servico.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ email: 'novo@x.com' }) }),
     );
     expect(prisma.funcionarios_Portaria.update).toHaveBeenCalledTimes(1);
-    expect(prisma.funcionarios_Portaria.update).toHaveBeenCalledWith({ where: { id: 12 }, data: { login: 'novo@x.com' } });
+    expect(prisma.funcionarios_Portaria.update).toHaveBeenCalledWith({
+      where: { id: 12 },
+      data: { login: 'novo@x.com', email: 'novo@x.com', password: expect.stringMatching(/^\$2/) },
+    });
     expect(prisma.funcionarios_Portaria.deleteMany).not.toHaveBeenCalled();
     expect(prisma.funcionarios_Portaria.create).not.toHaveBeenCalled();
   });
