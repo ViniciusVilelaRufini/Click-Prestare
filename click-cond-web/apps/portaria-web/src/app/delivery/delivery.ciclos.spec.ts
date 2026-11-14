@@ -65,6 +65,31 @@ describe('Delivery — ciclos', () => {
     expect(store.erro()).toBeNull();
   });
 
+  it('o aviso de conexão some também na próxima carga normal que der certo', () => {
+    api.listAtivos.mockReturnValueOnce(throwError(() => ({ status: 0, message: 'Sem conexão' })));
+    store.carregarFila({ silencioso: true });
+    expect(store.erro()).toBe('Sem conexão');
+    store.carregarFila();
+    expect(store.erro()).toBeNull();
+  });
+
+  it('aviso "interfone" some ao selecionar outro atendimento e ao trocar de aba', () => {
+    const a = { ...ATENDIMENTOS[0], entregador: null };
+    store.selecionar(a);
+    api.atualizarStatus.mockReturnValue(of({ ...a, status: 'AGUARDANDO_AUTORIZACAO', avisados: 0 } as any));
+    store.atualizarStatus('AGUARDANDO_AUTORIZACAO');
+    expect(store.aviso()).toContain('interfone');
+    store.selecionar(a); // o mesmo: continua
+    expect(store.aviso()).toContain('interfone');
+    store.selecionar(ATENDIMENTOS[1]);
+    expect(store.aviso()).toBeNull();
+    store.selecionar(a);
+    store.atualizarStatus('AGUARDANDO_AUTORIZACAO');
+    expect(store.aviso()).toContain('interfone');
+    store.trocarAba('entregadores');
+    expect(store.aviso()).toBeNull();
+  });
+
   it('espera de mais de 48 h aparece em dias', () => {
     expect(textoEspera(47 * 60)).toBe('há 47 h 00 min');
     expect(textoEspera(48 * 60)).toBe('há 2 dias');

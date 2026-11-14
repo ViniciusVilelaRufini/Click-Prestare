@@ -68,6 +68,7 @@ export class DeliveryStore {
 
   trocarAba(aba: AbaDelivery): void {
     this.erro.set(null);
+    this.aviso.set(null);
     this.aba.set(aba);
     this.limparBuscaEntregadores();
     if (aba === 'fila') this.carregarFila({ silencioso: true });
@@ -96,10 +97,10 @@ export class DeliveryStore {
           if (atual) this.selecionado.set(atual);
           this.selecionadoSaiu.set(!atual);
         }
-        // Recarga automática que voltou a funcionar: some o aviso de conexão —
+        // Carga (silenciosa ou não) que voltou a funcionar: some o aviso de conexão —
         // só ele. O erro de uma ação (ex.: entregador bloqueado) fica até o
         // porteiro fechar ou fazer outra ação.
-        if (opts.silencioso && !opts.manterErro && this.erroDaCarga !== null && this.erro() === this.erroDaCarga) {
+        if (!opts.manterErro && this.erroDaCarga !== null && this.erro() === this.erroDaCarga) {
           this.erro.set(null);
         }
         this.erroDaCarga = null;
@@ -145,6 +146,8 @@ export class DeliveryStore {
   }
 
   selecionar(a: DeliveryAtendimento): void {
+    // O aviso "interfone" é do atendimento anterior.
+    if (this.selecionado()?.id !== a.id) this.aviso.set(null);
     this.selecionado.set(a);
     this.selecionadoSaiu.set(false);
     this.entregadorSelecionadoId.set(a.entregador?.id ?? null);
