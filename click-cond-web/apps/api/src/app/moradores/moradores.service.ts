@@ -17,6 +17,7 @@ import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade
 import { rotuloBloco } from '../common/rotulo-bloco.util';
 import { validarCodigoTag } from '../common/tag-codigo.util';
 import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
+import { REVOGADO_PELO_OPERADOR } from '../consentimentos/consentimentos.service';
 export interface CreateMoradorDto {
   nome: string;
   documento?: string;
@@ -330,6 +331,47 @@ export class MoradoresService {
   }
 
   /**
+   * Último registro de biometria de cada titular — a regra de ConsentimentosService.autorizouBiometria,
+   * que o FacialService.syncMorador usa para decidir se o rosto vai ao terminal. Só leitura: o console
+   * nunca grava consentimento de morador. `null` quando não deu para ler (a lista não cai pelo aviso).
+   */
+  private async biometriaAutorizadaPorUsuario(idsUser: Array<number | null | undefined>): Promise<Map<number, boolean> | null> {
+    const ids = [...new Set(idsUser.filter((v): v is number => v != null).map(Number))];
+    if (ids.length === 0) return new Map();
+    try {
+      const rows = await this.prisma.consentimentos.findMany({
+        where: { id_user: { in: ids }, tipo: 'biometria' },
+        orderBy: [{ registrado_em: 'desc' }, { id: 'desc' }],
+        select: { id_user: true, aceito: true },
+      });
+      const out = new Map<number, boolean>();
+      for (const r of rows) if (!out.has(r.id_user)) out.set(r.id_user, r.aceito === 1);
+      return out;
+    } catch (e: any) {
+      this.logger.warn(`[moradores.findAll] consentimentos de biometria não lidos: ${e?.message ?? e}`);
+      return null;
+    }
+  }
+
+  /**
+   * Para a tela avisar que o rosto cadastrado espera o aceite do morador no app (o syncMorador pula
+   * sem gravar status). Marca de revogação do operador aqui também conta como não autorizado.
+   */
+  private estadoAceiteBiometria(
+    m: { id_user: number | null; foto_pessoa: string | null; face_id: string | null; face_sync_error: string | null },
+    autorizados: Map<number, boolean> | null,
+  ) {
+    const biometria_autorizada =
+      autorizados == null
+        ? null
+        : m.id_user != null && m.face_sync_error !== REVOGADO_PELO_OPERADOR && autorizados.get(m.id_user) === true;
+    return {
+      biometria_autorizada,
+      aguardando_aceite_biometria: biometria_autorizada === false && !!m.foto_pessoa && !m.face_id,
+    };
+  }
+
+  /**
    * Moradores no schema legado têm FK para Users e podem ter id_condominio.
    * Para a portaria, listamos moradores diretamente filtrados por id_condominio
    * e juntamos foto via Users. Quando o app legado popular Apartamentos_Users
@@ -361,6 +403,7 @@ export class MoradoresService {
         rels.filter((r) => r.user?.photo || r.user?.email || r.user?.phone || r.user?.cpf).map((r) => r.id_user),
         Number(idCondominio),
       );
+      const autorizados = await this.biometriaAutorizadaPorUsuario(rels.map((r) => r.id_user));
       const seen = new Set<number>();
       const out: any[] = [];
       for (const r of rels) {
@@ -400,6 +443,7 @@ export class MoradoresService {
           // A tela de edição monta o formulário com estes campos: sem eles, salvar apagava a tag e o QR.
           tag_rfid: m?.tag_rfid ?? null,
           qrcode_acesso: m?.qrcode_acesso ?? null,
+          ...this.estadoAceiteBiometria(m, autorizados),
         });
       }
       // Busca textual local (mesmo comportamento da query condo-wide).
@@ -458,6 +502,7 @@ export class MoradoresService {
       list.filter((m) => !m.foto_pessoa && m.user?.photo).map((m) => m.id_user),
       Number(idCondominio),
     );
+    const autorizados = await this.biometriaAutorizadaPorUsuario(list.map((m) => m.id_user));
     return list.map((m) => {
       const idAptoMapped = m.user?.apartamentosUsers?.[0]?.id_apto ?? 0;
       const fotoFinal = m.foto_pessoa ?? (m.id_user != null && compartilhadas.has(m.id_user) ? null : m.user?.photo) ?? null;
@@ -481,6 +526,7 @@ export class MoradoresService {
         face_sync_error: m.face_sync_error ?? null,
         tag_rfid: m.tag_rfid ?? null,
         qrcode_acesso: m.qrcode_acesso ?? null,
+        ...this.estadoAceiteBiometria(m, autorizados),
       };
     });
   }

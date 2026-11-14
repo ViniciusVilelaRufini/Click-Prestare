@@ -24,6 +24,10 @@ export interface Morador {
   face_sync_error?: string | null;
   tag_rfid?: string | null;
   qrcode_acesso?: string | null;
+  /** O titular aceitou a biometria no app (null: não deu para saber). Sem o aceite, o rosto não vai aos terminais. */
+  biometria_autorizada?: boolean | null;
+  /** Tem foto do rosto no cadastro, mas ela espera o aceite do morador no app para ir aos terminais. */
+  aguardando_aceite_biometria?: boolean;
 }
 
 export interface CreateMorador {

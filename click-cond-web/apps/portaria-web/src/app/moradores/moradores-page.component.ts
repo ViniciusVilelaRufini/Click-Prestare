@@ -218,6 +218,8 @@ export class MoradoresPageComponent implements OnInit {
   editingId: number | null = null;
   /** Unidade, tag e QR como vieram do cadastro: na edição só vai o que o operador mudou. */
   private originalEdicao: OriginalEdicaoMorador = { id_apartamento: 0, tag_rfid: null, qrcode_acesso: null };
+  /** Aceite de biometria do morador em edição (null no cadastro novo ou quando não se sabe). */
+  biometriaAutorizadaEdicao: boolean | null = null;
   readonly saving = signal(false);
   readonly revogandoBiometria = signal(false);
 
@@ -334,6 +336,7 @@ export class MoradoresPageComponent implements OnInit {
     this.fotoDocumentoBase64.set(null);
     this.dataNascimentoMasked = '';
     this.novo = this.estadoInicial();
+    this.biometriaAutorizadaEdicao = null;
     this.veiculos.set([]);
     this.resetNovoVeiculo();
     this.error.set(null);
@@ -359,6 +362,7 @@ export class MoradoresPageComponent implements OnInit {
       qrcode_acesso: m.qrcode_acesso ?? '',
     };
     this.originalEdicao = { id_apartamento: m.id_apartamento, tag_rfid: m.tag_rfid, qrcode_acesso: m.qrcode_acesso };
+    this.biometriaAutorizadaEdicao = m.biometria_autorizada ?? null;
     this.error.set(null);
     this.showForm = true;
     this.resetNovoVeiculo();

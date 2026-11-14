@@ -363,6 +363,11 @@
                   <p class="text-[11px] text-slate-400">
                     Necessária para sincronização com os terminais faciais.
                   </p>
+                  @if (!editingId || biometriaAutorizadaEdicao === false) {
+                    <p class="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                      O rosto só vai para os terminais depois que o morador aceitar a biometria no app.
+                    </p>
+                  }
                 </div>
 
                 @if (isMenorDeIdade(novo.data_nascimento)) {
@@ -659,6 +664,8 @@
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]"><span class="ps-dot ps-dot-warn"></span>Sinc.</span>
                   } @else if (m.face_sync_status === 'error') {
                     <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" [title]="m.face_sync_error || 'Erro na sincronização facial'"><span class="ps-dot ps-dot-danger"></span>Erro</span>
+                  } @else if (m.aguardando_aceite_biometria) {
+                    <span class="ps-tag !h-[18px] !px-1.5 !text-[9px]" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>Aguardando aceite</span>
                   }
                   <span class="ps-tag {{ tipoColor(m.tipo) }}">{{ tipoLabel(m.tipo) }}</span>
                 </div>
@@ -726,6 +733,8 @@
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="Sincronização pendente"><span class="ps-dot ps-dot-warn"></span>Sinc.</span>
                       } @else if (m.face_sync_status === 'error') {
                         <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" [title]="m.face_sync_error || 'Erro na sincronização facial'"><span class="ps-dot ps-dot-danger"></span>Erro</span>
+                      } @else if (m.aguardando_aceite_biometria) {
+                        <span class="ps-tag !h-[18px] !px-1.5 !text-[9px] shrink-0" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>Aguardando aceite</span>
                       }
                     </div>
                     @if (m.email) { <p class="text-[11px] text-slate-500 truncate">{{ m.email }}</p> }
@@ -1129,6 +1138,10 @@
             } @else if (selectedMorador()!.face_sync_status === 'error') {
               <span class="ps-tag" [title]="selectedMorador()!.face_sync_error || 'Erro na sincronização facial'"><span class="ps-dot ps-dot-danger"></span>
                 Erro Facial
+              </span>
+            } @else if (selectedMorador()!.aguardando_aceite_biometria) {
+              <span class="ps-tag" title="O rosto só vai para os terminais depois que o morador aceitar a biometria no app"><span class="ps-dot ps-dot-warn"></span>
+                Aguardando aceite no app
               </span>
             }
           </div>
