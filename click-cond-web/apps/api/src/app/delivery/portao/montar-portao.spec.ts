@@ -87,6 +87,8 @@ export function montarPortao(
   const svc = new DeliveryPortaoService(banco.prisma, delivery, facial, storage, tenant);
   (svc as any).logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn(), debug: jest.fn() };
   svc.agora = () => agora;
+  // Mesmo relógio nos dois serviços (prazo do pedido e janela do aviso reaproveitado).
+  delivery.agora = () => agora;
   const avancar = (ms: number) => {
     agora += ms;
   };

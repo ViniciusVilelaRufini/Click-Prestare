@@ -91,7 +91,7 @@ describe('autoatendimento no portão — revisão de segurança', () => {
 
     it('aviso AGENDADA do morador sem pedido anterior é reaproveitado', async () => {
       const k = montarPortao({
-        atendimentos: [{ id: 4, id_condominio: 1, id_apartamento: 101, id_morador_user: 7, origem: 'portaria', status: 'AGENDADA', id_pedido_portao: null }],
+        atendimentos: [{ id: 4, id_condominio: 1, id_apartamento: 101, id_morador_user: 7, origem: 'portaria', status: 'AGENDADA', id_pedido_portao: null, created_at: new Date(T0 - M) }],
       });
       await k.svc.criarPedido(TOKEN_PORTAO, entrada);
       expect(k.tabela('deliveryAtendimentos')).toEqual([expect.objectContaining({ id: 4, status: 'AGUARDANDO_AUTORIZACAO', id_pedido_portao: 1 })]);

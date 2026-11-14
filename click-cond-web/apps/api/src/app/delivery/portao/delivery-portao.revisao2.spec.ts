@@ -91,6 +91,71 @@ describe('autoatendimento no portão — segunda revisão', () => {
     }, 15_000);
   });
 
+  describe('[2] aviso AGENDADA antigo não é reaproveitado; a nuvem só abre para vínculo atual', () => {
+    const H = 3_600_000;
+    const aviso = (extra: Record<string, unknown> = {}) => ({
+      id: 4, id_condominio: 1, id_apartamento: 101, id_morador_user: 7, origem: 'portaria', status: 'AGENDADA',
+      id_pedido_portao: null, created_at: new Date(T0 - H), previsao_em: null, ...extra,
+    });
+    const reaproveitou = (k: ReturnType<typeof montarPortao>) =>
+      k.tabela('deliveryAtendimentos').find((a: any) => a.id === 4).status === 'AGUARDANDO_AUTORIZACAO';
+
+    it('aviso criado há mais de 24 h fica como está: o portão cria outro atendimento', async () => {
+      const k = montarPortao({ atendimentos: [aviso({ created_at: new Date(T0 - 25 * H) })] });
+      await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      expect(reaproveitou(k)).toBe(false);
+      expect(k.tabela('deliveryAtendimentos')).toHaveLength(2);
+      const novo = k.tabela('deliveryAtendimentos').find((a: any) => a.id !== 4);
+      expect(novo).toMatchObject({ origem: 'autoatendimento', id_morador_user: null, id_pedido_portao: 1 });
+    });
+
+    it('com previsão de chegada: só reaproveita dentro de ±6 h dela', async () => {
+      const longe = montarPortao({ atendimentos: [aviso({ previsao_em: new Date(T0 + 7 * H) })] });
+      await longe.svc.criarPedido(TOKEN_PORTAO, entrada);
+      expect(reaproveitou(longe)).toBe(false);
+      const passou = montarPortao({ atendimentos: [aviso({ created_at: new Date(T0 - 20 * H), previsao_em: new Date(T0 - 7 * H) })] });
+      await passou.svc.criarPedido(TOKEN_PORTAO, entrada);
+      expect(reaproveitou(passou)).toBe(false);
+      const perto = montarPortao({ atendimentos: [aviso({ previsao_em: new Date(T0 + 5 * H) })] });
+      await perto.svc.criarPedido(TOKEN_PORTAO, entrada);
+      expect(reaproveitou(perto)).toBe(true);
+    });
+
+    it('dono do aviso sem vínculo atual com a unidade libera: a nuvem não abre', async () => {
+      const k = montarPortao({ atendimentos: [aviso({ id_morador_user: 50 })] });
+      await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      expect(reaproveitou(k)).toBe(true);
+      k.avancar(3000);
+      await k.delivery.atualizarStatus(4, { status: 'AUTORIZADA' } as any, { sub: 50, typeAccess: 'Morador', nome: 'Ex' } as any);
+      expect(k.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+      expect(k.tabela('deliveryPedidosPortao')[0]).toMatchObject({ status: 'liberado', liberado_ate: null });
+    });
+
+    it('morador com vínculo atual libera o aviso reaproveitado: a nuvem abre', async () => {
+      const k = montarPortao({ atendimentos: [aviso()] });
+      await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      k.avancar(3000);
+      await k.delivery.atualizarStatus(4, { status: 'AUTORIZADA' } as any, { sub: 9, typeAccess: 'Morador', nome: 'Bruno' } as any);
+      expect(k.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
+    });
+
+    it('aviso reaproveitado: o card com a selfie vai a todos os vínculos atuais (e não ao dono desvinculado)', async () => {
+      for (const [dono, esperados] of [
+        [7, [7, 9]],
+        [50, [7, 9]],
+      ] as const) {
+        const k = montarPortao({ atendimentos: [aviso({ id_morador_user: dono })] });
+        await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+        expect(k.card.abrirDelivery).toHaveBeenCalledTimes(1);
+        const [a, ids] = k.card.abrirDelivery.mock.calls[0];
+        expect([...ids].sort()).toEqual(esperados);
+        expect(a).toMatchObject({ portao: true, fotoEntregador: expect.stringContaining('delivery-portao/') });
+        // O card já avisa quem não tem card: nenhuma notificação a mais.
+        expect(k.notifications.sendPushNotification).not.toHaveBeenCalled();
+      }
+    });
+  });
+
   describe('[4] a foto sobe antes dos locks; dentro deles só banco', () => {
     it('upload sem nenhum lock preso', async () => {
       const k = montarPortao();
