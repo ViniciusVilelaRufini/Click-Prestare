@@ -262,10 +262,32 @@ export class AreasSociaisService {
 
   /** Fim da reserva no relógio do condomínio; término 00:00 (ou sem hora) é a meia-noite do fim do dia. */
   private fimDaReserva(data: Date, horaAte: Date | null | undefined): Date {
-    if (!horaAte || (horaAte.getHours() === 0 && horaAte.getMinutes() === 0)) {
+    const minutos = horaAte ? horaAte.getHours() * 60 + horaAte.getMinutes() : 0;
+    if (fimEmMinutos(minutos) === 1440) {
       return new Date(data.getFullYear(), data.getMonth(), data.getDate() + 1, 0, 0, 0, 0);
     }
     return this.combineDateTime(data, horaAte);
+  }
+
+  /**
+   * Fim da manutenção no relógio do condomínio. Término 00:00 que cairia no
+   * início ou antes dele (20:00 → 00:00 no mesmo dia) é a meia-noite do fim
+   * do dia — a mesma regra da reserva; com data de término posterior, 00:00
+   * segue sendo o começo daquele dia.
+   */
+  private fimDaManutencao(inicio: Date, dataTermino: Date, horaTermino: Date | null | undefined): Date {
+    const fim = this.combineDateTime(dataTermino, horaTermino);
+    const meiaNoite = !horaTermino || (horaTermino.getHours() === 0 && horaTermino.getMinutes() === 0);
+    if (meiaNoite && fim.getTime() <= inicio.getTime()) {
+      return new Date(dataTermino.getFullYear(), dataTermino.getMonth(), dataTermino.getDate() + 1, 0, 0, 0, 0);
+    }
+    return fim;
+  }
+
+  /** Janela [início, fim) de uma linha de manutenção já gravada (com as duas datas). */
+  private janelaDaManutencao(m: { data_inicio: Date | null; hora_inicio: Date | null; data_termino: Date | null; hora_termino: Date | null }) {
+    const inicio = this.combineDateTime(m.data_inicio as Date, m.hora_inicio);
+    return { inicio, fim: this.fimDaManutencao(inicio, m.data_termino as Date, m.hora_termino) };
   }
 
   // Colisão de intervalos [inicio, fim): true quando o bloco intersecta
@@ -435,6 +457,51 @@ export class AreasSociaisService {
     if (!area) throw new NotFoundException('Área social não encontrada');
     await this.tenant.assertEntidade(area.id_condominio, user, `área social #${id}`);
     await this.tenant.assertPermissaoFuncionario(area.id_condominio, 'areas_sociais', user);
+
+    // O terminal ficaria com id_area_social = NULL (SetNull): deixa de ser
+    // "de reserva" e passa a receber todos os moradores no próximo sync. O
+    // desativado também conta: reativado, voltaria sem espaço. Vem antes das
+    // reservas por ser a consulta mais barata e a que exige outra tela.
+    const terminais = await this.prisma.facial_Devices.count({ where: { id_area_social: area.id } });
+    if (terminais > 0) {
+      throw new ConflictException(
+        (terminais === 1
+          ? 'Este espaço tem um terminal facial ligado a ele. '
+          : `Este espaço tem ${terminais} terminais faciais ligados a ele. `) +
+          'Em Terminais faciais, ligue o terminal a outro espaço ou exclua o terminal antes de excluir este espaço ' +
+          '(terminal desativado também conta). Sem espaço, o terminal passaria a liberar todos os moradores.',
+      );
+    }
+
+    // O delete leva as reservas em cascata — sem cancelar, sem avisar o
+    // morador e sem tirá-lo do terminal. Reserva ativa por acontecer segura a
+    // exclusão: cancelar antes avisa o dono pelo caminho de sempre.
+    const agora = this.agoraNoFusoDoCondominio();
+    const ativas = await this.prisma.areas_Sociais_Agendamentos.findMany({
+      where: { id_area_social: area.id, status: { in: ['pendente', 'aprovado'] }, data: { gte: hojeBrasilia() } },
+      select: { id: true, data: true, hora_de: true, hora_ate: true },
+      orderBy: [{ data: 'asc' }, { hora_de: 'asc' }],
+    });
+    const porAcontecer = ativas.filter((a) => !a.data || this.fimDaReserva(a.data, a.hora_ate) > agora);
+    if (porAcontecer.length > 0) {
+      const n = porAcontecer.length;
+      // As próximas (até 3), para o síndico saber quais cancelar.
+      const proximas = porAcontecer
+        .slice(0, 3)
+        .map((a) => {
+          const dia = a.data ? a.data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+          const de = a.hora_de ? a.hora_de.toTimeString().substring(0, 5) : '';
+          return `${dia}${de ? ' às ' + de : ''}`.trim();
+        })
+        .filter(Boolean);
+      const lista = proximas.length ? ` (${proximas.join(', ')}${n > proximas.length ? ' e outras' : ''})` : '';
+      throw new ConflictException(
+        n === 1
+          ? `Este espaço tem 1 reserva ativa por acontecer${lista}. Cancele-a antes de excluir o espaço.`
+          : `Este espaço tem ${n} reservas ativas por acontecer${lista}. Cancele-as antes de excluir o espaço.`,
+      );
+    }
+
     await this.prisma.areas_Sociais.delete({ where: { id: Number(id) } });
     return { success: true };
   }
@@ -640,11 +707,7 @@ export class AreasSociaisService {
       // no epoch criava 1970 → término, que intersecta TUDO e deixava a área
       // sem nenhum horário disponível.
       .filter(m => m.data_inicio != null && m.data_termino != null)
-      .map(m => ({
-        raw: m,
-        inicio: this.combineDateTime(m.data_inicio as Date, m.hora_inicio),
-        fim: this.combineDateTime(m.data_termino as Date, m.hora_termino),
-      }))
+      .map(m => ({ raw: m, ...this.janelaDaManutencao(m) }))
       .filter(m => m.fim > agora);
 
     // Calcular horários livres para 60 dias, incluindo hoje
@@ -665,6 +728,15 @@ export class AreasSociaisService {
 
       if (horariosObj[weekDay] && Array.isArray(horariosObj[weekDay].horarios) && horariosObj[weekDay].horarios.length > 0) {
         let blocos: any[] = JSON.parse(JSON.stringify(horariosObj[weekDay].horarios));
+
+        // Bloco que atravessa a meia-noite (22:00–02:00) ou com fim antes do
+        // início: a reserva desse bloco dá 400, então ele não é oferecido.
+        // 00:00/24:00 no fim é o fim do dia e segue valendo.
+        blocos = blocos.filter(h => {
+          const [hDe, mDe] = this.parseTime(h.horarioDe);
+          const [hAte, mAte] = this.parseTime(h.horarioAte);
+          return fimEmMinutos(hAte * 60 + mAte) > hDe * 60 + mDe;
+        });
 
         if (ehHoje) {
           // Hoje: descarta bloco cujo fim já passou — oferecer horário vencido
@@ -856,6 +928,10 @@ export class AreasSociaisService {
 
     const requestedDe = hDe * 60 + mDe;
     const requestedAte = hAte * 60 + mAte;
+    // 00:00 no término é o fim do dia (1440); fora isso o fim vem depois do início.
+    if (fimEmMinutos(requestedAte) <= requestedDe) {
+      throw new BadRequestException('O término da reserva precisa ser depois do início.');
+    }
 
     // Reserva no passado não faz sentido (e some da fila, que só lista de ontem
     // em diante). Compara no fuso do condomínio, não no do servidor (UTC).
@@ -880,10 +956,7 @@ export class AreasSociaisService {
     // nada (com o epoch, uma linha meia-boca recusava toda reserva da área).
     const janelasManutencao = manutencoesDb
       .filter(m => m.data_inicio != null && m.data_termino != null)
-      .map(m => ({
-        inicio: this.combineDateTime(m.data_inicio as Date, m.hora_inicio),
-        fim: this.combineDateTime(m.data_termino as Date, m.hora_termino),
-      }));
+      .map(m => this.janelaDaManutencao(m));
     const inicioBlocoSolicitado = this.combineDateTime(dataObj, horaDeObj);
     const fimBlocoSolicitado = this.fimDaReserva(dataObj, horaAteObj);
     if (this.colideComJanela(inicioBlocoSolicitado, fimBlocoSolicitado, janelasManutencao)) {
@@ -966,6 +1039,15 @@ export class AreasSociaisService {
         hora_ate: horaAteObj,
         status: statusInicial,
         convidados,
+        // Agendada pela administração já nasce aprovada por quem agendou: a fila
+        // do console e o app mostram o nome em "aprovado por".
+        ...(peloSindico
+          ? {
+              aprovado_por_nome:
+                (user as any)?.name ?? user?.nome ?? (user as any)?.user?.name ?? 'Administração',
+              aprovado_em: new Date(),
+            }
+          : {}),
       },
     });
 
@@ -1001,13 +1083,42 @@ export class AreasSociaisService {
       await this.tenant.assertPermissaoFuncionario(agTenantCheck.area?.id_condominio, 'areas_sociais', user);
     }
 
-    // Cancelamento (dono ou síndico via remove): revoga o acesso facial ANTES
+    // Reserva usada não sai: apagá-la tirava o uso do limite mensal (o morador
+    // reservava de novo) e o console perdia quem usou a área. Mesma regra do
+    // cancelar em updateStatusAgendamento.
+    const agAntes = agTenantCheck;
+    if (
+      agAntes.status === 'aprovado' &&
+      agAntes.data &&
+      this.fimDaReserva(agAntes.data, agAntes.hora_ate) <= this.agoraNoFusoDoCondominio()
+    ) {
+      throw new ConflictException('Esta reserva já aconteceu.');
+    }
+
+    // O "Excluir" do app sobre reserva ativa é o morador desistindo: vira
+    // 'cancelado' e fica no histórico (não conta mais no limite). Condicional
+    // ao status lido, como em updateStatusAgendamento.
+    if (typeAccess === 'Morador' && (agAntes.status === 'aprovado' || agAntes.status === 'pendente')) {
+      const { count } = await this.prisma.areas_Sociais_Agendamentos.updateMany({
+        where: { id: Number(id), status: agAntes.status },
+        data: { status: 'cancelado', aprovado_por_nome: 'Cancelado pelo Morador', aprovado_em: new Date() },
+      });
+      if (count === 0) {
+        const atual = await this.prisma.areas_Sociais_Agendamentos.findUnique({ where: { id: Number(id) } });
+        throw new ConflictException(mensagemReservaJaMudou(atual?.status));
+      }
+      if (agAntes.status === 'aprovado') {
+        await this.facial
+          .syncReservaArea(Number(id))
+          .catch((err) => this.logger.warn(`syncReservaArea (remove) ag ${id}: ${err?.message ?? err}`));
+      }
+      return { success: true, status: 'cancelado' };
+    }
+
+    // Cancelamento (síndico via remove): revoga o acesso facial ANTES
     // de apagar. É 'cancelado', não 'recusado' — recusa é decisão do síndico
     // via updateStatusAgendamento; aqui é a reserva sendo desfeita.
-    const agAntes = await this.prisma.areas_Sociais_Agendamentos.findUnique({
-      where: { id: Number(id) },
-    });
-    if (agAntes?.status === 'aprovado') {
+    if (agAntes.status === 'aprovado') {
       await this.prisma.areas_Sociais_Agendamentos.update({
         where: { id: Number(id) },
         data: { status: 'cancelado' },
@@ -1640,7 +1751,7 @@ export class AreasSociaisService {
     const horaInicioObj = lerHora(m.hora_inicio);
     const horaTerminoObj = lerHora(m.hora_termino);
     const inicioJanela = this.combineDateTime(dIni, horaInicioObj);
-    const fimJanela = this.combineDateTime(dFim, horaTerminoObj);
+    const fimJanela = this.fimDaManutencao(inicioJanela, dFim, horaTerminoObj);
     if (fimJanela.getTime() <= inicioJanela.getTime()) {
       throw new BadRequestException('O término da manutenção precisa ser depois do início.');
     }
@@ -1805,6 +1916,15 @@ export class AreasSociaisService {
     }
     if (agendamento.status) {
       updateData.status = String(agendamento.status);
+    }
+    // Mesma regra da criação: término (00:00 = fim do dia) depois do início.
+    const deFinal: Date | null = updateData.hora_de ?? atual.hora_de ?? null;
+    const ateFinal: Date | null = updateData.hora_ate ?? atual.hora_ate ?? null;
+    if (
+      deFinal && ateFinal &&
+      fimEmMinutos(ateFinal.getHours() * 60 + ateFinal.getMinutes()) <= deFinal.getHours() * 60 + deFinal.getMinutes()
+    ) {
+      throw new BadRequestException('O término da reserva precisa ser depois do início.');
     }
 
     return this.prisma.areas_Sociais_Agendamentos.update({

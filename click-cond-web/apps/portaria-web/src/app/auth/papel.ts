@@ -8,8 +8,11 @@ export function ehPorteiro(info: { turno?: string | null } | null | undefined): 
   return !!info?.turno && info.turno !== 'Síndico';
 }
 
-/** Telas que o porteiro não vê no menu e não pode abrir pela URL. */
-export const ROTAS_SO_SINDICO = ['financeiro', 'relatorios', 'configuracoes', 'terminais-faciais'];
+/**
+ * Telas que o porteiro não vê no menu e não pode abrir pela URL. Configurações fica de fora: o porteiro abre a
+ * tela para trocar a própria senha, e ela só mostra a ele a aba "Segurança e Perfil".
+ */
+export const ROTAS_SO_SINDICO = ['financeiro', 'relatorios', 'terminais-faciais'];
 
 /**
  * `typeAccess` do token da sessão ('Sindico', 'Funcionario'…), em minúsculas.

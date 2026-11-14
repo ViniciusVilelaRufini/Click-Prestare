@@ -18,7 +18,7 @@ describe('VisitantesService.listarPessoas — flag PESSOAS_MIGRATION_ENABLED', (
 
   const mockPrisma: any = {
     pessoas: { findMany: jest.fn() },
-    visitas: { findMany: jest.fn() },
+    visitas: { findMany: jest.fn(), groupBy: jest.fn() },
     visitantes: {
       findMany: jest.fn().mockResolvedValue([
         {

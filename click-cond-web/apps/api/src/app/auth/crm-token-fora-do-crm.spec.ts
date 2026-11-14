@@ -32,7 +32,11 @@ describe('Token do CRM fora das rotas do CRM', () => {
           update: jest.fn(async () => ({ id: 99 })),
           delete: jest.fn(async () => ({ id: 99 })),
         },
+        // Renomear a unidade leva o texto novo aos moradores dela, na mesma transação.
+        apartamentos_Users: { findMany: jest.fn(async () => []) },
+        moradores: { findMany: jest.fn(async () => []), updateMany: jest.fn(async () => ({ count: 0 })) },
       };
+      prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
       const tenant: any = {
         assertEntidade: jest.fn(async () => { throw new ForbiddenException('fora do tenant'); }),
         assertPermissaoFuncionario: jest.fn(async () => undefined),

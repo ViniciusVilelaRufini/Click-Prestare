@@ -30,6 +30,8 @@ export class DeliveryStore {
   readonly selecionadoSaiu = signal(false);
   readonly carregando = signal(false);
   readonly erro = signal<string | null>(null);
+  /** Aviso informativo da última ação (ex.: pedido de autorização que ninguém recebe). */
+  readonly aviso = signal<string | null>(null);
   readonly entregadorSelecionadoId = signal<number | null>(null);
   readonly motivo = signal('');
   readonly entregadorEmEdicao = signal<DeliveryEntregador | null>(null);
@@ -37,6 +39,8 @@ export class DeliveryStore {
 
   private cargaFila?: Subscription;
   private cargaNormalPendente = false;
+  /** Mensagem posta pela própria carga da fila: só ela some quando a recarga volta a funcionar. */
+  private erroDaCarga: string | null = null;
   private buscaEntregadoresSub?: Subscription;
 
   novoEntregador: CriarEntregadorDelivery = this.novoEntregadorVazio();
@@ -64,6 +68,7 @@ export class DeliveryStore {
 
   trocarAba(aba: AbaDelivery): void {
     this.erro.set(null);
+    this.aviso.set(null);
     this.aba.set(aba);
     this.limparBuscaEntregadores();
     if (aba === 'fila') this.carregarFila({ silencioso: true });
@@ -92,12 +97,18 @@ export class DeliveryStore {
           if (atual) this.selecionado.set(atual);
           this.selecionadoSaiu.set(!atual);
         }
-        // Recarga automática que voltou a funcionar: some o aviso de conexão.
-        if (opts.silencioso && !opts.manterErro) this.erro.set(null);
+        // Carga (silenciosa ou não) que voltou a funcionar: some o aviso de conexão —
+        // só ele. O erro de uma ação (ex.: entregador bloqueado) fica até o
+        // porteiro fechar ou fazer outra ação.
+        if (!opts.manterErro && this.erroDaCarga !== null && this.erro() === this.erroDaCarga) {
+          this.erro.set(null);
+        }
+        this.erroDaCarga = null;
         this.encerrarCargaNormal();
       },
       error: (error) => {
         this.definirErro(error, 'Não foi possível carregar a fila de delivery.', opts.silencioso);
+        this.erroDaCarga = this.erro();
         this.encerrarCargaNormal();
       },
     });
@@ -135,6 +146,8 @@ export class DeliveryStore {
   }
 
   selecionar(a: DeliveryAtendimento): void {
+    // O aviso "interfone" é do atendimento anterior.
+    if (this.selecionado()?.id !== a.id) this.aviso.set(null);
     this.selecionado.set(a);
     this.selecionadoSaiu.set(false);
     this.entregadorSelecionadoId.set(a.entregador?.id ?? null);
@@ -176,6 +189,7 @@ export class DeliveryStore {
 
   atualizarStatus(status: DeliveryStatus): void {
     this.erro.set(null);
+    this.aviso.set(null);
     const a = this.selecionado();
     if (!a || !this.proximosStatus(a).includes(status)) return;
     if (status === 'AUTORIZADA' && !this.podeAutorizar(a)) {
@@ -200,6 +214,10 @@ export class DeliveryStore {
       next: (atualizado) => {
         this.motivo.set('');
         this.erro.set(null);
+        // Ninguém da unidade tem o app para receber o pedido: não adianta esperar.
+        if (status === 'AGUARDANDO_AUTORIZACAO' && atualizado?.avisados === 0) {
+          this.aviso.set(`Ninguém da unidade ${this.unidade(a)} recebeu o pedido pelo app — interfone para o morador.`);
+        }
         // O painel mostra o desfecho mesmo que o atendimento saia da fila na recarga.
         this.selecionado.update((s) => (s && s.id === a.id
           ? { ...s, status: atualizado?.status ?? status, motivo: atualizado?.motivo ?? s.motivo }

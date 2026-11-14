@@ -20,13 +20,19 @@ describe('authGuard — rotas restritas ao síndico', () => {
 
   beforeEach(() => navigate.mockReset());
 
-  it.each(['configuracoes', 'terminais-faciais', 'financeiro', 'relatorios'])(
+  it.each(['terminais-faciais', 'financeiro', 'relatorios'])(
     'porteiro é redirecionado para /dashboard em /%s',
     (rota) => {
       expect(executar({ turno: 'Diurno' }, rota)).toBe(false);
       expect(navigate).toHaveBeenCalledWith(['/dashboard']);
     },
   );
+
+  // Rodada 3 (M10): o porteiro abre Configurações para trocar a própria senha (a tela só lhe mostra essa aba).
+  it('porteiro entra em /configuracoes', () => {
+    expect(executar({ turno: 'Diurno' }, 'configuracoes')).toBe(true);
+    expect(navigate).not.toHaveBeenCalled();
+  });
 
   it('porteiro do app (QR) também é barrado', () => {
     expect(executar({ turno: 'Porteiro (App)' }, 'terminais-faciais')).toBe(false);

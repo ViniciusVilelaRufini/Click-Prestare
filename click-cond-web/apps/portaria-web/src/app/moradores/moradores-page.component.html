@@ -283,7 +283,8 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
                 <div>
-                  <span class="font-bold">Titular Menor de 18 Anos:</span> Conforme a Cláusula 8.3 do Contrato e o DPA (LGPD), menores de 18 anos não podem ter conta de aplicativo nem cadastro biométrico facial. O cadastro será realizado apenas como dependente presencial da unidade.
+                  <span class="font-bold">Titular Menor de 18 Anos:</span> Conforme a Cláusula 8.3 do Contrato e o DPA (LGPD), menores de 18 anos não podem ter conta de aplicativo. O rosto só vai para os terminais com o termo do responsável aceito no app.
+                  @if (!editingId) { O cadastro novo é feito como dependente, sem foto e sem acesso ao app. }
                 </div>
               </div>
             }
@@ -1024,7 +1025,7 @@
                           </span>
                         </td>
                         <td class="p-2.5 text-center">
-                          <input type="checkbox" [(ngModel)]="item.sendCredentials" class="rounded bg-graphite-200 border-white/20 text-accent accent-accent"/>
+                          <input type="checkbox" [(ngModel)]="item.sendCredentials" [disabled]="!item.email" [title]="item.email ? '' : 'Sem e-mail: nenhuma credencial é enviada'" class="rounded bg-graphite-200 border-white/20 text-accent accent-accent"/>
                         </td>
                       </tr>
                     }

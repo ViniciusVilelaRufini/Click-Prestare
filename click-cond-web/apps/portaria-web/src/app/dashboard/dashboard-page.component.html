@@ -234,11 +234,9 @@
           </span>
         </div>
         <p class="ps-num !text-[52px] !leading-[52px]">{{ d.prestadoresAtivos < 10 ? '0' + d.prestadoresAtivos : d.prestadoresAtivos }}</p>
-        <div class="min-h-[22px]">
-          @if (d.prestadoresAtivos > 0) {
-            <span class="ps-tag"><span class="ps-dot"></span>ativos</span>
-          }
-        </div>
+        <!-- Sem selo "ativos": o número é o catálogo inteiro (Prestadores_servico
+             não tem status), não quem está trabalhando hoje. -->
+        <div class="min-h-[22px]"></div>
       </a>
 
     </div>

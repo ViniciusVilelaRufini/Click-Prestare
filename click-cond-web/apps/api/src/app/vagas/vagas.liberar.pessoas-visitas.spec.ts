@@ -70,8 +70,8 @@ describe('VagasService.liberar e revogar — migração Pessoas + Visitas', () =
       id_morador_titular: 5,
       tipo: 'visitante',
       id_visitante: 2000010, // Passado como id da Pessoa vindo de beneficiarios
-      inicio: '2026-09-22T10:00:00.000Z',
-      fim: '2026-09-22T18:00:00.000Z',
+      inicio: '2099-09-22T10:00:00.000Z',
+      fim: '2099-09-22T18:00:00.000Z',
     });
 
     expect(prisma.visitas.findFirst).toHaveBeenCalledWith({
@@ -124,6 +124,7 @@ describe('VagasService.liberar e revogar — migração Pessoas + Visitas', () =
       id_morador_titular: 5,
       tipo: 'visitante',
       id_visita: 1000077,
+      fim: '2099-09-22T18:00:00.000Z',
     });
 
     expect(prisma.visitas.update).toHaveBeenCalledWith({
@@ -151,6 +152,7 @@ describe('VagasService.liberar e revogar — migração Pessoas + Visitas', () =
       id_morador_titular: 5,
       tipo: 'visitante',
       id_visitante: 42,
+      fim: '2099-09-22T18:00:00.000Z',
     });
 
     expect(prisma.visitantes.findFirst).toHaveBeenCalledWith({
@@ -182,6 +184,7 @@ describe('VagasService.liberar e revogar — migração Pessoas + Visitas', () =
         id_morador_titular: 5,
         tipo: 'visitante',
         id_visitante: 999999,
+        fim: '2099-09-22T18:00:00.000Z',
       }),
     ).rejects.toThrow(BadRequestException);
   });
@@ -263,6 +266,7 @@ describe('VagasService.liberar e revogar — migração Pessoas + Visitas', () =
         id_morador_titular: 5,
         tipo: 'visitante',
         id_visitante: 2000033,
+        fim: '2099-09-22T18:00:00.000Z',
       }),
     ).rejects.toThrow(BadRequestException);
 

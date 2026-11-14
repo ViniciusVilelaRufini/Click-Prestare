@@ -39,7 +39,7 @@ describe('check-in / check-out — integridade da visita', () => {
         create: jest.fn(async ({ data }: any) => { const n = { id: seq++, ...data }; visitas.set(n.id, n); return rel(n); }),
         update: jest.fn(async ({ where, data }: any) => { const v = visitas.get(where.id); Object.assign(v, data); return rel(v); }),
       },
-      vagas: { updateMany: jest.fn(async () => ({ count: 0 })) },
+      vagas: { findFirst: jest.fn(async () => null), updateMany: jest.fn(async () => ({ count: 0 })) },
     };
     const svc = new VisitantesService(
       prisma, {} as any, {} as any, {} as any, { registrar: jest.fn() } as any, {} as any,

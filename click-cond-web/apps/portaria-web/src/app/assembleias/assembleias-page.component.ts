@@ -6,11 +6,23 @@ import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { AuthService } from '../auth/auth.service';
 import { papelDoToken } from '../auth/papel';
+import { ServerClockService } from '../core/server-clock.service';
 
 /** Mensagem do servidor quando houver; senão a do cliente; senão a padrão. */
 function msgErro(e: any, padrao: string): string {
   const m = e?.error?.message ?? e?.message;
   return (Array.isArray(m) ? m.join(' ') : m) || padrao;
+}
+
+/** "DD/MM/AAAA" → AAAAMMDD (0 se vazio ou fora do padrão). */
+function diaDe(data: string | undefined): number {
+  const m = String(data ?? '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? Number(m[3]) * 10000 + Number(m[2]) * 100 + Number(m[1]) : 0;
+}
+
+/** Dia de `d` como AAAA-MM-DD (valor do input date). */
+function diaIso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 @Component({
@@ -23,6 +35,13 @@ export class AssembleiasPageComponent implements OnInit {
   private api = inject(AssembleiasApi);
   private confirm = inject(ConfirmService);
   private auth = inject(AuthService);
+  /** Hora do servidor: o PC da portaria costuma estar com o relógio errado. */
+  private relogio = inject(ServerClockService);
+
+  /** Hoje (relógio do servidor) como AAAA-MM-DD. */
+  private hojeIso(): string {
+    return diaIso(this.relogio.agora());
+  }
 
   /**
    * Agendar, criar pauta/enquete, excluir, encerrar e finalizar são do síndico
@@ -50,6 +69,15 @@ export class AssembleiasPageComponent implements OnInit {
   private assembleiaAFinalizar: Assembleia | null = null;
 
   readonly assembleias = signal<Assembleia[]>([]);
+
+  /** Data de hoje ou futura (ou sem data), na ordem da API (data crescente). */
+  readonly assembleiasProximas = computed(() => this.assembleias().filter((a) => !this.ehPassada(a)));
+  /** Data já passou (e ninguém finalizou): da mais recente para a mais antiga. */
+  readonly assembleiasRealizadas = computed(() =>
+    this.assembleias()
+      .filter((a) => this.ehPassada(a))
+      .sort((x, y) => diaDe(y.data) - diaDe(x.data)),
+  );
   readonly enquetes = signal<Votacao[]>([]);
   readonly loading = signal(true);
   readonly tab = signal<'assembleias' | 'enquetes'>('assembleias');
@@ -183,10 +211,15 @@ export class AssembleiasPageComponent implements OnInit {
   }
 
   // Ações de Votação/Enquete
+  /** A data da assembleia já passou (hoje ainda conta como próxima). */
+  ehPassada(a: Assembleia): boolean {
+    const dia = diaDe(a.data);
+    return dia > 0 && dia < Number(this.hojeIso().replace(/-/g, ''));
+  }
+
   abrirModalAssembleia() {
-    const hoje = new Date();
-    const dataStr = hoje.toLocaleDateString('pt-BR');
-    this.novaAssembleia = { titulo: '', descricao: '', data: dataStr, hora: '19:30', local: 'Salão Principal', link: '' };
+    // Campo de data (AAAA-MM-DD): a API aceita esse formato e o DD/MM/AAAA.
+    this.novaAssembleia = { titulo: '', descricao: '', data: this.hojeIso(), hora: '19:30', local: 'Salão Principal', link: '' };
     this.erroAssembleia.set(null);
     this.modalAssembleia.set(true);
   }
@@ -270,11 +303,13 @@ export class AssembleiasPageComponent implements OnInit {
     });
   }
 
-  encerrarVotacao(id: number) {
+  /** Enquete: recarrega a lista. Pauta (`idAssembleiaRefresh`): recarrega o painel da assembleia. */
+  encerrarVotacao(id: number, idAssembleiaRefresh?: number) {
     this.erro.set(null);
     this.api.finishVotacao(id).subscribe({
-      next: () => this.carregarGeral(),
-      error: (e) => this.erro.set(msgErro(e, 'Não foi possível encerrar a enquete.')),
+      next: () => (idAssembleiaRefresh ? this.verAssembleia(idAssembleiaRefresh) : this.carregarGeral()),
+      error: (e) =>
+        this.erro.set(msgErro(e, idAssembleiaRefresh ? 'Não foi possível encerrar a votação.' : 'Não foi possível encerrar a enquete.')),
     });
   }
 

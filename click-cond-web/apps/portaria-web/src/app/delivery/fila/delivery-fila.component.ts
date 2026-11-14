@@ -46,4 +46,12 @@ export class DeliveryFilaComponent {
   filtroAtivo(status: DeliveryStatus): boolean {
     return this.store.filtroStatus() === status;
   }
+
+  /** Previsão de hoje só com a hora; de outro dia com a data (aviso de amanhã parecia de hoje). */
+  formatoPrevisao(iso: string): string {
+    const p = new Date(iso);
+    const hoje = this.store.agora();
+    const mesmoDia = p.getFullYear() === hoje.getFullYear() && p.getMonth() === hoje.getMonth() && p.getDate() === hoje.getDate();
+    return mesmoDia ? 'HH:mm' : 'dd/MM HH:mm';
+  }
 }

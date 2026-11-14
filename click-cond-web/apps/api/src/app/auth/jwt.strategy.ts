@@ -6,6 +6,7 @@ import { resolveJwtSecret } from './jwt-secret';
 import { PrismaService } from '../prisma/prisma.service';
 import { ehTokenDeUsuarioApp } from './usuario-app.guard';
 import { tokenAnteriorATrocaDeSenha } from './senha-alterada.util';
+import { carimboCredencialPortaria } from './credencial-portaria.util';
 
 /** Por quanto tempo a data da última troca de senha fica em cache por usuário. */
 const CACHE_TROCA_SENHA_MS = 30_000;
@@ -69,7 +70,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!this.prisma?.isConnected) return payload;
 
     if (payload.tipo_sub === 'funcionario_portaria') {
-      if (!(await this.porteiroAtivo(Number(payload.sub), Number(payload.id_condominio)))) {
+      if (!(await this.porteiroAtivo(Number(payload.sub), Number(payload.id_condominio), payload.cred))) {
         throw new UnauthorizedException('Sessão encerrada: seu acesso à portaria foi removido ou desativado.');
       }
       return payload;
@@ -154,11 +155,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * O resultado (inclusive o negativo e a falha) fica em cache por CACHE_PORTEIRO_MS: um porteiro
    * reativado logo após ser barrado espera até 30 s. Token de porteiro re-emitido por
    * selecionarCondominio para outro condomínio cai aqui e pede novo login, que já sai como síndico.
+   *
+   * `cred`: carimbo da credencial com que o porteiro entrou (credencial-portaria.util). Trocar o e-mail (login)
+   * ou a senha da linha mantém o id; sem esta comparação a sessão aberta com a credencial antiga seguia valendo
+   * até vencer. Token sem `cred` (emitido antes do carimbo existir) segue aceito até vencer, em até 24 h.
    */
-  private async porteiroAtivo(idFuncionario: number, idCondominio: number): Promise<boolean> {
+  private async porteiroAtivo(idFuncionario: number, idCondominio: number, cred?: string): Promise<boolean> {
     // montarSessaoPortaria sempre carimba os dois; token assinado sem eles não é sessão de porteiro.
     if (!idFuncionario || !idCondominio) return false;
-    const chave = `${idFuncionario}:${idCondominio}`;
+    const chave = `${idFuncionario}:${idCondominio}:${cred ?? ''}`;
     const agora = Date.now();
     const cache = this.porteiroCache.get(chave);
     if (cache && cache.expira > agora) return cache.valor;
@@ -166,9 +171,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     try {
       const fp = await this.prisma!.funcionarios_Portaria.findFirst({
         where: { id: idFuncionario, id_condominio: idCondominio, ativo: 1, condominio: { ativo: 1 } },
-        select: { id: true },
+        select: { id: true, login: true, password: true },
       });
-      valor = !!fp;
+      valor = !!fp && (!cred || carimboCredencialPortaria(fp) === cred);
     } catch (e: any) {
       // Fail-open, como na troca de senha: banco instável não derruba todos os consoles.
       this.logger.warn(`Não foi possível conferir o porteiro ${idFuncionario}: ${e?.message ?? e}`);

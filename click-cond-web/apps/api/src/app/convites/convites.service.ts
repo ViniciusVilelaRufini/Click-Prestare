@@ -199,13 +199,17 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
    *
    * Condomínio e apartamento saem do vínculo do morador, NUNCA do corpo da
    * requisição: aceitar do cliente permitiria convidar para a unidade alheia.
+   * `idApartamento` (opcional) só ESCOLHE entre os vínculos do próprio morador
+   * — quem tem duas unidades ou dois condomínios; unidade que não é dele é
+   * recusada. Sem ele, a primeira unidade, como no app já publicado.
    */
-  async gerar(user: JwtPayload, isPrestador: boolean) {
+  async gerar(user: JwtPayload, isPrestador: boolean, idApartamento?: number) {
     const idUsuario = Number(user?.user?.id ?? user?.sub);
     if (!idUsuario) throw new ForbiddenException('Sessão sem usuário.');
 
+    const escolhida = idApartamento != null && Number(idApartamento) > 0 ? Number(idApartamento) : undefined;
     const vinculo = await this.prisma.apartamentos_Users.findFirst({
-      where: { id_user: idUsuario },
+      where: { id_user: idUsuario, ...(escolhida !== undefined && { id_apto: escolhida }) },
       // Ordenado: sem isso, quem tem mais de uma unidade recebia um
       // apartamento escolhido pelo plano de execução do MySQL — e a tela não
       // diz para qual unidade o link foi gerado. Este módulo já teve
@@ -217,7 +221,9 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
     });
     if (!vinculo?.apartamento) {
       throw new ForbiddenException(
-        'Só um morador vinculado a uma unidade pode gerar convite de visita.',
+        escolhida !== undefined
+          ? 'Você não está vinculado a esta unidade.'
+          : 'Só um morador vinculado a uma unidade pode gerar convite de visita.',
       );
     }
 
@@ -254,7 +260,15 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    return { id: convite.id, token, url: this.montarUrl(token), expira_em: expira };
+    // id_apartamento/id_condominio: para o app dizer para qual unidade o link foi gerado.
+    return {
+      id: convite.id,
+      token,
+      url: this.montarUrl(token),
+      expira_em: expira,
+      id_apartamento: vinculo.id_apto,
+      id_condominio: vinculo.apartamento.id_condominio,
+    };
   }
 
   /**
@@ -349,6 +363,12 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
       : foto;
 
     const agora = new Date();
+    // Preenchido, a validade passa a contar daqui: o morador tem o mesmo prazo
+    // para decidir, mesmo quando o visitante preenche perto do fim do link.
+    // Sem isto, o convite preenchido às 23 h do link não podia mais ser
+    // confirmado e ficava em Pendentes até a retenção.
+    const expiraDecisao = new Date(agora);
+    expiraDecisao.setHours(expiraDecisao.getHours() + HORAS_DE_VALIDADE);
     // `status: 'aguardando'` no where fecha a corrida: dois envios simultâneos
     // do mesmo link, só um grava.
     const atualizados = await this.prisma.convites_Visita.updateMany({
@@ -360,6 +380,7 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
         aceite_em: agora,
         preenchido_em: agora,
         status: 'preenchido',
+        expira_em: expiraDecisao,
       },
     });
     if (atualizados.count === 0) {
@@ -426,7 +447,8 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
   async listarPendentes(user: JwtPayload) {
     const idUsuario = Number(user?.user?.id ?? user?.sub);
     return this.prisma.convites_Visita.findMany({
-      where: { id_usuario: idUsuario, status: 'preenchido' },
+      // Vencido não pode mais ser confirmado (confirmar recusa): não aparece como pendente.
+      where: { id_usuario: idUsuario, status: 'preenchido', expira_em: { gt: new Date() } },
       orderBy: { preenchido_em: 'desc' },
       select: {
         id: true,

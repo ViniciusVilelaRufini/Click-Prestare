@@ -18,6 +18,7 @@ describe('MoradoresService.create — telefone', () => {
       apartamentos_Users: { create: jest.fn().mockResolvedValue({}) },
       facial_Devices: { findMany: jest.fn().mockResolvedValue([]) },
     };
+    prisma.$transaction ??= jest.fn((fn: any) => fn(prisma)); // create grava numa transação (B3)
     const service = new MoradoresService(
       prisma,
       {} as any,

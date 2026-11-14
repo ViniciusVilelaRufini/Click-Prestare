@@ -4,6 +4,7 @@ import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { INCLUDE_AUTOR_MENSAGEM, mensagemParaResposta } from '../ocorrencias/mensagem-ocorrencia.util';
 import { AgentBridgeService } from '../facial/agent-bridge.service';
 import { csvCelula } from '../common/csv.util';
+import { assertEmailNaoReservado } from '../common/email-reservado.util';
 
 
 /**
@@ -155,6 +156,8 @@ export class CrmService {
   }
 
   async atualizarCliente(id: number, data: any): Promise<CrmClienteResumo | null> {
+    // O e-mail do síndico é gravado em Users: o domínio das lápides de revogação é recusado.
+    assertEmailNaoReservado(data?.sindicoEmail);
     if (!this.prisma.isConnected) {
       // Mock update
       console.log('📝 CRM em modo mock: simulação de atualização recebida para condomínio', id, data);
@@ -1276,13 +1279,15 @@ export class CrmService {
 
     const novaDescricao = `${o.descricao}\n\n[Reabertura - Novas Informações]:\n${novasInformacoes}`;
 
+    // Mesma regra do Reabrir do console: a resposta da equipe fica (histórico
+    // do atendimento; é ela que trava a edição pelo autor) e o prazo recomeça
+    // de agora pelo SLA da categoria.
     const atualizado = await this.prisma.ocorrencias.update({
       where: { id },
       data: {
         status: 'Pendente',
         descricao: novaDescricao,
-        resposta: null,
-        resposta_at: null
+        prazo: await this.ocorrenciasService.prazoDaCategoria(o.tipo ?? null),
       },
       include: {
         condominio: {

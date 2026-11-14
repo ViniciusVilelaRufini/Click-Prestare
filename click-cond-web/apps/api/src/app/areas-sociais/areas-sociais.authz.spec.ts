@@ -33,6 +33,8 @@ describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', ()
       areas_Sociais_Manutencoes: {
         findMany: jest.fn(async () => []),
       },
+      // Excluir o espaço confere antes se há terminal vinculado (areas-sociais.exclusao.spec).
+      facial_Devices: { count: jest.fn(async () => 0) },
       // Dois usos, distinguidos pelo `where`:
       //  - `id_user`  → TenantAccessService resolvendo o vínculo do morador
       //                 mobile (que não carrega id_condominio no token);
@@ -166,21 +168,21 @@ describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', ()
     // Agendamento 500 já aprovado, pertence ao morador de sub=5, no condomínio 2.
     const agendamentoAprovado = { id: 500, id_user: 5, status: 'aprovado', area: { id_condominio: 2 } };
 
-    it('dono cancelando a própria reserva aprovada grava "cancelado" (não "recusado")', async () => {
+    it('dono cancelando a própria reserva aprovada grava "cancelado" (não "recusado") e a reserva fica no histórico', async () => {
       const { svc, prisma } = build({
         areas_Sociais_Agendamentos: {
           findMany: jest.fn(async () => []),
           create: jest.fn(async () => ({ id: 500, status: 'pendente' })),
           findUnique: jest.fn(async () => ({ ...agendamentoAprovado })),
-          update: jest.fn(async ({ data }: any) => ({ ...agendamentoAprovado, ...data })),
+          updateMany: jest.fn(async () => ({ count: 1 })),
           delete: jest.fn(async () => ({})),
         },
       });
       await svc.removeAgendamento(500, 5, 'Morador', moradorCond2);
-      expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { status: 'cancelado' } }),
+      expect(prisma.areas_Sociais_Agendamentos.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'cancelado' }) }),
       );
-      expect(prisma.areas_Sociais_Agendamentos.delete).toHaveBeenCalled();
+      expect(prisma.areas_Sociais_Agendamentos.delete).not.toHaveBeenCalled();
     });
 
     it('síndico removendo reserva aprovada de outro morador também grava "cancelado"', async () => {

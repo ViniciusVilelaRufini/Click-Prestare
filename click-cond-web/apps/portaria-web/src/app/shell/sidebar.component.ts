@@ -2,7 +2,7 @@ import { Component, inject, computed, Output, EventEmitter } from '@angular/core
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
-import { ehPorteiro } from '../auth/papel';
+import { ehPorteiro, ROTAS_SO_SINDICO } from '../auth/papel';
 import { ThemeService } from '../shared/theme.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
@@ -73,6 +73,14 @@ export class SidebarComponent {
   @Output() linkClicked = new EventEmitter<void>();
 
   readonly isPorteiro = computed(() => ehPorteiro(this.auth.porteiroInfo()));
+
+  /**
+   * O porteiro não vê as telas que o guard recusa a ele (ROTAS_SO_SINDICO). Configurações aparece: ele abre a
+   * tela para trocar a própria senha, e ela só mostra a aba "Segurança e Perfil".
+   */
+  mostraNoMenu(path: string): boolean {
+    return !this.isPorteiro() || !ROTAS_SO_SINDICO.includes(path.replace(/^\//, ''));
+  }
 
   toggleTheme() {
     this.theme.toggleTheme();

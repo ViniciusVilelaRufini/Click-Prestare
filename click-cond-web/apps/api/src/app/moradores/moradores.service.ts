@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
-import { type Gravados, StorageService } from '../common/storage/storage.service';
+import { type Gravados, PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
@@ -885,6 +886,8 @@ export class MoradoresService {
     if (dto.email != null && typeof dto.email !== 'string') {
       throw new BadRequestException('E-mail inválido.');
     }
+    // O e-mail vira login da conta: o domínio das lápides de revogação é recusado.
+    assertEmailNaoReservado(dto.email);
 
     // Validar duplicidade
     const emailNorm = dto.email ? dto.email.toLowerCase().trim() : null;
@@ -926,16 +929,11 @@ export class MoradoresService {
     const tagRfid = this.tagRfidParaGravar(dto.tag_rfid);
     await this.assertCredencialDisponivel(dto.id_condominio, tagRfid, dto.qrcode_acesso, null);
 
-    // Cadastro novo não tem foto gravada: URL do bucket nunca é dele.
-    const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa, []);
-    const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento, []);
-
     // Senha inicial SEMPRE aleatória. Com sendCredentials ela vai no e-mail de boas-vindas;
     // sem, ninguém a conhece e a conta é ativada por "Enviar credenciais" ou "Esqueci a senha".
     // Antes, sem o envio, virava os dígitos do CPF — que não é segredo.
     const senhaInicial = this.gerarSenhaAleatoria();
     const senhaHash = await bcrypt.hash(senhaInicial, 10);
-    let passwordWasSet = false;
 
     const ehMenor = dto.data_nascimento ? calcularIdade(dto.data_nascimento) < 18 : false;
 
@@ -944,144 +942,182 @@ export class MoradoresService {
     // permitida quando o cadastro NÃO carrega foto facial nem cria
     // credenciais de acesso — nesses casos a data é obrigatória e
     // validarMaioridade() lança se estiver ausente (não apenas se for menor).
-    if (dto.email || dto.sendCredentials) {
+    // Só o e-mail cria conta de app: sendCredentials sem e-mail não envia nada
+    // (a tela e a importação o mandam marcado por padrão).
+    if (dto.email) {
       validarMaioridade(dto.data_nascimento, 'criação de conta de usuário no aplicativo');
     }
 
-    if (fotoPessoaUrl) {
+    // Antes do upload: recusa por idade não deixa foto órfã no bucket.
+    if (dto.foto_pessoa) {
       validarMaioridade(dto.data_nascimento, 'cadastro de biometria facial');
     }
 
-    // Cria/encontra Users
-    let userId: number;
-    if (ehMenor) {
-      // Menor de 18 anos: cria registro básico de dependente sem acesso ao aplicativo (is_morador: 0)
-      const u = await this.prisma.users.create({
-        data: {
-          name: dto.nome,
-          phone: dto.telefone,
-          cpf: dto.documento,
-          is_morador: 0,
-          login_type: 'dependente_menor',
-          photo: null,
-          profile_image: null,
-        },
-      });
-      userId = u.id;
-    } else if (dto.email) {
-      const existing = await this.prisma.users.findFirst({
-        where: { email: dto.email },
-      });
-      if (existing) {
-        userId = existing.id;
-        // Users é global: conta com vínculo em OUTRO condomínio só é ligada a este cadastro.
-        // Login, senha e foto dela não são tocados (vinculos-usuario.util; mesma regra do sendCredentials).
-        const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, dto.id_condominio);
-        if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(operador) && !opts?.permitirContaDeOutroCondominio) {
-          throw new BadRequestException(MSG_CONTA_DE_OUTRO_CONDOMINIO);
-        }
-        // Atualiza login e password caso estejam vazios para permitir acesso, e as fotos
-        const userUpdates: any = {};
-        if (!contaDeOutroCondominio && (!existing.login || !existing.password)) {
-          if (existing.login !== dto.email) await this.assertLoginLivreDaPortaria(dto.email);
-          userUpdates.login = dto.email;
-          userUpdates.password = senhaHash;
-          passwordWasSet = true;
-        }
-        if (fotoPessoaUrl && !contaDeOutroCondominio) {
-          userUpdates.photo = fotoPessoaUrl;
-          userUpdates.profile_image = fotoPessoaUrl;
-        }
-        if (Object.keys(userUpdates).length > 0) {
-          await this.prisma.users.update({
-            where: { id: existing.id },
-            data: userUpdates,
-          });
-        }
-      } else {
-        await this.assertLoginLivreDaPortaria(dto.email);
-        const u = await this.prisma.users.create({
-          data: {
-            name: dto.nome,
-            email: dto.email,
-            login: dto.email,
-            password: senhaHash,
-            phone: dto.telefone,
-            cpf: dto.documento,
-            is_morador: 1,
-            login_type: 'morador',
-            photo: fotoPessoaUrl,
-            profile_image: fotoPessoaUrl,
-          },
-        });
-        userId = u.id;
-        passwordWasSet = true;
+    // Cadastro novo não tem foto gravada: URL do bucket nunca é dele.
+    // `enviadas`: só o que ESTA chamada subiu (data URL) — é o que sai do bucket se o cadastro falhar.
+    const enviadas: string[] = [];
+    const subir = async (valor: string | undefined) => {
+      const url = await this.resolveFoto(valor, []);
+      if (url && valor && this.storage.isDataUrl(valor)) enviadas.push(url);
+      return url;
+    };
+    // Mesma limpeza do catch da transação: deleteUrl só apaga dentro de moradores/,
+    // e só o que esta chamada subiu está em `enviadas`.
+    const apagarEnviadas = async () => {
+      for (const url of enviadas) {
+        await this.storage.deleteUrl(url, PREFIXOS_FOTO_MORADOR).catch(() => false);
       }
-    } else {
-      const u = await this.prisma.users.create({
-        data: {
-          name: dto.nome,
-          phone: dto.telefone,
-          cpf: dto.documento,
-          is_morador: 1,
-          login_type: 'morador',
-          photo: fotoPessoaUrl,
-          profile_image: fotoPessoaUrl,
-        },
-      });
-      userId = u.id;
+    };
+    const fotoPessoaUrl = await subir(dto.foto_pessoa);
+    let fotoDocumentoUrl: string | null;
+    try {
+      fotoDocumentoUrl = await subir(dto.foto_documento);
+    } catch (err) {
+      // foto_documento recusada (ou upload falhou) depois que a foto_pessoa já subiu.
+      await apagarEnviadas();
+      throw err;
     }
 
-    const tipoNorm = dto.tipo
-      ? String(dto.tipo).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
-      : 'proprietario';
-
-    // Busca dados do apartamento
-    let bloco = '';
-    let aptoNum = '';
-    if (dto.id_apartamento) {
-      const aptoObj = await this.prisma.apartamentos.findUnique({
-        where: { id: Number(dto.id_apartamento) },
-      });
-      if (aptoObj) {
-        bloco = aptoObj.bloco || '';
-        aptoNum = aptoObj.apto || '';
-
-        // Insere o vinculo em Apartamentos_Users
-        const dataVenc = new Date();
-        dataVenc.setDate(dataVenc.getDate() + 45);
-        await this.prisma.apartamentos_Users.create({
-          data: {
-            id_apto: aptoObj.id,
-            id_user: userId,
-            tipo: tipoNorm,
-            vencimento: dataVenc,
-          },
-        });
-      }
-    }
-
+    // Users, vínculo e cadastro numa transação só: antes, falhar o Moradores (texto longo demais,
+    // por exemplo) deixava a conta e o vínculo gravados — o card da unidade contava "1 morador", o
+    // painel dela aparecia vazio e tentar de novo com o mesmo e-mail criava um segundo vínculo.
+    let passwordWasSet = false;
     let createdMorador;
     try {
-      createdMorador = await this.prisma.moradores.create({
-        data: {
-          nome: dto.nome,
-          documento: dto.documento ?? null,
-          email: dto.email ?? null,
-          telefone: dto.telefone?.trim() || null,
-          data_nascimento: dto.data_nascimento ? this.parseDate(dto.data_nascimento) : null,
-          tipo: tipoNorm,
-          id_user: userId,
-          id_condominio: dto.id_condominio,
-          bloco: bloco || null,
-          apartamento: aptoNum || null,
-          foto_pessoa: fotoPessoaUrl,
-          foto_documento: fotoDocumentoUrl,
-          tag_rfid: tagRfid,
-          qrcode_acesso: dto.qrcode_acesso ? dto.qrcode_acesso.trim() : null,
-        },
+      createdMorador = await this.prisma.$transaction(async (tx) => {
+        // Cria/encontra Users
+        let userId: number;
+        if (ehMenor) {
+          // Menor de 18 anos: cria registro básico de dependente sem acesso ao aplicativo (is_morador: 0)
+          const u = await tx.users.create({
+            data: {
+              name: dto.nome,
+              phone: dto.telefone,
+              cpf: dto.documento,
+              is_morador: 0,
+              login_type: 'dependente_menor',
+              photo: null,
+              profile_image: null,
+            },
+          });
+          userId = u.id;
+        } else if (dto.email) {
+          const existing = await tx.users.findFirst({
+            where: { email: dto.email },
+          });
+          if (existing) {
+            userId = existing.id;
+            // Users é global: conta com vínculo em OUTRO condomínio só é ligada a este cadastro.
+            // Login, senha e foto dela não são tocados (vinculos-usuario.util; mesma regra do sendCredentials).
+            const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, dto.id_condominio);
+            if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(operador) && !opts?.permitirContaDeOutroCondominio) {
+              throw new BadRequestException(MSG_CONTA_DE_OUTRO_CONDOMINIO);
+            }
+            // Atualiza login e password caso estejam vazios para permitir acesso, e as fotos
+            const userUpdates: any = {};
+            if (!contaDeOutroCondominio && (!existing.login || !existing.password)) {
+              if (existing.login !== dto.email) await this.assertLoginLivreDaPortaria(dto.email);
+              userUpdates.login = dto.email;
+              userUpdates.password = senhaHash;
+              passwordWasSet = true;
+            }
+            if (fotoPessoaUrl && !contaDeOutroCondominio) {
+              userUpdates.photo = fotoPessoaUrl;
+              userUpdates.profile_image = fotoPessoaUrl;
+            }
+            if (Object.keys(userUpdates).length > 0) {
+              await tx.users.update({
+                where: { id: existing.id },
+                data: userUpdates,
+              });
+            }
+          } else {
+            await this.assertLoginLivreDaPortaria(dto.email);
+            const u = await tx.users.create({
+              data: {
+                name: dto.nome,
+                email: dto.email,
+                login: dto.email,
+                password: senhaHash,
+                phone: dto.telefone,
+                cpf: dto.documento,
+                is_morador: 1,
+                login_type: 'morador',
+                photo: fotoPessoaUrl,
+                profile_image: fotoPessoaUrl,
+              },
+            });
+            userId = u.id;
+            passwordWasSet = true;
+          }
+        } else {
+          const u = await tx.users.create({
+            data: {
+              name: dto.nome,
+              phone: dto.telefone,
+              cpf: dto.documento,
+              is_morador: 1,
+              login_type: 'morador',
+              photo: fotoPessoaUrl,
+              profile_image: fotoPessoaUrl,
+            },
+          });
+          userId = u.id;
+        }
+
+        const tipoNorm = dto.tipo
+          ? String(dto.tipo).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+          : 'proprietario';
+
+        // Busca dados do apartamento
+        let bloco = '';
+        let aptoNum = '';
+        if (dto.id_apartamento) {
+          const aptoObj = await tx.apartamentos.findUnique({
+            where: { id: Number(dto.id_apartamento) },
+          });
+          if (aptoObj) {
+            bloco = aptoObj.bloco || '';
+            aptoNum = aptoObj.apto || '';
+
+            // Insere o vinculo em Apartamentos_Users
+            const dataVenc = new Date();
+            dataVenc.setDate(dataVenc.getDate() + 45);
+            await tx.apartamentos_Users.create({
+              data: {
+                id_apto: aptoObj.id,
+                id_user: userId,
+                tipo: tipoNorm,
+                vencimento: dataVenc,
+              },
+            });
+          }
+        }
+
+        return tx.moradores.create({
+          data: {
+            nome: dto.nome,
+            documento: dto.documento ?? null,
+            email: dto.email ?? null,
+            telefone: dto.telefone?.trim() || null,
+            data_nascimento: dto.data_nascimento ? this.parseDate(dto.data_nascimento) : null,
+            tipo: tipoNorm,
+            id_user: userId,
+            id_condominio: dto.id_condominio,
+            bloco: bloco || null,
+            apartamento: aptoNum || null,
+            foto_pessoa: fotoPessoaUrl,
+            foto_documento: fotoDocumentoUrl,
+            tag_rfid: tagRfid,
+            qrcode_acesso: dto.qrcode_acesso ? dto.qrcode_acesso.trim() : null,
+          },
+        });
       });
     } catch (err: any) {
+      // Nada foi gravado: a foto que esta chamada subiu não pode ficar no bucket sem dono.
+      await apagarEnviadas();
+      // Recusas da própria API (conta de outro condomínio, login da portaria) saem com a mensagem.
+      if (err instanceof HttpException) throw err;
       this.logger.error(
         `[moradores.create] Falha ao criar morador: ${err?.message ?? err}`,
         err?.stack,
@@ -1157,11 +1193,16 @@ export class MoradoresService {
       include: { user: true },
     });
     if (!atual) throw new NotFoundException(`Morador ${id} não encontrado`);
+    // E-mail novo vira login da conta: o domínio das lápides de revogação é recusado.
+    if (dto.email !== undefined && dto.email !== atual.email) assertEmailNaoReservado(dto.email);
 
     // Depois de carregar o atual: a tela reenvia a foto que recebeu (de
     // Moradores ou de Users), e só ela vale como URL do bucket.
     const fotosDoCadastro = [atual.foto_pessoa, atual.foto_documento, atual.user?.photo, atual.user?.profile_image];
-    const fotoPessoaUrl = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDoCadastro) : undefined;
+    let fotoPessoaUrl = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDoCadastro) : undefined;
+    // Foto reenviada igual à do cadastro não é edição: sem isto, corrigir o telefone exigia a data de
+    // nascimento, rodava o sync facial de novo e regravava a foto de perfil do app (Users.photo).
+    if (fotoPessoaUrl !== undefined && fotoPessoaUrl === (atual.foto_pessoa ?? null)) fotoPessoaUrl = undefined;
     const fotoDocumentoUrl =
       dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDoCadastro) : undefined;
 
@@ -1207,11 +1248,17 @@ export class MoradoresService {
     // batido só porque `atual.data_nascimento` também estava vazio.
     // validarMaioridade() já lança quando a data está ausente, então chamar
     // sem guarda de "é menor?" fecha os dois buracos (data ausente e menor).
+    // Só quando algo muda de fato (a tela antiga reenviava e-mail e foto em todo salvar): e-mail novo,
+    // foto nova, ou a data trocada num cadastro que fica com e-mail ou foto.
     const dnFinal = dto.data_nascimento !== undefined ? dto.data_nascimento : atual.data_nascimento;
-    if (dto.email) {
+    const diaNasc = (v: Date | string | null | undefined) => this.parseDate(v as any)?.toISOString().slice(0, 10) ?? null;
+    const dataMudou = dto.data_nascimento !== undefined && diaNasc(dto.data_nascimento) !== diaNasc(atual.data_nascimento);
+    const emailFinal = dto.email !== undefined ? dto.email : atual.email;
+    const fotoFinal = fotoPessoaUrl !== undefined ? fotoPessoaUrl : atual.foto_pessoa;
+    if ((emailMudou && dto.email) || (dataMudou && emailFinal)) {
       validarMaioridade(dnFinal, 'atualização de e-mail/conta de usuário no aplicativo');
     }
-    if (fotoPessoaUrl) {
+    if (fotoPessoaUrl || (dataMudou && fotoFinal)) {
       // Menor: só com o termo do responsável, aceito no app (extra2).
       validarBiometria(dnFinal, temTermoResponsavel((atual as any).extra2), 'atualização de biometria facial');
     }
@@ -1290,6 +1337,21 @@ export class MoradoresService {
                 const daNova = vinculos.filter((v) => v.id_apto === aptoObj.id);
                 const trocados = saem.filter((v) => v.id_apto !== aptoObj.id);
                 if (daNova.length > 0) {
+                  // Outra linha de Moradores do mesmo morador já é dessa unidade: mover esta deixaria a
+                  // pessoa duas vezes nela. Recusa sem mexer em nada.
+                  // Vale também para a linha sem vínculo identificável (nada a trocar, mas o texto dela muda).
+                  const chaveNova = chaveUnidade(aptoObj.bloco, aptoObj.apto);
+                  if (chaveUnidade(atual.bloco, atual.apartamento) !== chaveNova && atual.id_condominio != null) {
+                    const outrasLinhas = await tx.moradores.findMany({
+                      where: { id_user: atual.id_user, id_condominio: atual.id_condominio, NOT: { id } },
+                      select: { bloco: true, apartamento: true },
+                    });
+                    if (outrasLinhas.some((l) => chaveUnidade(l.bloco, l.apartamento) === chaveNova)) {
+                      throw new BadRequestException(
+                        'Este morador já está cadastrado nessa unidade. Edite o cadastro dele nela ou remova este.',
+                      );
+                    }
+                  }
                   // Já tem a unidade nova: só some o vínculo da que saiu.
                   apagar = trocados;
                   vinculosFinais = daNova;
@@ -1384,7 +1446,9 @@ export class MoradoresService {
         return morador;
       });
     } catch (err: any) {
-      if (err instanceof UnidadeDaTelaDivergente) throw err;
+      // Recusa nossa (unidade de outro condomínio, unidade divergente, já cadastrado na unidade):
+      // sai com a mensagem. Só o erro do banco vira a mensagem genérica.
+      if (err instanceof HttpException) throw err;
       this.logger.error(
         `[moradores.update] Falha ao atualizar morador ${id}: ${err?.message ?? err}`,
         err?.stack,
@@ -1396,7 +1460,9 @@ export class MoradoresService {
 
     // Roda quando o campo foto foi tocado — INCLUSIVE remoção (foto null).
     // syncMorador cadastra (foto nova) ou remove o rosto do aparelho (sem foto).
-    if (fotoPessoaUrl !== undefined) {
+    // Também quando a data de nascimento mudou e há foto: sem a data o facial pula o morador, e
+    // preenchê-la depois (já validada acima) é o que leva o rosto aos terminais.
+    if (fotoPessoaUrl !== undefined || (dataMudou && fotoFinal)) {
       this.fireFacialSync(id);
     }
 
@@ -1490,6 +1556,13 @@ export class MoradoresService {
     const m = (await this.findOne(id)) as any;
     if (!m.email) {
       throw new NotFoundException('Morador não possui e-mail cadastrado');
+    }
+    // Cláusula 8.3: menor não tem conta de app. Só o caso inequívoco (data no cadastro e de menor);
+    // sem data, segue como antes.
+    if (m.data_nascimento && calcularIdade(m.data_nascimento) < 18) {
+      throw new BadRequestException(
+        'Este morador é menor de 18 anos e não recebe acesso ao app (Cláusula 8.3). O acesso do menor é pelo responsável.',
+      );
     }
     // Gera uma senha temporária aleatória de 8 caracteres alfanuméricos
     // (mesmo padrão da recuperação de senha), em vez de usar o CPF da pessoa.

@@ -16,6 +16,7 @@ import {
   TerminalFacial,
 } from './terminais-faciais.service';
 import { AreaSocial, AreasSociaisApi } from '../areas-sociais/areas-sociais.service';
+import { ConfirmService } from '../shared/confirm.service';
 
 /**
  * Compara versões do agente (`AAAA.MM.DD[.N]`) segmento a segmento,
@@ -214,6 +215,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   @Input() embedded = false;
   private api = inject(TerminaisFaciaisApi);
   private areasApi = inject(AreasSociaisApi);
+  private confirm = inject(ConfirmService);
   private statusInterval?: ReturnType<typeof setInterval>;
 
   // Áreas de lazer do condomínio, para vincular um terminal a uma área
@@ -1298,8 +1300,12 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.editingId.set(null);
     this.limparEstadoDoModal();
     this.form = this.emptyForm();
+    this.areaOriginal = null;
     this.showModal.set(true);
   }
+
+  /** Espaço a que o terminal em edição estava ligado ao abrir o modal. */
+  private areaOriginal: number | null = null;
 
   openEdit(t: TerminalFacial) {
     this.editingId.set(t.id);
@@ -1318,6 +1324,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       id_area_social: t.id_area_social ?? null,
       controle_acesso_facial: t.controle_acesso_facial === 1,
     };
+    this.areaOriginal = t.id_area_social ?? null;
     this.showModal.set(true);
   }
 
@@ -1358,6 +1365,27 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         return;
       }
     }
+    // Tirar o espaço de um terminal que era de área: ele deixa de ser "de
+    // reserva" e o próximo sync enrola todos os moradores nele.
+    const ficaSemArea = !(this.mostrarArea && this.form.id_area_social);
+    if (this.editingId() != null && this.areaOriginal != null && ficaSemArea) {
+      this.confirm
+        .ask({
+          title: 'Remover espaço do terminal',
+          message: 'Sem espaço vinculado, este terminal passa a liberar todos os moradores do condomínio.',
+          confirmLabel: 'Remover espaço',
+          variant: 'danger',
+        })
+        .then((ok) => {
+          if (ok) this.enviarCadastro();
+        });
+      return;
+    }
+    this.enviarCadastro();
+  }
+
+  /** Grava o cadastro/edição do modal (validações e confirmação já feitas em `save`). */
+  private enviarCadastro() {
     this.saving.set(true);
     this.modalError.set(null);
     this.errorMessage.set(null);

@@ -33,11 +33,23 @@ function exigirId(valor: string): number {
 export class ConvitesController {
   constructor(private readonly service: ConvitesService) {}
 
-  /** Morador gera o link. O tipo é o ÚNICO campo aceito do cliente. */
+  /**
+   * Morador gera o link. Aceita do cliente só o tipo e, opcional, a unidade
+   * (`id_apartamento`), que o service confere contra os vínculos do morador.
+   */
   @Post()
   @HttpCode(200)
-  gerar(@Body() body: { is_prestador?: boolean }, @ReqUser() user: JwtPayload) {
-    return this.service.gerar(user, body?.is_prestador === true);
+  gerar(@Body() body: { is_prestador?: boolean; id_apartamento?: unknown }, @ReqUser() user: JwtPayload) {
+    // Ausente: a primeira unidade (app já publicado). Presente e inválido: 400, nunca a primeira.
+    const bruto = body?.id_apartamento;
+    let idApto: number | undefined;
+    if (bruto !== undefined && bruto !== null) {
+      idApto = Number(bruto);
+      if (typeof bruto === 'boolean' || String(bruto).trim() === '' || !Number.isInteger(idApto) || idApto <= 0) {
+        throw new BadRequestException('Unidade inválida.');
+      }
+    }
+    return this.service.gerar(user, body?.is_prestador === true, idApto);
   }
 
   /** Convites preenchidos esperando decisão deste morador. */

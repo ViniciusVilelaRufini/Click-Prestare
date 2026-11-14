@@ -128,6 +128,7 @@ export class VagasService {
         this.prisma.visitas.findMany({
           where: { id_apartamento: apto.id, is_visitante: 1 },
           select: {
+            data_hora_termino: true,
             pessoa: { select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true } },
           },
           orderBy: { created_at: 'desc' },
@@ -138,11 +139,15 @@ export class VagasService {
       // `Pessoas` já é deduplicada por identidade (@@unique([id_condominio,
       // doc_identificacao])) — diferente do legado, não precisa da heurística
       // de doc/nome/foto: uma pessoa só aparece uma vez, então dedup por
-      // `pessoa.id` basta.
-      const pessoasUnicas = new Map<number, { id: number; nome: string; doc_identificacao: string | null; foto_pessoa: string | null }>();
+      // `pessoa.id` basta. A primeira visita (a mais recente) dá o término que
+      // o console sugere como prazo da vaga — é a visita que `liberar` usa.
+      const pessoasUnicas = new Map<
+        number,
+        { id: number; nome: string; doc_identificacao: string | null; foto_pessoa: string | null; termino: Date | null }
+      >();
       for (const v of visitasRaw) {
         const p = v.pessoa;
-        if (p && !pessoasUnicas.has(p.id)) pessoasUnicas.set(p.id, p);
+        if (p && !pessoasUnicas.has(p.id)) pessoasUnicas.set(p.id, { ...p, termino: v.data_hora_termino ?? null });
       }
       const visitantesUnicos = Array.from(pessoasUnicas.values()).sort((a, b) =>
         (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR'),
@@ -155,6 +160,7 @@ export class VagasService {
           nome: v.nome,
           doc_identificacao: v.doc_identificacao,
           tem_foto: !!(v.foto_pessoa && v.foto_pessoa.trim() !== ''),
+          termino: v.termino,
         })),
         inquilinos: inquilinos.map((i) => ({ id: i.id, nome: i.nome })),
       };
@@ -163,7 +169,9 @@ export class VagasService {
     const [visitantesRaw, moradores] = await Promise.all([
       this.prisma.visitantes.findMany({
         where: { id_apartamento: apto.id, is_visitante: 1 },
-        select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true, created_at: true },
+        select: {
+          id: true, nome: true, doc_identificacao: true, foto_pessoa: true, created_at: true, data_hora_termino: true,
+        },
         orderBy: { created_at: 'desc' },
       }),
       this.moradoresDoApto(apto),
@@ -197,6 +205,7 @@ export class VagasService {
         nome: v.nome,
         doc_identificacao: v.doc_identificacao,
         tem_foto: !!(v.foto_pessoa && v.foto_pessoa.trim() !== ''),
+        termino: v.data_hora_termino ?? null,
       })),
       inquilinos: inquilinos.map((i) => ({ id: i.id, nome: i.nome })),
     };
@@ -246,6 +255,16 @@ export class VagasService {
     // roda em UTC e `new Date()` lia isso como UTC — janela 3h adiantada.
     const inicio = body?.inicio ? parseLocalTimeToUTC(body.inicio) : null;
     const fim = body?.fim ? parseLocalTimeToUTC(body.fim) : null;
+    // Vaga de visitante sem prazo nunca vencia (whereVagaVigente trata `fim`
+    // nulo como vigente): ocupava a cota até alguém revogar e dava usos
+    // ilimitados no terminal. String inválida vira "agora" no parse e cai aqui.
+    if (tipo === 'visitante') {
+      if (!fim) throw new BadRequestException('Informe até quando a vaga do visitante vale.');
+      if (fim.getTime() <= Date.now()) throw new BadRequestException('O prazo da vaga precisa ser no futuro.');
+      if (inicio && inicio.getTime() >= fim.getTime()) {
+        throw new BadRequestException('O fim da vaga precisa ser depois do início.');
+      }
+    }
     const placa = body?.placa ? body.placa.toString().toUpperCase().trim() : null;
 
     let idVisitante: number | null = null;
@@ -387,9 +406,14 @@ export class VagasService {
     // Exceção: o mesmo visitante tem OUTRA vaga vigente (cedida de novo, na
     // mesma visita). Revogar esta — vencida, por exemplo — não pode tirar o
     // acesso daquela: só a vaga vira ativo=0.
+    // Vaga já vencida também não mexe: ela não dá mais acesso, e o liberado/PIN
+    // atual da visita pode ser de uma autorização nova (Solicitar depois do
+    // prazo reaproveita a mesma visita ainda não usada).
     const whereOutra = vaga.tipo_ocupacao === 'visitante' ? whereOutraVagaVigenteDoVisitante(vaga) : null;
     const mexeNoVisitante =
-      vaga.tipo_ocupacao === 'visitante' && (!whereOutra || (await this.prisma.vagas.count({ where: whereOutra })) === 0);
+      vaga.tipo_ocupacao === 'visitante' &&
+      !vagaVencida(vaga) &&
+      (!whereOutra || (await this.prisma.vagas.count({ where: whereOutra })) === 0);
 
     const updates: any[] = [this.prisma.vagas.update({ where: { id: vaga.id }, data: { ativo: 0 } })];
     if (mexeNoVisitante && vaga.id_visita) {

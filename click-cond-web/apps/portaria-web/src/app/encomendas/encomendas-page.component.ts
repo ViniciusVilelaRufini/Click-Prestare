@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, DestroyRef, OnInit, computed, inject, sig
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { Subscription, lastValueFrom } from 'rxjs';
+import { Subscription, forkJoin, lastValueFrom } from 'rxjs';
 import {
   CreateEncomenda, Encomenda, EncomendasApi,
 } from './encomendas.service';
@@ -10,6 +10,7 @@ import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { aplicarLeitura, reduzirImagem } from './foto-encomenda';
 import { Apartamento, ApartamentosApi } from '../apartamentos/apartamentos.service';
+import { ServerClockService } from '../core/server-clock.service';
 
 /**
  * Escapa texto para o HTML das etiquetas: document.write não passa pelo escape
@@ -29,6 +30,21 @@ const FOTO_ILEGIVEL = 'Não foi possível abrir a foto';
 const INTERVALO_RECARGA_MS = 20_000;
 const NINGUEM_AVISADO = 'Ninguém foi avisado: a unidade não tem morador com aviso de encomendas ligado no app ou WhatsApp.';
 const STATUS_DA_ROTA = ['Esperando', 'Aguardando', 'Retirada'];
+/**
+ * A recarga automática pede só as retiradas destes últimos dias (as que
+ * aguardam vêm sempre) e sem assinatura/foto; as retiradas mais antigas, que
+ * não mudam mais, ficam como vieram da carga completa.
+ */
+const RECARGA_RETIRADAS_DIAS = 7;
+
+/** "Sem bloco" é nulo (pré-registro do app) ou '' (console): a mesma unidade. */
+function blocoNorm(bloco: string | null | undefined): string {
+  return (bloco ?? '').trim();
+}
+
+function mesmaUnidade(a: Encomenda, b: Encomenda): boolean {
+  return a.destinatario_apto.trim() === b.destinatario_apto.trim() && blocoNorm(a.destinatario_bloco) === blocoNorm(b.destinatario_bloco);
+}
 
 /** Mensagem de erro da API (Nest pode mandar lista) ou do próprio erro. */
 function mensagemErro(e: any, padrao: string): string {
@@ -50,6 +66,8 @@ export class EncomendasPageComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
+  /** Hora do SERVIDOR (o PC da portaria costuma estar com o relógio errado). */
+  private relogio = inject(ServerClockService);
 
   constructor() {
     effect(() => {
@@ -91,6 +109,9 @@ export class EncomendasPageComponent implements OnInit {
   readonly corrigindo = signal<Encomenda | null>(null);
   readonly correcaoErro = signal<string | null>(null);
   readonly salvandoCorrecao = signal(false);
+  /** Receber/Notificar em andamento por encomenda: o botão fica desabilitado (sem 409 nem push duplicado). */
+  private readonly acoesEmAndamento = signal<ReadonlySet<number>>(new Set());
+  readonly notificandoLote = signal(false);
   novaUnidade: Apartamento | null = null;
   private recargaSilenciosa?: Subscription;
   /** A última recarga automática falhou: a lista na tela pode estar velha. */
@@ -219,7 +240,7 @@ export class EncomendasPageComponent implements OnInit {
     if (list.length === 0) return [];
     const sel = this.selecionadas();
     const ref = (sel.size > 0 ? this.encomendas().find((item) => sel.has(item.id)) : undefined) ?? list[0];
-    return list.filter((e) => e.destinatario_apto === ref.destinatario_apto && e.destinatario_bloco === ref.destinatario_bloco);
+    return list.filter((e) => mesmaUnidade(e, ref));
   });
 
   readonly todasSelecionadas = computed(() => {
@@ -321,7 +342,7 @@ export class EncomendasPageComponent implements OnInit {
     this.recargaSilenciosa?.unsubscribe();
     this.error.set(null);
     this.loading.set(true);
-    this.api.list().subscribe({
+    this.api.list(undefined, { leve: true }).subscribe({
       next: (data) => {
         const antes = this.encomendas();
         this.encomendas.set(data);
@@ -339,9 +360,12 @@ export class EncomendasPageComponent implements OnInit {
     // Carga normal ou retirada em andamento: a recarga automática espera a próxima vez.
     if (this.loading() || this.retirando()) return;
     this.recargaSilenciosa?.unsubscribe();
-    this.recargaSilenciosa = this.api.list().subscribe({
-      next: (data) => {
+    // Só o que ainda muda (aguardando, a chegar e as retiradas recentes), sem
+    // assinatura/foto: o custo da recarga não cresce com o histórico.
+    this.recargaSilenciosa = this.api.list(undefined, { leve: true, retiradasDias: RECARGA_RETIRADAS_DIAS }).subscribe({
+      next: (recentes) => {
         const antes = this.encomendas();
+        const data = this.juntarComRetiradasAntigas(antes, recentes);
         this.encomendas.set(data);
         const total = Math.max(1, Math.ceil(this.encomendasFiltradas().length / this.itensPorPagina));
         if (this.pagina() > total) this.pagina.set(total);
@@ -352,6 +376,36 @@ export class EncomendasPageComponent implements OnInit {
       // erro de ação (banner) não é tocado.
       error: () => this.semConexao.set(true),
     });
+  }
+
+  /**
+   * A recarga traz só as retiradas recentes: as mais antigas da tela (que
+   * não mudam mais) continuam, sem repetir as que vieram de novo. O corte usa
+   * a hora do servidor (ServerClockService); a margem de 1 h cobre o resto.
+   */
+  private juntarComRetiradasAntigas(antes: Encomenda[], recentes: Encomenda[]): Encomenda[] {
+    const limite = this.relogio.agora().getTime() - RECARGA_RETIRADAS_DIAS * 86_400_000 + 3_600_000;
+    const vieram = new Set(recentes.map((e) => e.id));
+    const antigas = antes.filter((e) =>
+      !vieram.has(e.id) && e.status === 'Retirada' && !!e.retirado_em && new Date(e.retirado_em).getTime() < limite);
+    if (!antigas.length) return recentes;
+    return [...recentes, ...antigas].sort((a, b) => new Date(b.recebido_em).getTime() - new Date(a.recebido_em).getTime());
+  }
+
+  /** Recibo da retirada: a lista leve só diz se existe (`tem_comprovante`). */
+  temComprovante(e: Encomenda): boolean {
+    return e.tem_comprovante ?? !!(e.retirado_assinatura || e.retirado_foto);
+  }
+
+  emAndamento(id: number): boolean {
+    return this.acoesEmAndamento().has(id);
+  }
+
+  private marcarAndamento(id: number, ligado: boolean) {
+    const s = new Set(this.acoesEmAndamento());
+    if (ligado) s.add(id);
+    else s.delete(id);
+    this.acoesEmAndamento.set(s);
   }
 
   /**
@@ -421,32 +475,42 @@ export class EncomendasPageComponent implements OnInit {
   }
 
   notificar(e: Encomenda) {
+    if (this.emAndamento(e.id)) return;
     this.error.set(null);
     this.aviso.set(null);
     this.loading.set(true);
+    this.marcarAndamento(e.id, true);
     this.api.notificar(e.id).subscribe({
       next: (r) => {
+        this.marcarAndamento(e.id, false);
         this.avisarSeNinguem(r);
         this.carregar();
       },
       error: (err) => {
-        this.error.set(mensagemErro(err, 'Erro ao notificar morador'));
+        this.marcarAndamento(e.id, false);
         this.loading.set(false);
+        this.error.set(mensagemErro(err, 'Erro ao notificar morador'));
+        // Já retirada (o morador deu baixa pelo app): a lista na tela estava velha.
+        if (err?.status === 409) this.recarregarSilencioso();
       }
     });
   }
 
   /** Porteiro confirma o recebimento de uma encomenda "a chegar" (Esperando). */
   receber(e: Encomenda) {
+    if (this.emAndamento(e.id)) return;
     this.error.set(null);
     this.aviso.set(null);
     this.loading.set(true);
+    this.marcarAndamento(e.id, true);
     this.api.receber(e.id).subscribe({
       next: (r) => {
+        this.marcarAndamento(e.id, false);
         this.avisarSeNinguem(r);
         this.carregar();
       },
       error: (err) => {
+        this.marcarAndamento(e.id, false);
         this.error.set(mensagemErro(err, 'Erro ao receber encomenda'));
         this.loading.set(false);
       },
@@ -660,30 +724,35 @@ export class EncomendasPageComponent implements OnInit {
     const ref = this.encomendas().find(item => item.id === refId);
     if (!ref) return false;
 
-    return e.destinatario_apto !== ref.destinatario_apto || e.destinatario_bloco !== ref.destinatario_bloco;
+    return !mesmaUnidade(e, ref);
   }
 
   notificarLote() {
     const sel = Array.from(this.selecionadas());
-    if (sel.length === 0) return;
-    
+    if (sel.length === 0 || this.notificandoLote()) return;
+
     this.error.set(null);
     this.aviso.set(null);
     this.loading.set(true);
-    import('rxjs').then(({ forkJoin }) => {
-      const requests = sel.map(id => this.api.notificar(id));
-      forkJoin(requests).subscribe({
-        next: (respostas) => {
-          // O lote é de uma unidade só: todas sem ninguém alcançado = ninguém avisado.
-          if (respostas.length && respostas.every((r) => r?.avisados === 0)) this.aviso.set(NINGUEM_AVISADO);
-          this.selecionadas.set(new Set());
-          this.carregar();
-        },
-        error: (e) => {
-          this.error.set(mensagemErro(e, 'Erro ao notificar lote'));
-          this.loading.set(false);
-        }
-      });
+    this.notificandoLote.set(true);
+    // Import estático: o dinâmico não tinha catch e, se falhasse, deixava
+    // notificandoLote e loading ligados para sempre.
+    const requests = sel.map(id => this.api.notificar(id));
+    forkJoin(requests).subscribe({
+      next: (respostas) => {
+        this.notificandoLote.set(false);
+        // O lote é de uma unidade só: todas sem ninguém alcançado = ninguém avisado.
+        if (respostas.length && respostas.every((r) => r?.avisados === 0)) this.aviso.set(NINGUEM_AVISADO);
+        this.selecionadas.set(new Set());
+        this.carregar();
+      },
+      error: (e) => {
+        this.notificandoLote.set(false);
+        this.loading.set(false);
+        this.error.set(mensagemErro(e, 'Erro ao notificar lote'));
+        // Alguma já retirada: a seleção na tela estava velha (a recarga tira da seleção o que saiu).
+        if (e?.status === 409) this.recarregarSilencioso();
+      }
     });
   }
 
@@ -1041,10 +1110,22 @@ export class EncomendasPageComponent implements OnInit {
   readonly viewingProof = signal<{ signature: string | null; photo: string | null; descricao: string } | null>(null);
 
   abrirComprovante(e: Encomenda) {
-    this.viewingProof.set({
-      signature: e.retirado_assinatura ?? null,
-      photo: e.retirado_foto ?? null,
-      descricao: e.descricao
+    if (e.retirado_assinatura || e.retirado_foto) {
+      this.viewingProof.set({
+        signature: e.retirado_assinatura ?? null,
+        photo: e.retirado_foto ?? null,
+        descricao: e.descricao
+      });
+      return;
+    }
+    // Lista leve: assinatura e foto vêm só quando o recibo é aberto.
+    this.api.get(e.id).subscribe({
+      next: (completa) => this.viewingProof.set({
+        signature: completa.retirado_assinatura ?? null,
+        photo: completa.retirado_foto ?? null,
+        descricao: completa.descricao ?? e.descricao,
+      }),
+      error: (err) => this.error.set(mensagemErro(err, 'Não foi possível abrir o comprovante.')),
     });
   }
 }

@@ -40,7 +40,7 @@
     @for (group of menu; track group.category) {
       <p class="ps-label ps-nav-grp">{{ group.category }}</p>
       @for (item of group.items; track item.path) {
-        @if (!isPorteiro() || (item.path !== '/financeiro' && item.path !== '/relatorios' && item.path !== '/configuracoes')) {
+        @if (mostraNoMenu(item.path)) {
           <a
             [routerLink]="item.path"
             (click)="linkClicked.emit()"

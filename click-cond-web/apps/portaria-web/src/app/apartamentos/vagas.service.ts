@@ -28,7 +28,8 @@ export interface VagasResumo {
 }
 
 export interface VagaBeneficiarios {
-  visitantes: { id: number; nome: string; doc_identificacao: string | null; tem_foto: boolean }[];
+  /** `termino`: fim da visita mais recente (ISO) — sugerido como prazo da vaga. */
+  visitantes: { id: number; nome: string; doc_identificacao: string | null; tem_foto: boolean; termino?: string | null }[];
   inquilinos: { id: number; nome: string }[];
 }
 

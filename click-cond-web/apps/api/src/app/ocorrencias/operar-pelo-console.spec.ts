@@ -21,13 +21,19 @@ describe('Ocorrências — operar pelo console', () => {
   const morador: JwtPayload = { sub: 100, nome: 'Morador', typeAccess: 'Morador', user: { id: 100 } } as any;
 
   function montar(flag = 1) {
-    const oc = { id: 5, id_condominio: 1, user: 100, status: 'Pendente', tipo: 1, publica: false };
+    const oc: any = { id: 5, id_condominio: 1, user: 100, status: 'Pendente', tipo: 1, publica: false };
     const prisma: any = {
       isConnected: true,
       funcionarios: { findFirst: jest.fn(async () => ({ ocorrencias: flag })) },
       ocorrencias: {
         findUnique: jest.fn(async () => ({ ...oc })),
         update: jest.fn(async ({ data }: any) => ({ ...oc, ...data, categoria: null })),
+        // Mudança de status: condicionada ao status de origem.
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          if (!where.status.in.includes(oc.status)) return { count: 0 };
+          Object.assign(oc, data);
+          return { count: 1 };
+        }),
         delete: jest.fn(async () => ({})),
       },
       ocorrencias_Categorias: { findUnique: jest.fn(async () => ({ sla_horas: 24 })) },
@@ -55,7 +61,7 @@ describe('Ocorrências — operar pelo console', () => {
       await svc.updateStatus(5, 'Ciente', porteiro);
       await svc.updateStatus(5, 'Solucionado', porteiro);
       await svc.updateStatus(5, 'Pendente', porteiro);
-      expect(prisma.ocorrencias.update).toHaveBeenCalledTimes(3);
+      expect(prisma.ocorrencias.updateMany).toHaveBeenCalledTimes(3);
     });
 
     it('responde publicamente e atribui responsável', async () => {
@@ -81,12 +87,13 @@ describe('Ocorrências — operar pelo console', () => {
       expect(e).toBeInstanceOf(ForbiddenException);
       expect(e.message).toMatch(/permissão/);
       expect(prisma.ocorrencias.update).not.toHaveBeenCalled();
+      expect(prisma.ocorrencias.updateMany).not.toHaveBeenCalled();
     });
 
     it('com a flag: opera', async () => {
       const { svc, prisma } = montar(1);
       await svc.updateStatus(5, 'Ciente', funcionarioQr);
-      expect(prisma.ocorrencias.update).toHaveBeenCalledTimes(1);
+      expect(prisma.ocorrencias.updateMany).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -96,6 +103,7 @@ describe('Ocorrências — operar pelo console', () => {
     await expect(svc.updateResposta(5, 'x', morador)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(svc.atribuir(5, 31, morador)).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.ocorrencias.update).not.toHaveBeenCalled();
+    expect(prisma.ocorrencias.updateMany).not.toHaveBeenCalled();
   });
 
   it('síndico no console continua podendo tudo', async () => {
@@ -103,7 +111,8 @@ describe('Ocorrências — operar pelo console', () => {
     await svc.updateStatus(5, 'Ciente', sindicoConsole);
     await svc.updatePublica(5, true, sindicoConsole);
     await svc.remove(5, sindicoConsole);
-    expect(prisma.ocorrencias.update).toHaveBeenCalledTimes(2);
+    expect(prisma.ocorrencias.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.ocorrencias.update).toHaveBeenCalledTimes(1);
     expect(prisma.ocorrencias.delete).toHaveBeenCalledTimes(1);
   });
 

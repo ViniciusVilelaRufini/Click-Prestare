@@ -25,6 +25,9 @@ describe('AuthService.changePassword — qual conta o token representa', () => {
         update: jest.fn(async () => ({})),
       },
     };
+    // Rodada 3: a troca do porteiro grava o login de portaria e a conta do app numa transação.
+    prisma.users.findFirst = jest.fn(async () => null);
+    prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
     const svc = new AuthService(prisma, { sign: jest.fn(() => 't') } as any, {} as any);
     return { svc, prisma };
   }

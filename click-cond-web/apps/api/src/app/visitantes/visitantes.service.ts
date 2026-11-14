@@ -58,6 +58,14 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
 
 // Prazo único do pedido/autorização — o card ao vivo usa o mesmo.
 export { AUTORIZACAO_EXPIRACAO_MS };
+/**
+ * Tolerância depois do fim da janela: o terminal facial e o Validar PIN aceitam
+ * até 15 min além do `data_hora_termino`. A lista usa a mesma para não dizer
+ * "encerrada" de quem o portão ainda deixa passar.
+ */
+export const TOLERANCIA_JANELA_MS = 15 * 60 * 1000;
+/** Visitas mais recentes de cada pessoa na lista da portaria (as em aberto entram sempre). */
+const VISITAS_POR_PESSOA_NA_LISTA = 20;
 /** Janela da visita aberta por um pedido de autorização: agora → +4 h. */
 const JANELA_PEDIDO_MS = 4 * 60 * 60 * 1000;
 
@@ -80,15 +88,18 @@ export function isAutorizacaoAtual(registro: any, agora = Date.now()): boolean {
 }
 
 /**
- * A saída mantém `liberado`? Prestador sempre; visitante recorrente (dias da
- * semana) só com término no FUTURO — sem término viraria acesso permanente.
- * Mesma regra da saída pelo terminal (facial.service).
+ * A saída mantém `liberado`? Prestador sempre; visitante com vaga vigente
+ * (o morador cedeu a vaga por dias); visitante recorrente (dias da semana) só
+ * com término no FUTURO — sem término viraria acesso permanente. Mesma regra
+ * da saída pelo terminal (facial.service, que já mantém com vaga vigente).
  */
 export function mantemLiberadoNaSaida(
   v: { is_prestador?: number | null; dias_semana?: string | null; data_hora_termino?: Date | string | null },
   agora = Date.now(),
+  temVagaVigente = false,
 ): boolean {
   if (v.is_prestador === 1) return true;
+  if (temVagaVigente) return true;
   if (!String(v.dias_semana ?? '').trim() || !v.data_hora_termino) return false;
   return new Date(v.data_hora_termino).getTime() > agora;
 }
@@ -1002,7 +1013,19 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const pinVigente = (v: any) =>
       Boolean(v?.codigo_acesso) &&
       !v.data_saida &&
-      (!v.data_hora_termino || new Date(v.data_hora_termino).getTime() >= agoraScore);
+      (!v.data_hora_termino || new Date(v.data_hora_termino).getTime() + TOLERANCIA_JANELA_MS >= agoraScore);
+    // Vigência da janela da visita (mesma leitura da tela: janelaEncerrada/agendado).
+    const janelaEncerrada = (v: any) =>
+      !!v?.data_hora_termino && new Date(v.data_hora_termino).getTime() + TOLERANCIA_JANELA_MS < agoraScore;
+    // Mantém a liberação na saída (mesma regra de mantemLiberadoNaSaida, com a vaga).
+    const acessoContinuo = (v: any, temVaga: boolean) =>
+      v.is_prestador === 1 || temVaga || !!String(v.dias_semana ?? '').trim();
+    const janelaFutura = (v: any) =>
+      !!v?.data_hora_inicio && new Date(v.data_hora_inicio).getTime() > agoraScore;
+    const dentro = (v: any) => !!v?.data_entrada && !v.data_saida;
+    // Selo "PIN": só o PIN que o terminal/Validar PIN aceitaria (janela não
+    // encerrada e visita liberada) ou que serve para a saída de quem está dentro.
+    const pinAtivo = (v: any) => pinVigente(v) && (v.liberado === 1 || dentro(v));
     const score = (v: any) => {
       if (v.data_entrada && !v.data_saida) return 1000; // No condomínio agora
       if (isAutorizacaoAtual(v, agoraScore)) return 900; // Autorizado pelo morador (ainda válido)
@@ -1030,15 +1053,72 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             : {}),
         },
         include: {
+          // Só as visitas mais recentes de cada pessoa: a recarga da portaria
+          // (20 s, e 4 s com pedido aberto) baixava o histórico inteiro. As
+          // ainda em aberto vêm logo abaixo, mesmo antigas; o total, da contagem.
           visitas: {
             include: {
               apartamento: { select: { id: true, bloco: true, apto: true } },
             },
-            orderBy: [{ data_hora_inicio: 'desc' }, { created_at: 'desc' }],
+            orderBy: [{ created_at: 'desc' }],
+            take: VISITAS_POR_PESSOA_NA_LISTA,
           },
+          _count: { select: { visitas: true } },
         },
         orderBy: [{ created_at: 'desc' }],
       });
+
+      // Visitas em aberto (dentro, liberada, pedido pendente ou PIN) que
+      // ficaram fora do recorte acima: decidem o estado da linha.
+      if (pessoasCadastradas.length) {
+        const abertas: any[] =
+          (await this.prisma.visitas.findMany({
+            where: {
+              id_condominio: Number(idCondominio),
+              id_pessoa: { in: pessoasCadastradas.map((p) => p.id) },
+              OR: [
+                {
+                  data_saida: null,
+                  OR: [
+                    { data_entrada: { not: null } },
+                    { liberado: 1 },
+                    { auth_status: 'pendente' },
+                    { codigo_acesso: { not: null } },
+                  ],
+                },
+                // Já usada, mas a saída manteve a liberação (prestador,
+                // recorrente, vaga vigente) e a janela não terminou.
+                {
+                  data_saida: { not: null },
+                  liberado: 1,
+                  OR: [
+                    { data_hora_termino: null },
+                    { data_hora_termino: { gte: new Date(agoraScore - TOLERANCIA_JANELA_MS) } },
+                    { vagas: { some: { ativo: 1, ...whereVagaVigente() } } },
+                  ],
+                },
+              ],
+            },
+            include: { apartamento: { select: { id: true, bloco: true, apto: true } } },
+          })) ?? [];
+        const porPessoa = new Map(pessoasCadastradas.map((p) => [p.id, p]));
+        for (const v of abertas) {
+          const p: any = porPessoa.get(v.id_pessoa);
+          if (p && !(p.visitas ?? []).some((x: any) => x.id === v.id)) (p.visitas ??= []).push(v);
+        }
+      }
+      // Visitas por pessoa e unidade (o recorte acima não serve para contar).
+      const contagemUnidade = new Map<string, number>();
+      if (pessoasCadastradas.length) {
+        const grupos = await this.prisma.visitas.groupBy({
+          by: ['id_pessoa', 'id_apartamento'],
+          where: { id_condominio: Number(idCondominio), id_pessoa: { in: pessoasCadastradas.map((p) => p.id) } },
+          _count: { _all: true },
+        });
+        for (const g of (grupos ?? []) as any[]) {
+          contagemUnidade.set(`${g.id_pessoa}:${g.id_apartamento}`, g._count?._all ?? 0);
+        }
+      }
 
       // A flag sozinha decide a fonte: mesmo que a busca acima volte vazia
       // (condomínio recém-migrado, ou filtro de busca sem resultado), o
@@ -1068,8 +1148,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           const principal = arr[0] as any;
 
           const noLocal = arr.some((r) => r.data_entrada && !r.data_saida);
-          const temPinAtivo = arr.some((r) => r.codigo_acesso && !r.data_saida);
-          const totalVisitas = arr.length;
+          const temPinAtivo = arr.some(pinAtivo);
+          const totalVisitas = (p as any)._count?.visitas ?? arr.length;
 
           const ultEntrada = arr
             .map((r) => r.data_entrada)
@@ -1126,7 +1206,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
             const isLiberado = regs.some((r) => {
               if (vagaPorVisita.has(r.id)) return true;
-              if ((r as any).is_prestador === 1) return r.liberado === 1;
+              // Prestador e recorrente mantêm a liberação na saída (como a tela).
+              if (acessoContinuo(r, false)) return r.liberado === 1 && !janelaEncerrada(r);
               if (r.data_saida) {
                 const saida = new Date(r.data_saida).getTime();
                 const resp = (r as any).auth_respondido_em ? new Date((r as any).auth_respondido_em).getTime() : 0;
@@ -1135,11 +1216,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               }
               if (r.liberado === 1 && r.data_entrada && !r.data_saida) return true;
               if (r.liberado === 1) {
-                const respEm = (r as any).auth_respondido_em
-                  ? new Date((r as any).auth_respondido_em).getTime()
-                  : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
-                const refTime = respEm || (r.created_at ? new Date(r.created_at).getTime() : 0);
-                return (now - refTime) <= AUTORIZACAO_EXPIRACAO_MS;
+                // Autorização do morador: os 10 min do pedido (mesma regra do
+                // check-in). Liberação da portaria/app: vale enquanto a janela
+                // não termina — antes também expirava 10 min após o cadastro.
+                if ((r as any).auth_status === 'autorizado') return isAutorizacaoAtual(r, now);
+                return !janelaEncerrada(r);
               }
               return false;
             });
@@ -1202,7 +1283,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               auth_respondido_em: (regAtivoApto as any).auth_respondido_em
                 ? new Date((regAtivoApto as any).auth_respondido_em).toISOString()
                 : null,
-              temPinAtivo: regs.some((r) => Boolean(r.codigo_acesso && !r.data_saida)),
+              temPinAtivo: regs.some(pinAtivo),
               autorizacao_expirada: autorizacaoExpirada,
               pedido_expirado: pedidoExpiradoApto,
               noLocal: noLocalApto,
@@ -1212,7 +1293,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               // mas não atrapalham quem só lê os campos acima).
               bloco: a.bloco,
               apto: a.apto,
-              totalVisitasApto: regs.length,
+              totalVisitasApto: contagemUnidade.get(`${p.id}:${aptoId}`) ?? regs.length,
+              // Liberado com a janela ainda por começar: o modal diz "Agendado",
+              // como a linha (getStatusVisitante).
+              agendado: regs.some(
+                (r) => r.liberado === 1 && !(r.data_entrada && !r.data_saida) && janelaFutura(r),
+              ),
             };
           });
 
@@ -1266,17 +1352,21 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               principal?.tag_rfid ??
               arr.map((r) => (r as any).tag_rfid).find((t) => t && String(t).trim()) ??
               null,
-            statusLabel: noLocal
-              ? 'No condomínio'
-              : arr.some((r) =>
-                    r.is_prestador === 1
-                      ? r.liberado === 1
-                      : r.liberado === 1 && !r.data_entrada && !r.data_saida,
-                  )
-                ? 'Liberado'
-                : temPinAtivo
-                  ? 'Agendado'
-                  : 'Histórico',
+            // "Liberado" só para o que o terminal aceita agora: janela não
+            // encerrada, autorização do morador ainda valendo numa visita não
+            // usada; janela futura é "Agendado". O painel "Na portaria agora"
+            // lê este rótulo.
+            statusLabel: (() => {
+              if (noLocal) return 'No condomínio';
+              const liberadaAgora = (r: any) =>
+                r.liberado === 1 &&
+                !janelaEncerrada(r) &&
+                !(r.auth_status === 'autorizado' && !r.data_entrada && !r.data_saida && !isAutorizacaoAtual(r, agoraScore)) &&
+                (acessoContinuo(r, vagaPorVisita.has(r.id)) || (!r.data_entrada && !r.data_saida));
+              if (arr.some((r) => liberadaAgora(r) && !janelaFutura(r))) return 'Liberado';
+              if (arr.some(liberadaAgora) || temPinAtivo) return 'Agendado';
+              return 'Histórico';
+            })(),
             data_hora_inicio: principal?.data_hora_inicio ? new Date(principal.data_hora_inicio).toISOString() : null,
             data_hora_termino: principal?.data_hora_termino ? new Date(principal.data_hora_termino).toISOString() : null,
             // Mesmo contrato do legado: entrada/saída da visita ATUAL
@@ -1317,6 +1407,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             dias_semana: diasSemanaPessoa,
             categorias: categoriasPessoa,
             vagaMorador: principal ? (vagaPorVisita.get(principal.id) ?? null) : null,
+            // Alguma visita da pessoa com vaga vigente (mesmo campo do legado):
+            // a saída mantém a liberação, e a linha não vira "Saiu | Solicitar".
+            temVaga: arr.some((r) => vagaPorVisita.has(r.id)),
           };
         });
       }
@@ -2639,8 +2732,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       this.fireFacialSyncPessoa(visita.id_pessoa);
     }
 
+    let avisados: number | undefined;
     if (pedirAutorizacao) {
-      await this.solicitarAutorizacaoViaPessoasVisitas(visita.id, operador);
+      const pedido = await this.solicitarAutorizacaoViaPessoasVisitas(visita.id, operador);
+      avisados = pedido?.avisados;
     }
 
     // Morador: a Pessoa achada pelo documento pode ser de outro apartamento.
@@ -2651,12 +2746,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       recortar &&
       !!aptosDoChamador &&
       (await pessoaTemVisitaForaDosAptos(this.prisma, visita.id_pessoa, aptosDoChamador));
-    return this.mapVisitaParaRespostaLegada(visita, {
+    const resposta = this.mapVisitaParaRespostaLegada(visita, {
       recortar,
       digitado: alheia
         ? { nome: dto.nome, doc_identificacao: dto.doc_identificacao ?? null, foto_pessoa: fotoPes ?? null }
         : undefined,
     });
+    // "Cadastrar e pedir": quantos moradores receberam o pedido (campo novo).
+    return avisados === undefined ? resposta : { ...resposta, avisados };
   }
 
   /**
@@ -3315,11 +3412,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, atualizados };
   }
 
-  private async checkInViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
+  private async checkInViaPessoasVisitas(
+    id: number,
+    payload?: JwtPayload,
+    idApartamento?: number,
+    esperado?: string | null,
+  ) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
+    this.assertNegativaConhecida(ref, esperado, payload);
     // Só numa visita ainda NÃO encerrada: a saída pelo facial não limpa
     // auth_status, e o check-in numa visita usada abre uma passagem nova, que
     // não depende daquela autorização.
@@ -3346,6 +3449,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           auth_respondido_em: new Date(),
           auth_respondido_por: idUsuarioDoToken(payload),
         }),
+        // A portaria decidiu por cima de uma negativa que ela viu: a negativa
+        // deixa de valer (fica na auditoria), senão travaria as próximas ações.
+        ...(ref.auth_status === 'negado' && { auth_status: null }),
       },
       include: {
         pessoa: true,
@@ -3380,6 +3486,30 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * A tela manda o `auth_status` que viu ao abrir o modal (`esperado`). Se o
+   * morador negou depois disso, a entrada/liberação não passa por cima da
+   * negativa sem o porteiro saber. No console (token com id_condominio) a falta
+   * de `esperado` conta como "não viu a negativa". O app manda só `{ id }`
+   * (apiCheckInVisitante) e o token dele não tem id_condominio: segue como antes.
+   *
+   * A negativa só trava com a visita NÃO liberada — o mesmo critério da
+   * unidade para exibir "negado" (listarPessoas). Visita negada que voltou a
+   * liberado=1 (vaga cedida pelo morador) aparece sem a negativa, e a trava
+   * dava 409 eterno. No caso de o morador negar com o modal aberto, liberado
+   * ainda é 0 no clique, então ele continua travado.
+   */
+  private assertNegativaConhecida(
+    ref: { auth_status?: string | null; liberado?: number | null },
+    esperado: string | null | undefined,
+    payload?: JwtPayload,
+  ) {
+    if (esperado === undefined && !payload?.id_condominio) return;
+    if (ref.auth_status === 'negado' && ref.liberado !== 1 && esperado !== 'negado') {
+      throw new ConflictException('O morador acabou de negar esta entrada. Confira antes de registrar.');
+    }
+  }
+
+  /**
    * Visita sobre a qual Solicitar/Liberar vão agir, sem apagar histórico.
    *
    * As duas ações zeram data_entrada/data_saida. Numa visita já USADA (entrou
@@ -3395,11 +3525,18 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return visitaParaNovaPassagem(this.prisma, ref);
   }
 
-  private async liberarAcessoViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
+  private async liberarAcessoViaPessoasVisitas(
+    id: number,
+    payload?: JwtPayload,
+    idApartamento?: number,
+    esperado?: string | null,
+  ) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
+    // Mesmo cuidado do check-in: o morador pode ter negado depois que a tela carregou.
+    this.assertNegativaConhecida(ref, esperado, payload);
     const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
@@ -3418,6 +3555,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           auth_respondido_em: new Date(),
           auth_respondido_por: idUsuarioDoToken(payload),
         }),
+        ...(ref.auth_status === 'negado' && { auth_status: null }),
       },
       include: {
         pessoa: true,
@@ -3457,14 +3595,20 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (!ref.data_entrada || ref.data_saida) {
       throw new BadRequestException('Este visitante não está no condomínio.');
     }
+    // Vaga cedida pelo morador ainda valendo: a baixa é só a saída de hoje (como
+    // a saída pelo terminal). Desativá-la sumia com a vaga do painel e do app.
+    const vagaVigente = await this.prisma.vagas.findFirst({
+      where: { id_visita: Number(id), ativo: 1, ...whereVagaVigente() },
+      select: { id: true },
+    });
     const v = await this.prisma.visitas.update({
       where: { id: Number(id) },
       data: {
         data_saida: new Date(),
         codigo_acesso: null,
-        // Prestador e visitante recorrente (com término futuro) voltam outro
-        // dia: a saída não revoga a liberação. Avulso perde na saída.
-        liberado: mantemLiberadoNaSaida(ref) ? 1 : 0,
+        // Prestador, visitante com vaga vigente e recorrente (com término
+        // futuro) voltam outro dia: a saída não revoga a liberação. Avulso perde.
+        liberado: mantemLiberadoNaSaida(ref, Date.now(), !!vagaVigente) ? 1 : 0,
         auth_status: null,
         auth_solicitado_em: null,
         auth_respondido_em: null,
@@ -3477,7 +3621,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
 
     await this.prisma.vagas.updateMany({
-      where: { id_visita: Number(id) },
+      where: { id_visita: Number(id), ...(vagaVigente ? { id: { not: vagaVigente.id } } : {}) },
       data: {
         ativo: 0,
         id_visita: null,
@@ -3531,11 +3675,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
         }
         ref = daUnidade;
+        await this.assertSemLiberacaoValendo(daUnidade);
         idVisita = await this.visitaParaNovaPassagem(daUnidade);
       } else {
         idVisita = await novaVisitaEmOutraUnidade(this.prisma, principal, Number(idApartamento));
       }
     } else {
+      await this.assertSemLiberacaoValendo(principal);
       idVisita = await this.visitaParaNovaPassagem(principal);
     }
     // Visita copiada (herda a janela da antiga) ou janela já vencida: o
@@ -3564,7 +3710,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    await this.notificarMoradoresAutorizacao({
+    // O pedido zera `liberado`: o terminal precisa saber (antes seguia abrindo
+    // para quem estava liberado até aqui).
+    this.fireFacialSyncPessoa(v.id_pessoa);
+
+    const avisados = await this.notificarMoradoresAutorizacao({
       id: v.id,
       nome: v.pessoa.nome,
       id_apartamento: v.id_apartamento,
@@ -3584,7 +3734,33 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       detalhes: ctx ?? undefined,
     });
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizacao_solicitada', { id: v.id });
-    return { ok: true };
+    // `avisados` = moradores que receberam o card, o push ou o WhatsApp. Com 0
+    // a tela não diz "o morador foi notificado": manda interfonar.
+    return { ok: true, avisados };
+  }
+
+  /**
+   * Solicitar a partir de uma lista velha (outro porteiro já pediu e o morador
+   * autorizou) voltava a visita para `pendente`/`liberado 0` e mandava um
+   * segundo pedido. Autorização que ainda vale não é pedida de novo.
+   */
+  private async assertSemLiberacaoValendo(ref: any) {
+    const dentro = !!ref.data_entrada && !ref.data_saida;
+    if (dentro) return; // visitaParaNovaPassagem recusa com a mensagem própria
+    if (isAutorizacaoAtual(ref)) {
+      throw new ConflictException('O morador já autorizou esta visita. Atualize a lista.');
+    }
+    // Vaga cedida pelo morador ainda valendo: a saída manteve a liberação e a
+    // tela mostra "Liberado" (acesso contínuo). O pedido a derrubaria.
+    if (ref.liberado === 1) {
+      const vaga = await this.prisma.vagas.findFirst({
+        where: { id_visita: Number(ref.id), ativo: 1, ...whereVagaVigente() },
+        select: { id: true },
+      });
+      if (vaga) {
+        throw new ConflictException('Este visitante tem vaga vigente cedida pelo morador e continua liberado. Registre a entrada.');
+      }
+    }
   }
 
   /**
@@ -3722,8 +3898,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : now;
 
     const inicioComTolerancia = inicio;
-    const GRACE_PERIOD_MS = 15 * 60 * 1000;
-    const terminoComTolerancia = new Date(termino.getTime() + GRACE_PERIOD_MS);
+    const terminoComTolerancia = new Date(termino.getTime() + TOLERANCIA_JANELA_MS);
 
     let status = 'ATIVO';
     if (now < inicioComTolerancia) {
@@ -3751,6 +3926,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     if (!dentro && v.liberado !== 1) {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
+    }
+    // Mesma regra do check-in: a autorização do morador vale 10 min numa
+    // visita não usada. Sem isto o PIN dizia ATIVO e "Confirmar Entrada" falhava.
+    if (!dentro && !v.data_saida && v.auth_status === 'autorizado' && !isAutorizacaoAtual(v)) {
+      throw new BadRequestException('A autorização desta visita está expirada.');
     }
 
     const formatarData = (d: Date | null) => formatarDataHoraBrasilia(d);
@@ -4459,8 +4639,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     // Sem tolerância antes do início da liberação. Tolerância de 15 minutos ao término.
     const inicioComTolerancia = inicio;
-    const GRACE_PERIOD_MS = 15 * 60 * 1000;
-    const terminoComTolerancia = new Date(termino.getTime() + GRACE_PERIOD_MS);
+    const terminoComTolerancia = new Date(termino.getTime() + TOLERANCIA_JANELA_MS);
 
     let status = 'ATIVO';
     if (now < inicioComTolerancia) {
@@ -4853,14 +5032,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async checkIn(id: number, payload?: JwtPayload, idApartamento?: number) {
+  async checkIn(id: number, payload?: JwtPayload, idApartamento?: number, esperado?: string | null) {
     if (pessoasMigrationEnabled(this.prisma)) {
-      return this.checkInViaPessoasVisitas(id, payload, idApartamento);
+      return this.checkInViaPessoasVisitas(id, payload, idApartamento, esperado);
     }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
+    this.assertNegativaConhecida(ref as any, esperado, payload);
     const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
@@ -4907,14 +5087,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true };
   }
 
-  async liberarAcesso(id: number, payload?: JwtPayload, idApartamento?: number) {
+  async liberarAcesso(id: number, payload?: JwtPayload, idApartamento?: number, esperado?: string | null) {
     if (pessoasMigrationEnabled(this.prisma)) {
-      return this.liberarAcessoViaPessoasVisitas(id, payload, idApartamento);
+      return this.liberarAcessoViaPessoasVisitas(id, payload, idApartamento, esperado);
     }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
+    this.assertNegativaConhecida(ref as any, esperado, payload);
     const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
@@ -5021,7 +5202,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     is_prestador: number;
     foto_pessoa?: string | null;
     auth_solicitado_em?: Date | null;
-  }, origem: 'visitante' | 'visita' = 'visitante') {
+  }, origem: 'visitante' | 'visita' = 'visitante'): Promise<number> {
+    // Moradores alcançados por card, push ou WhatsApp (devolvido à portaria).
+    let avisados = 0;
     try {
       const moradores = await this.prisma.users.findMany({
         where: {
@@ -5075,8 +5258,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         }
       }
       for (const m of moradores) {
+        // Card aberto: chega no aparelho (ou no push comum de reserva do card).
+        let alcancou = viaCard;
         if (!viaCard && m.fcm_token && m.fcm_token.trim().length > 10) {
-          await this.notifications.sendPushNotification(
+          const r = await this.notifications.sendPushNotification(
             m.fcm_token.trim(),
             `${tipo} na portaria`,
             `${v.nome} quer entrar no seu apartamento. Autorizar?`,
@@ -5087,19 +5272,23 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               ...(photoUrl ? { photo: photoUrl } : {}),
             },
           );
+          if (r) alcancou = true;
         }
         if (m.phone) {
-          await this.notifications.sendWhatsApp(
+          const r = await this.notifications.sendWhatsApp(
             m.phone,
             `Olá, ${m.name}! ${v.nome} está na portaria pedindo autorização para entrar. Abra o app para Autorizar ou Negar.`,
           );
+          if (r) alcancou = true;
         }
+        if (alcancou) avisados++;
       }
     } catch (error) {
       this.logger.warn(
         `Falha ao notificar autorização do visitante ${v.id}: ${(error as any)?.message ?? error}`,
       );
     }
+    return avisados;
   }
 
   /**
@@ -5146,7 +5335,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         data_saida: null,
       },
     });
-    await this.notificarMoradoresAutorizacao(v);
+    const avisados = await this.notificarMoradoresAutorizacao(v);
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
     await this.auditoria.registrar({
@@ -5159,7 +5348,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       detalhes: ctx ?? undefined,
     });
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizacao_solicitada', { id: v.id });
-    return { ok: true };
+    return { ok: true, avisados };
   }
 
   /** Morador autoriza: libera o acesso (liberado=1), opcionalmente registra entrada imediata, e enrola no facial. */

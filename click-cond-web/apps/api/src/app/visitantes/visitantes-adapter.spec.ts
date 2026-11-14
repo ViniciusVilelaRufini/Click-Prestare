@@ -7,7 +7,7 @@ describe('VisitantesAdapter (Compatibilidade v75)', () => {
 
   const mockPrisma: any = {
     pessoas: { findMany: jest.fn() },
-    visitas: { findMany: jest.fn() },
+    visitas: { findMany: jest.fn(), groupBy: jest.fn() },
     visitantes: { findMany: jest.fn().mockResolvedValue([]) },
     vagas: { findMany: jest.fn().mockResolvedValue([]) },
     apartamentos_Users: { findMany: jest.fn().mockResolvedValue([{ id_apto: 101 }]) },
@@ -77,8 +77,8 @@ describe('VisitantesAdapter (Compatibilidade v75)', () => {
             id_pessoa: 33,
             id_condominio: 1,
             id_apartamento: 101,
-            data_hora_inicio: new Date('2026-09-19T10:00:00Z'),
-            data_hora_termino: new Date('2026-09-19T18:00:00Z'),
+            data_hora_inicio: new Date(Date.now() - 2 * 3600_000),
+            data_hora_termino: new Date(Date.now() + 6 * 3600_000), // janela valendo: o selo PIN exige vigência
             codigo_acesso: '4321',
             liberado: 1,
             data_entrada: null,

@@ -11,13 +11,15 @@ import { AuthService } from '../auth/auth.service';
 import { MoradoresApi } from '../moradores/moradores.service';
 import { VagasApi, VagasResumo, VagaBeneficiarios } from './vagas.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { InputMaskDirective } from '../shared/input-mask.directive';
+import { papelDoToken } from '../auth/papel';
 
 declare var require: any;
 
 @Component({
   selector: 'app-apartamentos-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, InputMaskDirective],
   templateUrl: './apartamentos-page.component.html',
 })
 export class ApartamentosPageComponent implements OnInit {
@@ -37,13 +39,7 @@ export class ApartamentosPageComponent implements OnInit {
 
   // Form de adicionar morador no modal
   showAddMoradorForm = false;
-  novoMorador = {
-    nome: '',
-    documento: '',
-    email: '',
-    telefone: '',
-    tipo: 'proprietario'
-  };
+  novoMorador = this.novoMoradorVazio();
   readonly savingMorador = signal(false);
   readonly errorMorador = signal<string | null>(null);
   readonly apartamentos = signal<Apartamento[]>([]);
@@ -81,6 +77,17 @@ export class ApartamentosPageComponent implements OnInit {
     this.apartamentos().filter((a) => (a.qtdMoradores ?? 0) > 0).length,
   );
   readonly aptosVazios = computed(() => this.apartamentos().length - this.aptosOcupados());
+
+  /**
+   * Cadastrar, editar, excluir e importar unidades é do síndico e do funcionário do app (inclusive
+   * no console por QR Code): a API recusa o porteiro de login/senha (assertStaff), que via os botões
+   * e tomava 403. Mesma regra das telas de comunicados e assembleias. A API segue decidindo.
+   */
+  readonly podeGerenciarUnidades = computed(() => {
+    this.auth.porteiroInfo(); // recalcula ao entrar / trocar de condomínio
+    const papel = papelDoToken(this.auth.token);
+    return papel === 'sindico' || papel === 'funcionario';
+  });
 
   novo: CreateApartamento = { apto: '', bloco: '', fracao: '' };
   showForm = false;
@@ -140,7 +147,12 @@ export class ApartamentosPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.remove(a.id).subscribe({ next: () => this.carregar() });
+    this.error.set(null);
+    this.api.remove(a.id).subscribe({
+      next: () => this.carregar(),
+      // 409 (unidade com visitas no histórico) e 403 traziam a explicação e a tela não dizia nada.
+      error: (e) => this.error.set(e?.error?.message ?? e?.message ?? 'Não foi possível remover o apartamento.'),
+    });
   }
 
   abrirMoradoresBloco(blocoNome: string) {
@@ -173,24 +185,60 @@ export class ApartamentosPageComponent implements OnInit {
     const aptoId = this.moradoresApto?.id;
     if (!aptoId) return;
 
+    // O e-mail cria a conta do app, e a conta exige a data de nascimento (Cláusula 8.3).
+    const email = this.novoMorador.email.trim();
+    const digitosNasc = this.novoMorador.data_nascimento.replace(/\D/g, '');
+    if (digitosNasc.length > 0 && digitosNasc.length < 8) {
+      this.errorMorador.set('Data de nascimento incompleta. Use DD/MM/AAAA.');
+      return;
+    }
+    if (email && digitosNasc.length !== 8) {
+      this.errorMorador.set('Com e-mail, informe a data de nascimento: o e-mail cria o acesso ao app. Sem ela, deixe o e-mail em branco.');
+      return;
+    }
+    let dataNascimento: string | undefined;
+    let ehMenor = false;
+    if (digitosNasc.length === 8) {
+      const dia = Number(digitosNasc.slice(0, 2));
+      const mes = Number(digitosNasc.slice(2, 4));
+      const ano = Number(digitosNasc.slice(4, 8));
+      const d = new Date(ano, mes - 1, dia);
+      // 31/02 vira 03/03 no Date: a data só vale se os três campos voltam iguais.
+      if (d.getFullYear() !== ano || d.getMonth() !== mes - 1 || d.getDate() !== dia || d > new Date()) {
+        this.errorMorador.set('Data de nascimento inválida.');
+        return;
+      }
+      dataNascimento = `${digitosNasc.slice(4, 8)}-${digitosNasc.slice(2, 4)}-${digitosNasc.slice(0, 2)}`;
+      const hoje = new Date();
+      let idade = hoje.getFullYear() - ano;
+      if (hoje.getMonth() < mes - 1 || (hoje.getMonth() === mes - 1 && hoje.getDate() < dia)) idade--;
+      ehMenor = idade < 18;
+    }
+    // Menor: sem acesso ao app e cadastrado como dependente, como na tela de moradores (Cláusula 8.3).
+    if (ehMenor && email) {
+      this.errorMorador.set('Morador menor de 18 anos não recebe acesso ao app: deixe o e-mail em branco.');
+      return;
+    }
+
     this.savingMorador.set(true);
     this.errorMorador.set(null);
 
     const dto = {
       nome: this.novoMorador.nome.trim(),
       documento: this.novoMorador.documento.trim() || undefined,
-      email: this.novoMorador.email.trim() || undefined,
+      email: email || undefined,
       telefone: this.novoMorador.telefone.trim() || undefined,
-      tipo: this.novoMorador.tipo,
+      data_nascimento: dataNascimento,
+      tipo: ehMenor ? 'dependente' : this.novoMorador.tipo,
       id_apartamento: aptoId,
-      sendCredentials: !!this.novoMorador.email.trim()
+      sendCredentials: !!email
     };
 
     this.moradoresApi.create(dto).subscribe({
       next: () => {
         this.savingMorador.set(false);
         this.showAddMoradorForm = false;
-        this.novoMorador = { nome: '', documento: '', email: '', telefone: '', tipo: 'proprietario' };
+        this.novoMorador = this.novoMoradorVazio();
         this.carregarMoradores(this.moradoresBlocoNome, aptoId);
         this.carregar();
       },
@@ -224,6 +272,10 @@ export class ApartamentosPageComponent implements OnInit {
         alert(err?.error?.message ?? err?.message ?? 'Erro ao remover morador');
       }
     });
+  }
+
+  private novoMoradorVazio() {
+    return { nome: '', documento: '', email: '', telefone: '', data_nascimento: '', tipo: 'proprietario' };
   }
 
   private carregarMoradores(bloco?: string, aptoId?: number) {
@@ -355,8 +407,8 @@ export class ApartamentosPageComponent implements OnInit {
         this.bulkResult.set(res);
         this.carregar();
       },
-      error: () => {
-        alert('Erro ao importar em lote');
+      error: (e) => {
+        alert(e?.error?.message ?? e?.message ?? 'Erro ao importar em lote');
         this.bulkStatus.set('ready');
       },
     });
@@ -423,7 +475,9 @@ export class ApartamentosPageComponent implements OnInit {
     id_visitante: number | null;
     id_morador_beneficiario: number | null;
     placa: string;
-  } = { id_morador_titular: null, tipo: 'visitante', id_visitante: null, id_morador_beneficiario: null, placa: '' };
+    /** Prazo da vaga de visitante, no formato do `datetime-local` (hora local). */
+    fim: string;
+  } = { id_morador_titular: null, tipo: 'visitante', id_visitante: null, id_morador_beneficiario: null, placa: '', fim: '' };
 
   abrirModalVaga() {
     const apto = this.vagasApto();
@@ -434,14 +488,52 @@ export class ApartamentosPageComponent implements OnInit {
       id_visitante: null,
       id_morador_beneficiario: null,
       placa: '',
+      fim: this.prazoPadraoVaga(null),
     };
+    this.prazoVagaDigitado = false;
     this.erroVaga.set(null);
     this.modalVaga.set(true);
     this.carregandoBeneficiarios.set(true);
     this.vagasApi.beneficiarios(apto.id).subscribe({
       next: (data) => { this.beneficiariosVaga.set(data); this.carregandoBeneficiarios.set(false); },
-      error: () => this.carregandoBeneficiarios.set(false),
+      error: (e) => {
+        this.carregandoBeneficiarios.set(false);
+        this.erroVaga.set(e?.error?.message ?? e?.message ?? 'Falha ao carregar visitantes e inquilinos.');
+      },
     });
+  }
+
+  /** O porteiro já mexeu no prazo: trocar o visitante não sobrescreve. */
+  private prazoVagaDigitado = false;
+
+  editarPrazoVaga(valor: string) {
+    this.novaVaga.fim = valor;
+    this.prazoVagaDigitado = true;
+  }
+
+  /** Ao escolher o visitante, o prazo sugerido passa a ser o fim da visita dele. */
+  escolherVisitanteVaga(id: number | null) {
+    this.novaVaga.id_visitante = id;
+    if (this.prazoVagaDigitado) return;
+    const v = this.beneficiariosVaga()?.visitantes?.find((x) => x.id === id);
+    this.novaVaga.fim = this.prazoPadraoVaga(v?.termino ?? null);
+  }
+
+  /**
+   * Fim da visita se ainda for futuro; senão, hoje às 23:59. Nunca menos que
+   * agora + 1 h (perto da meia-noite, "hoje 23:59" já teria passado).
+   */
+  private prazoPadraoVaga(termino: string | null): string {
+    const minimo = Date.now() + 60 * 60 * 1000;
+    const t = termino ? new Date(termino) : null;
+    let d = t && !isNaN(t.getTime()) && t.getTime() > Date.now() ? t : (() => {
+      const h = new Date();
+      h.setHours(23, 59, 0, 0);
+      return h;
+    })();
+    if (d.getTime() < minimo) d = new Date(minimo);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 
   fecharModalVaga() {
@@ -463,6 +555,20 @@ export class ApartamentosPageComponent implements OnInit {
       this.erroVaga.set('Selecione um inquilino deste apartamento.');
       return;
     }
+    // Vaga de visitante sem prazo nunca vencia: a API recusa, e a tela avisa antes.
+    let fim: string | undefined;
+    if (this.novaVaga.tipo === 'visitante') {
+      const d = this.novaVaga.fim ? new Date(this.novaVaga.fim) : null;
+      if (!d || isNaN(d.getTime())) {
+        this.erroVaga.set('Informe até quando a vaga do visitante vale.');
+        return;
+      }
+      if (d.getTime() <= Date.now()) {
+        this.erroVaga.set('O prazo da vaga precisa ser no futuro.');
+        return;
+      }
+      fim = d.toISOString();
+    }
 
     this.salvandoVaga.set(true);
     this.erroVaga.set(null);
@@ -472,6 +578,7 @@ export class ApartamentosPageComponent implements OnInit {
       id_visitante: this.novaVaga.id_visitante ?? undefined,
       id_morador_beneficiario: this.novaVaga.id_morador_beneficiario ?? undefined,
       placa: this.novaVaga.placa.trim() || undefined,
+      fim,
     }).subscribe({
       next: () => {
         this.salvandoVaga.set(false);
@@ -485,12 +592,16 @@ export class ApartamentosPageComponent implements OnInit {
     });
   }
 
-  async revogarVaga(v: { id: number | null; ocupante_nome: string | null }) {
+  async revogarVaga(v: { id: number | null; ocupante_nome: string | null; vencida?: boolean }) {
     const apto = this.vagasApto();
     if (!apto || !v.id) return;
+    // Vaga vencida só sai da lista: a API não mexe mais na visita, que pode ter
+    // sido autorizada de novo pelo morador depois do prazo.
     const ok = await this.confirm.ask({
       title: 'Revogar vaga',
-      message: `A vaga de ${v.ocupante_nome ?? 'ocupante'} será revogada.`,
+      message: v.vencida
+        ? `A vaga vencida de ${v.ocupante_nome ?? 'ocupante'} sai da lista. O acesso do visitante não muda.`
+        : `A vaga de ${v.ocupante_nome ?? 'ocupante'} será revogada.`,
       confirmLabel: 'Revogar',
       variant: 'danger',
     });

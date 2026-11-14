@@ -73,7 +73,7 @@ describe('listarPessoas (Pessoas/Visitas) — autorização vencida antiga não 
     const prisma: any = {
       isConnected: true,
       pessoas: { findMany: jest.fn().mockResolvedValue([pessoa]) },
-      visitas: { findMany: jest.fn().mockResolvedValue([]) },
+      visitas: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
       visitantes: { findMany: jest.fn().mockResolvedValue([]) },
       vagas: { findMany: jest.fn().mockResolvedValue([]) },
     };

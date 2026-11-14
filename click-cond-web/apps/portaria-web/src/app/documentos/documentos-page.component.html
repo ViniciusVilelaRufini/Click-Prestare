@@ -106,7 +106,7 @@
       <div class="ps-drawer on">
         <div class="ps-drawer-head">
           <h3 class="text-base font-semibold text-white">Publicar Novo Documento</h3>
-          <button (click)="modalUpload.set(false)" class="text-slate-400 hover:text-white transition">×</button>
+          <button (click)="fecharUpload()" [disabled]="salvando()" aria-label="Fechar" title="Fechar" class="text-slate-400 hover:text-white transition disabled:opacity-50">×</button>
         </div>
 
         <div class="ps-drawer-body">
@@ -154,7 +154,7 @@
           <p class="mx-6 mb-3 px-3 py-2 border border-slate-300 text-xs text-red-400" role="alert">{{ erroUpload() }}</p>
         }
         <div class="ps-drawer-foot">
-          <button (click)="modalUpload.set(false)" class="ps-btn ps-btn-ghost">Cancelar</button>
+          <button (click)="fecharUpload()" [disabled]="salvando()" class="ps-btn ps-btn-ghost disabled:opacity-50">Cancelar</button>
           <button
             (click)="salvarDocumento()"
             [disabled]="!novoDoc.nome || !novoDoc.base64 || salvando()"

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -16,6 +17,7 @@ import { idFuncionarioPortariaDoToken, idUsuarioDoToken } from '../auth/usuario-
 import { autorOcorrencia, OrigemOcorrencia, rotuloPortaria } from './autor-ocorrencia.util';
 import { subirAnexosOcorrencia } from './anexos-ocorrencia.util';
 import { INCLUDE_AUTOR_MENSAGEM, mensagemParaResposta } from './mensagem-ocorrencia.util';
+import { STATUS_SOLUCIONADO, ocorrenciaSolucionada } from '../common/status-ocorrencia.util';
 
 export type OcorrenciaStatus = 'Pendente' | 'Ciente' | 'Solucionado';
 
@@ -28,9 +30,46 @@ const STATUS_DA_RESPOSTA_APP: Record<string, OcorrenciaStatus> = {
   solucionado: 'Solucionado',
 };
 
+/**
+ * De onde cada status pedido pode partir (updateStatus). 'Pendente' é o
+ * Reabrir da tela: só de Solucionado (inclusive as grafias antigas).
+ */
+// Grafias de "solucionado": a lista única de common/status-ocorrencia.util
+// (a mesma do dashboard e do PDF).
+const ORIGENS_DO_STATUS: Record<OcorrenciaStatus, string[]> = {
+  Ciente: ['Pendente'],
+  Solucionado: ['Pendente', 'Ciente'],
+  Pendente: [...STATUS_SOLUCIONADO],
+};
+
+/** Status para comparar: minúsculo, sem espaços, grafias antigas de solucionado juntas. */
+function statusComparavel(s: string | null | undefined): string {
+  if (ocorrenciaSolucionada(s)) return 'solucionado';
+  return (s ?? 'Pendente').trim().toLowerCase();
+}
+
+/** Status gravado dentro do vocabulário atual (Pendente, Ciente ou alguma grafia de Solucionado). */
+function statusDoVocabulario(s: string | null | undefined): boolean {
+  return ['pendente', 'ciente', 'solucionado'].includes(statusComparavel(s));
+}
+
 /** Pendente = ninguém da equipe deu ciência ainda (status nulo conta como Pendente). */
 function estaPendente(status: string | null | undefined): boolean {
   return (status ?? 'Pendente').trim().toLowerCase() === 'pendente';
+}
+
+/** Mensagem que não é do autor (porteiro do console grava id_usuario NULL). */
+function mensagemDeOutro(idAutor: number) {
+  return { OR: [{ id_usuario: null }, { id_usuario: { not: idAutor } }] };
+}
+
+/**
+ * Filtro da escrita do autor: ninguém da equipe respondeu (resposta pública)
+ * nem escreveu no chat. Sem isso, "Pendente" não bastava — a equipe responde
+ * sem dar Ciente, e o autor reescrevia ou apagava (com o chat em cascata).
+ */
+function semRespostaDaEquipe(idAutor: number) {
+  return { resposta_at: null, mensagens: { none: mensagemDeOutro(idAutor) } };
 }
 
 function idValido(id: unknown): number {
@@ -141,7 +180,7 @@ export class OcorrenciasService {
     assertOperador(user, contexto);
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id },
-      select: { id_condominio: true, tipo: true, status: true },
+      select: { id_condominio: true, tipo: true, status: true, updated_at: true },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${id}`);
@@ -208,6 +247,14 @@ export class OcorrenciasService {
   private ehEquipe(requester?: JwtPayload): boolean {
     const typeAccess = requester?.typeAccess ?? requester?.user?.typeAccess;
     return typeAccess === 'Sindico' || typeAccess === 'Funcionario' || !!requester?.id_condominio;
+  }
+
+  /** A equipe já respondeu (resposta pública) ou escreveu no chat — só para a mensagem certa; a garantia é o filtro da escrita. */
+  private async equipeJaRespondeu(idOc: number, o: { user: number | null; resposta_at?: Date | null }): Promise<boolean> {
+    if (o.resposta_at) return true;
+    if (o.user == null) return false;
+    const n = await this.prisma.ocorrenciaMensagens.count({ where: { id_ocorrencia: idOc, ...mensagemDeOutro(o.user) } });
+    return n > 0;
   }
 
   /** Autor pelo Users.id real — `sub` do porteiro é Funcionarios_Portaria.id. */
@@ -362,6 +409,8 @@ export class OcorrenciasService {
       responsavelNome: o.id_responsavel ? nomes.get(o.id_responsavel) ?? null : null,
       criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
       created_at: o.created_at,
+      // Carimbo da última alteração: a tela devolve ao mudar status (updated_at_esperado).
+      updated_at: o.updated_at,
       publica: o.publica,
     }));
   }
@@ -431,8 +480,8 @@ export class OcorrenciasService {
     }
   }
 
-  /** SLA: prazo = agora + sla_horas da categoria; sem categoria ou sem SLA, nulo. */
-  private async prazoDaCategoria(tipo: number | null): Promise<Date | null> {
+  /** SLA: prazo = agora + sla_horas da categoria; sem categoria ou sem SLA, nulo. Também usado pelo Reabrir do CRM. */
+  async prazoDaCategoria(tipo: number | null): Promise<Date | null> {
     if (tipo == null) return null;
     const cat = await this.prisma.ocorrencias_Categorias.findUnique({
       where: { id: tipo },
@@ -459,22 +508,75 @@ export class OcorrenciasService {
     }
   }
 
-  async updateStatus(id: number, status: OcorrenciaStatus, user?: JwtPayload) {
+  /**
+   * `esperado` (opcional, o console manda): o status e o `updated_at` que a
+   * tela mostrava. Diferente do atual → 409. Sem ele vale só a regra de
+   * origem (cliente antigo e app). O carimbo pega o que o status sozinho não
+   * pega: solucionada e reaberta de novo enquanto a tela de outro porteiro
+   * ainda mostrava "Pendente".
+   */
+  async updateStatus(
+    id: number,
+    status: OcorrenciaStatus,
+    user?: JwtPayload,
+    esperado: { status?: string | null; updated_at?: string | null } = {},
+  ) {
+    // Fora do vocabulário (inclusive chaves herdadas como 'toString'): 400.
+    if (typeof status !== 'string' || !Object.prototype.hasOwnProperty.call(ORIGENS_DO_STATUS, status)) {
+      throw new BadRequestException('Status inválido.');
+    }
+    let carimbo: Date | null = null;
+    if (esperado.updated_at != null && esperado.updated_at !== '') {
+      carimbo = new Date(esperado.updated_at);
+      if (Number.isNaN(carimbo.getTime())) throw new BadRequestException('updated_at_esperado inválido.');
+    }
     const atual = await this.loadParaAtendimento(id, user, 'alterar status da ocorrência');
+    // A escrita é condicionada ao status de origem: com a lista de 30 s
+    // atrás, um "Marcar como ciente" sobre uma ocorrência já solucionada a
+    // fazia regredir (e o morador recebia "Ciente" logo depois de
+    // "Solucionado"). Reabrir ('Pendente', o que a tela manda) só sai de
+    // Solucionado e grava Pendente (o app mostra Responder e a aba Pendentes
+    // por esse status); a proteção do autor é a da resposta/chat da equipe.
+    const reabrindo = status === 'Pendente';
+    const origens = ORIGENS_DO_STATUS[status];
+    const atualNorm = statusComparavel(atual.status);
+    const mudou =
+      (esperado.status != null && esperado.status !== '' && statusComparavel(esperado.status) !== atualNorm) ||
+      (carimbo != null && (!atual.updated_at || new Date(atual.updated_at).getTime() !== carimbo.getTime()));
+    if (mudou) {
+      throw new ConflictException(
+        `A ocorrência mudou enquanto você via a lista (agora está ${atual.status}). A lista foi atualizada; confira antes de agir.`,
+      );
+    }
+    // Status legado fora do vocabulário (ex.: 'Em andamento'): nenhuma origem
+    // casaria e a ocorrência ficaria presa em 409. O console pode levá-la a
+    // qualquer status válido; a escrita fica condicionada ao valor lido.
+    const legado = !statusDoVocabulario(atual.status);
+    if (!legado && !origens.some((s) => statusComparavel(s) === atualNorm)) {
+      throw new ConflictException(
+        reabrindo
+          ? `A ocorrência já está ${atual.status}: só é possível reabrir uma ocorrência solucionada.`
+          : `A ocorrência já está ${atual.status}.`,
+      );
+    }
     // Reabrir: o prazo recomeça de agora pelo SLA da categoria (a mesma conta
     // do cadastro). Com o prazo original a ocorrência voltava já "Atrasada".
-    const reabrindo = status === 'Pendente' && (atual.status ?? '').trim().toLowerCase() === 'solucionado';
     const data = reabrindo ? { status, prazo: await this.prazoDaCategoria(atual.tipo ?? null) } : { status };
-    let atualizado;
-    try {
-      atualizado = await this.prisma.ocorrencias.update({
-        where: { id },
-        data,
-      });
-    } catch {
-      throw new NotFoundException(`Ocorrência ${id} não encontrada`);
+    const r = await this.prisma.ocorrencias.updateMany({
+      where: { id, status: legado ? atual.status : { in: origens }, ...(carimbo ? { updated_at: carimbo } : {}) },
+      data,
+    });
+    if (r.count === 0) {
+      throw new ConflictException('A ocorrência mudou enquanto você atendia. Recarregue a lista.');
     }
-    await this.notificarAutor(id, atualizado.user, 'Ocorrência atualizada', `Sua ocorrência #${id} agora está: ${status}.`);
+    const atualizado = await this.prisma.ocorrencias.findUnique({ where: { id } });
+    if (!atualizado) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
+    await this.notificarAutor(
+      id,
+      atualizado.user,
+      'Ocorrência atualizada',
+      reabrindo ? `Sua ocorrência #${id} foi reaberta.` : `Sua ocorrência #${id} agora está: ${status}.`,
+    );
     return atualizado;
   }
 
@@ -567,14 +669,14 @@ export class OcorrenciasService {
     const idOc = idValido(id);
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id: idOc },
-      select: { id_condominio: true, user: true, status: true, tipo: true },
+      select: { id_condominio: true, user: true, status: true, tipo: true, resposta_at: true },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${idOc} não encontrada`);
     await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${idOc}`);
     if (!this.ehAutor(o, user)) {
       throw new ForbiddenException('Acesso negado: só quem abriu a ocorrência pode editá-la.');
     }
-    if (!estaPendente(o.status)) {
+    if (!estaPendente(o.status) || (await this.equipeJaRespondeu(idOc, o))) {
       throw new BadRequestException('Esta ocorrência já está em atendimento e não pode mais ser editada.');
     }
     const descricao = typeof dados.descricao === 'string' ? dados.descricao.trim() : '';
@@ -603,7 +705,7 @@ export class OcorrenciasService {
     let r: { count: number };
     try {
       r = await this.prisma.ocorrencias.updateMany({
-        where: { id: idOc, user: idUsuarioDoToken(user) as number, status: 'Pendente' },
+        where: { id: idOc, user: idUsuarioDoToken(user) as number, status: 'Pendente', ...semRespostaDaEquipe(idUsuarioDoToken(user) as number) },
         data,
       });
     } catch (err: any) {
@@ -624,17 +726,18 @@ export class OcorrenciasService {
     const idOc = idValido(id);
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id: idOc },
-      select: { id_condominio: true, user: true, status: true },
+      select: { id_condominio: true, user: true, status: true, resposta_at: true },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${idOc} não encontrada`);
     await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${idOc}`);
 
     const autor = this.ehAutor(o, user);
-    if (autor && estaPendente(o.status)) {
-      // Exclusão condicionada a autor + Pendente: se a equipe deu ciência no
-      // meio do caminho, nada é apagado.
+    if (autor && estaPendente(o.status) && !(await this.equipeJaRespondeu(idOc, o))) {
+      // Exclusão condicionada a autor + Pendente + sem resposta da equipe: se
+      // a equipe deu ciência, respondeu ou escreveu no chat no meio do
+      // caminho, nada é apagado (a cascata levaria as mensagens dela).
       const r = await this.prisma.ocorrencias.deleteMany({
-        where: { id: idOc, user: idUsuarioDoToken(user) as number, status: 'Pendente' },
+        where: { id: idOc, user: idUsuarioDoToken(user) as number, status: 'Pendente', ...semRespostaDaEquipe(idUsuarioDoToken(user) as number) },
       });
       if (r.count === 0) {
         throw new BadRequestException('Esta ocorrência já está em atendimento e não pode mais ser excluída.');

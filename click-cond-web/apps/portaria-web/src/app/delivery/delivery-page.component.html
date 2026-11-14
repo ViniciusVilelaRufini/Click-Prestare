@@ -27,6 +27,15 @@
     </div>
   }
 
+  @if (store.aviso()) {
+    <div role="status" class="ps-panel flex items-start justify-between gap-3 p-3 text-sm text-amber-700 dark:text-amber-300">
+      <span>{{ store.aviso() }}</span>
+      <button type="button" aria-label="Fechar aviso" (click)="store.aviso.set(null)" class="shrink-0 opacity-70 hover:opacity-100">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  }
+
   @switch (store.aba()) {
     @case ('fila') { <app-delivery-fila /> }
     @case ('entregadores') { <app-delivery-entregadores /> }

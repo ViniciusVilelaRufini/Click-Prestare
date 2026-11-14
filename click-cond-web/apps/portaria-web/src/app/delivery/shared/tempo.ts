@@ -27,6 +27,8 @@ export function minutosDesde(iso: string, agora: Date): number {
 export function textoEspera(min: number): string {
   if (min < 1) return 'agora';
   if (min < 60) return `há ${min} min`;
+  // Atendimento parado há dias: "há 46 dias", não "há 1104 h".
+  if (min >= 48 * 60) return `há ${Math.floor(min / 1440)} dias`;
   return `há ${Math.floor(min / 60)} h ${pad(min % 60)} min`;
 }
 

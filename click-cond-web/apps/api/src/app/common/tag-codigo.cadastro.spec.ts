@@ -126,6 +126,7 @@ describe('cadastro de tag — código normalizado em todos os pontos', () => {
         moradores_Historico: { create: jest.fn().mockResolvedValue({}) },
         facial_Devices: { findMany: jest.fn().mockResolvedValue([]) },
       };
+      prisma.$transaction ??= jest.fn((fn: any) => fn(prisma)); // create grava numa transação (B3)
       const svc = new MoradoresService(
         prisma,
         { sendWelcomeMorador: jest.fn().mockResolvedValue({}) } as any,

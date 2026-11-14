@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../auth/auth.service';
-import { papelDoToken } from '../auth/papel';
+import { ehPorteiro, papelDoToken } from '../auth/papel';
 import { ConfirmService } from '../shared/confirm.service';
 import { API_BASE } from '../shared/api.config';
 import { TerminaisFaciaisPageComponent } from '../terminais-faciais/terminais-faciais-page.component';
@@ -114,6 +114,10 @@ export class ConfiguracoesPageComponent implements OnInit {
   readonly currentTab = signal<'conta' | 'terminais' | 'regras' | 'caminho'>(
     'conta',
   );
+
+  /** O porteiro abre Configurações só para trocar a própria senha: as outras abas são do síndico. */
+  readonly ehPorteiro = computed(() => ehPorteiro(this.auth.porteiroInfo()));
+  readonly abaAtual = computed(() => (this.ehPorteiro() ? 'conta' : this.currentTab()));
 
   // Form State
   senhaAtual = '';

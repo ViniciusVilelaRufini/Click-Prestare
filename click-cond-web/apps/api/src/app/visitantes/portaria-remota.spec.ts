@@ -83,7 +83,7 @@ describe('VisitantesService — portaria remota', () => {
     const { svc, prisma, notifications } = build();
     const res = await svc.solicitarAutorizacao(5, porteiro);
 
-    expect(res).toEqual({ ok: true });
+    expect(res).toEqual({ ok: true, avisados: 1 });
     expect(prisma.visitantes.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 5 },

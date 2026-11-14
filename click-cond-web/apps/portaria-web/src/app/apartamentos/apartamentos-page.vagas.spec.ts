@@ -75,6 +75,85 @@ describe('ApartamentosPageComponent — vagas de visitante com prazo', () => {
     expect(l.querySelector('button[title="Revogar vaga"]')).toBeTruthy();
   });
 
+  it('Liberar vaga para visitante: o prazo sugerido é o fim da visita e vai no envio', () => {
+    const termino = new Date(2099, 0, 2, 18, 0).toISOString();
+    const liberar = jest.fn(() => of({} as any));
+    const { tela } = build({
+      liberar,
+      beneficiarios: jest.fn(() => of({
+        visitantes: [{ id: 3, nome: 'Ana', doc_identificacao: null, tem_foto: true, termino }],
+        inquilinos: [],
+      })),
+    });
+    tela.abrirModalVaga();
+    tela.escolherVisitanteVaga(3);
+    expect(tela.novaVaga.fim).toBe('2099-01-02T18:00');
+    tela.salvarVaga();
+    expect(liberar).toHaveBeenCalledWith(10, expect.objectContaining({ tipo: 'visitante', id_visitante: 3, fim: termino }));
+  });
+
+  it('Liberar vaga para visitante sem prazo ou com prazo no passado não envia', () => {
+    const liberar = jest.fn(() => of({} as any));
+    const { tela } = build({ liberar });
+    tela.abrirModalVaga();
+    tela.novaVaga.id_visitante = 3;
+    tela.novaVaga.fim = '';
+    tela.salvarVaga();
+    expect(tela.erroVaga()).toContain('até quando');
+    tela.novaVaga.fim = '2020-01-01T10:00';
+    tela.salvarVaga();
+    expect(tela.erroVaga()).toContain('futuro');
+    expect(liberar).not.toHaveBeenCalled();
+  });
+
+  it('Liberar vaga: visitante cujo fim de visita já passou recebe hoje 23:59 como sugestão', () => {
+    const { tela } = build({
+      beneficiarios: jest.fn(() => of({
+        visitantes: [{ id: 3, nome: 'Ana', doc_identificacao: null, tem_foto: true, termino: new Date(2020, 0, 1).toISOString() }],
+        inquilinos: [],
+      })),
+    });
+    jest.useFakeTimers({ advanceTimers: true }).setSystemTime(new Date(2026, 10, 14, 15, 0));
+    try {
+      tela.abrirModalVaga();
+      tela.escolherVisitanteVaga(3);
+      expect(tela.novaVaga.fim).toBe('2026-11-14T23:59');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('Liberar vaga perto da meia-noite: a sugestão nunca nasce no passado (mínimo agora + 1 h)', () => {
+    const { tela } = build();
+    jest.useFakeTimers({ advanceTimers: true }).setSystemTime(new Date(2026, 10, 14, 23, 30));
+    try {
+      tela.abrirModalVaga();
+      expect(tela.novaVaga.fim).toBe('2026-11-15T00:30');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('Liberar vaga: trocar o visitante não sobrescreve o prazo que o porteiro digitou', () => {
+    const { tela } = build({
+      beneficiarios: jest.fn(() => of({
+        visitantes: [{ id: 3, nome: 'Ana', doc_identificacao: null, tem_foto: true, termino: new Date(2099, 0, 2, 18, 0).toISOString() }],
+        inquilinos: [],
+      })),
+    });
+    tela.abrirModalVaga();
+    tela.editarPrazoVaga('2099-03-01T10:00');
+    tela.escolherVisitanteVaga(3);
+    expect(tela.novaVaga.fim).toBe('2099-03-01T10:00');
+  });
+
+  it('Revogar vaga vencida avisa que o acesso do visitante não muda', async () => {
+    const { tela } = build();
+    const confirm = TestBed.inject(ConfirmService) as any;
+    await tela.revogarVaga(resumo.vagas[0]);
+    expect(confirm.ask).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('não muda') }));
+  });
+
   it('Revogar que falha mostra a mensagem do servidor', async () => {
     const { f, tela, el } = build({
       revogar: jest.fn(() => throwError(() => ({ error: { message: 'Vaga não encontrada.' } }))),

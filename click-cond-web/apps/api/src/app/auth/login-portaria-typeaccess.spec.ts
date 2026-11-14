@@ -66,6 +66,8 @@ describe('AuthService.loginPortaria — papel real no token', () => {
           return {
             id: 42,
             login: 'sindico@demo.com',
+            // Rodada 3 (M12): o síndico deste condomínio entra com a senha da conta, não com a da linha de portaria.
+            password: hashFuncionario,
             sindicos: [{ name: 'Sindico Railway' }],
             sindicosCondominios:
               filtro === undefined

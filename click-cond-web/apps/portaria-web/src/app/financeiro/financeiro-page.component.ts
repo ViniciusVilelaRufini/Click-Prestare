@@ -52,6 +52,8 @@ export class FinanceiroPageComponent implements OnInit {
   readonly selectedApto = signal<any>(null);
   readonly faturasSelected = signal<any[]>([]);
   readonly loadingDetalhe = signal(false);
+  /** Falha ao carregar as faturas da unidade aberta (o modal mostra e oferece "Tentar de novo"). */
+  readonly erroDetalhe = signal<string | null>(null);
   readonly enviandoCobranca = signal(false);
   readonly cobrancaResultado = signal<any>(null);
 
@@ -358,19 +360,32 @@ export class FinanceiroPageComponent implements OnInit {
 
   abrirDetalhesApto(apto: any) {
     this.selectedApto.set(apto);
-    this.faturasSelected.set([]);
     this.cobrancaResultado.set(null);
-    this.loadingDetalhe.set(true);
     this.modalDetalhe.set(true);
+    this.carregarDetalheApto();
+  }
+
+  /**
+   * Faturas da unidade aberta. Na falha, `erroDetalhe` — antes o modal caía
+   * no vazio e dizia "Este apartamento está em dia", como se a cobrança
+   * tivesse sido quitada.
+   */
+  carregarDetalheApto() {
+    const apto = this.selectedApto();
+    if (!apto) return;
+    this.faturasSelected.set([]);
+    this.erroDetalhe.set(null);
+    this.loadingDetalhe.set(true);
 
     this.api.getInadimplenteDetail(apto.apto, apto.bloco).subscribe({
       next: (faturas) => {
         this.faturasSelected.set(faturas || []);
         this.loadingDetalhe.set(false);
       },
-      error: () => {
+      error: (e) => {
         this.loadingDetalhe.set(false);
-      }
+        this.erroDetalhe.set(this.msgErro(e, 'Falha ao carregar as cobranças'));
+      },
     });
   }
 

@@ -75,7 +75,7 @@ describe('solicitarAutorizacao (Pessoas/Visitas) — unidade escolhida e janela 
       },
     };
     const svc = new VisitantesService(
-      prisma, {} as any, {} as any, {} as any, { registrar: jest.fn() } as any, {} as any,
+      prisma, {} as any, {} as any, { syncPessoa: jest.fn(async () => ({})) } as any, { registrar: jest.fn() } as any, {} as any,
       { emitToCondominio: jest.fn() } as any,
     );
     const s = svc as any;

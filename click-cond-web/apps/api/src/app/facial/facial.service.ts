@@ -154,6 +154,11 @@ const MENSAGENS_DIAGNOSTICO: Record<MotivoDiagnostico, string> = {
     'Esta marca não é controlada pela rede por aqui; o teste de conexão não se aplica.',
 };
 
+/** Descrição do chamado automático de aparelho offline (é por ela que o chamado é achado). */
+export function descricaoChamadoOffline(device: { nome: string; tipo?: string | null }): string {
+  return `O dispositivo "${device.nome}" (${device.tipo || 'facial'}) está offline há mais de 10 minutos.`;
+}
+
 /**
  * Leitores que ficam de UM lado do portão e só informam a credencial lida
  * (tag, QR, placa) — nunca a direção. Diferente do terminal facial único
@@ -911,7 +916,7 @@ export class FacialService {
       online,
     );
 
-    const ticketDesc = `O dispositivo "${device.nome}" (${device.tipo || 'facial'}) está offline há mais de 10 minutos.`;
+    const ticketDesc = descricaoChamadoOffline(device);
 
     if (!online) {
       // 1. Log de Auditoria: registra APENAS se o último status registrado no banco não for OFFLINE
@@ -1012,6 +1017,31 @@ export class FacialService {
           },
         });
       }
+    }
+  }
+
+  /**
+   * Fecha (Solucionado) os chamados automáticos de "offline" em aberto deste
+   * aparelho, achados pelo mesmo critério do monitor: condomínio + descrição
+   * (que cita o nome e o tipo) + Pendente/Ciente. Usado ao renomear ou excluir
+   * o aparelho: a descrição antiga não casa mais com nada, e o chamado ficaria
+   * aberto para sempre. Best-effort: falha aqui não desfaz a edição/exclusão.
+   */
+  private async fecharChamadosOffline(
+    device: { nome: string; tipo?: string | null; id_condominio: number },
+    resposta: string,
+  ) {
+    try {
+      await this.prisma.ocorrencias.updateMany({
+        where: {
+          id_condominio: device.id_condominio,
+          descricao: descricaoChamadoOffline(device),
+          status: { in: ['Pendente', 'Ciente'] },
+        },
+        data: { status: 'Solucionado', resposta, resposta_at: new Date() },
+      });
+    } catch (e: any) {
+      this.logger.warn(`fechar chamados offline de "${device.nome}": ${e?.message ?? e}`);
     }
   }
 
@@ -1606,6 +1636,15 @@ export class FacialService {
       detalhes: { changes: diff },
     });
 
+    // Nome ou tipo mudou: o chamado de offline com a descrição antiga não
+    // casaria mais com o monitor (que abriria outro) e ficaria aberto.
+    if (atual.nome !== antes.nome || (atual.tipo || 'facial') !== (antes.tipo || 'facial')) {
+      await this.fecharChamadosOffline(
+        antes,
+        `Encerrado automaticamente: o dispositivo foi renomeado para "${atual.nome}".`,
+      );
+    }
+
     // Controle de acesso por reserva: aplica na ÁREA vinculada e reconcilia
     // (remove/re-enrola moradores conforme ligar/desligar).
     if (dto.controle_acesso_facial !== undefined && atual.id_area_social != null) {
@@ -1773,6 +1812,7 @@ export class FacialService {
       descricao: `Removeu dispositivo "${device.nome}"`,
       detalhes: { tipo: device.tipo, ip: device.ip },
     });
+    await this.fecharChamadosOffline(device, 'Encerrado automaticamente: o dispositivo foi excluído.');
     return { ok: true };
   }
 
