@@ -116,7 +116,7 @@ describe('DeliveryService — autoatendimento no portão', () => {
     };
     const { svc, tabela } = montar({ atendimentos: [aviso] });
     const r = await svc.registrarChegadaAutoatendimento({ idCondominio: 1, idApartamento: 101, nomeEntregador: 'Carlos', plataforma: 'iFood' });
-    expect(r).toEqual({ id: 4, criado: false });
+    expect(r).toEqual({ id: 4, criado: false, pedido: null });
     const [a] = tabela('deliveryAtendimentos');
     expect(a).toMatchObject({ id_morador_user: 7, origem: 'portaria', status: 'AGUARDANDO_AUTORIZACAO', estabelecimento: 'Pizzaria', nome_entregador: 'Carlos' });
     expect(a.chegou_em).toEqual(expect.any(Date));
@@ -124,14 +124,14 @@ describe('DeliveryService — autoatendimento no portão', () => {
   });
 
   it('chegada em atendimento já em CHEGOU grava um evento; já em AGUARDANDO_AUTORIZACAO, nenhum; nome do entregador não é trocado', async () => {
-    const chegou = montar({ atendimentos: [atendimentoAuto({ status: 'CHEGOU', origem: 'portaria', id_morador_user: 7, nome_entregador: 'Joao' })] });
+    const chegou = montar({ atendimentos: [atendimentoAuto({ status: 'CHEGOU', origem: 'portaria', id_morador_user: 7, nome_entregador: 'Joao', id_pedido_portao: null })] });
     await chegou.svc.registrarChegadaAutoatendimento({ idCondominio: 1, idApartamento: 101, nomeEntregador: 'Carlos', plataforma: null });
     expect(chegou.tabela('deliveryEventos').map((e) => e.status_novo)).toEqual(['AGUARDANDO_AUTORIZACAO']);
     expect(chegou.tabela('deliveryAtendimentos')[0].nome_entregador).toBe('Joao');
 
-    const aguardando = montar({ atendimentos: [atendimentoAuto()] });
+    const aguardando = montar({ atendimentos: [atendimentoAuto({ id_pedido_portao: null })] });
     const r = await aguardando.svc.registrarChegadaAutoatendimento({ idCondominio: 1, idApartamento: 101, nomeEntregador: 'Duda', plataforma: null });
-    expect(r).toEqual({ id: 1, criado: false });
+    expect(r).toEqual({ id: 1, criado: false, pedido: null });
     expect(aguardando.tabela('deliveryEventos')).toHaveLength(0);
   });
 

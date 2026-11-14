@@ -335,6 +335,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     );
     if (!r.obtido) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
     const { pedido, tokenPedido } = r.valor;
+    // Já ligado dentro do lock; aqui só abre o card (fora do lock: o APNs não segura a unidade).
     await this.delivery.vincularPedidoPortao(pedido.id_atendimento, pedido.id);
     // O token em claro sai uma única vez.
     return { ...estadoDoPedido(pedido, agora), pedido: tokenPedido };
@@ -353,37 +354,56 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     });
     if (pendente) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
 
+    // Atendimentos da unidade ainda abertos cujo pedido de portão venceu sem
+    // resposta: o pedido novo nunca entra neles (um pedido por atendimento);
+    // eles são cancelados depois que o novo estiver gravado.
+    const semResposta = (await (this.prisma as any).deliveryAtendimentos.findMany({
+      where: {
+        id_condominio: portao.id_condominio,
+        id_apartamento: idApartamento,
+        status: { in: ['CHEGOU', 'AGUARDANDO_AUTORIZACAO'] },
+        id_pedido_portao: { not: null },
+      },
+      select: { id: true },
+    })) as { id: number }[];
+
     const url = await this.storage.uploadDataUrl(foto, 'delivery-portao');
     if (!url) throw new BadRequestException(MSG_FORMATO);
     // Storage fora devolve a própria data URL: não cabe na coluna e não é privado.
     if (url.startsWith('data:')) throw new ServiceUnavailableException('Não foi possível guardar a foto. Tente novamente.');
+    const tokenPedido = novoToken();
+    let chegada: { id: number; pedido: any };
     try {
-      const chegada = await this.delivery.registrarChegadaAutoatendimento({
-        idCondominio: portao.id_condominio,
-        idApartamento,
-        nomeEntregador: nome,
-        plataforma,
-      });
-      const tokenPedido = novoToken();
-      const pedido = await db.create({
-        data: {
-          id_atendimento: chegada.id,
-          id_device: portao.id,
-          nome,
-          plataforma,
-          foto: url,
-          token_hash: hashToken(tokenPedido),
-          status: 'pendente',
-          visto_em: agora,
-          criado_em: agora,
-          expira_em: new Date(agora.getTime() + PEDIDO_EXPIRA_MS),
-        },
-      });
-      return { pedido, tokenPedido };
+      // Pedido criado e ligado ao atendimento na mesma transação, dentro do lock da unidade.
+      chegada = await this.delivery.registrarChegadaAutoatendimento(
+        { idCondominio: portao.id_condominio, idApartamento, nomeEntregador: nome, plataforma },
+        (tx, idAtendimento) =>
+          tx.deliveryPedidosPortao.create({
+            data: {
+              id_atendimento: idAtendimento,
+              id_device: portao.id,
+              nome,
+              plataforma,
+              foto: url,
+              token_hash: hashToken(tokenPedido),
+              status: 'pendente',
+              visto_em: agora,
+              criado_em: agora,
+              expira_em: new Date(agora.getTime() + PEDIDO_EXPIRA_MS),
+            },
+          }),
+      );
     } catch (e) {
       await this.storage.deleteUrl(url, PREFIXOS_FOTO_PEDIDO_PORTAO).catch(() => false);
       throw e;
     }
+    for (const a of semResposta) {
+      if (a.id === chegada.id) continue;
+      await this.delivery
+        .transicionarPeloSistema(a.id, 'CANCELADA', 'Sem resposta do morador')
+        .catch((e: any) => this.logger.warn(`Cancelamento do delivery ${a.id} sem resposta: ${e?.message ?? e}`));
+    }
+    return { pedido: chegada.pedido, tokenPedido };
   }
 
   /** A página consulta a cada poucos segundos (é a presença do entregador). */
@@ -520,7 +540,8 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     try {
       const db = (this.prisma as any).deliveryPedidosPortao;
       const pedido = await db.findUnique({ where: { id: Number(atendimento.id_pedido_portao) } });
-      if (!pedido || pedido.status !== 'pendente') return;
+      // Só o pedido DESTE atendimento (o que o morador viu no card), e só pendente.
+      if (!pedido || Number(pedido.id_atendimento) !== Number(atendimento.id) || pedido.status !== 'pendente') return;
       const agora = new Date(this.agora());
       const pendente = { id: pedido.id, status: 'pendente' };
       switch (statusNovo) {

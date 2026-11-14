@@ -60,6 +60,7 @@ const TRANSICOES_DO_SISTEMA: Partial<Record<DeliveryStatus, readonly DeliverySta
   CHEGOU: ['CANCELADA'],
   AGUARDANDO_AUTORIZACAO: ['CANCELADA'],
 };
+const MSG_JA_TEM_PEDIDO = 'Este atendimento já tem um pedido de portão.';
 const AUTOR_AUTOATENDIMENTO = 'Autoatendimento';
 const AUTOR_SISTEMA = 'Sistema';
 
@@ -450,51 +451,60 @@ export class DeliveryService {
 
   /**
    * Entregador pediu entrada pelo QR do portão. Reaproveita o atendimento
-   * mais recente da unidade em AGENDADA, CHEGOU ou AGUARDANDO_AUTORIZACAO
-   * (inclusive um que a portaria já registrou); senão cria um de origem
-   * 'autoatendimento', sem dono. Em qualquer caso deixa o atendimento em
-   * AGUARDANDO_AUTORIZACAO. Não avisa ninguém: `vincularPedidoPortao` abre o
-   * card, uma vez, já com o pedido (selfie) ligado.
+   * mais recente da unidade em REAPROVEITA_NA_CHEGADA que nunca teve pedido
+   * de portão; senão cria um de origem 'autoatendimento', sem dono. Em
+   * qualquer caso deixa o atendimento em AGUARDANDO_AUTORIZACAO.
+   *
+   * `criarPedido`, quando dado, grava o pedido de portão na MESMA transação
+   * e o liga ao atendimento (um pedido por atendimento, para sempre): quem
+   * chama já está dentro do lock da unidade. Não avisa ninguém:
+   * `vincularPedidoPortao` abre o card, uma vez, já com o pedido (selfie).
    */
-  async registrarChegadaAutoatendimento(d: {
-    idCondominio: number;
-    idApartamento: number;
-    nomeEntregador: string;
-    plataforma: string | null;
-  }): Promise<{ id: number; criado: boolean }> {
+  async registrarChegadaAutoatendimento<P extends { id: number }>(
+    d: {
+      idCondominio: number;
+      idApartamento: number;
+      nomeEntregador: string;
+      plataforma: string | null;
+    },
+    criarPedido?: (tx: any, idAtendimento: number) => Promise<P>,
+  ): Promise<{ id: number; criado: boolean; pedido: P | null }> {
     const db = (this.prisma as any).deliveryAtendimentos;
     const nome = d.nomeEntregador.trim() || null;
     // Corrida com a portaria/morador mudando o mesmo atendimento: relê e tenta de novo.
     for (let tentativa = 0; tentativa < 3; tentativa++) {
       const aberto = await db.findFirst({
-        where: { id_condominio: d.idCondominio, id_apartamento: d.idApartamento, status: { in: [...REAPROVEITA_NA_CHEGADA] } },
+        where: {
+          id_condominio: d.idCondominio,
+          id_apartamento: d.idApartamento,
+          status: { in: [...REAPROVEITA_NA_CHEGADA] },
+          // Atendimento que já teve pedido de portão nunca recebe outro.
+          id_pedido_portao: null,
+          pedidosPortao: { none: {} },
+        },
         orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       });
       if (!aberto) break;
       const atual = aberto.status as DeliveryStatus;
-      if (atual === 'AGUARDANDO_AUTORIZACAO') {
-        if (!aberto.nome_entregador && nome) {
-          await db.updateMany({ where: { id: aberto.id, nome_entregador: null }, data: { nome_entregador: nome } });
-        }
-        return { id: aberto.id, criado: false };
-      }
       const agora = new Date();
       const gravou = await (this.prisma as any).$transaction(async (tx: any) => {
         const r = await tx.deliveryAtendimentos.updateMany({
-          where: { id: aberto.id, status: atual },
+          where: { id: aberto.id, status: atual, id_pedido_portao: null },
           data: {
             status: 'AGUARDANDO_AUTORIZACAO',
             ...(atual === 'AGENDADA' || !aberto.chegou_em ? { chegou_em: agora } : {}),
             ...(!aberto.nome_entregador && nome ? { nome_entregador: nome } : {}),
           },
         });
-        if (r.count !== 1) return false;
+        if (r.count !== 1) return null;
         const autor = { sistema: AUTOR_AUTOATENDIMENTO };
         if (atual === 'AGENDADA') await this.registrarEvento(tx, aberto.id, 'AGENDADA', 'CHEGOU', autor);
-        await this.registrarEvento(tx, aberto.id, 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', autor);
-        return true;
+        if (atual !== 'AGUARDANDO_AUTORIZACAO') {
+          await this.registrarEvento(tx, aberto.id, 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', autor);
+        }
+        return { pedido: await this.ligarPedidoPortao(tx, aberto.id, criarPedido) };
       });
-      if (gravou) return { id: aberto.id, criado: false };
+      if (gravou) return { id: aberto.id, criado: false, pedido: gravou.pedido };
     }
 
     const criado = await (this.prisma as any).$transaction(async (tx: any) => {
@@ -514,23 +524,48 @@ export class DeliveryService {
       const autor = { sistema: AUTOR_AUTOATENDIMENTO };
       await this.registrarEvento(tx, a.id, null, 'CHEGOU', autor);
       await this.registrarEvento(tx, a.id, 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', autor);
-      return a;
+      return { a, pedido: await this.ligarPedidoPortao(tx, a.id, criarPedido) };
     });
-    return { id: criado.id, criado: true };
+    return { id: criado.a.id, criado: true, pedido: criado.pedido };
+  }
+
+  /** Cria o pedido (se pedido) e o liga ao atendimento, só se ele ainda não tiver um. */
+  private async ligarPedidoPortao<P extends { id: number }>(
+    tx: any,
+    idAtendimento: number,
+    criarPedido?: (tx: any, idAtendimento: number) => Promise<P>,
+  ): Promise<P | null> {
+    if (!criarPedido) return null;
+    const pedido = await criarPedido(tx, idAtendimento);
+    const ligado = await tx.deliveryAtendimentos.updateMany({
+      where: { id: idAtendimento, id_pedido_portao: null },
+      data: { id_pedido_portao: pedido.id },
+    });
+    if (ligado.count !== 1) throw new ConflictException(MSG_JA_TEM_PEDIDO);
+    return pedido;
   }
 
   /**
-   * Grava o pedido de portão ativo e abre o card, uma vez, já na fase de
-   * autorização (com a selfie). Sem dono: todos os vínculos da unidade. Com
-   * dono (aviso do morador): o card vai a ele e os outros moradores recebem
-   * a notificação comum, como no pedido feito pela portaria. O aviso espera
-   * no máximo TETO_AVISO_MS (a página do entregador não fica presa no APNs).
+   * Garante o pedido de portão do atendimento e abre o card, uma vez, já na
+   * fase de autorização (com a selfie). O pedido de um atendimento nunca é
+   * trocado: já ligado a outro → 409. Sem dono: todos os vínculos da
+   * unidade. Com dono (aviso do morador): o card vai a ele e os outros
+   * moradores recebem a notificação comum, como no pedido feito pela
+   * portaria. O aviso espera no máximo TETO_AVISO_MS (a página do entregador
+   * não fica presa no APNs).
    */
   async vincularPedidoPortao(idAtendimento: number, idPedido: number): Promise<void> {
-    const registro = await (this.prisma as any).deliveryAtendimentos.update({
-      where: { id: Number(idAtendimento) },
-      data: { id_pedido_portao: Number(idPedido) },
-    });
+    const db = (this.prisma as any).deliveryAtendimentos;
+    const id = Number(idAtendimento);
+    const antes = await db.findUnique({ where: { id } });
+    if (!antes) throw new NotFoundException(`Atendimento de delivery ${id} não encontrado`);
+    if (antes.id_pedido_portao == null) {
+      const r = await db.updateMany({ where: { id, id_pedido_portao: null }, data: { id_pedido_portao: Number(idPedido) } });
+      if (r.count !== 1) throw new ConflictException(MSG_JA_TEM_PEDIDO);
+    } else if (Number(antes.id_pedido_portao) !== Number(idPedido)) {
+      throw new ConflictException(MSG_JA_TEM_PEDIDO);
+    }
+    const registro = await db.findUnique({ where: { id } });
     const aviso = (async () => {
       const dono: number | null = registro.id_morador_user ?? null;
       let viaCard = false;

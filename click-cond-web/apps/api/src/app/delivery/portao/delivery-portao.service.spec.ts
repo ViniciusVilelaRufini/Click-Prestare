@@ -128,7 +128,7 @@ describe('DeliveryPortaoService', () => {
     expect(tabela('deliveryAtendimentos')).toHaveLength(1);
   });
 
-  it('pedido pendente vencido não bloqueia: o novo entra no mesmo atendimento e o card reabre', async () => {
+  it('pedido pendente vencido não bloqueia: o novo cria OUTRO atendimento e o antigo, sem resposta, é cancelado', async () => {
     const { svc, tabela, card, avancar } = montarPortao();
     await svc.criarPedido(TOKEN_PORTAO, entrada);
     avancar(5 * 60_000 + 1000);
@@ -137,10 +137,16 @@ describe('DeliveryPortaoService', () => {
     const [velho, novo] = tabela('deliveryPedidosPortao');
     expect(velho.status).toBe('expirado');
     expect(novo).toMatchObject({ status: 'pendente', id_device: 31, nome: 'Duda' });
-    expect(tabela('deliveryAtendimentos')).toHaveLength(1);
-    expect(tabela('deliveryAtendimentos')[0].id_pedido_portao).toBe(novo.id);
+    const [antigo, atual] = tabela('deliveryAtendimentos');
+    // Um pedido de portão por atendimento, para sempre.
+    expect(antigo).toMatchObject({ id_pedido_portao: velho.id, status: 'CANCELADA', motivo: 'Sem resposta do morador' });
+    expect(atual).toMatchObject({ id_pedido_portao: novo.id, status: 'AGUARDANDO_AUTORIZACAO', origem: 'autoatendimento' });
+    expect(novo.id_atendimento).toBe(atual.id);
+    expect(tabela('deliveryEventos').find((e) => e.id_atendimento === antigo.id && e.status_novo === 'CANCELADA')).toMatchObject({
+      autor_nome: 'Sistema',
+    });
     expect(card.abrirDelivery).toHaveBeenCalledTimes(2);
-    expect(card.abrirDelivery.mock.calls[1][0]).toMatchObject({ entregadorNome: 'Duda', portao: true });
+    expect(card.abrirDelivery.mock.calls[1][0]).toMatchObject({ id: atual.id, entregadorNome: 'Duda', portao: true });
   });
 
   it('[RF 5] unidade de outro condomínio, nome vazio, foto vazia, foto text/html, foto de 3 MB: 400 e nada gravado', async () => {
