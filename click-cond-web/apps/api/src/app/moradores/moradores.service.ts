@@ -1323,12 +1323,13 @@ export class MoradoresService {
                 if (daNova.length > 0) {
                   // Outra linha de Moradores do mesmo morador já é dessa unidade: mover esta deixaria a
                   // pessoa duas vezes nela. Recusa sem mexer em nada.
-                  if (trocados.length > 0 && atual.id_condominio != null) {
+                  // Vale também para a linha sem vínculo identificável (nada a trocar, mas o texto dela muda).
+                  const chaveNova = chaveUnidade(aptoObj.bloco, aptoObj.apto);
+                  if (chaveUnidade(atual.bloco, atual.apartamento) !== chaveNova && atual.id_condominio != null) {
                     const outrasLinhas = await tx.moradores.findMany({
                       where: { id_user: atual.id_user, id_condominio: atual.id_condominio, NOT: { id } },
                       select: { bloco: true, apartamento: true },
                     });
-                    const chaveNova = chaveUnidade(aptoObj.bloco, aptoObj.apto);
                     if (outrasLinhas.some((l) => chaveUnidade(l.bloco, l.apartamento) === chaveNova)) {
                       throw new BadRequestException(
                         'Este morador já está cadastrado nessa unidade. Edite o cadastro dele nela ou remova este.',

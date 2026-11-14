@@ -165,6 +165,16 @@ describe('A2 — MoradoresService.update troca só o vínculo da unidade trocada
     expect(tx.apartamentos_Users.update).not.toHaveBeenCalled();
   });
 
+  it('linha sem vínculo identificável indo para a unidade que OUTRA linha já ocupa: recusa também', async () => {
+    // Linha sem bloco/apto, dois vínculos e sem a anterior: não há vínculo a trocar, mas o texto mudaria.
+    const { service, tx } = harness(undefined, [{ bloco: 'A', apartamento: '108' }]);
+
+    await expect(service.update(43, { id_apartamento: 8 } as any)).rejects.toThrow(
+      'Este morador já está cadastrado nessa unidade.',
+    );
+    expect(tx.moradores.update).not.toHaveBeenCalled();
+  });
+
   it('trocar para uma unidade que OUTRA linha dele já ocupa: recusa sem mexer em nada', async () => {
     // A unidade 8 do mock é A/108; a outra linha do mesmo morador já é do "Bloco A" 108.
     const { service, tx } = harness(undefined, [{ bloco: 'Bloco A', apartamento: '108' }]);
