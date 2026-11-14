@@ -44,7 +44,8 @@ describe('Prestador × login de portaria — revogação e alçada do síndico',
         update: jest.fn(async () => ({})),
       },
       users: {
-        findFirst: jest.fn(async () => conta),
+        // Com NOT é a checagem de lápide ocupada (outra conta com aquele login/e-mail): livre.
+        findFirst: jest.fn(async ({ where }: any = {}) => (where?.NOT ? null : conta)),
         create: jest.fn(async ({ data }: any) => ({ id: 9, ...data })),
         update: jest.fn(async () => ({})),
         delete: jest.fn(async () => ({})),
@@ -64,6 +65,8 @@ describe('Prestador × login de portaria — revogação e alçada do síndico',
       moradores: { count: jest.fn(async () => 0) },
       apartamentos_Users: { count: jest.fn(async () => 0) },
     };
+    // A revogação roda numa transação (aqui, de passagem: o callback recebe o próprio mock).
+    prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
     const tenant: any = {
       assertCondominio: jest.fn(async () => undefined),
       assertEntidade: jest.fn(async () => undefined),

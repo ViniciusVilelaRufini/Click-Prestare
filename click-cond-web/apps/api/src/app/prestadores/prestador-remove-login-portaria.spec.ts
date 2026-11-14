@@ -43,6 +43,8 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
       users: { findFirst: jest.fn(async () => null), create: jest.fn(async ({ data }: any) => ({ id: 9, ...data })), update: jest.fn(async () => ({})) },
       funcionarios: { findFirst: jest.fn(async () => null), create: jest.fn(async () => ({})), update: jest.fn(async () => ({})), deleteMany: jest.fn(async () => ({ count: 0 })) },
     };
+    // A revogação roda numa transação (aqui, de passagem: o callback recebe o próprio mock).
+    prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
     const tenant: any = {
       assertCondominio: jest.fn(async () => undefined),
       assertEntidade: jest.fn(async () => undefined),

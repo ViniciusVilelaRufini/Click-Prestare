@@ -5,6 +5,8 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
+import { assertEmailNaoReservado, DOMINIO_CONTA_REVOGADA } from '../common/email-reservado.util';
 import { assertOperador, assertSindicoEstrito, isOperador, isSindicoEstrito } from '../auth/tenant.util';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import { assertApartamentoGravavel } from '../common/apartamento-gravavel.util';
@@ -302,12 +304,14 @@ export class PrestadoresService {
   }
 
   /**
-   * Valor-lápide de login/e-mail para uma conta revogada que era só da equipe deste condomínio: único (derivado
-   * do id; Users.login e Users.email são únicos, VarChar(255)) e inalcançável — o domínio `.invalid` é reservado
-   * (RFC 2606), então nunca é e-mail real de ninguém.
+   * Valor-lápide de login/e-mail para uma conta revogada que era só da equipe deste condomínio. Inalcançável: o
+   * domínio `.invalid` é reservado (RFC 2606) e nenhum cadastro o aceita (common/email-reservado.util). Com sufixo
+   * aleatório: a versão só com o id era previsível (o login do app devolve o id) e o prestador ocupava a lápide de
+   * antemão pelo signup, travando a própria revogação. ~70 caracteres, dentro do VarChar(255) das duas colunas.
+   * Método (não função solta) para o spec simular uma lápide já ocupada.
    */
-  private static lapide(idUser: number) {
-    return `revogado-${idUser}@conta-revogada.invalid`;
+  protected novaLapide(idUser: number): string {
+    return `revogado-${idUser}-${randomBytes(16).toString('hex')}@${DOMINIO_CONTA_REVOGADA}`;
   }
 
   /**
@@ -323,13 +327,13 @@ export class PrestadoresService {
    * e-mail" pode achar duas contas: vale a que é da equipe deste condomínio e, sem ela, a mais antiga — antes era
    * a que o banco devolvesse primeiro, e a revogação podia cair na conta errada.
    */
-  private async contaDoLogin(login: string, idCondominio: number) {
+  private async contaDoLogin(login: string, idCondominio: number, db: any = this.prisma) {
     const porLogin = { OR: [{ login }, { email: login }] };
     return (
-      (await this.prisma.users.findFirst({
+      (await db.users.findFirst({
         where: { ...porLogin, funcionarios: { some: { id_condominio: Number(idCondominio) } } },
         orderBy: { id: 'asc' },
-      })) ?? (await this.prisma.users.findFirst({ where: porLogin, orderBy: { id: 'asc' } }))
+      })) ?? (await db.users.findFirst({ where: porLogin, orderBy: { id: 'asc' } }))
     );
   }
 
@@ -341,16 +345,76 @@ export class PrestadoresService {
   private async contaSoDeEquipe(
     conta: { id: number; is_sindico?: number | null; is_morador?: number | null },
     idCondominio: number,
+    db: any = this.prisma,
   ): Promise<boolean> {
     if (conta.is_sindico || conta.is_morador) return false;
     const [perfisSindico, sindicoEm, moradorEm, unidades, equipeFora] = await Promise.all([
-      this.prisma.sindicos.count({ where: { id_user: conta.id } }),
-      this.prisma.sindicos_Condominios.count({ where: { id_user: conta.id } }),
-      this.prisma.moradores.count({ where: { id_user: conta.id } }),
-      this.prisma.apartamentos_Users.count({ where: { id_user: conta.id } }),
-      this.prisma.funcionarios.count({ where: { id_user: conta.id, id_condominio: { not: Number(idCondominio) } } }),
+      db.sindicos.count({ where: { id_user: conta.id } }),
+      db.sindicos_Condominios.count({ where: { id_user: conta.id } }),
+      db.moradores.count({ where: { id_user: conta.id } }),
+      db.apartamentos_Users.count({ where: { id_user: conta.id } }),
+      db.funcionarios.count({ where: { id_user: conta.id, id_condominio: { not: Number(idCondominio) } } }),
     ]);
     return perfisSindico + sindicoEm + moradorEm + unidades + equipeFora === 0;
+  }
+
+  /**
+   * A conta já é da equipe deste condomínio E exclusivamente dela: só então quem gerencia a equipe daqui
+   * administra a conta inteira (lápide na revogação, senha nova no re-credenciamento). É a regra que o app aplica
+   * ao adotar a senha da portaria (mobile-auth, loginFuncionario).
+   */
+  private async contaSoDestaEquipe(conta: { id: number; is_sindico?: number | null; is_morador?: number | null }, idCondominio: number, db: any = this.prisma) {
+    const daqui = await db.funcionarios.findFirst({
+      where: { id_user: conta.id, id_condominio: Number(idCondominio) },
+      select: { id: true },
+    });
+    return { daqui: !!daqui, soDaqui: !!daqui && (await this.contaSoDeEquipe(conta, idCondominio, db)) };
+  }
+
+  /**
+   * Conta existente que recebe o acesso (já é da equipe daqui: assertContaLivreParaPortaria). Com senha nova e
+   * conta exclusivamente desta equipe, a senha do app passa a ser a nova e os tokens caem — sem isto, re-credenciar
+   * por senha vazada mudava só o login de portaria e a senha antiga seguia entrando no app. Conta compartilhada
+   * (ou de qualquer outro jeito) não tem nada tocado além da flag.
+   */
+  private async ligarContaDaEquipe(conta: { id: number; is_sindico?: number | null; is_morador?: number | null }, hash: string | undefined, idCondominio: number) {
+    const { soDaqui } = hash ? await this.contaSoDestaEquipe(conta, idCondominio) : { soDaqui: false };
+    await this.prisma.users.update({
+      where: { id: conta.id },
+      data: soDaqui
+        ? { is_funcionario: 1, password: hash, senha_alterada_em: momentoTrocaSenha() }
+        : { is_funcionario: 1 },
+    });
+  }
+
+  /**
+   * Inutiliza, dentro da transação da revogação, a conta que era só desta equipe: lápide em login e e-mail, CPF
+   * liberado (coluna @unique anulável), senha inutilizável e senha_alterada_em. A lápide nunca derruba a revogação:
+   * já ocupada (de antemão ou por corrida no @unique), tenta outra; depois de 3, segue sem ela — a conta fica com
+   * o e-mail ocupado, mas sem senha que entre e sem tokens.
+   */
+  private async inutilizarConta(tx: any, idUser: number) {
+    const base = {
+      password: PrestadoresService.senhaInutilizavel(idUser),
+      senha_alterada_em: momentoTrocaSenha(),
+      cpf: null,
+    };
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      const lapide = this.novaLapide(idUser);
+      const ocupada = await tx.users.findFirst({
+        where: { OR: [{ login: lapide }, { email: lapide }], NOT: { id: idUser } },
+        select: { id: true },
+      });
+      if (ocupada) continue;
+      try {
+        await tx.users.update({ where: { id: idUser }, data: { ...base, login: lapide, email: lapide } });
+        return;
+      } catch (err: any) {
+        if (err?.code !== 'P2002') throw err;
+      }
+    }
+    this.logger.warn(`Lápide indisponível para a conta ${idUser}: revogada sem liberar o e-mail.`);
+    await tx.users.update({ where: { id: idUser }, data: base });
   }
 
   /**
@@ -407,7 +471,9 @@ export class PrestadoresService {
    * lápide e a senha inutilizada. Ela não autentica mais, e religar a chave cai no caminho normal de "e-mail livre
    * → conta nova". Conta compartilhada (síndico, morador, equipe de outro prédio) perde só o vínculo daqui e os
    * tokens; religar o acesso para ela continua recusado (assertContaLivreParaPortaria).
-   * O login de portaria sai por último: se algo falhar antes, ele continua achável e a revogação pode ser refeita.
+   * Tudo numa transação: sem ela, uma falha no meio (a lápide batendo no @unique) deixava o vínculo apagado, o
+   * login de portaria de pé e sem senha_alterada_em — e o fallback do app recriava o vínculo. A conta é relida e
+   * a checagem "exclusivamente desta equipe" refeita dentro da transação.
    */
   private async revogarLoginDoPrestador(
     login: { id: number; login: string; id_condominio: number },
@@ -415,32 +481,21 @@ export class PrestadoresService {
     opcoes: { manterLogin?: boolean } = {},
   ) {
     try {
-      const conta = await this.contaDoLogin(login.login, login.id_condominio);
-      // contaDoLogin cai na conta mais antiga com aquele login/e-mail quando nenhuma é da equipe daqui: essa não
-      // é nossa, e nunca recebe lápide nem perde os tokens.
-      const daqui = conta
-        ? await this.prisma.funcionarios.findFirst({
-            where: { id_user: conta.id, id_condominio: login.id_condominio },
-            select: { id: true },
-          })
-        : null;
-      if (conta && daqui) {
-        const soDaqui = await this.contaSoDeEquipe(conta, login.id_condominio);
-        await this.prisma.funcionarios.deleteMany({ where: { id_user: conta.id, id_condominio: login.id_condominio } });
-        await this.prisma.users.update({
-          where: { id: conta.id },
-          data: soDaqui
-            ? {
-                login: PrestadoresService.lapide(conta.id),
-                email: PrestadoresService.lapide(conta.id),
-                password: PrestadoresService.senhaInutilizavel(conta.id),
-                senha_alterada_em: momentoTrocaSenha(),
-              }
-            : { senha_alterada_em: momentoTrocaSenha() },
-        });
-      }
-      // manterLogin: troca de e-mail — só a conta antiga sai; o login de portaria acompanha o e-mail novo.
-      if (!opcoes.manterLogin) await this.prisma.funcionarios_Portaria.deleteMany({ where: { id: login.id } });
+      await this.prisma.$transaction(async (tx: any) => {
+        const conta = await this.contaDoLogin(login.login, login.id_condominio, tx);
+        // contaDoLogin cai na conta mais antiga com aquele login/e-mail quando nenhuma é da equipe daqui: essa não
+        // é nossa, e nunca recebe lápide nem perde os tokens.
+        const { daqui, soDaqui } = conta
+          ? await this.contaSoDestaEquipe(conta, login.id_condominio, tx)
+          : { daqui: false, soDaqui: false };
+        if (conta && daqui) {
+          await tx.funcionarios.deleteMany({ where: { id_user: conta.id, id_condominio: login.id_condominio } });
+          if (soDaqui) await this.inutilizarConta(tx, conta.id);
+          else await tx.users.update({ where: { id: conta.id }, data: { senha_alterada_em: momentoTrocaSenha() } });
+        }
+        // manterLogin: troca de e-mail — só a conta antiga sai; o login de portaria acompanha o e-mail novo.
+        if (!opcoes.manterLogin) await tx.funcionarios_Portaria.deleteMany({ where: { id: login.id } });
+      });
     } catch (err: any) {
       this.logger.error(`Falha ao revogar o acesso à portaria do prestador ${idPrestador}: ${err?.message ?? err}`);
       throw new BadRequestException('Não foi possível revogar o acesso à portaria. Tente novamente.');
@@ -450,6 +505,8 @@ export class PrestadoresService {
   async create(dto: CreatePrestadorDto, user?: JwtPayload) {
     // Interface, não DTO: um objeto no e-mail estourava em .trim() e virava erro 500 em vez de 400.
     if (dto.email != null && typeof dto.email !== 'string') throw new BadRequestException('E-mail inválido.');
+    // O e-mail do prestador vira login e conta do app: nunca no domínio das lápides da revogação.
+    assertEmailNaoReservado(dto.email);
     // E-mail só com espaços = sem e-mail: nunca vira login de portaria ''.
     if (typeof dto.email === 'string' && dto.email.trim() === '') dto = { ...dto, email: null };
     await this.tenant.assertCondominio(dto.id_condominio, user);
@@ -621,9 +678,8 @@ export class PrestadoresService {
             },
           });
         } else {
-          // Conta já existente (da equipe deste condomínio, conferido em assertContaLivreParaPortaria): nunca troca
-          // a senha dela.
-          await this.prisma.users.update({ where: { id: user.id }, data: { is_funcionario: 1 } });
+          // Conta já existente (da equipe deste condomínio, conferido em assertContaLivreParaPortaria).
+          await this.ligarContaDaEquipe(user, hash, dto.id_condominio);
         }
 
         const f = await this.prisma.funcionarios.findFirst({
@@ -662,6 +718,7 @@ export class PrestadoresService {
   async update(id: number, dto: Partial<CreatePrestadorDto>, idCondominio?: number, user?: JwtPayload) {
     // Interface, não DTO: um objeto no e-mail estourava em .trim() e virava erro 500 em vez de 400.
     if (dto.email != null && typeof dto.email !== 'string') throw new BadRequestException('E-mail inválido.');
+    assertEmailNaoReservado(dto.email);
     // E-mail só com espaços = limpar o e-mail: revoga o login do prestador exatamente como email: null.
     if (typeof dto.email === 'string' && dto.email.trim() === '') dto = { ...dto, email: null };
     if (!this.prisma.isConnected) {
@@ -819,9 +876,9 @@ export class PrestadoresService {
               },
             });
           } else {
-            // Conta já existente (da equipe deste condomínio, conferido em assertContaLivreParaPortaria): não troca
-            // senha nem dados pessoais dela.
-            await this.prisma.users.update({ where: { id: user.id }, data: { is_funcionario: 1 } });
+            // Conta já existente (da equipe deste condomínio, conferido em assertContaLivreParaPortaria): dados
+            // pessoais ficam; a senha só acompanha a nova se a conta é exclusivamente desta equipe.
+            await this.ligarContaDaEquipe(user, hash, atualizado.id_condominio);
           }
 
           const f = await this.prisma.funcionarios.findFirst({
