@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { MoradoresService } from './moradores.service';
 
 /**
@@ -60,15 +61,38 @@ function harnessLinha(linha: { id: number; bloco: string | null; apartamento: st
 }
 
 describe('I1 — update troca o vínculo da unidade da própria linha', () => {
-  it('linha 44 (102) trocada para 103 move o vínculo do 102, mesmo com a tela dizendo que a anterior era 101', async () => {
+  it('linha 44 (102) trocada para 103 com a tela dizendo 102: move o vínculo do 102', async () => {
     const { service, tx } = harnessLinha({ id: 44, bloco: 'A', apartamento: '102' });
 
-    await service.update(44, { id_apartamento: 3, id_apartamento_anterior: 7 } as any);
+    await service.update(44, { id_apartamento: 3, id_apartamento_anterior: 8 } as any);
 
     expect(tx.apartamentos_Users.deleteMany).not.toHaveBeenCalled();
     expect(tx.apartamentos_Users.create).not.toHaveBeenCalled();
     expect(tx.apartamentos_Users.update).toHaveBeenCalledTimes(1);
     expect(tx.apartamentos_Users.update).toHaveBeenCalledWith({ where: { id: 80 }, data: { id_apto: 3 } });
+  });
+
+  it('linha 44 (102) sem a anterior da tela: vale a unidade da linha', async () => {
+    const { service, tx } = harnessLinha({ id: 44, bloco: 'A', apartamento: '102' });
+
+    await service.update(44, { id_apartamento: 3 } as any);
+
+    expect(tx.apartamentos_Users.update).toHaveBeenCalledWith({ where: { id: 80 }, data: { id_apto: 3 } });
+  });
+
+  // Rodada 2 (Menor 3): no painel do 101, a lista pode mostrar a linha do 102 (nenhuma linha do 101).
+  // Linha e tela apontando vínculos VÁLIDOS e diferentes: não há como saber qual o operador quis — recusa.
+  it('linha do 102 com a tela dizendo 101 (vínculo real dele): recusa com 400 claro, sem mexer em nada', async () => {
+    const { service, tx } = harnessLinha({ id: 44, bloco: 'A', apartamento: '102' });
+
+    const erro = await service.update(44, { id_apartamento: 3, id_apartamento_anterior: 7 } as any).catch((e) => e);
+
+    expect(erro).toBeInstanceOf(BadRequestException);
+    expect(erro.message).toMatch(/outra unidade/);
+    expect(tx.apartamentos_Users.update).not.toHaveBeenCalled();
+    expect(tx.apartamentos_Users.deleteMany).not.toHaveBeenCalled();
+    expect(tx.apartamentos_Users.create).not.toHaveBeenCalled();
+    expect(tx.moradores.update).not.toHaveBeenCalled();
   });
 
   it('linha 44 (102) com a tela mandando uma anterior de outro condomínio: move o 102, sem acrescentar', async () => {
@@ -206,5 +230,67 @@ describe('I1 — a lista e a ficha mostram, por linha, a unidade da própria lin
     };
     const m: any = await novoServico(prisma).findOne(44);
     expect(m.id_apartamento).toBe(8);
+  });
+});
+
+/**
+ * Rodada 2 (Importante 1): a ficha devolvia `...m`, com user.apartamentosUsers de TODOS os
+ * condomínios (bloco/apto/id_condominio) — um operador daqui via a unidade do morador em outro prédio.
+ * Vale para GET :id e para a resposta do POST e do PUT (que devolvem o findOne).
+ */
+describe('findOne não devolve vínculos de outro condomínio', () => {
+  const linhaComUser = () => ({
+    id: 44,
+    id_user: 41,
+    id_condominio: 1,
+    nome: 'Ana',
+    tipo: 'proprietario',
+    bloco: 'A',
+    apartamento: '102',
+    foto_pessoa: null,
+    face_id: null,
+    face_sync_error: null,
+    user: {
+      photo: null,
+      apartamentosUsers: [
+        { id_apto: 99, apartamento: { bloco: 'Torre Norte', apto: '1801', id_condominio: 2 } },
+        { id_apto: 8, apartamento: { bloco: 'A', apto: '102', id_condominio: 1 } },
+      ],
+    },
+  });
+  const semVazamento = (res: any) => {
+    const json = JSON.stringify(res);
+    expect(json).not.toContain('Torre Norte');
+    expect(json).not.toContain('1801');
+    expect(json).not.toContain('"id_apto":99');
+    expect(res.user ?? {}).not.toHaveProperty('apartamentosUsers');
+  };
+
+  it('GET da ficha', async () => {
+    const prisma: any = { isConnected: true, ...semVinculoFora(), moradores: { findUnique: jest.fn().mockResolvedValue(linhaComUser()) } };
+    const res: any = await novoServico(prisma).findOne(44);
+    semVazamento(res);
+    expect(res.id_apartamento).toBe(8);
+  });
+
+  it('resposta do PUT', async () => {
+    const tx: any = {
+      apartamentos_Users: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
+      moradores: { update: jest.fn().mockResolvedValue({ id: 44, id_user: 41, id_condominio: 1, nome: 'Ana' }) },
+      users: { update: jest.fn().mockResolvedValue({}) },
+    };
+    const prisma: any = {
+      isConnected: true,
+      ...semVinculoFora(),
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+      moradores: { findUnique: jest.fn().mockResolvedValue(linhaComUser()), count: jest.fn().mockResolvedValue(0) },
+      apartamentos_Users: { count: jest.fn().mockResolvedValue(0) },
+      users: { update: jest.fn().mockResolvedValue({}) },
+    };
+    const service = novoServico(prisma);
+    jest.spyOn(service as any, 'assertCredencialDisponivel').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'carregarContextoMorador').mockResolvedValue(null);
+    const res: any = await service.update(44, { telefone: '11988887777' } as any);
+    semVazamento(res);
   });
 });

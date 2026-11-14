@@ -363,7 +363,7 @@
                   <p class="text-[11px] text-slate-400">
                     Necessária para sincronização com os terminais faciais.
                   </p>
-                  @if (editingId && semContaAppEdicao) {
+                  @if (editingId && semContaAppEdicao && biometriaAutorizadaEdicao !== true && !isMenorDeIdade(novo.data_nascimento)) {
                     <p class="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
                       Morador sem acesso ao app. Envie o acesso primeiro: o rosto só vai para os terminais depois que ele aceitar a biometria no app.
                     </p>

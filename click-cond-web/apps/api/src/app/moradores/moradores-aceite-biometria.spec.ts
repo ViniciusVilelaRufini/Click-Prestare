@@ -132,6 +132,39 @@ describe('A6 — lista de moradores avisa quando o rosto espera o aceite no app'
     expect(m.biometria_sem_conta_app).toBe(false);
   });
 
+  // Rodada 2: o Users do menor dependente nasce sem login (login_type 'dependente_menor'). Para ele,
+  // "envie o acesso" não serve: vale o aviso de antes (aguarda o aceite).
+  it('menor dependente (login_type) sem login: não é "sem acesso ao app"', async () => {
+    const [m] = await servico(
+      prismaCom([linha({ user: { photo: null, login: null, login_type: 'dependente_menor', apartamentosUsers: [] } })], []),
+    ).findAll(1);
+    expect(m.biometria_sem_conta_app).toBe(false);
+    expect(m.aguardando_aceite_biometria).toBe(true);
+  });
+
+  it('menor pela data de nascimento, sem login: não é "sem acesso ao app"', async () => {
+    const dezAnos = new Date();
+    dezAnos.setFullYear(dezAnos.getFullYear() - 10);
+    const [m] = await servico(
+      prismaCom([linha({ data_nascimento: dezAnos, user: { photo: null, login: null, apartamentosUsers: [] } })], []),
+    ).findAll(1);
+    expect(m.biometria_sem_conta_app).toBe(false);
+    expect(m.aguardando_aceite_biometria).toBe(true);
+  });
+
+  it('menor com aceite e rosto no terminal: nenhum aviso', async () => {
+    const consent = [{ id_user: 41, tipo: 'biometria', aceito: 1, registrado_em: new Date('2026-11-10') }];
+    const [m] = await servico(
+      prismaCom(
+        [linha({ face_id: 'morador_43', user: { photo: null, login: null, login_type: 'dependente_menor', apartamentosUsers: [] } })],
+        consent,
+      ),
+    ).findAll(1);
+    expect(m.biometria_autorizada).toBe(true);
+    expect(m.biometria_sem_conta_app).toBe(false);
+    expect(m.aguardando_aceite_biometria).toBe(false);
+  });
+
   it('falha ao ler os consentimentos não derruba a lista (o aviso some)', async () => {
     const prisma = prismaCom([linha()], []);
     prisma.consentimentos.findMany = jest.fn().mockRejectedValue(new Error('db fora'));

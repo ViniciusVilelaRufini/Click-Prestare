@@ -46,6 +46,9 @@ export interface CreateMoradorDto {
   id_apartamento_anterior?: number;
 }
 
+/** Recusa da edição quando a unidade da linha e a anterior da tela são vínculos diferentes (sai com a mensagem, não a genérica). */
+class UnidadeDaTelaDivergente extends BadRequestException {}
+
 /** Chave da unidade: bloco normalizado ("Bloco A" = "A") e apto sem espaços nem caixa. */
 function chaveUnidade(bloco: string | null | undefined, apto: string | null | undefined): string {
   return `${normalizarBloco(bloco)}|${(apto ?? '').trim().toLowerCase()}`;
@@ -390,13 +393,24 @@ export class MoradoresService {
    * Para a tela avisar que o rosto cadastrado espera o aceite do morador no app (o syncMorador pula
    * sem gravar status). Marca de revogação do operador aqui também conta como não autorizado.
    * Sem conta que entra no app (sem Users ou sem login), não há aceite a esperar: primeiro o acesso.
+   * Menos para o menor dependente: a conta dele nasce sem login de propósito (o aceite é do
+   * responsável), então para ele vale o aviso de aguardar o aceite.
    */
   private estadoAceiteBiometria(
-    m: { id_user: number | null; foto_pessoa: string | null; face_id: string | null; face_sync_error: string | null },
+    m: {
+      id_user: number | null;
+      foto_pessoa: string | null;
+      face_id: string | null;
+      face_sync_error: string | null;
+      data_nascimento?: Date | string | null;
+    },
     autorizados: Map<number, boolean> | null,
-    loginDaConta: string | null | undefined,
+    conta: { login?: string | null; login_type?: string | null } | null | undefined,
   ) {
-    const tem_conta_app = m.id_user != null && !!(loginDaConta ?? '').trim();
+    const tem_conta_app = m.id_user != null && !!(conta?.login ?? '').trim();
+    const menorDependente = m.data_nascimento
+      ? calcularIdade(m.data_nascimento) < 18
+      : conta?.login_type === 'dependente_menor';
     const biometria_autorizada =
       autorizados == null
         ? null
@@ -405,8 +419,8 @@ export class MoradoresService {
     return {
       tem_conta_app,
       biometria_autorizada,
-      aguardando_aceite_biometria: rostoParado && tem_conta_app,
-      biometria_sem_conta_app: rostoParado && !tem_conta_app,
+      aguardando_aceite_biometria: rostoParado && (tem_conta_app || menorDependente),
+      biometria_sem_conta_app: rostoParado && !tem_conta_app && !menorDependente,
     };
   }
 
@@ -486,7 +500,7 @@ export class MoradoresService {
           // A tela de edição monta o formulário com estes campos: sem eles, salvar apagava a tag e o QR.
           tag_rfid: m?.tag_rfid ?? null,
           qrcode_acesso: m?.qrcode_acesso ?? null,
-          ...this.estadoAceiteBiometria(m, autorizados, r.user?.login),
+          ...this.estadoAceiteBiometria(m, autorizados, r.user),
         });
       }
       // Busca textual local (mesmo comportamento da query condo-wide).
@@ -529,6 +543,7 @@ export class MoradoresService {
           select: {
             photo: true,
             login: true,
+            login_type: true,
             // Só os vínculos deste condomínio, na ordem em que nasceram: a unidade de cada linha sai deles.
             apartamentosUsers: {
               where: { apartamento: { id_condominio: Number(idCondominio) } },
@@ -574,7 +589,7 @@ export class MoradoresService {
         face_sync_error: m.face_sync_error ?? null,
         tag_rfid: m.tag_rfid ?? null,
         qrcode_acesso: m.qrcode_acesso ?? null,
-        ...this.estadoAceiteBiometria(m, autorizados, m.user?.login),
+        ...this.estadoAceiteBiometria(m, autorizados, m.user),
       };
     });
   }
@@ -612,9 +627,12 @@ export class MoradoresService {
       m,
       (m.user?.apartamentosUsers ?? []).filter((v: any) => v.apartamento?.id_condominio === m.id_condominio),
     );
+    // Os vínculos do user são de TODOS os condomínios (Users é global): servem só para achar a
+    // unidade desta linha e não saem na resposta (GET da ficha, POST e PUT).
+    const { apartamentosUsers: _vinculos, ...userSemVinculos } = m.user ?? ({} as any);
     return {
       ...m,
-      ...(contaCompartilhada && m.user && { user: { ...m.user, photo: null } }),
+      user: m.user ? { ...userSemVinculos, ...(contaCompartilhada && { photo: null }) } : m.user,
       id_apartamento: idAptoMapped,
       photo: fotoFinal,
       foto_pessoa: fotoFinal,
@@ -1236,6 +1254,18 @@ export class MoradoresService {
         const daLinha = vinculosDaUnidade(vinculos, atual.bloco, atual.apartamento);
         const anterior = dto.id_apartamento_anterior != null ? Number(dto.id_apartamento_anterior) : undefined;
         const doAnterior = anterior ? vinculos.filter((v) => v.id_apto === anterior) : [];
+        // Linha e tela apontando vínculos válidos e diferentes (ex.: no painel do 101 a lista mostrou a
+        // linha do 102): não há como saber qual unidade o operador quis trocar. Recusa sem mexer em nada.
+        if (
+          dto.id_apartamento !== undefined &&
+          daLinha.length > 0 &&
+          doAnterior.length > 0 &&
+          !doAnterior.some((v) => daLinha.some((d) => d.id === v.id))
+        ) {
+          throw new UnidadeDaTelaDivergente(
+            'Este cadastro é de outra unidade do morador. Abra-o pela lista de moradores para trocar a unidade.',
+          );
+        }
         const saem =
           daLinha.length > 0 ? daLinha : doAnterior.length > 0 ? doAnterior : vinculos.length === 1 ? vinculos : [];
         // Vínculos que ficam com a unidade desta linha depois da edição: recebem o tipo novo.
@@ -1354,6 +1384,7 @@ export class MoradoresService {
         return morador;
       });
     } catch (err: any) {
+      if (err instanceof UnidadeDaTelaDivergente) throw err;
       this.logger.error(
         `[moradores.update] Falha ao atualizar morador ${id}: ${err?.message ?? err}`,
         err?.stack,

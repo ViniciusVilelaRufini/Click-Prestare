@@ -366,7 +366,8 @@ export class MoradoresPageComponent implements OnInit {
     };
     this.originalEdicao = { id_apartamento: m.id_apartamento, tag_rfid: m.tag_rfid, qrcode_acesso: m.qrcode_acesso, tipo: m.tipo };
     this.biometriaAutorizadaEdicao = m.biometria_autorizada ?? null;
-    this.semContaAppEdicao = m.tem_conta_app === false;
+    // Com rosto parado no cadastro, a API já separa o menor dependente (conta sem login de propósito).
+    this.semContaAppEdicao = m.tem_conta_app === false && (m.foto_pessoa ? m.biometria_sem_conta_app === true : true);
     this.error.set(null);
     this.showForm = true;
     this.resetNovoVeiculo();
