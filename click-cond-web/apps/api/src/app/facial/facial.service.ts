@@ -1891,6 +1891,70 @@ export class FacialService {
   }
 
   /**
+   * Abre um dispositivo por decisão da nuvem (QR dinâmico já validado, passe
+   * do entregador). Assinatura combinada com o projeto 2: não alterar.
+   *
+   * Diferente de `triggerDevice` (rota manual do porteiro, que só aceita
+   * botoeira/catraca), aciona qualquer tipo — inclusive o terminal facial, que
+   * abre a própria porta por `open_door` na fila do agente. Não confere
+   * regras, caminhos nem sentido: quem chama já decidiu. Não é exposto em
+   * controller.
+   *
+   * `ctx.credencial` é um rótulo (ex.: `cred:<id>`), nunca o código lido.
+   * Nunca lança: falha vira `{ ok: false, erro }` e evento
+   * `falha_acionamento`.
+   */
+  async abrirDispositivoInterno(
+    idDevice: number,
+    ctx: {
+      origem: 'credencial_qr' | 'delivery_portao';
+      tipoPessoa: string;
+      idPessoa?: number | null;
+      nomePessoa: string;
+      credencial?: string | null;
+    },
+  ): Promise<{ ok: boolean; erro?: string }> {
+    let device: any;
+    try {
+      device = await this.prisma.facial_Devices.findFirst({ where: { id: idDevice, ativo: 1 } });
+    } catch (err: any) {
+      this.logger.warn(`Abertura interna: falha ao carregar o dispositivo ${idDevice}: ${err?.message ?? err}`);
+      return { ok: false, erro: 'dispositivo_indisponivel' };
+    }
+    if (!device) return { ok: false, erro: 'dispositivo_indisponivel' };
+
+    let ok = false;
+    let erro: string | undefined;
+    try {
+      const result = await this.client.triggerRelay(this.toConfig(device));
+      ok = result.ok === true;
+      if (!ok) erro = result.error ?? `HTTP ${result.statusCode ?? 'sem resposta'}`;
+    } catch (err: any) {
+      erro = err?.message ?? String(err);
+    }
+
+    try {
+      await this.registrarEvento(device, {
+        face_id: ctx.credencial || ctx.origem,
+        tipo_pessoa: ctx.tipoPessoa,
+        id_pessoa: ctx.idPessoa ?? null,
+        nome_pessoa: ok ? ctx.nomePessoa : `${ctx.nomePessoa} (FALHA ao acionar ${device.nome})`,
+        evento: ok ? 'acionado_auto' : 'falha_acionamento',
+      });
+    } catch (err: any) {
+      this.logger.warn(
+        `Abertura interna: evento do dispositivo ${device.id} não gravado: ${err?.message ?? err}`,
+      );
+    }
+
+    if (!ok) {
+      this.logger.warn(`Abertura interna (${ctx.origem}) falhou no dispositivo ${device.id} (${device.nome}): ${erro}`);
+      return { ok: false, erro };
+    }
+    return { ok: true };
+  }
+
+  /**
    * Lista pessoas com foto cadastrada no condomínio do terminal.
    * Usado pelo simulador (browser) para fazer matching local de rostos.
    * Fotos armazenadas como URL no R2 são baixadas e convertidas para
