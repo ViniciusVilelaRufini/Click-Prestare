@@ -2081,7 +2081,9 @@ export class FacialService {
         id_device: dispositivo.id,
         tipo_dispositivo: dispositivo.tipo,
         nome_dispositivo: dispositivo.nome,
-        face_id: dados.face_id,
+        // Rede de segurança: valor que começa com P1/P2 (código dinâmico,
+        // venha do campo que vier) nunca é gravado — só `cred:<id>`/`cred:?`.
+        face_id: rotuloDeCredencial(dados.face_id) || dados.face_id,
         tipo_pessoa: dados.tipo_pessoa,
         id_pessoa: dados.id_pessoa ?? null,
         nome_pessoa: dados.nome_pessoa,
@@ -5206,7 +5208,7 @@ export class FacialService {
     // "negado" encheria o histórico de ruído e dispararia alerta à toa.
     if (device.tipo === 'lpr' && !placaLida) {
       this.logger.debug(
-        `LPR: leitura ignorada no device ${device.id} (placa ilegível: "${placaCrua ?? ''}")`,
+        `LPR: leitura ignorada no device ${device.id} (placa ilegível: "${rotuloDeCredencial(placaCrua ?? '')}")`,
       );
       return { ok: true, ignored: 'placa_invalida' };
     }
@@ -5536,11 +5538,9 @@ export class FacialService {
       // sobre um veículo não cadastrado. Sem isso o registro saía vazio,
       // porque a placa não chega por external_id.
       await this.registrarEvento(device, {
-        face_id:
-          (qrCodeLido != null ? rotuloDeCredencial(qrCodeLido) : undefined) ??
-          tagRfidLida ??
-          (placaLida || externalId) ??
-          'desconhecido',
+        // Qualquer campo lido (qrcode, card_uid, external_id) que comece com
+        // P1/P2 sai mascarado: o código dinâmico nunca vai para face_id.
+        face_id: rotuloDeCredencial(qrCodeLido ?? tagRfidLida ?? (placaLida || externalId)),
         tipo_pessoa: 'desconhecido',
         id_pessoa: null,
         nome_pessoa: tagAmbigua
@@ -5552,7 +5552,7 @@ export class FacialService {
       });
       if (tagAmbigua) {
         this.logger.warn(
-          `Tag ambígua no device ${device.id}: "${tagRfidLida}" casa com mais de um cadastro — acesso negado`,
+          `Tag ambígua no device ${device.id}: "${rotuloDeCredencial(tagRfidLida)}" casa com mais de um cadastro — acesso negado`,
         );
         throw new BadRequestException(
           'Acesso negado: tag ambígua (o código casa com mais de um cadastro)',
@@ -5560,7 +5560,7 @@ export class FacialService {
       }
       if (tagNegadaMotivo) {
         this.logger.warn(
-          `${tagNegadaMotivo} no device ${device.id}: "${tagRfidLida}" — acesso negado`,
+          `${tagNegadaMotivo} no device ${device.id}: "${rotuloDeCredencial(tagRfidLida)}" — acesso negado`,
         );
         throw new BadRequestException(`Acesso negado: ${tagNegadaMotivo}`);
       }

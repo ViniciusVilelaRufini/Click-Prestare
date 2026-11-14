@@ -140,6 +140,7 @@ describe('FacialService — webhook com código dinâmico', () => {
         ),
       },
       veiculos: { findMany: jest.fn(async () => []) },
+      prestadores_servico: { findFirst: jest.fn(async () => null) },
       vagas: { findFirst: jest.fn(async () => null), count: jest.fn(async () => 0) },
       acessos_Facial: {
         create: jest.fn(async ({ data }: any) => {
@@ -436,6 +437,38 @@ describe('FacialService — webhook com código dinâmico', () => {
       'QR inválido',
       ...Array(4).fill(motivo === 'reuso' ? 'QR já usado neste leitor' : 'QR vencido (mostre o código atual)'),
     ]);
+  });
+
+  it.each([
+    ['card_uid no leitor de QR', LEITOR, { card_uid: CODIGO }, 'cred:7'],
+    ['external_id em terminal facial', { ...LEITOR, tipo: 'facial', sentido: 'entrada' }, { external_id: CODIGO }, 'cred:7'],
+    ['card_uid em terminal facial', { ...LEITOR, tipo: 'facial', sentido: 'entrada' }, { card_uid: CODIGO }, 'cred:7'],
+    ['external_id no leitor de tag', { ...LEITOR, tipo: 'tag_reader' }, { external_id: CODIGO }, 'cred:7'],
+    ['P2 que não decodifica em card_uid', LEITOR, { card_uid: 'P2-NAO-DECODIFICA' }, 'cred:?'],
+  ])('valor P1/P2 fora do campo qrcode (%s) vai mascarado para face_id e log', async (_caso, device, corpo, rotulo) => {
+    const c = build();
+    c.prisma.facial_Devices.findFirst.mockResolvedValue(device);
+    const espiao = jest.spyOn(c.svc as any, 'registrarEvento');
+
+    await c.svc.processWebhook('tok', corpo).catch(() => undefined);
+
+    expect(c.acessos).toEqual([expect.objectContaining({ evento: 'negado', face_id: rotulo })]);
+    const bruto = (corpo as any).card_uid ?? (corpo as any).external_id;
+    const tudo = JSON.stringify([espiao.mock.calls, c.acessos, Object.values(c.logger).map((fn: any) => fn.mock.calls)]);
+    expect(tudo.toUpperCase()).not.toContain(String(bruto).toUpperCase().slice(2));
+  });
+
+  it('tag bloqueada lida com valor P1: o log do motivo não traz o valor lido', async () => {
+    const c = build();
+    c.prisma.facial_Devices.findFirst.mockResolvedValue({ ...LEITOR, tipo: 'tag_reader' });
+    c.prisma.tags.findMany.mockImplementation(async (args: any) => (args?.select ? [{ ativo: 0 }] : []));
+
+    await expect(c.svc.processWebhook('tok', { card_uid: CODIGO })).rejects.toThrow(/Tag bloqueada/);
+
+    expect(c.acessos).toEqual([expect.objectContaining({ face_id: 'cred:7', nome_pessoa: 'Tag bloqueada' })]);
+    const logs = JSON.stringify(Object.values(c.logger).map((fn: any) => fn.mock.calls));
+    expect(logs).toContain('cred:7');
+    expect(logs.toUpperCase()).not.toContain(CODIGO.slice(2));
   });
 
   it('nenhuma chamada de logger nem de registrarEvento recebe o código lido', async () => {
