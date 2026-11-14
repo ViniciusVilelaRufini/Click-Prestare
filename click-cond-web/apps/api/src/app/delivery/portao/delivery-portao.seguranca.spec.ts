@@ -1,5 +1,5 @@
-import { ConflictException, HttpException } from '@nestjs/common';
-import { FOTO, T0, TOKEN_OUTRO_PORTAO, TOKEN_PORTAO, montarPortao } from './montar-portao.spec';
+import { BadRequestException, ConflictException, HttpException } from '@nestjs/common';
+import { FOTO, GIF_B64, PNG_B64, T0, TOKEN_OUTRO_PORTAO, TOKEN_PORTAO, WEBP_B64, montarPortao } from './montar-portao.spec';
 
 /**
  * Achados da revisão de segurança do autoatendimento no portão
@@ -254,6 +254,33 @@ describe('autoatendimento no portão — revisão de segurança', () => {
         expect(k.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
         expect(k.tabela('deliveryPedidosPortao')[0]).toMatchObject({ status: 'liberado', liberado_ate: null });
       }
+    });
+  });
+
+  describe('[8] a selfie é decodificada: só JPEG, PNG ou WebP de verdade', () => {
+    const MSG = 'Envie uma foto em JPEG, PNG ou WebP.';
+    const jpegCortado = FOTO.slice(0, 'data:image/jpeg;base64,'.length + 200);
+
+    it.each([
+      ['bytes que não são imagem', `data:image/jpeg;base64,${'A'.repeat(4000)}`],
+      ['GIF declarado como PNG', `data:image/png;base64,${GIF_B64}`],
+      ['PNG declarado como JPEG', `data:image/jpeg;base64,${PNG_B64}`],
+      ['JPEG cortado no meio', jpegCortado],
+    ])('%s: 400 e nada gravado', async (_n, foto) => {
+      const k = montarPortao();
+      await expect(k.svc.criarPedido(TOKEN_PORTAO, { ...entrada, foto })).rejects.toThrow(new BadRequestException(MSG));
+      expect(k.storage.uploadDataUrl).not.toHaveBeenCalled();
+      expect(k.tabela('deliveryPedidosPortao')).toHaveLength(0);
+      expect(k.tabela('deliveryAtendimentos')).toHaveLength(0);
+    });
+
+    it.each([
+      ['JPEG', FOTO],
+      ['PNG', `data:image/png;base64,${PNG_B64}`],
+      ['WebP', `data:image/webp;base64,${WEBP_B64}`],
+    ])('%s válido é aceito', async (_n, foto) => {
+      const k = montarPortao();
+      await expect(k.svc.criarPedido(TOKEN_PORTAO, { ...entrada, foto })).resolves.toMatchObject({ situacao: 'aguardando' });
     });
   });
 });
