@@ -1,7 +1,7 @@
 import { OcorrenciasService } from './ocorrencias.service';
 
 /**
- * Reabrir (Solucionado → Ciente; a tela pede 'Pendente') mantinha o prazo
+ * Reabrir (Solucionado → Pendente) mantinha o prazo
  * original: a ocorrência voltava já "Atrasada". O prazo agora recomeça de
  * agora, pelo SLA da categoria — a mesma conta do cadastro.
  */
@@ -24,12 +24,12 @@ describe('Ocorrências — reabrir recalcula o prazo', () => {
     return { svc, prisma };
   }
 
-  it('Solucionado → reaberta: Ciente, prazo = agora + SLA da categoria', async () => {
+  it('Solucionado → reaberta: Pendente, prazo = agora + SLA da categoria', async () => {
     const { svc, prisma } = montar('Solucionado', 24);
     const antes = Date.now();
     await svc.updateStatus(5, 'Pendente', sindico);
     const { data } = prisma.ocorrencias.updateMany.mock.calls[0][0];
-    expect(data.status).toBe('Ciente');
+    expect(data.status).toBe('Pendente');
     expect(data.prazo).toBeInstanceOf(Date);
     const delta = data.prazo.getTime() - antes;
     expect(delta).toBeGreaterThanOrEqual(24 * 3600 * 1000 - 1000);

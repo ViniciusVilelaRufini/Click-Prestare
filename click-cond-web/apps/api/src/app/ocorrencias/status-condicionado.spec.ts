@@ -1,4 +1,5 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
+import { OcorrenciasController } from './ocorrencias.controller';
 import { OcorrenciasService } from './ocorrencias.service';
 
 /**
@@ -9,8 +10,9 @@ import { OcorrenciasService } from './ocorrencias.service';
  * "Solucionado"). Agora a escrita é condicionada ao status de origem:
  *  - Ciente só a partir de Pendente;
  *  - Solucionado a partir de Pendente ou Ciente;
- *  - Reabrir só a partir de Solucionado — e grava Ciente (a equipe já tocou
- *    nela; Pendente devolvia ao autor o direito de editar e apagar).
+ *  - Reabrir só a partir de Solucionado (inclusive a grafia antiga
+ *    'Resolvida') e grava Pendente — o app mostra Responder por esse status;
+ *  - o console manda o status e o updated_at que mostrava: diferente → 409.
  * Fora disso: 409 e nada é gravado nem avisado.
  */
 describe('Ocorrências — status condicionado ao estado de origem', () => {
@@ -69,19 +71,78 @@ describe('Ocorrências — status condicionado ao estado de origem', () => {
     expect(oc.status).toBe('Solucionado');
   });
 
-  it('reabrir (pedido "Pendente"): só a partir de Solucionado, grava Ciente com prazo novo', async () => {
+  it('reabrir (pedido "Pendente"): só a partir de Solucionado, grava Pendente com prazo novo; push diz reaberta', async () => {
     const { svc, prisma, notifications, oc } = montar('Solucionado');
     const r: any = await svc.updateStatus(5, 'Pendente', sindico);
-    expect(r.status).toBe('Ciente');
+    expect(r.status).toBe('Pendente');
     const { where, data } = prisma.ocorrencias.updateMany.mock.calls[0][0];
-    expect(where).toEqual({ id: 5, status: { in: ['Solucionado'] } });
-    expect(data.status).toBe('Ciente');
+    expect(where).toEqual({ id: 5, status: { in: ['Solucionado', 'Solucionada', 'Resolvida', 'Resolvido'] } });
+    expect(data.status).toBe('Pendente');
     expect(data.prazo).toBeInstanceOf(Date);
-    expect(oc.status).toBe('Ciente');
-    expect(notifications.sendPushNotification.mock.calls[0][2]).toContain('reaberta');
+    expect(oc.status).toBe('Pendente');
+    expect(notifications.sendPushNotification.mock.calls[0][2]).toBe('Sua ocorrência #5 foi reaberta.');
   });
 
-  it('Reabrir desatualizado (já reaberta por outro): 409', async () => {
+  it('status legado "Resolvida" pode ser reaberto', async () => {
+    const { svc, oc } = montar('Resolvida');
+    await svc.updateStatus(5, 'Pendente', sindico);
+    expect(oc.status).toBe('Pendente');
+  });
+
+  it('status fora do vocabulário (inclusive "toString"): 400, sem ler nem gravar', async () => {
+    const { svc, prisma } = montar('Pendente');
+    for (const s of ['toString', 'constructor', 'Qualquer', undefined]) {
+      const e = await svc.updateStatus(5, s as any, sindico).catch((x) => x);
+      expect(e).toBeInstanceOf(BadRequestException);
+    }
+    expect(prisma.ocorrencias.updateMany).not.toHaveBeenCalled();
+  });
+
+  describe('o que a tela mostrava (status_esperado / updated_at_esperado)', () => {
+    const VISTO = '2026-11-13T10:00:00.000Z';
+
+    it('A soluciona e reabre; B, com a tela velha (mesmo status Pendente, carimbo antigo), clica Solucionar: 409', async () => {
+      const { svc, prisma, notifications, oc } = montar('Pendente');
+      oc.updated_at = new Date('2026-11-13T10:00:30.000Z'); // reaberta depois do que B viu
+      const e: any = await svc.updateStatus(5, 'Solucionado', sindico, { status: 'Pendente', updated_at: VISTO }).catch((x) => x);
+      expect(e).toBeInstanceOf(ConflictException);
+      expect(e.message).toContain('mudou enquanto você via a lista');
+      expect(oc.status).toBe('Pendente');
+      expect(prisma.ocorrencias.updateMany).not.toHaveBeenCalled();
+      expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+    });
+
+    it('status esperado diferente do atual: 409', async () => {
+      const { svc, oc } = montar('Ciente');
+      const e = await svc.updateStatus(5, 'Solucionado', sindico, { status: 'Pendente' }).catch((x) => x);
+      expect(e).toBeInstanceOf(ConflictException);
+      expect(oc.status).toBe('Ciente');
+    });
+
+    it('igual ao atual: grava, com o carimbo no filtro da escrita', async () => {
+      const { svc, prisma, oc } = montar('Pendente');
+      oc.updated_at = new Date(VISTO);
+      await svc.updateStatus(5, 'Solucionado', sindico, { status: 'Pendente', updated_at: VISTO });
+      expect(prisma.ocorrencias.updateMany.mock.calls[0][0].where).toEqual({
+        id: 5, status: { in: ['Pendente', 'Ciente'] }, updated_at: new Date(VISTO),
+      });
+      expect(oc.status).toBe('Solucionado');
+    });
+
+    it('carimbo inválido: 400', async () => {
+      const { svc } = montar('Pendente');
+      expect(await svc.updateStatus(5, 'Ciente', sindico, { updated_at: 'ontem' }).catch((x) => x)).toBeInstanceOf(BadRequestException);
+    });
+
+    it('controller repassa status_esperado e updated_at_esperado', async () => {
+      const service: any = { updateStatus: jest.fn(async () => ({})) };
+      const ctrl = new OcorrenciasController(service);
+      await ctrl.updateStatus(5, { status: 'Ciente', status_esperado: 'Pendente', updated_at_esperado: VISTO }, sindico);
+      expect(service.updateStatus).toHaveBeenCalledWith(5, 'Ciente', sindico, { status: 'Pendente', updated_at: VISTO });
+    });
+  });
+
+  it('Reabrir desatualizado (já reaberta e marcada ciente por outro): 409', async () => {
     const { svc } = montar('Ciente');
     const e = await svc.updateStatus(5, 'Pendente', sindico).catch((x) => x);
     expect(e).toBeInstanceOf(ConflictException);

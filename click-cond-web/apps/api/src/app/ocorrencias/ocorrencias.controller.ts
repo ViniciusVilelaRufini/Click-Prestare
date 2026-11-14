@@ -96,10 +96,15 @@ export class OcorrenciasController {
   @Patch(':id/status')
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { status: OcorrenciaStatus },
+    // status_esperado / updated_at_esperado: o que a tela mostrava (opcionais;
+    // sem eles vale só a regra de origem — cliente antigo e app).
+    @Body() body: { status: OcorrenciaStatus; status_esperado?: string; updated_at_esperado?: string },
     @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.updateStatus(id, body.status, payload);
+    return this.service.updateStatus(id, body.status, payload, {
+      status: body?.status_esperado,
+      updated_at: body?.updated_at_esperado,
+    });
   }
 
   @Patch(':id/publica')

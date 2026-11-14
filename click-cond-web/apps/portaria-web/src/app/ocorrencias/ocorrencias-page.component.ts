@@ -194,10 +194,10 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     // Crítica é exatamente 1: 0 é o padrão de categoria sem valor (a mesma
     // regra do "urgente" do dashboard).
     const isCritica = prioridade === 1;
-    // 'Pendente' é o Reabrir: a API só reabre a partir de Solucionado e grava Ciente.
+    // 'Pendente' é o Reabrir: a API só reabre a partir de Solucionado.
     const reabrir = status === 'Pendente';
     let message = reabrir
-      ? 'Reabrir a ocorrência? Ela volta para Em andamento, com novo prazo.'
+      ? 'Reabrir a ocorrência? Ela volta para Pendente, com novo prazo.'
       : isCritica
         ? `Você tem certeza que deseja alterar o status desta ocorrência de prioridade CRÍTICA para "${status}"?`
         : `Deseja alterar o status da ocorrência para "${status}"?`;
@@ -214,7 +214,8 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
 
     if (!ok) return;
 
-    this.api.updateStatus(o.id, status).subscribe({
+    // O que a tela mostrava: a API recusa se a ocorrência mudou desde a última carga.
+    this.api.updateStatus(o.id, status, { status: o.status, updated_at: o.updated_at }).subscribe({
       next: () => this.carregar(),
       error: (e) => {
         this.error.set(msgErro(e, 'Erro ao alterar o status.'));

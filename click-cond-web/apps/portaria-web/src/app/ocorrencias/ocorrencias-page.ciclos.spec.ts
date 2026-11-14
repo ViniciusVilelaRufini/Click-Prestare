@@ -167,14 +167,22 @@ describe('OcorrenciasPageComponent — ciclos', () => {
     comp.ngOnDestroy();
   });
 
+  it('mudar status manda o status e o updated_at que a tela mostrava', async () => {
+    const vista = { ...base, updated_at: '2026-11-13T10:00:00.000Z' };
+    const { comp, api } = render({}, [vista]);
+    await comp.mudarStatus(vista, 'Solucionado');
+    expect(api.updateStatus).toHaveBeenCalledWith(5, 'Solucionado', { status: 'Pendente', updated_at: '2026-11-13T10:00:00.000Z' });
+    comp.ngOnDestroy();
+  });
+
   it('Reabrir pede confirmação de reabertura e envia o pedido de reabrir', async () => {
     const solucionada = { ...base, status: 'Solucionado' as const };
     const { el, comp, api, confirm } = render({}, [solucionada]);
     botao(el, 'Reabrir')!.click();
     await Promise.resolve();
     await Promise.resolve();
-    expect((confirm.ask.mock.calls[0] as any[])[0].message).toContain('Em andamento');
-    expect(api.updateStatus).toHaveBeenCalledWith(5, 'Pendente');
+    expect((confirm.ask.mock.calls[0] as any[])[0].message).toContain('volta para Pendente');
+    expect(api.updateStatus).toHaveBeenCalledWith(5, 'Pendente', { status: 'Solucionado', updated_at: undefined });
     comp.ngOnDestroy();
   });
 
@@ -187,7 +195,7 @@ describe('OcorrenciasPageComponent — ciclos', () => {
     expect(solucionar.length).toBe(1);
     await comp.mudarStatus(disp, 'Solucionado');
     expect((confirm.ask.mock.calls[0] as any[])[0].message).toContain('novo chamado');
-    expect(api.updateStatus).toHaveBeenCalledWith(6, 'Solucionado');
+    expect(api.updateStatus).toHaveBeenCalledWith(6, 'Solucionado', { status: 'Pendente', updated_at: undefined });
     comp.ngOnDestroy();
   });
 });

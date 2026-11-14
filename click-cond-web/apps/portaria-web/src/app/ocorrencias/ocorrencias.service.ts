@@ -19,6 +19,8 @@ export interface Ocorrencia {
   tipo: number;
   tipoNome?: string;
   created_at: string;
+  /** Carimbo da última alteração (devolvido ao mudar status). */
+  updated_at?: string | null;
   publica?: boolean;
   criadoPorNome?: string;
   prazo?: string | null;
@@ -88,8 +90,16 @@ export class OcorrenciasApi {
     return this.http.post<Ocorrencia>(this.base, dto);
   }
 
-  updateStatus(id: number, status: OcorrenciaStatus): Observable<Ocorrencia> {
-    return this.http.patch<Ocorrencia>(`${this.base}/${id}/status`, { status });
+  /**
+   * `visto`: o status e o updated_at que a tela mostrava — a API recusa (409)
+   * se a ocorrência mudou desde então (lista de até 30 s atrás).
+   */
+  updateStatus(id: number, status: OcorrenciaStatus, visto?: { status?: string; updated_at?: string | null }): Observable<Ocorrencia> {
+    return this.http.patch<Ocorrencia>(`${this.base}/${id}/status`, {
+      status,
+      ...(visto?.status ? { status_esperado: visto.status } : {}),
+      ...(visto?.updated_at ? { updated_at_esperado: visto.updated_at } : {}),
+    });
   }
 
   updatePublica(id: number, publica: boolean): Observable<Ocorrencia> {

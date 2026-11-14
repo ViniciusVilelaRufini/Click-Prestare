@@ -31,13 +31,22 @@ const STATUS_DA_RESPOSTA_APP: Record<string, OcorrenciaStatus> = {
 
 /**
  * De onde cada status pedido pode partir (updateStatus). 'Pendente' é o
- * Reabrir da tela: só de Solucionado, e grava Ciente.
+ * Reabrir da tela: só de Solucionado (inclusive as grafias antigas).
  */
+/** Grafias antigas de "solucionado" ainda gravadas (o console já tratava 'Resolvida'). */
+const SOLUCIONADO_LEGADO = ['Solucionado', 'Solucionada', 'Resolvida', 'Resolvido'];
+
 const ORIGENS_DO_STATUS: Record<OcorrenciaStatus, string[]> = {
   Ciente: ['Pendente'],
   Solucionado: ['Pendente', 'Ciente'],
-  Pendente: ['Solucionado'],
+  Pendente: SOLUCIONADO_LEGADO,
 };
+
+/** Status para comparar: minúsculo, sem espaços, grafias antigas de solucionado juntas. */
+function statusComparavel(s: string | null | undefined): string {
+  const n = (s ?? 'Pendente').trim().toLowerCase();
+  return SOLUCIONADO_LEGADO.some((x) => x.toLowerCase() === n) ? 'solucionado' : n;
+}
 
 /** Pendente = ninguém da equipe deu ciência ainda (status nulo conta como Pendente). */
 function estaPendente(status: string | null | undefined): boolean {
@@ -166,7 +175,7 @@ export class OcorrenciasService {
     assertOperador(user, contexto);
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id },
-      select: { id_condominio: true, tipo: true, status: true },
+      select: { id_condominio: true, tipo: true, status: true, updated_at: true },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
     await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${id}`);
@@ -395,6 +404,8 @@ export class OcorrenciasService {
       responsavelNome: o.id_responsavel ? nomes.get(o.id_responsavel) ?? null : null,
       criadoPorNome: autorOcorrencia(o.criadoPor?.name, o.categoria?.nome, o.origem, o.funcionarioPortaria?.nome),
       created_at: o.created_at,
+      // Carimbo da última alteração: a tela devolve ao mudar status (updated_at_esperado).
+      updated_at: o.updated_at,
       publica: o.publica,
     }));
   }
@@ -492,20 +503,47 @@ export class OcorrenciasService {
     }
   }
 
-  async updateStatus(id: number, status: OcorrenciaStatus, user?: JwtPayload) {
+  /**
+   * `esperado` (opcional, o console manda): o status e o `updated_at` que a
+   * tela mostrava. Diferente do atual → 409. Sem ele vale só a regra de
+   * origem (cliente antigo e app). O carimbo pega o que o status sozinho não
+   * pega: solucionada e reaberta de novo enquanto a tela de outro porteiro
+   * ainda mostrava "Pendente".
+   */
+  async updateStatus(
+    id: number,
+    status: OcorrenciaStatus,
+    user?: JwtPayload,
+    esperado: { status?: string | null; updated_at?: string | null } = {},
+  ) {
+    // Fora do vocabulário (inclusive chaves herdadas como 'toString'): 400.
+    if (typeof status !== 'string' || !Object.prototype.hasOwnProperty.call(ORIGENS_DO_STATUS, status)) {
+      throw new BadRequestException('Status inválido.');
+    }
+    let carimbo: Date | null = null;
+    if (esperado.updated_at != null && esperado.updated_at !== '') {
+      carimbo = new Date(esperado.updated_at);
+      if (Number.isNaN(carimbo.getTime())) throw new BadRequestException('updated_at_esperado inválido.');
+    }
     const atual = await this.loadParaAtendimento(id, user, 'alterar status da ocorrência');
     // A escrita é condicionada ao status de origem: com a lista de 30 s
     // atrás, um "Marcar como ciente" sobre uma ocorrência já solucionada a
     // fazia regredir (e o morador recebia "Ciente" logo depois de
     // "Solucionado"). Reabrir ('Pendente', o que a tela manda) só sai de
-    // Solucionado e grava Ciente: a equipe já tocou nela, e Pendente
-    // devolvia ao autor o direito de reescrever e apagar.
+    // Solucionado e grava Pendente (o app mostra Responder e a aba Pendentes
+    // por esse status); a proteção do autor é a da resposta/chat da equipe.
     const reabrindo = status === 'Pendente';
     const origens = ORIGENS_DO_STATUS[status];
-    if (!origens) throw new BadRequestException('Status inválido.');
-    const gravar: OcorrenciaStatus = reabrindo ? 'Ciente' : status;
-    const atualNorm = (atual.status ?? 'Pendente').trim().toLowerCase();
-    if (!origens.some((s) => s.toLowerCase() === atualNorm)) {
+    const atualNorm = statusComparavel(atual.status);
+    const mudou =
+      (esperado.status != null && esperado.status !== '' && statusComparavel(esperado.status) !== atualNorm) ||
+      (carimbo != null && (!atual.updated_at || new Date(atual.updated_at).getTime() !== carimbo.getTime()));
+    if (mudou) {
+      throw new ConflictException(
+        `A ocorrência mudou enquanto você via a lista (agora está ${atual.status}). A lista foi atualizada; confira antes de agir.`,
+      );
+    }
+    if (!origens.some((s) => statusComparavel(s) === atualNorm)) {
       throw new ConflictException(
         reabrindo
           ? `A ocorrência já está ${atual.status}: só é possível reabrir uma ocorrência solucionada.`
@@ -514,8 +552,11 @@ export class OcorrenciasService {
     }
     // Reabrir: o prazo recomeça de agora pelo SLA da categoria (a mesma conta
     // do cadastro). Com o prazo original a ocorrência voltava já "Atrasada".
-    const data = reabrindo ? { status: gravar, prazo: await this.prazoDaCategoria(atual.tipo ?? null) } : { status: gravar };
-    const r = await this.prisma.ocorrencias.updateMany({ where: { id, status: { in: origens } }, data });
+    const data = reabrindo ? { status, prazo: await this.prazoDaCategoria(atual.tipo ?? null) } : { status };
+    const r = await this.prisma.ocorrencias.updateMany({
+      where: { id, status: { in: origens }, ...(carimbo ? { updated_at: carimbo } : {}) },
+      data,
+    });
     if (r.count === 0) {
       throw new ConflictException('A ocorrência mudou enquanto você atendia. Recarregue a lista.');
     }
@@ -525,7 +566,7 @@ export class OcorrenciasService {
       id,
       atualizado.user,
       'Ocorrência atualizada',
-      reabrindo ? `Sua ocorrência #${id} foi reaberta e está em andamento.` : `Sua ocorrência #${id} agora está: ${gravar}.`,
+      reabrindo ? `Sua ocorrência #${id} foi reaberta.` : `Sua ocorrência #${id} agora está: ${status}.`,
     );
     return atualizado;
   }
