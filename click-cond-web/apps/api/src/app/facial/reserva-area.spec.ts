@@ -109,6 +109,34 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
     expect(client.removePerson).not.toHaveBeenCalled();
   });
 
+  it('término 00:00 (bloco 20:00–24:00 do app) → a janela termina à meia-noite do DIA SEGUINTE, não antes do início', async () => {
+    const { svc, client } = build({
+      hora_de: new Date('1970-01-01T20:00:00.000Z'),
+      hora_ate: new Date('1970-01-01T00:00:00.000Z'),
+    });
+    await svc.syncReservaArea(100);
+    expect(client.enrollPerson).toHaveBeenCalledWith(
+      DEVICE,
+      expect.objectContaining({
+        validFrom: '2026-07-20 20:00:00',
+        validTo: '2026-07-21 00:00:00',
+      }),
+    );
+  });
+
+  it('término 00:00 no último dia do mês → a janela vira para o dia 1º do mês seguinte', async () => {
+    const { svc, client } = build({
+      data: new Date('2026-07-31T00:00:00.000Z'),
+      hora_de: new Date('1970-01-01T20:00:00.000Z'),
+      hora_ate: new Date('1970-01-01T00:00:00.000Z'),
+    });
+    await svc.syncReservaArea(100);
+    expect(client.enrollPerson).toHaveBeenCalledWith(
+      DEVICE,
+      expect.objectContaining({ validFrom: '2026-07-31 20:00:00', validTo: '2026-08-01 00:00:00' }),
+    );
+  });
+
   it('recusado (sem outra reserva) → remove os moradores do terminal', async () => {
     const { svc, client } = build({ status: 'recusado' }, { outraReserva: 0 });
     await svc.syncReservaArea(100);

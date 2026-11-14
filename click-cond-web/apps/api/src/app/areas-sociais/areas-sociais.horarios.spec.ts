@@ -317,6 +317,27 @@ describe('AreasSociaisService — horários livres (hoje, status, manutenção)'
       expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
     });
 
+    it('reserva 20:00–24:00 (término gravado 00:00) é recusada quando a manutenção cai às 21:00–23:00', async () => {
+      const { svc, prisma } = build({
+        manutencoes: [
+          manutencaoDb({
+            hora_inicio: new Date(1970, 0, 1, 21, 0, 0),
+            hora_termino: new Date(1970, 0, 1, 23, 0, 0),
+          }),
+        ],
+      });
+      await expect(
+        svc.insertAgendamento({ ...agendamentoBase, horaDe: '20:00', horaAte: '24:00' }, 6, 'Funcionario', funcionarioCond2),
+      ).rejects.toThrow('Esta área está em manutenção no horário solicitado.');
+      expect(prisma.areas_Sociais_Agendamentos.create).not.toHaveBeenCalled();
+    });
+
+    it('término "00:00" de hoje é a meia-noite do fim do dia, não um horário que já passou', async () => {
+      const { svc, prisma } = build();
+      await svc.insertAgendamento({ ...agendamentoBase, horaDe: '20:00', horaAte: '00:00' }, 6, 'Funcionario', funcionarioCond2);
+      expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
+    });
+
     it('manutenção sem data_inicio não bloqueia a reserva', async () => {
       const { svc, prisma } = build({
         manutencoes: [
