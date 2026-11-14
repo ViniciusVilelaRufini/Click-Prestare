@@ -8,6 +8,7 @@ import { AuthService } from '../auth/auth.service';
 import { VisitantesService, Pessoa } from '../visitantes/visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ServerClockService } from '../core/server-clock.service';
+import { statusVisitante } from '../core/status-visitante.util';
 import { NetworkStatusService } from '../core/network-status.service';
 import { direcaoLabel as direcaoLabelUtil } from '../shared/direcao-label.util';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
@@ -501,13 +502,21 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     };
   }
 
-  /** Painel "Na portaria agora": quem está no local primeiro; no máximo quatro. */
+  /**
+   * Painel "Na portaria agora": quem está no local primeiro; no máximo quatro.
+   * "Liberado" é o mesmo da tela de Visitantes (statusVisitante): o
+   * `statusLabel` da API diz "Liberado" também com a janela encerrada ou a
+   * autorização do morador vencida. Recalcula com o relógio do servidor, então
+   * quem tem a janela vencendo sai do painel sem esperar a próxima carga.
+   */
   readonly naPortaria = signal<Pessoa[]>([]);
-  readonly naPortariaVisiveis = computed(() =>
-    [...this.naPortaria()]
+  readonly naPortariaVisiveis = computed(() => {
+    const agoraMs = this.agora().getTime();
+    return this.naPortaria()
+      .filter((p) => p.noLocal || statusVisitante(p, agoraMs) === 'liberado')
       .sort((a, b) => Number(b.noLocal) - Number(a.noLocal))
-      .slice(0, 4),
-  );
+      .slice(0, 4);
+  });
   readonly qtdNoLocal = computed(() => this.naPortaria().filter((p) => p.noLocal).length);
 
   private carregarNaPortaria() {
