@@ -53,10 +53,10 @@ export class CredenciaisController {
   @Patch('condominio/:idCondominio/opcao')
   definirOpcao(
     @Param('idCondominio') idCondominio: string,
-    @Body() body: { qr_app_habilitado: boolean },
+    @Body() body: { qr_app_habilitado?: boolean; wallet_habilitado?: boolean },
     @ReqUser() user: JwtPayload,
   ) {
-    return this.service.definirOpcao(Number(idCondominio), body?.qr_app_habilitado, user);
+    return this.service.definirOpcao(Number(idCondominio), body ?? {}, user);
   }
 }
 

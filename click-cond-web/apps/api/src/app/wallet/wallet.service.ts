@@ -1,0 +1,375 @@
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { PrismaService } from '../prisma/prisma.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
+import { AuditoriaService } from '../auditoria/auditoria.service';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioApp } from '../auth/usuario-app.guard';
+import { assertOperador } from '../auth/tenant.util';
+import { autorDoToken } from '../auth/usuario-do-token.util';
+import { decryptSecret, encryptSecret } from '../facial/device-secret.util';
+import { comLock } from '../common/lock-distribuido';
+import { rotuloBloco } from '../common/rotulo-bloco.util';
+import { CredenciaisValidacaoService } from '../credenciais/credenciais-validacao.service';
+import { diaBrasiliaDe, gerarCodigo } from '../credenciais/codigo-dinamico.util';
+import { carregarImagensDoPasse, DadosDoPasse, montarPasseApple } from './apple-passe.builder';
+import { WalletChavesService } from './wallet-chaves.service';
+import { WALLET_WEB_SERVICE_URL } from './wallet.constantes';
+
+export const ORIGENS_WALLET = ['wallet_apple', 'wallet_google'] as const;
+
+const SEGREDO_HEX = /^[0-9a-f]{64}$/i;
+const ESPERA_LOCK_S = 5;
+const MSG_SEM_MORADOR = 'Seu usuário não tem unidade vinculada neste condomínio.';
+const MSG_DESLIGADO = 'Passe na carteira não está ativo neste condomínio.';
+const MSG_INDISPONIVEL = 'Passe na carteira indisponível no momento.';
+
+export interface SituacaoWallet {
+  habilitado: boolean;
+  apple: { disponivel: boolean; ativo: boolean };
+  google: { disponivel: boolean; ativo: boolean };
+}
+
+function exigirIdPositivo(valor: unknown, mensagem: string): number {
+  const id = Number(valor);
+  if (!Number.isInteger(id) || id <= 0) throw new BadRequestException(mensagem);
+  return id;
+}
+
+/** "Bloco A · Apto 12", omitindo a parte que não existe. */
+function rotuloUnidade(bloco: string | null | undefined, apartamento: string | null | undefined): string {
+  const partes = [rotuloBloco(bloco), (apartamento ?? '').trim() ? `Apto ${String(apartamento).trim()}` : ''];
+  return partes.filter(Boolean).join(' · ');
+}
+
+/**
+ * Passe do morador na carteira do celular (Apple Wallet).
+ *
+ * O passe é uma credencial própria em Credenciais_Acesso (origem
+ * `wallet_apple`), com segredo separado do segredo do app, e mostra o código
+ * diário P2. Uma ativa por pessoa, condomínio e origem: "adicionar de novo"
+ * reentrega o mesmo passe (mesmo número de série). Cancelar revoga; o QR do
+ * app (origem `app`) nunca é tocado aqui.
+ *
+ * O segredo, o código e o token do passe nunca vão para log nem para resposta
+ * JSON: só dentro do .pkpass entregue ao dono.
+ */
+@Injectable()
+export class WalletService {
+  private readonly logger = new Logger(WalletService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly validacao: CredenciaisValidacaoService,
+    private readonly chaves: WalletChavesService,
+    private readonly tenant: TenantAccessService,
+    private readonly auditoria: AuditoriaService,
+  ) {}
+
+  // ===================== App (morador) =====================
+
+  async situacao(user: JwtPayload, idCondominioBruto: unknown): Promise<SituacaoWallet> {
+    const p = this.prisma as any;
+    const idCondominio = exigirIdPositivo(idCondominioBruto, 'id_condominio inválido.');
+    const idUser = idUsuarioApp(user);
+    await this.tenant.assertCondominio(idCondominio, user);
+
+    const morador = await this.linhaDeMorador(idUser, idCondominio);
+    const [habilitado, chaves] = await Promise.all([
+      this.validacao.walletHabilitado(idCondominio),
+      this.chaves.apple(),
+    ]);
+    const ativa = async (origem: string) =>
+      !!morador &&
+      !!(await p.credenciais_Acesso.findFirst({
+        where: { ...this.daPessoa(idCondominio, morador.id), origem, revogada_em: null },
+        select: { id: true },
+      }));
+    return {
+      habilitado: habilitado && !!morador,
+      apple: { disponivel: !!chaves, ativo: await ativa('wallet_apple') },
+      // Google Wallet ainda não publicado: o botão do Android fica oculto.
+      google: { disponivel: false, ativo: await ativa('wallet_google') },
+    };
+  }
+
+  async emitirApple(user: JwtPayload, body: { id_condominio: unknown }, agora: Date = new Date()): Promise<Buffer> {
+    const p = this.prisma as any;
+    const idCondominio = exigirIdPositivo(body?.id_condominio, 'id_condominio inválido.');
+    const idUser = idUsuarioApp(user);
+    await this.tenant.assertCondominio(idCondominio, user);
+
+    const morador = await this.linhaDeMorador(idUser, idCondominio);
+    if (!morador) throw new BadRequestException(MSG_SEM_MORADOR);
+    if (!(await this.validacao.walletHabilitado(idCondominio))) throw new BadRequestException(MSG_DESLIGADO);
+    const chaves = await this.chaves.apple();
+    if (!chaves) throw new ServiceUnavailableException(MSG_INDISPONIVEL);
+    this.chaveDoToken(true);
+
+    // Ler e criar sob o lock da pessoa (GET_LOCK, vale entre instâncias): dois
+    // toques juntos não criam duas credenciais ativas.
+    const r = await comLock(
+      p,
+      this.nomeDoLock(idCondominio, morador.id),
+      async () => {
+        const ativa = await p.credenciais_Acesso.findFirst({
+          where: { ...this.daPessoa(idCondominio, morador.id), origem: 'wallet_apple', revogada_em: null },
+          orderBy: { id: 'desc' },
+        });
+        if (ativa) return ativa;
+        return p.credenciais_Acesso.create({
+          data: {
+            id_condominio: idCondominio,
+            tipo_pessoa: 'morador',
+            id_pessoa: morador.id,
+            segredo: encryptSecret(randomBytes(32).toString('hex')),
+            origem: 'wallet_apple',
+            wallet_atualizado_em: agora,
+          },
+        });
+      },
+      { esperaSegundos: ESPERA_LOCK_S, duracaoMaximaMs: 30_000 },
+    );
+    if (!r.obtido) throw new ServiceUnavailableException('Passe em emissão. Tente de novo.');
+
+    const cred = r.valor;
+    const segredo = this.segredoDe(cred);
+    if (!segredo) throw new ServiceUnavailableException(MSG_INDISPONIVEL);
+    const cond = await p.condominios.findUnique({ where: { id: idCondominio }, select: { nome: true } });
+    return montarPasseApple(
+      this.dadosDoPasse(cred.id, cond?.nome, morador, gerarCodigo('P2', cred.id, diaBrasiliaDe(agora), segredo)),
+      chaves,
+      carregarImagensDoPasse(),
+      agora,
+    );
+  }
+
+  async cancelarDoUsuario(
+    user: JwtPayload,
+    body: { id_condominio: unknown },
+    agora: Date = new Date(),
+  ): Promise<{ ok: true }> {
+    const idCondominio = exigirIdPositivo(body?.id_condominio, 'id_condominio inválido.');
+    const idUser = idUsuarioApp(user);
+    await this.tenant.assertCondominio(idCondominio, user);
+    const morador = await this.linhaDeMorador(idUser, idCondominio);
+    if (morador) await this.revogar(idCondominio, morador.id, agora);
+    return { ok: true };
+  }
+
+  // ===================== Operador (portaria-web / síndico) =====================
+
+  async cancelarPeloOperador(
+    idMoradorBruto: unknown,
+    operador: JwtPayload,
+    agora: Date = new Date(),
+  ): Promise<{ ok: true; cancelados: number }> {
+    assertOperador(operador, 'cancelar o passe da carteira');
+    const idMorador = exigirIdPositivo(idMoradorBruto, 'Morador inválido.');
+    const morador = await (this.prisma as any).moradores.findUnique({
+      where: { id: idMorador },
+      select: { id: true, nome: true, id_condominio: true },
+    });
+    if (!morador) throw new NotFoundException('Morador não encontrado.');
+    await this.tenant.assertCondominio(morador.id_condominio, operador);
+
+    const cancelados = await this.revogar(morador.id_condominio, morador.id, agora);
+    await this.auditoria.registrar({
+      id_condominio: morador.id_condominio,
+      usuario_nome: operador?.nome ?? 'Portaria',
+      ...autorDoToken(operador),
+      acao: 'UPDATE',
+      modulo: 'wallet',
+      entidade_id: morador.id,
+      descricao: `Cancelou o passe da carteira de ${morador.nome}`,
+      detalhes: { cancelados },
+    });
+    return { ok: true, cancelados };
+  }
+
+  /**
+   * Morador excluído: revoga os passes de carteira dele e avisa os aparelhos
+   * (o passe aparece inválido). A validação já nega por `morador_removido`;
+   * isto só apressa a atualização do passe. Nunca lança.
+   */
+  async revogarDoMorador(idMorador: number, idCondominio: number, agora: Date = new Date()): Promise<void> {
+    try {
+      await this.revogar(idCondominio, idMorador, agora);
+    } catch (e: any) {
+      this.logger.warn(`Passes de carteira do morador ${idMorador} não foram revogados: ${e?.message ?? e}`);
+    }
+  }
+
+  // ===================== Serviço da Apple =====================
+
+  /**
+   * O .pkpass atual de uma credencial `wallet_apple`, para o serviço de
+   * atualização da Apple: válido com o código do dia, ou inválido (voided)
+   * quando revogada, morador removido ou opção desligada. null quando a
+   * credencial não existe ou não é wallet_apple. Sem chaves: 503.
+   */
+  async passeAppleDaCredencial(
+    idCredencial: number,
+    agora: Date = new Date(),
+  ): Promise<{ pkpass: Buffer; atualizadoEm: Date } | null> {
+    const p = this.prisma as any;
+    const cred = await p.credenciais_Acesso.findUnique({ where: { id: idCredencial } });
+    if (!cred || cred.origem !== 'wallet_apple' || cred.tipo_pessoa !== 'morador') return null;
+    const chaves = await this.chaves.apple();
+    if (!chaves) throw new ServiceUnavailableException(MSG_INDISPONIVEL);
+
+    const [morador, cond, habilitado] = await Promise.all([
+      cred.id_pessoa != null
+        ? p.moradores.findUnique({
+            where: { id: cred.id_pessoa },
+            select: { id: true, nome: true, bloco: true, apartamento: true, id_condominio: true },
+          })
+        : null,
+      p.condominios.findUnique({ where: { id: cred.id_condominio }, select: { nome: true } }),
+      this.validacao.walletHabilitado(cred.id_condominio),
+    ]);
+    const moradorValido = morador && morador.id_condominio === cred.id_condominio ? morador : null;
+    const segredo = this.segredoDe(cred);
+    const valido = !cred.revogada_em && !!moradorValido && habilitado && !!segredo;
+    const codigo = valido ? gerarCodigo('P2', cred.id, diaBrasiliaDe(agora), segredo as Buffer) : null;
+    const pkpass = montarPasseApple(
+      this.dadosDoPasse(cred.id, cond?.nome, moradorValido ?? { nome: 'Passe cancelado' }, codigo),
+      chaves,
+      carregarImagensDoPasse(),
+      agora,
+    );
+    return { pkpass, atualizadoEm: cred.wallet_atualizado_em ?? cred.criado_em ?? agora };
+  }
+
+  /**
+   * `authenticationToken` do passe: base64url dos primeiros 24 bytes de
+   * HMAC-SHA256(sha256(FACIAL_CRED_KEY || JWT_SECRET), "wallet-auth|<id>").
+   * Derivado, não guardado. Sem segredo no servidor: 503.
+   */
+  tokenDoPasse(idCredencial: number): string {
+    const chave = this.chaveDoToken(true) as Buffer;
+    return createHmac('sha256', chave).update(`wallet-auth|${idCredencial}`).digest().subarray(0, 24).toString('base64url');
+  }
+
+  /** Mesma conta de `tokenDoPasse`, ou null sem segredo no servidor (para conferir sem lançar). */
+  tokenDoPasseOuNulo(idCredencial: number): string | null {
+    return this.chaveDoToken(false) ? this.tokenDoPasse(idCredencial) : null;
+  }
+
+  // ===================== Atualização dos passes =====================
+
+  /**
+   * Grava `wallet_atualizado_em = agora` nas credenciais dadas: o serviço da
+   * Apple passa a listá-las como alteradas e entrega o passe novo.
+   */
+  async marcarAtualizado(idsCredencial: number[], agora: Date = new Date()): Promise<void> {
+    const ids = [...new Set(idsCredencial)].filter((id) => Number.isInteger(id) && id > 0);
+    if (!ids.length) return;
+    await (this.prisma as any).credenciais_Acesso.updateMany({
+      where: { id: { in: ids } },
+      data: { wallet_atualizado_em: agora },
+    });
+  }
+
+  /**
+   * A opção do condomínio mudou de efeito: os passes ativos passam a ser
+   * entregues inválidos (ou válidos de novo). Não revoga. Nunca lança.
+   */
+  async marcarCondominio(idCondominio: number, agora: Date = new Date()): Promise<void> {
+    try {
+      const creds = await (this.prisma as any).credenciais_Acesso.findMany({
+        where: { id_condominio: idCondominio, origem: { in: [...ORIGENS_WALLET] }, revogada_em: null },
+        select: { id: true },
+      });
+      await this.marcarAtualizado(
+        creds.map((c: { id: number }) => c.id),
+        agora,
+      );
+    } catch (e: any) {
+      this.logger.warn(`Passes de carteira do condomínio ${idCondominio} não foram marcados: ${e?.message ?? e}`);
+    }
+  }
+
+  // ===================== Apoio =====================
+
+  private daPessoa(idCondominio: number, idMorador: number) {
+    return { id_condominio: idCondominio, tipo_pessoa: 'morador', id_pessoa: idMorador };
+  }
+
+  private nomeDoLock(idCondominio: number, idMorador: number) {
+    return `credenciais:wallet:${idCondominio}:morador:${idMorador}`;
+  }
+
+  /** Mesma regra de `credenciais/minha`: a primeira linha de Moradores do usuário no condomínio. */
+  private linhaDeMorador(idUser: number, idCondominio: number) {
+    return (this.prisma as any).moradores.findFirst({
+      where: { id_user: idUser, id_condominio: idCondominio },
+      orderBy: { id: 'asc' },
+      select: { id: true, nome: true, bloco: true, apartamento: true },
+    });
+  }
+
+  /** Revoga as credenciais de carteira ativas da pessoa e marca as revogadas. Devolve quantas. */
+  private async revogar(idCondominio: number, idMorador: number, agora: Date): Promise<number> {
+    const p = this.prisma as any;
+    const r = await comLock(
+      p,
+      this.nomeDoLock(idCondominio, idMorador),
+      async () => {
+        const ativas = await p.credenciais_Acesso.findMany({
+          where: { ...this.daPessoa(idCondominio, idMorador), origem: { in: [...ORIGENS_WALLET] }, revogada_em: null },
+          select: { id: true },
+        });
+        const ids: number[] = ativas.map((c: { id: number }) => c.id);
+        if (ids.length) {
+          await p.credenciais_Acesso.updateMany({
+            where: { id: { in: ids }, revogada_em: null },
+            data: { revogada_em: agora },
+          });
+        }
+        return ids;
+      },
+      { esperaSegundos: ESPERA_LOCK_S, duracaoMaximaMs: 30_000 },
+    );
+    if (!r.obtido) throw new ServiceUnavailableException('Passe em emissão. Tente de novo.');
+    await this.marcarAtualizado(r.valor, agora);
+    return r.valor.length;
+  }
+
+  private dadosDoPasse(
+    idCredencial: number,
+    condominio: string | null | undefined,
+    morador: { nome?: string | null; bloco?: string | null; apartamento?: string | null },
+    codigo: string | null,
+  ): DadosDoPasse {
+    return {
+      serial: `c${idCredencial}`,
+      authToken: this.tokenDoPasse(idCredencial),
+      webServiceUrl: WALLET_WEB_SERVICE_URL,
+      condominio: condominio ?? '',
+      morador: morador.nome ?? '',
+      unidade: rotuloUnidade(morador.bloco, morador.apartamento),
+      codigo,
+    };
+  }
+
+  private segredoDe(cred: { segredo: string }): Buffer | null {
+    const hex = decryptSecret(cred.segredo);
+    return hex && SEGREDO_HEX.test(hex) ? Buffer.from(hex, 'hex') : null;
+  }
+
+  private chaveDoToken(exigir: boolean): Buffer | null {
+    const segredo = process.env.FACIAL_CRED_KEY || process.env.JWT_SECRET;
+    if (!segredo) {
+      if (exigir) throw new ServiceUnavailableException(MSG_INDISPONIVEL);
+      return null;
+    }
+    return createHash('sha256').update(segredo).digest();
+  }
+}

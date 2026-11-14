@@ -518,11 +518,11 @@ describe('Credenciais', () => {
       await expect(svc.definirOpcao(1, true, MORADOR)).rejects.toThrow(ForbiddenException);
       expect(prisma.condominios.update).not.toHaveBeenCalled();
 
-      expect(await svc.definirOpcao(1, true, SINDICO)).toEqual({ qr_app_habilitado: true });
+      expect(await svc.definirOpcao(1, true, SINDICO)).toEqual({ qr_app_habilitado: true, wallet_habilitado: false });
       expect(prisma.condominios.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { qr_app_habilitado: true },
-        select: { qr_app_habilitado: true },
+        data: { qr_app_habilitado: true, wallet_habilitado: false },
+        select: { qr_app_habilitado: true, wallet_habilitado: true },
       });
     });
 
@@ -533,7 +533,7 @@ describe('Credenciais', () => {
 
     it('GET devolve o valor atual', async () => {
       const { svc, tenant } = build({ opcao: true });
-      expect(await svc.lerOpcao(1, MORADOR)).toEqual({ qr_app_habilitado: true });
+      expect(await svc.lerOpcao(1, MORADOR)).toEqual({ qr_app_habilitado: true, wallet_habilitado: false });
       expect(tenant.assertCondominio).toHaveBeenCalledWith(1, MORADOR);
     });
   });

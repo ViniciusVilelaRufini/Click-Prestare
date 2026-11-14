@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
@@ -6,6 +6,7 @@ import { type Gravados, PREFIXOS_FOTO_MORADOR, StorageService } from '../common/
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
+import { WalletService } from '../wallet/wallet.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
@@ -99,6 +100,7 @@ export class MoradoresService {
     private readonly facial: FacialService,
     private readonly auditoria: AuditoriaService,
     private readonly superlogicaWrite: SuperlogicaWriteService,
+    @Optional() private readonly wallet?: WalletService,
   ) {}
 
   private gerarSenhaAleatoria(): string {
@@ -1544,6 +1546,11 @@ export class MoradoresService {
         descricao: `Removeu morador "${morador.nome}"${ctx?.apartamento ? ' do ' + ctx.apartamento.label : ''}`,
         detalhes: ctx ?? undefined,
       });
+    }
+    // Passe da carteira: a leitura já nega (morador_removido); revogar e avisar
+    // faz o passe aparecer inválido no celular. Não bloqueia a exclusão.
+    if (morador?.id_condominio && this.wallet) {
+      void this.wallet.revogarDoMorador(id, morador.id_condominio);
     }
     if (morador?.face_id) {
       this.facial

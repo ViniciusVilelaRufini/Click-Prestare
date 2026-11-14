@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
@@ -18,6 +19,7 @@ import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { rotuloBloco } from '../common/rotulo-bloco.util';
 import { comLock } from '../common/lock-distribuido';
 import { contadorDe, gerarCodigo, INTERVALO_MS } from './codigo-dinamico.util';
+import { WalletService } from '../wallet/wallet.service';
 
 /** Mesmo padrão do link do convite (`convites.service.ts`). */
 const BASE_URL_PADRAO = 'https://www.prestarecondominios.com.br';
@@ -68,6 +70,8 @@ export class CredenciaisService {
     private readonly prisma: PrismaService,
     private readonly tenant: TenantAccessService,
     private readonly visitantes: VisitantesService,
+    // Opcional: marca os passes da carteira quando a opção muda de efeito.
+    @Optional() private readonly wallet?: WalletService,
   ) {}
 
   // ===================== Morador (app) =====================
@@ -247,32 +251,73 @@ export class CredenciaisService {
 
   // ===================== Opção do condomínio =====================
 
-  async lerOpcao(idCondominio: number, user: JwtPayload): Promise<{ qr_app_habilitado: boolean }> {
+  async lerOpcao(
+    idCondominio: number,
+    user: JwtPayload,
+  ): Promise<{ qr_app_habilitado: boolean; wallet_habilitado: boolean }> {
     const id = exigirIdPositivo(idCondominio, 'Condomínio inválido.');
     await this.tenant.assertCondominio(id, user);
-    return { qr_app_habilitado: await this.opcaoLigada(id) };
+    return this.opcoes(id);
   }
 
   /**
-   * Liga/desliga "QR no app". Mexe em acesso físico (com a opção ligada o PIN
-   * lido como QR deixa de abrir), então exige síndico pelo typeAccess, sem
-   * aceitar o `turno` texto livre do porteiro.
+   * Liga/desliga "QR no app" e "Passe na carteira". Mexe em acesso físico
+   * (com o QR ligado o PIN lido como QR deixa de abrir; o passe abre sem o
+   * app), então exige síndico pelo typeAccess, sem aceitar o `turno` texto
+   * livre do porteiro.
+   *
+   * "Passe na carteira" só liga com "QR no app" ligado, e desligar o QR
+   * desliga o passe junto. Quando o efeito para a carteira muda, os passes
+   * ativos do condomínio são marcados para atualizar (entregues inválidos ou
+   * válidos de novo), sem revogar. Aceita o booleano antigo (só o QR).
    */
   async definirOpcao(
     idCondominio: number,
-    valor: boolean,
+    entrada: boolean | { qr_app_habilitado?: unknown; wallet_habilitado?: unknown },
     user: JwtPayload,
-  ): Promise<{ qr_app_habilitado: boolean }> {
+  ): Promise<{ qr_app_habilitado: boolean; wallet_habilitado: boolean }> {
     const id = exigirIdPositivo(idCondominio, 'Condomínio inválido.');
     assertSindicoEstrito(user, 'alterar o QR no app');
-    if (typeof valor !== 'boolean') throw new BadRequestException('qr_app_habilitado deve ser verdadeiro ou falso.');
+    const body = entrada !== null && typeof entrada === 'object' ? entrada : { qr_app_habilitado: entrada };
+    const temQr = body.qr_app_habilitado !== undefined;
+    const temWallet = body.wallet_habilitado !== undefined;
+    if (!temQr && !temWallet) throw new BadRequestException('Informe qr_app_habilitado ou wallet_habilitado.');
+    if (temQr && typeof body.qr_app_habilitado !== 'boolean') {
+      throw new BadRequestException('qr_app_habilitado deve ser verdadeiro ou falso.');
+    }
+    if (temWallet && typeof body.wallet_habilitado !== 'boolean') {
+      throw new BadRequestException('wallet_habilitado deve ser verdadeiro ou falso.');
+    }
     await this.tenant.assertCondominio(id, user);
-    const r = await (this.prisma as any).condominios.update({
-      where: { id },
-      data: { qr_app_habilitado: valor },
-      select: { qr_app_habilitado: true },
-    });
-    return { qr_app_habilitado: !!r.qr_app_habilitado };
+
+    const p = this.prisma as any;
+    // Ler e gravar sob lock: dois PATCH juntos ("desliga QR" e "liga carteira")
+    // não deixam a carteira ligada com o QR desligado.
+    const r = await comLock(
+      p,
+      `credenciais:opcao:${id}`,
+      async () => {
+        const atual = await this.opcoes(id);
+        const qr = temQr ? (body.qr_app_habilitado as boolean) : atual.qr_app_habilitado;
+        let wallet = temWallet ? (body.wallet_habilitado as boolean) : atual.wallet_habilitado;
+        if (!qr) {
+          if (temWallet && wallet) throw new BadRequestException('Ligue primeiro o QR no app.');
+          wallet = false;
+        }
+        const gravado = await p.condominios.update({
+          where: { id },
+          data: { qr_app_habilitado: qr, wallet_habilitado: wallet },
+          select: { qr_app_habilitado: true, wallet_habilitado: true },
+        });
+        const depois = { qr_app_habilitado: !!gravado.qr_app_habilitado, wallet_habilitado: !!gravado.wallet_habilitado };
+        const efeito = (o: typeof depois) => o.qr_app_habilitado && o.wallet_habilitado;
+        return { depois, mudouCarteira: efeito(atual) !== efeito(depois) };
+      },
+      { esperaSegundos: 5, duracaoMaximaMs: 30_000 },
+    );
+    if (!r.obtido) throw new ServiceUnavailableException('Opção em alteração. Tente de novo.');
+    if (r.valor.mudouCarteira) await this.wallet?.marcarCondominio(id);
+    return r.valor.depois;
   }
 
   // ===================== Apoio =====================
@@ -346,6 +391,14 @@ export class CredenciaisService {
     return ref.espaco === 'visita'
       ? { id_visita: ref.id, id_visitante: null }
       : { id_visita: null, id_visitante: ref.id };
+  }
+
+  private async opcoes(idCondominio: number): Promise<{ qr_app_habilitado: boolean; wallet_habilitado: boolean }> {
+    const cond = await (this.prisma as any).condominios.findUnique({
+      where: { id: idCondominio },
+      select: { qr_app_habilitado: true, wallet_habilitado: true },
+    });
+    return { qr_app_habilitado: !!cond?.qr_app_habilitado, wallet_habilitado: !!cond?.wallet_habilitado };
   }
 
   private async opcaoLigada(idCondominio: number): Promise<boolean> {
