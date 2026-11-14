@@ -18,6 +18,7 @@ import { TenantAccessService, ehFuncionarioDoApp, type PermissaoFuncionario } fr
 import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
+import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
 import { temaValido } from '../card-ao-vivo/conteudo';
@@ -333,6 +334,8 @@ export class MobileAuthService {
     // Rota pública (pentest P-09): a foto é validada antes de qualquer gravação
     // e só sobe para o storage depois que a conta existe (ver abaixo).
     const fotoSignup = fotoDoSignup(body.photo, (v) => this.storage.isDataUrl(v));
+    // Domínio das lápides da revogação de portaria: ocupar a lápide de uma conta travava a revogação dela.
+    assertEmailNaoReservado(body.email);
 
     const emailNormalized = body.email.toLowerCase().trim();
 
@@ -593,6 +596,8 @@ export class MobileAuthService {
     }
     const s = user.sindicos[0];
 
+    // Domínio das lápides da revogação de portaria (common/email-reservado.util).
+    assertEmailNaoReservado(body.email);
     const emailNormalized = body.email?.toLowerCase().trim();
     // Também não é troca reenviar o Sindicos.email desta conta: se ela trocou o
     // e-mail por outro papel, Users mudou e Sindicos não — e a tela não tem
@@ -3673,6 +3678,8 @@ export class MobileAuthService {
     }
 
     const func = body?.funcionario ?? body?.funcionarios ?? {};
+    // Domínio das lápides da revogação de portaria (common/email-reservado.util).
+    assertEmailNaoReservado(func.email);
     const atual = await this.prisma.funcionarios.findFirst({
       where: { id_user: idUser },
     });
@@ -3784,6 +3791,8 @@ export class MobileAuthService {
     if ((func.email != null && typeof func.email !== 'string') || (func.login != null && typeof func.login !== 'string')) {
       throw new BadRequestException('E-mail inválido.');
     }
+    // Domínio das lápides da revogação de portaria (common/email-reservado.util).
+    assertEmailNaoReservado(func.email, func.login);
     const idCondominio = Number(body.id_condominio);
 
     // Resolvida em cada ramo, depois da autorização: URL do bucket só passa se
@@ -4347,6 +4356,8 @@ export class MobileAuthService {
     if (mor.email != null && typeof mor.email !== 'string') {
       throw new BadRequestException('E-mail inválido.');
     }
+    // Domínio das lápides da revogação de portaria (common/email-reservado.util).
+    assertEmailNaoReservado(mor.email);
     const idAptoRaw = mor.id_apto ?? body.id_apto;
     const idApto = idAptoRaw ? Number(idAptoRaw) : null;
     const tipoRaw = String(mor.tipo || mor.vinculo || 'proprietario');
