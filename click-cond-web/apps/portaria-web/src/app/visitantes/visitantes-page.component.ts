@@ -12,7 +12,6 @@ import {
   ApartamentoVisitado,
   AUTORIZACAO_EXPIRACAO_MS,
   AUTORIZACAO_SEM_RESPOSTA_MS,
-  TOLERANCIA_JANELA_MS,
 } from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
@@ -27,6 +26,13 @@ import { AuthService } from '../auth/auth.service';
 import { ConsentimentosApi } from '../core/consentimentos.service';
 import { erroDocumento } from '../shared/documento.util';
 import { ServerClockService } from '../core/server-clock.service';
+import {
+  autorizacaoExpirada as autorizacaoExpiradaUtil,
+  janelaEncerrada as janelaEncerradaUtil,
+  statusVisitante,
+  StatusVisitante,
+  VisitaParaStatus,
+} from '../core/status-visitante.util';
 
 @Component({
   selector: 'app-visitantes-page',
@@ -719,27 +725,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Pedido pendente ou autorizado há mais que 10 minutos (expirado). */
+  /** Pedido pendente ou autorizado há mais que 10 minutos (expirado). Regra em core/status-visitante.util. */
   autorizacaoExpirada(p: Pessoa | Visitante): boolean {
-    if (!p) return false;
-    const now = this.agoraMs();
-
-    // Se estiver pendente há mais de 10 min
-    if ((p as Pessoa).auth_status === 'pendente') {
-      const sol = (p as Pessoa).auth_solicitado_em;
-      if (!sol) return false;
-      return now - new Date(sol).getTime() > AUTORIZACAO_EXPIRACAO_MS;
-    }
-
-    // Se estiver autorizado há mais de 10 min e o visitante não estiver dentro do condomínio
-    if ((p as Pessoa).auth_status === 'autorizado') {
-      if (p.data_entrada && !p.data_saida) return false; // presente no condomínio
-      const refTime = (p as Pessoa).auth_respondido_em || (p as Pessoa).auth_solicitado_em;
-      if (!refTime) return false;
-      return now - new Date(refTime).getTime() > AUTORIZACAO_EXPIRACAO_MS;
-    }
-
-    return false;
+    return autorizacaoExpiradaUtil(p as VisitaParaStatus, this.agoraMs());
   }
 
   /** Rótulo + classes Tailwind do status de autorização para o badge na lista. */
@@ -1439,52 +1427,20 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     return this.agoraMs() - new Date(v.data_entrada).getTime() > VisitantesPageComponent.PERMANENCIA_LONGA_MS;
   }
 
-  /** Liberado, mas a janela da visita já terminou: o terminal recusa a entrada. */
+  /**
+   * Liberado, mas a janela da visita já terminou (com a tolerância de 15 min do
+   * terminal/PIN). Regra em core/status-visitante.util, a mesma do dashboard.
+   */
   janelaEncerrada(v: Visitante | Pessoa): boolean {
-    if ((v as any).liberado !== 1 || (v.data_entrada && !v.data_saida)) return false;
-    // Com a tolerância do terminal/PIN: até 15 min depois do fim ele ainda abre.
-    return !!v.data_hora_termino && new Date(v.data_hora_termino).getTime() + TOLERANCIA_JANELA_MS < this.agoraMs();
+    return janelaEncerradaUtil(v as VisitaParaStatus, this.agoraMs());
   }
 
-  getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'liberado' | 'autorizado' | 'agendado' | 'expirado' | 'saiu' {
-    const liberado = (v as any).liberado === 1;
-    // 1. Entrou e ainda está dentro (saida não registrada)
-    if (v.data_entrada && !v.data_saida) return 'presente';
-    // 2. Saída registrada NA VISITA ATUAL. `ultSaida` é de qualquer visita
-    // antiga: usá-la prendia em "Saiu" quem foi liberado de novo, e sumiam
-    // os botões "Dar Baixa" e "Liberar entrada". Prestador e visitante
-    // recorrente (dias da semana) mantêm a liberação na saída: continuam
-    // "Liberado" (antes: "Saiu" + Solicitar, que derrubava o acesso).
-    // Visitante com vaga vigente também: a saída (terminal ou baixa) mantém a
-    // liberação — a linha dizia "Saiu | Solicitar" e o terminal seguia abrindo.
-    const acessoContinuo =
-      liberado &&
-      ((v as any).is_prestador === 1 ||
-        !!String((v as any).dias_semana ?? '').trim() ||
-        (v as Pessoa).temVaga === true);
-    if (v.data_saida && !acessoContinuo) return 'saiu';
-    // 3. Autorização do morador vencida numa visita não usada: o check-in
-    // seria recusado — não é "Liberado" (o botão só falhava).
-    if ((v as Pessoa).autorizacao_expirada) return 'expirado';
-    const now = this.agoraMs();
-    // Janela ainda não começou: o PIN/facial seriam recusados agora — é
-    // "Agendado" (pré-autorização). Sem liberação, não há o que agendar.
-    if (liberado && v.data_hora_inicio && new Date(v.data_hora_inicio).getTime() > now) return 'agendado';
-    // 4. Pré-autorizado manualmente/app (liberado === 1 e não expirado). Com
-    // a janela já encerrada não é mais "Liberado": o terminal recusa.
-    if (liberado && !this.autorizacaoExpirada(v)) {
-      return this.janelaEncerrada(v) ? 'saiu' : 'liberado';
-    }
-    // 4. Dentro do período de liberação (ainda não entrou). A janela sozinha
-    // não autoriza: sem liberação (morador negou, pedido venceu, cópia de
-    // visita) a linha mostrava "Autorizado" e oferecia Registrar Entrada.
-    if (liberado && v.data_hora_inicio && v.data_hora_termino) {
-      const inicio = new Date(v.data_hora_inicio).getTime();
-      const fim = new Date(v.data_hora_termino).getTime();
-      if (now >= inicio && now <= fim) return 'autorizado';
-    }
-    // 5. Default
-    return 'saiu';
+  /**
+   * Status da linha (decide os botões). Regra em core/status-visitante.util — a
+   * mesma do painel "Na portaria agora" do dashboard —, com a hora do servidor.
+   */
+  getStatusVisitante(v: Visitante | Pessoa): StatusVisitante {
+    return statusVisitante(v as VisitaParaStatus, this.agoraMs());
   }
 
   abrirValidador() {

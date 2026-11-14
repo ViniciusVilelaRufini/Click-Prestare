@@ -1,4 +1,5 @@
 import { VisitantesPageComponent } from './visitantes-page.component';
+import * as statusUtil from '../core/status-visitante.util';
 
 /**
  * O status da linha decide os botões: "presente" mostra "Dar Baixa";
@@ -99,5 +100,24 @@ describe('VisitantesPageComponent.getStatusVisitante', () => {
       data_hora_termino: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
     };
     expect(t.getStatusVisitante(v)).toBe('liberado');
+  });
+
+  // Uma regra só: a tela e o painel "Na portaria agora" do dashboard usam
+  // core/status-visitante.util.ts (antes havia duas cópias, e a da tela mudou).
+  it('delega ao util compartilhado, com a hora do servidor', () => {
+    const t = Object.create(VisitantesPageComponent.prototype) as any;
+    const agora = new Date('2026-11-13T15:00:00Z');
+    t.relogio = { agora: () => agora };
+    const spyStatus = jest.spyOn(statusUtil, 'statusVisitante');
+    const spyJanela = jest.spyOn(statusUtil, 'janelaEncerrada');
+    const spyAuth = jest.spyOn(statusUtil, 'autorizacaoExpirada');
+    const v: any = { liberado: 1, data_hora_termino: '2026-11-13T16:00:00Z' };
+    t.getStatusVisitante(v);
+    t.janelaEncerrada(v);
+    t.autorizacaoExpirada(v);
+    expect(spyStatus).toHaveBeenCalledWith(v, agora.getTime());
+    expect(spyJanela).toHaveBeenCalledWith(v, agora.getTime());
+    expect(spyAuth).toHaveBeenCalledWith(v, agora.getTime());
+    jest.restoreAllMocks();
   });
 });

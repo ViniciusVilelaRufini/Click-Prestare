@@ -64,5 +64,10 @@ describe('DashboardPageComponent — "Na portaria agora"', () => {
     expect(statusVisitante(pessoa(5, { data_entrada: h(-1) }), t)).toBe('presente');
     // Prestador continua liberado depois de sair.
     expect(statusVisitante(pessoa(6, { is_prestador: 1, data_entrada: h(-3), data_saida: h(-2) }), t)).toBe('liberado');
+    // Tolerância do terminal/PIN: até 15 min depois do fim ainda abre.
+    expect(statusVisitante(pessoa(7, { data_hora_termino: h(-10 / 60) }), t)).toBe('liberado');
+    expect(statusVisitante(pessoa(8, { data_hora_termino: h(-20 / 60) }), t)).toBe('saiu');
+    // Visitante com vaga vigente mantém a liberação depois de sair.
+    expect(statusVisitante(pessoa(9, { temVaga: true, data_entrada: h(-3), data_saida: h(-1) }), t)).toBe('liberado');
   });
 });
