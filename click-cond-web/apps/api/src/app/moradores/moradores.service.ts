@@ -38,6 +38,11 @@ export interface CreateMoradorDto {
   foto_documento?: string;
   tag_rfid?: string;
   qrcode_acesso?: string;
+  /**
+   * Só na edição: a unidade que o formulário mostrava antes da troca. Com ela, trocar a unidade
+   * troca só aquele vínculo e mantém as outras unidades do morador no condomínio.
+   */
+  id_apartamento_anterior?: number;
 }
 
 @Injectable()
@@ -392,6 +397,9 @@ export class MoradoresService {
           face_id: m?.face_id ?? null,
           face_sync_status: m?.face_sync_status ?? null,
           face_sync_error: m?.face_sync_error ?? null,
+          // A tela de edição monta o formulário com estes campos: sem eles, salvar apagava a tag e o QR.
+          tag_rfid: m?.tag_rfid ?? null,
+          qrcode_acesso: m?.qrcode_acesso ?? null,
         });
       }
       // Busca textual local (mesmo comportamento da query condo-wide).
@@ -471,6 +479,8 @@ export class MoradoresService {
         face_id: m.face_id ?? null,
         face_sync_status: m.face_sync_status ?? null,
         face_sync_error: m.face_sync_error ?? null,
+        tag_rfid: m.tag_rfid ?? null,
+        qrcode_acesso: m.qrcode_acesso ?? null,
       };
     });
   }
@@ -1105,17 +1115,24 @@ export class MoradoresService {
           ? String(dto.tipo).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
           : undefined;
 
+        // Só os vínculos DESTE condomínio: sem o filtro, editar o morador
+        // aqui apagava o vínculo dele (ou do síndico) em outros prédios.
+        const escopoVinculos = {
+          id_user: atual.id_user as number,
+          ...(atual.id_condominio != null && { apartamento: { id_condominio: atual.id_condominio } }),
+        };
         if (dto.id_apartamento !== undefined) {
-          if (atual.id_user) {
-            // Só os vínculos DESTE condomínio: sem o filtro, editar o morador
-            // aqui apagava o vínculo dele (ou do síndico) em outros prédios.
-            await tx.apartamentos_Users.deleteMany({
-              where: {
-                id_user: atual.id_user,
-                ...(atual.id_condominio != null && { apartamento: { id_condominio: atual.id_condominio } }),
-              },
-            });
-          }
+          // O morador pode ter mais de uma unidade aqui (o app adiciona): trocar a unidade troca só
+          // o vínculo dela, sem apagar as outras nem renovar o prazo. O que sai é o vínculo da
+          // unidade anterior; sem ela aqui (cliente antigo, ou a tela mostrava a unidade de outro
+          // condomínio), só um vínculo único conta como "o" vínculo.
+          const vinculos: { id: number; id_apto: number }[] = atual.id_user
+            ? await tx.apartamentos_Users.findMany({ where: escopoVinculos, select: { id: true, id_apto: true }, orderBy: { id: 'asc' } })
+            : [];
+          const anterior = dto.id_apartamento_anterior != null ? Number(dto.id_apartamento_anterior) : undefined;
+          const doAnterior = anterior ? vinculos.filter((v) => v.id_apto === anterior) : [];
+          const saem = doAnterior.length > 0 ? doAnterior : vinculos.length === 1 ? vinculos : [];
+          let apagar: { id: number }[] = [];
 
           if (dto.id_apartamento > 0) {
             const aptoObj = await tx.apartamentos.findUnique({
@@ -1129,30 +1146,41 @@ export class MoradoresService {
               aptoNum = aptoObj.apto || '';
 
               if (atual.id_user) {
-                const dataVenc = new Date();
-                dataVenc.setDate(dataVenc.getDate() + 45);
-                await tx.apartamentos_Users.create({
-                  data: {
-                    id_apto: aptoObj.id,
-                    id_user: atual.id_user,
-                    tipo: tipoNorm || atual.tipo || 'proprietario',
-                    vencimento: dataVenc,
-                  },
-                });
+                const jaTem = vinculos.some((v) => v.id_apto === aptoObj.id);
+                const trocados = saem.filter((v) => v.id_apto !== aptoObj.id);
+                if (jaTem) {
+                  // Já tem a unidade nova: só some o vínculo da que saiu.
+                  apagar = trocados;
+                } else if (trocados.length > 0) {
+                  const [movido, ...repetidos] = trocados;
+                  await tx.apartamentos_Users.update({ where: { id: movido.id }, data: { id_apto: aptoObj.id } });
+                  apagar = repetidos;
+                } else {
+                  const dataVenc = new Date();
+                  dataVenc.setDate(dataVenc.getDate() + 45);
+                  await tx.apartamentos_Users.create({
+                    data: {
+                      id_apto: aptoObj.id,
+                      id_user: atual.id_user,
+                      tipo: tipoNorm || atual.tipo || 'proprietario',
+                      vencimento: dataVenc,
+                    },
+                  });
+                }
               }
             }
           } else {
+            // Sem unidade: sai a anterior; sem ela (cliente antigo), todas as deste condomínio.
+            apagar = anterior !== undefined ? doAnterior : vinculos;
             bloco = '';
             aptoNum = '';
           }
-        } else if (tipoNorm !== undefined && atual.id_user) {
-          await tx.apartamentos_Users.updateMany({
-            where: {
-                id_user: atual.id_user,
-                ...(atual.id_condominio != null && { apartamento: { id_condominio: atual.id_condominio } }),
-              },
-            data: { tipo: tipoNorm },
-          });
+          if (apagar.length > 0) {
+            await tx.apartamentos_Users.deleteMany({ where: { id: { in: apagar.map((v) => v.id) } } });
+          }
+        }
+        if (tipoNorm !== undefined && atual.id_user) {
+          await tx.apartamentos_Users.updateMany({ where: escopoVinculos, data: { tipo: tipoNorm } });
         }
 
         // Atualiza moradores

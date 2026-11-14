@@ -39,6 +39,8 @@ export interface CreateMorador {
   foto_documento?: string;
   tag_rfid?: string;
   qrcode_acesso?: string;
+  /** Só na edição: a unidade que saiu, quando o operador troca a unidade. */
+  id_apartamento_anterior?: number;
 }
 
 @Injectable({ providedIn: 'root' })

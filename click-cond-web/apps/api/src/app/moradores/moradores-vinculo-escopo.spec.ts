@@ -10,8 +10,10 @@ describe('MoradoresService.update — troca de apartamento', () => {
   it('só remove os vínculos do condomínio do morador', async () => {
     const tx: any = {
       apartamentos_Users: {
+        findMany: jest.fn().mockResolvedValue([{ id: 70, id_apto: 5 }]),
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn(),
       },
       apartamentos: { findUnique: jest.fn().mockResolvedValue({ id: 7, bloco: 'A', apto: '106', id_condominio: 1 }) },
@@ -40,8 +42,11 @@ describe('MoradoresService.update — troca de apartamento', () => {
 
     await service.update(43, { id_apartamento: 7 } as any).catch(() => undefined);
 
-    expect(tx.apartamentos_Users.deleteMany).toHaveBeenCalledWith({
-      where: { id_user: 41, apartamento: { id_condominio: 1 } },
-    });
+    // Os vínculos considerados são só os deste condomínio; nada é apagado pelo id_user sozinho.
+    expect(tx.apartamentos_Users.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id_user: 41, apartamento: { id_condominio: 1 } } }),
+    );
+    expect(tx.apartamentos_Users.deleteMany).not.toHaveBeenCalledWith({ where: { id_user: 41 } });
+    expect(tx.apartamentos_Users.update).toHaveBeenCalledWith({ where: { id: 70 }, data: { id_apto: 7 } });
   });
 });
