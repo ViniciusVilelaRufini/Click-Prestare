@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, DestroyRef, OnInit, computed, inject, sig
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { Subscription, lastValueFrom } from 'rxjs';
+import { Subscription, forkJoin, lastValueFrom } from 'rxjs';
 import {
   CreateEncomenda, Encomenda, EncomendasApi,
 } from './encomendas.service';
@@ -732,24 +732,24 @@ export class EncomendasPageComponent implements OnInit {
     this.aviso.set(null);
     this.loading.set(true);
     this.notificandoLote.set(true);
-    import('rxjs').then(({ forkJoin }) => {
-      const requests = sel.map(id => this.api.notificar(id));
-      forkJoin(requests).subscribe({
-        next: (respostas) => {
-          this.notificandoLote.set(false);
-          // O lote é de uma unidade só: todas sem ninguém alcançado = ninguém avisado.
-          if (respostas.length && respostas.every((r) => r?.avisados === 0)) this.aviso.set(NINGUEM_AVISADO);
-          this.selecionadas.set(new Set());
-          this.carregar();
-        },
-        error: (e) => {
-          this.notificandoLote.set(false);
-          this.loading.set(false);
-          this.error.set(mensagemErro(e, 'Erro ao notificar lote'));
-          // Alguma já retirada: a seleção na tela estava velha (a recarga tira da seleção o que saiu).
-          if (e?.status === 409) this.recarregarSilencioso();
-        }
-      });
+    // Import estático: o dinâmico não tinha catch e, se falhasse, deixava
+    // notificandoLote e loading ligados para sempre.
+    const requests = sel.map(id => this.api.notificar(id));
+    forkJoin(requests).subscribe({
+      next: (respostas) => {
+        this.notificandoLote.set(false);
+        // O lote é de uma unidade só: todas sem ninguém alcançado = ninguém avisado.
+        if (respostas.length && respostas.every((r) => r?.avisados === 0)) this.aviso.set(NINGUEM_AVISADO);
+        this.selecionadas.set(new Set());
+        this.carregar();
+      },
+      error: (e) => {
+        this.notificandoLote.set(false);
+        this.loading.set(false);
+        this.error.set(mensagemErro(e, 'Erro ao notificar lote'));
+        // Alguma já retirada: a seleção na tela estava velha (a recarga tira da seleção o que saiu).
+        if (e?.status === 409) this.recarregarSilencioso();
+      }
     });
   }
 

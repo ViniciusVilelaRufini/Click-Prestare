@@ -108,6 +108,18 @@ describe('EncomendasPageComponent — rodada 3', () => {
     expect(api.list).toHaveBeenCalledWith(undefined, { leve: true, retiradasDias: 7 });
   });
 
+  it('M12: Notificar Lote com erro solta a trava e o carregando', () => {
+    const f = montar([enc({ id: 7 }), enc({ id: 8 })]);
+    const c = f.componentInstance;
+    api.notificar.mockReturnValue(throwError(() => ({ status: 500, error: { message: 'Falha' } })));
+    c.toggleSelecionado(7);
+    c.toggleSelecionado(8);
+    c.notificarLote();
+    expect(c.notificandoLote()).toBe(false);
+    expect(c.loading()).toBe(false);
+    expect(c.error()).toBe('Falha');
+  });
+
   it('22: bloco nulo (pré-registro) e "" (console) são a mesma unidade no lote', () => {
     const f = montar([
       enc({ id: 1, destinatario_apto: '7', destinatario_bloco: null }),
