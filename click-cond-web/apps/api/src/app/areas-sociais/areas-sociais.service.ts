@@ -435,6 +435,32 @@ export class AreasSociaisService {
     if (!area) throw new NotFoundException('Área social não encontrada');
     await this.tenant.assertEntidade(area.id_condominio, user, `área social #${id}`);
     await this.tenant.assertPermissaoFuncionario(area.id_condominio, 'areas_sociais', user);
+
+    // O delete leva as reservas em cascata — sem cancelar, sem avisar o
+    // morador e sem tirá-lo do terminal. Reserva ativa por acontecer segura a
+    // exclusão: cancelar antes avisa o dono pelo caminho de sempre.
+    const agora = this.agoraNoFusoDoCondominio();
+    const ativas = await this.prisma.areas_Sociais_Agendamentos.findMany({
+      where: { id_area_social: area.id, status: { in: ['pendente', 'aprovado'] }, data: { gte: hojeBrasilia() } },
+      select: { id: true, data: true, hora_ate: true },
+    });
+    const porAcontecer = ativas.filter((a) => !a.data || this.fimDaReserva(a.data, a.hora_ate) > agora).length;
+    if (porAcontecer > 0) {
+      throw new ConflictException(
+        porAcontecer === 1
+          ? 'Este espaço tem 1 reserva ativa por acontecer. Cancele-a antes de excluir o espaço.'
+          : `Este espaço tem ${porAcontecer} reservas ativas por acontecer. Cancele-as antes de excluir o espaço.`,
+      );
+    }
+    // O terminal ficaria com id_area_social = NULL (SetNull): deixa de ser
+    // "de reserva" e passa a receber todos os moradores no próximo sync.
+    const terminais = await this.prisma.facial_Devices.count({ where: { id_area_social: area.id } });
+    if (terminais > 0) {
+      throw new ConflictException(
+        'Este espaço tem terminal facial vinculado. Desvincule o terminal da área antes de excluir o espaço.',
+      );
+    }
+
     await this.prisma.areas_Sociais.delete({ where: { id: Number(id) } });
     return { success: true };
   }
@@ -1001,13 +1027,42 @@ export class AreasSociaisService {
       await this.tenant.assertPermissaoFuncionario(agTenantCheck.area?.id_condominio, 'areas_sociais', user);
     }
 
-    // Cancelamento (dono ou síndico via remove): revoga o acesso facial ANTES
+    // Reserva usada não sai: apagá-la tirava o uso do limite mensal (o morador
+    // reservava de novo) e o console perdia quem usou a área. Mesma regra do
+    // cancelar em updateStatusAgendamento.
+    const agAntes = agTenantCheck;
+    if (
+      agAntes.status === 'aprovado' &&
+      agAntes.data &&
+      this.fimDaReserva(agAntes.data, agAntes.hora_ate) <= this.agoraNoFusoDoCondominio()
+    ) {
+      throw new ConflictException('Esta reserva já aconteceu.');
+    }
+
+    // O "Excluir" do app sobre reserva ativa é o morador desistindo: vira
+    // 'cancelado' e fica no histórico (não conta mais no limite). Condicional
+    // ao status lido, como em updateStatusAgendamento.
+    if (typeAccess === 'Morador' && (agAntes.status === 'aprovado' || agAntes.status === 'pendente')) {
+      const { count } = await this.prisma.areas_Sociais_Agendamentos.updateMany({
+        where: { id: Number(id), status: agAntes.status },
+        data: { status: 'cancelado', aprovado_por_nome: 'Cancelado pelo Morador', aprovado_em: new Date() },
+      });
+      if (count === 0) {
+        const atual = await this.prisma.areas_Sociais_Agendamentos.findUnique({ where: { id: Number(id) } });
+        throw new ConflictException(mensagemReservaJaMudou(atual?.status));
+      }
+      if (agAntes.status === 'aprovado') {
+        await this.facial
+          .syncReservaArea(Number(id))
+          .catch((err) => this.logger.warn(`syncReservaArea (remove) ag ${id}: ${err?.message ?? err}`));
+      }
+      return { success: true, status: 'cancelado' };
+    }
+
+    // Cancelamento (síndico via remove): revoga o acesso facial ANTES
     // de apagar. É 'cancelado', não 'recusado' — recusa é decisão do síndico
     // via updateStatusAgendamento; aqui é a reserva sendo desfeita.
-    const agAntes = await this.prisma.areas_Sociais_Agendamentos.findUnique({
-      where: { id: Number(id) },
-    });
-    if (agAntes?.status === 'aprovado') {
+    if (agAntes.status === 'aprovado') {
       await this.prisma.areas_Sociais_Agendamentos.update({
         where: { id: Number(id) },
         data: { status: 'cancelado' },
