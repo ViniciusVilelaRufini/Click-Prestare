@@ -38,6 +38,7 @@ describe('MoradoresService - Validação de Menor de 18 Anos', () => {
       },
     };
 
+    prismaMock.$transaction = jest.fn((fn: any) => fn(prismaMock)); // create grava numa transação (B3)
     const mailMock: any = { sendWelcomeMorador: jest.fn().mockResolvedValue({}) };
     const storageMock: any = {
       isDataUrl: jest.fn().mockReturnValue(false),

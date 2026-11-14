@@ -31,6 +31,7 @@ describe('MoradoresService.create — senha inicial nunca é o CPF', () => {
     };
     const mail: any = { sendWelcomeMorador: jest.fn(async () => ({})), sendWelcomeMoradorExisting: jest.fn(async () => ({})) };
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
+    prisma.$transaction ??= jest.fn((fn: any) => fn(prisma)); // create grava numa transação (B3)
     const svc = new MoradoresService(prisma, mail, storage, {} as any, { registrar: jest.fn(async () => ({})) } as any, { enviarMorador: jest.fn(async () => ({ enviado: false })) } as any);
     jest.spyOn(svc as any, 'carregarContextoMorador').mockResolvedValue(null);
     jest.spyOn(svc, 'findOne').mockResolvedValue({} as any);

@@ -935,7 +935,6 @@ export class MoradoresService {
     // Antes, sem o envio, virava os dígitos do CPF — que não é segredo.
     const senhaInicial = this.gerarSenhaAleatoria();
     const senhaHash = await bcrypt.hash(senhaInicial, 10);
-    let passwordWasSet = false;
 
     const ehMenor = dto.data_nascimento ? calcularIdade(dto.data_nascimento) < 18 : false;
 
@@ -954,136 +953,144 @@ export class MoradoresService {
       validarMaioridade(dto.data_nascimento, 'cadastro de biometria facial');
     }
 
-    // Cria/encontra Users
-    let userId: number;
-    if (ehMenor) {
-      // Menor de 18 anos: cria registro básico de dependente sem acesso ao aplicativo (is_morador: 0)
-      const u = await this.prisma.users.create({
-        data: {
-          name: dto.nome,
-          phone: dto.telefone,
-          cpf: dto.documento,
-          is_morador: 0,
-          login_type: 'dependente_menor',
-          photo: null,
-          profile_image: null,
-        },
-      });
-      userId = u.id;
-    } else if (dto.email) {
-      const existing = await this.prisma.users.findFirst({
-        where: { email: dto.email },
-      });
-      if (existing) {
-        userId = existing.id;
-        // Users é global: conta com vínculo em OUTRO condomínio só é ligada a este cadastro.
-        // Login, senha e foto dela não são tocados (vinculos-usuario.util; mesma regra do sendCredentials).
-        const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, dto.id_condominio);
-        if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(operador) && !opts?.permitirContaDeOutroCondominio) {
-          throw new BadRequestException(MSG_CONTA_DE_OUTRO_CONDOMINIO);
-        }
-        // Atualiza login e password caso estejam vazios para permitir acesso, e as fotos
-        const userUpdates: any = {};
-        if (!contaDeOutroCondominio && (!existing.login || !existing.password)) {
-          if (existing.login !== dto.email) await this.assertLoginLivreDaPortaria(dto.email);
-          userUpdates.login = dto.email;
-          userUpdates.password = senhaHash;
-          passwordWasSet = true;
-        }
-        if (fotoPessoaUrl && !contaDeOutroCondominio) {
-          userUpdates.photo = fotoPessoaUrl;
-          userUpdates.profile_image = fotoPessoaUrl;
-        }
-        if (Object.keys(userUpdates).length > 0) {
-          await this.prisma.users.update({
-            where: { id: existing.id },
-            data: userUpdates,
-          });
-        }
-      } else {
-        await this.assertLoginLivreDaPortaria(dto.email);
-        const u = await this.prisma.users.create({
-          data: {
-            name: dto.nome,
-            email: dto.email,
-            login: dto.email,
-            password: senhaHash,
-            phone: dto.telefone,
-            cpf: dto.documento,
-            is_morador: 1,
-            login_type: 'morador',
-            photo: fotoPessoaUrl,
-            profile_image: fotoPessoaUrl,
-          },
-        });
-        userId = u.id;
-        passwordWasSet = true;
-      }
-    } else {
-      const u = await this.prisma.users.create({
-        data: {
-          name: dto.nome,
-          phone: dto.telefone,
-          cpf: dto.documento,
-          is_morador: 1,
-          login_type: 'morador',
-          photo: fotoPessoaUrl,
-          profile_image: fotoPessoaUrl,
-        },
-      });
-      userId = u.id;
-    }
-
-    const tipoNorm = dto.tipo
-      ? String(dto.tipo).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
-      : 'proprietario';
-
-    // Busca dados do apartamento
-    let bloco = '';
-    let aptoNum = '';
-    if (dto.id_apartamento) {
-      const aptoObj = await this.prisma.apartamentos.findUnique({
-        where: { id: Number(dto.id_apartamento) },
-      });
-      if (aptoObj) {
-        bloco = aptoObj.bloco || '';
-        aptoNum = aptoObj.apto || '';
-
-        // Insere o vinculo em Apartamentos_Users
-        const dataVenc = new Date();
-        dataVenc.setDate(dataVenc.getDate() + 45);
-        await this.prisma.apartamentos_Users.create({
-          data: {
-            id_apto: aptoObj.id,
-            id_user: userId,
-            tipo: tipoNorm,
-            vencimento: dataVenc,
-          },
-        });
-      }
-    }
-
+    // Users, vínculo e cadastro numa transação só: antes, falhar o Moradores (texto longo demais,
+    // por exemplo) deixava a conta e o vínculo gravados — o card da unidade contava "1 morador", o
+    // painel dela aparecia vazio e tentar de novo com o mesmo e-mail criava um segundo vínculo.
+    let passwordWasSet = false;
     let createdMorador;
     try {
-      createdMorador = await this.prisma.moradores.create({
-        data: {
-          nome: dto.nome,
-          documento: dto.documento ?? null,
-          email: dto.email ?? null,
-          telefone: dto.telefone?.trim() || null,
-          data_nascimento: dto.data_nascimento ? this.parseDate(dto.data_nascimento) : null,
-          tipo: tipoNorm,
-          id_user: userId,
-          id_condominio: dto.id_condominio,
-          bloco: bloco || null,
-          apartamento: aptoNum || null,
-          foto_pessoa: fotoPessoaUrl,
-          foto_documento: fotoDocumentoUrl,
-          tag_rfid: tagRfid,
-          qrcode_acesso: dto.qrcode_acesso ? dto.qrcode_acesso.trim() : null,
-        },
+      createdMorador = await this.prisma.$transaction(async (tx) => {
+        // Cria/encontra Users
+        let userId: number;
+        if (ehMenor) {
+          // Menor de 18 anos: cria registro básico de dependente sem acesso ao aplicativo (is_morador: 0)
+          const u = await tx.users.create({
+            data: {
+              name: dto.nome,
+              phone: dto.telefone,
+              cpf: dto.documento,
+              is_morador: 0,
+              login_type: 'dependente_menor',
+              photo: null,
+              profile_image: null,
+            },
+          });
+          userId = u.id;
+        } else if (dto.email) {
+          const existing = await tx.users.findFirst({
+            where: { email: dto.email },
+          });
+          if (existing) {
+            userId = existing.id;
+            // Users é global: conta com vínculo em OUTRO condomínio só é ligada a este cadastro.
+            // Login, senha e foto dela não são tocados (vinculos-usuario.util; mesma regra do sendCredentials).
+            const contaDeOutroCondominio = await usuarioTemVinculoEmOutroCondominio(this.prisma as any, existing.id, dto.id_condominio);
+            if (contaDeOutroCondominio && existing.id !== idUsuarioDoToken(operador) && !opts?.permitirContaDeOutroCondominio) {
+              throw new BadRequestException(MSG_CONTA_DE_OUTRO_CONDOMINIO);
+            }
+            // Atualiza login e password caso estejam vazios para permitir acesso, e as fotos
+            const userUpdates: any = {};
+            if (!contaDeOutroCondominio && (!existing.login || !existing.password)) {
+              if (existing.login !== dto.email) await this.assertLoginLivreDaPortaria(dto.email);
+              userUpdates.login = dto.email;
+              userUpdates.password = senhaHash;
+              passwordWasSet = true;
+            }
+            if (fotoPessoaUrl && !contaDeOutroCondominio) {
+              userUpdates.photo = fotoPessoaUrl;
+              userUpdates.profile_image = fotoPessoaUrl;
+            }
+            if (Object.keys(userUpdates).length > 0) {
+              await tx.users.update({
+                where: { id: existing.id },
+                data: userUpdates,
+              });
+            }
+          } else {
+            await this.assertLoginLivreDaPortaria(dto.email);
+            const u = await tx.users.create({
+              data: {
+                name: dto.nome,
+                email: dto.email,
+                login: dto.email,
+                password: senhaHash,
+                phone: dto.telefone,
+                cpf: dto.documento,
+                is_morador: 1,
+                login_type: 'morador',
+                photo: fotoPessoaUrl,
+                profile_image: fotoPessoaUrl,
+              },
+            });
+            userId = u.id;
+            passwordWasSet = true;
+          }
+        } else {
+          const u = await tx.users.create({
+            data: {
+              name: dto.nome,
+              phone: dto.telefone,
+              cpf: dto.documento,
+              is_morador: 1,
+              login_type: 'morador',
+              photo: fotoPessoaUrl,
+              profile_image: fotoPessoaUrl,
+            },
+          });
+          userId = u.id;
+        }
+
+        const tipoNorm = dto.tipo
+          ? String(dto.tipo).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+          : 'proprietario';
+
+        // Busca dados do apartamento
+        let bloco = '';
+        let aptoNum = '';
+        if (dto.id_apartamento) {
+          const aptoObj = await tx.apartamentos.findUnique({
+            where: { id: Number(dto.id_apartamento) },
+          });
+          if (aptoObj) {
+            bloco = aptoObj.bloco || '';
+            aptoNum = aptoObj.apto || '';
+
+            // Insere o vinculo em Apartamentos_Users
+            const dataVenc = new Date();
+            dataVenc.setDate(dataVenc.getDate() + 45);
+            await tx.apartamentos_Users.create({
+              data: {
+                id_apto: aptoObj.id,
+                id_user: userId,
+                tipo: tipoNorm,
+                vencimento: dataVenc,
+              },
+            });
+          }
+        }
+
+        return tx.moradores.create({
+          data: {
+            nome: dto.nome,
+            documento: dto.documento ?? null,
+            email: dto.email ?? null,
+            telefone: dto.telefone?.trim() || null,
+            data_nascimento: dto.data_nascimento ? this.parseDate(dto.data_nascimento) : null,
+            tipo: tipoNorm,
+            id_user: userId,
+            id_condominio: dto.id_condominio,
+            bloco: bloco || null,
+            apartamento: aptoNum || null,
+            foto_pessoa: fotoPessoaUrl,
+            foto_documento: fotoDocumentoUrl,
+            tag_rfid: tagRfid,
+            qrcode_acesso: dto.qrcode_acesso ? dto.qrcode_acesso.trim() : null,
+          },
+        });
       });
     } catch (err: any) {
+      // Recusas da própria API (conta de outro condomínio, login da portaria) saem com a mensagem.
+      if (err instanceof HttpException) throw err;
       this.logger.error(
         `[moradores.create] Falha ao criar morador: ${err?.message ?? err}`,
         err?.stack,
