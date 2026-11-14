@@ -144,11 +144,8 @@ export class SelecionarCondominioComponent {
       next: () => this.router.navigate(['/dashboard']),
       error: (err) => {
         this.carregandoId.set(null);
-        this.erro.set(
-          err.status === 401
-            ? 'Você não administra este condomínio.'
-            : 'Falha ao entrar no condomínio. Tente novamente.',
-        );
+        // A API responde 403 com o motivo (não administra, condomínio desativado): não é fim de sessão.
+        this.erro.set(err?.error?.message ?? err?.message ?? 'Falha ao entrar no condomínio. Tente novamente.');
       },
     });
   }

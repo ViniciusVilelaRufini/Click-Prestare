@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import type { JwtPayload } from './jwt-payload.interface';
@@ -43,7 +43,7 @@ describe('AuthService.selecionarCondominio', () => {
 
   it('NEGA trocar para condomínio desativado', async () => {
     const { svc, prisma } = build({ ativos: { 7: true, 8: false } });
-    await expect(svc.selecionarCondominio(sindico(agora() + 3600), 8)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(svc.selecionarCondominio(sindico(agora() + 3600), 8)).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.sindicos_Condominios.findFirst.mock.calls[0][0].where.condominio).toEqual({ ativo: 1 });
   });
 
@@ -82,7 +82,7 @@ describe('AuthService.selecionarCondominio', () => {
   it('token sem typeAccess e sem tipo_sub NÃO é tratado como porteiro (sub pode ser Users.id)', async () => {
     const { svc, prisma } = build();
     const formaDoQr: any = { sub: 3, nome: 'X', id_condominio: 7, iat: agora(), exp: agora() + 3600 };
-    await expect(svc.selecionarCondominio(formaDoQr, 8)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(svc.selecionarCondominio(formaDoQr, 8)).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.funcionarios_Portaria.findFirst).not.toHaveBeenCalled();
   });
 

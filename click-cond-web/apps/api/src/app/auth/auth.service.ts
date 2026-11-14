@@ -155,6 +155,8 @@ export class AuthService {
       include: {
         sindicos: { select: { id: true } },
         sindicosCondominios: {
+          // Condomínio desativado no CRM não entra na lista: escolhê-lo era recusado (o mesmo corte do loginPortaria).
+          where: { condominio: { ativo: 1 } },
           include: { condominio: { select: { nome: true } } },
           orderBy: { id: 'asc' },
         },
@@ -302,7 +304,14 @@ export class AuthService {
       }
     };
 
-    if (funcionario) {
+    // Linha de portaria cujo login é o do SÍNDICO deste condomínio: a sessão emitida seria de síndico, então só a
+    // senha da conta do síndico (Users, logo abaixo) vale. Conferir a senha desta linha antes deixava a senha antiga
+    // entrando depois de o síndico trocar ou redefinir a dele, que só grava Users.
+    const linhaDoSindico = funcionario
+      ? !!(await this.sindicoDoLoginNoCondominio(login, funcionario.id_condominio))
+      : false;
+
+    if (funcionario && !linhaDoSindico) {
       const isBcrypt = funcionario.password.startsWith('$2');
       let isMatch = false;
 
@@ -356,12 +365,6 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
-    if (!user.sindicosCondominios || user.sindicosCondominios.length === 0) {
-      await this.registrarFalha(login);
-      auditarFalhas();
-      throw new UnauthorizedException('Síndico sem condomínio ativo vinculado.');
-    }
-
     const pwdStored = user.password ?? '';
     const isBcryptSindico = pwdStored.startsWith('$2');
     let sindicoMatch = false;
@@ -396,6 +399,12 @@ export class AuthService {
       }
       auditarFalhas();
       throw new UnauthorizedException('Credenciais inválidas.');
+    }
+
+    // Depois da senha: antes saía para qualquer um que digitasse o login, e revelava que a conta é de síndico.
+    if (!user.sindicosCondominios || user.sindicosCondominios.length === 0) {
+      auditarFalhas();
+      throw new UnauthorizedException('Síndico sem condomínio ativo vinculado.');
     }
 
     await this.limparFalhas(login);
@@ -549,7 +558,7 @@ export class AuthService {
     // login — o caso comum na web. Resolve o Users.id em ambos.
     let idUserSindico: number | null = null;
     if ((payload as any).role === 'crm_admin') {
-      throw new UnauthorizedException('Apenas síndicos podem trocar de condomínio.');
+      throw new ForbiddenException('Apenas síndicos podem trocar de condomínio.');
     }
     if (payload.typeAccess === 'Sindico') {
       idUserSindico = payload.sub;
@@ -579,7 +588,7 @@ export class AuthService {
     }
 
     if (!idUserSindico) {
-      throw new UnauthorizedException('Apenas síndicos podem trocar de condomínio.');
+      throw new ForbiddenException('Apenas síndicos podem trocar de condomínio.');
     }
 
     const vinculo = await this.prisma.sindicos_Condominios.findFirst({
@@ -588,7 +597,7 @@ export class AuthService {
       include: { condominio: { select: { nome: true } } },
     });
     if (!vinculo) {
-      throw new UnauthorizedException('Você não administra este condomínio.');
+      throw new ForbiddenException('Você não administra este condomínio.');
     }
 
     // Preserva a identidade do token (sub/turno/typeAccess) e troca só o escopo:
@@ -654,7 +663,7 @@ export class AuthService {
         ? await bcrypt.compare(senhaAtual, stored)
         : stored === createHash('md5').update(senhaAtual).digest('hex');
 
-      if (!isMatch) throw new UnauthorizedException('Senha atual incorreta.');
+      if (!isMatch) throw new BadRequestException('Senha atual incorreta.');
 
       const newHash = await bcrypt.hash(novaSenha, 12);
       await this.prisma.users.update({ where: { id }, data: { password: newHash, senha_alterada_em: momentoTrocaSenha() } });
@@ -696,7 +705,7 @@ export class AuthService {
     }
 
     if (!isMatch) {
-      throw new UnauthorizedException('Senha atual incorreta.');
+      throw new BadRequestException('Senha atual incorreta.');
     }
 
     const newHash = await bcrypt.hash(novaSenha, 12);
