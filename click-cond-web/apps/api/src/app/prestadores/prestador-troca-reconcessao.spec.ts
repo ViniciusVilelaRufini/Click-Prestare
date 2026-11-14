@@ -454,4 +454,43 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
       expect(equipeAqui(db)).toHaveLength(1);
     });
   });
+
+  describe('Rodada 3 (raia s) — M-f1: troca de e-mail num ato só', () => {
+    // Falha ao gravar o prestador logo depois de revogar a conta antiga: antes o login de portaria ficava com o
+    // e-mail e a senha antigos (o dono do e-mail antigo seguia entrando no console) e o prestador sem a troca.
+    it.each([
+      ['sem a chave', { email: 'b@x.com', senha: 'Nova#123' }],
+      ['com a chave', { email: 'b@x.com', hasPortariaAccess: true, senha: 'Nova#123' }],
+    ])('%s: falha ao gravar o prestador desfaz tudo (conta, vínculo e login de portaria intactos)', async (_n, dto) => {
+      const { svc, db, prisma } = banco();
+      prisma.prestadores_servico.update.mockRejectedValueOnce(new Error('banco caiu'));
+      await expect(svc.update(1, dto as any, 1, sindico)).rejects.toThrow(BadRequestException);
+      expect(db.prestadores[0].email).toBe('a@x.com');
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'a@x.com', email: 'a@x.com', password: '$2b$04$doLogin' })]);
+      expect(equipeAqui(db)).toHaveLength(1);
+      expect(conta(db, 5)).toEqual(expect.objectContaining({ login: 'a@x.com', password: '$2b$04$antiga', senha_alterada_em: null }));
+    });
+
+    it('"Novo" do síndico com outro e-mail (upsert): falha ao gravar o prestador desfaz tudo', async () => {
+      const { svc, db, prisma } = banco();
+      prisma.prestadores_servico.update.mockRejectedValueOnce(new Error('banco caiu'));
+      await expect(
+        svc.create({ id_condominio: 1, nome: 'Eletricista', email: 'b@x.com', senha: 'Nova#123', hasPortariaAccess: false } as any, sindico),
+      ).rejects.toThrow(BadRequestException);
+      expect(db.prestadores[0].email).toBe('a@x.com');
+      expect(db.fp).toEqual([expect.objectContaining({ id: 12, login: 'a@x.com', password: '$2b$04$doLogin' })]);
+      expect(equipeAqui(db)).toHaveLength(1);
+    });
+  });
+
+  describe('Rodada 3 (raia s) — Menor 4: permissões do vínculo de equipe na troca de e-mail com a chave', () => {
+    it('a conta nova herda as permissões que o síndico tinha definido, em vez de todas ligadas', async () => {
+      const flags = { areas_sociais: 1, comunicados: 0, ocorrencias: 1, manutencoes_programadas: 0, prestadores_servico: 1, agendar_mudanca: 0, cadastrar_visitante: 1, apartamentos: 0 };
+      const { svc, db } = banco();
+      Object.assign(db.func[0], flags, { funcao: 'Zelador', ch: 'Noite' });
+      await svc.update(1, { email: 'b@x.com', hasPortariaAccess: true, senha: 'Nova#123' }, 1, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'b@x.com')!;
+      expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...flags, funcao: 'Zelador', ch: 'Noite' })]);
+    });
+  });
 });

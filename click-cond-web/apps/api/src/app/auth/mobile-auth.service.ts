@@ -16,6 +16,7 @@ import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService, ehFuncionarioDoApp, type PermissaoFuncionario } from './tenant-access.service';
 import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
+import { contaSoDaEquipeDoCondominio } from './conta-so-de-equipe.util';
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
 import { assertEmailNaoReservado } from '../common/email-reservado.util';
@@ -4047,16 +4048,10 @@ export class MobileAuthService {
    * A conta existe só como equipe deste condomínio: nenhum perfil de síndico, nenhum vínculo de
    * síndico/morador/unidade e nenhum vínculo de equipe em outro prédio. Só então o síndico deste
    * condomínio administra todos os vínculos dela e pode definir a senha pelo cadastro do porteiro.
+   * Critério comum com o cadastro de prestadores (conta-so-de-equipe.util).
    */
-  private async contaSoDaEquipeDoCondominio(idUser: number, idCondominio: number): Promise<boolean> {
-    const [perfisSindico, sindicoEm, moradorEm, unidades, equipeFora] = await Promise.all([
-      this.prisma.sindicos.count({ where: { id_user: idUser } }),
-      this.prisma.sindicos_Condominios.count({ where: { id_user: idUser } }),
-      this.prisma.moradores.count({ where: { id_user: idUser } }),
-      this.prisma.apartamentos_Users.count({ where: { id_user: idUser } }),
-      this.prisma.funcionarios.count({ where: { id_user: idUser, id_condominio: { not: Number(idCondominio) } } }),
-    ]);
-    return perfisSindico + sindicoEm + moradorEm + unidades + equipeFora === 0;
+  private contaSoDaEquipeDoCondominio(idUser: number, idCondominio: number): Promise<boolean> {
+    return contaSoDaEquipeDoCondominio(this.prisma as any, idUser, idCondominio);
   }
 
   async removeFuncionario(id: number, requester?: JwtPayload) {
