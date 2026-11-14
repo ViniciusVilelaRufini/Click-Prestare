@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS delivery_pedidos_portao (
   plataforma VARCHAR(40) NULL,
   foto VARCHAR(500) NULL,
   token_hash VARCHAR(64) NOT NULL,
+  token_portao_hash VARCHAR(64) NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'pendente',
   visto_em DATETIME NULL,
   liberado_ate DATETIME NULL,
@@ -173,6 +174,22 @@ SET @dpp_sql = IF(
   ),
   'SELECT 1',
   'ALTER TABLE delivery_pedidos_portao ADD COLUMN abrindo_em DATETIME NULL'
+);
+PREPARE dpp_stmt FROM @dpp_sql;
+EXECUTE dpp_stmt;
+DEALLOCATE PREPARE dpp_stmt;
+
+-- sha256 do QR do portão com que o pedido foi feito: a abertura automática
+-- exige que o QR vigente do aparelho seja o mesmo (QR trocado/desligado → não abre).
+SET @dpp_sql = IF(
+  EXISTS (
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @dpp_schema
+      AND TABLE_NAME = 'delivery_pedidos_portao'
+      AND COLUMN_NAME = 'token_portao_hash'
+  ),
+  'SELECT 1',
+  'ALTER TABLE delivery_pedidos_portao ADD COLUMN token_portao_hash VARCHAR(64) NULL'
 );
 PREPARE dpp_stmt FROM @dpp_sql;
 EXECUTE dpp_stmt;
