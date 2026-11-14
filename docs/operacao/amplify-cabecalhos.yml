@@ -146,6 +146,17 @@ customHeaders:
     headers:
       - key: X-Robots-Tag
         value: noindex
+  # Página do entregador (QR de entregas colado no portão). O QR gerado hoje
+  # aponta para /?entrega=<token>, coberto pela raiz; estes cobrem a rota
+  # entrega/:token do SPA, aceita por compatibilidade.
+  - pattern: '/entrega'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/entrega/*'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
   # Aliases do SPA para as páginas legais: a versão indexável é a .html estática.
   - pattern: '/politica-de-privacidade'
     headers:
