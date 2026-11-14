@@ -15,6 +15,7 @@ import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertOperador, isOperador } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { fimEmMinutos } from './fim-reserva.util';
 
 const DEFAULT_AREA_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
 
@@ -128,14 +129,6 @@ export function blocoColideComReserva(
     return h * 60 + (m || 0);
   };
   return min(bloco.horarioDe) < fimEmMinutos(min(ag.horaAte)) && fimEmMinutos(min(bloco.horarioAte)) > min(ag.horaDe);
-}
-
-/**
- * Término "00:00" é a meia-noite do FIM do dia (o app gera "24:00", que a
- * coluna TIME devolve como 00:00): vale 1440, senão nada colide com ele.
- */
-function fimEmMinutos(minutos: number): number {
-  return minutos === 0 ? 1440 : minutos;
 }
 
 @Injectable()
@@ -868,7 +861,7 @@ export class AreasSociaisService {
     // em diante). Compara no fuso do condomínio, não no do servidor (UTC).
     const agoraBr = agoraEmBrasilia();
     const diaPedido = `${parts[2]}-${String(parts[1]).padStart(2, '0')}-${String(parts[0]).padStart(2, '0')}`;
-    if (diaPedido < agoraBr.dia || (diaPedido === agoraBr.dia && requestedAte <= agoraBr.minutos)) {
+    if (diaPedido < agoraBr.dia || (diaPedido === agoraBr.dia && fimEmMinutos(requestedAte) <= agoraBr.minutos)) {
       throw new BadRequestException('Não é possível reservar uma data ou horário que já passou.');
     }
 
@@ -892,7 +885,7 @@ export class AreasSociaisService {
         fim: this.combineDateTime(m.data_termino as Date, m.hora_termino),
       }));
     const inicioBlocoSolicitado = this.combineDateTime(dataObj, horaDeObj);
-    const fimBlocoSolicitado = this.combineDateTime(dataObj, horaAteObj);
+    const fimBlocoSolicitado = this.fimDaReserva(dataObj, horaAteObj);
     if (this.colideComJanela(inicioBlocoSolicitado, fimBlocoSolicitado, janelasManutencao)) {
       throw new BadRequestException('Esta área está em manutenção no horário solicitado.');
     }
@@ -1500,7 +1493,7 @@ export class AreasSociaisService {
     return candidatos.filter((ag) => {
       if (!ag.data) return false;
       const agInicio = this.combineDateTime(ag.data, ag.hora_de);
-      const agFim = this.combineDateTime(ag.data, ag.hora_ate);
+      const agFim = this.fimDaReserva(ag.data, ag.hora_ate);
       return this.colideComJanela(agInicio, agFim, [{ inicio, fim }]);
     });
   }

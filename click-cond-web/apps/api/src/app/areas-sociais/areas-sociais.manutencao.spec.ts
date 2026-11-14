@@ -236,6 +236,25 @@ describe('AreasSociaisService — manutenção cancela reservas atingidas', () =
       expect(facial.syncReservaArea).not.toHaveBeenCalled();
       expect(notifications.sendPushNotification).not.toHaveBeenCalled();
     });
+
+    it('reserva que termina 00:00 (20:00–24:00) é atingida pela manutenção das 21:00 às 23:00', async () => {
+      const ateMeiaNoite = agendamentoDb({
+        id: 4,
+        hora_de: new Date(1970, 0, 1, 20, 0, 0),
+        hora_ate: new Date(1970, 0, 1, 0, 0, 0),
+      });
+      const { svc, prisma } = build({ agendamentos: [ateMeiaNoite] });
+
+      const erro = await svc
+        .insertManutencao({ ...manutencaoBase, hora_inicio: '21:00', hora_termino: '23:00' }, sindicoCond2)
+        .catch((e) => e);
+
+      expect(erro).toBeInstanceOf(ConflictException);
+      expect(bodyNaRede(erro).body.conflitos).toEqual([
+        { id: 4, data: '10/06/2026', hora_de: '20:00', hora_ate: '00:00', bloco: 'A', apto: '101' },
+      ]);
+      expect(prisma.areas_Sociais_Manutencoes.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('updateManutencao', () => {

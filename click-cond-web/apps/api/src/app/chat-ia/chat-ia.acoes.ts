@@ -1,6 +1,7 @@
 import type { DeclaracaoFerramenta } from './gemini.client';
 import type { ContextoFerramenta, PapelChat } from './chat-ia.tools';
 import type { AcaoPendente, ItemResumo, TipoAcao } from './acao-pendente.store';
+import { fimEmMinutos } from '../areas-sociais/fim-reserva.util';
 
 /**
  * Ferramentas de AÇÃO do Assistente IA.
@@ -119,7 +120,7 @@ export const FERRAMENTAS_ACAO: FerramentaAcao[] = [
       const bate = conflito.some((r) => {
         if (!r.hora_de || !r.hora_ate) return false;
         const rDe = new Date(r.hora_de).getUTCHours() * 60 + new Date(r.hora_de).getUTCMinutes();
-        const rAte = new Date(r.hora_ate).getUTCHours() * 60 + new Date(r.hora_ate).getUTCMinutes();
+        const rAte = fimEmMinutos(new Date(r.hora_ate).getUTCHours() * 60 + new Date(r.hora_ate).getUTCMinutes());
         return de < rAte && ate > rDe;
       });
       if (bate) {

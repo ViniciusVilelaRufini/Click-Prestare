@@ -56,6 +56,7 @@ import { StorageService } from '../common/storage/storage.service';
 import { executarComLock, OpcoesLock } from '../common/lock-distribuido';
 import { hojeBrasilia, horaBrasilia, intervaloHojeBrasilia } from '../common/hora-brasilia.util';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
+import { fimEmMinutos } from '../areas-sociais/fim-reserva.util';
 
 /** Validade da marca de bulk sync em andamento (instância que morreu no meio não trava o condomínio para sempre). */
 const BULK_SYNC_TTL_MS = 2 * 60 * 60 * 1000;
@@ -2353,6 +2354,11 @@ export class FacialService {
    * Janela "YYYY-MM-DD HH:MM:SS" (BRT, wall-clock) da reserva, montada direto
    * dos campos DATE + TIME (que já são horário local, sem timezone) — é o
    * formato que o aparelho espera. Ver formatDahuaTime (que é p/ instantes).
+   *
+   * Término 00:00 (o "24:00" do último bloco do app) ou sem hora é a
+   * meia-noite do FIM do dia — mesma regra de `fimEmMinutos` da checagem de
+   * reserva. Montado no mesmo dia, o fim ficava antes do início e o terminal
+   * barrava o morador a reserva inteira.
    */
   private janelaReserva(ag: {
     data: Date | null;
@@ -2363,8 +2369,12 @@ export class FacialService {
     const dia = ag.data.toISOString().slice(0, 10); // YYYY-MM-DD
     const hhmmss = (t: Date | null) => (t ? t.toISOString().slice(11, 19) : null);
     const de = hhmmss(ag.hora_de) ?? '00:00:00';
-    const ate = hhmmss(ag.hora_ate) ?? '23:59:59';
-    return { validFrom: `${dia} ${de}`, validTo: `${dia} ${ate}` };
+    const ateMin = ag.hora_ate ? ag.hora_ate.getUTCHours() * 60 + ag.hora_ate.getUTCMinutes() : 0;
+    if (fimEmMinutos(ateMin) === 1440) {
+      const diaSeguinte = new Date(ag.data.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      return { validFrom: `${dia} ${de}`, validTo: `${diaSeguinte} 00:00:00` };
+    }
+    return { validFrom: `${dia} ${de}`, validTo: `${dia} ${hhmmss(ag.hora_ate)}` };
   }
 
   /**

@@ -109,6 +109,15 @@ describe('Ações do Assistente IA', () => {
       expect(r.erro).toMatch(/já tem reserva/i);
     });
 
+    it('recusa quando conflita com reserva existente que termina 00:00 (20:00–24:00)', async () => {
+      const c = ctx();
+      (c.prisma as any).areas_Sociais_Agendamentos.findMany = jest.fn(async () => [
+        { hora_de: new Date(Date.UTC(1970, 0, 1, 20, 0)), hora_ate: new Date(Date.UTC(1970, 0, 1, 0, 0)) },
+      ]);
+      const r = await pegar('propor_reserva_area').propor({ ...ok(), hora_de: '21:00', hora_ate: '23:00' }, c);
+      expect(r.erro).toMatch(/já tem reserva/i);
+    });
+
     it('recusa morador sem apartamento vinculado', async () => {
       const r = await pegar('propor_reserva_area').propor(ok(), ctx({ aptos: [] }));
       expect(r.erro).toMatch(/apartamento/i);
