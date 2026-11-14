@@ -92,6 +92,17 @@ describe('regras do pedido de portão', () => {
       expect(estadoDoPedido({ ...aberto, saida_aberta_em: em(120_000) }, em(130_000)).pode_sair).toBe(false);
     });
 
+    it('saída só a partir de 60 s depois da entrada confirmada', () => {
+      const aberto = { ...base, status: 'liberado' as const, liberado_ate: em(180_000), aberto_em: em(60_000) };
+      expect(estadoDoPedido(aberto, em(60_000 + 59_999)).pode_sair).toBe(false);
+      expect(estadoDoPedido(aberto, em(120_000)).pode_sair).toBe(true);
+    });
+
+    it('entrada abrindo (sem confirmação do aparelho) → liberado, sem abrir de novo e sem sair', () => {
+      const abrindo = { ...base, status: 'liberado' as const, liberado_ate: em(200_000), abrindo_em: em(100_000) };
+      expect(estadoDoPedido(abrindo, em(150_000))).toMatchObject({ situacao: 'liberado', pode_abrir: false, pode_sair: false });
+    });
+
     it('liberado sem janela (pela portaria) → liberado_portaria', () => {
       expect(estadoDoPedido({ ...base, status: 'liberado' }, em(30_000))).toEqual({
         situacao: 'liberado_portaria', pode_abrir: false, pode_sair: false, liberado_ate: null,

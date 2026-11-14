@@ -226,7 +226,8 @@ describe('DeliveryPortaoService', () => {
     expect(p.aberto_em.getTime()).toBe(T0 + 3000);
     expect(p.liberado_ate.getTime()).toBe(T0 + 3000 + 3 * 60_000);
     const c = await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido);
-    expect(c).toMatchObject({ situacao: 'aberto', pode_sair: true, falha_abertura: false });
+    // Acabou de entrar: a saída só vale 60 s depois.
+    expect(c).toMatchObject({ situacao: 'aberto', pode_sair: false, falha_abertura: false });
     // Abrir de novo não aciona.
     expect((await k.svc.abrir(TOKEN_PORTAO, k.tokenPedido)).abriu).toBe(false);
     expect(k.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
@@ -375,6 +376,7 @@ describe('DeliveryPortaoService', () => {
     const k = await comPedido();
     k.avancar(2000);
     await k.delivery.atualizarStatus(k.idAtendimento, { status: 'AUTORIZADA' } as any, morador7);
+    k.avancar(60_000);
     k.facial.abrirDispositivoInterno.mockResolvedValueOnce({ ok: false });
     expect(await k.svc.sair(TOKEN_PORTAO, k.tokenPedido)).toMatchObject({ abriu: false, pode_sair: true });
     expect(k.tabela('deliveryAtendimentos')[0].status).toBe('AUTORIZADA');

@@ -15,6 +15,8 @@ export const JANELA_ABERTURA_MS = 3 * 60_000;
 export const PRESENCA_MS = 10_000;
 /** "Abrir para sair" vale até este prazo depois da entrada. */
 export const SAIDA_MS = 30 * 60_000;
+/** "Abrir para sair" só a partir deste tempo depois da entrada confirmada. */
+export const SAIDA_APOS_ENTRADA_MS = 60_000;
 /** Atendimento do autoatendimento sem resposta é cancelado pela rotina. */
 export const CANCELA_SEM_RESPOSTA_MS = 2 * 3_600_000;
 /** Autorizado sem abertura, ou "vou buscar", sem porteiro: a rotina conclui. */
@@ -45,7 +47,10 @@ export interface PedidoRegra {
   criado_em: Date;
   expira_em: Date;
   liberado_ate: Date | null;
+  /** Entrada confirmada pelo aparelho. */
   aberto_em: Date | null;
+  /** Entrada em curso (reservada, sem resposta do aparelho ainda). */
+  abrindo_em?: Date | null;
   saida_aberta_em: Date | null;
 }
 
@@ -104,11 +109,14 @@ export function estadoDoPedido(p: PedidoRegra, agora: Date): EstadoPedido {
     case 'liberado': {
       const aberto = t(p.aberto_em);
       if (aberto !== null) {
-        return fim('aberto', { pode_sair: !p.saida_aberta_em && ms <= aberto + SAIDA_MS });
+        return fim('aberto', {
+          pode_sair: !p.saida_aberta_em && ms >= aberto + SAIDA_APOS_ENTRADA_MS && ms <= aberto + SAIDA_MS,
+        });
       }
       const ate = t(p.liberado_ate);
       if (ate === null) return fim('liberado_portaria');
-      if (ms <= ate) return fim('liberado', { pode_abrir: true, liberado_ate: new Date(ate).toISOString() });
+      // Abrindo: o aparelho ainda não respondeu; nem abrir de novo nem sair.
+      if (ms <= ate) return fim('liberado', { pode_abrir: !p.abrindo_em, liberado_ate: new Date(ate).toISOString() });
       return fim('expirado');
     }
     case 'vou_buscar':
