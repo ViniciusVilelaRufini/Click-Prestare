@@ -1,8 +1,11 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleDestroy,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
@@ -20,9 +23,18 @@ import { CredenciaisValidacaoService } from '../credenciais/credenciais-validaca
 import { diaBrasiliaDe, gerarCodigo } from '../credenciais/codigo-dinamico.util';
 import { carregarImagensDoPasse, DadosDoPasse, montarPasseApple } from './apple-passe.builder';
 import { WalletChavesService } from './wallet-chaves.service';
+import { ApplePassPushClient, RespostaApns, tokenMorto } from './apple-push.client';
 import { WALLET_WEB_SERVICE_URL } from './wallet.constantes';
 
 export const ORIGENS_WALLET = ['wallet_apple', 'wallet_google'] as const;
+
+/** Troca do cliente de push nos testes. Em produção, o ApplePassPushClient. */
+export const WALLET_APPLE_PUSH = 'WALLET_APPLE_PUSH';
+export interface AvisoApple {
+  avisar(pushToken: string): Promise<RespostaApns>;
+}
+/** Avisos simultâneos ao APNs (uma sessão HTTP/2 multiplexa). */
+const AVISOS_EM_PARALELO = 20;
 
 const SEGREDO_HEX = /^[0-9a-f]{64}$/i;
 const ESPERA_LOCK_S = 5;
@@ -61,8 +73,10 @@ function rotuloUnidade(bloco: string | null | undefined, apartamento: string | n
  * JSON: só dentro do .pkpass entregue ao dono.
  */
 @Injectable()
-export class WalletService {
+export class WalletService implements OnModuleDestroy {
   private readonly logger = new Logger(WalletService.name);
+  private readonly push: AvisoApple;
+  private readonly avisosPendentes = new Set<Promise<unknown>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -70,7 +84,14 @@ export class WalletService {
     private readonly chaves: WalletChavesService,
     private readonly tenant: TenantAccessService,
     private readonly auditoria: AuditoriaService,
-  ) {}
+    @Optional() @Inject(WALLET_APPLE_PUSH) push?: AvisoApple,
+  ) {
+    this.push = push ?? new ApplePassPushClient(() => this.chaves.apple());
+  }
+
+  onModuleDestroy() {
+    if (this.push instanceof ApplePassPushClient) this.push.fecharSessao();
+  }
 
   // ===================== App (morador) =====================
 
@@ -275,6 +296,72 @@ export class WalletService {
       where: { id: { in: ids } },
       data: { wallet_atualizado_em: agora },
     });
+    // Avisa em segundo plano: o pedido de quem cancelou não espera o APNs
+    // (até 8 s por aparelho). avisarApple nunca rejeita.
+    const aviso = this.avisarApple(ids);
+    this.avisosPendentes.add(aviso);
+    void aviso.finally(() => this.avisosPendentes.delete(aviso));
+  }
+
+  /** Espera os avisos em segundo plano (testes e desligamento). */
+  async aguardarAvisos(): Promise<void> {
+    while (this.avisosPendentes.size) await Promise.all([...this.avisosPendentes]);
+  }
+
+  /**
+   * Avisa por APNs os aparelhos registrados nas credenciais dadas. Token que o
+   * APNs diz morto apaga aquele registro; outra falha só conta. Nunca lança.
+   */
+  async avisarApple(idsCredencial: number[]): Promise<{ avisados: number; mortos: number; falhas: number }> {
+    const total = { avisados: 0, mortos: 0, falhas: 0 };
+    const p = this.prisma as any;
+    let registros: Array<{ id: number; push_token: string }> = [];
+    try {
+      if (!idsCredencial.length) return total;
+      registros = await p.wallet_Registros.findMany({
+        where: { id_credencial: { in: idsCredencial } },
+        select: { id: true, push_token: true },
+      });
+    } catch (e: any) {
+      this.logger.warn(`Avisos da carteira (Apple) não saíram: ${e?.message ?? e}`);
+      return total;
+    }
+    const motivos = new Map<string, number>();
+    for (let i = 0; i < registros.length; i += AVISOS_EM_PARALELO) {
+      await Promise.all(
+        registros.slice(i, i + AVISOS_EM_PARALELO).map(async (reg) => {
+          let r: RespostaApns;
+          try {
+            r = await this.push.avisar(reg.push_token);
+          } catch {
+            r = { status: 0, motivo: 'erro' };
+          }
+          if (r.status === 200) {
+            total.avisados++;
+            return;
+          }
+          if (tokenMorto(r)) {
+            total.mortos++;
+            try {
+              await p.wallet_Registros.deleteMany({ where: { id: reg.id } });
+            } catch {
+              /* sai na próxima */
+            }
+            return;
+          }
+          total.falhas++;
+          const chave = `${r.status}${r.motivo ? ' ' + r.motivo : ''}`;
+          motivos.set(chave, (motivos.get(chave) ?? 0) + 1);
+        }),
+      );
+    }
+    if (total.falhas) {
+      const resumo = [...motivos].map(([m, n]) => `${m} (${n})`).join(', ');
+      this.logger.warn(
+        `Avisos da carteira (Apple): ${total.avisados} avisados, ${total.mortos} tokens mortos, ${total.falhas} falhas: ${resumo}`,
+      );
+    }
+    return total;
   }
 
   /**

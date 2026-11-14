@@ -17,6 +17,7 @@ function certificado(
   chaveAssinaturaPem: string,
   atributos: forge.pki.CertificateField[],
   emissor?: forge.pki.CertificateField[],
+  autoridade = false,
 ): string {
   const cert = forge.pki.createCertificate();
   cert.publicKey = forge.pki.publicKeyFromPem(chavePublicaPem);
@@ -25,6 +26,8 @@ function certificado(
   cert.validity.notAfter = new Date(Date.now() + 365 * 24 * 3600 * 1000);
   cert.setSubject(atributos);
   cert.setIssuer(emissor ?? atributos);
+  // A autoridade precisa se declarar CA, senão o OpenSSL não a aceita como emissora.
+  if (autoridade) cert.setExtensions([{ name: 'basicConstraints', cA: true }, { name: 'keyUsage', keyCertSign: true, cRLSign: true }]);
   cert.sign(forge.pki.privateKeyFromPem(chaveAssinaturaPem), forge.md.sha256.create());
   return forge.pki.certificateToPem(cert);
 }
@@ -50,7 +53,7 @@ export function gerarChavesFalsas(passTypeId: string = PASS_TYPE_ID): {
     { name: 'commonName', value: 'Teste WWDR G4' },
     { name: 'organizationName', value: 'Teste' },
   ];
-  const wwdrPem = certificado(raiz.publicKey, raiz.privateKey, assuntoWwdr);
+  const wwdrPem = certificado(raiz.publicKey, raiz.privateKey, assuntoWwdr, undefined, true);
   const passe = parRsa();
   const passePem = certificado(
     passe.publicKey,
