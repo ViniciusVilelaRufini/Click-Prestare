@@ -82,6 +82,12 @@ export class DocumentosPageComponent implements OnInit {
     this.modalUpload.set(true);
   }
 
+  /** Fechar no meio do envio escondia o resultado (o erro ou o sucesso). */
+  fecharUpload() {
+    if (this.salvando()) return;
+    this.modalUpload.set(false);
+  }
+
   onFileSelected(event: any) {
     const file = event.target.files?.[0];
     if (file) {

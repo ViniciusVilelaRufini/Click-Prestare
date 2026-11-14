@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { DocumentosPageComponent } from './documentos-page.component';
 import { DocumentosApi } from './documentos.service';
 import { AuthService } from '../auth/auth.service';
@@ -105,6 +105,24 @@ describe('DocumentosPageComponent — erros, papel e confirmação', () => {
     fixture.detectChanges();
     expect(comp.modalUpload()).toBe(true);
     expect(el.querySelector('.ps-drawer')?.textContent).toContain('Arquivo inválido.');
+  });
+
+  it('enquanto publica: Cancelar e × desabilitados, e o drawer não fecha', () => {
+    const pendente = new Subject<unknown>();
+    const { fixture, el, comp } = render(SINDICO, { insertDocumento: jest.fn(() => pendente) });
+    comp.abrirModalUpload();
+    comp.novoDoc = { nome: 'Regimento', isAta: false, base64: 'data:application/pdf;base64,JVBERi0=' };
+    comp.salvarDocumento();
+    fixture.detectChanges();
+    const drawer = el.querySelector('.ps-drawer') as HTMLElement;
+    expect((botao(drawer, 'Cancelar') as HTMLButtonElement).disabled).toBe(true);
+    expect((drawer.querySelector('button[aria-label="Fechar"]') as HTMLButtonElement).disabled).toBe(true);
+    comp.fecharUpload();
+    expect(comp.modalUpload()).toBe(true);
+    pendente.next({});
+    pendente.complete();
+    fixture.detectChanges();
+    expect(comp.modalUpload()).toBe(false);
   });
 
   it('excluir pede confirmação (danger) e não apaga se cancelar', async () => {
