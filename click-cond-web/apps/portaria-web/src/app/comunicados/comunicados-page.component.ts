@@ -111,7 +111,7 @@ export class ComunicadosPageComponent implements OnInit {
       },
       error: (e) => {
         this.saving.set(false);
-        this.error.set(e?.error?.message ?? 'Falha ao salvar comunicado.');
+        this.error.set(e?.error?.message ?? e?.message ?? 'Falha ao salvar comunicado.');
       },
     });
   }
