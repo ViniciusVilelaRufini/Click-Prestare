@@ -6,6 +6,73 @@ export interface OriginalEdicaoMorador {
   tag_rfid: string | null | undefined;
   qrcode_acesso: string | null | undefined;
   tipo?: string | null;
+  email?: string | null;
+  foto_pessoa?: string | null;
+  foto_documento?: string | null;
+  data_nascimento?: string | null;
+}
+
+/**
+ * Corpo do POST do cadastro novo. "Enviar credenciais" só vale com e-mail: sem ele nenhuma conta
+ * de app é criada, e o pedido marcado fazia a API exigir a data de nascimento à toa.
+ */
+export function payloadCadastroMorador(novo: CreateMorador): CreateMorador {
+  return { ...novo, sendCredentials: !!(novo.email ?? '').trim() && novo.sendCredentials !== false };
+}
+
+/**
+ * Morador menor de 18 anos ao salvar. Cadastro novo: sem conta de app e sem rosto (a API recusa os
+ * dois para menor sem o termo do responsável, que só existe depois, no app). Edição: não mexe em tipo
+ * nem e-mail (um inquilino de 17 anos continua inquilino) e só avisa quando entra foto nova, pela
+ * regra atual: menor com o termo do responsável aceito no app pode ter rosto nos terminais.
+ */
+export function ajusteMenorDeIdade(
+  novo: CreateMorador,
+  editando: boolean,
+  fotoOriginal?: string | null,
+): { aviso: string | null; ajuste: Partial<CreateMorador> } {
+  if (!editando) {
+    return {
+      aviso: (novo.foto_pessoa ?? '').trim()
+        ? 'A data informada torna o morador menor de idade. Sem o termo do responsável, aceito no app, o rosto não pode ser cadastrado: o morador será salvo como dependente, sem foto e sem acesso ao app.'
+        : null,
+      ajuste: { foto_pessoa: undefined, sendCredentials: false, tipo: 'dependente', email: '' },
+    };
+  }
+  const foto = (novo.foto_pessoa ?? '').trim();
+  const fotoNova = !!foto && foto !== (fotoOriginal ?? '').trim();
+  return {
+    aviso: fotoNova
+      ? 'Morador menor de idade: o rosto só é aceito e vai para os terminais se o responsável já aceitou o termo de biometria no app. Sem o termo, a foto é recusada.'
+      : null,
+    ajuste: {},
+  };
+}
+
+/**
+ * Confirmação do "Enviar Acesso". A API gera uma senha nova e a grava na conta: para quem já usa o
+ * app, a senha atual deixa de valer e todas as sessões caem. O operador precisa saber disso antes.
+ */
+export function confirmacaoEnviarAcesso(m: { email: string | null; tem_conta_app?: boolean }): {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  variant: 'primary' | 'danger';
+} {
+  if (m.tem_conta_app) {
+    return {
+      title: 'Gerar nova senha do app',
+      message: `Este morador já tem acesso ao app. Uma senha nova será gerada e enviada para ${m.email}: a senha atual deixa de funcionar e ele sai do app em todos os aparelhos. Se ele só esqueceu a senha, peça que use "Esqueci a senha" no app.`,
+      confirmLabel: 'Gerar e enviar',
+      variant: 'danger',
+    };
+  }
+  return {
+    title: 'Enviar credenciais por e-mail',
+    message: `Um e-mail com link de acesso e senha inicial será enviado para ${m.email}.`,
+    confirmLabel: 'Enviar',
+    variant: 'primary',
+  };
 }
 
 /** "Proprietário", "proprietario " e "PROPRIETARIO" são o mesmo tipo. */
@@ -18,9 +85,17 @@ function chaveTipo(tipo: string | null | undefined): string {
  * reenviar o que veio vazio apagava a credencial, reenviar a unidade refazia os vínculos e reenviar
  * o tipo o regravava no vínculo.
  * A unidade trocada leva a anterior, para a API trocar só aquele vínculo.
+ * E-mail, fotos e nascimento também: reenviados, faziam a API exigir a data de nascimento até para
+ * corrigir o telefone e rodar o sync facial de novo. "Enviar credenciais" não existe na edição.
  */
 export function payloadEdicaoMorador(original: OriginalEdicaoMorador, novo: CreateMorador): Partial<CreateMorador> {
   const p: Partial<CreateMorador> = { ...novo };
+  delete p.sendCredentials;
+  const igual = (a: string | null | undefined, b: string | null | undefined) => (a ?? '').trim() === (b ?? '').trim();
+  if (igual(novo.email, original.email)) delete p.email;
+  if (igual(novo.foto_pessoa, original.foto_pessoa)) delete p.foto_pessoa;
+  if (igual(novo.foto_documento, original.foto_documento)) delete p.foto_documento;
+  if (igual((novo.data_nascimento ?? '').slice(0, 10), (original.data_nascimento ?? '').slice(0, 10))) delete p.data_nascimento;
   if ((novo.tag_rfid ?? '').trim() === (original.tag_rfid ?? '').trim()) delete p.tag_rfid;
   if ((novo.qrcode_acesso ?? '').trim() === (original.qrcode_acesso ?? '').trim()) delete p.qrcode_acesso;
   if (original.tipo !== undefined && chaveTipo(novo.tipo) === chaveTipo(original.tipo || 'proprietario')) delete p.tipo;

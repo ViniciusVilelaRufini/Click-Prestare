@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
 import { VeiculosApi, Veiculo, Tag, CreateVeiculo } from './veiculos.service';
-import { OriginalEdicaoMorador, payloadEdicaoMorador } from './edicao-morador';
+import { OriginalEdicaoMorador, ajusteMenorDeIdade, confirmacaoEnviarAcesso, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
 import { ActivatedRoute } from '@angular/router';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
@@ -364,7 +364,16 @@ export class MoradoresPageComponent implements OnInit {
       tag_rfid: m.tag_rfid ?? '',
       qrcode_acesso: m.qrcode_acesso ?? '',
     };
-    this.originalEdicao = { id_apartamento: m.id_apartamento, tag_rfid: m.tag_rfid, qrcode_acesso: m.qrcode_acesso, tipo: m.tipo };
+    this.originalEdicao = {
+      id_apartamento: m.id_apartamento,
+      tag_rfid: m.tag_rfid,
+      qrcode_acesso: m.qrcode_acesso,
+      tipo: m.tipo,
+      email: this.novo.email,
+      foto_pessoa: this.novo.foto_pessoa,
+      foto_documento: this.novo.foto_documento,
+      data_nascimento: this.novo.data_nascimento,
+    };
     this.biometriaAutorizadaEdicao = m.biometria_autorizada ?? null;
     // Com rosto parado no cadastro, a API já separa o menor dependente (conta sem login de propósito).
     this.semContaAppEdicao = m.tem_conta_app === false && (m.foto_pessoa ? m.biometria_sem_conta_app === true : true);
@@ -478,36 +487,28 @@ export class MoradoresPageComponent implements OnInit {
       return;
     }
 
-    const ehMenor = this.isMenorDeIdade(this.novo.data_nascimento);
-
-    if (ehMenor && (this.fotoPessoaBase64() || this.novo.foto_pessoa)) {
-      const ok = await this.confirm.ask({
-        title: 'Morador Menor de 18 Anos',
-        message: 'A data informada torna o morador menor de idade. Pela Cláusula 8.3 do Contrato e a LGPD, a foto/biometria facial NÃO será sincronizada com os terminais. Deseja prosseguir salvando apenas como dependente sem biometria?',
-        confirmLabel: 'Prosseguir',
-        cancelLabel: 'Corrigir Data',
-        variant: 'danger',
-      });
-      if (!ok) {
-        return;
+    if (this.isMenorDeIdade(this.novo.data_nascimento)) {
+      const { aviso, ajuste } = ajusteMenorDeIdade(this.novo, !!this.editingId, this.originalEdicao.foto_pessoa);
+      if (aviso) {
+        const ok = await this.confirm.ask({
+          title: 'Morador Menor de 18 Anos',
+          message: aviso,
+          confirmLabel: 'Prosseguir',
+          cancelLabel: 'Corrigir Data',
+          variant: 'danger',
+        });
+        if (!ok) {
+          return;
+        }
       }
-      this.novo.foto_pessoa = undefined;
-      this.fotoPessoaBase64.set(null);
-      this.novo.sendCredentials = false;
-      this.novo.tipo = 'dependente';
-      this.novo.email = '';
-    } else if (ehMenor) {
-      this.novo.foto_pessoa = undefined;
-      this.novo.sendCredentials = false;
-      this.novo.tipo = 'dependente';
-      // E-mail cria conta no app; o backend recusa para menor (Cláusula 8.3).
-      this.novo.email = '';
+      Object.assign(this.novo, ajuste);
+      if ('foto_pessoa' in ajuste) this.fotoPessoaBase64.set(null);
     }
 
     this.saving.set(true);
     const obs = this.editingId
       ? this.api.update(this.editingId, payloadEdicaoMorador(this.originalEdicao, this.novo))
-      : this.api.create(this.novo);
+      : this.api.create(payloadCadastroMorador(this.novo));
     obs.subscribe({
       next: () => {
         this.saving.set(false);
@@ -629,23 +630,26 @@ export class MoradoresPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.remove(m.id).subscribe({ next: () => this.carregar() });
+    this.api.remove(m.id).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.toast.error(e?.error?.message ?? e?.message ?? 'Não foi possível remover o morador.'),
+    });
   }
   async sendCredentials(m: Morador) {
     if (!m.email) {
       this.toast.warning('Este morador não possui e-mail cadastrado.');
       return;
     }
-    const ok = await this.confirm.ask({
-      title: 'Enviar credenciais por e-mail',
-      message: `Um e-mail com link de acesso e senha inicial será enviado para ${m.email}.`,
-      confirmLabel: 'Enviar',
-      variant: 'primary',
-    });
+    // Mesma recusa da API (Cláusula 8.3): menor não recebe acesso ao app.
+    if (this.isMenorDeIdade(m.data_nascimento)) {
+      this.toast.warning('Este morador é menor de 18 anos e não recebe acesso ao app. O acesso do menor é pelo responsável.');
+      return;
+    }
+    const ok = await this.confirm.ask(confirmacaoEnviarAcesso(m));
     if (!ok) return;
     this.api.sendCredentials(m.id).subscribe({
       next: () => this.toast.success('Credenciais enviadas com sucesso!'),
-      error: () => this.toast.error('Houve um erro ao enviar as credenciais.'),
+      error: (e) => this.toast.error(e?.error?.message ?? e?.message ?? 'Houve um erro ao enviar as credenciais.'),
     });
   }
 
@@ -761,7 +765,8 @@ export class MoradoresPageComponent implements OnInit {
     if (digits.length === 8) {
       const iso = this.formatarParaIso(valor);
       this.novo.data_nascimento = iso;
-      if (this.isMenorDeIdade(iso)) {
+      // Só no cadastro novo: na edição o tipo do menor fica como está (inquilino de 17 anos segue inquilino).
+      if (this.isMenorDeIdade(iso) && !this.editingId) {
         this.novo.sendCredentials = false;
         this.novo.tipo = 'dependente';
       }
@@ -789,7 +794,7 @@ export class MoradoresPageComponent implements OnInit {
     if (isoValue) {
       this.novo.data_nascimento = isoValue;
       this.dataNascimentoMasked = this.formatarParaBr(isoValue);
-      if (this.isMenorDeIdade(isoValue)) {
+      if (this.isMenorDeIdade(isoValue) && !this.editingId) {
         this.novo.sendCredentials = false;
         this.novo.tipo = 'dependente';
       }
@@ -931,7 +936,8 @@ export class MoradoresPageComponent implements OnInit {
                   lote: cols[5] || '',
                   tipo: cols[6] || 'proprietario',
                   data_nascimento: cols[7] || '',
-                  sendCredentials: true,
+                  // Sem e-mail não há conta a criar nem credencial a enviar.
+                  sendCredentials: !!(cols[2] || '').trim(),
                 });
               }
             }
@@ -962,7 +968,7 @@ export class MoradoresPageComponent implements OnInit {
                   lote: row['Lote/Apto'] || row['Lote'] || row['Apto'] || '',
                   tipo: row['Vínculo'] || row['Tipo'] || 'proprietario',
                   data_nascimento: dataNasc ? String(dataNasc).trim() : '',
-                  sendCredentials: true,
+                  sendCredentials: !!String(row['E-mail'] || row['Email'] || row['email'] || '').trim(),
                 });
               }
             });

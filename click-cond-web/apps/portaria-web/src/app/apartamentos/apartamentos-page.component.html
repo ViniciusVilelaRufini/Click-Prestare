@@ -7,6 +7,7 @@
       <p class="text-sm">Unidades cadastradas · planta organizada por bloco</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
+      @if (podeGerenciarUnidades()) {
       <button (click)="showBulkModal = true" title="Importar apartamentos e lotes em massa" class="ps-btn ps-btn-sec">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
         Importar Excel
@@ -21,6 +22,7 @@
           Cadastrar apartamento
         }
       </button>
+      }
     </div>
   </div>
 
@@ -227,6 +229,7 @@
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l1.5-4.5A2 2 0 018.4 7h7.2a2 2 0 011.9 1.5L19 13m-14 0v5a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-5m-14 0h14"/></svg>
                     Vagas
                   </button>
+                  @if (podeGerenciarUnidades()) {
                   <button (click)="abrirEditar(a)" title="Editar apartamento" class="ps-btn ps-btn-sec ps-btn-sm">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     Editar
@@ -235,6 +238,7 @@
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
                     Excluir
                   </button>
+                  }
                 </div>
               </td>
             </tr>
@@ -290,15 +294,19 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l1.5-4.5A2 2 0 018.4 7h7.2a2 2 0 011.9 1.5L19 13m-14 0v5a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-5m-14 0h14"/></svg>
                 Vagas
               </button>
+              @if (podeGerenciarUnidades()) {
               <button (click)="abrirEditar(moradoresApto); fecharMoradores()" title="Editar apartamento" class="ps-btn ps-btn-sec ps-btn-sm">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 Editar unidade
               </button>
+              }
             </div>
+            @if (podeGerenciarUnidades()) {
             <button (click)="remover(moradoresApto); fecharMoradores()" title="Excluir apartamento" class="ps-btn ps-btn-danger ps-btn-sm">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
               Excluir
             </button>
+            }
           </div>
         }
 
@@ -349,6 +357,13 @@
                          class="w-full h-10 px-3 text-sm border border-white/10 bg-graphite text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition" />
                 </label>
               </div>
+
+              <label class="block">
+                <span class="ps-label mb-1 block">Data de nascimento</span>
+                <input [(ngModel)]="novoMorador.data_nascimento" appMask="date" maxlength="10" placeholder="DD/MM/AAAA"
+                       class="w-full h-10 px-3 text-sm border border-white/10 bg-graphite text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition" />
+                <span class="text-[11px] text-slate-400 mt-1 block">Obrigatória com e-mail: o e-mail cria o acesso ao app.</span>
+              </label>
 
               <div class="pt-3 flex justify-end gap-2 border-t border-[var(--line-100)]">
                 <button (click)="showAddMoradorForm = false" [disabled]="savingMorador()"

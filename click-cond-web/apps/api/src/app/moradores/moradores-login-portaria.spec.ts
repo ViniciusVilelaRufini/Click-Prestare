@@ -37,6 +37,7 @@ function prismaBase(opts: { contaExistente?: any } = {}) {
 
 function service(prisma: any) {
   const mail: any = { sendWelcomeMorador: jest.fn(async () => ({})), sendWelcomeMoradorExisting: jest.fn(async () => ({})) };
+  prisma.$transaction ??= jest.fn((fn: any) => fn(prisma)); // create grava numa transação (B3)
   const svc = new MoradoresService(
     prisma, mail, { isDataUrl: () => false, uploadDataUrl: jest.fn() } as any, {} as any,
     { registrar: jest.fn(async () => ({})) } as any, { enviarMorador: jest.fn(async () => ({ enviado: false })) } as any,
