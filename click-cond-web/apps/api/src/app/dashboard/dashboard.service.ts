@@ -65,7 +65,7 @@ export interface DashboardSummary {
 }
 
 /** Status de ocorrência fechada — a mesma lista do app (mobile-auth.service). */
-const STATUS_SOLUCIONADO = ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] as const;
+export const STATUS_SOLUCIONADO = ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] as const;
 
 @Injectable()
 export class DashboardService {
