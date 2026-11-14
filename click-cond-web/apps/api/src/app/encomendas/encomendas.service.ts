@@ -812,9 +812,11 @@ export class EncomendasService implements OnModuleInit {
     // zerado e aviso à unidade nova. Vai antes dos outros campos para que um
     // 409/400 não deixe a edição pela metade. Bloco nulo e '' são a mesma
     // unidade.
-    const apto = dto.destinatario_apto !== undefined ? String(dto.destinatario_apto ?? '').trim() : existing.destinatario_apto.trim();
+    const aptoAtual = String(existing.destinatario_apto ?? '').trim();
+    const apto = dto.destinatario_apto !== undefined ? String(dto.destinatario_apto ?? '').trim() : aptoAtual;
     const bloco = dto.destinatario_bloco !== undefined ? blocoGravavel(dto.destinatario_bloco) : blocoGravavel(existing.destinatario_bloco);
-    const mudaUnidade = apto !== existing.destinatario_apto.trim() || bloco !== blocoGravavel(existing.destinatario_bloco);
+    const mudaUnidade = (dto.destinatario_apto !== undefined || dto.destinatario_bloco !== undefined) &&
+      (apto !== aptoAtual || bloco !== blocoGravavel(existing.destinatario_bloco));
     let avisados: number | undefined;
     if (mudaUnidade) {
       const corrigida = await this.corrigirUnidade(
