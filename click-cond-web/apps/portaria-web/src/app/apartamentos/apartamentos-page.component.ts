@@ -196,9 +196,29 @@ export class ApartamentosPageComponent implements OnInit {
       this.errorMorador.set('Com e-mail, informe a data de nascimento: o e-mail cria o acesso ao app. Sem ela, deixe o e-mail em branco.');
       return;
     }
-    const dataNascimento = digitosNasc.length === 8
-      ? `${digitosNasc.slice(4, 8)}-${digitosNasc.slice(2, 4)}-${digitosNasc.slice(0, 2)}`
-      : undefined;
+    let dataNascimento: string | undefined;
+    let ehMenor = false;
+    if (digitosNasc.length === 8) {
+      const dia = Number(digitosNasc.slice(0, 2));
+      const mes = Number(digitosNasc.slice(2, 4));
+      const ano = Number(digitosNasc.slice(4, 8));
+      const d = new Date(ano, mes - 1, dia);
+      // 31/02 vira 03/03 no Date: a data só vale se os três campos voltam iguais.
+      if (d.getFullYear() !== ano || d.getMonth() !== mes - 1 || d.getDate() !== dia || d > new Date()) {
+        this.errorMorador.set('Data de nascimento inválida.');
+        return;
+      }
+      dataNascimento = `${digitosNasc.slice(4, 8)}-${digitosNasc.slice(2, 4)}-${digitosNasc.slice(0, 2)}`;
+      const hoje = new Date();
+      let idade = hoje.getFullYear() - ano;
+      if (hoje.getMonth() < mes - 1 || (hoje.getMonth() === mes - 1 && hoje.getDate() < dia)) idade--;
+      ehMenor = idade < 18;
+    }
+    // Menor: sem acesso ao app e cadastrado como dependente, como na tela de moradores (Cláusula 8.3).
+    if (ehMenor && email) {
+      this.errorMorador.set('Morador menor de 18 anos não recebe acesso ao app: deixe o e-mail em branco.');
+      return;
+    }
 
     this.savingMorador.set(true);
     this.errorMorador.set(null);
@@ -209,7 +229,7 @@ export class ApartamentosPageComponent implements OnInit {
       email: email || undefined,
       telefone: this.novoMorador.telefone.trim() || undefined,
       data_nascimento: dataNascimento,
-      tipo: this.novoMorador.tipo,
+      tipo: ehMenor ? 'dependente' : this.novoMorador.tipo,
       id_apartamento: aptoId,
       sendCredentials: !!email
     };

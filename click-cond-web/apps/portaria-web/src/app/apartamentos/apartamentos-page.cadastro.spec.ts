@@ -87,6 +87,35 @@ describe('ApartamentosPageComponent — cadastro de unidade e de morador', () =>
       );
     });
 
+    it('menor sem e-mail sai como dependente (Moradores e vínculo)', () => {
+      const { tela, moradoresApi } = build();
+      const ano = new Date().getFullYear() - 10;
+      tela.moradoresApto = APTO;
+      tela.novoMorador = { ...tela.novoMorador, nome: 'Bia Souza', tipo: 'inquilino', data_nascimento: `15/03/${ano}` };
+      tela.salvarNovoMorador();
+      expect(moradoresApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ tipo: 'dependente', data_nascimento: `${ano}-03-15`, sendCredentials: false }),
+      );
+    });
+
+    it('menor com e-mail: avisa sem chamar a API', () => {
+      const { tela, moradoresApi } = build();
+      tela.moradoresApto = APTO;
+      tela.novoMorador = { ...tela.novoMorador, nome: 'Bia Souza', email: 'bia@x.com', data_nascimento: `15/03/${new Date().getFullYear() - 10}` };
+      tela.salvarNovoMorador();
+      expect(moradoresApi.create).not.toHaveBeenCalled();
+      expect(tela.errorMorador()).toContain('menor de 18');
+    });
+
+    it('data impossível (31/02) é recusada na tela', () => {
+      const { tela, moradoresApi } = build();
+      tela.moradoresApto = APTO;
+      tela.novoMorador = { ...tela.novoMorador, nome: 'Maria Souza', data_nascimento: '31/02/1980' };
+      tela.salvarNovoMorador();
+      expect(moradoresApi.create).not.toHaveBeenCalled();
+      expect(tela.errorMorador()).toBe('Data de nascimento inválida.');
+    });
+
     it('sem e-mail e sem nascimento, cadastra sem pedir credenciais', () => {
       const { tela, moradoresApi } = build();
       tela.moradoresApto = APTO;
