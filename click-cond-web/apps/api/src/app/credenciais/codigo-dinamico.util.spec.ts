@@ -52,6 +52,19 @@ describe('codigo-dinamico.util', () => {
     expect(decodificarCodigo('P1AAAAAAIDQRCMABTQCSPWDO5F31')).toBeNull(); // '1' fora do alfabeto
   });
 
+  it('decodificação canônica: bits de preenchimento do base32 diferentes de zero são recusados', () => {
+    // 16 bytes = 128 bits em 26 caracteres (130 bits): os 2 bits finais são
+    // preenchimento. 'Q' (10000) é a única grafia; 'R','S','T' (100xx) dariam
+    // os mesmos bytes e não podem valer como outro código.
+    const canonico = 'P1AAAAAAIDQRCMABTQCSPWDO5F3Q';
+    expect(decodificarCodigo(canonico)).not.toBeNull();
+    for (const ultimo of ['R', 'S', 'T']) {
+      const alterado = canonico.slice(0, -1) + ultimo;
+      expect(decodificarCodigo(alterado)).toBeNull();
+      expect(rotuloDeCredencial(alterado)).toBe('cred:?');
+    }
+  });
+
   it('MAC adulterado não confere', () => {
     const dec = decodificarCodigo('P1AAAAAAIDQRCMABTQCSPWDO5F3Q')!;
     const outro = { ...dec, contador: dec.contador + 1 };

@@ -66,6 +66,10 @@ function deBase32(texto: string, tamanho: number): Buffer | null {
     }
   }
   if (pos !== tamanho) return null;
+  // Decodificação canônica: os bits que sobram no último caractere são
+  // preenchimento e precisam ser zero, senão o mesmo código teria várias
+  // grafias (o cooldown do webhook compara o texto lido, não os bytes).
+  if (bits > 0 && (acumulado & ((1 << bits) - 1)) !== 0) return null;
   return saida;
 }
 
