@@ -10,6 +10,7 @@ import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { aplicarLeitura, reduzirImagem } from './foto-encomenda';
 import { Apartamento, ApartamentosApi } from '../apartamentos/apartamentos.service';
+import { ServerClockService } from '../core/server-clock.service';
 
 /**
  * Escapa texto para o HTML das etiquetas: document.write não passa pelo escape
@@ -65,6 +66,8 @@ export class EncomendasPageComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
+  /** Hora do SERVIDOR (o PC da portaria costuma estar com o relógio errado). */
+  private relogio = inject(ServerClockService);
 
   constructor() {
     effect(() => {
@@ -377,11 +380,11 @@ export class EncomendasPageComponent implements OnInit {
 
   /**
    * A recarga traz só as retiradas recentes: as mais antigas da tela (que
-   * não mudam mais) continuam, sem repetir as que vieram de novo. A margem de
-   * 1 h cobre a diferença de relógio com o servidor.
+   * não mudam mais) continuam, sem repetir as que vieram de novo. O corte usa
+   * a hora do servidor (ServerClockService); a margem de 1 h cobre o resto.
    */
   private juntarComRetiradasAntigas(antes: Encomenda[], recentes: Encomenda[]): Encomenda[] {
-    const limite = Date.now() - RECARGA_RETIRADAS_DIAS * 86_400_000 + 3_600_000;
+    const limite = this.relogio.agora().getTime() - RECARGA_RETIRADAS_DIAS * 86_400_000 + 3_600_000;
     const vieram = new Set(recentes.map((e) => e.id));
     const antigas = antes.filter((e) =>
       !vieram.has(e.id) && e.status === 'Retirada' && !!e.retirado_em && new Date(e.retirado_em).getTime() < limite);

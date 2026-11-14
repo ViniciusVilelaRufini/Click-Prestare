@@ -5,6 +5,7 @@ import { ApartamentosApi } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { EncomendasPageComponent } from './encomendas-page.component';
 import { Encomenda, EncomendasApi } from './encomendas.service';
+import { ServerClockService } from '../core/server-clock.service';
 
 /**
  * Rodada 3 (encomendas no console):
@@ -22,7 +23,7 @@ describe('EncomendasPageComponent — rodada 3', () => {
   });
   let api: any;
 
-  function montar(lista: Encomenda[]) {
+  function montar(lista: Encomenda[], relogio?: { agora: () => Date }) {
     api = {
       list: jest.fn(() => of(lista)),
       get: jest.fn((id: number) => of({ ...enc({ id }), status: 'Retirada', retirado_assinatura: 'https://b/assinatura.png', retirado_foto: null })),
@@ -41,6 +42,7 @@ describe('EncomendasPageComponent — rodada 3', () => {
         { provide: EncomendasApi, useValue: api },
         { provide: ApartamentosApi, useValue: { list: () => of([]) } },
         { provide: ConfirmService, useValue: { ask: jest.fn(async () => true) } },
+        ...(relogio ? [{ provide: ServerClockService, useValue: relogio }] : []),
       ],
     });
     const fixture = TestBed.createComponent(EncomendasPageComponent);
@@ -66,6 +68,20 @@ describe('EncomendasPageComponent — rodada 3', () => {
     const ids = c.encomendas().map((e) => e.id);
     expect(ids.sort()).toEqual([1, 2, 3]);
     expect(c.encomendas().find((e) => e.id === 2)!.status).toBe('Retirada');
+  });
+
+  it('17: o corte das retiradas antigas usa a hora do servidor (PC com relógio atrasado não perde a retirada)', () => {
+    const servidor = Date.now();
+    const dia = 86_400_000;
+    // Retirada há 9 dias pela hora do servidor: a recarga (últimos 7 dias) não a traz de volta.
+    const antiga = enc({ id: 1, status: 'Retirada', recebido_em: new Date(servidor - 10 * dia).toISOString(), retirado_em: new Date(servidor - 9 * dia).toISOString() });
+    const f = montar([antiga, enc({ id: 2 })], { agora: () => new Date(servidor) });
+    const c = f.componentInstance;
+    api.list.mockReturnValue(of([enc({ id: 2 })]));
+    // O PC da portaria está 10 dias atrasado.
+    jest.spyOn(Date, 'now').mockReturnValue(servidor - 10 * dia);
+    c.recarregarSilencioso();
+    expect(c.encomendas().map((e) => e.id).sort()).toEqual([1, 2]);
   });
 
   it('17: recibo da lista leve (tem_comprovante) busca a assinatura ao abrir', () => {
