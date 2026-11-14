@@ -544,6 +544,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     id_condominio: number;
     nome: string;
     codigo_acesso: string | null;
+    id_apartamento: number | null;
     data_hora_inicio: Date | null;
     data_hora_termino: Date | null;
     bloco: string | null;
@@ -565,6 +566,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       id_condominio: v.id_condominio,
       nome: (migrado ? v.pessoa?.nome : v.nome) ?? '',
       codigo_acesso: v.codigo_acesso ?? null,
+      id_apartamento: v.id_apartamento != null ? Number(v.id_apartamento) : null,
       data_hora_inicio: v.data_hora_inicio ?? null,
       data_hora_termino: v.data_hora_termino ?? null,
       bloco: apartamento?.bloco ?? null,

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { TenantAccessService } from '../auth/tenant-access.service';
+import { ehFuncionarioDoApp, TenantAccessService } from '../auth/tenant-access.service';
 import { VisitantesService } from '../visitantes/visitantes.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioApp } from '../auth/usuario-app.guard';
@@ -15,6 +16,7 @@ import { assertSindicoEstrito } from '../auth/tenant.util';
 import { decryptSecret, encryptSecret } from '../facial/device-secret.util';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { rotuloBloco } from '../common/rotulo-bloco.util';
+import { comLock } from '../common/lock-distribuido';
 import { contadorDe, gerarCodigo, INTERVALO_MS } from './codigo-dinamico.util';
 
 /** Mesmo padrão do link do convite (`convites.service.ts`). */
@@ -23,6 +25,11 @@ const PASSE_INDISPONIVEL = 'Passe indisponível.';
 /** `<id em base36>.<base64url de 32 bytes>` */
 const TOKEN_LINK = /^([0-9a-z]{1,7})\.([A-Za-z0-9_-]{43})$/;
 const SEGREDO_HEX = /^[0-9a-f]{64}$/i;
+const OPCAO_DESLIGADA_LINK = 'QR no app está desligado neste condomínio';
+/** Rótulo da derivação da chave do link: separa-a da chave do encryptSecret. */
+const ROTULO_CHAVE_LINK = 'prestare/credenciais/link/v1';
+/** Quanto a emissão espera pela outra chamada da mesma pessoa (GET_LOCK). */
+const ESPERA_LOCK_MINHA_S = 5;
 
 export type RespostaCredencialMinha =
   | { disponivel: true; id: number; segredo?: string; intervalo_s: 30; agora_servidor: string }
@@ -92,24 +99,37 @@ export class CredenciaisService {
       origem: 'app',
       revogada_em: null,
     };
-    const ativa = await p.credenciais_Acesso.findFirst({ where: daPessoa, orderBy: { id: 'desc' } });
-    if (ativa && body?.renovar !== true) {
-      return { disponivel: true, id: ativa.id, intervalo_s: 30, agora_servidor: agora.toISOString() };
-    }
+    // Uma ativa por pessoa, condomínio e origem. Ler, revogar e criar correm
+    // sob um lock dessa chave (GET_LOCK, vale entre instâncias): sem ele, duas
+    // chamadas juntas (dois toques, `renovar` repetido) liam "sem ativa" ou
+    // revogavam ao mesmo tempo e deixavam duas credenciais ativas.
+    const r = await comLock(
+      this.prisma as any,
+      `credenciais:minha:${idCondominio}:morador:${morador.id}:app`,
+      async (): Promise<RespostaCredencialMinha> => {
+        const ativa = await p.credenciais_Acesso.findFirst({ where: daPessoa, orderBy: { id: 'desc' } });
+        if (ativa && body?.renovar !== true) {
+          return { disponivel: true, id: ativa.id, intervalo_s: 30, agora_servidor: agora.toISOString() };
+        }
 
-    // Uma ativa por pessoa, condomínio e origem: aparelho novo derruba o anterior.
-    await p.credenciais_Acesso.updateMany({ where: daPessoa, data: { revogada_em: agora } });
-    const segredo = randomBytes(32).toString('hex');
-    const nova = await p.credenciais_Acesso.create({
-      data: {
-        id_condominio: idCondominio,
-        tipo_pessoa: 'morador',
-        id_pessoa: morador.id,
-        segredo: encryptSecret(segredo),
-        origem: 'app',
+        // Aparelho novo derruba o anterior.
+        await p.credenciais_Acesso.updateMany({ where: daPessoa, data: { revogada_em: agora } });
+        const segredo = randomBytes(32).toString('hex');
+        const nova = await p.credenciais_Acesso.create({
+          data: {
+            id_condominio: idCondominio,
+            tipo_pessoa: 'morador',
+            id_pessoa: morador.id,
+            segredo: encryptSecret(segredo),
+            origem: 'app',
+          },
+        });
+        return { disponivel: true, id: nova.id, segredo, intervalo_s: 30, agora_servidor: agora.toISOString() };
       },
-    });
-    return { disponivel: true, id: nova.id, segredo, intervalo_s: 30, agora_servidor: agora.toISOString() };
+      { esperaSegundos: ESPERA_LOCK_MINHA_S, duracaoMaximaMs: 30_000 },
+    );
+    if (!r.obtido) throw new ServiceUnavailableException('Credencial em emissão. Tente de novo.');
+    return r.valor;
   }
 
   // ===================== Link do visitante (app) =====================
@@ -117,6 +137,8 @@ export class CredenciaisService {
   async linkVisita(id: number, user: JwtPayload): Promise<{ url: string; valido_ate: string | null }> {
     const p = this.prisma as any;
     const ref = await this.visitantes.referenciaParaCredencial(exigirIdPositivo(id, 'Visita inválida.'), user);
+    await this.assertPodeGerirLink(ref, user);
+    if (!(await this.opcaoLigada(ref.id_condominio))) throw new ForbiddenException(OPCAO_DESLIGADA_LINK);
     if (!ref.codigo_acesso) throw new BadRequestException('Esta visita já foi encerrada.');
     this.chaveDoLink(true);
 
@@ -149,6 +171,7 @@ export class CredenciaisService {
   async invalidarLink(id: number, user: JwtPayload): Promise<{ ok: true }> {
     const p = this.prisma as any;
     const ref = await this.visitantes.referenciaParaCredencial(exigirIdPositivo(id, 'Visita inválida.'), user);
+    await this.assertPodeGerirLink(ref, user);
     await p.credenciais_Acesso.updateMany({
       where: {
         id_condominio: ref.id_condominio,
@@ -264,8 +287,11 @@ export class CredenciaisService {
   }
 
   /**
-   * Chave do link = sha256(FACIAL_CRED_KEY || JWT_SECRET). Sem nenhuma das
-   * duas o token seria forjável: a emissão recusa e a leitura responde 404.
+   * Chave do link = HMAC-SHA256(sha256(FACIAL_CRED_KEY || JWT_SECRET),
+   * "prestare/credenciais/link/v1"). A base é a mesma do encryptSecret, mas a
+   * derivação com rótulo próprio separa as duas chaves: nada calculado com uma
+   * serve para a outra. Sem nenhum dos dois segredos o token seria forjável:
+   * a emissão recusa e a leitura responde 404.
    */
   private chaveDoLink(exigir: boolean): Buffer | null {
     const segredo = process.env.FACIAL_CRED_KEY || process.env.JWT_SECRET;
@@ -273,16 +299,47 @@ export class CredenciaisService {
       if (exigir) throw new ServiceUnavailableException('Passe do visitante indisponível neste servidor.');
       return null;
     }
-    return createHash('sha256').update(segredo).digest();
+    const base = createHash('sha256').update(segredo).digest();
+    return createHmac('sha256', base).update(ROTULO_CHAVE_LINK).digest();
   }
 
   /**
-   * Link pela raiz com query, como o do convite: o hosting da portaria-web
-   * não reescreve caminho profundo para o SPA (ver convites.service.ts).
+   * Link pela raiz, como o do convite (o hosting da portaria-web não reescreve
+   * caminho profundo para o SPA), com o token no fragmento (`#passe=`): o
+   * fragmento não vai para o servidor, então o token não aparece em log de
+   * acesso, CDN nem Referer. A página lê o fragmento e o envia no corpo do
+   * POST /api/passes/publico.
    */
   private urlDoPasse(token: string): string {
     const base = (process.env.CONVITE_BASE_URL ?? '').trim().replace(/\/+$/, '') || BASE_URL_PADRAO;
-    return `${base}/?passe=${encodeURIComponent(token)}`;
+    return `${base}/#passe=${encodeURIComponent(token)}`;
+  }
+
+  /**
+   * Funcionário do app só gera/invalida o link com a mesma permissão exigida
+   * para cadastrar visitante (`cadastrar_visitante`) ou se for morador da
+   * unidade da visita. Morador e síndico já foram conferidos por
+   * `referenciaParaCredencial`.
+   */
+  private async assertPodeGerirLink(
+    ref: { id_condominio: number; id_apartamento?: number | null },
+    user: JwtPayload,
+  ): Promise<void> {
+    if (!ehFuncionarioDoApp(user)) return;
+    try {
+      await this.tenant.assertPermissaoFuncionario(ref.id_condominio, 'cadastrar_visitante', user);
+      return;
+    } catch (e) {
+      if (!(e instanceof ForbiddenException)) throw e;
+      const dono =
+        ref.id_apartamento != null
+          ? await (this.prisma as any).apartamentos_Users.findFirst({
+              where: { id_user: idUsuarioApp(user), id_apto: ref.id_apartamento },
+              select: { id_apto: true },
+            })
+          : null;
+      if (!dono) throw e;
+    }
   }
 
   private alvoDaVisita(ref: { espaco: 'visita' | 'visitante'; id: number }) {

@@ -62,8 +62,10 @@ export class CredenciaisController {
 
 /**
  * Página pública do passe do visitante. A trava é o token (HMAC da chave do
- * servidor), que muda quando o morador invalida o link. @SkipAudit pelo mesmo
- * motivo do convite: sem usuário, o interceptor não tem onde gravar.
+ * servidor), que muda quando o morador invalida o link. O token vai no corpo
+ * do POST, nunca no caminho nem na query: assim não aparece em log de acesso,
+ * CDN ou Referer. @SkipAudit pelo mesmo motivo do convite: sem usuário, o
+ * interceptor não tem onde gravar.
  */
 @Controller('passes')
 export class PassesPublicosController {
@@ -72,8 +74,9 @@ export class PassesPublicosController {
   @SkipAudit()
   @Public()
   @Throttle({ medium: { limit: 30, ttl: 60_000 } })
-  @Get('publico/:token')
-  ler(@Param('token') token: string) {
-    return this.service.lerPassePublico(token);
+  @Post('publico')
+  @HttpCode(200)
+  ler(@Body() body: { token?: unknown }) {
+    return this.service.lerPassePublico(typeof body?.token === 'string' ? body.token : '');
   }
 }
