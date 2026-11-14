@@ -1,4 +1,5 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DeliveryAtendimento, DeliveryStatus } from '../delivery.model';
 import { DeliveryStore } from '../delivery.store';
@@ -12,7 +13,7 @@ type ComMotivo = 'RECUSADA' | 'CANCELADA';
   selector: 'app-delivery-detalhe',
   standalone: true,
   host: { class: 'block' },
-  imports: [FormsModule, DeliveryStatusBadgeComponent, DeliveryTimelineComponent],
+  imports: [DatePipe, FormsModule, DeliveryStatusBadgeComponent, DeliveryTimelineComponent],
   templateUrl: './delivery-detalhe.component.html',
 })
 export class DeliveryDetalheComponent {
@@ -32,6 +33,17 @@ export class DeliveryDetalheComponent {
     if (alvo === 'RECUSADA' && acoes?.recusar) return alvo;
     if (alvo === 'CANCELADA' && acoes?.cancelar) return alvo;
     return null;
+  });
+  /**
+   * Entregador que veio pelo QR do portão e "Autorizar" entre as ações: a
+   * autorização da portaria não abre o portão pela nuvem (o porteiro abre
+   * pelo meio de sempre).
+   */
+  readonly avisoPortao = computed(() => {
+    const a = this.store.selecionado();
+    const acoes = this.acoes();
+    if (!a || !acoes || !this.store.veioDoPortao(a)) return false;
+    return acoes.primaria === 'AUTORIZADA' || acoes.secundarias.includes('AUTORIZADA');
   });
   /** Encerrado (recusado, cancelado, concluído) ou fora da fila: o painel mostra o desfecho. */
   readonly encerrado = computed(() => {

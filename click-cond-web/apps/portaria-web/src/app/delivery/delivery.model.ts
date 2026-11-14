@@ -38,6 +38,30 @@ export interface DeliveryEvento {
   created_at: string;
 }
 
+/**
+ * Pedido de portão mais recente do atendimento (autoatendimento do
+ * entregador pelo QR). `foto` é link assinado e temporário do bucket privado.
+ */
+export interface DeliveryPedidoPortao {
+  nome: string;
+  plataforma?: string | null;
+  foto?: string | null;
+  /** pendente | liberado | vou_buscar | recusado | expirado */
+  status: string;
+  /** Nome do aparelho do QR lido. */
+  portao: string;
+  aberto_em?: string | null;
+  saida_aberta_em?: string | null;
+}
+
+/** Configuração do autoatendimento de entregas do condomínio. */
+export interface ConfigAutoatendimento {
+  habilitado: boolean;
+  /** HH:MM; os dois nulos = dia inteiro. */
+  inicio: string | null;
+  fim: string | null;
+}
+
 export interface DeliveryAtendimento {
   id: number;
   status: DeliveryStatus;
@@ -61,6 +85,9 @@ export interface DeliveryAtendimento {
   updated_at?: string | null;
   /** Só na resposta do "Pedir autorização": quantos da unidade podem receber o pedido. */
   avisados?: number;
+  /** De onde veio o atendimento: a portaria/o aviso do morador, ou o QR do portão. */
+  origem?: 'portaria' | 'autoatendimento';
+  pedido_portao?: DeliveryPedidoPortao | null;
 }
 
 export interface CriarEntregadorDelivery {

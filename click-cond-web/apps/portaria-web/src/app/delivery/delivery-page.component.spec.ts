@@ -76,6 +76,14 @@ describe('DeliveryPageComponent', () => {
     expect(api.listAtivos.mock.calls.length).toBe(chamadas + 1);
   });
 
+  it('painel "Autoatendimento no portão" fica no topo da página e some para quem não é síndico', () => {
+    const painel = fixture.nativeElement.querySelector('app-delivery-autoatendimento') as HTMLElement;
+    expect(painel).not.toBeNull();
+    // Sessão sem typeAccess de síndico no token: nada aparece.
+    expect(painel.textContent?.trim()).toBe('');
+    expect(api.lerConfigEntrega).not.toHaveBeenCalled();
+  });
+
   it('mostra erro com botão de fechar', () => {
     store().erro.set('Falhou');
     fixture.detectChanges();

@@ -24,4 +24,6 @@ export class DeliveryApiStub {
   atualizarStatus = jest.fn(() => of(ATENDIMENTOS[0]));
   criarEntregador = jest.fn();
   atualizarEntregador = jest.fn();
+  lerConfigEntrega = jest.fn(() => of({ habilitado: false, inicio: null, fim: null }));
+  salvarConfigEntrega = jest.fn();
 }

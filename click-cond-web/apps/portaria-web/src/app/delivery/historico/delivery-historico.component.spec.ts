@@ -49,6 +49,32 @@ describe('DeliveryHistoricoComponent', () => {
     expect(texto).not.toContain('Bloco Bloco');
   });
 
+  it('autoatendimento: selo e miniatura na lista; selfie e portão no painel', () => {
+    const foto = 'https://s3.example/delivery-portao/x.jpg?X-Amz-Signature=1';
+    api.listHistorico.mockReturnValue(of([
+      terminado,
+      {
+        ...terminado, id: 4, estabelecimento: 'iFood', nome_entregador: null, origem: 'autoatendimento',
+        pedido_portao: { nome: 'Carlos Portão', plataforma: 'iFood', foto, status: 'liberado', portao: 'Portão social', aberto_em: '2026-10-03T10:10:00', saida_aberta_em: null },
+      } as DeliveryAtendimento,
+    ]));
+    const fixture = TestBed.createComponent(DeliveryHistoricoComponent);
+    fixture.detectChanges();
+    const linhas = Array.from(fixture.nativeElement.querySelectorAll('section button')) as HTMLButtonElement[];
+    const auto = linhas.find((l) => l.textContent?.includes('Carlos Portão'))!;
+    const comum = linhas.find((l) => l.textContent?.includes('Farmácia Histórica'))!;
+    expect(auto.textContent).toContain('Autoatendimento');
+    expect(auto.querySelector('img')?.getAttribute('src')).toBe(foto);
+    expect(comum.textContent).not.toContain('Autoatendimento');
+
+    auto.click();
+    fixture.detectChanges();
+    const painel = fixture.nativeElement.querySelector('aside') as HTMLElement;
+    expect(painel.querySelector('img[alt="Foto do entregador"]')?.getAttribute('src')).toBe(foto);
+    expect(painel.textContent).toContain('No portão: Portão social');
+    expect(painel.textContent).toContain('Entrou às 10:10');
+  });
+
   it('host renderiza como bloco', () => {
     const fixture = TestBed.createComponent(DeliveryHistoricoComponent);
     fixture.detectChanges();

@@ -168,8 +168,19 @@ export class DeliveryStore {
     return [a.apartamento.bloco, a.apartamento.apto].filter(Boolean).join(' ');
   }
 
+  /** Cadastrado primeiro; depois quem se identificou no portão (a selfie é dele); depois o nome digitado. */
   nomeEntregador(a: DeliveryAtendimento): string {
-    return a.entregador?.nome?.trim() || a.nome_entregador?.trim() || 'Entregador ainda não identificado';
+    return (
+      a.entregador?.nome?.trim() ||
+      a.pedido_portao?.nome?.trim() ||
+      a.nome_entregador?.trim() ||
+      'Entregador ainda não identificado'
+    );
+  }
+
+  /** O entregador chegou pelo QR do portão (atendimento criado por ele, ou aviso do morador que ele usou). */
+  veioDoPortao(a: DeliveryAtendimento): boolean {
+    return a.origem === 'autoatendimento' || !!a.pedido_portao;
   }
 
   telefoneEntregador(a: DeliveryAtendimento): string | null {
@@ -181,9 +192,15 @@ export class DeliveryStore {
     return ['SINDICO', 'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN'].includes(turno);
   }
 
+  /**
+   * Entregador ativo identificado. No autoatendimento a identificação é o
+   * nome e a selfie do pedido do portão (a API dispensa o cadastro só para
+   * essa origem); escolher um entregador bloqueado continua impedindo.
+   */
   podeAutorizar(a: DeliveryAtendimento): boolean {
     const id = this.entregadorSelecionadoId() ?? a.entregador?.id;
     const entregador = this.entregadores().find((e) => e.id === id) ?? a.entregador;
+    if (!id && !entregador) return a.origem === 'autoatendimento';
     return !!entregador && entregador.status === 'ATIVO';
   }
 

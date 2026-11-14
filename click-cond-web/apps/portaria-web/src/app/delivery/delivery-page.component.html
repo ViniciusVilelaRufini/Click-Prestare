@@ -18,6 +18,9 @@
     </div>
   </div>
 
+  <!-- Opção do condomínio; o próprio painel some para quem não é síndico. -->
+  <app-delivery-autoatendimento />
+
   @if (store.erro()) {
     <div role="alert" class="ps-panel flex items-start justify-between gap-3 p-3 text-sm text-red-700 dark:text-red-300">
       <span>{{ store.erro() }}</span>
