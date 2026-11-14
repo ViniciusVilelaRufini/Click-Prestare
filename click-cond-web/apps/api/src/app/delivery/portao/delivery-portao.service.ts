@@ -119,7 +119,8 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
   private readonly logger = new Logger(DeliveryPortaoService.name);
   /** Público para os testes; em produção é Date.now. */
   agora: () => number = () => Date.now();
-  private timers: ReturnType<typeof setInterval>[] = [];
+  private tickInterval?: ReturnType<typeof setInterval>;
+  private fotosInterval?: ReturnType<typeof setInterval>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -139,19 +140,24 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
    */
   onModuleInit() {
     if (process.env['NODE_ENV'] === 'test') return;
-    this.timers.push(
-      setInterval(() => void executarComLock(this.prisma, 'delivery-portao:tick', () => this.tick()), ROTINA_MS),
-      setInterval(
-        () => void executarComLock(this.prisma, 'delivery-portao:fotos', async () => void (await this.tickFotos()), { intervaloMinimoMs: DIA_MS }),
-        FOTOS_VERIFICA_MS,
-      ),
+    this.tickInterval = setInterval(
+      () => void executarComLock(this.prisma, 'delivery-portao:tick', () => this.tick()),
+      ROTINA_MS,
     );
-    for (const t of this.timers) t.unref?.();
+    this.tickInterval.unref?.();
+    this.fotosInterval = setInterval(
+      () =>
+        void executarComLock(this.prisma, 'delivery-portao:fotos', async () => void (await this.tickFotos()), {
+          intervaloMinimoMs: DIA_MS,
+        }),
+      FOTOS_VERIFICA_MS,
+    );
+    this.fotosInterval.unref?.();
   }
 
   onModuleDestroy() {
-    for (const t of this.timers) clearInterval(t);
-    this.timers = [];
+    if (this.tickInterval) clearInterval(this.tickInterval);
+    if (this.fotosInterval) clearInterval(this.fotosInterval);
   }
 
   /**
