@@ -124,9 +124,9 @@ describe('OcorrenciasPageComponent — ações conforme o acesso', () => {
     comp.ngOnDestroy();
   });
 
-  it('chamado de "Dispositivos": sem Solucionar/Reabrir, com o aviso de que fecha sozinho', () => {
+  it('chamado de "Dispositivos": sem Reabrir, com o aviso de que fecha sozinho (Solucionar à mão: ocorrencias-page.ciclos.spec)', () => {
     const disp = { ...base, id: 6, tipo: 9, tipoNome: 'Dispositivos', criadoPorNome: 'Sistema' };
-    const { el, comp } = render(SINDICO, [disp, { ...disp, id: 7, status: 'Solucionado' as const }]);
+    const { el, comp } = render(SINDICO, [{ ...disp, id: 7, status: 'Solucionado' as const }]);
     expect(botao(el, 'Solucionar')).toBeUndefined();
     expect(botao(el, 'Reabrir')).toBeUndefined();
     expect(el.textContent).toContain('Fecha sozinho quando o aparelho voltar');

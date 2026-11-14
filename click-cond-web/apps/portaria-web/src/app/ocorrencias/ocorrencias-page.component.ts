@@ -35,6 +35,14 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   readonly categorias = signal<Categoria[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  /** Erro de Registrar, mostrado dentro da gaveta (o painel da página fica atrás do scrim). */
+  readonly formErro = signal<string | null>(null);
+  /** Erro do chat, mostrado dentro da gaveta do chat. */
+  readonly chatErro = signal<string | null>(null);
+  /** Requisições em andamento: o botão fica desabilitado (sem duplo envio nem push duplicado). */
+  readonly registrando = signal(false);
+  readonly enviandoMensagem = signal(false);
+  readonly salvandoResposta = signal(false);
   readonly filtroStatus = signal<string>('');
 
   readonly selectedOcorrencia = signal<Ocorrencia | null>(null);
@@ -135,7 +143,11 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Chamado do monitor de dispositivos: fecha sozinho quando o aparelho volta. */
+  /**
+   * Chamado do monitor de dispositivos: fecha sozinho quando o aparelho volta.
+   * Terminal renomeado ou removido o monitor não acha mais — por isso
+   * Solucionar fica disponível (aparelho ainda fora do ar = chamado novo).
+   */
   ehDispositivo(o: Ocorrencia): boolean {
     return o.tipoNome === CATEGORIA_DISPOSITIVOS;
   }
@@ -150,18 +162,31 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   }
 
   registrar() {
+    if (this.registrando()) return;
+    this.formErro.set(null);
     if (!this.novo.descricao?.trim() || !this.novo.tipo) {
-      this.error.set('Descrição e categoria são obrigatórios.');
+      this.formErro.set('Descrição e categoria são obrigatórios.');
       return;
     }
+    this.registrando.set(true);
     this.api.create(this.novo).subscribe({
       next: () => {
+        this.registrando.set(false);
         this.showForm = false;
         this.novo = { descricao: '', tipo: this.categorias()[0]?.id ?? 0 };
         this.carregar();
       },
-      error: (e) => this.error.set(msgErro(e, 'Erro ao registrar a ocorrência.')),
+      error: (e) => {
+        this.registrando.set(false);
+        this.formErro.set(msgErro(e, 'Erro ao registrar a ocorrência.'));
+      },
     });
+  }
+
+  alternarForm(abrir = !this.showForm) {
+    this.showForm = abrir;
+    this.error.set(null);
+    this.formErro.set(null);
   }
 
   async mudarStatus(o: Ocorrencia, status: OcorrenciaStatus) {
@@ -169,13 +194,21 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     // Crítica é exatamente 1: 0 é o padrão de categoria sem valor (a mesma
     // regra do "urgente" do dashboard).
     const isCritica = prioridade === 1;
+    // 'Pendente' é o Reabrir: a API só reabre a partir de Solucionado e grava Ciente.
+    const reabrir = status === 'Pendente';
+    let message = reabrir
+      ? 'Reabrir a ocorrência? Ela volta para Em andamento, com novo prazo.'
+      : isCritica
+        ? `Você tem certeza que deseja alterar o status desta ocorrência de prioridade CRÍTICA para "${status}"?`
+        : `Deseja alterar o status da ocorrência para "${status}"?`;
+    if (this.ehDispositivo(o) && status === 'Solucionado') {
+      message += ' Se o aparelho ainda estiver fora do ar, o monitor abre um novo chamado.';
+    }
 
     const ok = await this.confirm.ask({
-      title: isCritica ? '⚠️ Alteração em Ocorrência CRÍTICA' : 'Confirmar alteração de status',
-      message: isCritica 
-        ? `Você tem certeza que deseja alterar o status desta ocorrência de prioridade CRÍTICA para "${status}"?`
-        : `Deseja alterar o status da ocorrência para "${status}"?`,
-      confirmLabel: 'Alterar',
+      title: isCritica ? '⚠️ Alteração em Ocorrência CRÍTICA' : reabrir ? 'Reabrir ocorrência' : 'Confirmar alteração de status',
+      message,
+      confirmLabel: reabrir ? 'Reabrir' : 'Alterar',
       variant: isCritica ? 'danger' : 'primary',
     });
 
@@ -183,7 +216,11 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
 
     this.api.updateStatus(o.id, status).subscribe({
       next: () => this.carregar(),
-      error: (e) => this.error.set(msgErro(e, 'Erro ao alterar o status.')),
+      error: (e) => {
+        this.error.set(msgErro(e, 'Erro ao alterar o status.'));
+        // Outra pessoa mudou a ocorrência antes: a lista na tela estava velha.
+        if (e?.status === 409) this.carregarSilenciosamente();
+      },
     });
   }
 
@@ -242,6 +279,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   abrirChat(o: Ocorrencia) {
     this.limparIntervaloChat();
     this.selectedOcorrencia.set(o);
+    this.chatErro.set(null);
     this.loadingMensagens.set(true);
     this.api.listMessages(o.id).subscribe({
       next: (msgs) => {
@@ -249,7 +287,7 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
         this.loadingMensagens.set(false);
         this.scrollChatParaFim();
       },
-      error: (e) => { this.loadingMensagens.set(false); this.error.set(msgErro(e, 'Erro ao carregar as mensagens.')); },
+      error: (e) => { this.loadingMensagens.set(false); this.erroDoChat(e, 'Erro ao carregar as mensagens.'); },
     });
 
     // Atualiza silenciosamente a cada 1.5 segundos
@@ -262,6 +300,19 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     this.limparIntervaloChat();
     this.selectedOcorrencia.set(null);
     this.mensagens.set([]);
+    this.chatErro.set(null);
+  }
+
+  /**
+   * Erro do chat dentro da gaveta. 404 = a ocorrência foi apagada (pelo autor
+   * ou pelo síndico): para a consulta de 1,5 s, que repetia o erro para sempre.
+   */
+  private erroDoChat(e: any, padrao: string) {
+    this.chatErro.set(msgErro(e, padrao));
+    if (e?.status === 404) {
+      this.limparIntervaloChat();
+      this.carregarSilenciosamente();
+    }
   }
 
   atualizarMensagensSilenciosamente(idOcorrencia: number) {
@@ -273,22 +324,28 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
           this.scrollChatParaFim();
         }
       },
-      error: (e) => this.error.set(msgErro(e, 'Erro ao atualizar as mensagens.')),
+      error: (e) => this.erroDoChat(e, 'Erro ao atualizar as mensagens.'),
     });
   }
 
   enviarMensagem() {
     const o = this.selectedOcorrencia();
     const txt = this.novaMensagemText.trim();
-    if (!o || !txt) return;
+    if (!o || !txt || this.enviandoMensagem()) return;
 
+    this.chatErro.set(null);
+    this.enviandoMensagem.set(true);
     this.api.sendMessage(o.id, txt).subscribe({
       next: (msg) => {
+        this.enviandoMensagem.set(false);
         this.mensagens.update((curr) => [...curr, msg]);
         this.novaMensagemText = '';
         this.scrollChatParaFim();
       },
-      error: (e) => this.error.set(msgErro(e, 'Erro ao enviar a mensagem.')),
+      error: (e) => {
+        this.enviandoMensagem.set(false);
+        this.erroDoChat(e, 'Erro ao enviar a mensagem.');
+      },
     });
   }
 
@@ -328,15 +385,20 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   }
 
   salvarResposta(o: Ocorrencia) {
-    if (!this.tempRespostaText.trim()) return;
+    if (!this.tempRespostaText.trim() || this.salvandoResposta()) return;
+    this.salvandoResposta.set(true);
     this.api.updateResposta(o.id, this.tempRespostaText.trim()).subscribe({
       next: (updated) => {
+        this.salvandoResposta.set(false);
         o.resposta = updated.resposta;
         o.resposta_at = updated.resposta_at;
         this.cancelarEdicaoResposta();
         this.carregar();
       },
-      error: (e) => this.error.set(msgErro(e, 'Erro ao salvar a resposta.')),
+      error: (e) => {
+        this.salvandoResposta.set(false);
+        this.error.set(msgErro(e, 'Erro ao salvar a resposta.'));
+      },
     });
   }
 
