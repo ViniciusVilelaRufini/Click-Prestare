@@ -17,6 +17,7 @@ import {
 } from './terminais-faciais.service';
 import { AreaSocial, AreasSociaisApi } from '../areas-sociais/areas-sociais.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { htmlDaFolha, svgDoQr } from './folha-qr-entregas';
 
 /**
  * Compara versões do agente (`AAAA.MM.DD[.N]`) segmento a segmento,
@@ -205,6 +206,12 @@ function telemetriaChegouHaPouco(recebidoEm: string | null | undefined, agoraMs:
  *  não tem o que alternar, então o cadastro novo já nasce como entrada. */
 const TIPOS_LEITURA_POR_WEBHOOK = ['tag_reader', 'qrcode_reader', 'lpr'];
 
+/** Aparelhos que abrem portão e por isso aceitam o QR de entregas (mesma lista da API). */
+const TIPOS_QR_ENTREGAS = ['botoeira', 'catraca', 'facial'];
+
+/** Confirmação de trocar ou desligar o QR de entregas. */
+export const AVISO_QR_ENTREGAS_TROCA = 'O QR impresso deixa de valer. Continuar?';
+
 @Component({
   selector: 'app-terminais-faciais-page',
   standalone: true,
@@ -221,6 +228,17 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   // Áreas de lazer do condomínio, para vincular um terminal a uma área
   // (contador de ocupação). Vazio = nenhuma área cadastrada.
   readonly areasSociais = signal<AreaSocial[]>([]);
+
+  /**
+   * QR de entregas: só o síndico gera, troca, desliga e imprime (a API exige
+   * typeAccess de síndico). `?.` porque os testes antigos da tela usam um
+   * dublê da API sem este método.
+   */
+  readonly souSindico = this.api.souSindico?.() === true;
+  /** Aparelho com a operação do QR de entregas em andamento. */
+  readonly qrEntregasEmAndamento = signal<number | null>(null);
+  /** URL devolvida pela API ao gerar (a canônica); sem ela, a da origem do console. */
+  private readonly urlsEntrega = new Map<number, string>();
 
   readonly loading = signal(false);
   readonly terminais = signal<TerminalFacial[]>([]);
@@ -1626,6 +1644,109 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         setTimeout(() => this.errorMessage.set(null), 5000);
       },
     });
+  }
+
+  // ===================== QR de entregas =====================
+
+  /** Mostra o bloco do QR de entregas neste aparelho? */
+  aceitaQrEntregas(t: TerminalFacial): boolean {
+    return this.souSindico && TIPOS_QR_ENTREGAS.includes(t.tipo);
+  }
+
+  /** Cria o token (primeira vez) e já abre a folha para imprimir. */
+  gerarQrEntregas(t: TerminalFacial) {
+    this.pedirTokenEntrega(t);
+  }
+
+  /** Troca o token: a folha colada no portão deixa de valer. */
+  async gerarNovoQrEntregas(t: TerminalFacial) {
+    const ok = await this.confirm.ask({
+      title: 'Gerar um novo QR de entregas?',
+      message: AVISO_QR_ENTREGAS_TROCA,
+      confirmLabel: 'Gerar novo',
+      variant: 'danger',
+    });
+    if (ok) this.pedirTokenEntrega(t);
+  }
+
+  async desligarQrEntregas(t: TerminalFacial) {
+    const ok = await this.confirm.ask({
+      title: 'Desligar o QR de entregas?',
+      message: AVISO_QR_ENTREGAS_TROCA,
+      confirmLabel: 'Desligar',
+      variant: 'danger',
+    });
+    if (!ok || this.qrEntregasEmAndamento() !== null) return;
+    this.qrEntregasEmAndamento.set(t.id);
+    this.api.removerTokenEntrega(t.id).subscribe({
+      next: () => {
+        this.qrEntregasEmAndamento.set(null);
+        this.urlsEntrega.delete(t.id);
+        this.trocarTokenEntrega(t.id, null);
+        this.avisarSucesso('QR de entregas desligado. O QR impresso não abre mais a página.');
+      },
+      error: (err) => {
+        this.qrEntregasEmAndamento.set(null);
+        this.avisarErro(err?.error?.message ?? 'Não foi possível desligar o QR de entregas.');
+      },
+    });
+  }
+
+  /** Abre a folha (A5, QR desenhado aqui mesmo) numa janela nova e chama a impressão. */
+  imprimirQrEntregas(t: TerminalFacial) {
+    const token = t.token_entrega;
+    if (!token) return;
+    const url = this.urlsEntrega.get(t.id) ?? `${window.location.origin}/?entrega=${token}`;
+    const html = htmlDaFolha({ condominio: this.api.nomeCondominio?.() ?? '', portao: t.nome, svgQr: svgDoQr(url) });
+    const janela = window.open('', '_blank');
+    if (!janela) {
+      this.avisarErro('O navegador bloqueou a janela da folha. Permita pop-ups deste site e clique em "Imprimir QR de entregas".');
+      return;
+    }
+    janela.document.write(html);
+    janela.document.close();
+    janela.focus();
+    janela.print();
+  }
+
+  private pedirTokenEntrega(t: TerminalFacial) {
+    if (this.qrEntregasEmAndamento() !== null) return;
+    this.qrEntregasEmAndamento.set(t.id);
+    this.api.gerarTokenEntrega(t.id).subscribe({
+      next: (r) => {
+        this.qrEntregasEmAndamento.set(null);
+        this.urlsEntrega.set(t.id, r.url);
+        const atualizado = this.trocarTokenEntrega(t.id, r.token) ?? { ...t, token_entrega: r.token };
+        this.imprimirQrEntregas(atualizado);
+      },
+      error: (err) => {
+        this.qrEntregasEmAndamento.set(null);
+        this.avisarErro(err?.error?.message ?? 'Não foi possível gerar o QR de entregas.');
+      },
+    });
+  }
+
+  /** Troca o token na lista (sinal novo, para a tela redesenhar). */
+  private trocarTokenEntrega(id: number, token: string | null): TerminalFacial | null {
+    let atualizado: TerminalFacial | null = null;
+    this.terminais.update((lista) =>
+      lista.map((x) => {
+        if (x.id !== id) return x;
+        atualizado = { ...x, token_entrega: token };
+        return atualizado;
+      }),
+    );
+    return atualizado;
+  }
+
+  private avisarSucesso(msg: string) {
+    this.successMessage.set(msg);
+    setTimeout(() => this.successMessage.set(null), 4000);
+  }
+
+  private avisarErro(msg: string) {
+    this.errorMessage.set(msg);
+    setTimeout(() => this.errorMessage.set(null), 6000);
   }
 
   openCameraPreview(t: TerminalFacial) {

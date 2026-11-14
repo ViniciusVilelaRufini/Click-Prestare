@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
+import { papelDoToken } from '../auth/papel';
 
 export interface TerminalFacial {
   id: number;
@@ -27,6 +28,12 @@ export interface TerminalFacial {
   id_area_social: number | null;
   /** Controle de acesso por reserva da área vinculada (1 = só entra quem reservou). */
   controle_acesso_facial?: number;
+  /**
+   * Token do QR de entregas (autoatendimento do entregador no portão).
+   * Preenchido = o aparelho aceita o autoatendimento. É público por natureza
+   * (fica impresso no portão), por isso vem também para quem não é síndico.
+   */
+  token_entrega?: string | null;
   created_at: string;
   updated_at: string;
   /** True se há um Agente Local fazendo polling deste device agora. */
@@ -397,6 +404,34 @@ export class TerminaisFaciaisApi {
       params,
       responseType: 'blob',
     });
+  }
+
+  /**
+   * Cria ou troca o token do QR de entregas do aparelho (trocar invalida a
+   * folha impressa). Só síndico; a API recusa aparelho que não abre.
+   */
+  gerarTokenEntrega(idDevice: number): Observable<{ token: string; url: string }> {
+    return this.http.post<{ token: string; url: string }>(`${API_BASE}/entrega/portao/${idDevice}/token`, {});
+  }
+
+  /** Desliga o QR de entregas do aparelho. */
+  removerTokenEntrega(idDevice: number): Observable<{ ok: true }> {
+    return this.http.delete<{ ok: true }>(`${API_BASE}/entrega/portao/${idDevice}/token`);
+  }
+
+  /**
+   * A sessão é de síndico (typeAccess do token)? É o critério da API
+   * (assertSindicoEstrito) para o QR de entregas; a tela só evita mostrar um
+   * botão que devolveria 403.
+   */
+  souSindico(): boolean {
+    return papelDoToken(this.auth.token) === 'sindico';
+  }
+
+  /** Nome do condomínio da sessão, para a folha impressa. */
+  nomeCondominio(): string {
+    const nome = this.auth.porteiroInfo()?.condominio_nome || this.auth.condominioNome() || '';
+    return nome === 'Carregando...' ? '' : nome;
   }
 
   snapshot(deviceId: number): Observable<{ foto: string }> {
