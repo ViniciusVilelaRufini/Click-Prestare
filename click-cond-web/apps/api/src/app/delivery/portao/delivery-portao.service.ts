@@ -442,20 +442,22 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
 
   /** A página consulta a cada poucos segundos (é a presença do entregador). */
   async consultar(token: string, tokenPedido: string): Promise<EstadoPedido & { falha_abertura: boolean }> {
-    const pedido = await this.carregarPedido(token, tokenPedido);
+    const { portao, pedido } = await this.carregarPedido(token, tokenPedido);
     const agora = new Date(this.agora());
     const atual = await this.marcarVisto(pedido, agora);
-    return { ...estadoDoPedido(atual, agora), falha_abertura: !!atual.falha_abertura_em && !atual.aberto_em };
+    return { ...this.estadoPublico(portao, atual, agora), falha_abertura: !!atual.falha_abertura_em && !atual.aberto_em };
   }
 
   /** Botão "Abrir portão" (a página voltou depois de o morador liberar). */
   async abrir(token: string, tokenPedido: string): Promise<EstadoPedido & { abriu: boolean }> {
-    const pedido = await this.carregarPedido(token, tokenPedido);
+    const { portao, pedido } = await this.carregarPedido(token, tokenPedido);
     const agora = new Date(this.agora());
     await this.marcarVisto(pedido, agora);
+    // Opção desligada ou fora do horário: nada abre dali em diante.
+    if (this.motivoIndisponivel(portao)) throw new ForbiddenException(MSG_INDISPONIVEL);
     const abriu = await this.abrirEntrada(pedido, agora);
     const atual = await this.relerPedido(pedido.id);
-    return { ...estadoDoPedido(atual, agora), abriu };
+    return { ...this.estadoPublico(portao, atual, agora), abriu };
   }
 
   /**
@@ -463,9 +465,10 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
    * da entrada CONFIRMADA (aberto_em). Conclui o atendimento.
    */
   async sair(token: string, tokenPedido: string): Promise<EstadoPedido & { abriu: boolean }> {
-    const pedido = await this.carregarPedido(token, tokenPedido);
+    const { portao, pedido } = await this.carregarPedido(token, tokenPedido);
     const agora = new Date(this.agora());
     await this.marcarVisto(pedido, agora);
+    if (this.motivoIndisponivel(portao)) throw new ForbiddenException(MSG_INDISPONIVEL);
     const db = (this.prisma as any).deliveryPedidosPortao;
     const reserva = await db.updateMany({
       where: {
@@ -490,7 +493,13 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
       }
     }
     const atual = await this.relerPedido(pedido.id);
-    return { ...estadoDoPedido(atual, agora), abriu };
+    return { ...this.estadoPublico(portao, atual, agora), abriu };
+  }
+
+  /** Estado para a página; com a opção desligada ou fora do horário, nada a oferecer. */
+  private estadoPublico(portao: Portao, pedido: any, agora: Date): EstadoPedido {
+    const estado = estadoDoPedido(pedido, agora);
+    return this.motivoIndisponivel(portao) ? { ...estado, pode_abrir: false, pode_sair: false } : estado;
   }
 
   // ─────────────────────────────────────────── configuração (síndico)
@@ -589,8 +598,9 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
             return;
           }
           if (quem.sistema) return;
-          if (agora.getTime() >= new Date(pedido.expira_em).getTime()) {
-            // Resposta tarde: o atendimento fica AUTORIZADA, nada abre.
+          if (agora.getTime() >= new Date(pedido.expira_em).getTime() || (await this.portaoIndisponivel(pedido.id_device))) {
+            // Resposta tarde, ou a opção foi desligada / saiu do horário:
+            // o atendimento fica AUTORIZADA, nada abre e não há janela.
             await db.updateMany({ where: pendente, data: { status: 'expirado' } });
             return;
           }
@@ -703,13 +713,30 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     return d as Portao;
   }
 
-  private async carregarPedido(token: string, tokenPedido: string) {
+  private async carregarPedido(token: string, tokenPedido: string): Promise<{ portao: Portao; pedido: any }> {
     const portao = await this.carregarPortao(token);
     if (typeof tokenPedido !== 'string' || !TOKEN_PEDIDO.test(tokenPedido)) throw new NotFoundException(MSG_PEDIDO);
     const pedido = await (this.prisma as any).deliveryPedidosPortao.findUnique({ where: { token_hash: hashToken(tokenPedido) } });
     // Pedido de outro portão não é lido nem aberto por este QR.
     if (!pedido || pedido.id_device !== portao.id) throw new NotFoundException(MSG_PEDIDO);
-    return pedido;
+    return { portao, pedido };
+  }
+
+  /** Condomínio do aparelho com a opção desligada ou fora do horário (aparelho sumido conta como indisponível). */
+  private async portaoIndisponivel(idDevice: number): Promise<boolean> {
+    const d = await (this.prisma as any).facial_Devices.findUnique({
+      where: { id: Number(idDevice) },
+      select: {
+        id: true,
+        id_condominio: true,
+        nome: true,
+        condominio: {
+          select: { id: true, nome: true, delivery_autoatendimento: true, delivery_auto_inicio: true, delivery_auto_fim: true },
+        },
+      },
+    });
+    if (!d?.condominio) return true;
+    return this.motivoIndisponivel(d as Portao) !== null;
   }
 
   private motivoIndisponivel(portao: Portao): 'desligado' | 'fora_horario' | null {

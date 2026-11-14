@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, HttpException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException } from '@nestjs/common';
 import { FOTO, GIF_B64, PNG_B64, T0, TOKEN_OUTRO_PORTAO, TOKEN_PORTAO, WEBP_B64, montarPortao } from './montar-portao.spec';
 
 /**
@@ -281,6 +281,49 @@ describe('autoatendimento no portão — revisão de segurança', () => {
     ])('%s válido é aceito', async (_n, foto) => {
       const k = montarPortao();
       await expect(k.svc.criarPedido(TOKEN_PORTAO, { ...entrada, foto })).resolves.toMatchObject({ situacao: 'aguardando' });
+    });
+  });
+
+  describe('[10] opção desligada ou fora do horário: liberar, abrir e sair recusam dali em diante', () => {
+    const MSG = new ForbiddenException('Autoatendimento de entregas indisponível agora.');
+    const desligar = (k: ReturnType<typeof montarPortao>) => (k.tabela('condominios')[0].delivery_autoatendimento = false);
+
+    async function comPedido(condominio?: Record<string, unknown>) {
+      const k = montarPortao(condominio ? { condominio } : {});
+      const r = await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      return { ...k, tokenPedido: r.pedido, idAtendimento: k.tabela('deliveryAtendimentos')[0].id };
+    }
+
+    it('morador libera com a página presente depois de desligada: nada abre e não há janela', async () => {
+      const k = await comPedido();
+      desligar(k);
+      k.avancar(3000);
+      await k.delivery.atualizarStatus(k.idAtendimento, { status: 'AUTORIZADA' } as any, morador7);
+      expect(k.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+      expect(k.tabela('deliveryPedidosPortao')[0].liberado_ate).toBeNull();
+      expect(await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido)).toMatchObject({ pode_abrir: false, pode_sair: false });
+    });
+
+    it('liberado e depois desligado: consultar não oferece abrir e abrir recusa (403) sem acionar', async () => {
+      const k = await comPedido();
+      k.avancar(40_000);
+      await k.delivery.atualizarStatus(k.idAtendimento, { status: 'AUTORIZADA' } as any, morador7);
+      desligar(k);
+      expect(await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido)).toMatchObject({ situacao: 'liberado', pode_abrir: false });
+      await expect(k.svc.abrir(TOKEN_PORTAO, k.tokenPedido)).rejects.toThrow(MSG);
+      expect(k.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+    });
+
+    it('entrou e depois saiu do horário: consultar não oferece sair e sair recusa (403)', async () => {
+      // T0 = 12:00 em Brasília; o horário acaba às 12:30.
+      const k = await comPedido({ delivery_auto_inicio: '07:00', delivery_auto_fim: '12:30' });
+      k.avancar(3000);
+      await k.delivery.atualizarStatus(k.idAtendimento, { status: 'AUTORIZADA' } as any, morador7);
+      expect(k.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
+      k.avancar(31 * M);
+      expect(await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido)).toMatchObject({ situacao: 'aberto', pode_sair: false });
+      await expect(k.svc.sair(TOKEN_PORTAO, k.tokenPedido)).rejects.toThrow(MSG);
+      expect(k.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
     });
   });
 });
