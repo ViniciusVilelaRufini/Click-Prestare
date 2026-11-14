@@ -72,6 +72,7 @@ export class DeliveryService {
     const idMorador = this.idUsuario(user);
     await this.tenant.assertCondominio(idCondominio, user);
     await this.assertApartamentoDoMorador(idApartamento, idCondominio, idMorador);
+    const previsao = this.previsao(dto.previsao_em);
 
     const atendimento = await (this.prisma as any).$transaction(async (tx: any) => {
       const atendimento = await tx.deliveryAtendimentos.create({
@@ -82,7 +83,7 @@ export class DeliveryService {
           estabelecimento: dto.estabelecimento?.trim() || null,
           // O app manda a hora local sem fuso ("…T19:00:00.000"): é Brasília,
           // não UTC (o console mostrava 3 h adiantado).
-          previsao_em: parseLocalTimeToUTCNullable(dto.previsao_em),
+          previsao_em: previsao,
           observacao_morador: dto.observacao_morador?.trim() || null,
           nome_entregador: dto.nome_entregador?.trim() || null,
           telefone_entregador: dto.telefone_entregador?.trim() || null,
@@ -94,6 +95,21 @@ export class DeliveryService {
       return atendimento;
     });
     return this.paraMorador(atendimento);
+  }
+
+  /**
+   * Previsão informada pelo morador: data/hora ISO (com ou sem fuso; sem
+   * fuso = Brasília). Texto que não é data → 400 (antes virava "agora").
+   */
+  private previsao(valor: string | null | undefined): Date | null {
+    if (valor === undefined || valor === null || String(valor).trim() === '') return null;
+    const texto = String(valor).trim();
+    const formato = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?)?(?:Z|[+-]\d{2}:?\d{2})?$/;
+    const d = formato.test(texto) ? parseLocalTimeToUTCNullable(texto) : null;
+    if (!d || Number.isNaN(d.getTime())) {
+      throw new BadRequestException('Previsão de chegada inválida: use data e hora (AAAA-MM-DDTHH:mm).');
+    }
+    return d;
   }
 
   async listarUnidadesMorador(idCondominio: number, user: JwtPayload) {
@@ -341,33 +357,38 @@ export class DeliveryService {
     // Pedido de autorização: a portaria precisa saber se alguém pode receber
     // (com 0, a tela manda interfonar em vez de esperar sem prazo).
     if (statusNovo === 'AGUARDANDO_AUTORIZACAO') {
-      const avisados = await this.alcancaveisNaUnidade(atualizado.id_apartamento, atualizado.id_morador_user);
+      const avisados = await this.aparelhosAvisados(atualizado.id, atualizado.id_apartamento);
       if (avisados !== null) return { ...atualizado, avisados };
     }
     return atualizado;
   }
 
   /**
-   * Quantas pessoas podem receber o pedido de autorização: os moradores da
-   * unidade com aparelho registrado (Users.fcm_token) e o criador do aviso,
-   * que recebe o card mesmo desvinculado e pode responder. Cada pessoa conta
-   * uma vez. Falha na contagem → null (a resposta sai sem o campo).
+   * Quantos aparelhos (tokens distintos) receberam o pedido de autorização:
+   * os dos moradores com vínculo na unidade — o criador incluído só se ainda
+   * tiver vínculo — e os que estão com o card do atendimento aberto (inclui
+   * o criador desvinculado que acompanha pelo card). Contado depois do aviso
+   * (que espera no máximo TETO_AVISO_MS). Falha na contagem → null (a
+   * resposta sai sem o campo).
    */
-  private async alcancaveisNaUnidade(idApartamento: number, idCriador: number): Promise<number | null> {
+  private async aparelhosAvisados(idAtendimento: number, idApartamento: number): Promise<number | null> {
     try {
       const vinculos = await this.prisma.apartamentos_Users.findMany({
         where: { id_apto: idApartamento },
         select: { id_user: true, user: { select: { fcm_token: true } } },
       });
-      const ids = new Set<number>();
-      for (const v of vinculos as any[]) if (v.user?.fcm_token) ids.add(v.id_user);
-      if (idCriador && !ids.has(idCriador)) {
-        const criador = await this.prisma.users.findUnique({ where: { id: idCriador }, select: { fcm_token: true } });
-        if (criador?.fcm_token) ids.add(idCriador);
+      const tokens = new Set<string>();
+      for (const v of vinculos as any[]) if (v.user?.fcm_token) tokens.add(v.user.fcm_token);
+      if (this.cardAoVivo) {
+        const cards = await (this.prisma as any).cards_Ao_Vivo.findMany({
+          where: { origem: 'delivery', id_pedido: Number(idAtendimento), encerrado_em: null },
+          select: { fcm_token: true },
+        });
+        for (const c of cards as any[]) if (c.fcm_token) tokens.add(c.fcm_token);
       }
-      return ids.size;
+      return tokens.size;
     } catch (e: any) {
-      this.logger.warn(`Contagem de quem recebe o pedido do delivery: ${e?.message ?? e}`);
+      this.logger.warn(`Contagem de quem recebeu o pedido do delivery: ${e?.message ?? e}`);
       return null;
     }
   }

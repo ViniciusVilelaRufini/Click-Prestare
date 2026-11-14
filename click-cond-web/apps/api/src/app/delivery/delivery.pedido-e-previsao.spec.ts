@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { DeliveryService } from './delivery.service';
 
 /**
@@ -14,7 +15,7 @@ describe('Delivery — pedido de autorização sem ninguém para receber; previs
   const porteiro = { sub: 20, id_condominio: 1, nome: 'Portaria' } as any;
   const morador = { sub: 10, typeAccess: 'Morador' } as any;
 
-  function montar(opts: { vinculos?: { id_user: number; token: string | null }[]; tokenCriador?: string | null } = {}) {
+  function montar(opts: { vinculos?: { id_user: number; token: string | null }[]; tokenCriador?: string | null; cards?: string[] } = {}) {
     const atendimento: any = {
       id: 5, id_condominio: 1, id_apartamento: 101, id_morador_user: 10, id_entregador: null,
       status: 'CHEGOU', motivo: null,
@@ -40,11 +41,16 @@ describe('Delivery — pedido de autorização sem ninguém para receber; previs
         }),
       },
       deliveryEventos: { create: jest.fn(async () => ({})) },
+      cards_Ao_Vivo: { findMany: jest.fn(async () => (opts.cards ?? []).map((fcm_token) => ({ fcm_token }))) },
     };
     prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
     const notifications: any = { sendPushNotification: jest.fn(async () => null) };
     const tenant: any = { assertCondominio: jest.fn(async () => undefined), assertEntidade: jest.fn(async () => undefined) };
-    const service = new DeliveryService(prisma, notifications, tenant, {} as any);
+    // Card ao vivo só quando o teste fala de card (senão a contagem não o consulta).
+    const card: any = opts.cards
+      ? { abrirDelivery: jest.fn(async () => undefined), atualizarDelivery: jest.fn(async () => ({ cobertos: new Set() })) }
+      : undefined;
+    const service = new DeliveryService(prisma, notifications, tenant, {} as any, card);
     return { service, prisma };
   }
 
@@ -55,22 +61,39 @@ describe('Delivery — pedido de autorização sem ninguém para receber; previs
     expect(r.avisados).toBe(0);
   });
 
-  it('criador desvinculado mas com app: conta (o card dele abre e ele pode responder)', async () => {
+  it('criador desvinculado sem card aberto: não conta', async () => {
     const { service } = montar({ vinculos: [], tokenCriador: 'tok-criador' });
     const r: any = await service.atualizarStatus(5, { status: 'AGUARDANDO_AUTORIZACAO' } as any, porteiro);
-    expect(r.avisados).toBe(1);
+    expect(r.avisados).toBe(0);
   });
 
-  it('criador e outro morador com app: 2 (cada pessoa uma vez)', async () => {
-    const { service } = montar({ vinculos: [{ id_user: 10, token: 'a' }, { id_user: 11, token: 'b' }, { id_user: 12, token: null }] });
+  it('criador desvinculado acompanhando pelo card aberto: conta o aparelho do card', async () => {
+    const { service, prisma } = montar({ vinculos: [], tokenCriador: 'tok-criador', cards: ['tok-card'] });
     const r: any = await service.atualizarStatus(5, { status: 'AGUARDANDO_AUTORIZACAO' } as any, porteiro);
-    expect(r.avisados).toBe(2);
+    expect(r.avisados).toBe(1);
+    expect(prisma.cards_Ao_Vivo.findMany.mock.calls[0][0].where).toEqual({ origem: 'delivery', id_pedido: 5, encerrado_em: null });
+  });
+
+  it('conta por token distinto: dois tokens = 2; o mesmo aparelho em duas contas ou no card = 1', async () => {
+    const a = montar({ vinculos: [{ id_user: 10, token: 'a' }, { id_user: 11, token: 'b' }, { id_user: 12, token: null }] });
+    expect(((await a.service.atualizarStatus(5, { status: 'AGUARDANDO_AUTORIZACAO' } as any, porteiro)) as any).avisados).toBe(2);
+    const b = montar({ vinculos: [{ id_user: 10, token: 'a' }, { id_user: 11, token: 'a' }], cards: ['a'] });
+    expect(((await b.service.atualizarStatus(5, { status: 'AGUARDANDO_AUTORIZACAO' } as any, porteiro)) as any).avisados).toBe(1);
   });
 
   it('outras transições não trazem avisados', async () => {
     const { service } = montar();
     const r: any = await service.atualizarStatus(5, { status: 'RETIRADA_NA_PORTARIA' } as any, porteiro);
     expect('avisados' in r).toBe(false);
+  });
+
+  it('previsão que não é data: 400, nada criado (antes virava "agora")', async () => {
+    const { service, prisma } = montar();
+    for (const previsao_em of ['amanhã 19h', '19:00', '2026-11-14 às 19h']) {
+      const e = await service.criarAviso({ id_condominio: 1, id_apartamento: 101, previsao_em } as any, morador).catch((x) => x);
+      expect(e).toBeInstanceOf(BadRequestException);
+    }
+    expect(prisma.deliveryAtendimentos.create).not.toHaveBeenCalled();
   });
 
   it('previsão sem fuso é horário de Brasília (19:00 → 22:00Z); com fuso fica como veio', async () => {
