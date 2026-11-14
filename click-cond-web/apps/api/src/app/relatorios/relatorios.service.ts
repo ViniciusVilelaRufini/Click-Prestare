@@ -457,7 +457,8 @@ export class RelatoriosService {
         Valor: isRevenue ? rawVal : -rawVal,
         Vencimento: formatDiaDb(f.data_vencimento),
         // O período é pela data do pagamento (competência): ela precisa aparecer.
-        'Pago em': formatDiaDb(f.data),
+        // Só no lançamento pago: `data` também vem preenchida no que não foi pago.
+        'Pago em': f.pago === 1 ? formatDiaDb(f.data) : '-',
         Categoria: f.categoria || 'Geral',
         Status: f.status || (f.pago === 1 ? 'Pago' : 'Pendente'),
         Pagamento: f.forma_pagamento || '-',
@@ -504,7 +505,7 @@ export class RelatoriosService {
                 isRevenue ? 'Receita' : 'Despesa',
                 valStr,
                 formatDiaDb(f.data_vencimento),
-                formatDiaDb(f.data),
+                f.pago === 1 ? formatDiaDb(f.data) : '-',
                 f.categoria || '-',
                 f.status || (f.pago === 1 ? 'Pago' : 'Pendente'),
               ];

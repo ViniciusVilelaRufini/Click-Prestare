@@ -146,5 +146,17 @@ describe('RelatoriosService.generate — rodada 3', () => {
       const cab = body[0].map((c: any) => c.text);
       expect(body[1][cab.indexOf('Pago em')]).toBe('-');
     });
+
+    // Financeiro.data também é preenchida em lançamento não pago (data de
+    // lançamento/competência): "Pago em" só mostra a data quando está pago.
+    it('não pago com data preenchida: "Pago em" fica "-" no PDF e no XLSX', async () => {
+      const { svc, pdf, excel } = build({ financeiro: [lanc({ pago: 0, data: new Date('2026-11-05T00:00:00Z') })] });
+      await svc.generate(1, 'financeiro', 'pdf');
+      const body = (pdf.mock.calls[0][0] as any).table.body;
+      const cab = body[0].map((c: any) => c.text);
+      expect(body[1][cab.indexOf('Pago em')]).toBe('-');
+      await svc.generate(1, 'financeiro', 'xlsx');
+      expect((excel.mock.calls[0][0] as any)[0]['Pago em']).toBe('-');
+    });
   });
 });
