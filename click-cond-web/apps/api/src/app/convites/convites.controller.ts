@@ -39,9 +39,17 @@ export class ConvitesController {
    */
   @Post()
   @HttpCode(200)
-  gerar(@Body() body: { is_prestador?: boolean; id_apartamento?: number }, @ReqUser() user: JwtPayload) {
-    const idApto = Number(body?.id_apartamento);
-    return this.service.gerar(user, body?.is_prestador === true, Number.isInteger(idApto) && idApto > 0 ? idApto : undefined);
+  gerar(@Body() body: { is_prestador?: boolean; id_apartamento?: unknown }, @ReqUser() user: JwtPayload) {
+    // Ausente: a primeira unidade (app já publicado). Presente e inválido: 400, nunca a primeira.
+    const bruto = body?.id_apartamento;
+    let idApto: number | undefined;
+    if (bruto !== undefined && bruto !== null) {
+      idApto = Number(bruto);
+      if (typeof bruto === 'boolean' || String(bruto).trim() === '' || !Number.isInteger(idApto) || idApto <= 0) {
+        throw new BadRequestException('Unidade inválida.');
+      }
+    }
+    return this.service.gerar(user, body?.is_prestador === true, idApto);
   }
 
   /** Convites preenchidos esperando decisão deste morador. */

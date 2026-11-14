@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { ConvitesService, HORAS_DE_VALIDADE } from './convites.service';
+import { ConvitesController } from './convites.controller';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 /**
@@ -85,5 +86,31 @@ describe('ConvitesService — validade do preenchido e unidade do convite (M14, 
     const { svc, prisma } = build(undefined, vinculos2);
     await svc.gerar(MORADOR, false);
     expect(prisma.convites_Visita.create.mock.calls[0][0].data.id_apartamento).toBe(5);
+  });
+});
+
+describe('ConvitesController.gerar — id_apartamento inválido (B5)', () => {
+  const user: any = { sub: 7 };
+  const build = () => {
+    const service = { gerar: jest.fn(async () => ({ ok: true })) };
+    return { ctrl: new ConvitesController(service as any), service };
+  };
+
+  it.each(['abc', 0, -1, 1.5, '', true])('%p responde 400 e não gera', async (valor) => {
+    const { ctrl, service } = build();
+    expect(() => ctrl.gerar({ id_apartamento: valor }, user)).toThrow('Unidade inválida.');
+    expect(service.gerar).not.toHaveBeenCalled();
+  });
+
+  it('ausente: segue para a primeira unidade (app publicado)', async () => {
+    const { ctrl, service } = build();
+    await ctrl.gerar({}, user);
+    expect(service.gerar).toHaveBeenCalledWith(user, false, undefined);
+  });
+
+  it('válido (número ou texto numérico) passa adiante', async () => {
+    const { ctrl, service } = build();
+    await ctrl.gerar({ id_apartamento: '9', is_prestador: true }, user);
+    expect(service.gerar).toHaveBeenCalledWith(user, true, 9);
   });
 });
