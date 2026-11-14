@@ -276,6 +276,13 @@ model Condominios {
   dias_atraso_aviso_2 Int     @default(5)
   dias_atraso_aviso_3 Int     @default(10)
 
+  // Autoatendimento de entregas: o entregador lê o QR do portão e o morador
+  // decide. Desligado por padrão. Horário em HH:MM (Brasília); os dois nulos
+  // = dia inteiro.
+  delivery_autoatendimento Boolean @default(false)
+  delivery_auto_inicio     String? @db.VarChar(5)
+  delivery_auto_fim        String? @db.VarChar(5)
+
   // QR no app: credencial dinâmica (código que muda a cada 30 s) do morador e
   // do link do visitante. Desligado por padrão; com a opção ligada, o PIN de
   // visita lido como QR no leitor deixa de abrir (segue valendo digitado).
@@ -1107,8 +1114,16 @@ model DeliveryAtendimentos {
   id                 Int                   @id @default(autoincrement())
   id_condominio      Int
   id_apartamento     Int
-  id_morador_user    Int
+  /// Dono do aviso. Nulo no atendimento criado pelo autoatendimento do portão
+  /// até o primeiro morador responder (ele vira o dono).
+  id_morador_user    Int?
   id_entregador      Int?
+  /// 'portaria' (aviso do morador ou registro da portaria) ou 'autoatendimento'
+  /// (entregador leu o QR do portão).
+  origem             String                @default("portaria") @db.VarChar(20)
+  /// Pedido de portão ativo (DeliveryPedidosPortao.id). Sem relação nem FK de
+  /// propósito: evita a referência circular entre as duas tabelas.
+  id_pedido_portao   Int?
   estabelecimento    String?               @db.VarChar(255)
   previsao_em        DateTime?             @db.DateTime(0)
   observacao_morador String?               @db.Text
@@ -1126,9 +1141,10 @@ model DeliveryAtendimentos {
   updated_at         DateTime              @default(now()) @updatedAt @db.DateTime(0)
   condominio         Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_delivery_atendimento_cond")
   apartamento        Apartamentos          @relation(fields: [id_apartamento], references: [id], onDelete: Restrict, map: "fk_delivery_atendimento_apto")
-  morador            Users                 @relation("DeliveryMorador", fields: [id_morador_user], references: [id], onDelete: Restrict, map: "fk_delivery_atendimento_morador")
+  morador            Users?                @relation("DeliveryMorador", fields: [id_morador_user], references: [id], onDelete: Restrict, map: "fk_delivery_atendimento_morador")
   entregador         DeliveryEntregadores? @relation(fields: [id_entregador], references: [id], onDelete: SetNull, map: "fk_delivery_atendimento_entregador")
   eventos            DeliveryEventos[]
+  pedidosPortao      DeliveryPedidosPortao[]
 
   @@index([id_condominio, status, created_at], map: "idx_delivery_atendimento_cond_status_criado")
   @@index([id_apartamento], map: "fk_delivery_atendimento_apto")
@@ -1151,6 +1167,37 @@ model DeliveryEventos {
   @@index([id_atendimento, created_at], map: "idx_delivery_evento_atendimento_criado")
   @@index([id_usuario_autor], map: "idx_delivery_evento_autor")
   @@map("delivery_eventos")
+}
+
+/// Pedido de entrada feito pelo entregador no QR do portão (autoatendimento).
+/// Cada página aberta é um pedido: selfie, portão e token nunca se misturam
+/// entre duas pessoas. O portão que abre é sempre `id_device`.
+model DeliveryPedidosPortao {
+  id               Int                  @id @default(autoincrement())
+  id_atendimento   Int
+  id_device        Int
+  nome             String               @db.VarChar(80)
+  plataforma       String?              @db.VarChar(40)
+  /// URL da selfie no bucket privado (prefixo delivery-portao/); zerada em 90 dias.
+  foto             String?              @db.VarChar(500)
+  /// sha256 do token que a página guarda; o token em claro nunca é gravado.
+  token_hash       String               @unique(map: "un_delivery_pedido_token") @db.VarChar(64)
+  /// pendente | liberado | vou_buscar | recusado | expirado
+  status           String               @default("pendente") @db.VarChar(20)
+  visto_em         DateTime?            @db.DateTime(0)
+  liberado_ate     DateTime?            @db.DateTime(0)
+  aberto_em        DateTime?            @db.DateTime(0)
+  saida_aberta_em  DateTime?            @db.DateTime(0)
+  falha_abertura_em DateTime?           @db.DateTime(0)
+  criado_em        DateTime             @default(now()) @db.DateTime(0)
+  expira_em        DateTime             @db.DateTime(0)
+  atendimento      DeliveryAtendimentos @relation(fields: [id_atendimento], references: [id], onDelete: Cascade, map: "fk_delivery_pedido_atendimento")
+  device           Facial_Devices       @relation(fields: [id_device], references: [id], onDelete: Restrict, map: "fk_delivery_pedido_device")
+
+  @@index([id_atendimento], map: "idx_delivery_pedido_atendimento")
+  @@index([id_device, criado_em], map: "idx_delivery_pedido_device_criado")
+  @@index([status, expira_em], map: "idx_delivery_pedido_status_expira")
+  @@map("delivery_pedidos_portao")
 }
 
 model Auditoria {
@@ -1437,6 +1484,9 @@ model Facial_Devices {
   // acessos deste device contam para a ocupação daquela área (contador "quantas
   // pessoas estão dentro agora"). null = terminal comum do condomínio.
   id_area_social     Int?                  @db.Int
+  // QR de entregas do portão (autoatendimento do entregador): token público,
+  // impresso no portão. Nulo = o aparelho não aceita o autoatendimento.
+  token_entrega      String?               @unique(map: "un_facdev_token_entrega") @db.VarChar(64)
   created_at         DateTime              @default(now()) @db.DateTime(0)
   updated_at         DateTime              @default(now()) @updatedAt @db.DateTime(0)
   condominio         Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
@@ -1447,6 +1497,7 @@ model Facial_Devices {
   etapasComoLeitor   Caminhos_Etapas[]     @relation("EtapaLeitor")
   etapasComoAbertura Caminhos_Etapas[]     @relation("EtapaAbertura")
   acessos            Acessos_Facial[]
+  pedidosPortao      DeliveryPedidosPortao[]
 
   @@index([id_condominio], map: "idx_facdev_cond")
   @@index([id_area_social], map: "idx_facdev_area")
