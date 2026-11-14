@@ -83,29 +83,35 @@ export class CredenciaisValidacaoService {
     // 1. Decodifica.
     const dec = decodificarCodigo(normalizarLeitura(valorLido));
     if (!dec) return { ok: false, rotulo: 'cred:?', motivo: 'desconhecida' };
-    const rotulo = rotuloDeCredencial(valorLido);
-    const negar = (motivo: MotivoNegacao): ResultadoLeitura => ({ ok: false, rotulo, motivo });
+    // Até o MAC conferir, nada prova que a leitura é da credencial do id
+    // decodificado: as negações desse trecho saem com `cred:?`.
+    const naoAutenticada = (motivo: MotivoNegacao): ResultadoLeitura => ({ ok: false, rotulo: 'cred:?', motivo });
 
     // 2. Credencial existe e é do condomínio do leitor (mesmo motivo nos dois
     //    casos, para não revelar que o id existe em outro condomínio).
     const cred = await p.credenciais_Acesso.findUnique({ where: { id: dec.id } });
-    if (!cred || cred.id_condominio !== device.id_condominio) return negar('desconhecida');
+    if (!cred || cred.id_condominio !== device.id_condominio) return naoAutenticada('desconhecida');
 
-    // 3. Opção do condomínio.
+    // 3. Assinatura, antes de qualquer estado da credencial: um código forjado
+    //    não descobre se ela está revogada, fora da validade ou com a opção
+    //    desligada, e não é atribuído a ela no registro.
+    const segredoHex = decryptSecret(cred.segredo);
+    if (!segredoHex || !SEGREDO_HEX.test(segredoHex)) return naoAutenticada('assinatura');
+    if (!conferirMac(dec, Buffer.from(segredoHex, 'hex'))) return naoAutenticada('assinatura');
+
+    const rotulo = rotuloDeCredencial(valorLido);
+    const negar = (motivo: MotivoNegacao): ResultadoLeitura => ({ ok: false, rotulo, motivo });
+
+    // 4. Opção do condomínio.
     if (!(await this.qrAppHabilitado(device.id_condominio))) return negar('opcao_desligada');
 
-    // 4. Revogação.
+    // 5. Revogação.
     if (cred.revogada_em) return negar('revogada');
 
-    // 5. Validade própria da credencial (a da visita é conferida pelo fluxo do PIN).
+    // 6. Validade própria da credencial (a da visita é conferida pelo fluxo do PIN).
     const t = instante.getTime();
     if (cred.valido_de && t < new Date(cred.valido_de).getTime()) return negar('fora_validade');
     if (cred.valido_ate && t > new Date(cred.valido_ate).getTime()) return negar('fora_validade');
-
-    // 6. Assinatura.
-    const segredoHex = decryptSecret(cred.segredo);
-    if (!segredoHex || !SEGREDO_HEX.test(segredoHex)) return negar('assinatura');
-    if (!conferirMac(dec, Buffer.from(segredoHex, 'hex'))) return negar('assinatura');
 
     // 7. Janela do contador: atual, anterior e seguinte.
     if (Math.abs(dec.contador - contadorDe(instante)) > 1) return negar('expirado');

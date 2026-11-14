@@ -112,15 +112,15 @@ describe('CredenciaisValidacaoService', () => {
       expect(prisma.credenciais_Acesso.findUnique).not.toHaveBeenCalled();
     });
 
-    it('desconhecida: credencial inexistente', async () => {
+    it('desconhecida: credencial inexistente, sem atribuir a leitura a um id', async () => {
       const { svc } = build({ cred: null });
-      expect(await svc.validarLeitura(codigo(), LEITOR, AGORA)).toEqual({ ok: false, rotulo: 'cred:7', motivo: 'desconhecida' });
+      expect(await svc.validarLeitura(codigo(), LEITOR, AGORA)).toEqual({ ok: false, rotulo: 'cred:?', motivo: 'desconhecida' });
     });
 
     it('credencial de outro condomínio é "desconhecida" (Review Focus 4)', async () => {
       const { svc, prisma } = build({ cred: credencial({ id_condominio: 2 }) });
       const r = await svc.validarLeitura(codigo(), LEITOR, AGORA);
-      expect(r).toEqual({ ok: false, rotulo: 'cred:7', motivo: 'desconhecida' });
+      expect(r).toEqual({ ok: false, rotulo: 'cred:?', motivo: 'desconhecida' });
       expect(prisma.credenciais_Leituras.create).not.toHaveBeenCalled();
     });
 
@@ -146,15 +146,30 @@ describe('CredenciaisValidacaoService', () => {
       expect(await dentro.svc.validarLeitura(codigo(), LEITOR, AGORA)).toMatchObject({ ok: true });
     });
 
-    it('assinatura: código gerado com outro segredo', async () => {
+    it('assinatura: código gerado com outro segredo vira "cred:?" (não é atribuído à credencial real)', async () => {
       const { svc, prisma } = build();
-      expect(await svc.validarLeitura(codigo(0, OUTRO), LEITOR, AGORA)).toMatchObject({ ok: false, motivo: 'assinatura' });
+      expect(await svc.validarLeitura(codigo(0, OUTRO), LEITOR, AGORA)).toEqual({ ok: false, rotulo: 'cred:?', motivo: 'assinatura' });
       expect(prisma.credenciais_Leituras.create).not.toHaveBeenCalled();
+    });
+
+    it('assinatura vem antes de opção, revogação, validade e janela: um MAC forjado nunca revela o estado da credencial', async () => {
+      const casos = [
+        build({ opcao: false }),
+        build({ cred: credencial({ revogada_em: new Date('2026-11-10T00:00:00.000Z') }) }),
+        build({ cred: credencial({ valido_ate: new Date('2026-11-14T11:00:00.000Z') }) }),
+        build({ cred: credencial({ valido_de: new Date('2026-11-15T00:00:00.000Z') }) }),
+      ];
+      for (const { svc, prisma } of casos) {
+        expect(await svc.validarLeitura(codigo(0, OUTRO), LEITOR, AGORA)).toEqual({ ok: false, rotulo: 'cred:?', motivo: 'assinatura' });
+        expect(prisma.condominios.findUnique).not.toHaveBeenCalled();
+      }
+      const velho = build();
+      expect(await velho.svc.validarLeitura(codigo(-9, OUTRO), LEITOR, AGORA)).toEqual({ ok: false, rotulo: 'cred:?', motivo: 'assinatura' });
     });
 
     it('assinatura: segredo gravado ilegível (chave trocada) não derruba', async () => {
       const { svc } = build({ cred: credencial({ segredo: 'enc:v1:lixo' }) });
-      expect(await svc.validarLeitura(codigo(), LEITOR, AGORA)).toMatchObject({ ok: false, motivo: 'assinatura' });
+      expect(await svc.validarLeitura(codigo(), LEITOR, AGORA)).toEqual({ ok: false, rotulo: 'cred:?', motivo: 'assinatura' });
     });
 
     it('expirado', async () => {
