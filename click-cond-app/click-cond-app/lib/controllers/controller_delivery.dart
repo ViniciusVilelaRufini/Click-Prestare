@@ -204,6 +204,41 @@ Future<DeliveryResult> apiResponderDeliveryPorId(int id,
   }
 }
 
+/// "Vou buscar": resposta ao pedido do entregador no QR do portão. O portão
+/// não abre; a página do entregador avisa que o morador desce. A API só
+/// aceita com o pedido de portão ainda pendente.
+Future<DeliveryResult> apiVouBuscarDelivery(DeliveryModel delivery) async {
+  if (delivery.id == null || !delivery.respondeNoPortao) {
+    return DeliveryResult.error(
+        'Esta entrega não está aguardando sua resposta.');
+  }
+  return apiVouBuscarDeliveryPorId(delivery.id!);
+}
+
+/// "Vou buscar" pelo card ao vivo (só o id); devolve o status HTTP da recusa
+/// para o card decidir se fecha (400/409).
+Future<DeliveryResult> apiVouBuscarDeliveryPorId(int id) async {
+  try {
+    final response = await ApiClient.patch(
+      ApiConfig.buildUri('/delivery/$id'),
+      body: jsonEncode({'status': 'RETIRADA_NA_PORTARIA'}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return DeliveryResult.error(mensagemDeErroApi(response.body),
+          statusCode: response.statusCode);
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      return DeliveryResult.error('A resposta da portaria é inválida.');
+    }
+    return DeliveryResult.ok(
+        DeliveryModel.fromJson(Map<String, dynamic>.from(decoded)));
+  } catch (_) {
+    return DeliveryResult.error(
+        'Não foi possível enviar sua resposta. Verifique a conexão e tente novamente.');
+  }
+}
+
 Future<DeliveryResult> apiCancelDelivery(DeliveryModel delivery) async {
   if (delivery.id == null || !delivery.canCancel) {
     return DeliveryResult.error(

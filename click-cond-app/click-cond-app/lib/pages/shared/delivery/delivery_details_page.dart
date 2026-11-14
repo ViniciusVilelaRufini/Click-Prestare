@@ -2,6 +2,8 @@ import 'package:click/controllers/controller_delivery.dart';
 import 'package:click/models/delivery_model.dart';
 import 'package:click/pages/shared/delivery/delivery_form_page.dart';
 import 'package:click/pages/shared/delivery/delivery_status_style.dart';
+import 'package:click/pages/shared/delivery/resposta_delivery.dart';
+import 'package:click/pages/shared/delivery/selfie_entregador.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -32,24 +34,23 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
   /// Check animado no card principal logo depois de autorizar.
   bool _celebrando = false;
 
-  Future<void> _responder(bool autorizar) async {
-    if (autorizar) HapticFeedback.lightImpact();
-    if (!autorizar) {
-      final confirmed = await showConfirmDialog(
-        context,
-        text: 'Recusar esta entrega? A portaria será avisada.',
-      );
+  Future<void> _responder(RespostaDelivery resposta) async {
+    final delivery = widget.delivery;
+    final autorizar = resposta == RespostaDelivery.autorizar;
+    if (resposta != RespostaDelivery.recusar) HapticFeedback.lightImpact();
+    if (resposta == RespostaDelivery.recusar) {
+      final confirmed = await showConfirmDialog(context, text: textoConfirmarRecusa(delivery));
       if (confirmed != true || !mounted) return;
     }
     setState(() => _respondendo = true);
-    final result = await apiResponderDelivery(widget.delivery, autorizar: autorizar);
+    final result = await enviarRespostaDelivery(delivery, resposta);
     if (!mounted) return;
     setState(() => _respondendo = false);
     if (result.success) {
       HapticFeedback.mediumImpact();
       widget.onChanged?.call();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(autorizar ? 'Entrega autorizada.' : 'Entrega recusada.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagemRespostaDelivery(delivery, resposta))));
       if (autorizar && !_reduceMotion(context)) {
         setState(() => _celebrando = true);
         await Future<void>.delayed(const Duration(milliseconds: 550));
@@ -101,6 +102,37 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
 
   /// Ações do morador para o status atual; null quando não há nenhuma.
   Widget? _buildActions(DeliveryModel delivery) {
+    if (delivery.respondeNoPortao) {
+      // Entregador no portão: liberar em destaque; embaixo, ir buscar ou recusar.
+      return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        AppButton(
+          label: 'Liberar entrada',
+          icon: PhosphorIcons.check,
+          loading: _respondendo,
+          onPressed: _respondendo ? null : () => _responder(RespostaDelivery.autorizar),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(children: [
+          Expanded(
+            child: AppButton(
+              label: 'Vou buscar',
+              icon: PhosphorIcons.personSimpleWalk,
+              variant: AppButtonVariant.secondary,
+              onPressed: _respondendo ? null : () => _responder(RespostaDelivery.vouBuscar),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: AppButton(
+              label: 'Recusar',
+              icon: PhosphorIcons.x,
+              variant: AppButtonVariant.danger,
+              onPressed: _respondendo ? null : () => _responder(RespostaDelivery.recusar),
+            ),
+          ),
+        ]),
+      ]);
+    }
     if (delivery.canRespond) {
       return Row(children: [
         Expanded(
@@ -109,7 +141,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
             label: 'Recusar',
             icon: PhosphorIcons.x,
             variant: AppButtonVariant.danger,
-            onPressed: _respondendo ? null : () => _responder(false),
+            onPressed: _respondendo ? null : () => _responder(RespostaDelivery.recusar),
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -119,7 +151,7 @@ class _DeliveryDetailsPageState extends State<DeliveryDetailsPage> {
             label: 'Autorizar entrega',
             icon: PhosphorIcons.check,
             loading: _respondendo,
-            onPressed: _respondendo ? null : () => _responder(true),
+            onPressed: _respondendo ? null : () => _responder(RespostaDelivery.autorizar),
           ),
         ),
       ]);
@@ -262,6 +294,13 @@ class _TrackingHero extends StatelessWidget {
         border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (delivery.pedidoPortao != null) ...[
+          _EntregadorNoPortao(pedido: delivery.pedidoPortao!),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+            child: Container(height: 1, color: AppColors.border(context)),
+          ),
+        ],
         Row(children: [
           AnimatedSwitcher(
             duration: reduce ? Duration.zero : const Duration(milliseconds: 320),
@@ -300,6 +339,45 @@ class _TrackingHero extends StatelessWidget {
           _ClosedStrip(delivery: delivery),
       ]),
     );
+  }
+}
+
+/// Quem pediu pelo QR do portão: a selfie (no lugar da foto de cadastro,
+/// que não existe neste fluxo), o nome, a plataforma e o portão.
+class _EntregadorNoPortao extends StatelessWidget {
+  final DeliveryPedidoPortao pedido;
+  const _EntregadorNoPortao({required this.pedido});
+
+  @override
+  Widget build(BuildContext context) {
+    final plataforma = pedido.plataforma;
+    return Row(children: [
+      SelfieEntregador(key: const Key('delivery-selfie-entregador'), url: pedido.foto, tamanho: 72),
+      const SizedBox(width: AppSpacing.lg),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            pedido.nome.isEmpty ? 'Entregador' : pedido.nome,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w700),
+          ),
+          if (plataforma != null) ...[
+            const SizedBox(height: 2),
+            Text(plataforma, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTypography.caption(context)),
+          ],
+          if (pedido.portao.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              'No portão: ${pedido.portao}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.caption(context).copyWith(fontSize: 13),
+            ),
+          ],
+        ]),
+      ),
+    ]);
   }
 }
 

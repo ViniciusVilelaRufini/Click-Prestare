@@ -105,4 +105,60 @@ void main() {
     expect(result.message, 'Cancelamento indisponível');
     expect(request.method, 'PATCH');
   });
+
+  group('vou buscar (pedido do entregador no portão)', () {
+    final noPortao = DeliveryModel.fromJson({
+      'id': 55,
+      'status': 'AGUARDANDO_AUTORIZACAO',
+      'pedido_portao': {'nome': 'Carlos', 'status': 'pendente', 'portao': 'Portão social'},
+    });
+
+    test('apiVouBuscarDelivery manda PATCH com RETIRADA_NA_PORTARIA', () async {
+      late http.Request request;
+      ApiClient.client = MockClient((captured) async {
+        request = captured;
+        return http.Response(jsonEncode({'id': 55, 'status': 'RETIRADA_NA_PORTARIA'}), 200);
+      });
+
+      final result = await apiVouBuscarDelivery(noPortao);
+
+      expect(result.success, isTrue);
+      expect(result.delivery?.status, 'RETIRADA_NA_PORTARIA');
+      expect(request.method, 'PATCH');
+      expect(request.url.path, '/api/delivery/55');
+      expect(jsonDecode(request.body), {'status': 'RETIRADA_NA_PORTARIA'});
+      expect(request.headers['Authorization'], 'sessao-do-morador');
+    });
+
+    test('apiVouBuscarDelivery não chama a API sem pedido de portão pendente', () async {
+      var chamadas = 0;
+      ApiClient.client = MockClient((_) async {
+        chamadas++;
+        return http.Response('{}', 200);
+      });
+
+      final result = await apiVouBuscarDelivery(
+          const DeliveryModel(id: 55, status: 'AGUARDANDO_AUTORIZACAO'));
+
+      expect(result.success, isFalse);
+      expect(chamadas, 0);
+    });
+
+    test('apiVouBuscarDeliveryPorId manda o mesmo PATCH e devolve o status da recusa', () async {
+      late http.Request request;
+      ApiClient.client = MockClient((captured) async {
+        request = captured;
+        return http.Response(jsonEncode({'message': 'Transição inválida'}), 409);
+      });
+
+      final result = await apiVouBuscarDeliveryPorId(55);
+
+      expect(request.method, 'PATCH');
+      expect(request.url.path, '/api/delivery/55');
+      expect(jsonDecode(request.body), {'status': 'RETIRADA_NA_PORTARIA'});
+      expect(result.success, isFalse);
+      expect(result.statusCode, 409);
+      expect(result.message, 'Transição inválida');
+    });
+  });
 }

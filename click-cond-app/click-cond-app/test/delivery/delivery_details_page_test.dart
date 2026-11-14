@@ -123,6 +123,155 @@ void main() {
     });
   });
 
+  group('pedido do entregador no portão', () {
+    Map<String, dynamic> json({String statusPedido = 'pendente', String status = 'AGUARDANDO_AUTORIZACAO'}) => {
+          'id': 7,
+          'status': status,
+          'origem': 'autoatendimento',
+          'estabelecimento': 'iFood',
+          'pedido_portao': {
+            'nome': 'Carlos Souza',
+            'plataforma': 'iFood',
+            'foto': 'https://bucket.test/delivery-portao/selfie.jpg',
+            'status': statusPedido,
+            'portao': 'Portão social',
+          },
+        };
+    final noPortao = DeliveryModel.fromJson(json());
+
+    /// Abre os detalhes a partir de uma tela, para o SnackBar sobreviver ao pop.
+    Future<void> abrir(WidgetTester tester, DeliveryModel d) async {
+      await tester.pumpWidget(app(Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.push(
+              context, MaterialPageRoute(builder: (_) => DeliveryDetailsPage(delivery: d))),
+          child: const Text('abrir'),
+        ),
+      )));
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('mostra a selfie, o entregador, o portão e as três respostas', (tester) async {
+      await tester.pumpWidget(app(DeliveryDetailsPage(delivery: noPortao)));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('delivery-selfie-entregador')), findsOneWidget);
+      expect(find.text('Carlos Souza'), findsOneWidget);
+      expect(find.text('No portão: Portão social'), findsOneWidget);
+      expect(find.text('LIBERAR ENTRADA'), findsOneWidget);
+      expect(find.text('VOU BUSCAR'), findsOneWidget);
+      expect(find.text('RECUSAR'), findsOneWidget);
+      expect(find.text('AUTORIZAR ENTREGA'), findsNothing);
+    });
+
+    testWidgets('ordem dos botões: liberar, vou buscar, recusar', (tester) async {
+      await tester.pumpWidget(app(DeliveryDetailsPage(delivery: noPortao)));
+      await tester.pumpAndSettle();
+
+      final liberar = tester.getRect(find.text('LIBERAR ENTRADA'));
+      final vouBuscar = tester.getRect(find.text('VOU BUSCAR'));
+      final recusar = tester.getRect(find.text('RECUSAR'));
+      // Liberar em cima, sozinho; embaixo vou buscar à esquerda e recusar à direita.
+      expect(liberar.top, lessThan(vouBuscar.top));
+      expect(vouBuscar.left, lessThan(recusar.left));
+    });
+
+    testWidgets('liberar entrada envia AUTORIZADA', (tester) async {
+      Map<String, dynamic>? enviado;
+      ApiClient.client = MockClient((req) async {
+        enviado = jsonDecode(req.body) as Map<String, dynamic>;
+        return http.Response(jsonEncode({'id': 7, 'status': 'AUTORIZADA'}), 200);
+      });
+
+      await abrir(tester, noPortao);
+      await tester.tap(find.text('LIBERAR ENTRADA'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(enviado, {'status': 'AUTORIZADA'});
+      expect(find.text('Entrada liberada.'), findsOneWidget);
+    });
+
+    testWidgets('vou buscar envia RETIRADA_NA_PORTARIA e avisa a lista', (tester) async {
+      var changes = 0;
+      Map<String, dynamic>? enviado;
+      ApiClient.client = MockClient((req) async {
+        enviado = jsonDecode(req.body) as Map<String, dynamic>;
+        return http.Response(jsonEncode({'id': 7, 'status': 'RETIRADA_NA_PORTARIA'}), 200);
+      });
+
+      await tester.pumpWidget(app(Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => DeliveryDetailsPage(delivery: noPortao, onChanged: () => changes++))),
+          child: const Text('abrir'),
+        ),
+      )));
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('VOU BUSCAR'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(enviado, {'status': 'RETIRADA_NA_PORTARIA'});
+      expect(changes, 1);
+      expect(find.text('Avisamos o entregador que você vai buscar.'), findsOneWidget);
+    });
+
+    testWidgets('recusar pede confirmação e envia RECUSADA com motivo', (tester) async {
+      Map<String, dynamic>? enviado;
+      ApiClient.client = MockClient((req) async {
+        enviado = jsonDecode(req.body) as Map<String, dynamic>;
+        return http.Response(jsonEncode({'id': 7, 'status': 'RECUSADA'}), 200);
+      });
+
+      await abrir(tester, noPortao);
+      await tester.tap(find.text('RECUSAR'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sim'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(enviado, {'status': 'RECUSADA', 'motivo': 'Recusada pelo morador.'});
+      expect(find.text('Entrega recusada.'), findsOneWidget);
+    });
+
+    testWidgets('pedido já respondido: a selfie fica e as respostas do portão somem', (tester) async {
+      await tester.pumpWidget(app(DeliveryDetailsPage(
+          delivery: DeliveryModel.fromJson(json(statusPedido: 'liberado', status: 'AUTORIZADA')))));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('delivery-selfie-entregador')), findsOneWidget);
+      expect(find.text('No portão: Portão social'), findsOneWidget);
+      expect(find.text('LIBERAR ENTRADA'), findsNothing);
+      expect(find.text('VOU BUSCAR'), findsNothing);
+    });
+
+    testWidgets('delivery comum: sem selfie e com os dois botões de hoje', (tester) async {
+      await tester.pumpWidget(app(const DeliveryDetailsPage(
+          delivery: DeliveryModel(id: 7, status: 'AGUARDANDO_AUTORIZACAO'))));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('delivery-selfie-entregador')), findsNothing);
+      expect(find.text('AUTORIZAR ENTREGA'), findsOneWidget);
+      expect(find.text('RECUSAR'), findsOneWidget);
+      expect(find.text('VOU BUSCAR'), findsNothing);
+      expect(find.text('LIBERAR ENTRADA'), findsNothing);
+    });
+
+    testWidgets('cabe em tela estreita no tema escuro', (tester) async {
+      tester.view.physicalSize = const Size(320 * 3, 640 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(app(DeliveryDetailsPage(delivery: noPortao), theme: ThemeData.dark()));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('barra de ações fixa', () {
     Finder naBarra(String texto) => find.descendant(
         of: find.byKey(const Key('delivery-actions-bar')),

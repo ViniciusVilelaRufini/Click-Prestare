@@ -136,6 +136,88 @@ void main() {
     expect(enviado, {'status': 'RECUSADA', 'motivo': 'Recusada pelo morador.'});
   });
 
+  group('entregador no portão', () {
+    Map<String, dynamic> noPortao(int id, String status, {String statusPedido = 'pendente'}) => {
+          ...aviso(id, status, 'iFood'),
+          'origem': 'autoatendimento',
+          'pedido_portao': {
+            'nome': 'Carlos Souza',
+            'plataforma': 'iFood',
+            'foto': 'https://bucket.test/delivery-portao/selfie.jpg',
+            'status': statusPedido,
+            'portao': 'Portão social',
+          },
+        };
+
+    testWidgets('destaque com a selfie e as respostas do portão', (tester) async {
+      ApiClient.client = MockClient((_) async =>
+          http.Response(jsonEncode([noPortao(1, 'AGUARDANDO_AUTORIZACAO')]), 200));
+
+      await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Entregador no portão'), findsOneWidget);
+      expect(find.text('A portaria aguarda sua resposta'), findsNothing);
+      expect(find.byKey(const Key('delivery-selfie-lista')), findsOneWidget);
+      expect(find.text('LIBERAR ENTRADA'), findsOneWidget);
+      expect(find.text('VOU BUSCAR'), findsOneWidget);
+      expect(find.text('RECUSAR'), findsOneWidget);
+      expect(find.text('AUTORIZAR'), findsNothing);
+    });
+
+    testWidgets('vou buscar pelo destaque envia RETIRADA_NA_PORTARIA', (tester) async {
+      Map<String, dynamic>? enviado;
+      ApiClient.client = MockClient((req) async {
+        if (req.method == 'PATCH') {
+          enviado = jsonDecode(req.body) as Map<String, dynamic>;
+          return http.Response(jsonEncode({'id': 1, 'status': 'RETIRADA_NA_PORTARIA'}), 200);
+        }
+        return http.Response(jsonEncode([noPortao(1, 'AGUARDANDO_AUTORIZACAO')]), 200);
+      });
+
+      await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('VOU BUSCAR'));
+      await tester.pumpAndSettle();
+
+      expect(enviado, {'status': 'RETIRADA_NA_PORTARIA'});
+      expect(find.text('Avisamos o entregador que você vai buscar.'), findsOneWidget);
+    });
+
+    testWidgets('card comum e do histórico trocam o ícone pela selfie', (tester) async {
+      ApiClient.client = MockClient((_) async => http.Response(
+          jsonEncode([
+            noPortao(1, 'AUTORIZADA', statusPedido: 'liberado'),
+            noPortao(2, 'CONCLUIDA', statusPedido: 'liberado'),
+            aviso(3, 'CHEGOU', 'Farmácia'),
+          ]),
+          200));
+
+      await tester.pumpWidget(const MaterialApp(home: ListDelivery()));
+      await tester.pumpAndSettle();
+      // Ativas: o autorizado do portão tem selfie; o da farmácia, não.
+      expect(find.byKey(const Key('delivery-selfie-lista')), findsOneWidget);
+
+      await tester.tap(find.text('HISTÓRICO (1)'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('delivery-selfie-lista')), findsOneWidget);
+    });
+
+    testWidgets('cabe em tela estreita no tema escuro', (tester) async {
+      tester.view.physicalSize = const Size(320 * 3, 640 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      ApiClient.client = MockClient((_) async =>
+          http.Response(jsonEncode([noPortao(1, 'AGUARDANDO_AUTORIZACAO')]), 200));
+
+      await tester.pumpWidget(MaterialApp(theme: ThemeData.dark(), home: const ListDelivery()));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('LIBERAR ENTRADA'), findsOneWidget);
+    });
+  });
+
   testWidgets('estados vazios por aba', (tester) async {
     ApiClient.client =
         MockClient((_) async => http.Response(jsonEncode([]), 200));

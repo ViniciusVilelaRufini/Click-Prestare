@@ -305,6 +305,13 @@ String deliveryContextLine(DeliveryModel delivery, {DateTime? now}) {
         text: 'O entregador está na portaria. A portaria vai pedir sua autorização.',
       );
     case 'AGUARDANDO_AUTORIZACAO':
+      if (delivery.respondeNoPortao) {
+        return (
+          icon: PhosphorIcons.door,
+          text: 'O entregador está no portão. Ele só entra se você liberar; '
+              'se preferir, avise que vai buscar.',
+        );
+      }
       return (
         icon: PhosphorIcons.handPalm,
         text: 'A portaria só libera a entrada depois da sua resposta.',
