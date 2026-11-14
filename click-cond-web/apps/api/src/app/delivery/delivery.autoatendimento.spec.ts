@@ -47,6 +47,7 @@ describe('DeliveryService — autoatendimento no portão', () => {
     };
     const svc = new DeliveryService(banco.prisma, notifications, tenant, storage, card);
     (svc as any).logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn(), debug: jest.fn() };
+    svc.agora = () => AGORA.getTime();
     return { svc, banco, notifications, card, tabela: banco.tabela };
   }
 
@@ -175,12 +176,13 @@ describe('DeliveryService — autoatendimento no portão', () => {
     expect(notifications.sendPushNotification).not.toHaveBeenCalled();
   });
 
-  it('vincularPedidoPortao abre o card só para o dono quando há dono (os outros recebem a notificação comum)', async () => {
+  it('vincularPedidoPortao com dono (aviso reaproveitado) também abre o card em todos os vínculos atuais', async () => {
     const { svc, card, notifications } = montar({ atendimentos: [atendimentoAuto({ id_morador_user: 7, origem: 'portaria' })], pedidos: [pedidoPendente()] });
     await svc.vincularPedidoPortao(1, 50);
     expect(card.abrirDelivery).toHaveBeenCalledTimes(1);
-    expect(card.abrirDelivery.mock.calls[0][1]).toEqual([7]);
-    expect(notifications.sendPushNotification).toHaveBeenCalledWith('fcm-9', 'Delivery', expect.any(String), { id_delivery: '1', status: 'AGUARDANDO_AUTORIZACAO' });
+    expect([...card.abrirDelivery.mock.calls[0][1]].sort()).toEqual([7, 9]);
+    // O card já avisa quem não tem card.
+    expect(notifications.sendPushNotification).not.toHaveBeenCalled();
   });
 
   it('morador responde RETIRADA_NA_PORTARIA com pedido pendente: aceito', async () => {
@@ -205,7 +207,8 @@ describe('DeliveryService — autoatendimento no portão', () => {
     expect(card.encerrarDeOutros).toHaveBeenCalledWith('delivery', 1, 9);
     // Quem respondeu virou o dono: nada de "Bruno autorizou" para ele mesmo.
     expect(notifications.sendPushNotification).not.toHaveBeenCalled();
-    expect(card.atualizarDelivery).toHaveBeenCalledWith(expect.objectContaining({ status: 'AUTORIZADA' }), 9, { voceRespondeu: true });
+    // Pedido do portão: o card está em todos os vínculos atuais.
+    expect(card.atualizarDelivery).toHaveBeenCalledWith(expect.objectContaining({ status: 'AUTORIZADA' }), [7, 9], { voceRespondeu: true });
     // Resposta ao morador sem ids.
     expect(r).not.toHaveProperty('id_morador_user');
     expect(r).not.toHaveProperty('id_pedido_portao');
@@ -284,7 +287,7 @@ describe('DeliveryService — autoatendimento no portão', () => {
     expect(gancho.aoMudarStatus).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1, origem: 'autoatendimento', id_pedido_portao: 50 }),
       'AUTORIZADA',
-      { idUser: 7, operador: false, sistema: false },
+      { idUser: 7, operador: false, sistema: false, vinculoAtual: true },
     );
     await svc.transicionarPeloSistema(1, 'CONCLUIDA', 'fim');
     expect(gancho.aoMudarStatus).toHaveBeenLastCalledWith(
@@ -297,7 +300,7 @@ describe('DeliveryService — autoatendimento no portão', () => {
     const g2: GanchoPortao = { aoMudarStatus: jest.fn(async () => undefined) };
     outro.svc.registrarGanchoPortao(g2);
     await outro.svc.atualizarStatus(1, { status: 'RECUSADA', motivo: 'Não pedi nada' } as any, porteiro);
-    expect(g2.aoMudarStatus).toHaveBeenCalledWith(expect.anything(), 'RECUSADA', { idUser: null, operador: true, sistema: false });
+    expect(g2.aoMudarStatus).toHaveBeenCalledWith(expect.anything(), 'RECUSADA', { idUser: null, operador: true, sistema: false, vinculoAtual: false });
   });
 
   it('lista do operador traz pedido_portao com foto e nome do portão; a do morador não traz ids', async () => {

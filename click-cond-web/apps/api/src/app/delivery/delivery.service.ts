@@ -59,6 +59,10 @@ export const TETO_AVISO_MS = 2_000;
  * portão é a portaria atendendo: o pedido do portão é recusado.
  */
 const REAPROVEITA_NA_CHEGADA: readonly DeliveryStatus[] = ['AGENDADA'];
+/** Aviso AGENDADA só é reaproveitado pelo portão se criado há no máximo isto... */
+const AVISO_REAPROVEITA_MS = 24 * 3_600_000;
+/** ...e, com previsão de chegada, se o entregador chegou até isto antes ou depois dela. */
+const PREVISAO_TOLERANCIA_MS = 6 * 3_600_000;
 const EM_ATENDIMENTO: readonly DeliveryStatus[] = ['CHEGOU', 'AGUARDANDO_AUTORIZACAO'];
 const MSG_PORTARIA_ATENDENDO = 'A portaria já está atendendo uma entrega para esta unidade. Procure a portaria.';
 /** Transições que só o sistema faz (rotina do autoatendimento): ninguém responde, ele cancela. */
@@ -107,11 +111,15 @@ function pedidoNaLista(pedidos: any[] | undefined) {
  */
 export interface GanchoPortao {
   /** Chamado depois de toda mudança de status gravada. Nunca deve lançar. */
-  aoMudarStatus(
-    atendimento: { id: number; origem: string; id_pedido_portao: number | null },
-    statusNovo: DeliveryStatus,
-    quem: { idUser: number | null; operador: boolean; sistema: boolean },
-  ): Promise<void>;
+  aoMudarStatus(atendimento: { id: number; origem: string; id_pedido_portao: number | null }, statusNovo: DeliveryStatus, quem: QuemMudou): Promise<void>;
+}
+
+export interface QuemMudou {
+  idUser: number | null;
+  operador: boolean;
+  sistema: boolean;
+  /** Morador que respondeu tem vínculo ATUAL com a unidade (só então a nuvem abre o portão). */
+  vinculoAtual?: boolean;
 }
 
 /** Autor do evento: o usuário do token, ou o sistema (sem usuário). */
@@ -121,6 +129,8 @@ type AutorEvento = JwtPayload | { sistema: string };
 export class DeliveryService {
   private readonly logger = new Logger(DeliveryService.name);
   private ganchoPortao?: GanchoPortao;
+  /** Público para os testes; em produção é Date.now (prazos do pedido de portão e do aviso reaproveitado). */
+  agora: () => number = () => Date.now();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -365,12 +375,13 @@ export class DeliveryService {
       statusAtual === 'AGUARDANDO_AUTORIZACAO' &&
       respostasDoMorador.includes(statusNovo) &&
       (!operador || (!user?.id_condominio && dto.id_entregador === undefined));
-    const respostaDoMorador =
-      pedeComoMorador &&
-      // Morador sem Users.id continua caindo no 403 de sessão do idUsuario.
-      (!operador || idUser != null) &&
-      (atendimento.id_morador_user === this.idUsuario(user) ||
-        (await this.temVinculoNaUnidade(atendimento.id_apartamento, this.idUsuario(user))));
+    // Morador sem Users.id continua caindo no 403 de sessão do idUsuario.
+    const podeComoMorador = pedeComoMorador && (!operador || idUser != null);
+    const ehDono = podeComoMorador && atendimento.id_morador_user === this.idUsuario(user);
+    /** Vínculo ATUAL com a unidade: só com ele a nuvem abre o portão (o dono que se mudou não abre). */
+    const vinculoAtual =
+      podeComoMorador && (await this.temVinculoNaUnidade(atendimento.id_apartamento, this.idUsuario(user)));
+    const respostaDoMorador = ehDono || vinculoAtual;
     /** Agiu como morador (resposta da unidade, ou o morador cancelando o próprio aviso). */
     const comoMorador = respostaDoMorador || !operador;
     // Atendimento do autoatendimento sem dono: quem responde primeiro vira o dono.
@@ -441,6 +452,7 @@ export class DeliveryService {
       // Respondeu pela unidade (mesmo sendo síndico/funcionário): é o morador; a nuvem abre.
       operador: operador && !respostaDoMorador,
       sistema: false,
+      vinculoAtual: respostaDoMorador && vinculoAtual,
     });
     const aviso = (async () => {
       // O card dos outros moradores fecha antes de o do novo dono mudar de fase.
@@ -492,6 +504,7 @@ export class DeliveryService {
     const db = (this.prisma as any).deliveryAtendimentos;
     const nome = d.nomeEntregador.trim() || null;
     await this.assertPortariaNaoAtendendo(d.idCondominio, d.idApartamento);
+    const agoraMs = this.agora();
     // Corrida com a portaria/morador mudando o mesmo atendimento: relê e tenta de novo.
     for (let tentativa = 0; tentativa < 3; tentativa++) {
       const aberto = await db.findFirst({
@@ -502,6 +515,13 @@ export class DeliveryService {
           // Atendimento que já teve pedido de portão nunca recebe outro.
           id_pedido_portao: null,
           pedidosPortao: { none: {} },
+          // Aviso esquecido não recebe o entregador de hoje: criado há no
+          // máximo 24 h e, com previsão de chegada, dentro de ±6 h dela.
+          created_at: { gte: new Date(agoraMs - AVISO_REAPROVEITA_MS) },
+          OR: [
+            { previsao_em: null },
+            { previsao_em: { gte: new Date(agoraMs - PREVISAO_TOLERANCIA_MS), lte: new Date(agoraMs + PREVISAO_TOLERANCIA_MS) } },
+          ],
         },
         orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       });
@@ -584,11 +604,9 @@ export class DeliveryService {
   /**
    * Garante o pedido de portão do atendimento e abre o card, uma vez, já na
    * fase de autorização (com a selfie). O pedido de um atendimento nunca é
-   * trocado: já ligado a outro → 409. Sem dono: todos os vínculos da
-   * unidade. Com dono (aviso do morador): o card vai a ele e os outros
-   * moradores recebem a notificação comum, como no pedido feito pela
-   * portaria. O aviso espera no máximo TETO_AVISO_MS (a página do entregador
-   * não fica presa no APNs).
+   * trocado: já ligado a outro → 409. O card vai a todos os vínculos atuais
+   * da unidade, com ou sem dono (aviso reaproveitado). O aviso espera no
+   * máximo TETO_AVISO_MS (a página do entregador não fica presa no APNs).
    */
   async vincularPedidoPortao(idAtendimento: number, idPedido: number): Promise<void> {
     const db = (this.prisma as any).deliveryAtendimentos;
@@ -603,19 +621,20 @@ export class DeliveryService {
     }
     const registro = await db.findUnique({ where: { id } });
     const aviso = (async () => {
-      const dono: number | null = registro.id_morador_user ?? null;
       let viaCard = false;
       if (this.cardAoVivo) {
         try {
-          const destinos = dono ? [dono] : await this.vinculosDaUnidade(registro.id_apartamento);
+          // Todos os vínculos ATUAIS, também no aviso reaproveitado: quem
+          // pode liberar vê a selfie (o dono que se mudou não recebe).
+          const destinos = await this.vinculosDaUnidade(registro.id_apartamento);
           await this.cardAoVivo.abrirDelivery(await this.atendimentoParaCard(registro.id), destinos);
           viaCard = true;
         } catch (e: any) {
           this.logger.warn(`Card ao vivo do delivery ${registro.id} (portão): ${e?.message ?? e}`);
         }
       }
-      if (!viaCard) await this.notificarMorador(registro.id_apartamento, dono, 'AGUARDANDO_AUTORIZACAO', registro.id);
-      if (dono) await this.notificarOutrosDaUnidade(registro.id_apartamento, dono, registro.id);
+      // Sem card: a notificação de hoje a todos os vínculos da unidade.
+      if (!viaCard) await this.notificarMorador(registro.id_apartamento, null, 'AGUARDANDO_AUTORIZACAO', registro.id);
     })().catch((e: any) => this.logger.warn(`Aviso do delivery ${registro.id} (portão): ${e?.message ?? e}`));
     await this.comTeto(aviso);
   }
@@ -658,11 +677,7 @@ export class DeliveryService {
   }
 
   /** Chama o gancho do portão, se houver; nunca rejeita. */
-  private async chamarGancho(
-    registro: any,
-    statusNovo: DeliveryStatus,
-    quem: { idUser: number | null; operador: boolean; sistema: boolean },
-  ): Promise<void> {
+  private async chamarGancho(registro: any, statusNovo: DeliveryStatus, quem: QuemMudou): Promise<void> {
     if (!this.ganchoPortao) return;
     try {
       await this.ganchoPortao.aoMudarStatus(
@@ -900,7 +915,9 @@ export class DeliveryService {
     if (this.cardAoVivo) {
       try {
         const atendimento = await this.atendimentoParaCard(registro.id);
-        const destinos = dono ?? (await this.vinculosDaUnidade(registro.id_apartamento));
+        // Pedido do portão: o card foi aberto em todos os vínculos atuais (com ou sem dono).
+        const destinos =
+          dono && !registro.id_pedido_portao ? dono : await this.vinculosDaUnidade(registro.id_apartamento);
         if (statusNovo === 'CHEGOU') {
           await this.cardAoVivo.abrirDelivery(atendimento, destinos);
           viaCard = true;

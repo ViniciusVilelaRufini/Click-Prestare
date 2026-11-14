@@ -15,7 +15,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { FacialService } from '../../facial/facial.service';
 import { PREFIXOS_FOTO_PEDIDO_PORTAO, StorageService } from '../../common/storage/storage.service';
 import { ResultadoLock, comLock, executarComLock } from '../../common/lock-distribuido';
-import { DeliveryService, DeliveryStatus, GanchoPortao } from '../delivery.service';
+import { DeliveryService, DeliveryStatus, GanchoPortao, QuemMudou } from '../delivery.service';
 import { TenantAccessService } from '../../auth/tenant-access.service';
 import type { JwtPayload } from '../../auth/jwt-payload.interface';
 import { assertOperador, assertSindicoEstrito, assertTenantStrict } from '../../auth/tenant.util';
@@ -677,7 +677,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
   async aoMudarStatus(
     atendimento: { id: number; origem: string; id_pedido_portao: number | null },
     statusNovo: DeliveryStatus,
-    quem: { idUser: number | null; operador: boolean; sistema: boolean },
+    quem: QuemMudou,
   ): Promise<void> {
     if (!atendimento.id_pedido_portao) return;
     try {
@@ -689,12 +689,13 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
       const pendente = { id: pedido.id, status: 'pendente' };
       switch (statusNovo) {
         case 'AUTORIZADA': {
-          if (quem.operador) {
-            // Porteiro autorizou: ele abre pelo meio de sempre; a nuvem não abre.
+          if (quem.sistema) return;
+          if (quem.operador || quem.vinculoAtual !== true) {
+            // Porteiro autorizou (ele abre pelo meio de sempre), ou quem
+            // respondeu não tem mais vínculo com a unidade: a nuvem não abre.
             await db.updateMany({ where: pendente, data: { status: 'liberado', respondido_em: agora, liberado_ate: null } });
             return;
           }
-          if (quem.sistema) return;
           if (agora.getTime() >= new Date(pedido.expira_em).getTime() || (await this.portaoIndisponivel(pedido.id_device))) {
             // Resposta tarde, ou a opção foi desligada / saiu do horário:
             // o atendimento fica AUTORIZADA, nada abre e não há janela.
