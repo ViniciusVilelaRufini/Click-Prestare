@@ -79,4 +79,25 @@ describe('VisitantesPageComponent — vaga vigente e permanência longa', () => 
       expect(tela.dentroHaMuitoTempo(saiu({ data_entrada: new Date(Date.now() - 30 * H).toISOString() }))).toBe(false);
     });
   });
+
+  // Revisão M-5: mesmas regras da API e do terminal.
+  describe('M-5 — tolerância da janela e unidade agendada', () => {
+    const liberado = (fimHaMin: number) =>
+      saiu({ data_entrada: null, data_saida: null, data_hora_termino: new Date(Date.now() - fimHaMin * 60_000).toISOString() });
+
+    it('janela terminou há 5 min (o terminal ainda aceita): não está encerrada', () => {
+      const tela = build();
+      expect(tela.janelaEncerrada(liberado(5))).toBe(false);
+    });
+
+    it('janela terminou há 20 min: encerrada', () => {
+      const tela = build();
+      expect(tela.janelaEncerrada(liberado(20))).toBe(true);
+    });
+
+    it('unidade liberada com janela futura: o modal diz "Agendado", como a linha', () => {
+      const tela = build();
+      expect(tela.situacaoUnidade({ id: 6, label: '106', liberado: true, agendado: true }).texto).toBe('Agendado');
+    });
+  });
 });

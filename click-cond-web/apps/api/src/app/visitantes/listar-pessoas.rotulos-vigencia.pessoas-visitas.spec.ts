@@ -40,7 +40,7 @@ describe('listarPessoas (Pessoas/Visitas) — rótulos respeitam a vigência', (
     const prisma: any = {
       isConnected: true,
       pessoas: { findMany: jest.fn(async () => [pessoa]) },
-      visitas: { findMany: jest.fn(async () => []) },
+      visitas: { findMany: jest.fn(async () => []), groupBy: jest.fn(async () => []) },
       vagas: { findMany: jest.fn(async () => []) },
     };
     const svc = new VisitantesService(
@@ -116,6 +116,37 @@ describe('listarPessoas (Pessoas/Visitas) — rótulos respeitam a vigência', (
         auth_respondido_em: new Date(Date.now() - 30 * 60 * 1000),
       });
       expect(p.apartamentosVisitados[0].liberado).toBe(false);
+    });
+  });
+
+  // Revisão M-5: mesmas regras do terminal e da tela.
+  describe('M-5 — tolerância e coerência com a tela', () => {
+    it('janela terminou há 5 min (dentro dos 15 min do terminal/PIN): ainda "Liberado" e com PIN', async () => {
+      const p = await listar({ data_hora_termino: new Date(Date.now() - 5 * 60 * 1000) });
+      expect(p.statusLabel).toBe('Liberado');
+      expect(p.temPinAtivo).toBe(true);
+      expect(p.apartamentosVisitados[0].liberado).toBe(true);
+    });
+
+    it('janela terminou há 20 min: encerrada', async () => {
+      const p = await listar({ data_hora_termino: new Date(Date.now() - 20 * 60 * 1000) });
+      expect(p.statusLabel).not.toBe('Liberado');
+    });
+
+    it('liberado com janela futura: a unidade diz "agendado" (o modal e a linha batem)', async () => {
+      const p = await listar({ data_hora_inicio: new Date(Date.now() + 2 * H), data_hora_termino: new Date(Date.now() + 6 * H) });
+      expect(p.apartamentosVisitados[0].agendado).toBe(true);
+    });
+
+    it('recorrente que saiu com término futuro: "Liberado", como a tela (acesso contínuo)', async () => {
+      const p = await listar({
+        dias_semana: 'seg,qua',
+        data_entrada: new Date(Date.now() - 3 * H),
+        data_saida: new Date(Date.now() - H),
+        data_hora_termino: new Date(Date.now() + 30 * 24 * H),
+      });
+      expect(p.statusLabel).toBe('Liberado');
+      expect(p.apartamentosVisitados[0].liberado).toBe(true);
     });
   });
 });

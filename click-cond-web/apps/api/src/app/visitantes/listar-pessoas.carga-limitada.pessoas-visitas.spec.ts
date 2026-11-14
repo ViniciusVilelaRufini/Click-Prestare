@@ -27,7 +27,7 @@ describe('listarPessoas (Pessoas/Visitas) — carga limitada de visitas', () => 
     ...extra,
   });
 
-  function montar(recentes: any[], abertas: any[], total: number) {
+  function montar(recentes: any[], abertas: any[], total: number, porUnidade: any[] = []) {
     const pessoa = {
       id: 2000001, id_condominio: 1, nome: 'QA_Historico', doc_identificacao: null, telefone: null,
       foto_pessoa: null, foto_documento: null, face_id: null, face_sync_status: null, face_enrolled_at: null,
@@ -36,7 +36,7 @@ describe('listarPessoas (Pessoas/Visitas) — carga limitada de visitas', () => 
     const prisma: any = {
       isConnected: true,
       pessoas: { findMany: jest.fn(async () => [pessoa]) },
-      visitas: { findMany: jest.fn(async () => abertas) },
+      visitas: { findMany: jest.fn(async () => abertas), groupBy: jest.fn(async () => porUnidade) },
       vagas: { findMany: jest.fn(async () => []) },
     };
     const svc = new VisitantesService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
@@ -59,7 +59,7 @@ describe('listarPessoas (Pessoas/Visitas) — carga limitada de visitas', () => 
     expect(p.id).toBe(1000001);
     // A busca das abertas é recortada ao condomínio e às pessoas da página.
     expect(prisma.visitas.findMany.mock.calls[0][0].where).toEqual(
-      expect.objectContaining({ id_condominio: 1, id_pessoa: { in: [2000001] }, data_saida: null }),
+      expect.objectContaining({ id_condominio: 1, id_pessoa: { in: [2000001] } }),
     );
   });
 
@@ -74,5 +74,28 @@ describe('listarPessoas (Pessoas/Visitas) — carga limitada de visitas', () => 
     const { svc } = montar([visita(1000050)], [], 60);
     const [p]: any[] = await svc.listarPessoas(1);
     expect(p.totalVisitas).toBe(60);
+  });
+
+  // Revisão M-4: visita já usada que mantém a liberação (prestador, recorrente,
+  // vaga) fora das 20 mais recentes também decide a linha.
+  it('a busca das abertas inclui as usadas que seguem liberadas', async () => {
+    const { svc, prisma } = montar([visita(1000050)], [], 1);
+    await svc.listarPessoas(1);
+    const where = prisma.visitas.findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(where.OR)).toContain('"data_saida":{"not":null}');
+  });
+
+  it('prestador liberado numa unidade antiga: a unidade aparece liberada', async () => {
+    const antiga = visita(1000001, { is_prestador: 1, liberado: 1, id_apartamento: 7, apartamento: { id: 7, bloco: 'B', apto: '201' } });
+    const { svc } = montar([visita(1000050)], [antiga], 60);
+    const [p]: any[] = await svc.listarPessoas(1);
+    const u = p.apartamentosVisitados.find((a: any) => a.id === 7);
+    expect(u?.liberado).toBe(true);
+  });
+
+  it('totalVisitasApto vem da contagem por unidade do banco', async () => {
+    const { svc } = montar([visita(1000050)], [], 60, [{ id_pessoa: 2000001, id_apartamento: 6, _count: { _all: 42 } }]);
+    const [p]: any[] = await svc.listarPessoas(1);
+    expect(p.apartamentosVisitados[0].totalVisitasApto).toBe(42);
   });
 });

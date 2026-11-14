@@ -7,7 +7,7 @@ describe('VisitantesAdapter (Compatibilidade v75)', () => {
 
   const mockPrisma: any = {
     pessoas: { findMany: jest.fn() },
-    visitas: { findMany: jest.fn() },
+    visitas: { findMany: jest.fn(), groupBy: jest.fn() },
     visitantes: { findMany: jest.fn().mockResolvedValue([]) },
     vagas: { findMany: jest.fn().mockResolvedValue([]) },
     apartamentos_Users: { findMany: jest.fn().mockResolvedValue([{ id_apto: 101 }]) },

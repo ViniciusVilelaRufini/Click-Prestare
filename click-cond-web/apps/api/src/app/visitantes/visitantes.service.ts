@@ -58,6 +58,12 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
 
 // Prazo único do pedido/autorização — o card ao vivo usa o mesmo.
 export { AUTORIZACAO_EXPIRACAO_MS };
+/**
+ * Tolerância depois do fim da janela: o terminal facial e o Validar PIN aceitam
+ * até 15 min além do `data_hora_termino`. A lista usa a mesma para não dizer
+ * "encerrada" de quem o portão ainda deixa passar.
+ */
+export const TOLERANCIA_JANELA_MS = 15 * 60 * 1000;
 /** Visitas mais recentes de cada pessoa na lista da portaria (as em aberto entram sempre). */
 const VISITAS_POR_PESSOA_NA_LISTA = 20;
 /** Janela da visita aberta por um pedido de autorização: agora → +4 h. */
@@ -960,10 +966,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const pinVigente = (v: any) =>
       Boolean(v?.codigo_acesso) &&
       !v.data_saida &&
-      (!v.data_hora_termino || new Date(v.data_hora_termino).getTime() >= agoraScore);
+      (!v.data_hora_termino || new Date(v.data_hora_termino).getTime() + TOLERANCIA_JANELA_MS >= agoraScore);
     // Vigência da janela da visita (mesma leitura da tela: janelaEncerrada/agendado).
     const janelaEncerrada = (v: any) =>
-      !!v?.data_hora_termino && new Date(v.data_hora_termino).getTime() < agoraScore;
+      !!v?.data_hora_termino && new Date(v.data_hora_termino).getTime() + TOLERANCIA_JANELA_MS < agoraScore;
+    // Mantém a liberação na saída (mesma regra de mantemLiberadoNaSaida, com a vaga).
+    const acessoContinuo = (v: any, temVaga: boolean) =>
+      v.is_prestador === 1 || temVaga || !!String(v.dias_semana ?? '').trim();
     const janelaFutura = (v: any) =>
       !!v?.data_hora_inicio && new Date(v.data_hora_inicio).getTime() > agoraScore;
     const dentro = (v: any) => !!v?.data_entrada && !v.data_saida;
@@ -1020,12 +1029,27 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             where: {
               id_condominio: Number(idCondominio),
               id_pessoa: { in: pessoasCadastradas.map((p) => p.id) },
-              data_saida: null,
               OR: [
-                { data_entrada: { not: null } },
-                { liberado: 1 },
-                { auth_status: 'pendente' },
-                { codigo_acesso: { not: null } },
+                {
+                  data_saida: null,
+                  OR: [
+                    { data_entrada: { not: null } },
+                    { liberado: 1 },
+                    { auth_status: 'pendente' },
+                    { codigo_acesso: { not: null } },
+                  ],
+                },
+                // Já usada, mas a saída manteve a liberação (prestador,
+                // recorrente, vaga vigente) e a janela não terminou.
+                {
+                  data_saida: { not: null },
+                  liberado: 1,
+                  OR: [
+                    { data_hora_termino: null },
+                    { data_hora_termino: { gte: new Date(agoraScore - TOLERANCIA_JANELA_MS) } },
+                    { vagas: { some: { ativo: 1, ...whereVagaVigente() } } },
+                  ],
+                },
               ],
             },
             include: { apartamento: { select: { id: true, bloco: true, apto: true } } },
@@ -1035,6 +1059,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           const p: any = porPessoa.get(v.id_pessoa);
           if (p && !(p.visitas ?? []).some((x: any) => x.id === v.id)) (p.visitas ??= []).push(v);
         }
+      }
+      // Visitas por pessoa e unidade (o recorte acima não serve para contar).
+      const contagemUnidade = new Map<string, number>();
+      if (pessoasCadastradas.length) {
+        const grupos: any[] =
+          (await this.prisma.visitas.groupBy({
+            by: ['id_pessoa', 'id_apartamento'],
+            where: { id_condominio: Number(idCondominio), id_pessoa: { in: pessoasCadastradas.map((p) => p.id) } },
+            _count: { _all: true },
+          })) ?? [];
+        for (const g of grupos) contagemUnidade.set(`${g.id_pessoa}:${g.id_apartamento}`, g._count?._all ?? 0);
       }
 
       // A flag sozinha decide a fonte: mesmo que a busca acima volte vazia
@@ -1123,7 +1158,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
             const isLiberado = regs.some((r) => {
               if (vagaPorVisita.has(r.id)) return true;
-              if ((r as any).is_prestador === 1) return r.liberado === 1 && !janelaEncerrada(r);
+              // Prestador e recorrente mantêm a liberação na saída (como a tela).
+              if (acessoContinuo(r, false)) return r.liberado === 1 && !janelaEncerrada(r);
               if (r.data_saida) {
                 const saida = new Date(r.data_saida).getTime();
                 const resp = (r as any).auth_respondido_em ? new Date((r as any).auth_respondido_em).getTime() : 0;
@@ -1209,7 +1245,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               // mas não atrapalham quem só lê os campos acima).
               bloco: a.bloco,
               apto: a.apto,
-              totalVisitasApto: regs.length,
+              totalVisitasApto: contagemUnidade.get(`${p.id}:${aptoId}`) ?? regs.length,
+              // Liberado com a janela ainda por começar: o modal diz "Agendado",
+              // como a linha (getStatusVisitante).
+              agendado: regs.some(
+                (r) => r.liberado === 1 && !(r.data_entrada && !r.data_saida) && janelaFutura(r),
+              ),
             };
           });
 
@@ -1273,7 +1314,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
                 r.liberado === 1 &&
                 !janelaEncerrada(r) &&
                 !(r.auth_status === 'autorizado' && !r.data_entrada && !r.data_saida && !isAutorizacaoAtual(r, agoraScore)) &&
-                (r.is_prestador === 1 || vagaPorVisita.has(r.id) || (!r.data_entrada && !r.data_saida));
+                (acessoContinuo(r, vagaPorVisita.has(r.id)) || (!r.data_entrada && !r.data_saida));
               if (arr.some((r) => liberadaAgora(r) && !janelaFutura(r))) return 'Liberado';
               if (arr.some(liberadaAgora) || temPinAtivo) return 'Agendado';
               return 'Histórico';
@@ -3803,8 +3844,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : now;
 
     const inicioComTolerancia = inicio;
-    const GRACE_PERIOD_MS = 15 * 60 * 1000;
-    const terminoComTolerancia = new Date(termino.getTime() + GRACE_PERIOD_MS);
+    const terminoComTolerancia = new Date(termino.getTime() + TOLERANCIA_JANELA_MS);
 
     let status = 'ATIVO';
     if (now < inicioComTolerancia) {
@@ -4545,8 +4585,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     // Sem tolerância antes do início da liberação. Tolerância de 15 minutos ao término.
     const inicioComTolerancia = inicio;
-    const GRACE_PERIOD_MS = 15 * 60 * 1000;
-    const terminoComTolerancia = new Date(termino.getTime() + GRACE_PERIOD_MS);
+    const terminoComTolerancia = new Date(termino.getTime() + TOLERANCIA_JANELA_MS);
 
     let status = 'ATIVO';
     if (now < inicioComTolerancia) {

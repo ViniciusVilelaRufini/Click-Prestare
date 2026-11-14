@@ -10,6 +10,8 @@ import { AuthService } from '../auth/auth.service';
  * (`AUTORIZACAO_EXPIRACAO_MS`) e do card ao vivo. Único ponto no front.
  */
 export const AUTORIZACAO_EXPIRACAO_MS = 10 * 60 * 1000;
+/** Tolerância após o fim da janela — a mesma do terminal facial e do Validar PIN (API: TOLERANCIA_JANELA_MS). */
+export const TOLERANCIA_JANELA_MS = 15 * 60 * 1000;
 /** Sem resposta há esse tempo: a portaria já pode agir sem esperar o morador. */
 export const AUTORIZACAO_SEM_RESPOSTA_MS = 3 * 60 * 1000;
 
@@ -121,6 +123,8 @@ export interface ApartamentoVisitado {
   auth_solicitado_em?: string | null;
   auth_respondido_em?: string | null;
   temPinAtivo?: boolean;
+  /** Liberado com a janela ainda por começar (a linha mostra "Agendado"). */
+  agendado?: boolean;
   noLocal?: boolean;
   data_entrada?: string | null;
   data_saida?: string | null;

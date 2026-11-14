@@ -12,6 +12,7 @@ import {
   ApartamentoVisitado,
   AUTORIZACAO_EXPIRACAO_MS,
   AUTORIZACAO_SEM_RESPOSTA_MS,
+  TOLERANCIA_JANELA_MS,
 } from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
@@ -1288,6 +1289,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    */
   situacaoUnidade(apto: ApartamentoVisitado): { texto: string; tom: 'ok' | 'aviso' | 'info' | 'neutro' } {
     if (apto.auth_status === 'autorizado') return { texto: 'Liberado pelo morador', tom: 'ok' };
+    if (apto.agendado) return { texto: 'Agendado', tom: 'info' };
     if (apto.liberado) return { texto: 'Liberado', tom: 'ok' };
     if (apto.auth_status === 'pendente') return { texto: 'Aguardando o morador', tom: 'aviso' };
     if (apto.auth_status === 'negado') return { texto: 'Negado pelo morador', tom: 'aviso' };
@@ -1440,7 +1442,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   /** Liberado, mas a janela da visita já terminou: o terminal recusa a entrada. */
   janelaEncerrada(v: Visitante | Pessoa): boolean {
     if ((v as any).liberado !== 1 || (v.data_entrada && !v.data_saida)) return false;
-    return !!v.data_hora_termino && new Date(v.data_hora_termino).getTime() < this.agoraMs();
+    // Com a tolerância do terminal/PIN: até 15 min depois do fim ele ainda abre.
+    return !!v.data_hora_termino && new Date(v.data_hora_termino).getTime() + TOLERANCIA_JANELA_MS < this.agoraMs();
   }
 
   getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'liberado' | 'autorizado' | 'agendado' | 'expirado' | 'saiu' {
