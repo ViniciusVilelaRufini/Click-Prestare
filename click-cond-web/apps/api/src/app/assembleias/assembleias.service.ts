@@ -16,6 +16,37 @@ function tituloObrigatorio(valor: unknown): string {
 }
 
 /**
+ * Data da assembleia em DD/MM/AAAA (meia-noite local, como antes) ou
+ * AAAA-MM-DD (meia-noite UTC, como antes). Vazio: sem data. Fora do padrão ou
+ * dia inexistente ("20/11", "20-11-2026", "32/11/2026", "2026-02-30"): 400 —
+ * antes virava Invalid Date (ou rolava para outro mês) e o Prisma dava 500.
+ */
+function dataDaAssembleia(valor: unknown): Date | undefined {
+  const s = String(valor ?? '').trim();
+  if (!s) return undefined;
+  const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const [ano, mes, dia] = br
+    ? [Number(br[3]), Number(br[2]), Number(br[1])]
+    : iso
+      ? [Number(iso[1]), Number(iso[2]), Number(iso[3])]
+      : [NaN, NaN, NaN];
+  const ref = new Date(Date.UTC(ano, mes - 1, dia));
+  if (
+    Number.isNaN(ref.getTime()) ||
+    ref.getUTCFullYear() !== ano || ref.getUTCMonth() !== mes - 1 || ref.getUTCDate() !== dia
+  ) {
+    throw new BadRequestException('Data inválida: use DD/MM/AAAA.');
+  }
+  return br ? new Date(ano, mes - 1, dia) : ref;
+}
+
+/** Data @db.Date (meia-noite UTC) em DD/MM/AAAA; nula: ''. */
+function dataDbBr(d: Date | null | undefined): string {
+  return d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }) : '';
+}
+
+/**
  * Apuração das pautas em texto, gravada junto da ATA ao finalizar (a
  * assembleia é apagada e leva as votações). `opcoes` vem no formato da API,
  * "id;nome;votos" — o nome pode ter ';'.
@@ -118,22 +149,13 @@ export class AssembleiasService {
     assertStaff(requester, 'criar assembleia');
     await this.tenant.assertCondominio(idCondominio, requester);
     assembleia.titulo = tituloObrigatorio(assembleia.titulo);
+    // Datas no formato YYYY-MM-DD ou DD/MM/YYYY (antes do upload: data ruim não sobe anexo)
+    const dataObj = dataDaAssembleia(assembleia.data);
     if (!this.prisma.isConnected) return { success: true };
 
     // Processar anexos (docs) — upload real para R2 quando vierem em base64.
     // Assembleia nova não tem anexo gravado.
     const listDocs = await this.uploadDocs(assembleia.docs, 'assembleias', []);
-
-    // Datas no formato YYYY-MM-DD ou DD/MM/YYYY
-    let dataObj: Date | undefined;
-    if (assembleia.data) {
-      if (assembleia.data.includes('/')) {
-        const parts = assembleia.data.split('/');
-        dataObj = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-      } else {
-        dataObj = new Date(assembleia.data);
-      }
-    }
 
     let horaObj: Date | undefined;
     if (assembleia.hora) {
@@ -175,21 +197,12 @@ export class AssembleiasService {
     assertStaff(requester, 'editar assembleia');
     await this.tenant.assertCondominio(idCondominio, requester);
     if (assembleia.titulo !== undefined) assembleia.titulo = tituloObrigatorio(assembleia.titulo);
+    const dataObj = dataDaAssembleia(assembleia.data);
     if (!this.prisma.isConnected) return { success: true };
 
     const listDocs = await this.uploadDocs(assembleia.docs, 'assembleias', () =>
       this.anexosGravados(Number(assembleia.id), Number(idCondominio)),
     );
-
-    let dataObj: Date | undefined;
-    if (assembleia.data) {
-      if (assembleia.data.includes('/')) {
-        const parts = assembleia.data.split('/');
-        dataObj = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-      } else {
-        dataObj = new Date(assembleia.data);
-      }
-    }
 
     let horaObj: Date | undefined;
     if (assembleia.hora) {
@@ -324,17 +337,27 @@ export class AssembleiasService {
     // a assembleia de qualquer outro só chutando o id.
     const alvo = await this.prisma.assembleias.findUnique({
       where: { id: Number(assembleia.id) },
-      select: { id_condominio: true },
+      select: { id_condominio: true, titulo: true, data: true },
     });
     if (!alvo) throw new NotFoundException('Assembleia não encontrada');
     await this.tenant.assertEntidade(alvo.id_condominio, requester, `assembleia #${assembleia.id}`);
 
     // Sem o arquivo, a ATA era gravada com link vazio e a assembleia apagada
-    // mesmo assim (o console não mandava `doc`).
+    // mesmo assim (o console não mandava `doc`). Data URL tem de ser
+    // application/pdf; URL (um anexo da assembleia) tem de terminar em .pdf —
+    // antes uma foto anexada passava como "PDF da ATA".
     const doc = typeof assembleia.doc === 'string' ? assembleia.doc.trim() : '';
-    if (!doc || (this.storage.isDataUrl(doc) && !/^data:application\/pdf[;,]/i.test(doc))) {
+    const ehPdf = this.storage.isDataUrl(doc)
+      ? /^data:application\/pdf[;,]/i.test(doc)
+      : /\.pdf$/i.test(doc.split(/[?#]/)[0]);
+    if (!doc || !ehPdf) {
       throw new BadRequestException('Anexe o PDF da ATA.');
     }
+
+    // Título e data do banco: os do corpo só serviam para nomear a ATA, e o
+    // cliente podia mandar qualquer coisa.
+    const tituloAta = String(alvo.titulo ?? '').trim();
+    const dataAta = dataDbBr(alvo.data);
 
     // Condomínio da ASSEMBLEIA, não o do corpo: um síndico com vínculo em A e
     // B finalizando a de B com id_condominio = A não achava as pautas (nenhuma
@@ -360,7 +383,7 @@ export class AssembleiasService {
         enviados.push(linkDoc);
       }
 
-      const nomeAta = `ATA ${assembleia.titulo} - ${assembleia.data}`.slice(0, 255);
+      const nomeAta = `ATA ${tituloAta}${dataAta ? ` - ${dataAta}` : ''}`.slice(0, 255);
 
       // O delete leva as pautas, as opções e os votos (cascade). A apuração de
       // cada pauta fica num arquivo de texto publicado junto da ATA (sem coluna
@@ -368,7 +391,7 @@ export class AssembleiasService {
       const { formatadas: pautas } = await this.consultarVotacoes(Number(assembleia.id), false, idCond);
       let linkApuracao: string | null = null;
       if (pautas.length > 0) {
-        const texto = textoApuracao(String(assembleia.titulo ?? ''), String(assembleia.data ?? ''), pautas);
+        const texto = textoApuracao(tituloAta, dataAta, pautas);
         // BOM: o navegador abre o .txt como UTF-8 (acentos).
         const dataUrl = `data:text/plain;base64,${Buffer.from(`\uFEFF${texto}`, 'utf8').toString('base64')}`;
         linkApuracao = (await this.storage.uploadDataUrl(dataUrl, 'atas')) ?? '';
@@ -507,8 +530,10 @@ export class AssembleiasService {
     if (!atual) throw new NotFoundException('Votação não encontrada');
     await this.tenant.assertEntidade(atual.id_condominio, requester, `votação #${id}`);
 
-    const ontem = new Date();
-    ontem.setDate(ontem.getDate() - 1);
+    // Ontem no calendário de Brasília, em meia-noite UTC (@db.Date): com o
+    // relógio UTC do servidor, depois das 21h "ontem" já era hoje em Brasília
+    // e calcStatusInt mantinha a enquete aberta até a meia-noite.
+    const ontem = new Date(hojeBrasilia().getTime() - 86_400_000);
 
     await this.prisma.votacoes.update({
       where: { id: Number(id) },

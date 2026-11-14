@@ -205,7 +205,43 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
 
   it('nome longo não estoura a coluna (VarChar 255)', async () => {
     const { service, prisma } = build();
-    await service.finish(1, { ...assembleia(PDF), titulo: 'A'.repeat(300) }, sindico);
+    prisma.assembleias.findUnique.mockResolvedValue({
+      id_condominio: 1, titulo: 'A'.repeat(300), data: new Date('2026-11-10T00:00:00Z'),
+    });
+    await service.finish(1, assembleia(PDF), sindico);
     for (const c of prisma.documentos.create.mock.calls) expect(c[0].data.nome.length).toBeLessThanOrEqual(255);
+  });
+
+  it('título e data da ATA vêm do banco, não do corpo', async () => {
+    const { service, prisma, storage } = build();
+    await service.finish(1, { id: 2, titulo: 'Qualquer coisa', data: '01/01/1999', doc: PDF }, sindico);
+    const docs = prisma.documentos.create.mock.calls.map((c: any) => c[0].data.nome);
+    expect(docs).toEqual(['ATA AGO 2026 - 10/11/2026', 'Apuração das pautas - ATA AGO 2026 - 10/11/2026']);
+    const texto = Buffer.from(storage.uploadDataUrl.mock.calls[1][0].split('base64,')[1], 'base64').toString('utf8');
+    expect(texto).toContain('AGO 2026 (10/11/2026)');
+    expect(texto).not.toContain('Qualquer coisa');
+  });
+
+  it('assembleia sem data no banco: nome sem o " - " solto', async () => {
+    const { service, prisma } = build({ pautas: [] });
+    prisma.assembleias.findUnique.mockResolvedValue({ id_condominio: 1, titulo: 'AGE', data: null });
+    await service.finish(1, assembleia(PDF), sindico);
+    expect(prisma.documentos.create.mock.calls[0][0].data.nome).toBe('ATA AGE');
+  });
+
+  it.each([
+    'https://bucket.s3.amazonaws.com/assembleias/1-foto.png',
+    'https://bucket.s3.amazonaws.com/assembleias/1-planilha.xlsx?X-Amz-Signature=abc',
+  ])('anexo que não é PDF (%s) como ATA: 400 e a assembleia fica', async (url) => {
+    const { service, prisma } = build();
+    await expect(service.finish(1, assembleia(url), sindico)).rejects.toThrow('Anexe o PDF da ATA.');
+    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+  });
+
+  it('anexo PDF com URL assinada (query) é aceito como ATA', async () => {
+    const { service, prisma } = build({ pautas: [] });
+    const url = 'https://bucket.s3.amazonaws.com/assembleias/1-edital.PDF?X-Amz-Signature=abc';
+    await service.finish(1, assembleia(url), sindico);
+    expect(prisma.documentos.create.mock.calls[0][0].data.link_doc).toBe(url);
   });
 });
