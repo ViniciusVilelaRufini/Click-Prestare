@@ -90,6 +90,19 @@ describe('CardAoVivoService — delivery', () => {
     expect(corpo.aps.alert).toBeUndefined();
   });
 
+  it('"vou buscar" do próprio morador leva o card a retirar sem tocar; pela portaria, toca', async () => {
+    const meu = await abertoEConfirmado();
+    await meu.svc.atualizarDelivery({ ...a, status: 'RETIRADA_NA_PORTARIA' }, 1, { voceRespondeu: true });
+    let corpo = ultimoApns(meu.apns);
+    expect(corpo.aps['content-state'].fase).toBe('retirar');
+    expect(corpo.aps.alert).toBeUndefined();
+
+    const portaria = await abertoEConfirmado();
+    await portaria.svc.atualizarDelivery({ ...a, status: 'RETIRADA_NA_PORTARIA' }, 1, { voceRespondeu: false });
+    corpo = ultimoApns(portaria.apns);
+    expect(corpo.aps.alert.title).toBe('Retire na portaria');
+  });
+
   it('entregue fica 5 min; recusado 2 min; cancelado some na hora', async () => {
     const entregue = await abertoEConfirmado();
     entregue.avancar(60_000);

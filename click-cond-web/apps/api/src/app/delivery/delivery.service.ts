@@ -53,10 +53,67 @@ const DIA_MS = 86_400_000;
 export const TERMINAIS_NA_FILA_MS = 2 * 3_600_000;
 /** Quanto a resposta do PATCH espera pelo aviso ao morador (card + notificação). */
 export const TETO_AVISO_MS = 2_000;
+/** Estados em que a chegada pelo portão reaproveita o atendimento aberto da unidade. */
+const REAPROVEITA_NA_CHEGADA: readonly DeliveryStatus[] = ['AGENDADA', 'CHEGOU', 'AGUARDANDO_AUTORIZACAO'];
+/** Transições que só o sistema faz (rotina do autoatendimento): ninguém responde, ele cancela. */
+const TRANSICOES_DO_SISTEMA: Partial<Record<DeliveryStatus, readonly DeliveryStatus[]>> = {
+  CHEGOU: ['CANCELADA'],
+  AGUARDANDO_AUTORIZACAO: ['CANCELADA'],
+};
+const AUTOR_AUTOATENDIMENTO = 'Autoatendimento';
+const AUTOR_SISTEMA = 'Sistema';
+
+/** O pedido de portão mais recente do atendimento, nas listas (sem ids). */
+const PEDIDO_PORTAO_NA_LISTA = {
+  orderBy: [{ criado_em: 'desc' }, { id: 'desc' }],
+  take: 1,
+  select: {
+    nome: true,
+    plataforma: true,
+    foto: true,
+    status: true,
+    aberto_em: true,
+    saida_aberta_em: true,
+    device: { select: { nome: true } },
+  },
+} as const;
+
+/** `foto` sai sob a chave que o ArquivosPrivadosInterceptor assina. */
+function pedidoNaLista(pedidos: any[] | undefined) {
+  const p = pedidos?.[0];
+  if (!p) return null;
+  return {
+    nome: p.nome,
+    plataforma: p.plataforma ?? null,
+    foto: p.foto ?? null,
+    status: p.status,
+    portao: p.device?.nome ?? null,
+    aberto_em: p.aberto_em ?? null,
+    saida_aberta_em: p.saida_aberta_em ?? null,
+  };
+}
+
+/**
+ * Avisado depois de toda mudança de status gravada (autoatendimento no
+ * portão: libera, recusa ou abre o pedido). Implementado pelo
+ * DeliveryPortaoService, que se registra; a dependência é de mão única.
+ */
+export interface GanchoPortao {
+  /** Chamado depois de toda mudança de status gravada. Nunca deve lançar. */
+  aoMudarStatus(
+    atendimento: { id: number; origem: string; id_pedido_portao: number | null },
+    statusNovo: DeliveryStatus,
+    quem: { idUser: number | null; operador: boolean; sistema: boolean },
+  ): Promise<void>;
+}
+
+/** Autor do evento: o usuário do token, ou o sistema (sem usuário). */
+type AutorEvento = JwtPayload | { sistema: string };
 
 @Injectable()
 export class DeliveryService {
   private readonly logger = new Logger(DeliveryService.name);
+  private ganchoPortao?: GanchoPortao;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -216,16 +273,18 @@ export class DeliveryService {
       } else if (filtro.escopo !== undefined && filtro.escopo !== '') {
         throw new BadRequestException('escopo deve ser "ativos" ou "historico".');
       }
-      return (this.prisma as any).deliveryAtendimentos.findMany({
+      const linhas = await (this.prisma as any).deliveryAtendimentos.findMany({
         where,
         include: {
           apartamento: { select: { id: true, bloco: true, apto: true } },
           entregador: { include: { veiculos: true } },
           eventos: { orderBy: { created_at: 'asc' } },
+          pedidosPortao: PEDIDO_PORTAO_NA_LISTA,
         },
         orderBy: { created_at: 'desc' },
         ...(take ? { take } : {}),
       });
+      return (linhas as any[]).map(({ pedidosPortao, ...a }) => ({ ...a, pedido_portao: pedidoNaLista(pedidosPortao) }));
     }
     const lista = await (this.prisma as any).deliveryAtendimentos.findMany({
       where,
@@ -245,6 +304,7 @@ export class DeliveryService {
         cancelado_em: true,
         recusado_em: true,
         motivo: true,
+        origem: true,
         created_at: true,
         updated_at: true,
         apartamento: { select: { bloco: true, apto: true } },
@@ -253,11 +313,16 @@ export class DeliveryService {
           select: { status_novo: true, mensagem: true, created_at: true },
           orderBy: { created_at: 'asc' },
         },
+        pedidosPortao: PEDIDO_PORTAO_NA_LISTA,
       },
       orderBy: { created_at: 'desc' },
     });
-    // `proprio`: este morador criou o aviso (só ele cancela). O id de quem criou não sai.
-    return (lista as any[]).map(({ id_morador_user, ...a }) => ({ ...a, proprio: id_morador_user === idMorador }));
+    // `proprio`: este morador criou o aviso (só ele cancela; sem dono, ninguém). O id de quem criou não sai.
+    return (lista as any[]).map(({ id_morador_user, pedidosPortao, ...a }) => ({
+      ...a,
+      pedido_portao: pedidoNaLista(pedidosPortao),
+      proprio: id_morador_user != null && id_morador_user === idMorador,
+    }));
   }
 
   async atualizarStatus(id: number, dto: AtualizarStatusDeliveryDto, user: JwtPayload) {
@@ -278,13 +343,19 @@ export class DeliveryService {
     }
     // Quem abriu o aviso ou outro morador com vínculo na unidade responde ao
     // pedido de autorização da portaria (autorizar ou recusar). Qualquer
-    // outra mudança é da portaria.
+    // outra mudança é da portaria. Pedido do entregador no portão ainda
+    // pendente: o morador também pode responder "vou buscar".
+    const pedido = await this.pedidoAtivo(atendimento.id_pedido_portao);
+    const respostasDoMorador: DeliveryStatus[] =
+      pedido?.status === 'pendente' ? ['AUTORIZADA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'] : ['AUTORIZADA', 'RECUSADA'];
     const respostaDoMorador =
       !isOperador(user) &&
       statusAtual === 'AGUARDANDO_AUTORIZACAO' &&
-      ['AUTORIZADA', 'RECUSADA'].includes(statusNovo) &&
+      respostasDoMorador.includes(statusNovo) &&
       (atendimento.id_morador_user === this.idUsuario(user) ||
         (await this.temVinculoNaUnidade(atendimento.id_apartamento, this.idUsuario(user))));
+    // Atendimento do autoatendimento sem dono: quem responde primeiro vira o dono.
+    const semDono = atendimento.id_morador_user == null;
     if (statusNovo !== 'CANCELADA' && !isOperador(user) && !respostaDoMorador) {
       throw new ForbiddenException('Apenas a portaria pode atualizar este atendimento.');
     }
@@ -295,8 +366,9 @@ export class DeliveryService {
     const idEntregador = dto.id_entregador === undefined ? atendimento.id_entregador : Number(dto.id_entregador);
     if (dto.id_entregador !== undefined) await this.assertEntregadorDoCondominio(idEntregador, atendimento.id_condominio);
     // A autorização do próprio morador vale mesmo antes de a portaria
-    // identificar o entregador; a da portaria continua exigindo.
-    if (statusNovo === 'AUTORIZADA' && !idEntregador && !respostaDoMorador) {
+    // identificar o entregador; a da portaria continua exigindo, menos no
+    // autoatendimento (nome e selfie vêm do pedido do portão).
+    if (statusNovo === 'AUTORIZADA' && !idEntregador && !respostaDoMorador && atendimento.origem !== 'autoatendimento') {
       throw new BadRequestException('Identifique o entregador antes de autorizar o atendimento.');
     }
     if (statusNovo === 'AUTORIZADA' && idEntregador) {
@@ -316,6 +388,7 @@ export class DeliveryService {
       ...(statusNovo === 'CONCLUIDA' && { concluido_em: agora }),
       ...(statusNovo === 'CANCELADA' && { cancelado_em: agora }),
       ...(statusNovo === 'RECUSADA' && { recusado_em: agora }),
+      ...(respostaDoMorador && semDono && { id_morador_user: this.idUsuario(user) }),
     };
     const atualizado = await (this.prisma as any).$transaction(async (tx: any) => {
       const alteracao = await tx.deliveryAtendimentos.updateMany({
@@ -337,22 +410,28 @@ export class DeliveryService {
     // clique do porteiro e o botão do card do morador não podem ficar presos
     // em foto/APNs lentos. Passado o teto, ele segue em segundo plano.
     // Outro morador da unidade respondeu: quem criou o aviso precisa saber quem foi.
-    const respondeuOProprioCriador = !isOperador(user) && atendimento.id_morador_user === this.idUsuario(user);
+    // Sem dono, quem respondeu acabou de virar o dono: não há a quem contar.
+    const respondeuOProprioCriador =
+      !isOperador(user) && (semDono || atendimento.id_morador_user === this.idUsuario(user));
     const outroRespondeu = respostaDoMorador && !respondeuOProprioCriador
       ? (user.nome ?? user.user?.name ?? '').toString().trim() || 'Outro morador da unidade'
       : null;
-    const aviso = this.avisarMorador(atualizado, statusNovo, !isOperador(user), respostaDoMorador, dto.motivo, outroRespondeu).catch((e: any) =>
-      this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`),
-    );
-    let teto: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      aviso,
-      new Promise<void>((r) => {
-        teto = setTimeout(r, TETO_AVISO_MS);
-        (teto as any)?.unref?.();
-      }),
-    ]);
-    if (teto) clearTimeout(teto);
+    // Portão: libera, abre ou avisa a página do entregador (antes do aviso ao morador).
+    const gancho = this.chamarGancho(atualizado, statusNovo, {
+      idUser: idUsuarioDoToken(user),
+      operador: isOperador(user),
+      sistema: false,
+    });
+    const aviso = (async () => {
+      // O card dos outros moradores fecha antes de o do novo dono mudar de fase.
+      if (respostaDoMorador && semDono && this.cardAoVivo) {
+        await this.cardAoVivo.encerrarDeOutros('delivery', atualizado.id, this.idUsuario(user)).catch((e: any) =>
+          this.logger.warn(`Card ao vivo do delivery ${atualizado.id} (outros moradores): ${e?.message ?? e}`),
+        );
+      }
+      await this.avisarMorador(atualizado, statusNovo, !isOperador(user), respostaDoMorador, dto.motivo, outroRespondeu);
+    })().catch((e: any) => this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`));
+    await this.comTeto(Promise.all([gancho, aviso]));
     if (!isOperador(user)) return this.paraMorador(atualizado);
     // Pedido de autorização: a portaria precisa saber se alguém pode receber
     // (com 0, a tela manda interfonar em vez de esperar sem prazo).
@@ -361,6 +440,196 @@ export class DeliveryService {
       if (avisados !== null) return { ...atualizado, avisados };
     }
     return atualizado;
+  }
+
+  // ─────────────────────────── autoatendimento no portão
+
+  registrarGanchoPortao(g: GanchoPortao): void {
+    this.ganchoPortao = g;
+  }
+
+  /**
+   * Entregador pediu entrada pelo QR do portão. Reaproveita o atendimento
+   * mais recente da unidade em AGENDADA, CHEGOU ou AGUARDANDO_AUTORIZACAO
+   * (inclusive um que a portaria já registrou); senão cria um de origem
+   * 'autoatendimento', sem dono. Em qualquer caso deixa o atendimento em
+   * AGUARDANDO_AUTORIZACAO. Não avisa ninguém: `vincularPedidoPortao` abre o
+   * card, uma vez, já com o pedido (selfie) ligado.
+   */
+  async registrarChegadaAutoatendimento(d: {
+    idCondominio: number;
+    idApartamento: number;
+    nomeEntregador: string;
+    plataforma: string | null;
+  }): Promise<{ id: number; criado: boolean }> {
+    const db = (this.prisma as any).deliveryAtendimentos;
+    const nome = d.nomeEntregador.trim() || null;
+    // Corrida com a portaria/morador mudando o mesmo atendimento: relê e tenta de novo.
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      const aberto = await db.findFirst({
+        where: { id_condominio: d.idCondominio, id_apartamento: d.idApartamento, status: { in: [...REAPROVEITA_NA_CHEGADA] } },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      });
+      if (!aberto) break;
+      const atual = aberto.status as DeliveryStatus;
+      if (atual === 'AGUARDANDO_AUTORIZACAO') {
+        if (!aberto.nome_entregador && nome) {
+          await db.updateMany({ where: { id: aberto.id, nome_entregador: null }, data: { nome_entregador: nome } });
+        }
+        return { id: aberto.id, criado: false };
+      }
+      const agora = new Date();
+      const gravou = await (this.prisma as any).$transaction(async (tx: any) => {
+        const r = await tx.deliveryAtendimentos.updateMany({
+          where: { id: aberto.id, status: atual },
+          data: {
+            status: 'AGUARDANDO_AUTORIZACAO',
+            ...(atual === 'AGENDADA' || !aberto.chegou_em ? { chegou_em: agora } : {}),
+            ...(!aberto.nome_entregador && nome ? { nome_entregador: nome } : {}),
+          },
+        });
+        if (r.count !== 1) return false;
+        const autor = { sistema: AUTOR_AUTOATENDIMENTO };
+        if (atual === 'AGENDADA') await this.registrarEvento(tx, aberto.id, 'AGENDADA', 'CHEGOU', autor);
+        await this.registrarEvento(tx, aberto.id, 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', autor);
+        return true;
+      });
+      if (gravou) return { id: aberto.id, criado: false };
+    }
+
+    const criado = await (this.prisma as any).$transaction(async (tx: any) => {
+      const a = await tx.deliveryAtendimentos.create({
+        data: {
+          id_condominio: d.idCondominio,
+          id_apartamento: d.idApartamento,
+          id_morador_user: null,
+          origem: 'autoatendimento',
+          estabelecimento: d.plataforma?.trim() || null,
+          nome_entregador: nome,
+          modo_entrega: 'UNIDADE',
+          status: 'AGUARDANDO_AUTORIZACAO',
+          chegou_em: new Date(),
+        },
+      });
+      const autor = { sistema: AUTOR_AUTOATENDIMENTO };
+      await this.registrarEvento(tx, a.id, null, 'CHEGOU', autor);
+      await this.registrarEvento(tx, a.id, 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', autor);
+      return a;
+    });
+    return { id: criado.id, criado: true };
+  }
+
+  /**
+   * Grava o pedido de portão ativo e abre o card, uma vez, já na fase de
+   * autorização (com a selfie). Sem dono: todos os vínculos da unidade. Com
+   * dono (aviso do morador): o card vai a ele e os outros moradores recebem
+   * a notificação comum, como no pedido feito pela portaria. O aviso espera
+   * no máximo TETO_AVISO_MS (a página do entregador não fica presa no APNs).
+   */
+  async vincularPedidoPortao(idAtendimento: number, idPedido: number): Promise<void> {
+    const registro = await (this.prisma as any).deliveryAtendimentos.update({
+      where: { id: Number(idAtendimento) },
+      data: { id_pedido_portao: Number(idPedido) },
+    });
+    const aviso = (async () => {
+      const dono: number | null = registro.id_morador_user ?? null;
+      let viaCard = false;
+      if (this.cardAoVivo) {
+        try {
+          const destinos = dono ? [dono] : await this.vinculosDaUnidade(registro.id_apartamento);
+          await this.cardAoVivo.abrirDelivery(await this.atendimentoParaCard(registro.id), destinos);
+          viaCard = true;
+        } catch (e: any) {
+          this.logger.warn(`Card ao vivo do delivery ${registro.id} (portão): ${e?.message ?? e}`);
+        }
+      }
+      if (!viaCard) await this.notificarMorador(registro.id_apartamento, dono, 'AGUARDANDO_AUTORIZACAO', registro.id);
+      if (dono) await this.notificarOutrosDaUnidade(registro.id_apartamento, dono, registro.id);
+    })().catch((e: any) => this.logger.warn(`Aviso do delivery ${registro.id} (portão): ${e?.message ?? e}`));
+    await this.comTeto(aviso);
+  }
+
+  /**
+   * Transição feita pelo sistema (autor "Sistema"): as de TRANSICOES e, só
+   * aqui, CHEGOU/AGUARDANDO_AUTORIZACAO → CANCELADA. CANCELADA usa a
+   * `mensagem` como motivo. Devolve false quando o status já tinha mudado
+   * (ou a transição não existe). O card acompanha; cancelamento pelo sistema
+   * não manda a notificação comum ("cancelado pela portaria" seria falso).
+   */
+  async transicionarPeloSistema(idAtendimento: number, statusNovo: DeliveryStatus, mensagem: string): Promise<boolean> {
+    const atendimento = await (this.prisma as any).deliveryAtendimentos.findUnique({ where: { id: Number(idAtendimento) } });
+    if (!atendimento) return false;
+    const statusAtual = atendimento.status as DeliveryStatus;
+    const permitida =
+      TRANSICOES[statusAtual]?.includes(statusNovo) || TRANSICOES_DO_SISTEMA[statusAtual]?.includes(statusNovo);
+    if (!permitida) return false;
+    const agora = new Date();
+    const data: any = {
+      status: statusNovo,
+      ...(statusNovo === 'CANCELADA' && { motivo: mensagem, cancelado_em: agora }),
+      ...(statusNovo === 'CONCLUIDA' && { concluido_em: agora }),
+      ...(statusNovo === 'AUTORIZADA' && { autorizado_em: agora }),
+      ...(statusNovo === 'RECUSADA' && { motivo: mensagem, recusado_em: agora }),
+    };
+    const atualizado = await (this.prisma as any).$transaction(async (tx: any) => {
+      const r = await tx.deliveryAtendimentos.updateMany({ where: { id: atendimento.id, status: statusAtual }, data });
+      if (r.count !== 1) return null;
+      await this.registrarEvento(tx, atendimento.id, statusAtual, statusNovo, { sistema: AUTOR_SISTEMA }, mensagem);
+      return tx.deliveryAtendimentos.findUnique({ where: { id: atendimento.id } });
+    });
+    if (!atualizado) return false;
+    const gancho = this.chamarGancho(atualizado, statusNovo, { idUser: null, operador: false, sistema: true });
+    const aviso = this.avisarMorador(atualizado, statusNovo, false, false, data.motivo, null, {
+      semNotificacaoComum: statusNovo === 'CANCELADA',
+    }).catch((e: any) => this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`));
+    await this.comTeto(Promise.all([gancho, aviso]));
+    return true;
+  }
+
+  /** Chama o gancho do portão, se houver; nunca rejeita. */
+  private async chamarGancho(
+    registro: any,
+    statusNovo: DeliveryStatus,
+    quem: { idUser: number | null; operador: boolean; sistema: boolean },
+  ): Promise<void> {
+    if (!this.ganchoPortao) return;
+    try {
+      await this.ganchoPortao.aoMudarStatus(
+        { id: registro.id, origem: registro.origem ?? 'portaria', id_pedido_portao: registro.id_pedido_portao ?? null },
+        statusNovo,
+        quem,
+      );
+    } catch (e: any) {
+      this.logger.warn(`Gancho do portão no delivery ${registro.id}: ${e?.message ?? e}`);
+    }
+  }
+
+  /** Espera `p` no máximo TETO_AVISO_MS; passado o teto, ele segue em segundo plano. */
+  private async comTeto(p: Promise<unknown>): Promise<void> {
+    let teto: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      p,
+      new Promise<void>((r) => {
+        teto = setTimeout(r, TETO_AVISO_MS);
+        (teto as any)?.unref?.();
+      }),
+    ]);
+    if (teto) clearTimeout(teto);
+  }
+
+  /** Users.id de todos os vínculos do apartamento (qualquer tipo), sem repetir. */
+  private async vinculosDaUnidade(idApartamento: number): Promise<number[]> {
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_apto: idApartamento },
+      select: { id_user: true },
+    });
+    return [...new Set((vinculos as any[]).map((v) => v.id_user).filter((id) => !!id))];
+  }
+
+  /** Pedido de portão ativo do atendimento (ou null). */
+  private async pedidoAtivo(idPedido: number | null | undefined): Promise<any | null> {
+    if (!idPedido) return null;
+    return (this.prisma as any).deliveryPedidosPortao.findUnique({ where: { id: Number(idPedido) } });
   }
 
   /**
@@ -515,8 +784,19 @@ export class DeliveryService {
     return entregador;
   }
 
-  private async registrarEvento(db: any, idAtendimento: number, anterior: DeliveryStatus | null, novo: DeliveryStatus, user: JwtPayload, mensagem?: string) {
-    return db.deliveryEventos.create({ data: { id_atendimento: idAtendimento, status_anterior: anterior, status_novo: novo, id_usuario_autor: idUsuarioDoToken(user), autor_nome: user.nome ?? user.user?.name ?? null, mensagem: mensagem?.trim() || null } });
+  private async registrarEvento(db: any, idAtendimento: number, anterior: DeliveryStatus | null, novo: DeliveryStatus, autor: AutorEvento, mensagem?: string) {
+    const sistema = 'sistema' in autor ? autor.sistema : null;
+    const user = autor as JwtPayload;
+    return db.deliveryEventos.create({
+      data: {
+        id_atendimento: idAtendimento,
+        status_anterior: anterior,
+        status_novo: novo,
+        id_usuario_autor: sistema ? null : idUsuarioDoToken(user),
+        autor_nome: sistema ?? user.nome ?? user.user?.name ?? null,
+        mensagem: mensagem?.trim() || null,
+      },
+    });
   }
 
   /**
@@ -534,23 +814,28 @@ export class DeliveryService {
     motivo?: string,
     /** Nome do outro morador que respondeu ao pedido (null: foi o criador ou a portaria). */
     outroRespondeu: string | null = null,
+    opts: { semNotificacaoComum?: boolean } = {},
   ) {
     const notificavel =
+      !opts.semNotificacaoComum &&
       !respostaDoMorador &&
       (['CHEGOU', 'AGUARDANDO_AUTORIZACAO', 'AUTORIZADA', 'CONCLUIDA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'].includes(statusNovo) ||
         // Cancelamento pela portaria; o do próprio morador não volta a ele.
         (statusNovo === 'CANCELADA' && !acaoDoMorador));
+    // Sem dono (autoatendimento do portão): o card acompanha em todos os vínculos.
+    const dono: number | null = registro.id_morador_user ?? null;
     let cobertos = new Set<string>();
     let viaCard = false;
     if (this.cardAoVivo) {
       try {
         const atendimento = await this.atendimentoParaCard(registro.id);
+        const destinos = dono ?? (await this.vinculosDaUnidade(registro.id_apartamento));
         if (statusNovo === 'CHEGOU') {
-          await this.cardAoVivo.abrirDelivery(atendimento, registro.id_morador_user);
+          await this.cardAoVivo.abrirDelivery(atendimento, destinos);
           viaCard = true;
         } else {
           // "Você" no card vale pela unidade: outro morador respondendo também conta.
-          const r = await this.cardAoVivo.atualizarDelivery(atendimento, registro.id_morador_user, {
+          const r = await this.cardAoVivo.atualizarDelivery(atendimento, destinos, {
             voceRespondeu: acaoDoMorador,
           });
           cobertos = r.cobertos;
@@ -562,22 +847,25 @@ export class DeliveryService {
       }
     }
     // Pedido de autorização: os outros moradores da unidade também podem responder.
-    if (statusNovo === 'AGUARDANDO_AUTORIZACAO') {
-      await this.notificarOutrosDaUnidade(registro.id_apartamento, registro.id_morador_user, registro.id).catch((e: any) =>
+    // Sem dono, todos já foram avisados acima.
+    if (statusNovo === 'AGUARDANDO_AUTORIZACAO' && dono) {
+      await this.notificarOutrosDaUnidade(registro.id_apartamento, dono, registro.id).catch((e: any) =>
         this.logger.warn(`Aviso do delivery ${registro.id} aos outros moradores: ${e?.message ?? e}`),
       );
     }
     // Resposta de outro morador: quem criou recebe a notificação dizendo quem
     // respondeu, mesmo com card (o card só diz "Você", pela unidade).
-    if (outroRespondeu) {
+    if (outroRespondeu && dono) {
       const texto = statusNovo === 'AUTORIZADA'
         ? `${outroRespondeu} autorizou a subida do entregador.`
-        : `${outroRespondeu} recusou a entrega.`;
-      await this.notificarMorador(registro.id_apartamento, registro.id_morador_user, statusNovo, registro.id, motivo, new Set(), texto);
+        : statusNovo === 'RETIRADA_NA_PORTARIA'
+          ? `${outroRespondeu} vai buscar a entrega na portaria.`
+          : `${outroRespondeu} recusou a entrega.`;
+      await this.notificarMorador(registro.id_apartamento, dono, statusNovo, registro.id, motivo, new Set(), texto);
       return;
     }
     if (!notificavel || viaCard) return;
-    await this.notificarMorador(registro.id_apartamento, registro.id_morador_user, statusNovo, registro.id, motivo, cobertos);
+    await this.notificarMorador(registro.id_apartamento, dono, statusNovo, registro.id, motivo, cobertos);
   }
 
   /** O atendimento no formato do card (unidade e entregador com a foto). */
@@ -589,6 +877,26 @@ export class DeliveryService {
         entregador: { select: { nome: true, plataforma: true, foto: true } },
       },
     });
+    // Pedido do entregador no portão: nome, plataforma e selfie vêm dele.
+    const pedido = await this.pedidoAtivo(a.id_pedido_portao);
+    if (pedido) {
+      return {
+        id: a.id,
+        status: a.status,
+        estabelecimento: a.estabelecimento ?? null,
+        chegou_em: a.chegou_em ?? null,
+        autorizado_em: a.autorizado_em ?? null,
+        recusado_em: a.recusado_em ?? null,
+        concluido_em: a.concluido_em ?? null,
+        motivo: a.motivo ?? null,
+        bloco: a.apartamento?.bloco ?? null,
+        apto: a.apartamento?.apto ?? null,
+        entregadorNome: pedido.nome ?? null,
+        entregadorPlataforma: pedido.plataforma ?? null,
+        fotoEntregador: pedido.foto ?? null,
+        portao: pedido.status === 'pendente',
+      };
+    }
     return {
       id: a.id,
       status: a.status,
@@ -609,13 +917,26 @@ export class DeliveryService {
   /** A notificação de hoje; não vai ao aparelho que já acompanha pelo card (`cobertos`). */
   private async notificarMorador(
     idApartamento: number,
-    idMorador: number,
+    /** null = atendimento sem dono (autoatendimento): todos os vínculos da unidade. */
+    idMorador: number | null,
     status: DeliveryStatus,
     idAtendimento: number,
     motivo?: string,
     cobertos: Set<string> = new Set(),
     texto?: string,
   ) {
+    if (idMorador == null) {
+      const vinculos = await this.prisma.apartamentos_Users.findMany({
+        where: { id_apto: idApartamento },
+        select: { id_user: true, user: { select: { fcm_token: true } } },
+      });
+      const tokens = new Set<string>();
+      for (const v of vinculos as any[]) if (v.user?.fcm_token && !cobertos.has(v.user.fcm_token)) tokens.add(v.user.fcm_token);
+      for (const token of tokens) {
+        await this.notifications.sendPushNotification(token, 'Delivery', texto ?? mensagemDelivery(status, motivo), { id_delivery: String(idAtendimento), status });
+      }
+      return;
+    }
     const vinculo = await this.prisma.apartamentos_Users.findFirst({ where: { id_apto: idApartamento, id_user: idMorador }, include: { user: { select: { fcm_token: true } } } });
     const token = vinculo?.user?.fcm_token ?? '';
     if (token && cobertos.has(token)) return;
@@ -662,6 +983,7 @@ export class DeliveryService {
       id_apartamento: _idApartamento,
       id_morador_user: _idMorador,
       id_entregador: _idEntregador,
+      id_pedido_portao: _idPedidoPortao,
       ...seguro
     } = atendimento;
     return seguro;
