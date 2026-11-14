@@ -134,6 +134,26 @@ describe('PrestadoresPageComponent — acesso à portaria só para o síndico', 
     expect((api.update.mock.calls[0] as any[])[1]).toEqual(expect.objectContaining({ email: 'novo@x.com', senha: 'Nova#123' }));
   });
 
+  // Mudar o e-mail e DESLIGAR a chave é revogação (a API não pede senha); o campo de senha some com a chave.
+  it('síndico muda o e-mail e desliga a chave: não pede senha e envia', () => {
+    const { cmp, api } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar(comLogin as any);
+    cmp.novo.email = 'novo@x.com';
+    cmp.novo.hasPortariaAccess = false;
+    cmp.salvar();
+    expect(api.update).toHaveBeenCalled();
+    expect(cmp.error()).toBeNull();
+  });
+
+  // Login de outra pessoa da equipe (turno diferente de 'Geral'): não é o login do prestador; a API não pede senha.
+  it('login que não é próprio do prestador: trocar o e-mail não pede senha', () => {
+    const { cmp, api } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar({ ...comLogin, loginPortariaProprio: false } as any);
+    cmp.novo.email = 'novo@x.com';
+    cmp.salvar();
+    expect(api.update).toHaveBeenCalled();
+  });
+
   it('síndico edita quem tem login sem trocar o e-mail: senha em branco continua valendo', () => {
     const { cmp, api } = render(SINDICO, 'Síndico');
     cmp.abrirEditar(comLogin as any);

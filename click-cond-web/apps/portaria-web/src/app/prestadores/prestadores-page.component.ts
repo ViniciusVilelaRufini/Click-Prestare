@@ -483,9 +483,14 @@ export class PrestadoresPageComponent implements OnInit {
     });
   }
 
-  /** Editando quem tem login, o e-mail de acesso mudou: a credencial muda junto, então a senha é obrigatória. */
+  /**
+   * Editando quem tem login PRÓPRIO (loginPortariaProprio: turno 'Geral', como na API), com a chave ligada, o
+   * e-mail de acesso mudou: a credencial muda junto, então a senha é obrigatória. Com a chave desligada é
+   * revogação — a API não pede senha, e o campo nem aparece.
+   */
   trocaEmailDeAcesso(): boolean {
     if (this.editingId === null || this.emailDeAcessoOriginal === null || !this.podeGerenciarAcesso()) return false;
+    if (!this.novo.hasPortariaAccess) return false;
     const atual = (this.novo.email ?? '').trim().toLowerCase();
     return !!atual && atual !== this.emailDeAcessoOriginal.toLowerCase();
   }
