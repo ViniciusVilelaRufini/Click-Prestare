@@ -4,7 +4,8 @@
 
 SET @cred_schema = DATABASE();
 
--- Opção por condomínio "QR no app", desligada por padrão.
+-- Opção por condomínio "QR no app", desligada por padrão. Sem AFTER <coluna>:
+-- o ALTER não depende de outra coluna existir neste banco.
 SET @cred_sql = IF(
   EXISTS (
     SELECT 1 FROM information_schema.COLUMNS
@@ -13,7 +14,7 @@ SET @cred_sql = IF(
       AND COLUMN_NAME = 'qr_app_habilitado'
   ),
   'SELECT 1',
-  'ALTER TABLE Condominios ADD COLUMN qr_app_habilitado TINYINT(1) NOT NULL DEFAULT 0 AFTER dias_atraso_aviso_3'
+  'ALTER TABLE Condominios ADD COLUMN qr_app_habilitado TINYINT(1) NOT NULL DEFAULT 0'
 );
 PREPARE cred_stmt FROM @cred_sql;
 EXECUTE cred_stmt;
