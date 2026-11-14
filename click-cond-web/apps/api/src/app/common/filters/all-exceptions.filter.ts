@@ -95,8 +95,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode: httpStatus,
       timestamp: new Date().toISOString(),
       // Sem a query string: ela pode trazer token (?token=<jwt>) e iria para
-      // o corpo da resposta e para o log (pentest P-08).
-      path: String(httpAdapter.getRequestUrl(request) ?? '').split('?')[0],
+      // o corpo da resposta e para o log (pentest P-08). O token do passe do
+      // visitante viaja no caminho e vale enquanto o link não é invalidado:
+      // também não vai para o log.
+      path: String(httpAdapter.getRequestUrl(request) ?? '')
+        .split('?')[0]
+        .replace(/(\/passes\/publico\/)[^/]+/, '$1:token'),
       message,
     };
 

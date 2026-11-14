@@ -528,6 +528,51 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Dados da visita para a credencial dinâmica (link do passe do visitante).
+   *
+   * Quem pode é decidido pelas mesmas travas das outras ações sobre a visita:
+   * `assertPodeAcessarVisita` com a migração ligada (`id` de `Visitas`) e
+   * `assertPodeAcessarVisitante` desligada (`id` de `Visitantes`) — o mesmo
+   * `id` que a lista do app já usa. Sem payload é chamada interna: não cobra.
+   */
+  async referenciaParaCredencial(
+    id: number,
+    payload?: JwtPayload,
+  ): Promise<{
+    espaco: 'visita' | 'visitante';
+    id: number;
+    id_condominio: number;
+    nome: string;
+    codigo_acesso: string | null;
+    data_hora_inicio: Date | null;
+    data_hora_termino: Date | null;
+    bloco: string | null;
+    apto: string | null;
+  }> {
+    const migrado = pessoasMigrationEnabled(this.prisma);
+    const v: any = migrado
+      ? await this.assertPodeAcessarVisita(id, payload)
+      : await this.assertPodeAcessarVisitante(id, payload);
+    const apartamento = v.id_apartamento
+      ? await this.prisma.apartamentos.findUnique({
+          where: { id: Number(v.id_apartamento) },
+          select: { bloco: true, apto: true },
+        })
+      : null;
+    return {
+      espaco: migrado ? 'visita' : 'visitante',
+      id: v.id,
+      id_condominio: v.id_condominio,
+      nome: (migrado ? v.pessoa?.nome : v.nome) ?? '',
+      codigo_acesso: v.codigo_acesso ?? null,
+      data_hora_inicio: v.data_hora_inicio ?? null,
+      data_hora_termino: v.data_hora_termino ?? null,
+      bloco: apartamento?.bloco ?? null,
+      apto: apartamento?.apto ?? null,
+    };
+  }
+
+  /**
    * Valida que o usuário pode cadastrar/mover uma visita PARA este apartamento.
    *
    * O apto vem do corpo da requisição. Sem esta checagem, o morador cadastrava

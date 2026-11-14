@@ -39,6 +39,31 @@ describe('AllExceptionsFilter — body entregue na rede', () => {
     return { capturar, reply, response };
   }
 
+  it('o token do passe do visitante não vai para o log nem para o body', () => {
+    const token = '2s.AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCd';
+    const { capturar } = build({ url: `/api/passes/publico/${token}?x=1` });
+
+    const { body } = capturar(new NotFoundException('Passe indisponível.'));
+
+    expect(body.path).toBe('/api/passes/publico/:token');
+    expect(JSON.stringify(body)).not.toContain(token);
+  });
+
+  it('o token do passe também é mascarado na linha de log', () => {
+    const token = '2s.AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCd';
+    const reply = jest.fn();
+    const url = `/api/passes/publico/${token}`;
+    const filter = new AllExceptionsFilter({ httpAdapter: { reply, getRequestUrl: () => url } } as any);
+    const erro = jest.spyOn((filter as any).logger, 'error').mockImplementation(() => undefined);
+    const host: any = {
+      switchToHttp: () => ({ getRequest: () => ({ headers: {}, originalUrl: url }), getResponse: () => ({ setHeader: jest.fn() }) }),
+    };
+
+    filter.catch(new NotFoundException('Passe indisponível.'), host);
+
+    expect(JSON.stringify(erro.mock.calls)).not.toContain(token);
+  });
+
   it('payload de objeto: as chaves próprias sobrevivem ao lado de statusCode/timestamp/path', () => {
     const { capturar } = build();
     const conflitos = [

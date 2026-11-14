@@ -11,6 +11,7 @@ import { VisitantesModule } from './visitantes/visitantes.module';
 import { PessoasModule } from './pessoas/pessoas.module';
 import { VisitasModule } from './visitas/visitas.module';
 import { ConvitesModule } from './convites/convites.module';
+import { CredenciaisModule } from './credenciais/credenciais.module';
 import { ConsentimentosModule } from './consentimentos/consentimentos.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MoradoresModule } from './moradores/moradores.module';
@@ -64,6 +65,7 @@ import { THROTTLERS } from './common/throttle/throttlers';
     PessoasModule,
     VisitasModule,
     ConvitesModule,
+    CredenciaisModule,
     ConsentimentosModule,
     MoradoresModule,
     ApartamentosModule,
