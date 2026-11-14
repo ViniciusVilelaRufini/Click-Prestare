@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:click/pages/shared/assembleias/list_assembleias.dart';
 import 'package:click/pages/shared/enquetes/list_enquetes.dart';
+import 'package:click/pages/shared/meu_acesso/meu_acesso_page.dart';
 import 'package:click/pages/shared/my_condominium.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
@@ -150,5 +151,30 @@ void main() {
     expect(find.text('Assembleias'), findsNothing);
     expect(find.text('Enquetes'), findsNothing);
     expect(find.text('Assembleias e Votações'), findsNothing);
+    expect(find.text('Meu acesso'), findsNothing);
+  });
+
+  testWidgets('morador vê "Meu acesso" no menu e ele abre a tela', (tester) async {
+    storageMorador({'token': 't', 'user': {'id': 4, 'name': 'Mora'}});
+    await abrir(tester);
+    final item = find.text('Meu acesso');
+    await rolarAte(tester, item);
+    expect(item, findsOneWidget);
+    await tester.tap(item);
+    // Sem pumpAndSettle: a tela tem indicador de progresso e relógio de 1 s.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(MeuAcessoPage), findsOneWidget);
+    tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(MeuAcessoPage), findsNothing);
+  });
+
+  testWidgets('síndico não vê "Meu acesso"', (tester) async {
+    storageLogin({'token': 't', 'user': {'id': 2, 'name': 'Sid'}});
+    await abrir(tester);
+    expect(find.text('Comunicados'), findsOneWidget, reason: 'o menu foi montado');
+    expect(find.text('Meu acesso'), findsNothing);
   });
 }

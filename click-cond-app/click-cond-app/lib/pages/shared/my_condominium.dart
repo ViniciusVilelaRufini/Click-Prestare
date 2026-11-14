@@ -20,6 +20,7 @@ import 'package:click/pages/shared/morador/my_apartamento_view.dart';
 import 'package:click/pages/sindico/link_self_morador_sheet.dart';
 import 'package:click/pages/shared/mudancas/list_mudancas.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
+import 'package:click/pages/shared/meu_acesso/meu_acesso_page.dart';
 import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
 import 'package:click/pages/sindico/relatorios_page.dart';
 import 'package:click/controllers/controller_visitantes.dart';
@@ -182,6 +183,9 @@ class _MyCondominiumState extends State<MyCondominium> {
       _MenuItem('Eventos de Acesso', PhosphorIcons.clockCounterClockwise, const HistoricoAcessosPage(), asset: 'assets/images/modulos/eventos_acesso.png'),
       _MenuItem(getText('lb_agendar_mudanca'), PhosphorIcons.truck, ListMudancas(), asset: 'assets/images/modulos/mudanca.png'),
       _MenuItem(getText('lb_cadastrar_visitante'), PhosphorIcons.userPlus, ListVisitantes(), asset: 'assets/images/modulos/visitante.png'),
+      // QR dinâmico do portão. Aparece sempre para o morador; a tela explica
+      // quando o condomínio não usa (sem chamada a mais ao abrir o menu).
+      if (getUserType() == 'morador') _MenuItem('Meu acesso', PhosphorIcons.qrCode, const MeuAcessoPage()),
       // Morador vê apenas o próprio apartamento ("Meu Apartamento"); síndico/funcionário
       // continuam com a lista de blocos/apartamentos do condomínio.
       getUserType() == 'morador'
