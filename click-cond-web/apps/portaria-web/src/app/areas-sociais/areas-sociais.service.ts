@@ -19,6 +19,8 @@ export interface AreaSocial {
   tem_monitoramento?: boolean;
   ocupacao?: number;
   regras?: string | null;
+  /** 1 = a reserva aprovada é cancelada se o morador não confirmar presença até o início. */
+  exige_confirmacao?: number;
 }
 
 export interface AgendamentoArea {
@@ -37,6 +39,8 @@ export interface AgendamentoArea {
   /** A área cancela a reserva aprovada que não for confirmada até o início. */
   exige_confirmacao?: boolean;
   motivo_recusa?: string | null;
+  /** Quem aprovou (ou agendou, na reserva feita pela administração). */
+  aprovado_por?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

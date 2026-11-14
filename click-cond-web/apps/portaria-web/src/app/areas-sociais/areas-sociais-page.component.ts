@@ -72,6 +72,27 @@ export class AreasSociaisPageComponent implements OnInit {
     return status !== 'pendente' && status !== 'aprovado' && status !== 'recusado';
   }
 
+  /** Filtro da fila: canceladas e recusadas ficam fora por padrão. */
+  readonly filtroReservas = signal<'ativas' | 'pendentes' | 'todas'>('ativas');
+
+  readonly agendamentosVisiveis = computed(() => {
+    const f = this.filtroReservas();
+    const lista = this.agendamentos();
+    if (f === 'todas') return lista;
+    if (f === 'pendentes') return lista.filter(a => a.status === 'pendente');
+    return lista.filter(a => a.status === 'pendente' || a.status === 'aprovado');
+  });
+
+  /** Erro ao excluir um espaço (ex.: reserva ativa ou terminal vinculado). */
+  readonly areaErro = signal<string | null>(null);
+
+  /** "Bloco A" para o valor "A" ou "Bloco A" (o cadastro guarda das duas formas). */
+  rotuloBloco(bloco: string | null | undefined): string {
+    const b = (bloco ?? '').trim();
+    if (!b) return '';
+    return /^bloco\s/i.test(b) ? b : `Bloco ${b}`;
+  }
+
   readonly pendentesCount = computed(() =>
     this.agendamentos().filter(a => a.status === 'pendente').length
   );
@@ -234,19 +255,21 @@ export class AreasSociaisPageComponent implements OnInit {
   async excluirArea(id: number) {
     const ok = await this.confirm.ask({
       title: 'Excluir espaço',
-      message: 'O espaço será removido junto com todas as reservas associadas.',
+      message: 'O espaço será removido com o histórico de reservas. Reservas por acontecer precisam ser canceladas antes.',
       confirmLabel: 'Excluir',
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.removeArea(id).subscribe(() => {
-      this.areas.update(list => list.filter(a => a.id !== id));
+    this.areaErro.set(null);
+    this.api.removeArea(id).subscribe({
+      next: () => this.areas.update(list => list.filter(a => a.id !== id)),
+      error: (e) => this.areaErro.set(e?.error?.message ?? e?.message ?? 'Não foi possível excluir o espaço.'),
     });
   }
 
   abrirModalArea() {
     this.areaEditando.set(null);
-    this.novaArea = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true, regras: '' };
+    this.novaArea = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true, exige_confirmacao: false, regras: '' };
     this.fotoPreview.set(null);
     this.fotoNome.set(null);
     this.fotoErro.set(null);
@@ -265,6 +288,7 @@ export class AreasSociaisPageComponent implements OnInit {
       imagem: area.imagem || '',
       agendar: area.precisa_agendar === 1,
       autorizacao: area.precisa_autorizacao === 1,
+      exige_confirmacao: area.exige_confirmacao === 1,
       regras: area.regras || ''
     };
     this.fotoPreview.set(area.imagem || null);
@@ -336,6 +360,7 @@ export class AreasSociaisPageComponent implements OnInit {
       imagem: this.novaArea.imagem || 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600',
       agendar: this.novaArea.agendar ? 1 : 0,
       autorizacao: this.novaArea.autorizacao ? 1 : 0,
+      exige_confirmacao: this.novaArea.exige_confirmacao ? 1 : 0,
       regras: this.novaArea.regras || '',
       // Edição: devolve a grade que veio do backend (o get-all agora manda
       // `horarios`). Se por algum motivo ela não vier, a chave é OMITIDA — a
@@ -383,6 +408,17 @@ export class AreasSociaisPageComponent implements OnInit {
     this.reservando.set(false);
     this.modalReserva.set(true);
 
+    // Agenda da área: mostra no modal o que já ocupa o dia escolhido, em vez de
+    // o funcionário só descobrir o conflito ao confirmar.
+    this.agendaArea.set([]);
+    this.agendaErro.set(null);
+    this.api.getArea(area.id).subscribe({
+      next: (d) => this.agendaArea.set(Array.isArray(d?.agendamentos) ? d.agendamentos : []),
+      error: (e) => this.agendaErro.set(
+        'Não foi possível carregar os horários ocupados: ' + (e?.error?.message ?? e?.message ?? 'erro'),
+      ),
+    });
+
     // Carrega a lista de apartamentos só na primeira abertura.
     if (this.apartamentos().length === 0) {
       this.apartamentosCarregando.set(true);
@@ -401,6 +437,21 @@ export class AreasSociaisPageComponent implements OnInit {
 
   fecharModalReserva() {
     this.modalReserva.set(false);
+  }
+
+  /** Reservas da área (do `get`), com data dd/mm/aaaa. */
+  readonly agendaArea = signal<{ data: string; horaDe: string; horaAte: string; status: string; bloco?: string; apto?: string }[]>([]);
+  readonly agendaErro = signal<string | null>(null);
+
+  /** Pendentes e aprovadas no dia escolhido no modal (as que ocupam o horário). */
+  ocupadosNoDia() {
+    const data = this.novaReserva.data; // YYYY-MM-DD
+    if (!data) return [];
+    const [a, m, d] = data.split('-');
+    const dataBr = `${d}/${m}/${a}`;
+    return this.agendaArea()
+      .filter(x => x.data === dataBr && (x.status === 'pendente' || x.status === 'aprovado'))
+      .sort((x, y) => x.horaDe.localeCompare(y.horaDe));
   }
 
   selecionarApto(id: number) {

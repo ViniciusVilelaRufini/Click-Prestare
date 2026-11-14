@@ -91,6 +91,14 @@
   } @else if (error()) {
     <!-- Erro já mostrado acima; evita renderizar a grade vazia junto do aviso -->
   } @else if (tab() === 'areas') {
+    @if (areaErro()) {
+      <div class="ps-panel p-3 text-xs text-[var(--signal-danger)] flex items-center justify-between gap-3" role="alert">
+        <span>{{ areaErro() }}</span>
+        <button (click)="areaErro.set(null)" class="ps-ibtn shrink-0" aria-label="Fechar aviso">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    }
     <!-- Grade de Espaços -->
     @if (areas().length === 0) {
       <div class="ps-panel ps-empty">
@@ -187,14 +195,21 @@
     @if (recargaErro()) {
       <p class="text-xs text-[var(--signal-warn)] mb-3" role="status">{{ recargaErro() }}</p>
     }
-    @if (agendamentos().length === 0) {
+    <div class="ps-seg w-fit max-w-full mb-3" role="group" aria-label="Filtrar reservas">
+      <button type="button" (click)="filtroReservas.set('ativas')" [class.on]="filtroReservas() === 'ativas'">Ativas</button>
+      <button type="button" (click)="filtroReservas.set('pendentes')" [class.on]="filtroReservas() === 'pendentes'">Pendentes</button>
+      <button type="button" (click)="filtroReservas.set('todas')" [class.on]="filtroReservas() === 'todas'">Todas</button>
+    </div>
+    @if (agendamentosVisiveis().length === 0) {
       <div class="ps-panel ps-empty">
         <p class="text-sm text-slate-300 font-medium">Nenhuma solicitação de reserva encontrada</p>
-        <p class="text-xs text-slate-500 mt-1">Os pedidos feitos pelos moradores aparecerão aqui</p>
+        <p class="text-xs text-slate-500 mt-1">
+          {{ agendamentos().length > 0 ? 'Use "Todas" para ver canceladas e recusadas' : 'Os pedidos feitos pelos moradores aparecerão aqui' }}
+        </p>
       </div>
     } @else {
       <div class="space-y-3">
-        @for (ag of agendamentos(); track ag.id) {
+        @for (ag of agendamentosVisiveis(); track ag.id) {
           <div class="ps-panel p-5 border-l-2 flex items-center justify-between gap-6 flex-wrap"
                [class.!border-l-amber-500]="ag.status === 'pendente'"
                [class.!border-l-emerald-500]="ag.status === 'aprovado'"
@@ -290,6 +305,9 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                   Solicitado em {{ ag.data_criacao }}
+                  @if (ag.status === 'aprovado' && ag.aprovado_por) {
+                    · Aprovada por {{ ag.aprovado_por }}
+                  }
                 </p>
               </div>
             </div>
@@ -487,6 +505,11 @@
               <input [(ngModel)]="novaArea.autorizacao" type="checkbox" class="rounded border-white/10 text-accent focus:ring-0 w-4 h-4 bg-slate-950" />
               <span class="text-xs text-slate-300 font-medium">Exigir aprovação manual do síndico</span>
             </label>
+
+            <label class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/50 border border-white/5 cursor-pointer hover:border-white/10 transition">
+              <input [(ngModel)]="novaArea.exige_confirmacao" type="checkbox" class="rounded border-white/10 text-accent focus:ring-0 w-4 h-4 bg-slate-950" />
+              <span class="text-xs text-slate-300 font-medium">Exigir confirmação de presença até 30 min antes (sem confirmar, a reserva é cancelada)</span>
+            </label>
           </div>
 
           <!-- Regras do espaço: texto que o morador vê e aceita antes de reservar.
@@ -575,7 +598,7 @@
                     [class.text-slate-300]="novaReserva.id_apartamento !== apto.id"
                     [class.hover:bg-white/5]="novaReserva.id_apartamento !== apto.id"
                   >
-                    <span class="font-semibold">Apto {{ apto.apto }}<span class="text-slate-500 font-normal">{{ apto.bloco ? ' · Bloco ' + apto.bloco : '' }}</span></span>
+                    <span class="font-semibold">Apto {{ apto.apto }}<span class="text-slate-500 font-normal">{{ apto.bloco ? ' · ' + rotuloBloco(apto.bloco) : '' }}</span></span>
                     @if (novaReserva.id_apartamento === apto.id) {
                       <svg class="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
@@ -615,6 +638,22 @@
               [min]="hojeInput()"
               class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white focus:outline-none focus:border-[var(--ink)] transition dark:[color-scheme:dark]"
             />
+            @if (agendaErro()) {
+              <p class="text-[11px] text-[var(--signal-warn)] mt-1.5">{{ agendaErro() }}</p>
+            } @else if (novaReserva.data) {
+              @if (ocupadosNoDia().length > 0) {
+                <div class="mt-2 text-[11px] text-slate-400">
+                  <span class="ps-label block mb-1">Já ocupado neste dia</span>
+                  @for (o of ocupadosNoDia(); track $index) {
+                    <span class="ps-tag !h-auto py-1 normal-case mr-1.5 mb-1">
+                      {{ o.horaDe }} - {{ o.horaAte }} · {{ o.status }}
+                    </span>
+                  }
+                </div>
+              } @else {
+                <p class="text-[11px] text-slate-500 mt-1.5">Nenhuma reserva neste dia.</p>
+              }
+            }
           </div>
 
           <!-- Horários -->
