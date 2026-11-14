@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, HttpException } from '@nestjs/common';
 import { FOTO, T0, TOKEN_OUTRO_PORTAO, TOKEN_PORTAO, montarPortao } from './montar-portao.spec';
 
 /**
@@ -95,6 +95,74 @@ describe('autoatendimento no portão — revisão de segurança', () => {
       });
       await k.svc.criarPedido(TOKEN_PORTAO, entrada);
       expect(k.tabela('deliveryAtendimentos')).toEqual([expect.objectContaining({ id: 4, status: 'AGUARDANDO_AUTORIZACAO', id_pedido_portao: 1 })]);
+    });
+  });
+
+  describe('[3] trégua e teto por unidade; limite do portão atômico', () => {
+    const MSG_TREGUA = 'Esta unidade já recusou uma entrega há pouco. Procure a portaria.';
+    const status429 = async (p: Promise<unknown>) => {
+      const e: any = await p.then(
+        () => null,
+        (x) => x,
+      );
+      expect(e).toBeInstanceOf(HttpException);
+      expect(e.getStatus()).toBe(429);
+      return e.message as string;
+    };
+
+    it.each([
+      ['recusou', { status: 'RECUSADA', motivo: 'Não pedi' }],
+      ['vai buscar', { status: 'RETIRADA_NA_PORTARIA' }],
+    ])('morador %s: a unidade recusa pedidos novos por 10 min (429) e depois aceita', async (_nome, resposta) => {
+      const k = montarPortao();
+      await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      await k.delivery.atualizarStatus(k.tabela('deliveryAtendimentos')[0].id, resposta as any, morador7);
+      k.avancar(9 * M);
+      expect(await status429(k.svc.criarPedido(TOKEN_OUTRO_PORTAO, { ...entrada, nome: 'Duda' }))).toBe(MSG_TREGUA);
+      expect(k.tabela('deliveryPedidosPortao')).toHaveLength(1);
+      // Outra unidade não é afetada.
+      await expect(k.svc.criarPedido(TOKEN_PORTAO, { ...entrada, id_apartamento: 102 })).resolves.toMatchObject({ situacao: 'aguardando' });
+      k.avancar(M + 1000);
+      await expect(k.svc.criarPedido(TOKEN_OUTRO_PORTAO, { ...entrada, nome: 'Duda' })).resolves.toMatchObject({ situacao: 'aguardando' });
+    });
+
+    it('pedido vencido sem resposta não dá trégua', async () => {
+      const k = montarPortao();
+      await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      k.avancar(5 * M + 1000);
+      await expect(k.svc.criarPedido(TOKEN_PORTAO, entrada)).resolves.toMatchObject({ situacao: 'aguardando' });
+    });
+
+    it('7º pedido da unidade em 1 hora: 429; os de mais de 1 hora não contam', async () => {
+      const antigos = (minutosAtras: number) =>
+        Array.from({ length: 6 }, (_, i) => ({
+          id: i + 1, id_atendimento: 500, id_device: 31, nome: 'X', token_hash: `${i}`.padStart(64, '0'),
+          status: 'expirado', criado_em: new Date(T0 - minutosAtras * M), expira_em: new Date(T0 - (minutosAtras - 5) * M),
+        }));
+      const atendimentoVelho = { id: 500, id_condominio: 1, id_apartamento: 101, origem: 'autoatendimento', status: 'CANCELADA', id_pedido_portao: 6 };
+      const k = montarPortao({ atendimentos: [atendimentoVelho], pedidos: antigos(50) });
+      const msg = await status429(k.svc.criarPedido(TOKEN_PORTAO, entrada));
+      expect(msg).toBe('Muitas entregas para esta unidade agora. Procure a portaria.');
+      expect(k.storage.uploadDataUrl).not.toHaveBeenCalled();
+
+      const v = montarPortao({ atendimentos: [atendimentoVelho], pedidos: antigos(61) });
+      await expect(v.svc.criarPedido(TOKEN_PORTAO, entrada)).resolves.toMatchObject({ situacao: 'aguardando' });
+    });
+
+    it('limite de 20 por portão em 10 min vale com pedidos simultâneos (contagem atômica)', async () => {
+      const antigos = Array.from({ length: 19 }, (_, i) => ({
+        id: i + 1, id_atendimento: 999, id_device: 30, nome: 'X', token_hash: `${i}`.padStart(64, '0'),
+        status: 'expirado', criado_em: new Date(T0 - 5 * M), expira_em: new Date(T0),
+      }));
+      const k = montarPortao({ pedidos: antigos });
+      const r = await Promise.allSettled([
+        k.svc.criarPedido(TOKEN_PORTAO, entrada),
+        k.svc.criarPedido(TOKEN_PORTAO, { ...entrada, id_apartamento: 102 }),
+      ]);
+      expect(r.map((x) => x.status).sort()).toEqual(['fulfilled', 'rejected']);
+      const erro = (r.find((x) => x.status === 'rejected') as PromiseRejectedResult).reason;
+      expect(erro.getStatus()).toBe(429);
+      expect(k.tabela('deliveryPedidosPortao')).toHaveLength(20);
     });
   });
 });

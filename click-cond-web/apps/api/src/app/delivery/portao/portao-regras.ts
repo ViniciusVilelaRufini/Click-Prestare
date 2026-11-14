@@ -21,6 +21,10 @@ export const CANCELA_SEM_RESPOSTA_MS = 2 * 3_600_000;
 export const CONCLUI_SEM_PORTEIRO_MS = 2 * 3_600_000;
 export const FOTO_RETENCAO_DIAS = 90;
 export const MAX_PEDIDOS_PORTAO_10MIN = 20;
+/** Teto de pedidos para a mesma unidade em 1 hora. */
+export const MAX_PEDIDOS_UNIDADE_HORA = 6;
+/** Depois de a unidade recusar (ou "vou buscar"), pedidos novos para ela são recusados por este tempo. */
+export const TREGUA_UNIDADE_MS = 10 * 60_000;
 /** Teto da selfie em base64 (a página reduz a 800 px, JPEG 0.8). */
 export const MAX_FOTO_BYTES = 2 * 1024 * 1024;
 export const FOTO_MIME = /^data:image\/(jpeg|jpg|png|webp);base64,/i;

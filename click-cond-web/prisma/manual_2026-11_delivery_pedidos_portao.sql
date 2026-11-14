@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS delivery_pedidos_portao (
   aberto_em DATETIME NULL,
   saida_aberta_em DATETIME NULL,
   falha_abertura_em DATETIME NULL,
+  respondido_em DATETIME NULL,
   criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expira_em DATETIME NOT NULL,
   PRIMARY KEY (id),
@@ -142,6 +143,24 @@ CREATE TABLE IF NOT EXISTS delivery_pedidos_portao (
   CONSTRAINT fk_delivery_pedido_atendimento FOREIGN KEY (id_atendimento) REFERENCES delivery_atendimentos(id) ON DELETE CASCADE,
   CONSTRAINT fk_delivery_pedido_device FOREIGN KEY (id_device) REFERENCES Facial_Devices(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Colunas acrescentadas depois da primeira versão desta migração (tabela já
+-- criada sem elas): o CREATE acima não as acrescenta.
+
+-- Quando o pedido foi respondido; recusa e "vou buscar" abrem a trégua da unidade.
+SET @dpp_sql = IF(
+  EXISTS (
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @dpp_schema
+      AND TABLE_NAME = 'delivery_pedidos_portao'
+      AND COLUMN_NAME = 'respondido_em'
+  ),
+  'SELECT 1',
+  'ALTER TABLE delivery_pedidos_portao ADD COLUMN respondido_em DATETIME NULL'
+);
+PREPARE dpp_stmt FROM @dpp_sql;
+EXECUTE dpp_stmt;
+DEALLOCATE PREPARE dpp_stmt;
 
 -- Conferência (somente leitura), depois de aplicar:
 --   SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_DEFAULT FROM information_schema.COLUMNS

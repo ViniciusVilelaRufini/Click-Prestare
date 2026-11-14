@@ -68,6 +68,7 @@ const PADROES: Record<string, (agora: Date) => Row> = {
     aberto_em: null,
     saida_aberta_em: null,
     falha_abertura_em: null,
+    respondido_em: null,
     criado_em: agora,
   }),
   deliveryEventos: (agora) => ({ created_at: agora }),

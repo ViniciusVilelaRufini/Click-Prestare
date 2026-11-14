@@ -1189,6 +1189,8 @@ model DeliveryPedidosPortao {
   aberto_em        DateTime?            @db.DateTime(0)
   saida_aberta_em  DateTime?            @db.DateTime(0)
   falha_abertura_em DateTime?           @db.DateTime(0)
+  /// Quando o pedido foi respondido (liberado, vou_buscar, recusado); recusa e "vou buscar" abrem a trégua de 10 min da unidade.
+  respondido_em    DateTime?            @db.DateTime(0)
   criado_em        DateTime             @default(now()) @db.DateTime(0)
   expira_em        DateTime             @db.DateTime(0)
   atendimento      DeliveryAtendimentos @relation(fields: [id_atendimento], references: [id], onDelete: Cascade, map: "fk_delivery_pedido_atendimento")
