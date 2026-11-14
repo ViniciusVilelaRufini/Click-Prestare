@@ -9,7 +9,8 @@ import { json, text, urlencoded } from 'express';
  * memória da instância. Agora:
  *
  *  - padrão: 2 MB;
- *  - foto em rota pública (signup do síndico, convite preenchido por link):
+ *  - foto em rota pública (signup do síndico, convite preenchido por link,
+ *    selfie do entregador no QR do portão):
  *    6 MB, os 5 MB de foto em base64 que esses fluxos já aceitam + o resto;
  *  - Agente Local e webhook do aparelho (snapshot da câmera, evento): 10 MB,
  *    o mesmo teto que o XML da Hikvision já tinha;
@@ -34,7 +35,12 @@ export const LIMITE_UPLOAD = 35 * 1024 * 1024;
 const METODOS_COM_CORPO = new Set(['POST', 'PUT', 'PATCH']);
 
 /** Públicas que recebem foto. Validam tipo e tamanho da foto no serviço. */
-const ROTAS_PUBLICAS_FOTO = [/^\/api\/sindico\/signup$/, /^\/api\/convites\/publico\/[^/]+$/];
+const ROTAS_PUBLICAS_FOTO = [
+  /^\/api\/sindico\/signup$/,
+  /^\/api\/convites\/publico\/[^/]+$/,
+  // Selfie do entregador no QR do portão (até 2 MB em base64, conferidos no serviço).
+  /^\/api\/entrega\/publico\/[^/]+$/,
+];
 
 /** Agente Local (resultado de comando, evento) e push do aparelho. */
 const ROTAS_HARDWARE = [
