@@ -236,7 +236,8 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     const foto = a.fotoEntregador ? await this.fotoDoCard({ fotoOrigem: a.fotoEntregador }) : null;
     const seg = epochSeg(new Date(this.agora()));
     let c = conteudoDelivery(a, fase, { voceRespondeu: opts.voceRespondeu, foto }, seg);
-    const alerta = alertaDelivery(fase, c);
+    // Mudança feita pelo próprio morador ("vou buscar" no card): não toca para ele.
+    const alerta = opts.voceRespondeu ? null : alertaDelivery(fase, c);
     // Foto no estado: o push (APNs ou dados do Android) não pode passar de 4 KB.
     // Mede o push que vai sair de fato (fim no entregue/recusado, atualização no resto).
     const dismissal = dismissalDelivery(fase);
