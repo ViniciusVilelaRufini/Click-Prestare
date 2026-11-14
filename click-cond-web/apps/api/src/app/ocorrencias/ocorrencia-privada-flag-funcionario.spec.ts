@@ -20,9 +20,10 @@ describe('Ocorrências — flag ocorrencias do funcionário', () => {
       isConnected: true,
       funcionarios: { findFirst: jest.fn(async () => ({ ocorrencias: flag })) },
       ocorrencias: {
-        findUnique: jest.fn(async () => ({ ...oc, categoria: null, criadoPor: null, id_responsavel: null })),
+        findUnique: jest.fn(async () => ({ status: 'Pendente', ...oc, categoria: null, criadoPor: null, id_responsavel: null })),
         findMany: jest.fn(async () => []),
         update: jest.fn(async ({ data }: any) => ({ id: 5, user: 100, ...data, categoria: null })),
+        updateMany: jest.fn(async () => ({ count: 1 })),
         delete: jest.fn(async () => ({})),
       },
       funcionarios_Portaria: { findMany: jest.fn(async () => []) },
@@ -113,14 +114,17 @@ describe('Ocorrências — flag ocorrencias do funcionário', () => {
     await expect(svc.updatePublica(5, true, funcionario)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(svc.remove(5, funcionario)).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.ocorrencias.update).not.toHaveBeenCalled();
+    expect(prisma.ocorrencias.updateMany).not.toHaveBeenCalled();
     expect(prisma.ocorrencias.delete).not.toHaveBeenCalled();
   });
 
   it('funcionário com a flag e o síndico administram a ocorrência', async () => {
     const a = montar(1);
-    await expect(a.svc.updateStatus(5, 'Ciente', funcionario)).resolves.toMatchObject({ status: 'Ciente' });
+    await a.svc.updateStatus(5, 'Ciente', funcionario);
+    expect(a.prisma.ocorrencias.updateMany.mock.calls[0][0].data).toEqual({ status: 'Ciente' });
     const b = montar(0);
-    await expect(b.svc.updateStatus(5, 'Ciente', sindico)).resolves.toMatchObject({ status: 'Ciente' });
+    await b.svc.updateStatus(5, 'Ciente', sindico);
+    expect(b.prisma.ocorrencias.updateMany.mock.calls[0][0].data).toEqual({ status: 'Ciente' });
     expect(b.prisma.funcionarios.findFirst).not.toHaveBeenCalled();
   });
 

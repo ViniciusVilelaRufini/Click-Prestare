@@ -55,6 +55,8 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
       ocorrencias_Categorias: {
         findUnique: jest.fn(async ({ where }: any) => ({ sla_horas: where.id === 2 ? 4 : null })),
       },
+      // Nenhuma mensagem de outra pessoa no chat (autor-com-resposta-da-equipe.spec cobre o contrário).
+      ocorrenciaMensagens: { count: jest.fn(async () => 0) },
       users: { findUnique: jest.fn(async () => null) },
     };
     // Tenant: a sessão só pertence ao condomínio 1. Funcionário passa pela
@@ -112,7 +114,7 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
       await ctrl.update(edicao({ descricao: '  Vazamento grave  ', tipo: '2', publica: true }), autor);
       expect(prisma.ocorrencias.updateMany).toHaveBeenCalledTimes(1);
       const { where, data } = prisma.ocorrencias.updateMany.mock.calls[0][0];
-      expect(where).toEqual({ id: 5, user: 100, status: 'Pendente' });
+      expect(where).toEqual({ id: 5, user: 100, status: 'Pendente', resposta_at: null, mensagens: { none: { OR: [{ id_usuario: null }, { id_usuario: { not: 100 } }] } } });
       expect(data.descricao).toBe('Vazamento grave');
       expect(data.tipo).toBe(2);
       expect(data.publica).toBe(true);
@@ -327,7 +329,7 @@ describe('Ocorrências no app — editar, excluir, responder e anexos', () => {
     it('autor exclui a própria ocorrência pendente (condicionado a autor + Pendente)', async () => {
       const { ctrl, prisma } = montar();
       expect(await ctrl.remove({ id: 5 }, autor)).toEqual({ ok: true });
-      expect(prisma.ocorrencias.deleteMany).toHaveBeenCalledWith({ where: { id: 5, user: 100, status: 'Pendente' } });
+      expect(prisma.ocorrencias.deleteMany).toHaveBeenCalledWith({ where: { id: 5, user: 100, status: 'Pendente', resposta_at: null, mensagens: { none: { OR: [{ id_usuario: null }, { id_usuario: { not: 100 } }] } } } });
     });
 
     it('corrida: equipe deu ciência entre a leitura e o delete -> 400 e nada é apagado', async () => {
