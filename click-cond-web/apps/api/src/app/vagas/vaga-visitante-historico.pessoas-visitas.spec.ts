@@ -16,8 +16,16 @@ import { MobileAuthService } from '../auth/mobile-auth.service';
 describe('Vaga de visitante — histórico e fuso', () => {
   const original = process.env['PESSOAS_MIGRATION_ENABLED'];
   const tzOriginal = process.env.TZ;
-  beforeAll(() => { process.env.TZ = 'UTC'; });
-  afterAll(() => { process.env.TZ = tzOriginal; });
+  // Depois da passagem de teste (15:00Z) e antes dos prazos usados abaixo: o
+  // console recusa vaga de visitante com prazo no passado.
+  beforeAll(() => {
+    process.env.TZ = 'UTC';
+    jest.useFakeTimers({ advanceTimers: true }).setSystemTime(new Date('2026-09-22T16:00:00Z'));
+  });
+  afterAll(() => {
+    process.env.TZ = tzOriginal;
+    jest.useRealTimers();
+  });
   afterEach(() => {
     if (original === undefined) delete process.env['PESSOAS_MIGRATION_ENABLED'];
     else process.env['PESSOAS_MIGRATION_ENABLED'] = original;
@@ -70,7 +78,10 @@ describe('Vaga de visitante — histórico e fuso', () => {
     jest.spyOn(svc as any, 'resolveApartamento').mockResolvedValue(APTO);
     jest.spyOn(svc as any, 'moradoresDoApto').mockResolvedValue([{ id: 5 }]);
     const liberar = (body: any = {}) =>
-      svc.liberar(1, 10, { id_morador_titular: 5, tipo: 'visitante', id_visitante: 2000010, ...body });
+      // O console exige prazo na vaga de visitante.
+      svc.liberar(1, 10, {
+        id_morador_titular: 5, tipo: 'visitante', id_visitante: 2000010, fim: '2026-09-30T18:00:00.000Z', ...body,
+      });
     return { prisma, visitas, liberar };
   }
 

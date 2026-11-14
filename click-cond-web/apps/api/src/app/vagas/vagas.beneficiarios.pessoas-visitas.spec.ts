@@ -48,7 +48,7 @@ describe('VagasService — beneficiarios() (Pessoas/Visitas)', () => {
     process.env['PESSOAS_MIGRATION_ENABLED'] = 'false';
     const { svc, prisma } = build();
     const r = await svc.beneficiarios(1, 101);
-    expect(r.visitantes).toEqual([{ id: 1, nome: 'Ana', doc_identificacao: '111', tem_foto: true }]);
+    expect(r.visitantes).toEqual([{ id: 1, nome: 'Ana', doc_identificacao: '111', tem_foto: true, termino: null }]);
     expect(prisma.visitantes.findMany).toHaveBeenCalled();
     expect(prisma.visitas.findMany).not.toHaveBeenCalled();
   });
@@ -57,7 +57,7 @@ describe('VagasService — beneficiarios() (Pessoas/Visitas)', () => {
     process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
     const { svc, prisma } = build();
     const r = await svc.beneficiarios(1, 101);
-    expect(r.visitantes).toEqual([{ id: 50, nome: 'Ana', doc_identificacao: '111', tem_foto: true }]);
+    expect(r.visitantes).toEqual([{ id: 50, nome: 'Ana', doc_identificacao: '111', tem_foto: true, termino: null }]);
     expect(prisma.visitas.findMany).toHaveBeenCalled();
     expect(prisma.visitantes.findMany).not.toHaveBeenCalled();
   });

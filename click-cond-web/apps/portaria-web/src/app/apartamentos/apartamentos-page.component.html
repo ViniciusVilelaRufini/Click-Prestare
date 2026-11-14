@@ -696,7 +696,7 @@
           } @else if (novaVaga.tipo === 'visitante') {
             <div>
               <label class="ps-label block mb-1.5">Visitante cadastrado no apartamento</label>
-              <select [(ngModel)]="novaVaga.id_visitante"
+              <select [ngModel]="novaVaga.id_visitante" (ngModelChange)="escolherVisitanteVaga($event)"
                       class="w-full h-10 px-3 bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-[var(--ink)] transition">
                 <option [ngValue]="null">Selecione...</option>
                 @for (v of beneficiariosVaga()?.visitantes; track v.id) {
@@ -706,6 +706,12 @@
               @if ((beneficiariosVaga()?.visitantes?.length ?? 0) === 0) {
                 <p class="text-[11px] text-[var(--signal-warn)] mt-1.5">Nenhum visitante cadastrado neste apartamento ainda.</p>
               }
+            </div>
+            <div>
+              <label class="ps-label block mb-1.5" for="apartamentos-page-vaga-valida-ate">Vaga válida até</label>
+              <input id="apartamentos-page-vaga-valida-ate" [(ngModel)]="novaVaga.fim" type="datetime-local"
+                     class="w-full h-10 px-3 bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-[var(--ink)] transition" />
+              <p class="text-[11px] text-slate-500 mt-1.5">Depois do prazo a vaga deixa de valer e fica livre.</p>
             </div>
           } @else {
             <div>

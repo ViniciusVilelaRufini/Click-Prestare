@@ -423,7 +423,9 @@ export class ApartamentosPageComponent implements OnInit {
     id_visitante: number | null;
     id_morador_beneficiario: number | null;
     placa: string;
-  } = { id_morador_titular: null, tipo: 'visitante', id_visitante: null, id_morador_beneficiario: null, placa: '' };
+    /** Prazo da vaga de visitante, no formato do `datetime-local` (hora local). */
+    fim: string;
+  } = { id_morador_titular: null, tipo: 'visitante', id_visitante: null, id_morador_beneficiario: null, placa: '', fim: '' };
 
   abrirModalVaga() {
     const apto = this.vagasApto();
@@ -434,14 +436,37 @@ export class ApartamentosPageComponent implements OnInit {
       id_visitante: null,
       id_morador_beneficiario: null,
       placa: '',
+      fim: this.prazoPadraoVaga(null),
     };
     this.erroVaga.set(null);
     this.modalVaga.set(true);
     this.carregandoBeneficiarios.set(true);
     this.vagasApi.beneficiarios(apto.id).subscribe({
       next: (data) => { this.beneficiariosVaga.set(data); this.carregandoBeneficiarios.set(false); },
-      error: () => this.carregandoBeneficiarios.set(false),
+      error: (e) => {
+        this.carregandoBeneficiarios.set(false);
+        this.erroVaga.set(e?.error?.message ?? e?.message ?? 'Falha ao carregar visitantes e inquilinos.');
+      },
     });
+  }
+
+  /** Ao escolher o visitante, o prazo sugerido passa a ser o fim da visita dele. */
+  escolherVisitanteVaga(id: number | null) {
+    this.novaVaga.id_visitante = id;
+    const v = this.beneficiariosVaga()?.visitantes?.find((x) => x.id === id);
+    this.novaVaga.fim = this.prazoPadraoVaga(v?.termino ?? null);
+  }
+
+  /** Fim da visita se ainda for futuro; senão, hoje às 23:59. */
+  private prazoPadraoVaga(termino: string | null): string {
+    const t = termino ? new Date(termino) : null;
+    const d = t && !isNaN(t.getTime()) && t.getTime() > Date.now() ? t : (() => {
+      const h = new Date();
+      h.setHours(23, 59, 0, 0);
+      return h;
+    })();
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 
   fecharModalVaga() {
@@ -463,6 +488,20 @@ export class ApartamentosPageComponent implements OnInit {
       this.erroVaga.set('Selecione um inquilino deste apartamento.');
       return;
     }
+    // Vaga de visitante sem prazo nunca vencia: a API recusa, e a tela avisa antes.
+    let fim: string | undefined;
+    if (this.novaVaga.tipo === 'visitante') {
+      const d = this.novaVaga.fim ? new Date(this.novaVaga.fim) : null;
+      if (!d || isNaN(d.getTime())) {
+        this.erroVaga.set('Informe até quando a vaga do visitante vale.');
+        return;
+      }
+      if (d.getTime() <= Date.now()) {
+        this.erroVaga.set('O prazo da vaga precisa ser no futuro.');
+        return;
+      }
+      fim = d.toISOString();
+    }
 
     this.salvandoVaga.set(true);
     this.erroVaga.set(null);
@@ -472,6 +511,7 @@ export class ApartamentosPageComponent implements OnInit {
       id_visitante: this.novaVaga.id_visitante ?? undefined,
       id_morador_beneficiario: this.novaVaga.id_morador_beneficiario ?? undefined,
       placa: this.novaVaga.placa.trim() || undefined,
+      fim,
     }).subscribe({
       next: () => {
         this.salvandoVaga.set(false);
@@ -485,12 +525,16 @@ export class ApartamentosPageComponent implements OnInit {
     });
   }
 
-  async revogarVaga(v: { id: number | null; ocupante_nome: string | null }) {
+  async revogarVaga(v: { id: number | null; ocupante_nome: string | null; vencida?: boolean }) {
     const apto = this.vagasApto();
     if (!apto || !v.id) return;
+    // Vaga vencida só sai da lista: a API não mexe mais na visita, que pode ter
+    // sido autorizada de novo pelo morador depois do prazo.
     const ok = await this.confirm.ask({
       title: 'Revogar vaga',
-      message: `A vaga de ${v.ocupante_nome ?? 'ocupante'} será revogada.`,
+      message: v.vencida
+        ? `A vaga vencida de ${v.ocupante_nome ?? 'ocupante'} sai da lista. O acesso do visitante não muda.`
+        : `A vaga de ${v.ocupante_nome ?? 'ocupante'} será revogada.`,
       confirmLabel: 'Revogar',
       variant: 'danger',
     });
