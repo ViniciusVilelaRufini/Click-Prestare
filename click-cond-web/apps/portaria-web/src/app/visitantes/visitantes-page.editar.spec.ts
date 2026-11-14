@@ -87,4 +87,23 @@ describe('VisitantesPageComponent — editar envia só o que mudou', () => {
     tela.salvar();
     expect(service.atualizarPessoa.mock.calls[0][1].tag_rfid).toBeNull();
   });
+
+  // Rodada 3, item 10: unidade e janela não são salvas pela edição da pessoa.
+  // O formulário mostrava a janela com a hora em UTC (+3 h) e editável; agora
+  // os campos ficam fora da edição e nada de janela/unidade vai no PUT.
+  it('editar não carrega a janela (UTC) nem envia unidade/janela', () => {
+    const tela = build();
+    tela.abrirEditar({
+      ...prestador,
+      id_apartamento: 106,
+      data_hora_inicio: '2026-11-13T12:00:00.000Z',
+      data_hora_termino: '2026-11-13T16:00:00.000Z',
+    } as unknown as Pessoa);
+    expect(tela.novo.data_hora_inicio).toBeUndefined();
+    expect(tela.novo.data_hora_termino).toBeUndefined();
+    tela.salvar();
+    const dto = service.atualizarPessoa.mock.calls[0][1];
+    expect(dto).not.toHaveProperty('data_hora_inicio');
+    expect(dto).not.toHaveProperty('id_apartamento');
+  });
 });

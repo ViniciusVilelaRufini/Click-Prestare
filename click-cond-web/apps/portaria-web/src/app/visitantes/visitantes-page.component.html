@@ -330,23 +330,25 @@
               </div>
             }
 
-            <!-- Apartamento de Destino -->
-            <label class="block">
-              <span class="ps-label mb-1.5 block">
-                Apartamento de destino <span class="text-rose-500">*</span>
-              </span>
-              <select
-                [(ngModel)]="novo.id_apartamento"
-                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition cursor-pointer"
-              >
-                <option [ngValue]="0" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Selecione o apartamento...</option>
-                @for (a of apartamentos(); track a.id) {
-                  <option [ngValue]="a.id" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                    {{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}
-                  </option>
-                }
-              </select>
-            </label>
+            <!-- Apartamento de Destino (a edição da pessoa não muda a visita: ver dica abaixo) -->
+            @if (!(editingId && editandoIdentidade())) {
+              <label class="block">
+                <span class="ps-label mb-1.5 block">
+                  Apartamento de destino <span class="text-rose-500">*</span>
+                </span>
+                <select
+                  [(ngModel)]="novo.id_apartamento"
+                  class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition cursor-pointer"
+                >
+                  <option [ngValue]="0" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Selecione o apartamento...</option>
+                  @for (a of apartamentos(); track a.id) {
+                    <option [ngValue]="a.id" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                      {{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}
+                    </option>
+                  }
+                </select>
+              </label>
+            }
 
             <!-- Tipo (Visitante / Prestador) -->
             @if (!isPrestadorModo()) {
@@ -380,32 +382,40 @@
               />
             </label>
 
-            <!-- Período: Início -->
-            <label class="block">
-              <span class="ps-label mb-1.5 block">
-                Liberado a partir de
-              </span>
-              <input
-                type="datetime-local"
-                [(ngModel)]="novo.data_hora_inicio"
-                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition"
-              />
-            </label>
+            <!-- Período: só no cadastro e na Nova Visita. Editar pessoa não altera a janela
+                 (a API não recebe estes campos; o valor salvo seria o antigo). -->
+            @if (!(editingId && editandoIdentidade())) {
+              <!-- Período: Início -->
+              <label class="block">
+                <span class="ps-label mb-1.5 block">
+                  Liberado a partir de
+                </span>
+                <input
+                  type="datetime-local"
+                  [(ngModel)]="novo.data_hora_inicio"
+                  class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition"
+                />
+              </label>
 
-            <!-- Período: Fim -->
-            <label class="block">
-              <span class="ps-label mb-1.5 block">
-                Liberado até (Validade)
-              </span>
-              <input
-                type="datetime-local"
-                [(ngModel)]="novo.data_hora_termino"
-                class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition"
-              />
-              <span class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">
-                Em branco = sem prazo (acesso contínuo).
-              </span>
-            </label>
+              <!-- Período: Fim -->
+              <label class="block">
+                <span class="ps-label mb-1.5 block">
+                  Liberado até (Validade)
+                </span>
+                <input
+                  type="datetime-local"
+                  [(ngModel)]="novo.data_hora_termino"
+                  class="w-full h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition"
+                />
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">
+                  Em branco = sem prazo (acesso contínuo).
+                </span>
+              </label>
+            } @else {
+              <p class="sm:col-span-2 text-[11px] text-slate-400">
+                Unidade e janela de acesso pertencem a cada visita. Para mudar, use Nova Visita.
+              </p>
+            }
 
             <!-- Restrição / Bloqueio -->
             <div class="block">

@@ -917,12 +917,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       dias_semana: (v as any).dias_semana ?? '',
       categorias: (v as any).categorias ?? '',
       bloqueado: (v as any).bloqueado ?? 0,
-      data_hora_inicio: v.data_hora_inicio
-        ? new Date(v.data_hora_inicio).toISOString().slice(0, 16)
-        : undefined,
-      data_hora_termino: v.data_hora_termino
-        ? new Date(v.data_hora_termino).toISOString().slice(0, 16)
-        : undefined,
+      // Sem janela: a edição da pessoa não altera a visita (os campos ficam
+      // fora do formulário). Antes vinha o ISO em UTC cortado (+3 h) e editável.
     } as CreateVisitante;
     const cats = ((v as any).categorias ?? '').split(';').map((x: string) => x.trim()).filter(Boolean);
     this.categoriasSelecionadas.set(new Set(cats));
