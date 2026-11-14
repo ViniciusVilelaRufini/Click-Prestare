@@ -5,7 +5,10 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import * as bcrypt from 'bcrypt';
-import { assertOperador, isOperador } from '../auth/tenant.util';
+import { randomBytes } from 'crypto';
+import { assertEmailNaoReservado, DOMINIO_CONTA_REVOGADA } from '../common/email-reservado.util';
+import { assertOperador, assertSindicoEstrito, isOperador, isSindicoEstrito } from '../auth/tenant.util';
+import { momentoTrocaSenha } from '../auth/senha-alterada.util';
 import { assertApartamentoGravavel } from '../common/apartamento-gravavel.util';
 
 export interface CreatePrestadorDto {
@@ -220,10 +223,14 @@ export class PrestadoresService {
     });
 
     const portariaLogins = await this.prisma.funcionarios_Portaria.findMany({
-      where: { id_condominio: Number(idCondominio), ativo: 1 },
-      select: { login: true },
+      where: { id_condominio: Number(idCondominio) },
+      select: { login: true, ativo: true, turno: true },
     });
-    const loginSet = new Set(portariaLogins.map((f) => f.login.toLowerCase().trim()));
+    const chave = (login: string) => login.toLowerCase().trim();
+    const loginSet = new Set(portariaLogins.filter((f) => f.ativo === 1).map((f) => chave(f.login)));
+    // Login que o próprio cadastro recebeu (turno 'Geral', ativo ou não) — o mesmo critério de
+    // loginPortariaDoPrestador, que decide quando remover/revogar exige síndico. Campo novo na resposta.
+    const loginProprioSet = new Set(portariaLogins.filter((f) => f.turno === 'Geral').map((f) => chave(f.login)));
 
     // Morador (resposta recortada): sem foto do documento nem biometria, que
     // são da portaria. Quem recebe `{}` de escopo é staff e vê tudo.
@@ -239,7 +246,8 @@ export class PrestadoresService {
       } = p;
       return {
         ...(recortar ? publico : p),
-        hasPortariaAccess: p.email ? loginSet.has(p.email.toLowerCase().trim()) : false,
+        hasPortariaAccess: p.email ? loginSet.has(chave(p.email)) : false,
+        loginPortariaProprio: p.email ? loginProprioSet.has(chave(p.email)) : false,
       };
     });
   }
@@ -280,31 +288,159 @@ export class PrestadoresService {
    * do Users dessa pessoa (de qualquer condomínio) e dava ao chamador a conta dela.
    */
   private async assertContaLivreParaPortaria(email: string, idCondominio: number) {
-    const existente = await this.prisma.users.findFirst({
-      where: { OR: [{ login: email }, { email }] },
-      select: { id: true },
-    });
+    const existente = await this.contaDoLogin(email, idCondominio);
     if (!existente) return;
     const daEquipe = await this.prisma.funcionarios.findFirst({
       where: { id_user: existente.id, id_condominio: Number(idCondominio) },
       select: { id: true },
     });
+    // Conta existente só é aceita se JÁ é da equipe deste condomínio. Conta "órfã" (revogada em outro prédio, de
+    // signup público, de morador ou síndico) nunca: nada a liga a este condomínio além do e-mail que quem concede
+    // digitou, e o fallback do app adotaria a senha da portaria assim que existisse o vínculo. A reconcessão no
+    // mesmo prédio funciona porque a revogação libera o e-mail da conta que era só daqui (revogarLoginDoPrestador).
     if (!daEquipe) {
-      throw new BadRequestException('Já existe uma conta com este e-mail. Use outro e-mail para o acesso à portaria.');
+      throw new BadRequestException('Este e-mail já pertence a outra conta do sistema. Use outro e-mail para o acesso à portaria.');
     }
+  }
+
+  /**
+   * Valor-lápide de login/e-mail para uma conta revogada que era só da equipe deste condomínio. Inalcançável: o
+   * domínio `.invalid` é reservado (RFC 2606) e nenhum cadastro o aceita (common/email-reservado.util). Com sufixo
+   * aleatório: a versão só com o id era previsível (o login do app devolve o id) e o prestador ocupava a lápide de
+   * antemão pelo signup, travando a própria revogação. ~70 caracteres, dentro do VarChar(255) das duas colunas.
+   * Método (não função solta) para o spec simular uma lápide já ocupada.
+   */
+  protected novaLapide(idUser: number): string {
+    return `revogado-${idUser}-${randomBytes(16).toString('hex')}@${DOMINIO_CONTA_REVOGADA}`;
+  }
+
+  /**
+   * Hash inutilizável: não começa com `$2` (não é bcrypt) e tem caracteres fora do hexadecimal, então nunca
+   * coincide com o md5 que o verifyPassword do app compara para senhas legadas.
+   */
+  private static senhaInutilizavel(idUser: number) {
+    return `!revogado:${idUser}`;
+  }
+
+  /**
+   * A conta do app ligada a um login de portaria. Users.login e Users.email são únicos cada um, então "login OU
+   * e-mail" pode achar duas contas: vale a que é da equipe deste condomínio e, sem ela, a mais antiga — antes era
+   * a que o banco devolvesse primeiro, e a revogação podia cair na conta errada.
+   */
+  private async contaDoLogin(login: string, idCondominio: number, db: any = this.prisma) {
+    const porLogin = { OR: [{ login }, { email: login }] };
+    return (
+      (await db.users.findFirst({
+        where: { ...porLogin, funcionarios: { some: { id_condominio: Number(idCondominio) } } },
+        orderBy: { id: 'asc' },
+      })) ?? (await db.users.findFirst({ where: porLogin, orderBy: { id: 'asc' } }))
+    );
+  }
+
+  /**
+   * A conta não tem papel nenhum além de equipe deste condomínio: nenhum perfil ou vínculo de síndico, nenhum
+   * cadastro de morador ou unidade e nenhuma equipe em outro prédio. Mesmo critério do
+   * contaSoDaEquipeDoCondominio do app (mobile-auth), com as flags como trava extra.
+   */
+  private async contaSoDeEquipe(
+    conta: { id: number; is_sindico?: number | null; is_morador?: number | null },
+    idCondominio: number,
+    db: any = this.prisma,
+  ): Promise<boolean> {
+    if (conta.is_sindico || conta.is_morador) return false;
+    const [perfisSindico, sindicoEm, moradorEm, unidades, equipeFora] = await Promise.all([
+      db.sindicos.count({ where: { id_user: conta.id } }),
+      db.sindicos_Condominios.count({ where: { id_user: conta.id } }),
+      db.moradores.count({ where: { id_user: conta.id } }),
+      db.apartamentos_Users.count({ where: { id_user: conta.id } }),
+      db.funcionarios.count({ where: { id_user: conta.id, id_condominio: { not: Number(idCondominio) } } }),
+    ]);
+    return perfisSindico + sindicoEm + moradorEm + unidades + equipeFora === 0;
+  }
+
+  /**
+   * A conta já é da equipe deste condomínio E exclusivamente dela: só então quem gerencia a equipe daqui
+   * administra a conta inteira (lápide na revogação, senha nova no re-credenciamento). É a regra que o app aplica
+   * ao adotar a senha da portaria (mobile-auth, loginFuncionario).
+   */
+  private async contaSoDestaEquipe(conta: { id: number; is_sindico?: number | null; is_morador?: number | null }, idCondominio: number, db: any = this.prisma) {
+    const daqui = await db.funcionarios.findFirst({
+      where: { id_user: conta.id, id_condominio: Number(idCondominio) },
+      select: { id: true },
+    });
+    return { daqui: !!daqui, soDaqui: !!daqui && (await this.contaSoDeEquipe(conta, idCondominio, db)) };
+  }
+
+  /**
+   * Conta existente que recebe o acesso (já é da equipe daqui: assertContaLivreParaPortaria). Com senha nova e
+   * conta exclusivamente desta equipe, a senha do app passa a ser a nova e os tokens caem — sem isto, re-credenciar
+   * por senha vazada mudava só o login de portaria e a senha antiga seguia entrando no app. Conta compartilhada
+   * (ou de qualquer outro jeito) não tem nada tocado além da flag.
+   */
+  private async ligarContaDaEquipe(conta: { id: number; is_sindico?: number | null; is_morador?: number | null }, hash: string | undefined, idCondominio: number) {
+    const { soDaqui } = hash ? await this.contaSoDestaEquipe(conta, idCondominio) : { soDaqui: false };
+    await this.prisma.users.update({
+      where: { id: conta.id },
+      data: soDaqui
+        ? { is_funcionario: 1, password: hash, senha_alterada_em: momentoTrocaSenha() }
+        : { is_funcionario: 1 },
+    });
+  }
+
+  /**
+   * Inutiliza, dentro da transação da revogação, a conta que era só desta equipe: lápide em login e e-mail, CPF
+   * liberado (coluna @unique anulável), senha inutilizável e senha_alterada_em. A lápide nunca derruba a revogação:
+   * já ocupada (de antemão ou por corrida no @unique), tenta outra; depois de 3, segue sem ela — a conta fica com
+   * o e-mail ocupado, mas sem senha que entre e sem tokens.
+   */
+  private async inutilizarConta(tx: any, idUser: number) {
+    const base = {
+      password: PrestadoresService.senhaInutilizavel(idUser),
+      senha_alterada_em: momentoTrocaSenha(),
+      cpf: null,
+    };
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      const lapide = this.novaLapide(idUser);
+      const ocupada = await tx.users.findFirst({
+        where: { OR: [{ login: lapide }, { email: lapide }], NOT: { id: idUser } },
+        select: { id: true },
+      });
+      if (ocupada) continue;
+      try {
+        await tx.users.update({ where: { id: idUser }, data: { ...base, login: lapide, email: lapide } });
+        return;
+      } catch (err: any) {
+        if (err?.code !== 'P2002') throw err;
+      }
+    }
+    this.logger.warn(`Lápide indisponível para a conta ${idUser}: revogada sem liberar o e-mail.`);
+    await tx.users.update({ where: { id: idUser }, data: base });
   }
 
   /**
    * O e-mail do prestador é a chave do login de portaria dele (não há FK). Por isso ele nunca pode passar a
    * ser um login de portaria que já existe e não é o dele — com ou sem acesso pedido. `idLoginProprio`: o
    * login que já pertence a este prestador (loginPortariaDoPrestador), que não conta como colisão.
+   * Também não pode ser o `email` de outro login de portaria deste condomínio: re-credenciar pelo e-mail
+   * trocaria a senha de um colega (o app acha o login por login OU e-mail).
    */
-  private async assertEmailLivreNaPortaria(email: string | null | undefined, idLoginProprio?: number) {
+  private async assertEmailLivreNaPortaria(email: string | null | undefined, idCondominio: number, idLoginProprio?: number) {
     const login = (email ?? '').trim();
     if (!login) return;
     // login é único no banco inteiro: uma linha no máximo, comparada pelo id aqui.
     const existente = await this.prisma.funcionarios_Portaria.findFirst({ where: { login }, select: { id: true } });
     if (existente && existente.id !== idLoginProprio) {
+      throw new BadRequestException('Já existe um funcionário com este e-mail.');
+    }
+    const colega = await this.prisma.funcionarios_Portaria.findFirst({
+      where: {
+        email: login,
+        id_condominio: Number(idCondominio),
+        ...(idLoginProprio ? { NOT: { id: idLoginProprio } } : {}),
+      },
+      select: { id: true },
+    });
+    if (colega && colega.id !== idLoginProprio) {
       throw new BadRequestException('Já existe um funcionário com este e-mail.');
     }
   }
@@ -322,15 +458,62 @@ export class PrestadoresService {
     });
   }
 
+  /**
+   * Tira de fato o acesso que o cadastro de prestador concedeu. Apagar só o Funcionarios_Portaria deixava a conta
+   * do app e o vínculo Funcionarios criados na concessão: a pessoa seguia entrando no app como Funcionário e voltava
+   * ao console pelo QR Code. Aqui sai também o vínculo de equipe DESTE condomínio (o JwtStrategy e o tenant do app
+   * conferem por ele) e senha_alterada_em derruba os tokens já emitidos para a conta.
+   *
+   * A conta Users NUNCA é apagada: o mesmo e-mail pode ser de um síndico ou morador e a exclusão cascatearia.
+   * O removeFuncionario do app apaga a conta quando ela é só da equipe do condomínio — é isso que libera o e-mail
+   * para um cadastro novo. Aqui o equivalente sem apagar a linha: a conta que era EXCLUSIVAMENTE da equipe deste
+   * condomínio (conferido ANTES de tirar o vínculo — é a prova de origem) tem login e e-mail trocados por uma
+   * lápide e a senha inutilizada. Ela não autentica mais, e religar a chave cai no caminho normal de "e-mail livre
+   * → conta nova". Conta compartilhada (síndico, morador, equipe de outro prédio) perde só o vínculo daqui e os
+   * tokens; religar o acesso para ela continua recusado (assertContaLivreParaPortaria).
+   * Tudo numa transação: sem ela, uma falha no meio (a lápide batendo no @unique) deixava o vínculo apagado, o
+   * login de portaria de pé e sem senha_alterada_em — e o fallback do app recriava o vínculo. A conta é relida e
+   * a checagem "exclusivamente desta equipe" refeita dentro da transação.
+   */
+  private async revogarLoginDoPrestador(
+    login: { id: number; login: string; id_condominio: number },
+    idPrestador: number,
+    opcoes: { manterLogin?: boolean } = {},
+  ) {
+    try {
+      await this.prisma.$transaction(async (tx: any) => {
+        const conta = await this.contaDoLogin(login.login, login.id_condominio, tx);
+        // contaDoLogin cai na conta mais antiga com aquele login/e-mail quando nenhuma é da equipe daqui: essa não
+        // é nossa, e nunca recebe lápide nem perde os tokens.
+        const { daqui, soDaqui } = conta
+          ? await this.contaSoDestaEquipe(conta, login.id_condominio, tx)
+          : { daqui: false, soDaqui: false };
+        if (conta && daqui) {
+          await tx.funcionarios.deleteMany({ where: { id_user: conta.id, id_condominio: login.id_condominio } });
+          if (soDaqui) await this.inutilizarConta(tx, conta.id);
+          else await tx.users.update({ where: { id: conta.id }, data: { senha_alterada_em: momentoTrocaSenha() } });
+        }
+        // manterLogin: troca de e-mail — só a conta antiga sai; o login de portaria acompanha o e-mail novo.
+        if (!opcoes.manterLogin) await tx.funcionarios_Portaria.deleteMany({ where: { id: login.id } });
+      });
+    } catch (err: any) {
+      this.logger.error(`Falha ao revogar o acesso à portaria do prestador ${idPrestador}: ${err?.message ?? err}`);
+      throw new BadRequestException('Não foi possível revogar o acesso à portaria. Tente novamente.');
+    }
+  }
+
   async create(dto: CreatePrestadorDto, user?: JwtPayload) {
     // Interface, não DTO: um objeto no e-mail estourava em .trim() e virava erro 500 em vez de 400.
     if (dto.email != null && typeof dto.email !== 'string') throw new BadRequestException('E-mail inválido.');
+    // O e-mail do prestador vira login e conta do app: nunca no domínio das lápides da revogação.
+    assertEmailNaoReservado(dto.email);
     // E-mail só com espaços = sem e-mail: nunca vira login de portaria ''.
     if (typeof dto.email === 'string' && dto.email.trim() === '') dto = { ...dto, email: null };
     await this.tenant.assertCondominio(dto.id_condominio, user);
     await this.tenant.assertPermissaoFuncionario(dto.id_condominio, 'prestadores_servico', user);
-    // Conceder login de portaria é ato do console (síndico/portaria), não de morador nem de funcionário do app.
-    if (dto.hasPortariaAccess) assertOperador(user, 'conceder acesso à portaria a um prestador');
+    // Conceder login de portaria é do síndico, como no app (mobile-auth: gerenciar funcionários). Pelo papel do
+    // token, não pelo `turno`, que é texto livre do cadastro do porteiro.
+    if (dto.hasPortariaAccess) assertSindicoEstrito(user, 'conceder acesso à portaria a um prestador');
     // Sem senha padrão: '123456' era a senha do login de portaria (e da conta do app) do prestador.
     if (dto.hasPortariaAccess && dto.email && !(typeof dto.senha === 'string' && dto.senha.trim() !== '')) {
       throw new BadRequestException('Informe uma senha para o acesso à portaria.');
@@ -353,7 +536,7 @@ export class PrestadoresService {
 
     if (dto.email && dto.hasPortariaAccess) {
       // Com acesso pedido nem o login do próprio cadastro vale: o create abaixo criaria um login duplicado.
-      await this.assertEmailLivreNaPortaria(dto.email);
+      await this.assertEmailLivreNaPortaria(dto.email, dto.id_condominio);
       await this.assertContaLivreParaPortaria(dto.email.trim(), dto.id_condominio);
     }
 
@@ -370,11 +553,37 @@ export class PrestadoresService {
     // Antes do upload, para a foto recusada nem chegar ao storage.
     if (existing) await this.assertPodeGerenciarPrestador(existing, user);
 
+    // Mesmo nome de quem tem login de portaria: o e-mail do cadastro É o login (não há FK). O console manda
+    // email '' no "Novo", e o upsert gravava null sem checar alçada — login, conta e vínculo ficavam vivos, a lista
+    // mostrava "sem acesso" e o síndico perdia o caminho para revogar. Quem não é síndico não mexe nesse e-mail
+    // (os demais campos seguem como sempre). O upsert NUNCA revoga: e-mail vazio/ausente preserva o e-mail e o
+    // acesso também para o síndico — a tela nem mostra o campo com a chave desligada, e revogar por acidente ao
+    // recadastrar um nome é armadilha. Revogar é só pelo caminho explícito (update com a chave desligada, remover).
+    // O síndico com e-mail NÃO vazio segue a regra do update: desliga a conta antiga e leva o login (ou, com a
+    // chave, concede de novo para o e-mail novo).
+    const loginDoExistente = existing ? await this.loginPortariaDoPrestador(existing) : null;
+    let revogarExistente: 'tudo' | 'conta' | null = null;
+    if (loginDoExistente && dto.email !== undefined) {
+      const emailNovo = (dto.email ?? '').trim();
+      const muda = emailNovo.toLowerCase() !== (existing!.email ?? '').trim().toLowerCase();
+      if (muda && (!emailNovo || !isSindicoEstrito(user))) {
+        dto = { ...dto, email: undefined };
+      } else if (muda) {
+        revogarExistente = dto.hasPortariaAccess ? 'tudo' : 'conta';
+      }
+    }
+    // Trocar o e-mail de acesso troca a credencial: com a senha antiga, o dono do e-mail antigo achava o login
+    // pelo app (login OU e-mail) e recriava o vínculo — a revogação se desfazia sozinha.
+    const senhaDoPedido = typeof dto.senha === 'string' && dto.senha.trim() !== '' ? dto.senha : undefined;
+    if (revogarExistente && !senhaDoPedido) {
+      throw new BadRequestException('Defina uma nova senha ao trocar o e-mail de acesso.');
+    }
+
     // Sem acesso pedido, o e-mail também não pode passar a ser um login de portaria existente: o login do
     // prestador é achado por esse e-mail (remove, revogação). Repetir o e-mail que o cadastro já tem não é troca.
     if (!dto.hasPortariaAccess && typeof dto.email === 'string') {
       const mesmoEmail = !!existing && (existing.email ?? '').trim().toLowerCase() === dto.email.trim().toLowerCase();
-      if (!mesmoEmail) await this.assertEmailLivreNaPortaria(dto.email);
+      if (!mesmoEmail) await this.assertEmailLivreNaPortaria(dto.email, dto.id_condominio);
     }
 
     // Unidade que de fato vai para o banco (no upsert, a ausente mantém a atual):
@@ -388,6 +597,11 @@ export class PrestadoresService {
     const fotosDoCadastro = existing ? [existing.foto_pessoa, existing.foto_documento] : [];
     const fotoPes = await this.resolveFoto(dto.foto_pessoa, fotosDoCadastro);
     const fotoDoc = await this.resolveFoto(dto.foto_documento, fotosDoCadastro);
+
+    // Antes de gravar o cadastro, como no update: a conta antiga sai antes de qualquer concessão ao e-mail novo.
+    if (revogarExistente && loginDoExistente) {
+      await this.revogarLoginDoPrestador(loginDoExistente, existing!.id, { manterLogin: revogarExistente === 'conta' });
+    }
 
     let criado;
     if (existing) {
@@ -419,6 +633,15 @@ export class PrestadoresService {
       });
     }
 
+    if (revogarExistente === 'conta' && loginDoExistente && criado.email) {
+      // O login do cadastro acompanha o e-mail novo (já conferido livre acima), como no update: login E e-mail
+      // (o app acha o login por qualquer dos dois) e a senha nova.
+      await this.prisma.funcionarios_Portaria.update({
+        where: { id: loginDoExistente.id },
+        data: { login: criado.email, email: criado.email, password: await bcrypt.hash(senhaDoPedido as string, 12) },
+      });
+    }
+
     if (dto.hasPortariaAccess && dto.email) {
       const senhaInicial = dto.senha as string;
       const hash = await bcrypt.hash(senhaInicial, 12);
@@ -438,9 +661,7 @@ export class PrestadoresService {
       });
 
       try {
-        let user = await this.prisma.users.findFirst({
-          where: { OR: [{ login: emailClean }, { email: emailClean }] },
-        });
+        let user = await this.contaDoLogin(emailClean, dto.id_condominio);
         if (!user) {
           user = await this.prisma.users.create({
             data: {
@@ -457,11 +678,8 @@ export class PrestadoresService {
             },
           });
         } else {
-          // Conta já existente (da equipe deste condomínio): nunca troca a senha dela.
-          await this.prisma.users.update({
-            where: { id: user.id },
-            data: { is_funcionario: 1 },
-          });
+          // Conta já existente (da equipe deste condomínio, conferido em assertContaLivreParaPortaria).
+          await this.ligarContaDaEquipe(user, hash, dto.id_condominio);
         }
 
         const f = await this.prisma.funcionarios.findFirst({
@@ -500,6 +718,7 @@ export class PrestadoresService {
   async update(id: number, dto: Partial<CreatePrestadorDto>, idCondominio?: number, user?: JwtPayload) {
     // Interface, não DTO: um objeto no e-mail estourava em .trim() e virava erro 500 em vez de 400.
     if (dto.email != null && typeof dto.email !== 'string') throw new BadRequestException('E-mail inválido.');
+    assertEmailNaoReservado(dto.email);
     // E-mail só com espaços = limpar o e-mail: revoga o login do prestador exatamente como email: null.
     if (typeof dto.email === 'string' && dto.email.trim() === '') dto = { ...dto, email: null };
     if (!this.prisma.isConnected) {
@@ -528,11 +747,7 @@ export class PrestadoresService {
       );
     }
 
-    if (dto.hasPortariaAccess) {
-      assertOperador(user, 'conceder acesso à portaria a um prestador');
-      const emailAcesso = (dto.email ?? atual.email ?? '').trim();
-      if (emailAcesso) await this.assertContaLivreParaPortaria(emailAcesso, atual.id_condominio);
-    }
+    if (dto.hasPortariaAccess) assertOperador(user, 'conceder acesso à portaria a um prestador');
     // Login de portaria que esta edição cria ou re-credencia, resolvido ANTES de gravar: criar um login
     // novo sem senha é recusado (antes virava '123456') sem deixar o cadastro meio salvo.
     const emailParaLogin = dto.email ? dto.email.trim() : dto.email === undefined ? (atual.email ?? '').trim() : '';
@@ -542,11 +757,36 @@ export class PrestadoresService {
     // sobrescrevia a senha dele (e o turno dele, até 'Síndico', continuava valendo).
     const emailMuda =
       typeof dto.email === 'string' && dto.email.trim().toLowerCase() !== (atual.email ?? '').trim().toLowerCase();
-    const loginProprio = emailMuda || dto.hasPortariaAccess ? await this.loginPortariaDoPrestador(atual) : null;
+    const loginProprio =
+      dto.hasPortariaAccess !== undefined || dto.email !== undefined ? await this.loginPortariaDoPrestador(atual) : null;
+    // Revogar: desligar a chave ou limpar o e-mail (que é o login). Pedir o acesso com e-mail vence.
+    const revoga =
+      !(dto.hasPortariaAccess && emailParaLogin) && (dto.hasPortariaAccess === false || (dto.email === null && !!atual.email));
+
+    // Conceder, mudar (senha, e-mail = login, reativar) ou revogar o login de portaria é do síndico, como no app.
+    // Editar o prestador com a chave como está (o console manda o estado atual) continua com a portaria.
+    const concedeOuMuda =
+      !!dto.hasPortariaAccess &&
+      !!emailParaLogin &&
+      (!loginProprio || loginProprio.ativo !== 1 || !!senhaInformada || emailMuda);
+    const tiraOuMove = !!loginProprio && (revoga || emailMuda);
+    if (concedeOuMuda || tiraOuMove) assertSindicoEstrito(user, 'conceder, alterar ou revogar o acesso à portaria');
+    // Trocar o e-mail de acesso troca a credencial. Só o login ia para o e-mail novo, com o `email` antigo e a
+    // mesma senha: o dono do e-mail antigo entrava no app (que acha o login por login OU e-mail) com a senha de
+    // sempre e o vínculo Funcionarios era RECRIADO — a revogação se desfazia sozinha.
+    const trocaEmailDeAcesso = !!loginProprio && emailMuda && !!emailParaLogin && !revoga;
+    if (trocaEmailDeAcesso && !senhaInformada) {
+      throw new BadRequestException('Defina uma nova senha ao trocar o e-mail de acesso.');
+    }
+
+    if (dto.hasPortariaAccess) {
+      const emailAcesso = (dto.email ?? atual.email ?? '').trim();
+      if (emailAcesso) await this.assertContaLivreParaPortaria(emailAcesso, atual.id_condominio);
+    }
     // E o e-mail resultante nunca pode ser login de outra pessoa: em TODA troca de e-mail (com ou sem a flag)
     // e em todo acesso pedido (antes só quando e-mail e flag vinham juntos, e o e-mail atual era isento).
     if (emailMuda || dto.hasPortariaAccess) {
-      await this.assertEmailLivreNaPortaria(emailParaLogin, loginProprio?.id);
+      await this.assertEmailLivreNaPortaria(emailParaLogin, atual.id_condominio, loginProprio?.id);
     }
     const atualPortaria = dto.hasPortariaAccess && emailParaLogin ? loginProprio : null;
     if (dto.hasPortariaAccess && emailParaLogin && !atualPortaria && !senhaInformada) {
@@ -556,6 +796,19 @@ export class PrestadoresService {
     const fotosDoCadastro = [atual.foto_pessoa, atual.foto_documento];
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDoCadastro) : undefined;
     const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDoCadastro) : undefined;
+
+    // Antes de gravar o prestador: limpar o e-mail tira o login do alcance de loginPortariaDoPrestador, e uma
+    // revogação que falhasse depois disso deixaria o acesso de pé sem caminho para refazê-la.
+    // Só o login que ESTE prestador recebeu. Antes: deleteMany pelo e-mail (atual ou o novo), que levava
+    // o login de qualquer pessoa da equipe gravado como e-mail do prestador.
+    if (revoga && loginProprio) {
+      await this.revogarLoginDoPrestador(loginProprio, Number(id));
+    } else if (trocaEmailDeAcesso && loginProprio) {
+      // Troca do e-mail (= login) de quem tem acesso: o login acompanha o e-mail novo, mas a conta do e-mail
+      // ANTIGO sai da equipe no mesmo ato e os tokens dela caem. Antes ela seguia com o próprio Funcionarios e a
+      // mesma senha — e a revogação, depois, só achava a conta do e-mail novo.
+      await this.revogarLoginDoPrestador(loginProprio, Number(id), { manterLogin: true });
+    }
 
     try {
       const atualizado = await this.prisma.prestadores_servico.update({
@@ -604,9 +857,7 @@ export class PrestadoresService {
         }
 
         try {
-          let user = await this.prisma.users.findFirst({
-            where: { OR: [{ login: emailParaLogin }, { email: emailParaLogin }] },
-          });
+          let user = await this.contaDoLogin(emailParaLogin, atualizado.id_condominio);
           if (!user) {
             // Sem senha nova, a conta do app nasce com a senha que o login de portaria já tem.
             const userHash = hash ?? atualPortaria!.password;
@@ -625,11 +876,9 @@ export class PrestadoresService {
               },
             });
           } else {
-            await this.prisma.users.update({
-              where: { id: user.id },
-              // Conta já existente (da equipe deste condomínio): não troca senha nem dados pessoais dela.
-              data: { is_funcionario: 1 },
-            });
+            // Conta já existente (da equipe deste condomínio, conferido em assertContaLivreParaPortaria): dados
+            // pessoais ficam; a senha só acompanha a nova se a conta é exclusivamente desta equipe.
+            await this.ligarContaDaEquipe(user, hash, atualizado.id_condominio);
           }
 
           const f = await this.prisma.funcionarios.findFirst({
@@ -668,17 +917,13 @@ export class PrestadoresService {
         } catch (err) {
           this.logger.error('Erro ao sincronizar funcionario web com Users/Funcionarios no update', err);
         }
-      } else if (dto.hasPortariaAccess === false || (dto.email === null && atual.email)) {
-        // Só o login que ESTE prestador recebeu. Antes: deleteMany pelo e-mail (atual ou o novo), que levava
-        // o login de qualquer pessoa da equipe gravado como e-mail do prestador.
-        const proprio = await this.loginPortariaDoPrestador(atual);
-        if (proprio) await this.prisma.funcionarios_Portaria.deleteMany({ where: { id: proprio.id } });
-      } else if (emailMuda && emailParaLogin && loginProprio) {
+      } else if (trocaEmailDeAcesso && loginProprio) {
         // Troca de e-mail sem a flag: o login do prestador acompanha (já conferido livre acima). Sem isto ele
-        // ficava com o e-mail antigo, fora do alcance de re-credenciar, revogar e remover.
+        // ficava com o e-mail antigo, fora do alcance de re-credenciar, revogar e remover. Login E e-mail (o app
+        // acha por qualquer dos dois) e a senha nova, obrigatória nesta troca.
         await this.prisma.funcionarios_Portaria.update({
           where: { id: loginProprio.id },
-          data: { login: emailParaLogin },
+          data: { login: emailParaLogin, email: emailParaLogin, password: await bcrypt.hash(senhaInformada as string, 12) },
         });
       }
 
@@ -719,6 +964,16 @@ export class PrestadoresService {
     await this.assertPodeGerenciarPrestador(atual, user);
     await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'prestadores_servico', user);
 
+    // Só o login de portaria que ESTE prestador recebeu (e-mail dele + condomínio + turno 'Geral'). Antes:
+    // deleteMany por e-mail — gravar o login de um porteiro como e-mail do prestador e removê-lo apagava a
+    // conta do porteiro. Remover quem tem login é revogar esse login: do síndico, e antes de apagar o cadastro
+    // (sem o prestador, o login fica sem caminho para ser revogado). Falha na revogação = nada é apagado.
+    const loginProprio = await this.loginPortariaDoPrestador(atual);
+    if (loginProprio) {
+      assertSindicoEstrito(user, 'remover um prestador com acesso à portaria');
+      await this.revogarLoginDoPrestador(loginProprio, Number(id));
+    }
+
     // Remove o rosto dos terminais faciais antes de apagar o cadastro, senão
     // ficaria um rosto órfão abrindo a porta sem dono no banco.
     if (atual.face_id) {
@@ -729,16 +984,6 @@ export class PrestadoresService {
             `Unsync facial prestador ${id} falhou: ${err?.message ?? err}`,
           ),
         );
-    }
-
-    // Só o login de portaria que ESTE prestador recebeu (e-mail dele + condomínio + turno 'Geral'). Antes:
-    // deleteMany por e-mail — gravar o login de um porteiro como e-mail do prestador e removê-lo apagava a
-    // conta do porteiro. Continua best-effort, como antes.
-    try {
-      const loginProprio = await this.loginPortariaDoPrestador(atual);
-      if (loginProprio) await this.prisma.funcionarios_Portaria.deleteMany({ where: { id: loginProprio.id } });
-    } catch (err: any) {
-      this.logger.warn(`Falha ao remover acesso portaria do prestador ${id}: ${err?.message ?? err}`);
     }
 
     try {

@@ -11,6 +11,8 @@ export interface Prestador {
   email?: string | null;
   senha?: string | null;
   hasPortariaAccess?: boolean;
+  /** O cadastro tem login de portaria próprio (ativo ou não): remover e revogar são do síndico. */
+  loginPortariaProprio?: boolean;
   categorias: string | null;
   id_condominio: number;
   id_apartamento?: number | null;

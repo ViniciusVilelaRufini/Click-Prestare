@@ -207,7 +207,8 @@
           </div>
         </div>
 
-        <!-- Dados de Acesso para o Sistema -->
+        <!-- Dados de Acesso para o Sistema (só o síndico cria, muda e revoga o login de portaria) -->
+        @if (podeGerenciarAcesso()) {
         <div class="block md:col-span-3 border-t border-white/5 pt-4 mt-4">
           <div class="flex items-center justify-between mb-3">
             <div>
@@ -230,7 +231,7 @@
               </label>
               <label class="block">
                 <span class="ps-label mb-1.5 block">
-                  Senha {{ editingId ? '(Deixe em branco para manter a atual)' : '*' }}
+                  Senha {{ !editingId || trocaEmailDeAcesso() ? '*' : '(Deixe em branco para manter a atual)' }}
                 </span>
                 <input [(ngModel)]="novo.senha" type="password" placeholder="••••••••"
                   class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60" />
@@ -238,6 +239,7 @@
             </div>
           }
         </div>
+        }
       </div>
 
       <!-- Fotos (Pessoa e Documento) -->
@@ -582,11 +584,14 @@
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
               Editar
             </button>
+            <!-- Remover quem tem login de portaria é revogar esse login: só o síndico. -->
+            @if (podeGerenciarAcesso() || !(p.loginPortariaProprio ?? p.hasPortariaAccess)) {
             <button (click)="remover(p); $event.stopPropagation()"
                     class="ps-btn ps-btn-danger ps-btn-sm">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
               Excluir
             </button>
+            }
           </div>
         </div>
       }

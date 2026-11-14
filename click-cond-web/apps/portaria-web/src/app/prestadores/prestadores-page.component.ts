@@ -11,6 +11,8 @@ import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.servi
 import { compressImage } from '../shared/image-compress.util';
 import { ConsentimentosApi } from '../core/consentimentos.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { AuthService } from '../auth/auth.service';
+import { papelDoToken } from '../auth/papel';
 
 @Component({
   selector: 'app-prestadores-page',
@@ -25,8 +27,19 @@ export class PrestadoresPageComponent implements OnInit {
   private aptApi = inject(ApartamentosApi);
   private route = inject(ActivatedRoute);
   private consentimentosApi = inject(ConsentimentosApi);
+  private auth = inject(AuthService);
 
   readonly consentimentoBiometria = signal(false);
+
+  /**
+   * Criar, mudar e revogar o login de portaria (a chave "Acesso Portaria Web") e remover quem o tem é do
+   * síndico: a API recusa o resto, como o app já fazia. Decide pelo papel do token — o `turno` é texto
+   * livre do cadastro do porteiro. A API segue decidindo.
+   */
+  readonly podeGerenciarAcesso = computed(() => {
+    this.auth.porteiroInfo(); // recalcula ao entrar / trocar de condomínio
+    return papelDoToken(this.auth.token) === 'sindico';
+  });
 
   constructor() {
     effect(() => {
@@ -308,6 +321,8 @@ export class PrestadoresPageComponent implements OnInit {
   novo: CreatePrestador = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '' };
   showForm = false;
   editingId: number | null = null;
+  /** E-mail de acesso de quem já tem login, ao abrir a edição: trocá-lo exige senha nova (a API recusa sem). */
+  emailDeAcessoOriginal: string | null = null;
   readonly saving = signal(false);
 
   ngOnInit() {
@@ -346,6 +361,7 @@ export class PrestadoresPageComponent implements OnInit {
 
   abrirNovo() {
     this.editingId = null;
+    this.emailDeAcessoOriginal = null;
     this.novo = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '', id_apartamento: 0, dias_semana: 'seg,ter,qua,qui,sex', foto_pessoa: undefined, foto_documento: undefined };
     this.categoriasSelecionadas.set(new Set());
     this.fotoPessoaBase64.set(null);
@@ -357,6 +373,7 @@ export class PrestadoresPageComponent implements OnInit {
 
   abrirEditar(p: Prestador) {
     this.editingId = p.id;
+    this.emailDeAcessoOriginal = (p.loginPortariaProprio ?? p.hasPortariaAccess) ? (p.email ?? '').trim() : null;
     this.fotoPessoaBase64.set(p.foto_pessoa ?? null);
     this.fotoDocumentoBase64.set(p.foto_documento ?? null);
     this.novo = {
@@ -417,9 +434,13 @@ export class PrestadoresPageComponent implements OnInit {
   salvar() {
     if (!this.novo.nome?.trim()) { this.error.set('Nome é obrigatório.'); return; }
 
-    if (this.novo.hasPortariaAccess) {
+    if (this.podeGerenciarAcesso() && this.novo.hasPortariaAccess) {
       if (!this.novo.email?.trim()) { this.error.set('E-mail é obrigatório para liberar acesso.'); return; }
       if (!this.editingId && !this.novo.senha?.trim()) { this.error.set('Senha é obrigatória para liberar acesso.'); return; }
+    }
+    if (this.trocaEmailDeAcesso() && !this.novo.senha?.trim()) {
+      this.error.set('Defina uma nova senha ao trocar o e-mail de acesso.');
+      return;
     }
 
     this.novo.categorias = Array.from(this.categoriasSelecionadas()).join(';');
@@ -432,9 +453,12 @@ export class PrestadoresPageComponent implements OnInit {
     }
 
     this.saving.set(true);
+    // Sem a alçada, a chave e a senha nem vão: a API mantém o login como está.
+    const { hasPortariaAccess: _acesso, senha: _senha, ...semAcesso } = this.novo;
+    const dto = this.podeGerenciarAcesso() ? this.novo : semAcesso;
     const obs = this.editingId
-      ? this.api.update(this.editingId, this.novo)
-      : this.api.create(this.novo);
+      ? this.api.update(this.editingId, dto)
+      : this.api.create(dto);
     obs.subscribe({
       next: (saved: any) => {
         const idPessoa = this.editingId || saved?.id;
@@ -459,6 +483,18 @@ export class PrestadoresPageComponent implements OnInit {
     });
   }
 
+  /**
+   * Editando quem tem login PRÓPRIO (loginPortariaProprio: turno 'Geral', como na API), com a chave ligada, o
+   * e-mail de acesso mudou: a credencial muda junto, então a senha é obrigatória. Com a chave desligada é
+   * revogação — a API não pede senha, e o campo nem aparece.
+   */
+  trocaEmailDeAcesso(): boolean {
+    if (this.editingId === null || this.emailDeAcessoOriginal === null || !this.podeGerenciarAcesso()) return false;
+    if (!this.novo.hasPortariaAccess) return false;
+    const atual = (this.novo.email ?? '').trim().toLowerCase();
+    return !!atual && atual !== this.emailDeAcessoOriginal.toLowerCase();
+  }
+
   async remover(p: Prestador) {
     const ok = await this.confirm.ask({
       title: 'Remover prestador',
@@ -467,7 +503,11 @@ export class PrestadoresPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.remove(p.id).subscribe({ next: () => this.carregar() });
+    this.error.set(null);
+    this.api.remove(p.id).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.error.set(e?.error?.message ?? e?.message ?? 'Erro ao remover.'),
+    });
   }
 
   toggleCategoriaSelecionada(cat: string) {

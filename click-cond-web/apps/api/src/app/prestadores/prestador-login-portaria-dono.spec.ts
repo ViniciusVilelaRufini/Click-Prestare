@@ -7,6 +7,8 @@ import { PrestadoresService } from './prestadores.service';
  */
 describe('PrestadoresService.update — só o login de portaria do próprio prestador', () => {
   const porteiroConsole = { sub: 3, nome: 'Porteiro A', id_condominio: 1 } as any;
+  // Pedir/re-credenciar o login de portaria é do síndico (A5).
+  const sindicoConsole = { sub: 51, nome: 'Síndico', id_condominio: 1, typeAccess: 'Sindico' } as any;
   // Login de outro porteiro, criado pela tela de funcionários (turno livre, não 'Geral').
   const vitima = { id: 9, login: 'b@x.com', email: 'b@x.com', id_condominio: 1, turno: 'Diurno', nome: 'Porteiro B', telefone: null, ativo: 1, password: '$2b$04$vitima' };
   // Login que o próprio prestador recebeu pelo cadastro de prestador (turno 'Geral').
@@ -27,7 +29,7 @@ describe('PrestadoresService.update — só o login de portaria do próprio pres
       },
       funcionarios_Portaria: {
         findFirst: jest.fn(async ({ where }: any) =>
-          logins.find((l) => casa(l.login, where.login) && casa(l.id_condominio, where.id_condominio) && casa(l.turno, where.turno)) ?? null,
+          logins.find((l) => casa(l.login, where.login) && casa(l.email, where.email) && casa(l.id_condominio, where.id_condominio) && casa(l.turno, where.turno) && !(where.NOT && l.id === where.NOT.id)) ?? null,
         ),
         create: jest.fn(async () => ({})),
         update: jest.fn(async () => ({})),
@@ -35,7 +37,12 @@ describe('PrestadoresService.update — só o login de portaria do próprio pres
       },
       // As contas dos porteiros são da equipe deste condomínio: assertContaLivreParaPortaria passa (é o caso do achado).
       users: { findFirst: jest.fn(async () => ({ id: 5 })), create: jest.fn(), update: jest.fn(async () => ({})) },
-      funcionarios: { findFirst: jest.fn(async () => ({ id: 1 })), create: jest.fn(), update: jest.fn(async () => ({})) },
+      funcionarios: { findFirst: jest.fn(async () => ({ id: 1 })), create: jest.fn(), update: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
+      // Re-credenciar com senha pergunta se a conta é só de equipe (aí a senha do app acompanha a nova).
+      sindicos: { count: jest.fn(async () => 0) },
+      sindicos_Condominios: { count: jest.fn(async () => 0) },
+      moradores: { count: jest.fn(async () => 0) },
+      apartamentos_Users: { count: jest.fn(async () => 0) },
     };
     const tenant: any = {
       assertEntidade: jest.fn(async () => undefined),
@@ -57,7 +64,7 @@ describe('PrestadoresService.update — só o login de portaria do próprio pres
 
   it('pedir acesso quando o e-mail atual já é o login de outro porteiro → 400; a senha dele não muda', async () => {
     const { svc, prisma } = build('b@x.com');
-    await expect(svc.update(1, { hasPortariaAccess: true, senha: 'Nova#123' }, 1, porteiroConsole)).rejects.toThrow(
+    await expect(svc.update(1, { hasPortariaAccess: true, senha: 'Nova#123' }, 1, sindicoConsole)).rejects.toThrow(
       'Já existe um funcionário com este e-mail.',
     );
     expect(prisma.funcionarios_Portaria.update).not.toHaveBeenCalled();
@@ -67,7 +74,7 @@ describe('PrestadoresService.update — só o login de portaria do próprio pres
 
   it('re-credenciar o login do próprio prestador continua funcionando', async () => {
     const { svc, prisma } = build('p@x.com');
-    await svc.update(1, { hasPortariaAccess: true, senha: 'Nova#123' }, 1, porteiroConsole);
+    await svc.update(1, { hasPortariaAccess: true, senha: 'Nova#123' }, 1, sindicoConsole);
     const chamada = prisma.funcionarios_Portaria.update.mock.calls[0][0];
     expect(chamada.where).toEqual({ id: 12 });
     expect(await bcrypt.compare('Nova#123', chamada.data.password)).toBe(true);
