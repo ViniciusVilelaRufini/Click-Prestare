@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
 import { VeiculosApi, Veiculo, Tag, CreateVeiculo } from './veiculos.service';
-import { OriginalEdicaoMorador, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
+import { OriginalEdicaoMorador, ajusteMenorDeIdade, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
 import { ActivatedRoute } from '@angular/router';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
@@ -364,7 +364,16 @@ export class MoradoresPageComponent implements OnInit {
       tag_rfid: m.tag_rfid ?? '',
       qrcode_acesso: m.qrcode_acesso ?? '',
     };
-    this.originalEdicao = { id_apartamento: m.id_apartamento, tag_rfid: m.tag_rfid, qrcode_acesso: m.qrcode_acesso, tipo: m.tipo };
+    this.originalEdicao = {
+      id_apartamento: m.id_apartamento,
+      tag_rfid: m.tag_rfid,
+      qrcode_acesso: m.qrcode_acesso,
+      tipo: m.tipo,
+      email: this.novo.email,
+      foto_pessoa: this.novo.foto_pessoa,
+      foto_documento: this.novo.foto_documento,
+      data_nascimento: this.novo.data_nascimento,
+    };
     this.biometriaAutorizadaEdicao = m.biometria_autorizada ?? null;
     // Com rosto parado no cadastro, a API já separa o menor dependente (conta sem login de propósito).
     this.semContaAppEdicao = m.tem_conta_app === false && (m.foto_pessoa ? m.biometria_sem_conta_app === true : true);
@@ -478,30 +487,22 @@ export class MoradoresPageComponent implements OnInit {
       return;
     }
 
-    const ehMenor = this.isMenorDeIdade(this.novo.data_nascimento);
-
-    if (ehMenor && (this.fotoPessoaBase64() || this.novo.foto_pessoa)) {
-      const ok = await this.confirm.ask({
-        title: 'Morador Menor de 18 Anos',
-        message: 'A data informada torna o morador menor de idade. Pela Cláusula 8.3 do Contrato e a LGPD, a foto/biometria facial NÃO será sincronizada com os terminais. Deseja prosseguir salvando apenas como dependente sem biometria?',
-        confirmLabel: 'Prosseguir',
-        cancelLabel: 'Corrigir Data',
-        variant: 'danger',
-      });
-      if (!ok) {
-        return;
+    if (this.isMenorDeIdade(this.novo.data_nascimento)) {
+      const { aviso, ajuste } = ajusteMenorDeIdade(this.novo, !!this.editingId, this.originalEdicao.foto_pessoa);
+      if (aviso) {
+        const ok = await this.confirm.ask({
+          title: 'Morador Menor de 18 Anos',
+          message: aviso,
+          confirmLabel: 'Prosseguir',
+          cancelLabel: 'Corrigir Data',
+          variant: 'danger',
+        });
+        if (!ok) {
+          return;
+        }
       }
-      this.novo.foto_pessoa = undefined;
-      this.fotoPessoaBase64.set(null);
-      this.novo.sendCredentials = false;
-      this.novo.tipo = 'dependente';
-      this.novo.email = '';
-    } else if (ehMenor) {
-      this.novo.foto_pessoa = undefined;
-      this.novo.sendCredentials = false;
-      this.novo.tipo = 'dependente';
-      // E-mail cria conta no app; o backend recusa para menor (Cláusula 8.3).
-      this.novo.email = '';
+      Object.assign(this.novo, ajuste);
+      if ('foto_pessoa' in ajuste) this.fotoPessoaBase64.set(null);
     }
 
     this.saving.set(true);
@@ -761,7 +762,8 @@ export class MoradoresPageComponent implements OnInit {
     if (digits.length === 8) {
       const iso = this.formatarParaIso(valor);
       this.novo.data_nascimento = iso;
-      if (this.isMenorDeIdade(iso)) {
+      // Só no cadastro novo: na edição o tipo do menor fica como está (inquilino de 17 anos segue inquilino).
+      if (this.isMenorDeIdade(iso) && !this.editingId) {
         this.novo.sendCredentials = false;
         this.novo.tipo = 'dependente';
       }
@@ -789,7 +791,7 @@ export class MoradoresPageComponent implements OnInit {
     if (isoValue) {
       this.novo.data_nascimento = isoValue;
       this.dataNascimentoMasked = this.formatarParaBr(isoValue);
-      if (this.isMenorDeIdade(isoValue)) {
+      if (this.isMenorDeIdade(isoValue) && !this.editingId) {
         this.novo.sendCredentials = false;
         this.novo.tipo = 'dependente';
       }

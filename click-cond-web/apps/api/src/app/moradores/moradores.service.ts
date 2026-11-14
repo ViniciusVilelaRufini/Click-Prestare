@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
 import { type Gravados, StorageService } from '../common/storage/storage.service';
@@ -1163,7 +1163,10 @@ export class MoradoresService {
     // Depois de carregar o atual: a tela reenvia a foto que recebeu (de
     // Moradores ou de Users), e só ela vale como URL do bucket.
     const fotosDoCadastro = [atual.foto_pessoa, atual.foto_documento, atual.user?.photo, atual.user?.profile_image];
-    const fotoPessoaUrl = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDoCadastro) : undefined;
+    let fotoPessoaUrl = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa, fotosDoCadastro) : undefined;
+    // Foto reenviada igual à do cadastro não é edição: sem isto, corrigir o telefone exigia a data de
+    // nascimento, rodava o sync facial de novo e regravava a foto de perfil do app (Users.photo).
+    if (fotoPessoaUrl !== undefined && fotoPessoaUrl === (atual.foto_pessoa ?? null)) fotoPessoaUrl = undefined;
     const fotoDocumentoUrl =
       dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDoCadastro) : undefined;
 
@@ -1209,11 +1212,17 @@ export class MoradoresService {
     // batido só porque `atual.data_nascimento` também estava vazio.
     // validarMaioridade() já lança quando a data está ausente, então chamar
     // sem guarda de "é menor?" fecha os dois buracos (data ausente e menor).
+    // Só quando algo muda de fato (a tela antiga reenviava e-mail e foto em todo salvar): e-mail novo,
+    // foto nova, ou a data trocada num cadastro que fica com e-mail ou foto.
     const dnFinal = dto.data_nascimento !== undefined ? dto.data_nascimento : atual.data_nascimento;
-    if (dto.email) {
+    const diaNasc = (v: Date | string | null | undefined) => this.parseDate(v as any)?.toISOString().slice(0, 10) ?? null;
+    const dataMudou = dto.data_nascimento !== undefined && diaNasc(dto.data_nascimento) !== diaNasc(atual.data_nascimento);
+    const emailFinal = dto.email !== undefined ? dto.email : atual.email;
+    const fotoFinal = fotoPessoaUrl !== undefined ? fotoPessoaUrl : atual.foto_pessoa;
+    if ((emailMudou && dto.email) || (dataMudou && emailFinal)) {
       validarMaioridade(dnFinal, 'atualização de e-mail/conta de usuário no aplicativo');
     }
-    if (fotoPessoaUrl) {
+    if (fotoPessoaUrl || (dataMudou && fotoFinal)) {
       // Menor: só com o termo do responsável, aceito no app (extra2).
       validarBiometria(dnFinal, temTermoResponsavel((atual as any).extra2), 'atualização de biometria facial');
     }
@@ -1386,7 +1395,9 @@ export class MoradoresService {
         return morador;
       });
     } catch (err: any) {
-      if (err instanceof UnidadeDaTelaDivergente) throw err;
+      // Recusa nossa (unidade de outro condomínio, unidade divergente, já cadastrado na unidade):
+      // sai com a mensagem. Só o erro do banco vira a mensagem genérica.
+      if (err instanceof HttpException) throw err;
       this.logger.error(
         `[moradores.update] Falha ao atualizar morador ${id}: ${err?.message ?? err}`,
         err?.stack,
