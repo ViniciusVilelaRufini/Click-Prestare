@@ -59,6 +59,8 @@ export interface DeliveryAtendimento {
   cancelado_em?: string | null;
   recusado_em?: string | null;
   updated_at?: string | null;
+  /** Só na resposta do "Pedir autorização": quantos da unidade podem receber o pedido. */
+  avisados?: number;
 }
 
 export interface CriarEntregadorDelivery {
