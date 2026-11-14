@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
 import { VeiculosApi, Veiculo, Tag, CreateVeiculo } from './veiculos.service';
-import { OriginalEdicaoMorador, ajusteMenorDeIdade, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
+import { OriginalEdicaoMorador, ajusteMenorDeIdade, confirmacaoEnviarAcesso, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
 import { ActivatedRoute } from '@angular/router';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
@@ -630,23 +630,21 @@ export class MoradoresPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.remove(m.id).subscribe({ next: () => this.carregar() });
+    this.api.remove(m.id).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.toast.error(e?.error?.message ?? e?.message ?? 'Não foi possível remover o morador.'),
+    });
   }
   async sendCredentials(m: Morador) {
     if (!m.email) {
       this.toast.warning('Este morador não possui e-mail cadastrado.');
       return;
     }
-    const ok = await this.confirm.ask({
-      title: 'Enviar credenciais por e-mail',
-      message: `Um e-mail com link de acesso e senha inicial será enviado para ${m.email}.`,
-      confirmLabel: 'Enviar',
-      variant: 'primary',
-    });
+    const ok = await this.confirm.ask(confirmacaoEnviarAcesso(m));
     if (!ok) return;
     this.api.sendCredentials(m.id).subscribe({
       next: () => this.toast.success('Credenciais enviadas com sucesso!'),
-      error: () => this.toast.error('Houve um erro ao enviar as credenciais.'),
+      error: (e) => this.toast.error(e?.error?.message ?? e?.message ?? 'Houve um erro ao enviar as credenciais.'),
     });
   }
 

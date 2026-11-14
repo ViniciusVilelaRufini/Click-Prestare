@@ -49,6 +49,32 @@ export function ajusteMenorDeIdade(
   };
 }
 
+/**
+ * Confirmação do "Enviar Acesso". A API gera uma senha nova e a grava na conta: para quem já usa o
+ * app, a senha atual deixa de valer e todas as sessões caem. O operador precisa saber disso antes.
+ */
+export function confirmacaoEnviarAcesso(m: { email: string | null; tem_conta_app?: boolean }): {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  variant: 'primary' | 'danger';
+} {
+  if (m.tem_conta_app) {
+    return {
+      title: 'Gerar nova senha do app',
+      message: `Este morador já tem acesso ao app. Uma senha nova será gerada e enviada para ${m.email}: a senha atual deixa de funcionar e ele sai do app em todos os aparelhos. Se ele só esqueceu a senha, peça que use "Esqueci a senha" no app.`,
+      confirmLabel: 'Gerar e enviar',
+      variant: 'danger',
+    };
+  }
+  return {
+    title: 'Enviar credenciais por e-mail',
+    message: `Um e-mail com link de acesso e senha inicial será enviado para ${m.email}.`,
+    confirmLabel: 'Enviar',
+    variant: 'primary',
+  };
+}
+
 /** "Proprietário", "proprietario " e "PROPRIETARIO" são o mesmo tipo. */
 function chaveTipo(tipo: string | null | undefined): string {
   return (tipo ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();

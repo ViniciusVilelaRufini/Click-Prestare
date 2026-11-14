@@ -1,4 +1,4 @@
-import { ajusteMenorDeIdade, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
+import { ajusteMenorDeIdade, confirmacaoEnviarAcesso, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
 import type { CreateMorador } from './moradores.service';
 
 const base: CreateMorador = {
@@ -116,5 +116,20 @@ describe('ajusteMenorDeIdade (B4)', () => {
     const r = ajusteMenorDeIdade(menor, false);
     expect(r.ajuste).toEqual({ foto_pessoa: undefined, sendCredentials: false, tipo: 'dependente', email: '' });
     expect(r.aviso).toBeTruthy();
+  });
+});
+
+describe('confirmacaoEnviarAcesso (M5)', () => {
+  it('quem já tem conta no app é avisado de que a senha atual cai e as sessões saem', () => {
+    const c = confirmacaoEnviarAcesso({ email: 'a@x.com', tem_conta_app: true });
+    expect(c.message).toContain('senha atual deixa de funcionar');
+    expect(c.message).toContain('todos os aparelhos');
+    expect(c.variant).toBe('danger');
+  });
+
+  it('sem conta, segue o texto da senha inicial', () => {
+    const c = confirmacaoEnviarAcesso({ email: 'a@x.com', tem_conta_app: false });
+    expect(c.message).toContain('senha inicial');
+    expect(c.variant).toBe('primary');
   });
 });
