@@ -355,12 +355,24 @@ export class DeliveryService {
     const pedido = await this.pedidoAtivo(atendimento.id_pedido_portao);
     const respostasDoMorador: DeliveryStatus[] =
       pedido?.status === 'pendente' ? ['AUTORIZADA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'] : ['AUTORIZADA', 'RECUSADA'];
-    const respostaDoMorador =
-      !isOperador(user) &&
+    // Quem responde como morador decide-se pelo vínculo com a unidade, não
+    // pelo papel: síndico ou funcionário que mora na unidade e responde pelo
+    // app (token sem condomínio) é morador (a nuvem abre o portão). No
+    // console, ou identificando o entregador, continua sendo a portaria.
+    const operador = isOperador(user);
+    const idUser = idUsuarioDoToken(user);
+    const pedeComoMorador =
       statusAtual === 'AGUARDANDO_AUTORIZACAO' &&
       respostasDoMorador.includes(statusNovo) &&
+      (!operador || (!user?.id_condominio && dto.id_entregador === undefined));
+    const respostaDoMorador =
+      pedeComoMorador &&
+      // Morador sem Users.id continua caindo no 403 de sessão do idUsuario.
+      (!operador || idUser != null) &&
       (atendimento.id_morador_user === this.idUsuario(user) ||
         (await this.temVinculoNaUnidade(atendimento.id_apartamento, this.idUsuario(user))));
+    /** Agiu como morador (resposta da unidade, ou o morador cancelando o próprio aviso). */
+    const comoMorador = respostaDoMorador || !operador;
     // Atendimento do autoatendimento sem dono: quem responde primeiro vira o dono.
     const semDono = atendimento.id_morador_user == null;
     if (statusNovo !== 'CANCELADA' && !isOperador(user) && !respostaDoMorador) {
@@ -419,14 +431,15 @@ export class DeliveryService {
     // Outro morador da unidade respondeu: quem criou o aviso precisa saber quem foi.
     // Sem dono, quem respondeu acabou de virar o dono: não há a quem contar.
     const respondeuOProprioCriador =
-      !isOperador(user) && (semDono || atendimento.id_morador_user === this.idUsuario(user));
+      comoMorador && (semDono || atendimento.id_morador_user === this.idUsuario(user));
     const outroRespondeu = respostaDoMorador && !respondeuOProprioCriador
       ? (user.nome ?? user.user?.name ?? '').toString().trim() || 'Outro morador da unidade'
       : null;
     // Portão: libera, abre ou avisa a página do entregador (antes do aviso ao morador).
     const gancho = this.chamarGancho(atualizado, statusNovo, {
-      idUser: idUsuarioDoToken(user),
-      operador: isOperador(user),
+      idUser,
+      // Respondeu pela unidade (mesmo sendo síndico/funcionário): é o morador; a nuvem abre.
+      operador: operador && !respostaDoMorador,
       sistema: false,
     });
     const aviso = (async () => {
@@ -436,7 +449,7 @@ export class DeliveryService {
           this.logger.warn(`Card ao vivo do delivery ${atualizado.id} (outros moradores): ${e?.message ?? e}`),
         );
       }
-      await this.avisarMorador(atualizado, statusNovo, !isOperador(user), respostaDoMorador, dto.motivo, outroRespondeu);
+      await this.avisarMorador(atualizado, statusNovo, comoMorador, respostaDoMorador, dto.motivo, outroRespondeu);
     })().catch((e: any) => this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`));
     await this.comTeto(Promise.all([gancho, aviso]));
     if (!isOperador(user)) return this.paraMorador(atualizado);
