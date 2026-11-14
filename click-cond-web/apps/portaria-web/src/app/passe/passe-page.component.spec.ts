@@ -1,6 +1,7 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { signal } from '@angular/core';
+import { formatDate } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -311,6 +312,69 @@ describe('PassePageComponent — passe público do visitante', () => {
     responder(resposta(CODIGO_1, 30));
     const meta = document.head.querySelector('meta[name="referrer"]');
     expect(meta?.getAttribute('content')).toBe('no-referrer');
+  });
+
+  describe('fora da janela da visita', () => {
+    const naoBuscaMais = () => {
+      avancar(10 * 60_000);
+      mudarVisibilidade('hidden');
+      mudarVisibilidade('visible');
+      http.expectNone(URL_PASSE);
+    };
+
+    it('visita vencida: "Este passe está fora da validade.", sem QR, e não busca mais', () => {
+      const el = montar();
+      responder({ ...resposta(CODIGO_1, 30), valido_de: '2026-11-14T10:00:00.000Z', valido_ate: '2026-11-14T14:59:00.000Z' });
+
+      expect(el.textContent).toContain('Este passe está fora da validade.');
+      expect(desenhado(el)).toBeNull();
+      expect(el.querySelector('[data-qr-moldura]')).toBeNull();
+      naoBuscaMais();
+    });
+
+    it('visita que ainda não começou (mais de 15 min): avisa a partir de quando vale, sem QR, e não busca', () => {
+      const el = montar();
+      const de = '2026-11-14T15:20:06.000Z'; // agora + 15 min + 1 s
+      responder({ ...resposta(CODIGO_1, 30), valido_de: de, valido_ate: '2026-11-14T22:00:00.000Z' });
+
+      expect(el.textContent).toContain('Este passe ainda não começou a valer.');
+      expect(el.textContent).toContain(`Válido a partir de ${formatDate(de, "dd/MM 'às' HH:mm", 'en-US')}`);
+      expect(desenhado(el)).toBeNull();
+      avancar(60_000);
+      mudarVisibilidade('hidden');
+      mudarVisibilidade('visible');
+      http.expectNone(URL_PASSE);
+    });
+
+    it('a menos de 15 min do início o QR já aparece', () => {
+      const el = montar();
+      responder({ ...resposta(CODIGO_1, 30), valido_de: '2026-11-14T15:14:00.000Z' });
+      expect(desenhado(el)).toBe(caminhoEsperado(CODIGO_1));
+      expect(el.textContent).not.toContain('ainda não começou');
+    });
+
+    it('chegada a 15 min do início: a página volta a buscar e mostra o QR', () => {
+      const el = montar();
+      responder({ ...resposta(CODIGO_1, 30), valido_de: '2026-11-14T15:20:05.000Z' });
+      // 15:00:05 + 15 min = 15:15:05 → faltam 5 min para começar a valer.
+      expect(el.textContent).toContain('ainda não começou');
+      avancar(5 * 60_000 - 1);
+      http.expectNone(URL_PASSE);
+      avancar(1);
+      responder({ ...resposta(CODIGO_2, 30), valido_de: '2026-11-14T15:20:05.000Z' });
+      expect(desenhado(el)).toBe(caminhoEsperado(CODIGO_2));
+    });
+
+    it('a visita vence com a página aberta: o QR some e a busca para', () => {
+      const el = montar();
+      responder({ ...resposta(CODIGO_1, 10), valido_ate: '2026-11-14T15:00:08.000Z' });
+      expect(desenhado(el)).toBe(caminhoEsperado(CODIGO_1));
+
+      avancar(4_000);
+      expect(el.textContent).toContain('Este passe está fora da validade.');
+      expect(desenhado(el)).toBeNull();
+      naoBuscaMais();
+    });
   });
 
   it('para de buscar ao sair da página', () => {
