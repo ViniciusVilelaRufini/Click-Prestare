@@ -797,6 +797,21 @@ export class AuthService {
     return { qrToken: session.qrToken, expiresAt: session.expiresAt };
   }
 
+  /** Condomínios ativos que o síndico administra, no formato da resposta de login. Falha → lista vazia. */
+  private async condominiosAtivosDoSindico(idUser: number) {
+    try {
+      const vinculos = await this.prisma.sindicos_Condominios.findMany({
+        where: { id_user: idUser, condominio: { ativo: 1 } },
+        include: { condominio: { select: { nome: true } } },
+        orderBy: { id: 'asc' },
+      });
+      return vinculos.map((v: any) => ({ id: v.id_condominio, nome: v.condominio?.nome || 'Condomínio' }));
+    } catch (e: any) {
+      this.logger.warn(`Lista de condomínios do síndico ${idUser} indisponível no QR: ${e?.message ?? e}`);
+      return [];
+    }
+  }
+
   async getQrStatus(qrToken: string) {
     const atual = await this.qrStore.get(qrToken);
     if (!atual) {
@@ -810,14 +825,17 @@ export class AuthService {
       // diferentes) — só a que apagou leva o token.
       const session = await this.qrStore.consumir(qrToken);
       if (!session) return { status: 'expired' };
+      const sindico = session.typeAccess === 'Sindico';
       return {
         status: 'confirmed',
         access_token: session.access_token,
         id: session.idUser,
         nome: session.nome,
-        turno: session.typeAccess === 'Sindico' ? 'Síndico' : 'Porteiro (App)',
+        turno: sindico ? 'Síndico' : 'Porteiro (App)',
         id_condominio: session.id_condominio,
         condominio_nome: session.condominio_nome,
+        // Como no login por senha: o síndico que entra pelo QR ganha o seletor de condomínio (campo novo).
+        condominios: sindico && session.idUser ? await this.condominiosAtivosDoSindico(Number(session.idUser)) : [],
       };
     }
 

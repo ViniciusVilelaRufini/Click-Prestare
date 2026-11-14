@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
+import { QrSessionStore } from './qr-session.store';
 import type { JwtPayload } from './jwt-payload.interface';
 
 /**
@@ -144,6 +145,45 @@ describe('AuthService — sessão do console (rodada 3)', () => {
       const svc = build();
       const porteiro: JwtPayload = { sub: 3, nome: 'P', id_condominio: 7, tipo_sub: 'funcionario_portaria' };
       await expect(svc.selecionarCondominio(porteiro, 8)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('B5 — QR Code de síndico traz a lista de condomínios', () => {
+    function build() {
+      const store = new QrSessionStore();
+      const prisma: any = {
+        isConnected: true,
+        condominios: { findUnique: jest.fn(async () => ({ nome: 'C7' })) },
+        sindicos_Condominios: {
+          findFirst: jest.fn(async () => ({ id: 1 })),
+          findMany: jest.fn(async ({ where }: any) =>
+            where.id_user === 42 && where.condominio?.ativo === 1
+              ? [
+                  { id_condominio: 7, condominio: { nome: 'C7' } },
+                  { id_condominio: 8, condominio: { nome: 'C8' } },
+                ]
+              : [],
+          ),
+        },
+        funcionarios: { findFirst: jest.fn(async () => ({ id: 1 })) },
+      };
+      return new AuthService(prisma, { sign: jest.fn(() => 'tok') } as any, store);
+    }
+
+    it('síndico: condomínios ativos que administra; funcionário: lista vazia', async () => {
+      const svc = build();
+      const s1 = await svc.createQrSession();
+      await svc.authorizeQrSession({ sub: 42, nome: 'S', typeAccess: 'Sindico' }, s1.qrToken, 7);
+      expect(await svc.getQrStatus(s1.qrToken)).toMatchObject({
+        status: 'confirmed',
+        turno: 'Síndico',
+        id_condominio: 7,
+        condominios: [{ id: 7, nome: 'C7' }, { id: 8, nome: 'C8' }],
+      });
+
+      const s2 = await svc.createQrSession();
+      await svc.authorizeQrSession({ sub: 9, nome: 'F', typeAccess: 'Funcionario' }, s2.qrToken, 7);
+      expect(await svc.getQrStatus(s2.qrToken)).toMatchObject({ status: 'confirmed', turno: 'Porteiro (App)', condominios: [] });
     });
   });
 });

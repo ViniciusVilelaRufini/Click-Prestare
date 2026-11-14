@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { AuthService, ehDesafioMfa } from './auth.service';
+import { AuthService, ehDesafioMfa, type CondominioVinculo } from './auth.service';
 import { ThemeService } from '../shared/theme.service';
 
 @Component({
@@ -108,7 +108,54 @@ import { ThemeService } from '../shared/theme.service';
           </p>
 
           <!-- MODO CONVENCIONAL DE LOGIN -->
-          @if (!isQrMode() && !mfaToken()) {
+          <!-- ESQUECI A SENHA -->
+          @if (recuperando()) {
+            <form (ngSubmit)="enviarRecuperacao()" class="flex flex-col gap-5 animate-fadeIn">
+              <div class="space-y-2">
+                <h2 class="login-title">Recuperar senha</h2>
+                <p class="text-sm" style="color: var(--ink-muted)">
+                  Informe o e-mail de acesso. Enviamos um link para criar uma senha nova.
+                </p>
+              </div>
+
+              <div class="ps-seg">
+                <button type="button" [class.on]="papelRecuperacao() === 'funcionario'" (click)="papelRecuperacao.set('funcionario')">Porteiro</button>
+                <button type="button" [class.on]="papelRecuperacao() === 'sindico'" (click)="papelRecuperacao.set('sindico')">Síndico</button>
+              </div>
+
+              <div class="ps-field">
+                <input
+                  type="email"
+                  [(ngModel)]="emailRecuperacao"
+                  name="emailRecuperacao"
+                  autocomplete="username"
+                  placeholder="seu@email.com"
+                  required
+                />
+              </div>
+
+              @if (msgRecuperacao()) {
+                <div class="flex items-center gap-2.5 text-xs border px-4 py-3" style="border-color: var(--line-200); color: var(--ink-muted)" role="status">
+                  <span>{{ msgRecuperacao() }}</span>
+                </div>
+              }
+              @if (erro()) {
+                <div class="flex items-center gap-2.5 text-xs text-rose-400 border px-4 py-3" style="border-color: var(--line-200)" role="alert">
+                  <span class="ps-dot ps-dot-danger"></span>
+                  <span>{{ erro() }}</span>
+                </div>
+              }
+
+              <button type="submit" [disabled]="carregando()" class="ps-btn ps-btn-lg w-full disabled:opacity-50 disabled:cursor-not-allowed">
+                {{ carregando() ? 'Enviando...' : 'Enviar link' }}
+              </button>
+              <button type="button" (click)="fecharRecuperacao()" class="ps-label hover:text-[var(--ink)] transition">
+                Voltar para o login
+              </button>
+            </form>
+          }
+
+          @if (!isQrMode() && !mfaToken() && !recuperando()) {
             <div class="space-y-2">
               <h2 class="login-title">Painel de Acesso</h2>
               <p class="text-sm" style="color: var(--ink-muted)">
@@ -159,6 +206,10 @@ import { ThemeService } from '../shared/theme.service';
                   <span>{{ erro() }}</span>
                 </div>
               }
+
+              <div class="flex justify-end -mt-2">
+                <button type="button" (click)="abrirRecuperacao()" class="ps-label hover:text-[var(--ink)] transition">Esqueci a senha</button>
+              </div>
 
               <!-- Botão Entrar -->
               <button
@@ -399,6 +450,11 @@ export class LoginPageComponent implements OnDestroy {
   codigoMfa = '';
   // Desmarcado por padrão: o PC da portaria costuma ser compartilhado entre turnos.
   lembrarDispositivo = false;
+  // Esqueci a senha
+  recuperando = signal(false);
+  papelRecuperacao = signal<'funcionario' | 'sindico'>('funcionario');
+  emailRecuperacao = '';
+  msgRecuperacao = signal('');
 
   // Theme State
   readonly isLight = this.theme.isLight;
@@ -436,13 +492,50 @@ export class LoginPageComponent implements OnDestroy {
       },
       error: (err) => {
         this.carregando.set(false);
-        // 400/503 (síndico sem e-mail, falha ao enviar o código) trazem o motivo em `message`.
+        // 400/503 (síndico sem e-mail, falha ao enviar o código) trazem o motivo em `message`. No 401, a trava por
+        // tentativas e o síndico sem condomínio ativo também: só a recusa genérica vira o texto fixo.
         const msgApi = typeof err?.error?.message === 'string' ? err.error.message : '';
         this.erro.set(
           err.status === 401
-            ? 'Login ou senha incorretos'
+            ? msgApi && msgApi !== 'Credenciais inválidas.' ? msgApi : 'Login ou senha incorretos'
             : msgApi || 'Falha na conexão com o servidor',
         );
+      },
+    });
+  }
+
+  abrirRecuperacao() {
+    this.erro.set('');
+    this.msgRecuperacao.set('');
+    this.emailRecuperacao = this.loginValue.includes('@') ? this.loginValue.trim() : '';
+    this.recuperando.set(true);
+  }
+
+  fecharRecuperacao() {
+    this.erro.set('');
+    this.msgRecuperacao.set('');
+    this.recuperando.set(false);
+  }
+
+  /**
+   * Pedido do link de redefinição (a página /redefinir-senha conclui). Porteiro: a senha do login de portaria;
+   * síndico: a senha da conta. A resposta é a mesma exista ou não o e-mail.
+   */
+  enviarRecuperacao() {
+    const email = this.emailRecuperacao.trim();
+    if (!email) return;
+    this.carregando.set(true);
+    this.erro.set('');
+    this.msgRecuperacao.set('');
+    const rota = this.papelRecuperacao() === 'sindico' ? '/api/sindico/recovery-password' : '/api/funcionarios/recovery-password';
+    this.http.post<{ success: boolean; message: string }>(rota, { email }).subscribe({
+      next: (res) => {
+        this.carregando.set(false);
+        this.msgRecuperacao.set(res?.message || 'Se o e-mail estiver cadastrado, enviamos as instruções para redefinição.');
+      },
+      error: (e) => {
+        this.carregando.set(false);
+        this.erro.set(e?.error?.message ?? e?.message ?? 'Não foi possível enviar o pedido.');
       },
     });
   }
@@ -521,19 +614,28 @@ export class LoginPageComponent implements OnDestroy {
 
   private startPolling(token: string) {
     this.pollingTimer = setInterval(() => {
-      this.http.get<{ status: string; access_token?: string; id?: number; nome?: string; turno?: string; id_condominio?: number; condominio_nome?: string }>(`/api/auth/qr/status/${token}`).subscribe({
+      this.http.get<{ status: string; access_token?: string; id?: number; nome?: string; turno?: string; id_condominio?: number; condominio_nome?: string; condominios?: CondominioVinculo[] }>(`/api/auth/qr/status/${token}`).subscribe({
         next: (res) => {
           if (res.status === 'confirmed' && res.access_token) {
             this.clearPolling();
+            // Sem condomínio ou sem papel não há sessão a montar: antes virava "Turno QR" (tratado como porteiro)
+            // no condomínio 1.
+            if (!res.id_condominio || !res.turno) {
+              this.erro.set('Não foi possível concluir o acesso pelo QR Code. Gere um novo código.');
+              this.qrExpired.set(true);
+              return;
+            }
             this.auth.loginComToken({
               access_token: res.access_token,
               id: res.id,
               nome: res.nome || 'Usuário Conectado',
-              turno: res.turno || 'Turno QR',
-              id_condominio: res.id_condominio || 1,
-              condominio_nome: res.condominio_nome
+              turno: res.turno,
+              id_condominio: res.id_condominio,
+              condominio_nome: res.condominio_nome,
+              // Síndico pelo QR também ganha o seletor de condomínio.
+              condominios: res.condominios ?? [],
             });
-            this.router.navigate(['/']);
+            this.router.navigate([this.destinoPosLogin()]);
           } else if (res.status === 'expired') {
             this.clearPolling();
             this.qrExpired.set(true);
