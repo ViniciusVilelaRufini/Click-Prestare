@@ -262,10 +262,32 @@ export class AreasSociaisService {
 
   /** Fim da reserva no relógio do condomínio; término 00:00 (ou sem hora) é a meia-noite do fim do dia. */
   private fimDaReserva(data: Date, horaAte: Date | null | undefined): Date {
-    if (!horaAte || (horaAte.getHours() === 0 && horaAte.getMinutes() === 0)) {
+    const minutos = horaAte ? horaAte.getHours() * 60 + horaAte.getMinutes() : 0;
+    if (fimEmMinutos(minutos) === 1440) {
       return new Date(data.getFullYear(), data.getMonth(), data.getDate() + 1, 0, 0, 0, 0);
     }
     return this.combineDateTime(data, horaAte);
+  }
+
+  /**
+   * Fim da manutenção no relógio do condomínio. Término 00:00 que cairia no
+   * início ou antes dele (20:00 → 00:00 no mesmo dia) é a meia-noite do fim
+   * do dia — a mesma regra da reserva; com data de término posterior, 00:00
+   * segue sendo o começo daquele dia.
+   */
+  private fimDaManutencao(inicio: Date, dataTermino: Date, horaTermino: Date | null | undefined): Date {
+    const fim = this.combineDateTime(dataTermino, horaTermino);
+    const meiaNoite = !horaTermino || (horaTermino.getHours() === 0 && horaTermino.getMinutes() === 0);
+    if (meiaNoite && fim.getTime() <= inicio.getTime()) {
+      return new Date(dataTermino.getFullYear(), dataTermino.getMonth(), dataTermino.getDate() + 1, 0, 0, 0, 0);
+    }
+    return fim;
+  }
+
+  /** Janela [início, fim) de uma linha de manutenção já gravada (com as duas datas). */
+  private janelaDaManutencao(m: { data_inicio: Date | null; hora_inicio: Date | null; data_termino: Date | null; hora_termino: Date | null }) {
+    const inicio = this.combineDateTime(m.data_inicio as Date, m.hora_inicio);
+    return { inicio, fim: this.fimDaManutencao(inicio, m.data_termino as Date, m.hora_termino) };
   }
 
   // Colisão de intervalos [inicio, fim): true quando o bloco intersecta
@@ -666,11 +688,7 @@ export class AreasSociaisService {
       // no epoch criava 1970 → término, que intersecta TUDO e deixava a área
       // sem nenhum horário disponível.
       .filter(m => m.data_inicio != null && m.data_termino != null)
-      .map(m => ({
-        raw: m,
-        inicio: this.combineDateTime(m.data_inicio as Date, m.hora_inicio),
-        fim: this.combineDateTime(m.data_termino as Date, m.hora_termino),
-      }))
+      .map(m => ({ raw: m, ...this.janelaDaManutencao(m) }))
       .filter(m => m.fim > agora);
 
     // Calcular horários livres para 60 dias, incluindo hoje
@@ -882,6 +900,10 @@ export class AreasSociaisService {
 
     const requestedDe = hDe * 60 + mDe;
     const requestedAte = hAte * 60 + mAte;
+    // 00:00 no término é o fim do dia (1440); fora isso o fim vem depois do início.
+    if (fimEmMinutos(requestedAte) <= requestedDe) {
+      throw new BadRequestException('O término da reserva precisa ser depois do início.');
+    }
 
     // Reserva no passado não faz sentido (e some da fila, que só lista de ontem
     // em diante). Compara no fuso do condomínio, não no do servidor (UTC).
@@ -906,10 +928,7 @@ export class AreasSociaisService {
     // nada (com o epoch, uma linha meia-boca recusava toda reserva da área).
     const janelasManutencao = manutencoesDb
       .filter(m => m.data_inicio != null && m.data_termino != null)
-      .map(m => ({
-        inicio: this.combineDateTime(m.data_inicio as Date, m.hora_inicio),
-        fim: this.combineDateTime(m.data_termino as Date, m.hora_termino),
-      }));
+      .map(m => this.janelaDaManutencao(m));
     const inicioBlocoSolicitado = this.combineDateTime(dataObj, horaDeObj);
     const fimBlocoSolicitado = this.fimDaReserva(dataObj, horaAteObj);
     if (this.colideComJanela(inicioBlocoSolicitado, fimBlocoSolicitado, janelasManutencao)) {
@@ -992,6 +1011,15 @@ export class AreasSociaisService {
         hora_ate: horaAteObj,
         status: statusInicial,
         convidados,
+        // Agendada pela administração já nasce aprovada por quem agendou: a fila
+        // do console e o app mostram o nome em "aprovado por".
+        ...(peloSindico
+          ? {
+              aprovado_por_nome:
+                (user as any)?.name ?? user?.nome ?? (user as any)?.user?.name ?? 'Administração',
+              aprovado_em: new Date(),
+            }
+          : {}),
       },
     });
 
@@ -1695,7 +1723,7 @@ export class AreasSociaisService {
     const horaInicioObj = lerHora(m.hora_inicio);
     const horaTerminoObj = lerHora(m.hora_termino);
     const inicioJanela = this.combineDateTime(dIni, horaInicioObj);
-    const fimJanela = this.combineDateTime(dFim, horaTerminoObj);
+    const fimJanela = this.fimDaManutencao(inicioJanela, dFim, horaTerminoObj);
     if (fimJanela.getTime() <= inicioJanela.getTime()) {
       throw new BadRequestException('O término da manutenção precisa ser depois do início.');
     }
