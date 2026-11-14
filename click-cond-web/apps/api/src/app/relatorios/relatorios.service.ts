@@ -8,6 +8,7 @@ import { csvCelula } from '../common/csv.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 import { formatarApto } from '../common/formatar-apto.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { ocorrenciaSolucionada as solucionada } from '../common/status-ocorrencia.util';
 import {
   FiltroEspinha,
   FonteEvento,
@@ -67,6 +68,16 @@ const formatDateOnly = (d: Date | null | undefined): string => {
     month: '2-digit',
     year: 'numeric',
   });
+};
+
+/**
+ * Coluna @db.Date (`data`, `data_vencimento`): o Prisma devolve meia-noite
+ * UTC, que em America/Sao_Paulo é o dia anterior — o vencimento 20/11 saía
+ * como 19/11. Formata em UTC; nulo: '-'.
+ */
+const formatDiaDb = (d: Date | null | undefined): string => {
+  if (!d) return '-';
+  return new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
 const getTimestamp = (): string => {
@@ -129,7 +140,13 @@ export class RelatoriosService {
     } : null;
 
     if (tipo === 'visitantes') {
-      const where: any = { id_condominio: idCondominio };
+      const migrado = pessoasMigrationEnabled(this.prisma);
+      // Só visitantes: prestador tem a tela e o relatório dele (o dashboard e
+      // a tela de Visitantes também separam). No migrado vale o tipo atual da
+      // Pessoa, como no cartão do dashboard.
+      const where: any = migrado
+        ? { id_condominio: idCondominio, pessoa: { tipo_pessoa: 'visitante' } }
+        : { id_condominio: idCondominio, is_prestador: { not: 1 } };
       if (dateFilter) {
         where.OR = [
           { created_at: dateFilter },
@@ -145,7 +162,7 @@ export class RelatoriosService {
         };
       }
 
-      const listRaw = pessoasMigrationEnabled(this.prisma)
+      const listRaw = migrado
         ? await this.prisma.visitas.findMany({
             where,
             include: {
@@ -273,7 +290,11 @@ export class RelatoriosService {
           metrics: [
             { label: 'Total de Encomendas', value: list.length.toString() },
             { label: 'Aguardando Retirada', value: list.filter((e) => e.status === 'Aguardando').length.toString() },
-            { label: 'Entregues', value: list.filter((e) => e.status === 'Entregue').length.toString() },
+            // A retirada grava 'Retirada' (encomendas.service); 'Entregue' é grafia antiga.
+            {
+              label: 'Retiradas',
+              value: list.filter((e) => e.status === 'Retirada' || e.status === 'Entregue').length.toString(),
+            },
           ],
           table: {
             widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
@@ -356,8 +377,10 @@ export class RelatoriosService {
           periodo: this.formatPeriod(dataInicio, dataFim),
           metrics: [
             { label: 'Total Registrado', value: list.length.toString() },
-            { label: 'Ocorrências Pendentes', value: list.filter((o) => o.status === 'Pendente').length.toString() },
-            { label: 'Resolvidas', value: list.filter((o) => o.status === 'Solucionado').length.toString() },
+            // Mesma conta do cartão do dashboard: aberta = não solucionada
+            // (Pendente e Ciente); resolvida em qualquer grafia gravada.
+            { label: 'Abertas', value: list.filter((o) => !solucionada(o.status)).length.toString() },
+            { label: 'Resolvidas', value: list.filter((o) => solucionada(o.status)).length.toString() },
           ],
           table: {
             widths: ['auto', '*', 'auto', 'auto', 'auto'],
@@ -392,11 +415,19 @@ export class RelatoriosService {
       id_condominio: idCondominio,
       NOT: { AND: [{ tipo: 'D' }, { id_usuario: { not: null } }] },
     };
-    if (dateFilter) {
+    if (dataInicio || dataFim) {
+      // Competência, como no Livro Caixa: data do pagamento; sem ela, o
+      // vencimento. Com `created_at OU data OU vencimento` o lançamento pago
+      // num mês e vencido no outro entrava nos dois relatórios. `data` e
+      // `data_vencimento` são @db.Date (meia-noite UTC): o limite em -03:00
+      // deixava o primeiro dia do período de fora.
+      const dia = {
+        ...(dataInicio ? { gte: new Date(`${dataInicio}T00:00:00.000Z`) } : {}),
+        ...(dataFim ? { lte: new Date(`${dataFim}T00:00:00.000Z`) } : {}),
+      };
       where.OR = [
-        { created_at: dateFilter },
-        { data: dateFilter },
-        { data_vencimento: dateFilter },
+        { data: dia },
+        { data: null, data_vencimento: dia },
       ];
     }
 
@@ -424,7 +455,9 @@ export class RelatoriosService {
         Nome: f.nome || '-',
         Tipo: isRevenue ? 'Receita' : 'Despesa',
         Valor: isRevenue ? rawVal : -rawVal,
-        Vencimento: f.data_vencimento ? formatDateOnly(f.data_vencimento) : '-',
+        Vencimento: formatDiaDb(f.data_vencimento),
+        // O período é pela data do pagamento (competência): ela precisa aparecer.
+        'Pago em': formatDiaDb(f.data),
         Categoria: f.categoria || 'Geral',
         Status: f.status || (f.pago === 1 ? 'Pago' : 'Pendente'),
         Pagamento: f.forma_pagamento || '-',
@@ -456,9 +489,9 @@ export class RelatoriosService {
           { label: 'Balanço Geral', value: `R$ ${(totalReceitas - totalDespesas).toFixed(2)}` },
         ],
         table: {
-          widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
+          widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
           body: [
-            ['Descrição', 'Tipo', 'Valor', 'Vencimento', 'Categoria', 'Status'].map((h) => ({
+            ['Descrição', 'Tipo', 'Valor', 'Vencimento', 'Pago em', 'Categoria', 'Status'].map((h) => ({
               text: h,
               style: 'tableHeader',
             })),
@@ -470,7 +503,8 @@ export class RelatoriosService {
                 f.nome || '-',
                 isRevenue ? 'Receita' : 'Despesa',
                 valStr,
-                f.data_vencimento ? formatDateOnly(f.data_vencimento) : '-',
+                formatDiaDb(f.data_vencimento),
+                formatDiaDb(f.data),
                 f.categoria || '-',
                 f.status || (f.pago === 1 ? 'Pago' : 'Pendente'),
               ];
