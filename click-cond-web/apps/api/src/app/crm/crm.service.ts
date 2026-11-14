@@ -1279,13 +1279,15 @@ export class CrmService {
 
     const novaDescricao = `${o.descricao}\n\n[Reabertura - Novas Informações]:\n${novasInformacoes}`;
 
+    // Mesma regra do Reabrir do console: a resposta da equipe fica (histórico
+    // do atendimento; é ela que trava a edição pelo autor) e o prazo recomeça
+    // de agora pelo SLA da categoria.
     const atualizado = await this.prisma.ocorrencias.update({
       where: { id },
       data: {
         status: 'Pendente',
         descricao: novaDescricao,
-        resposta: null,
-        resposta_at: null
+        prazo: await this.ocorrenciasService.prazoDaCategoria(o.tipo ?? null),
       },
       include: {
         condominio: {

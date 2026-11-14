@@ -475,8 +475,8 @@ export class OcorrenciasService {
     }
   }
 
-  /** SLA: prazo = agora + sla_horas da categoria; sem categoria ou sem SLA, nulo. */
-  private async prazoDaCategoria(tipo: number | null): Promise<Date | null> {
+  /** SLA: prazo = agora + sla_horas da categoria; sem categoria ou sem SLA, nulo. Também usado pelo Reabrir do CRM. */
+  async prazoDaCategoria(tipo: number | null): Promise<Date | null> {
     if (tipo == null) return null;
     const cat = await this.prisma.ocorrencias_Categorias.findUnique({
       where: { id: tipo },
