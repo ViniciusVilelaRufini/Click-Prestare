@@ -11,7 +11,7 @@
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
         Categorias / SLA
       </button>
-      <button (click)="showForm = !showForm; error.set(null)" class="ps-btn">
+      <button (click)="alternarForm()" class="ps-btn">
         @if (showForm) {
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
           Cancelar
@@ -61,11 +61,11 @@
 
   <!-- Form -->
   @if (showForm) {
-    <div class="ps-scrim on" (click)="showForm = false"></div>
+    <div class="ps-scrim on" (click)="alternarForm(false)"></div>
     <div class="ps-drawer on !w-[min(560px,100%)]">
       <div class="ps-drawer-head gap-3">
         <h2 class="ps-h2">Registrar nova ocorrência</h2>
-        <button type="button" (click)="showForm = false" class="ps-ibtn" aria-label="Fechar formulário" title="Fechar formulário">
+        <button type="button" (click)="alternarForm(false)" class="ps-ibtn" aria-label="Fechar formulário" title="Fechar formulário">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
@@ -85,10 +85,13 @@
           <textarea [(ngModel)]="novo.descricao" rows="5" placeholder="Descreva o que aconteceu, onde e quando..."
             class="w-full px-3 py-2.5 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)] transition resize-none"></textarea>
         </label>
+        @if (formErro()) {
+          <p class="text-sm text-red-400" role="alert">{{ formErro() }}</p>
+        }
       </div>
       <div class="ps-drawer-foot">
-        <button (click)="showForm = false" class="ps-btn ps-btn-sec">Cancelar</button>
-        <button (click)="registrar()" class="ps-btn">Registrar</button>
+        <button (click)="alternarForm(false)" class="ps-btn ps-btn-sec">Cancelar</button>
+        <button (click)="registrar()" [disabled]="registrando()" class="ps-btn disabled:opacity-50">Registrar</button>
       </div>
     </div>
   }
@@ -192,8 +195,8 @@
                               class="ps-btn ps-btn-sec ps-btn-sm">
                         Cancelar
                       </button>
-                      <button (click)="salvarResposta(o)"
-                              class="ps-btn ps-btn-sm">
+                      <button (click)="salvarResposta(o)" [disabled]="salvandoResposta()"
+                              class="ps-btn ps-btn-sm disabled:opacity-50">
                         Salvar
                       </button>
                     </div>
@@ -239,8 +242,16 @@
                     </button>
                   }
                   @if (ehDispositivo(o)) {
-                    <!-- O monitor de dispositivos fecha o chamado quando o aparelho volta e reabre se cair de novo. -->
+                    <!-- O monitor fecha o chamado quando o aparelho volta e abre outro se cair de novo. Terminal
+                         renomeado ou removido ele não acha mais: por isso Solucionar fica disponível (sem Reabrir). -->
                     <span class="text-[11px] text-slate-400">Fecha sozinho quando o aparelho voltar</span>
+                    @if (o.status !== 'Solucionado') {
+                      <button (click)="mudarStatus(o, 'Solucionado')"
+                              class="ps-btn ps-btn-sec ps-btn-sm">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        Solucionar
+                      </button>
+                    }
                   } @else {
                     @if (o.status !== 'Solucionado') {
                       <button (click)="mudarStatus(o, 'Solucionado')"
@@ -338,6 +349,10 @@
         }
       </div>
 
+      @if (chatErro()) {
+        <p class="px-4 py-2 text-sm text-red-400 border-t border-slate-200" role="alert">{{ chatErro() }}</p>
+      }
+
       <!-- Input -->
       <div class="ps-drawer-foot">
         @if (!acesso().conversar) {
@@ -350,7 +365,7 @@
           <input type="text" [(ngModel)]="novaMensagemText" name="mensagem" placeholder="Digite uma mensagem..."
                  class="flex-1 h-10 px-3 text-sm bg-graphite-50 border border-slate-300 text-white placeholder-slate-500 focus:outline-none focus:border-[var(--ink)]"
                  autocomplete="off" />
-          <button type="submit" [disabled]="!novaMensagemText.trim()"
+          <button type="submit" [disabled]="!novaMensagemText.trim() || enviandoMensagem()"
                   aria-label="Enviar mensagem"
                   class="ps-btn disabled:opacity-50 disabled:cursor-not-allowed shrink-0">
             <svg class="w-4 h-4 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">

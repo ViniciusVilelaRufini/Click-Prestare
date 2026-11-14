@@ -11,8 +11,9 @@ describe('OcorrenciasService — push ao autor', () => {
     const prisma: any = {
       isConnected: true,
       ocorrencias: {
-        findUnique: jest.fn(async () => ({ id_condominio: 1 })),
+        findUnique: jest.fn(async () => ({ id: 7, id_condominio: 1, user: 41, status: 'Pendente' })),
         update: jest.fn(async ({ data }: any) => ({ id: 7, user: 41, ...data })),
+        updateMany: jest.fn(async () => ({ count: 1 })),
       },
       users: { findUnique: jest.fn(async () => ({ fcm_token: 'tok', notif_ocorrencias: notifOcorrencias })) },
     };

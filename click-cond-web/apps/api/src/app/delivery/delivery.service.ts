@@ -16,6 +16,7 @@ import { isOperador } from '../auth/tenant.util';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
+import { parseLocalTimeToUTCNullable } from '../visitantes/visitantes.service';
 import {
   AtualizarEntregadorDto,
   AtualizarStatusDeliveryDto,
@@ -71,6 +72,7 @@ export class DeliveryService {
     const idMorador = this.idUsuario(user);
     await this.tenant.assertCondominio(idCondominio, user);
     await this.assertApartamentoDoMorador(idApartamento, idCondominio, idMorador);
+    const previsao = this.previsao(dto.previsao_em);
 
     const atendimento = await (this.prisma as any).$transaction(async (tx: any) => {
       const atendimento = await tx.deliveryAtendimentos.create({
@@ -79,7 +81,9 @@ export class DeliveryService {
           id_apartamento: idApartamento,
           id_morador_user: idMorador,
           estabelecimento: dto.estabelecimento?.trim() || null,
-          previsao_em: dto.previsao_em ? new Date(dto.previsao_em) : null,
+          // O app manda a hora local sem fuso ("…T19:00:00.000"): é Brasília,
+          // não UTC (o console mostrava 3 h adiantado).
+          previsao_em: previsao,
           observacao_morador: dto.observacao_morador?.trim() || null,
           nome_entregador: dto.nome_entregador?.trim() || null,
           telefone_entregador: dto.telefone_entregador?.trim() || null,
@@ -91,6 +95,21 @@ export class DeliveryService {
       return atendimento;
     });
     return this.paraMorador(atendimento);
+  }
+
+  /**
+   * Previsão informada pelo morador: data/hora ISO (com ou sem fuso; sem
+   * fuso = Brasília). Texto que não é data → 400 (antes virava "agora").
+   */
+  private previsao(valor: string | null | undefined): Date | null {
+    if (valor === undefined || valor === null || String(valor).trim() === '') return null;
+    const texto = String(valor).trim();
+    const formato = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?)?(?:Z|[+-]\d{2}:?\d{2})?$/;
+    const d = formato.test(texto) ? parseLocalTimeToUTCNullable(texto) : null;
+    if (!d || Number.isNaN(d.getTime())) {
+      throw new BadRequestException('Previsão de chegada inválida: use data e hora (AAAA-MM-DDTHH:mm).');
+    }
+    return d;
   }
 
   async listarUnidadesMorador(idCondominio: number, user: JwtPayload) {
@@ -334,7 +353,44 @@ export class DeliveryService {
       }),
     ]);
     if (teto) clearTimeout(teto);
-    return isOperador(user) ? atualizado : this.paraMorador(atualizado);
+    if (!isOperador(user)) return this.paraMorador(atualizado);
+    // Pedido de autorização: a portaria precisa saber se alguém pode receber
+    // (com 0, a tela manda interfonar em vez de esperar sem prazo).
+    if (statusNovo === 'AGUARDANDO_AUTORIZACAO') {
+      const avisados = await this.aparelhosAvisados(atualizado.id, atualizado.id_apartamento);
+      if (avisados !== null) return { ...atualizado, avisados };
+    }
+    return atualizado;
+  }
+
+  /**
+   * Quantos aparelhos (tokens distintos) receberam o pedido de autorização:
+   * os dos moradores com vínculo na unidade — o criador incluído só se ainda
+   * tiver vínculo — e os que estão com o card do atendimento aberto (inclui
+   * o criador desvinculado que acompanha pelo card). Contado depois do aviso
+   * (que espera no máximo TETO_AVISO_MS). Falha na contagem → null (a
+   * resposta sai sem o campo).
+   */
+  private async aparelhosAvisados(idAtendimento: number, idApartamento: number): Promise<number | null> {
+    try {
+      const vinculos = await this.prisma.apartamentos_Users.findMany({
+        where: { id_apto: idApartamento },
+        select: { id_user: true, user: { select: { fcm_token: true } } },
+      });
+      const tokens = new Set<string>();
+      for (const v of vinculos as any[]) if (v.user?.fcm_token) tokens.add(v.user.fcm_token);
+      if (this.cardAoVivo) {
+        const cards = await (this.prisma as any).cards_Ao_Vivo.findMany({
+          where: { origem: 'delivery', id_pedido: Number(idAtendimento), encerrado_em: null },
+          select: { fcm_token: true },
+        });
+        for (const c of cards as any[]) if (c.fcm_token) tokens.add(c.fcm_token);
+      }
+      return tokens.size;
+    } catch (e: any) {
+      this.logger.warn(`Contagem de quem recebeu o pedido do delivery: ${e?.message ?? e}`);
+      return null;
+    }
   }
 
   async listarEntregadores(idCondominio: number, busca: string | undefined, user: JwtPayload) {

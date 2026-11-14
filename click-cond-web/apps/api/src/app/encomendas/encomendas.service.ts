@@ -42,6 +42,35 @@ type DestinoEncomenda = {
   descricao: string;
 };
 
+/** Lista do console sem os LongText da retirada (assinatura e foto). */
+const SELECT_ENCOMENDA_LEVE = {
+  id: true,
+  descricao: true,
+  destinatario_apto: true,
+  destinatario_bloco: true,
+  recebido_de: true,
+  recebido_em: true,
+  retirado_em: true,
+  retirado_por: true,
+  retirado_doc: true,
+  status: true,
+  foto_volume: true,
+  notificado: true,
+  notificado_em: true,
+  codigo_rastreio: true,
+  codigo_validacao: true,
+  id_condominio: true,
+  recebido_por_user: true,
+  entregue_por_user: true,
+  created_at: true,
+  updated_at: true,
+} as const;
+
+/** Bloco gravado sem nulo: '' é "sem bloco", o mesmo que o console grava (o lote compara o texto). */
+function blocoGravavel(bloco: string | null | undefined): string {
+  return String(bloco ?? '').trim();
+}
+
 /** Retirada em lote: as encomendas seguintes reaproveitam a assinatura/foto da 1ª nesta janela. */
 const JANELA_LOTE_RETIRADA_MS = 15 * 60_000;
 
@@ -182,7 +211,19 @@ export class EncomendasService implements OnModuleInit {
     };
   }
 
-  async findAll(idCondominio: number, status?: string, operador?: JwtPayload) {
+  /**
+   * `opcoes` (console): `leve` deixa de fora a assinatura e a foto da
+   * retirada (LongText; data URL quando o upload falhou) e devolve
+   * `tem_comprovante` no lugar — o comprovante é aberto por GET :id;
+   * `retiradasDesde` traz só as retiradas a partir dessa data (as que ainda
+   * aguardam vêm sempre). Sem opções, a lista de sempre.
+   */
+  async findAll(
+    idCondominio: number,
+    status?: string,
+    operador?: JwtPayload,
+    opcoes: { leve?: boolean; retiradasDesde?: Date } = {},
+  ) {
     await this.tenant.assertCondominio(idCondominio, operador);
     if (!this.prisma.isConnected) {
       const mocks = [
@@ -245,13 +286,30 @@ export class EncomendasService implements OnModuleInit {
       return mocks;
     }
 
-    return this.prisma.encomendas.findMany({
-      where: {
-        id_condominio: Number(idCondominio),
-        ...(status ? { status } : {}),
-      },
+    const where = {
+      id_condominio: Number(idCondominio),
+      ...(status ? { status } : {}),
+      ...(opcoes.retiradasDesde
+        ? { OR: [{ status: { not: 'Retirada' } }, { retirado_em: { gte: opcoes.retiradasDesde } }] }
+        : {}),
+    };
+    if (!opcoes.leve) {
+      return this.prisma.encomendas.findMany({ where, orderBy: { recebido_em: 'desc' } });
+    }
+    const lista = await this.prisma.encomendas.findMany({
+      where,
+      select: SELECT_ENCOMENDA_LEVE,
       orderBy: { recebido_em: 'desc' },
     });
+    const retiradas = lista.filter((e) => e.status === 'Retirada').map((e) => e.id);
+    const comComprovante = retiradas.length
+      ? await this.prisma.encomendas.findMany({
+          where: { id: { in: retiradas }, OR: [{ retirado_assinatura: { not: null } }, { retirado_foto: { not: null } }] },
+          select: { id: true },
+        })
+      : [];
+    const ids = new Set(comComprovante.map((e) => e.id));
+    return lista.map((e) => ({ ...e, tem_comprovante: ids.has(e.id) }));
   }
 
   async findOne(id: number, operador?: JwtPayload) {
@@ -325,7 +383,7 @@ export class EncomendasService implements OnModuleInit {
             data: {
               descricao: dto.descricao || expected.descricao,
               destinatario_apto: dto.destinatario_apto || expected.destinatario_apto,
-              destinatario_bloco: dto.destinatario_bloco ?? expected.destinatario_bloco,
+              destinatario_bloco: blocoGravavel(dto.destinatario_bloco ?? expected.destinatario_bloco),
               recebido_de: dto.recebido_de ?? expected.recebido_de,
               foto_volume: fotoUrl,
               status: 'Aguardando',
@@ -343,7 +401,7 @@ export class EncomendasService implements OnModuleInit {
           data: {
             descricao: dto.descricao,
             destinatario_apto: dto.destinatario_apto,
-            destinatario_bloco: dto.destinatario_bloco ?? null,
+            destinatario_bloco: blocoGravavel(dto.destinatario_bloco),
             recebido_de: dto.recebido_de ?? null,
             foto_volume: fotoUrl,
             status: 'Aguardando',
@@ -565,6 +623,15 @@ export class EncomendasService implements OnModuleInit {
     try {
       const atual = await this.prisma.encomendas.findUnique({ where: { id: Number(id) } });
       if (!atual) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+      // Lista do porteiro velha (o morador deu baixa pelo app): não manda
+      // "aguardando retirada" de algo que já saiu.
+      if (atual.status !== 'Aguardando') {
+        throw new ConflictException(
+          atual.status === 'Retirada'
+            ? 'Esta encomenda já foi retirada.'
+            : 'Só é possível notificar encomenda aguardando retirada.',
+        );
+      }
 
       const avisados = await this.avisarUnidade(
         atual,
@@ -587,7 +654,8 @@ export class EncomendasService implements OnModuleInit {
       });
 
       return { ...e, avisados };
-    } catch {
+    } catch (err) {
+      if (err instanceof ConflictException) throw err;
       throw new NotFoundException(`Encomenda ${id} não encontrada`);
     }
   }
@@ -619,10 +687,18 @@ export class EncomendasService implements OnModuleInit {
     if (transicao.count === 0) {
       throw new ConflictException('Esta encomenda já foi recebida ou não está aguardando confirmação.');
     }
-    const recebida = await this.prisma.encomendas.findUnique({
+    let recebida = await this.prisma.encomendas.findUnique({
       where: { id: Number(id) },
     });
     if (!recebida) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    // O pré-registro do app grava bloco nulo; o console grava ''. Iguala ao
+    // receber, senão o "Retirar lote" separava volumes da mesma unidade.
+    if (recebida.destinatario_bloco !== blocoGravavel(recebida.destinatario_bloco)) {
+      recebida = await this.prisma.encomendas.update({
+        where: { id: recebida.id },
+        data: { destinatario_bloco: blocoGravavel(recebida.destinatario_bloco) },
+      });
+    }
 
     // Notifica o(s) morador(es) do apartamento que a encomenda chegou.
     const avisados = await this.avisarUnidade(
@@ -692,7 +768,112 @@ export class EncomendasService implements OnModuleInit {
     }
     const corrigida = await this.prisma.encomendas.findUnique({ where: { id: Number(id) } });
     if (!corrigida) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    return this.avisarUnidadeCorrigida(atual, corrigida, operador);
+  }
 
+  async update(id: number, dto: Partial<CreateEncomendaDto>, operador?: JwtPayload) {
+    if (!this.prisma.isConnected) return { id, ...dto };
+    const existing = await this.prisma.encomendas.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true, foto_volume: true, destinatario_apto: true, destinatario_bloco: true, status: true },
+    });
+    if (!existing) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    await this.tenant.assertEntidade(existing.id_condominio, operador, `encomenda #${id}`);
+
+    let fotoUrl = dto.foto_volume;
+    await this.storage.exigirArquivoDoRegistro(fotoUrl, [existing.foto_volume]);
+
+    // Trocar a unidade (edição pelo app) segue as regras de "Corrigir
+    // unidade": só aguardando retirada, unidade existente, bloco '',
+    // notificado zerado e aviso à unidade nova. "Mesma unidade" é decidido
+    // pelo APARTAMENTO a que o texto leva, não pelo texto: o app preenche o
+    // bloco sozinho num condomínio de bloco único, e isso não é troca.
+    const informouUnidade = dto.destinatario_apto !== undefined || dto.destinatario_bloco !== undefined;
+    let novaUnidade: { apto: string; bloco: string } | null = null;
+    if (informouUnidade) {
+      const aptoAtual = String(existing.destinatario_apto ?? '').trim();
+      const blocoAtual = blocoGravavel(existing.destinatario_bloco);
+      const apto = dto.destinatario_apto !== undefined ? String(dto.destinatario_apto ?? '').trim() : aptoAtual;
+      const bloco = dto.destinatario_bloco !== undefined ? blocoGravavel(dto.destinatario_bloco) : blocoAtual;
+      const [antiga, nova] = await Promise.all([
+        this.resolverUnidade(existing.id_condominio, aptoAtual, blocoAtual),
+        this.resolverUnidade(existing.id_condominio, apto, bloco),
+      ]);
+      const mesmoApartamento = !!antiga && !!nova && antiga.id === nova.id;
+      const mesmoTexto = apto === aptoAtual && bloco === blocoAtual;
+      if (!mesmoApartamento && !mesmoTexto) {
+        if (!apto) throw new BadRequestException('Informe o apartamento de destino.');
+        if (existing.status !== 'Aguardando') {
+          throw new ConflictException('Só é possível corrigir a unidade de encomenda aguardando retirada.');
+        }
+        if (!nova) throw new BadRequestException('Unidade não encontrada neste condomínio.');
+        novaUnidade = { apto: String(nova.apto ?? apto).trim(), bloco: blocoGravavel(nova.bloco) };
+      }
+    }
+
+    if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
+      fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? undefined;
+    }
+
+    const campos = {
+      ...(dto.descricao !== undefined && { descricao: dto.descricao }),
+      ...(dto.recebido_de !== undefined && { recebido_de: dto.recebido_de ?? null }),
+      ...(dto.codigo_rastreio !== undefined && { codigo_rastreio: dto.codigo_rastreio ?? null }),
+      ...(fotoUrl !== undefined && { foto_volume: fotoUrl }),
+    };
+
+    if (!novaUnidade) {
+      return this.prisma.encomendas.update({ where: { id: Number(id) }, data: campos });
+    }
+
+    // Troca de unidade e os outros campos numa escrita só, condicionada a
+    // 'Aguardando' (atômica: nada fica pela metade); o aviso sai depois de
+    // gravar, já com a descrição nova.
+    const transicao = await this.prisma.encomendas.updateMany({
+      where: { id: Number(id), status: 'Aguardando' },
+      data: {
+        ...campos,
+        destinatario_apto: novaUnidade.apto,
+        destinatario_bloco: novaUnidade.bloco,
+        notificado: 0,
+        notificado_em: null,
+      },
+    });
+    if (transicao.count === 0) {
+      throw new ConflictException('A encomenda mudou enquanto você editava. Recarregue a lista.');
+    }
+    const corrigida = await this.prisma.encomendas.findUnique({ where: { id: Number(id) } });
+    if (!corrigida) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    return this.avisarUnidadeCorrigida(existing, corrigida, operador);
+  }
+
+  /**
+   * Apartamento do condomínio a que apto + bloco levam: o exato (sem bloco =
+   * bloco nulo ou ''); não havendo, o único apartamento com esse número no
+   * condomínio (bloco preenchido sozinho, ou omitido, num condomínio de
+   * bloco único). Ambíguo ou inexistente → null.
+   */
+  private async resolverUnidade(idCondominio: number, apto: string, bloco: string) {
+    if (!apto) return null;
+    const exata = await this.prisma.apartamentos.findFirst({
+      where: { id_condominio: idCondominio, apto, ...(bloco ? { bloco } : { OR: [{ bloco: null }, { bloco: '' }] }) },
+      select: { id: true, apto: true, bloco: true },
+    });
+    if (exata) return exata;
+    const mesmoNumero = await this.prisma.apartamentos.findMany({
+      where: { id_condominio: idCondominio, apto },
+      select: { id: true, apto: true, bloco: true },
+      take: 2,
+    });
+    return mesmoNumero.length === 1 ? mesmoNumero[0] : null;
+  }
+
+  /** Depois de gravar a unidade nova: avisa quem mora lá, marca notificado e audita. */
+  private async avisarUnidadeCorrigida<T extends DestinoEncomenda>(
+    atual: { destinatario_apto: string; destinatario_bloco: string | null },
+    corrigida: T,
+    operador?: JwtPayload,
+  ) {
     const avisados = await this.avisarUnidade(
       corrigida,
       'Nova Encomenda!',
@@ -717,36 +898,6 @@ export class EncomendasService implements OnModuleInit {
     });
 
     return { ...encomenda, avisados };
-  }
-
-  async update(id: number, dto: Partial<CreateEncomendaDto>, operador?: JwtPayload) {
-    if (!this.prisma.isConnected) return { id, ...dto };
-    const existing = await this.prisma.encomendas.findUnique({
-      where: { id: Number(id) },
-      select: { id_condominio: true, foto_volume: true },
-    });
-    if (!existing) throw new NotFoundException(`Encomenda ${id} não encontrada`);
-    await this.tenant.assertEntidade(existing.id_condominio, operador, `encomenda #${id}`);
-
-    let fotoUrl = dto.foto_volume;
-    await this.storage.exigirArquivoDoRegistro(fotoUrl, [existing.foto_volume]);
-    if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
-      fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? undefined;
-    }
-
-    const updated = await this.prisma.encomendas.update({
-      where: { id: Number(id) },
-      data: {
-        ...(dto.descricao !== undefined && { descricao: dto.descricao }),
-        ...(dto.destinatario_apto !== undefined && { destinatario_apto: dto.destinatario_apto }),
-        ...(dto.destinatario_bloco !== undefined && { destinatario_bloco: dto.destinatario_bloco ?? null }),
-        ...(dto.recebido_de !== undefined && { recebido_de: dto.recebido_de ?? null }),
-        ...(dto.codigo_rastreio !== undefined && { codigo_rastreio: dto.codigo_rastreio ?? null }),
-        ...(fotoUrl !== undefined && { foto_volume: fotoUrl }),
-      },
-    });
-
-    return updated;
   }
 
   async remove(id: number, operador?: JwtPayload) {

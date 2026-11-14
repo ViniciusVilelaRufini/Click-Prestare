@@ -151,6 +151,7 @@ describe('DeliveryFilaComponent', () => {
   it('B5: aviso agendado mostra a previsão de chegada informada pelo morador', () => {
     const fixture = montar();
     store.ativos.set([{ ...ATENDIMENTOS[1], previsao_em: '2026-09-27T14:30:00' }]);
+    store.agora.set(new Date('2026-09-27T09:00:00')); // mesmo dia: só a hora (outro dia mostra a data)
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Previsto 14:30');
   });

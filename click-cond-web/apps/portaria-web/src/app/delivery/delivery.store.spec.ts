@@ -91,7 +91,10 @@ describe('DeliveryStore', () => {
   });
 
   it('recarga silenciosa bem-sucedida limpa o aviso de erro; carga normal mantém o comportamento', () => {
-    store.erro.set('offline');
+    // O aviso de erro posto pela própria carga (a ação não: delivery.ciclos.spec).
+    api.listAtivos.mockReturnValueOnce(throwError(() => ({ message: 'offline' })));
+    store.carregarFila({ silencioso: true });
+    expect(store.erro()).toBe('offline');
     store.carregarFila({ silencioso: true });
     expect(store.erro()).toBeNull();
     store.erro.set('outro erro');

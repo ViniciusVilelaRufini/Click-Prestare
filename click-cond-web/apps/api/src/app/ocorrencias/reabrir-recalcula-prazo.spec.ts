@@ -1,9 +1,9 @@
 import { OcorrenciasService } from './ocorrencias.service';
 
 /**
- * Reabrir (Solucionado → Pendente) mantinha o prazo original: a ocorrência
- * voltava já "Atrasada". O prazo agora recomeça de agora, pelo SLA da
- * categoria — a mesma conta do cadastro.
+ * Reabrir (Solucionado → Pendente) mantinha o prazo
+ * original: a ocorrência voltava já "Atrasada". O prazo agora recomeça de
+ * agora, pelo SLA da categoria — a mesma conta do cadastro.
  */
 describe('Ocorrências — reabrir recalcula o prazo', () => {
   const sindico = { sub: 7, typeAccess: 'Sindico' } as any;
@@ -14,7 +14,7 @@ describe('Ocorrências — reabrir recalcula o prazo', () => {
       isConnected: true,
       ocorrencias: {
         findUnique: jest.fn(async () => ({ ...oc })),
-        update: jest.fn(async ({ data }: any) => ({ ...oc, ...data })),
+        updateMany: jest.fn(async () => ({ count: 1 })),
       },
       ocorrencias_Categorias: { findUnique: jest.fn(async () => ({ sla_horas: slaHoras })) },
       users: { findUnique: jest.fn(async () => null) },
@@ -24,11 +24,11 @@ describe('Ocorrências — reabrir recalcula o prazo', () => {
     return { svc, prisma };
   }
 
-  it('Solucionado → Pendente: prazo = agora + SLA da categoria', async () => {
+  it('Solucionado → reaberta: Pendente, prazo = agora + SLA da categoria', async () => {
     const { svc, prisma } = montar('Solucionado', 24);
     const antes = Date.now();
     await svc.updateStatus(5, 'Pendente', sindico);
-    const { data } = prisma.ocorrencias.update.mock.calls[0][0];
+    const { data } = prisma.ocorrencias.updateMany.mock.calls[0][0];
     expect(data.status).toBe('Pendente');
     expect(data.prazo).toBeInstanceOf(Date);
     const delta = data.prazo.getTime() - antes;
@@ -39,12 +39,12 @@ describe('Ocorrências — reabrir recalcula o prazo', () => {
   it('categoria sem SLA: reaberta fica sem prazo', async () => {
     const { svc, prisma } = montar('Solucionado', null);
     await svc.updateStatus(5, 'Pendente', sindico);
-    expect(prisma.ocorrencias.update.mock.calls[0][0].data.prazo).toBeNull();
+    expect(prisma.ocorrencias.updateMany.mock.calls[0][0].data.prazo).toBeNull();
   });
 
   it('Pendente → Ciente não mexe no prazo', async () => {
     const { svc, prisma } = montar('Pendente');
     await svc.updateStatus(5, 'Ciente', sindico);
-    expect(prisma.ocorrencias.update.mock.calls[0][0].data).toEqual({ status: 'Ciente' });
+    expect(prisma.ocorrencias.updateMany.mock.calls[0][0].data).toEqual({ status: 'Ciente' });
   });
 });

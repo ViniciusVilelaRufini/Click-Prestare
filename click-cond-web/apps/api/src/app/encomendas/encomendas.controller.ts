@@ -22,9 +22,17 @@ export class EncomendasController {
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @Query('status') status?: string,
     @ReqUser() user?: JwtPayload,
+    // Recarga do console: sem assinatura/foto da retirada e só as retiradas
+    // dos últimos N dias (1–365); sem os parâmetros, a lista de sempre.
+    @Query('leve') leve?: string,
+    @Query('retiradas_dias') retiradasDias?: string,
   ) {
     assertOperador(user, 'listar as encomendas do condomínio');
-    return this.service.findAll(idCondominio, status, user);
+    const dias = Number(retiradasDias);
+    const retiradasDesde = Number.isInteger(dias) && dias >= 1 && dias <= 365
+      ? new Date(Date.now() - dias * 86_400_000)
+      : undefined;
+    return this.service.findAll(idCondominio, status, user, { leve: leve === '1' || leve === 'true', retiradasDesde });
   }
 
   @SkipAudit()
