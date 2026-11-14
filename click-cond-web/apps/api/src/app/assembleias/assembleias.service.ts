@@ -791,7 +791,15 @@ export class AssembleiasService {
       }
 
       const dIniStr = v.data_inicio ? v.data_inicio.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-      const dFimStr = v.data_termino ? v.data_termino.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+      // Encerrar no mesmo dia em que começou grava término = ontem (é o que
+      // fecha a votação; as colunas são só data). Na exibição o término nunca
+      // fica antes do início: "13/11 a 13/11", não "13/11 a 12/11". O status
+      // continua saindo das datas gravadas.
+      const fimExibido =
+        v.data_termino && v.data_inicio && v.data_termino.getTime() < v.data_inicio.getTime()
+          ? v.data_inicio
+          : v.data_termino;
+      const dFimStr = fimExibido ? fimExibido.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 
       // Computar o status como inteiro (0 = agendado, 1 = em andamento, 2 = finalizado)
       const statusInt = this.calcStatusInt(v.data_inicio, v.data_termino);

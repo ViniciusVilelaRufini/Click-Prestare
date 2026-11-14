@@ -60,6 +60,27 @@ describe('AssembleiasService — rodada 3', () => {
     });
   });
 
+  describe('M3 — enquete que começou hoje e foi encerrada hoje', () => {
+    afterEach(() => jest.useRealTimers());
+
+    it('mostra "13/11 a 13/11" (não "13/11 a 12/11") e continua encerrada', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-13T15:00:00Z') });
+      const { service, prisma } = build();
+      await service.finishVotacao(9, sindico);
+      const termino: Date = prisma.votacoes.update.mock.calls[0][0].data.data_termino;
+      prisma.votacoes.findMany = jest.fn(async () => [
+        {
+          id: 9, id_condominio: 1, titulo: 'Academia', descricao: '', created_at: new Date(),
+          data_inicio: new Date('2026-11-13T00:00:00Z'), data_termino: termino, opcoes: [],
+        },
+      ]);
+      const [enquete] = await service.enqueteGetAll(1, sindico);
+      expect(enquete.data_inicio).toBe('13/11/2026');
+      expect(enquete.data_termino).toBe('13/11/2026');
+      expect(enquete.status).toBe(2);
+    });
+  });
+
   describe('B5 — data da assembleia', () => {
     it.each(['20/11', '20-11-2026', '32/11/2026', '20/13/2026', 'amanhã', '2026-02-30'])(
       'insert com data %j → 400 e não grava',
