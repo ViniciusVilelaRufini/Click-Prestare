@@ -91,6 +91,52 @@ describe('autoatendimento no portão — segunda revisão', () => {
     }, 15_000);
   });
 
+  describe('[4] a foto sobe antes dos locks; dentro deles só banco', () => {
+    it('upload sem nenhum lock preso', async () => {
+      const k = montarPortao();
+      const durante: string[][] = [];
+      k.storage.uploadDataUrl.mockImplementation(async () => {
+        durante.push(k.banco.locksPresos());
+        return 'https://bucket.s3.amazonaws.com/delivery-portao/1.jpg';
+      });
+      await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      expect(durante).toEqual([[]]);
+    });
+
+    it('perdeu a corrida dentro do lock (outro pedido pendente): a foto já subida é apagada', async () => {
+      const k = montarPortao();
+      const r = await Promise.allSettled([k.svc.criarPedido(TOKEN_PORTAO, entrada), k.svc.criarPedido(TOKEN_PORTAO, entrada)]);
+      expect(r.map((x) => x.status).sort()).toEqual(['fulfilled', 'rejected']);
+      expect(k.tabela('deliveryPedidosPortao')).toHaveLength(1);
+      const gravada = k.tabela('deliveryPedidosPortao')[0].foto;
+      const subidas = (k.storage.uploadDataUrl.mock.results as any[]).length;
+      const apagadas = (k.storage.deleteUrl.mock.calls as any[]).map((c) => c[0]);
+      expect(apagadas).toHaveLength(subidas - 1);
+      expect(apagadas).not.toContain(gravada);
+    });
+  });
+
+  describe('[9] card e notificação dos cancelamentos fora do lock da unidade', () => {
+    it('pedido novo cancela o atendimento vencido sem resposta depois de soltar os locks', async () => {
+      const k = montarPortao();
+      await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      const idAntigo = k.tabela('deliveryAtendimentos')[0].id;
+      k.avancar(5 * M + 1000);
+      const durante: string[][] = [];
+      k.card.atualizarDelivery.mockImplementation(async () => {
+        durante.push(k.banco.locksPresos());
+        return { cobertos: new Set<string>() };
+      });
+      await k.svc.criarPedido(TOKEN_PORTAO, { ...entrada, nome: 'Duda' });
+      expect(k.tabela('deliveryAtendimentos').find((a: any) => a.id === idAntigo)).toMatchObject({
+        status: 'CANCELADA',
+        motivo: 'Sem resposta do morador',
+      });
+      expect(durante.length).toBeGreaterThan(0);
+      expect(durante.every((l) => l.length === 0)).toBe(true);
+    });
+  });
+
   describe('[10] a selfie gravada é a recodificada pelo sharp (JPEG, sem EXIF/GPS)', () => {
     const bytesDe = (dataUrl: string) => Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
 
