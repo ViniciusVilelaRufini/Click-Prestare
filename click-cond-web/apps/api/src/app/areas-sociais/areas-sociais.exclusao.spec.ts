@@ -84,11 +84,34 @@ describe('AreasSociaisService — excluir espaço e reserva sem apagar o que imp
       expect(prisma.areas_Sociais.delete).toHaveBeenCalled();
     });
 
-    it('com terminal facial vinculado: 409 pedindo para desvincular', async () => {
-      const { svc, prisma } = build({ devices: 1 });
+    it('lista na mensagem as próximas reservas (até 3) para o síndico saber quais cancelar', async () => {
+      const { svc } = build({
+        agendamentos: [
+          { id: 1, status: 'aprovado', data: dia('2026-06-20'), hora_de: hora(18), hora_ate: hora(22) },
+          { id: 2, status: 'pendente', data: dia('2026-06-21'), hora_de: hora(10), hora_ate: hora(12) },
+          { id: 3, status: 'aprovado', data: dia('2026-06-22'), hora_de: hora(14), hora_ate: hora(16) },
+          { id: 4, status: 'aprovado', data: dia('2026-06-23'), hora_de: hora(9), hora_ate: hora(11) },
+        ],
+      });
+      const erro = await svc.remove(30, sindico).catch((e) => e);
+      expect(erro.message).toBe(
+        'Este espaço tem 4 reservas ativas por acontecer (20/06/2026 às 18:00, 21/06/2026 às 10:00, 22/06/2026 às 14:00 e outras). ' +
+          'Cancele-as antes de excluir o espaço.',
+      );
+    });
+
+    it('com terminal facial ligado (mesmo desativado): 409 dizendo onde agir e a consequência', async () => {
+      const { svc, prisma } = build({
+        devices: 1,
+        agendamentos: [{ id: 1, status: 'aprovado', data: dia('2026-06-20'), hora_de: hora(18), hora_ate: hora(22) }],
+      });
       const erro = await svc.remove(30, sindico).catch((e) => e);
       expect(erro).toBeInstanceOf(ConflictException);
-      expect(erro.message).toMatch(/terminal/i);
+      // O terminal é conferido antes das reservas.
+      expect(erro.message).toMatch(/^Este espaço tem um terminal facial ligado a ele\. Em Terminais faciais/);
+      expect(erro.message).toMatch(/desativado também conta/);
+      expect(erro.message).toMatch(/liberar todos os moradores/);
+      expect(prisma.facial_Devices.count).toHaveBeenCalledWith({ where: { id_area_social: 30 } });
       expect(prisma.areas_Sociais.delete).not.toHaveBeenCalled();
     });
 

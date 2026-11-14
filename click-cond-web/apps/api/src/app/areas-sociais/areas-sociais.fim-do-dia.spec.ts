@@ -172,3 +172,41 @@ describe('insertAgendamento — término e autoria', () => {
     });
   });
 });
+
+describe('bloco da grade que atravessa a meia-noite', () => {
+  it('22:00–02:00 não aparece em horarios_livres; 20:00–24:00 aparece', async () => {
+    agoraBr(2026, 6, 10, 9);
+    const { svc, prisma } = build();
+    prisma.areas_Sociais.findUnique.mockResolvedValue({
+      ...area,
+      horarios: JSON.stringify(
+        Array.from({ length: 7 }).map(() => ({
+          horarios: [{ horarioDe: '22:00', horarioAte: '02:00' }, { horarioDe: '20:00', horarioAte: '24:00' }],
+        })),
+      ),
+    });
+    const r: any = await svc.get(2, 30, funcionario);
+    expect(r.horarios_livres['11/06/2026']).toEqual([{ horarioDe: '20:00', horarioAte: '24:00' }]);
+  });
+});
+
+describe('updateAgendamento — término e início', () => {
+  const reserva = {
+    id: 500, id_user: 5, id_area_social: 30, status: 'aprovado',
+    data: new Date(Date.UTC(2026, 5, 20)), hora_de: hora(18), hora_ate: hora(22), area: { id_condominio: 2 },
+  };
+
+  it('término antes do início (só o término mudou): 400 e nada é gravado', async () => {
+    const { svc, prisma } = build({ reserva });
+    await expect(svc.updateAgendamento({ id: 500, horaAte: '17:00' }, sindico)).rejects.toThrow(
+      'O término da reserva precisa ser depois do início.',
+    );
+    expect(prisma.areas_Sociais_Agendamentos.update).not.toHaveBeenCalled();
+  });
+
+  it('término 00:00 continua valendo como fim do dia', async () => {
+    const { svc, prisma } = build({ reserva });
+    await svc.updateAgendamento({ id: 500, horaAte: '00:00' }, sindico);
+    expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalled();
+  });
+});
