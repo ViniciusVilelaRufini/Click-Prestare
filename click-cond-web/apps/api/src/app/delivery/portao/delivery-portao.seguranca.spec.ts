@@ -218,4 +218,42 @@ describe('autoatendimento no portão — revisão de segurança', () => {
       expect(k.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('[6] quem tem vínculo com a unidade e responde pelo app é morador', () => {
+    async function pedidoPresente(vinculos?: any[]) {
+      const k = montarPortao(vinculos ? { vinculos } : {});
+      const r = await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      k.avancar(3000);
+      return { ...k, tokenPedido: r.pedido, idAtendimento: k.tabela('deliveryAtendimentos')[0].id };
+    }
+
+    it.each([
+      ['síndico', { sub: 9, typeAccess: 'Sindico', nome: 'Bruno Reis' }],
+      ['funcionário', { sub: 9, typeAccess: 'Funcionario', nome: 'Bruno Reis' }],
+    ])('%s morador da unidade libera pelo app: a nuvem abre e ele vira o dono', async (_n, user) => {
+      const k = await pedidoPresente();
+      await k.delivery.atualizarStatus(k.idAtendimento, { status: 'AUTORIZADA' } as any, user as any);
+      expect(k.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
+      expect(k.tabela('deliveryPedidosPortao')[0]).toMatchObject({ status: 'liberado', liberado_ate: expect.any(Date) });
+      expect(k.tabela('deliveryAtendimentos')[0].id_morador_user).toBe(9);
+    });
+
+    it('síndico morador da unidade pode responder "vou buscar" pelo app', async () => {
+      const k = await pedidoPresente();
+      await k.delivery.atualizarStatus(k.idAtendimento, { status: 'RETIRADA_NA_PORTARIA' } as any, { sub: 9, typeAccess: 'Sindico', nome: 'Bruno' } as any);
+      expect(k.tabela('deliveryPedidosPortao')[0].status).toBe('vou_buscar');
+    });
+
+    it('síndico sem vínculo com a unidade (app) ou no console: liberação de portaria, a nuvem não abre', async () => {
+      for (const user of [
+        { sub: 50, typeAccess: 'Sindico', nome: 'Síndica' },
+        { sub: 9, typeAccess: 'Sindico', nome: 'Bruno Reis', id_condominio: 1 },
+      ]) {
+        const k = await pedidoPresente();
+        await k.delivery.atualizarStatus(k.idAtendimento, { status: 'AUTORIZADA' } as any, user as any);
+        expect(k.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+        expect(k.tabela('deliveryPedidosPortao')[0]).toMatchObject({ status: 'liberado', liberado_ate: null });
+      }
+    });
+  });
 });
