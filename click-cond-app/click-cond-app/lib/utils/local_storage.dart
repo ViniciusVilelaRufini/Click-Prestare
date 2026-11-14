@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show FileSystemException;
 
 import 'package:click/pages/singleton.dart';
+import 'package:click/services/credencial_acesso.dart';
 import 'package:click/services/firebase_service.dart';
 import 'package:click/utils/cond_cache.dart';
 import 'package:click/utils/log.dart';
@@ -194,6 +195,13 @@ Future<void> storageLogout() async {
   // o próximo login veria o saldo/resumo do usuário anterior antes do refresh.
   CondCache.clear();
   _pendingCondCache.clear();
+  // O segredo do QR de "Meu acesso" sai junto com a sessão: o do condomínio
+  // ativo e o de qualquer outro em que este usuário tenha aberto a tela.
+  final idCondominioAtivo = int.tryParse('${Singleton.instance.id_condominio ?? ''}');
+  final esquecendoCredenciais = () async {
+    if (idCondominioAtivo != null) await CredencialAcesso.esquecer(idCondominioAtivo);
+    await CredencialAcesso.esquecerTodas();
+  }();
   Singleton.instance.reset();
   final deviceToken = getSindicoDeviceToken();
   final jwt = getToken();
@@ -209,6 +217,7 @@ Future<void> storageLogout() async {
     setSindicoDeviceToken(deviceToken);
   }
   await apagando;
+  await esquecendoCredenciais;
   try {
     await FirebaseService.instance.desregistrarNoServidor(jwt: jwt);
   } catch (_) {}
