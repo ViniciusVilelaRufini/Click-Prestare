@@ -19,7 +19,9 @@ export type MotivoNegacao =
   | 'expirado'
   | 'reuso'
   | 'visita_encerrada'
-  | 'morador_removido';
+  | 'morador_removido'
+  /** Código dinâmico em evento reenviado pela fila offline do agente (decidido no webhook). */
+  | 'backlog';
 
 export const TEXTO_NEGACAO: Record<MotivoNegacao, string> = {
   desconhecida: 'QR não reconhecido',
@@ -31,6 +33,7 @@ export const TEXTO_NEGACAO: Record<MotivoNegacao, string> = {
   reuso: 'QR já usado neste leitor',
   visita_encerrada: 'Visita encerrada',
   morador_removido: 'Morador não encontrado',
+  backlog: 'QR lido sem internet não vale',
 };
 
 /**

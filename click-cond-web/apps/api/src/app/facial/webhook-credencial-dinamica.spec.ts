@@ -338,14 +338,40 @@ describe('FacialService — webhook com código dinâmico', () => {
     expect(client.triggerRelay).toHaveBeenCalledTimes(1);
   });
 
-  it('evento de backlog valida contra o timestamp do evento, não contra agora', async () => {
-    const { svc, validacao, client } = build();
+  it('código dinâmico em evento de backlog é negado com motivo próprio, sem validar nem mexer na visita', async () => {
+    // O agente não enfileira QR offline: um P1/P2 com backlog não é uma
+    // passagem real a auditar, e validá-lo gravaria a leitura no anti-reuso.
+    const vis = visitante();
+    const { svc, validacao, client, acessos, prisma } = build({ validacao: okVisita(), visitante: vis });
     const quando = '2026-07-20T08:30:00.000Z';
 
-    await svc.processWebhook('tok', leitura({ backlog: true, timestamp: quando }));
+    await expect(svc.processWebhook('tok', leitura({ backlog: true, timestamp: quando }))).rejects.toThrow(
+      'Acesso negado: QR lido sem internet não vale',
+    );
 
-    expect(validacao.validarLeitura).toHaveBeenCalledWith(CODIGO, expect.anything(), new Date(quando));
+    expect(validacao.validarLeitura).not.toHaveBeenCalled();
+    expect(acessos).toEqual([
+      expect.objectContaining({
+        evento: 'negado',
+        face_id: 'cred:?',
+        tipo_pessoa: 'desconhecido',
+        id_pessoa: null,
+        nome_pessoa: 'QR lido sem internet não vale',
+      }),
+    ]);
+    expect(prisma.visitantes.update).not.toHaveBeenCalled();
+    expect(prisma.visitantes.updateMany).not.toHaveBeenCalled();
+    expect(vis.data_entrada).toBeNull();
     expect(client.triggerRelay).not.toHaveBeenCalled();
+  });
+
+  it('PIN estático em evento de backlog segue o fluxo de hoje', async () => {
+    const { svc, validacao } = build({ opcao: false, visitante: visitante() });
+
+    const res = await svc.processWebhook('tok', { qrcode: '482913', backlog: true, timestamp: '2026-07-20T08:30:00.000Z' });
+
+    expect(res).toEqual(expect.objectContaining({ ok: true, tipo: 'visitante' }));
+    expect(validacao.validarLeitura).not.toHaveBeenCalled();
   });
 
   it('evento ao vivo com timestamp do aparelho valida contra agora', async () => {

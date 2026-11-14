@@ -5283,9 +5283,14 @@ export class FacialService {
         }
         throw new BadRequestException(`Acesso negado: ${texto}`);
       };
+      // O agente não enfileira QR offline: código dinâmico com `backlog` não
+      // é uma passagem real a auditar. Nega sem validar (validar gravaria a
+      // leitura no anti-reuso) e sem tocar na visita; sem MAC conferido, o
+      // registro não é atribuído à credencial.
+      if (isBacklog) await negarDinamico('cred:?', 'backlog');
       const resultado = this.credenciais
-        ? await this.credenciais.validarLeitura(qrCodeLido, device, isBacklog ? timestamp : new Date())
-        : ({ ok: false, rotulo: rotuloDeCredencial(qrCodeLido), motivo: 'desconhecida' } as const);
+        ? await this.credenciais.validarLeitura(qrCodeLido, device, new Date())
+        : ({ ok: false, rotulo: 'cred:?', motivo: 'desconhecida' } as const);
       if (!resultado.ok) {
         await negarDinamico(resultado.rotulo, resultado.motivo);
       } else if (resultado.alvo.tipo === 'morador') {

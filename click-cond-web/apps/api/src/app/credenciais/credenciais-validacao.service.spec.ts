@@ -291,6 +291,7 @@ describe('CredenciaisValidacaoService', () => {
       reuso: 'QR já usado neste leitor',
       visita_encerrada: 'Visita encerrada',
       morador_removido: 'Morador não encontrado',
+      backlog: 'QR lido sem internet não vale',
     });
   });
 });
