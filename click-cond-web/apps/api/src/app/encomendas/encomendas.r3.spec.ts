@@ -120,6 +120,23 @@ describe('Encomendas — rodada 3', () => {
       expect(prisma.encomendas.update).not.toHaveBeenCalled();
     });
 
+    // Onda final: o síndico corrige pelo app a unidade de um pré-registro
+    // ("a chegar") antes de receber. Antes da rodada 3 gravava; tinha virado 409.
+    it('a chegar (Esperando): grava a unidade nova validada, sem push de "Nova Encomenda"', async () => {
+      const { svc, registros, notifications, prisma } = build([enc({ status: 'Esperando', notificado: 0, notificado_em: null })]);
+      await svc.update(5, { destinatario_apto: '30', destinatario_bloco: 'B', descricao: 'iFood' }, porteiro);
+      expect(registros[0]).toMatchObject({ destinatario_apto: '30', destinatario_bloco: 'B', descricao: 'iFood', status: 'Esperando' });
+      expect(prisma.encomendas.updateMany.mock.calls[0][0].where).toEqual({ id: 5, status: 'Esperando' });
+      expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+    });
+
+    it('a chegar (Esperando) com unidade que não existe: 400 e nada muda', async () => {
+      const { svc, registros } = build([enc({ status: 'Esperando' })]);
+      const e = await svc.update(5, { destinatario_apto: '999' }, porteiro).catch((x) => x);
+      expect(e).toBeInstanceOf(BadRequestException);
+      expect(registros[0].destinatario_apto).toBe('101');
+    });
+
     it('unidade que não existe: 400 e nada muda', async () => {
       const { svc, registros } = build([enc()]);
       const e = await svc.update(5, { destinatario_apto: '999', descricao: 'Outra' }, porteiro).catch((x) => x);

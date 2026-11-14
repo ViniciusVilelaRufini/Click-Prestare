@@ -785,7 +785,8 @@ export class EncomendasService implements OnModuleInit {
 
     // Trocar a unidade (edição pelo app) segue as regras de "Corrigir
     // unidade": só aguardando retirada, unidade existente, bloco '',
-    // notificado zerado e aviso à unidade nova. "Mesma unidade" é decidido
+    // notificado zerado e aviso à unidade nova. Pré-registro "a chegar"
+    // ('Esperando') também troca, sem aviso: nada foi recebido ainda. "Mesma unidade" é decidido
     // pelo APARTAMENTO a que o texto leva, não pelo texto: o app preenche o
     // bloco sozinho num condomínio de bloco único, e isso não é troca.
     const informouUnidade = dto.destinatario_apto !== undefined || dto.destinatario_bloco !== undefined;
@@ -803,7 +804,7 @@ export class EncomendasService implements OnModuleInit {
       const mesmoTexto = apto === aptoAtual && bloco === blocoAtual;
       if (!mesmoApartamento && !mesmoTexto) {
         if (!apto) throw new BadRequestException('Informe o apartamento de destino.');
-        if (existing.status !== 'Aguardando') {
+        if (existing.status !== 'Aguardando' && existing.status !== 'Esperando') {
           throw new ConflictException('Só é possível corrigir a unidade de encomenda aguardando retirada.');
         }
         if (!nova) throw new BadRequestException('Unidade não encontrada neste condomínio.');
@@ -824,6 +825,22 @@ export class EncomendasService implements OnModuleInit {
 
     if (!novaUnidade) {
       return this.prisma.encomendas.update({ where: { id: Number(id) }, data: campos });
+    }
+
+    // Pré-registro ainda não recebido: só grava a unidade nova (validada),
+    // condicionada a continuar 'Esperando'. O aviso "Nova Encomenda" sai no
+    // recebimento, para a unidade que estiver gravada.
+    if (existing.status === 'Esperando') {
+      const r = await this.prisma.encomendas.updateMany({
+        where: { id: Number(id), status: 'Esperando' },
+        data: { ...campos, destinatario_apto: novaUnidade.apto, destinatario_bloco: novaUnidade.bloco },
+      });
+      if (r.count === 0) {
+        throw new ConflictException('A encomenda mudou enquanto você editava. Recarregue a lista.');
+      }
+      const editada = await this.prisma.encomendas.findUnique({ where: { id: Number(id) } });
+      if (!editada) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+      return editada;
     }
 
     // Troca de unidade e os outros campos numa escrita só, condicionada a
