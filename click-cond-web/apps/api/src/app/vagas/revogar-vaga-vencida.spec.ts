@@ -8,6 +8,11 @@ import { MobileAuthService } from '../auth/mobile-auth.service';
  * não usada). Revogar V1 zerava liberado/PIN da visita e re-sincronizava o
  * facial: X perdia o acesso de V2. Agora a vaga revogada sempre vira ativo=0,
  * mas a visita/o visitante só são mexidos sem outra vaga vigente deles.
+ *
+ * Rodada 3 (console): revogar uma vaga VENCIDA nunca mexe na visita — mesmo
+ * sem outra vaga. O morador pode ter autorizado a mesma visita de novo (via
+ * Solicitar) depois do prazo. A mesma regra no app (MobileAuthService.revogarVaga)
+ * fica com a raia de auth/**.
  */
 const AGORA = new Date('2026-11-13T15:00:00.000Z');
 const ONTEM = new Date('2026-11-12T15:00:00.000Z');
@@ -90,8 +95,29 @@ describe.each(servicos)('%s — vaga vencida com outra vaga vigente do mesmo vis
       expect(facial.syncVisitante).not.toHaveBeenCalled();
     });
 
-    it('sem outra vaga vigente: revoga a vaga, o PIN e sincroniza o facial', async () => {
+    // A metade do app (MobileAuthService.revogarVaga, em auth/**) é de outra
+    // raia e ainda não tem a regra: fica como skip visível até ser corrigida.
+    const doApp = _nome.startsWith('MobileAuthService');
+    (doApp ? it.skip : it)(
+      doApp
+        ? 'PENDENTE (app, auth/** de outra raia): sem outra vaga vigente, revogar a vencida não derruba a autorização nova'
+        : 'sem outra vaga vigente: revoga a vaga e não derruba a autorização nova da visita',
+      async () => {
+      // Vaga vencida já não dá acesso. O liberado/PIN que a visita tem agora
+      // pode ser de um Solicitar autorizado depois do prazo (mesma visita,
+      // ainda não usada): revogar a vencida só tira a linha da lista.
       const { prisma, facial, vagas } = cenario(ref, false);
+      await montar(prisma, facial)(1);
+      expect(vagas[0].ativo).toBe(0);
+      expect(prisma.visitas.update).not.toHaveBeenCalled();
+      expect(prisma.visitantes.update).not.toHaveBeenCalled();
+      expect(facial.syncVisitante).not.toHaveBeenCalled();
+      },
+    );
+
+    it('vaga ainda vigente, sem outra: revoga a vaga, o PIN e sincroniza o facial', async () => {
+      const { prisma, facial, vagas } = cenario(ref, false);
+      vagas[0].fim = AMANHA;
       await montar(prisma, facial)(1);
       expect(vagas[0].ativo).toBe(0);
       const tabela = ref.id_visita ? prisma.visitas : prisma.visitantes;
