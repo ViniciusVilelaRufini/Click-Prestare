@@ -1186,7 +1186,10 @@ model DeliveryPedidosPortao {
   status           String               @default("pendente") @db.VarChar(20)
   visto_em         DateTime?            @db.DateTime(0)
   liberado_ate     DateTime?            @db.DateTime(0)
+  /// Entrada confirmada pelo aparelho (a saída depende dela).
   aberto_em        DateTime?            @db.DateTime(0)
+  /// Entrada reservada e em curso, sem resposta do aparelho ainda.
+  abrindo_em       DateTime?            @db.DateTime(0)
   saida_aberta_em  DateTime?            @db.DateTime(0)
   falha_abertura_em DateTime?           @db.DateTime(0)
   /// Quando o pedido foi respondido (liberado, vou_buscar, recusado); recusa e "vou buscar" abrem a trégua de 10 min da unidade.

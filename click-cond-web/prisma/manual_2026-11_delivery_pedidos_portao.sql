@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS delivery_pedidos_portao (
   visto_em DATETIME NULL,
   liberado_ate DATETIME NULL,
   aberto_em DATETIME NULL,
+  abrindo_em DATETIME NULL,
   saida_aberta_em DATETIME NULL,
   falha_abertura_em DATETIME NULL,
   respondido_em DATETIME NULL,
@@ -157,6 +158,21 @@ SET @dpp_sql = IF(
   ),
   'SELECT 1',
   'ALTER TABLE delivery_pedidos_portao ADD COLUMN respondido_em DATETIME NULL'
+);
+PREPARE dpp_stmt FROM @dpp_sql;
+EXECUTE dpp_stmt;
+DEALLOCATE PREPARE dpp_stmt;
+
+-- Entrada reservada e em curso; aberto_em só com a confirmação do aparelho.
+SET @dpp_sql = IF(
+  EXISTS (
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @dpp_schema
+      AND TABLE_NAME = 'delivery_pedidos_portao'
+      AND COLUMN_NAME = 'abrindo_em'
+  ),
+  'SELECT 1',
+  'ALTER TABLE delivery_pedidos_portao ADD COLUMN abrindo_em DATETIME NULL'
 );
 PREPARE dpp_stmt FROM @dpp_sql;
 EXECUTE dpp_stmt;

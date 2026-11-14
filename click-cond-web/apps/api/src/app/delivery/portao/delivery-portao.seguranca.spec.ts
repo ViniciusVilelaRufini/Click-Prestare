@@ -165,4 +165,57 @@ describe('autoatendimento no portão — revisão de segurança', () => {
       expect(k.tabela('deliveryPedidosPortao')).toHaveLength(20);
     });
   });
+
+  describe('[4] saída só depois da entrada confirmada e 60 s depois dela', () => {
+    async function liberadoSemPresenca() {
+      const k = montarPortao();
+      const r = await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      k.avancar(40_000);
+      await k.delivery.atualizarStatus(k.tabela('deliveryAtendimentos')[0].id, { status: 'AUTORIZADA' } as any, morador7);
+      return { ...k, tokenPedido: r.pedido };
+    }
+
+    it('com a entrada ainda abrindo (aparelho sem resposta): aberto_em vazio, pode_sair false e sair não abre', async () => {
+      const k = await liberadoSemPresenca();
+      let responder!: (v: { ok: boolean }) => void;
+      k.facial.abrirDispositivoInterno.mockImplementationOnce(() => new Promise((res) => (responder = res)));
+      const abrindo = k.svc.abrir(TOKEN_PORTAO, k.tokenPedido);
+      await new Promise((res) => setImmediate(res));
+      expect(k.tabela('deliveryPedidosPortao')[0].aberto_em).toBeNull();
+      k.avancar(2 * M);
+      expect(await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido)).toMatchObject({ pode_sair: false, pode_abrir: false });
+      expect((await k.svc.sair(TOKEN_PORTAO, k.tokenPedido)).abriu).toBe(false);
+      expect(k.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
+      // Uma segunda abertura de entrada também não passa enquanto a primeira está em curso.
+      expect((await k.svc.abrir(TOKEN_PORTAO, k.tokenPedido)).abriu).toBe(false);
+      expect(k.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
+      responder({ ok: true });
+      expect((await abrindo).abriu).toBe(true);
+      expect(k.tabela('deliveryPedidosPortao')[0].aberto_em).toEqual(expect.any(Date));
+    });
+
+    it('entrada que falha volta ao estado anterior: nem aberta nem abrindo; nova tentativa abre uma vez só', async () => {
+      const k = await liberadoSemPresenca();
+      k.facial.abrirDispositivoInterno.mockResolvedValueOnce({ ok: false });
+      expect((await k.svc.abrir(TOKEN_PORTAO, k.tokenPedido)).abriu).toBe(false);
+      expect(k.tabela('deliveryPedidosPortao')[0]).toMatchObject({ status: 'liberado', aberto_em: null, abrindo_em: null });
+      expect(await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido)).toMatchObject({ pode_abrir: true, pode_sair: false });
+      expect((await k.svc.sair(TOKEN_PORTAO, k.tokenPedido)).abriu).toBe(false);
+      const [a, b] = await Promise.all([k.svc.abrir(TOKEN_PORTAO, k.tokenPedido), k.svc.abrir(TOKEN_PORTAO, k.tokenPedido)]);
+      expect([a.abriu, b.abriu].sort()).toEqual([false, true]);
+      expect(k.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(2);
+    });
+
+    it('saída antes de 60 s da entrada: recusada; depois de 60 s: abre', async () => {
+      const k = await liberadoSemPresenca();
+      expect((await k.svc.abrir(TOKEN_PORTAO, k.tokenPedido)).abriu).toBe(true);
+      k.avancar(59_000);
+      expect(await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido)).toMatchObject({ situacao: 'aberto', pode_sair: false });
+      expect((await k.svc.sair(TOKEN_PORTAO, k.tokenPedido)).abriu).toBe(false);
+      k.avancar(1000);
+      expect(await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido)).toMatchObject({ pode_sair: true });
+      expect((await k.svc.sair(TOKEN_PORTAO, k.tokenPedido)).abriu).toBe(true);
+      expect(k.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(2);
+    });
+  });
 });

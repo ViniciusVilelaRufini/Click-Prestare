@@ -32,6 +32,7 @@ import {
   MAX_PEDIDOS_UNIDADE_HORA,
   PEDIDO_EXPIRA_MS,
   PRESENCA_MS,
+  SAIDA_APOS_ENTRADA_MS,
   SAIDA_MS,
   TREGUA_UNIDADE_MS,
   dentroDoHorario,
@@ -452,7 +453,10 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     return { ...estadoDoPedido(atual, agora), abriu };
   }
 
-  /** "Abrir para sair": uma vez, no mesmo aparelho, até 30 min depois da entrada. Conclui o atendimento. */
+  /**
+   * "Abrir para sair": uma vez, no mesmo aparelho, de 60 s a 30 min depois
+   * da entrada CONFIRMADA (aberto_em). Conclui o atendimento.
+   */
   async sair(token: string, tokenPedido: string): Promise<EstadoPedido & { abriu: boolean }> {
     const pedido = await this.carregarPedido(token, tokenPedido);
     const agora = new Date(this.agora());
@@ -462,7 +466,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
       where: {
         id: pedido.id,
         status: 'liberado',
-        aberto_em: { gte: new Date(agora.getTime() - SAIDA_MS) },
+        aberto_em: { gte: new Date(agora.getTime() - SAIDA_MS), lte: new Date(agora.getTime() - SAIDA_APOS_ENTRADA_MS) },
         saida_aberta_em: null,
       },
       data: { saida_aberta_em: agora },
@@ -619,23 +623,31 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
   // ─────────────────────────────────────────── internos
 
   /**
-   * Reserva a abertura (só um chamador passa) e aciona o aparelho do pedido.
-   * Falhou: desfaz a reserva e marca a falha, para nova tentativa dentro da
-   * janela.
+   * Reserva a abertura em `abrindo_em` (só um chamador passa) e aciona o
+   * aparelho do pedido. `aberto_em` só é gravado com a confirmação do
+   * aparelho: é dela que a saída depende. Falhou: desfaz a reserva e marca a
+   * falha, para nova tentativa dentro da janela. Reserva presa (instância
+   * caiu no meio) não é retomada: o entregador procura a portaria, e nunca
+   * há duas entradas.
    */
   private async abrirEntrada(pedido: any, agora: Date): Promise<boolean> {
     const db = (this.prisma as any).deliveryPedidosPortao;
     const reserva = await db.updateMany({
-      where: { id: pedido.id, status: 'liberado', aberto_em: null, liberado_ate: { gte: agora } },
-      data: { aberto_em: agora },
+      where: { id: pedido.id, status: 'liberado', aberto_em: null, abrindo_em: null, liberado_ate: { gte: agora } },
+      data: { abrindo_em: agora },
     });
     if (reserva.count !== 1) return false;
     const r = await this.facial.abrirDispositivoInterno(pedido.id_device, this.contextoAbertura(pedido));
     if (r.ok) {
-      await db.update({ where: { id: pedido.id }, data: { falha_abertura_em: null } }).catch(() => undefined);
+      await db
+        .updateMany({
+          where: { id: pedido.id, aberto_em: null },
+          data: { aberto_em: new Date(this.agora()), abrindo_em: null, falha_abertura_em: null },
+        })
+        .catch((e: any) => this.logger.warn(`Entrada do pedido de portão ${pedido.id} não gravada: ${e?.message ?? e}`));
       return true;
     }
-    await db.update({ where: { id: pedido.id }, data: { aberto_em: null, falha_abertura_em: agora } });
+    await db.update({ where: { id: pedido.id }, data: { abrindo_em: null, falha_abertura_em: agora } });
     return false;
   }
 

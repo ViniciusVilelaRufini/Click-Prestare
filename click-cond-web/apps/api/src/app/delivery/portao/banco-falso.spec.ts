@@ -66,6 +66,7 @@ const PADROES: Record<string, (agora: Date) => Row> = {
     visto_em: null,
     liberado_ate: null,
     aberto_em: null,
+    abrindo_em: null,
     saida_aberta_em: null,
     falha_abertura_em: null,
     respondido_em: null,
