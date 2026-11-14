@@ -1063,13 +1063,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       // Visitas por pessoa e unidade (o recorte acima não serve para contar).
       const contagemUnidade = new Map<string, number>();
       if (pessoasCadastradas.length) {
-        const grupos: any[] =
-          (await this.prisma.visitas.groupBy({
-            by: ['id_pessoa', 'id_apartamento'],
-            where: { id_condominio: Number(idCondominio), id_pessoa: { in: pessoasCadastradas.map((p) => p.id) } },
-            _count: { _all: true },
-          })) ?? [];
-        for (const g of grupos) contagemUnidade.set(`${g.id_pessoa}:${g.id_apartamento}`, g._count?._all ?? 0);
+        const grupos = await this.prisma.visitas.groupBy({
+          by: ['id_pessoa', 'id_apartamento'],
+          where: { id_condominio: Number(idCondominio), id_pessoa: { in: pessoasCadastradas.map((p) => p.id) } },
+          _count: { _all: true },
+        });
+        for (const g of (grupos ?? []) as any[]) {
+          contagemUnidade.set(`${g.id_pessoa}:${g.id_apartamento}`, g._count?._all ?? 0);
+        }
       }
 
       // A flag sozinha decide a fonte: mesmo que a busca acima volte vazia
