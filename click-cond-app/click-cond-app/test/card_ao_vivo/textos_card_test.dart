@@ -107,5 +107,42 @@ void main() {
       expect(r.emAndamento, isFalse);
       expect(t({'fase': 'recusado', 'voceRespondeu': true}).corpo, 'Você recusou a entrega.');
     });
+
+    test('aguardando sem a chave portao: RECUSAR e AUTORIZAR, como hoje', () {
+      final x = t({'fase': 'aguardando'});
+      expect(x.portao, isFalse);
+      expect(x.rotuloEsquerdo, 'RECUSAR');
+      expect(x.rotuloDireito, 'AUTORIZAR');
+    });
+
+    test('entregador no portão (portao: true): VOU BUSCAR e LIBERAR ENTRADA', () {
+      final x = t({'fase': 'aguardando', 'portao': true});
+      expect(x.portao, isTrue);
+      expect(x.comBotoes, isTrue);
+      expect(x.emAndamento, isTrue);
+      expect(x.rotuloEsquerdo, 'VOU BUSCAR');
+      expect(x.rotuloDireito, 'LIBERAR ENTRADA');
+      expect(x.titulo, 'Burger King · no portão');
+      expect(x.corpo, 'O entregador pede para entrar · Carlos · iFood · Bloco A · Apto 106');
+    });
+
+    test('portao fora da fase aguardando não muda nada', () {
+      final x = t({'fase': 'autorizado', 'portao': true, 'voceRespondeu': true});
+      expect(x.portao, isFalse);
+      expect(x.comBotoes, isFalse);
+      expect(x.corpo, 'Você autorizou. A caminho da sua unidade.');
+    });
+
+    test('portao false ou nulo vale como ausente', () {
+      expect(t({'fase': 'aguardando', 'portao': false}).rotuloEsquerdo, 'RECUSAR');
+      expect(t({'fase': 'aguardando', 'portao': null}).rotuloDireito, 'AUTORIZAR');
+    });
+  });
+
+  test('portaria remota continua NEGAR e AUTORIZAR, mesmo com portao', () {
+    final x = textosCard(com({'fase': 'aguardando', 'portao': true}));
+    expect(x.portao, isFalse);
+    expect(x.rotuloEsquerdo, 'NEGAR');
+    expect(x.rotuloDireito, 'AUTORIZAR');
   });
 }

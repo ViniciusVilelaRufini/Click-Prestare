@@ -6,7 +6,9 @@
 // vem do keychain do app (CardSessao), gravada pela ponte com o Flutter.
 //
 // NEGAR não pede desbloqueio. AUTORIZAR exige (decisão do usuário):
-// authenticationPolicy = .requiresAuthentication.
+// authenticationPolicy = .requiresAuthentication. No delivery do portão,
+// VOU BUSCAR segue o NEGAR (sem desbloqueio) e LIBERAR ENTRADA usa o
+// AutorizarCardIntent.
 
 import ActivityKit
 import AppIntents
@@ -195,6 +197,34 @@ struct AutorizarCardIntent: LiveActivityIntent {
     } else {
       try await responder("POST", "/visitantes/\(idPedido)/autorizar", corpo: ["darEntrada": false], idCartao: idCartao, fase: "liberado")
     }
+    return .result()
+  }
+}
+
+/// Delivery pedido pelo entregador no QR do portão: "vou buscar". O portão
+/// não abre (o morador desce), então não pede desbloqueio, como NEGAR.
+@available(iOS 17.0, *)
+struct VouBuscarCardIntent: LiveActivityIntent {
+  static let title: LocalizedStringResource = "Vou buscar"
+  static let isDiscoverable = false
+
+  @Parameter(title: "Cartão") var idCartao: String
+  @Parameter(title: "Pedido") var idPedido: String
+  /// Sempre delivery (o botão só existe no card do portão).
+  @Parameter(title: "Origem") var origem: String
+
+  init() {}
+
+  init(idCartao: String, idPedido: String, origem: String = "delivery") {
+    self.idCartao = idCartao
+    self.idPedido = idPedido
+    self.origem = origem
+  }
+
+  func perform() async throws -> some IntentResult {
+    // Só o delivery tem "vou buscar"; em outra origem o botão não faz nada.
+    guard origem == "delivery" else { return .result() }
+    try await responder("PATCH", "/delivery/\(idPedido)", corpo: ["status": "RETIRADA_NA_PORTARIA"], idCartao: idCartao, fase: "retirar")
     return .result()
   }
 }

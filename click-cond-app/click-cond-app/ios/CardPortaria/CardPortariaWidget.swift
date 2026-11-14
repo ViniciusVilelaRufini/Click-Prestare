@@ -217,17 +217,29 @@ struct CompactoDireita: View {
   }
 }
 
+/// Botões da fase "aguardando". Delivery pedido no QR do portão
+/// (`estado.portao`): VOU BUSCAR no lugar de RECUSAR (recusar fica na tela do
+/// app) e LIBERAR ENTRADA no de AUTORIZAR, com as mesmas medidas e cores.
 struct Botoes: View {
   let attributes: CardPortariaAttributes
+  let estado: CardPortariaAttributes.ContentState
 
   var body: some View {
+    let portao = attributes.ehDelivery && estado.noPortao
     HStack(spacing: 8) {
-      Button(intent: NegarCardIntent(idCartao: attributes.idCartao, idPedido: attributes.idPedido, origem: attributes.origem)) {
-        BotaoCard(titulo: attributes.ehDelivery ? "Recusar" : "Negar", simbolo: "xmark", solido: false)
+      if portao {
+        Button(intent: VouBuscarCardIntent(idCartao: attributes.idCartao, idPedido: attributes.idPedido, origem: attributes.origem)) {
+          BotaoCard(titulo: "Vou buscar", simbolo: "figure.walk", solido: false)
+        }
+        .buttonStyle(.plain)
+      } else {
+        Button(intent: NegarCardIntent(idCartao: attributes.idCartao, idPedido: attributes.idPedido, origem: attributes.origem)) {
+          BotaoCard(titulo: attributes.ehDelivery ? "Recusar" : "Negar", simbolo: "xmark", solido: false)
+        }
+        .buttonStyle(.plain)
       }
-      .buttonStyle(.plain)
       Button(intent: AutorizarCardIntent(idCartao: attributes.idCartao, idPedido: attributes.idPedido, origem: attributes.origem)) {
-        BotaoCard(titulo: "Autorizar", simbolo: "checkmark", solido: true)
+        BotaoCard(titulo: portao ? "Liberar entrada" : "Autorizar", simbolo: "checkmark", solido: true)
       }
       .buttonStyle(.plain)
     }
@@ -328,7 +340,7 @@ struct TelaBloqueio: View {
         if !delivery {
           BarraTempo(estado: estado).padding(.top, 10)
         }
-        Botoes(attributes: attributes).padding(.top, 10)
+        Botoes(attributes: attributes, estado: estado).padding(.top, 10)
       } else {
         LinhaStatus(estado: estado, delivery: delivery).padding(.top, 8)
       }
@@ -360,7 +372,7 @@ struct IlhaExpandida: View {
         if !attributes.ehDelivery {
           BarraTempo(estado: estado)
         }
-        Botoes(attributes: attributes)
+        Botoes(attributes: attributes, estado: estado)
       } else {
         HStack(spacing: 6) {
           Ponto(cor: InfoFase(estado.fase, p).cor)
