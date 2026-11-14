@@ -353,6 +353,8 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
       select: { id: true },
     });
     if (pendente) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
+    // Antes de subir a foto: a portaria atendendo a unidade recusa o pedido.
+    await this.delivery.assertPortariaNaoAtendendo(portao.id_condominio, idApartamento);
 
     // Atendimentos da unidade ainda abertos cujo pedido de portão venceu sem
     // resposta: o pedido novo nunca entra neles (um pedido por atendimento);

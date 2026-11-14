@@ -53,8 +53,14 @@ const DIA_MS = 86_400_000;
 export const TERMINAIS_NA_FILA_MS = 2 * 3_600_000;
 /** Quanto a resposta do PATCH espera pelo aviso ao morador (card + notificação). */
 export const TETO_AVISO_MS = 2_000;
-/** Estados em que a chegada pelo portão reaproveita o atendimento aberto da unidade. */
-const REAPROVEITA_NA_CHEGADA: readonly DeliveryStatus[] = ['AGENDADA', 'CHEGOU', 'AGUARDANDO_AUTORIZACAO'];
+/**
+ * Estado em que a chegada pelo portão reaproveita o atendimento da unidade:
+ * só o aviso ainda não chegado. CHEGOU/AGUARDANDO_AUTORIZACAO sem pedido de
+ * portão é a portaria atendendo: o pedido do portão é recusado.
+ */
+const REAPROVEITA_NA_CHEGADA: readonly DeliveryStatus[] = ['AGENDADA'];
+const EM_ATENDIMENTO: readonly DeliveryStatus[] = ['CHEGOU', 'AGUARDANDO_AUTORIZACAO'];
+const MSG_PORTARIA_ATENDENDO = 'A portaria já está atendendo uma entrega para esta unidade. Procure a portaria.';
 /** Transições que só o sistema faz (rotina do autoatendimento): ninguém responde, ele cancela. */
 const TRANSICOES_DO_SISTEMA: Partial<Record<DeliveryStatus, readonly DeliveryStatus[]>> = {
   CHEGOU: ['CANCELADA'],
@@ -450,10 +456,11 @@ export class DeliveryService {
   }
 
   /**
-   * Entregador pediu entrada pelo QR do portão. Reaproveita o atendimento
-   * mais recente da unidade em REAPROVEITA_NA_CHEGADA que nunca teve pedido
-   * de portão; senão cria um de origem 'autoatendimento', sem dono. Em
-   * qualquer caso deixa o atendimento em AGUARDANDO_AUTORIZACAO.
+   * Entregador pediu entrada pelo QR do portão. Reaproveita o aviso AGENDADA
+   * mais recente da unidade que nunca teve pedido de portão; senão cria um de
+   * origem 'autoatendimento', sem dono. Em qualquer caso deixa o atendimento
+   * em AGUARDANDO_AUTORIZACAO. A portaria atendendo a unidade (CHEGOU ou
+   * AGUARDANDO_AUTORIZACAO sem pedido de portão) → 409.
    *
    * `criarPedido`, quando dado, grava o pedido de portão na MESMA transação
    * e o liga ao atendimento (um pedido por atendimento, para sempre): quem
@@ -471,6 +478,7 @@ export class DeliveryService {
   ): Promise<{ id: number; criado: boolean; pedido: P | null }> {
     const db = (this.prisma as any).deliveryAtendimentos;
     const nome = d.nomeEntregador.trim() || null;
+    await this.assertPortariaNaoAtendendo(d.idCondominio, d.idApartamento);
     // Corrida com a portaria/morador mudando o mesmo atendimento: relê e tenta de novo.
     for (let tentativa = 0; tentativa < 3; tentativa++) {
       const aberto = await db.findFirst({
@@ -492,16 +500,14 @@ export class DeliveryService {
           where: { id: aberto.id, status: atual, id_pedido_portao: null },
           data: {
             status: 'AGUARDANDO_AUTORIZACAO',
-            ...(atual === 'AGENDADA' || !aberto.chegou_em ? { chegou_em: agora } : {}),
+            chegou_em: agora,
             ...(!aberto.nome_entregador && nome ? { nome_entregador: nome } : {}),
           },
         });
         if (r.count !== 1) return null;
         const autor = { sistema: AUTOR_AUTOATENDIMENTO };
-        if (atual === 'AGENDADA') await this.registrarEvento(tx, aberto.id, 'AGENDADA', 'CHEGOU', autor);
-        if (atual !== 'AGUARDANDO_AUTORIZACAO') {
-          await this.registrarEvento(tx, aberto.id, 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', autor);
-        }
+        await this.registrarEvento(tx, aberto.id, 'AGENDADA', 'CHEGOU', autor);
+        await this.registrarEvento(tx, aberto.id, 'CHEGOU', 'AGUARDANDO_AUTORIZACAO', autor);
         return { pedido: await this.ligarPedidoPortao(tx, aberto.id, criarPedido) };
       });
       if (gravou) return { id: aberto.id, criado: false, pedido: gravou.pedido };
@@ -527,6 +533,23 @@ export class DeliveryService {
       return { a, pedido: await this.ligarPedidoPortao(tx, a.id, criarPedido) };
     });
     return { id: criado.a.id, criado: true, pedido: criado.pedido };
+  }
+
+  /**
+   * A portaria já atende a unidade (atendimento CHEGOU/AGUARDANDO_AUTORIZACAO
+   * que não veio do portão): o pedido do portão não entra nele → 409.
+   */
+  async assertPortariaNaoAtendendo(idCondominio: number, idApartamento: number): Promise<void> {
+    const atendendo = await (this.prisma as any).deliveryAtendimentos.findFirst({
+      where: {
+        id_condominio: idCondominio,
+        id_apartamento: idApartamento,
+        status: { in: [...EM_ATENDIMENTO] },
+        id_pedido_portao: null,
+      },
+      select: { id: true },
+    });
+    if (atendendo) throw new ConflictException(MSG_PORTARIA_ATENDENDO);
   }
 
   /** Cria o pedido (se pedido) e o liga ao atendimento, só se ele ainda não tiver um. */
