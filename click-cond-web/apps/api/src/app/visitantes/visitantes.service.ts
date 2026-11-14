@@ -58,6 +58,8 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
 
 // Prazo único do pedido/autorização — o card ao vivo usa o mesmo.
 export { AUTORIZACAO_EXPIRACAO_MS };
+/** Visitas mais recentes de cada pessoa na lista da portaria (as em aberto entram sempre). */
+const VISITAS_POR_PESSOA_NA_LISTA = 20;
 /** Janela da visita aberta por um pedido de autorização: agora → +4 h. */
 const JANELA_PEDIDO_MS = 4 * 60 * 60 * 1000;
 
@@ -995,15 +997,45 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             : {}),
         },
         include: {
+          // Só as visitas mais recentes de cada pessoa: a recarga da portaria
+          // (20 s, e 4 s com pedido aberto) baixava o histórico inteiro. As
+          // ainda em aberto vêm logo abaixo, mesmo antigas; o total, da contagem.
           visitas: {
             include: {
               apartamento: { select: { id: true, bloco: true, apto: true } },
             },
-            orderBy: [{ data_hora_inicio: 'desc' }, { created_at: 'desc' }],
+            orderBy: [{ created_at: 'desc' }],
+            take: VISITAS_POR_PESSOA_NA_LISTA,
           },
+          _count: { select: { visitas: true } },
         },
         orderBy: [{ created_at: 'desc' }],
       });
+
+      // Visitas em aberto (dentro, liberada, pedido pendente ou PIN) que
+      // ficaram fora do recorte acima: decidem o estado da linha.
+      if (pessoasCadastradas.length) {
+        const abertas: any[] =
+          (await this.prisma.visitas.findMany({
+            where: {
+              id_condominio: Number(idCondominio),
+              id_pessoa: { in: pessoasCadastradas.map((p) => p.id) },
+              data_saida: null,
+              OR: [
+                { data_entrada: { not: null } },
+                { liberado: 1 },
+                { auth_status: 'pendente' },
+                { codigo_acesso: { not: null } },
+              ],
+            },
+            include: { apartamento: { select: { id: true, bloco: true, apto: true } } },
+          })) ?? [];
+        const porPessoa = new Map(pessoasCadastradas.map((p) => [p.id, p]));
+        for (const v of abertas) {
+          const p: any = porPessoa.get(v.id_pessoa);
+          if (p && !(p.visitas ?? []).some((x: any) => x.id === v.id)) (p.visitas ??= []).push(v);
+        }
+      }
 
       // A flag sozinha decide a fonte: mesmo que a busca acima volte vazia
       // (condomínio recém-migrado, ou filtro de busca sem resultado), o
@@ -1034,7 +1066,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
           const noLocal = arr.some((r) => r.data_entrada && !r.data_saida);
           const temPinAtivo = arr.some(pinAtivo);
-          const totalVisitas = arr.length;
+          const totalVisitas = (p as any)._count?.visitas ?? arr.length;
 
           const ultEntrada = arr
             .map((r) => r.data_entrada)
