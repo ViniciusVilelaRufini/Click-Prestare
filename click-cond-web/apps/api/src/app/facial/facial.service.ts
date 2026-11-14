@@ -61,14 +61,15 @@ import { CredenciaisValidacaoService, TEXTO_NEGACAO } from '../credenciais/crede
 import { ehCodigoDinamico, rotuloDeCredencial } from '../credenciais/codigo-dinamico.util';
 
 /**
- * Limite de tentativas de código dinâmico por leitor (em memória): com
- * LIMITE_NEGACOES_QR negações dentro de JANELA_NEGACOES_QR_MS, as leituras
- * dinâmicas seguintes daquele leitor são negadas sem validar até a janela
- * esvaziar.
+ * Contenção de ruído do código dinâmico por leitor (em memória): negações
+ * por formato/assinatura/credencial desconhecida gravam no máximo um evento
+ * `negado` a cada JANELA_RUIDO_QR_MS por leitor. Não há bloqueio do leitor:
+ * o MAC de 64 bits já torna a força bruta inútil, e bloquear deixaria
+ * qualquer um (10 QR forjados) travar o leitor para todos. A leitura sempre
+ * é validada; só a gravação do evento repetido é contida.
  */
-const LIMITE_NEGACOES_QR = 10;
-const JANELA_NEGACOES_QR_MS = 60 * 1000;
-const TEXTO_LEITOR_BLOQUEADO_QR = 'Leitor bloqueado por excesso de QR inválido (1 min)';
+const JANELA_RUIDO_QR_MS = 10 * 1000;
+const MOTIVOS_RUIDO_QR: ReadonlySet<string> = new Set(['desconhecida', 'assinatura']);
 
 /** Validade da marca de bulk sync em andamento (instância que morreu no meio não trava o condomínio para sempre). */
 const BULK_SYNC_TTL_MS = 2 * 60 * 60 * 1000;
@@ -496,11 +497,8 @@ export class FacialService {
   private readonly tickCargaPendenteFeita = new Set<number>();
   /** Último aviso de "payload sem credencial" por dispositivo (amostragem do log). */
   private readonly avisoSemCredencialEm = new Map<number, number>();
-  /**
-   * Negações de código dinâmico por leitor (instantes, ms) e se o leitor já
-   * entrou em bloqueio (o evento de bloqueio é gravado uma vez só).
-   */
-  private readonly negacoesQrPorLeitor = new Map<number, { instantes: number[]; bloqueado: boolean }>();
+  /** Último `negado` de ruído de código dinâmico gravado por leitor (ms). Ver JANELA_RUIDO_QR_MS. */
+  private readonly ruidoQrGravadoEm = new Map<number, number>();
   /**
    * Estado compartilhado entre as instâncias da API: marca de bulk sync em
    * andamento por condomínio (`facial:bulk:<id>`, evita rodar em paralelo nas
@@ -5109,35 +5107,23 @@ export class FacialService {
   }
 
   /**
-   * Situação do limite de tentativas de código dinâmico no leitor:
-   * `livre` valida normalmente; `novo` acabou de entrar em bloqueio (grava o
-   * evento uma vez); `ativo` já estava bloqueado (nega sem gravar). O bloqueio
-   * dura até a janela de 60 s esvaziar; leitura válida não zera a contagem.
+   * Contenção de ruído: true se esta negação de código dinâmico deve virar
+   * evento. `reuso`, `expirado` e os demais motivos sempre gravam; formato/
+   * assinatura/desconhecida gravam no máximo um a cada JANELA_RUIDO_QR_MS
+   * por leitor.
    */
-  private leitorQrBloqueado(idDevice: number): 'livre' | 'novo' | 'ativo' {
-    const estado = this.negacoesQrPorLeitor.get(idDevice);
-    if (!estado) return 'livre';
-    const corte = Date.now() - JANELA_NEGACOES_QR_MS;
-    estado.instantes = estado.instantes.filter((t) => t > corte);
-    if (estado.instantes.length === 0) {
-      this.negacoesQrPorLeitor.delete(idDevice);
-      return 'livre';
+  private gravarNegacaoQr(idDevice: number, motivo: string): boolean {
+    if (!MOTIVOS_RUIDO_QR.has(motivo)) return true;
+    const agora = Date.now();
+    const ultimo = this.ruidoQrGravadoEm.get(idDevice);
+    if (ultimo !== undefined && agora - ultimo < JANELA_RUIDO_QR_MS) return false;
+    this.ruidoQrGravadoEm.set(idDevice, agora);
+    if (this.ruidoQrGravadoEm.size > 1000) {
+      for (const [id, t] of this.ruidoQrGravadoEm) {
+        if (agora - t >= JANELA_RUIDO_QR_MS) this.ruidoQrGravadoEm.delete(id);
+      }
     }
-    if (estado.bloqueado) return 'ativo';
-    if (estado.instantes.length >= LIMITE_NEGACOES_QR) {
-      estado.bloqueado = true;
-      this.logger.warn(
-        `Leitor ${idDevice} bloqueado por 1 min: ${estado.instantes.length} QR dinâmicos negados em 60 s`,
-      );
-      return 'novo';
-    }
-    return 'livre';
-  }
-
-  private contarNegacaoQr(idDevice: number): void {
-    const estado = this.negacoesQrPorLeitor.get(idDevice) ?? { instantes: [], bloqueado: false };
-    estado.instantes.push(Date.now());
-    this.negacoesQrPorLeitor.set(idDevice, estado);
+    return true;
   }
 
   private async runWebhook(
@@ -5282,32 +5268,26 @@ export class FacialService {
     }
 
     if (qrCodeLido && leituraDinamica) {
-      const negarDinamico = async (rotulo: string, texto: string): Promise<never> => {
-        await this.registrarEvento(device, {
-          face_id: rotulo,
-          tipo_pessoa: 'desconhecido',
-          id_pessoa: null,
-          nome_pessoa: texto,
-          evento: 'negado',
-          confianca,
-          timestamp,
-        });
+      const negarDinamico = async (rotulo: string, motivo: keyof typeof TEXTO_NEGACAO): Promise<never> => {
+        const texto = TEXTO_NEGACAO[motivo];
+        if (this.gravarNegacaoQr(device.id, motivo)) {
+          await this.registrarEvento(device, {
+            face_id: rotulo,
+            tipo_pessoa: 'desconhecido',
+            id_pessoa: null,
+            nome_pessoa: texto,
+            evento: 'negado',
+            confianca,
+            timestamp,
+          });
+        }
         throw new BadRequestException(`Acesso negado: ${texto}`);
       };
-      // Limite de tentativas por leitor: bloqueado, nega sem validar; só a
-      // primeira leitura bloqueada grava o evento.
-      const bloqueio = this.leitorQrBloqueado(device.id);
-      if (bloqueio === 'novo') {
-        await negarDinamico(rotuloDeCredencial(qrCodeLido), TEXTO_LEITOR_BLOQUEADO_QR);
-      } else if (bloqueio === 'ativo') {
-        throw new BadRequestException(`Acesso negado: ${TEXTO_LEITOR_BLOQUEADO_QR}`);
-      }
       const resultado = this.credenciais
         ? await this.credenciais.validarLeitura(qrCodeLido, device, isBacklog ? timestamp : new Date())
         : ({ ok: false, rotulo: rotuloDeCredencial(qrCodeLido), motivo: 'desconhecida' } as const);
       if (!resultado.ok) {
-        this.contarNegacaoQr(device.id);
-        await negarDinamico(resultado.rotulo, TEXTO_NEGACAO[resultado.motivo]);
+        await negarDinamico(resultado.rotulo, resultado.motivo);
       } else if (resultado.alvo.tipo === 'morador') {
         const morador = resultado.alvo.morador;
         tipoPessoa = morador.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
@@ -5339,8 +5319,7 @@ export class FacialService {
           }
         } else {
           // PIN anulado entre a validação e a resolução: visita encerrada.
-          this.contarNegacaoQr(device.id);
-          await negarDinamico(resultado.rotulo, TEXTO_NEGACAO.visita_encerrada);
+          await negarDinamico(resultado.rotulo, 'visita_encerrada');
         }
       }
     } else if (qrCodeLido) {

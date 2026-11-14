@@ -5,7 +5,8 @@
  *   fluxo existente (morador direto; visita pelo PIN devolvido);
  * - negado grava "negado" com o texto do motivo e face_id `cred:<id>`;
  * - com "QR no app" ligado, o PIN lido como QR deixa de abrir;
- * - 10 negações em 60 s bloqueiam as leituras dinâmicas do leitor;
+ * - negação por ruído (assinatura/desconhecida) grava no máximo 1 evento a
+ *   cada 10 s por leitor, sem nunca bloquear o leitor;
  * - o código lido nunca vai para log nem para Acessos_Facial.
  *
  * Mocks, sem banco e sem aparelho.
@@ -18,7 +19,6 @@ let AccessStateService: any;
 const SEGREDO = Buffer.from('000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f', 'hex');
 const AGORA = new Date('2026-07-20T10:00:05.000Z');
 const CODIGO = gerarCodigo('P1', 7, Math.floor(AGORA.getTime() / 30_000), SEGREDO);
-const BLOQUEIO = 'Leitor bloqueado por excesso de QR inválido (1 min)';
 
 describe('FacialService — webhook com código dinâmico', () => {
   beforeAll(() => {
@@ -356,61 +356,60 @@ describe('FacialService — webhook com código dinâmico', () => {
     expect(validacao.validarLeitura).toHaveBeenCalledWith(CODIGO, expect.anything(), AGORA);
   });
 
-  it('11ª negação em 60 s bloqueia o leitor: validarLeitura deixa de ser chamado e só um evento de bloqueio é gravado', async () => {
-    const { svc, validacao, acessos } = build({ validacao: negado('assinatura') });
+  it('QR forjados em série não bloqueiam o leitor: cada leitura é validada e um código válido abre logo em seguida', async () => {
+    const { svc, validacao, client } = build({ validacao: negado('assinatura') });
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 25; i++) {
       await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(/QR inválido/);
-      jest.advanceTimersByTime(1000);
+      jest.advanceTimersByTime(500);
     }
-    expect(validacao.validarLeitura).toHaveBeenCalledTimes(10);
-    expect(acessos).toHaveLength(10);
-
-    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(BLOQUEIO);
-    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(BLOQUEIO);
-    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(BLOQUEIO);
-
-    expect(validacao.validarLeitura).toHaveBeenCalledTimes(10);
-    expect(acessos).toHaveLength(11);
-    expect(acessos[10]).toEqual(
-      expect.objectContaining({ evento: 'negado', nome_pessoa: BLOQUEIO, face_id: 'cred:7', tipo_pessoa: 'desconhecido' }),
-    );
-  });
-
-  it('o bloqueio é por leitor e leitura válida não zera a contagem', async () => {
-    const { svc, validacao, prisma } = build({ validacao: negado('assinatura') });
-
-    for (let i = 0; i < 9; i++) {
-      await expect(svc.processWebhook('tok', leitura())).rejects.toThrow();
-    }
-    validacao.validarLeitura.mockResolvedValueOnce(okMorador);
-    await svc.processWebhook('tok', leitura());
-    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(/QR inválido/); // 10ª negação
-    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(BLOQUEIO);
-
-    // Outro leitor do mesmo condomínio segue validando.
-    prisma.facial_Devices.findFirst.mockResolvedValue({ ...LEITOR, id: 43 });
-    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(/QR inválido/);
-    expect(validacao.validarLeitura).toHaveBeenCalledTimes(12);
-  });
-
-  it('passados 60 s o leitor volta a validar', async () => {
-    const { svc, validacao } = build({ validacao: negado('assinatura') });
-
-    for (let i = 0; i < 10; i++) {
-      await expect(svc.processWebhook('tok', leitura())).rejects.toThrow();
-    }
-    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(BLOQUEIO);
-    jest.advanceTimersByTime(30_000);
-    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(BLOQUEIO);
-    expect(validacao.validarLeitura).toHaveBeenCalledTimes(10);
-
-    jest.advanceTimersByTime(30_001);
     validacao.validarLeitura.mockResolvedValueOnce(okMorador);
     const res = await svc.processWebhook('tok', leitura());
 
-    expect(res).toEqual(expect.objectContaining({ ok: true, evento: 'entrada' }));
-    expect(validacao.validarLeitura).toHaveBeenCalledTimes(11);
+    expect(res).toEqual(expect.objectContaining({ ok: true, tipo: 'morador', evento: 'entrada' }));
+    expect(validacao.validarLeitura).toHaveBeenCalledTimes(26);
+    expect(client.triggerRelay).toHaveBeenCalledTimes(1);
+  });
+
+  it('ruído (assinatura/desconhecida) grava no máximo 1 "negado" a cada 10 s por leitor', async () => {
+    const { svc, validacao, acessos, prisma } = build({ validacao: negado('assinatura') });
+    validacao.validarLeitura
+      .mockResolvedValueOnce(negado('assinatura'))
+      .mockResolvedValueOnce({ ok: false, rotulo: 'cred:?', motivo: 'desconhecida' })
+      .mockResolvedValueOnce(negado('assinatura'));
+
+    for (let i = 0; i < 6; i++) {
+      await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(/Acesso negado/);
+      jest.advanceTimersByTime(1000);
+    }
+    expect(acessos).toHaveLength(1);
+    expect(acessos[0]).toEqual(expect.objectContaining({ evento: 'negado', nome_pessoa: 'QR inválido' }));
+
+    jest.advanceTimersByTime(4000); // 10 s desde o primeiro registro
+    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(/QR inválido/);
+    expect(acessos).toHaveLength(2);
+
+    // Outro leitor tem a própria janela.
+    prisma.facial_Devices.findFirst.mockResolvedValue({ ...LEITOR, id: 43 });
+    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(/QR inválido/);
+    expect(acessos).toHaveLength(3);
+    expect(acessos[2].id_device).toBe(43);
+    expect(validacao.validarLeitura).toHaveBeenCalledTimes(8);
+  });
+
+  it.each(['reuso', 'expirado'])('"%s" sempre grava, mesmo em série e logo depois de ruído', async (motivo) => {
+    const { svc, validacao, acessos } = build({ validacao: negado(motivo) });
+    validacao.validarLeitura.mockResolvedValueOnce(negado('assinatura'));
+
+    for (let i = 0; i < 5; i++) {
+      await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(/Acesso negado/);
+      jest.advanceTimersByTime(1000);
+    }
+
+    expect(acessos.map((a) => a.nome_pessoa)).toEqual([
+      'QR inválido',
+      ...Array(4).fill(motivo === 'reuso' ? 'QR já usado neste leitor' : 'QR vencido (mostre o código atual)'),
+    ]);
   });
 
   it('nenhuma chamada de logger nem de registrarEvento recebe o código lido', async () => {
