@@ -1527,6 +1527,13 @@ export class MoradoresService {
     if (!m.email) {
       throw new NotFoundException('Morador não possui e-mail cadastrado');
     }
+    // Cláusula 8.3: menor não tem conta de app. Só o caso inequívoco (data no cadastro e de menor);
+    // sem data, segue como antes.
+    if (m.data_nascimento && calcularIdade(m.data_nascimento) < 18) {
+      throw new BadRequestException(
+        'Este morador é menor de 18 anos e não recebe acesso ao app (Cláusula 8.3). O acesso do menor é pelo responsável.',
+      );
+    }
     // Gera uma senha temporária aleatória de 8 caracteres alfanuméricos
     // (mesmo padrão da recuperação de senha), em vez de usar o CPF da pessoa.
     const senhaInicial = this.gerarSenhaAleatoria();

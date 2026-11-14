@@ -640,6 +640,11 @@ export class MoradoresPageComponent implements OnInit {
       this.toast.warning('Este morador não possui e-mail cadastrado.');
       return;
     }
+    // Mesma recusa da API (Cláusula 8.3): menor não recebe acesso ao app.
+    if (this.isMenorDeIdade(m.data_nascimento)) {
+      this.toast.warning('Este morador é menor de 18 anos e não recebe acesso ao app. O acesso do menor é pelo responsável.');
+      return;
+    }
     const ok = await this.confirm.ask(confirmacaoEnviarAcesso(m));
     if (!ok) return;
     this.api.sendCredentials(m.id).subscribe({
