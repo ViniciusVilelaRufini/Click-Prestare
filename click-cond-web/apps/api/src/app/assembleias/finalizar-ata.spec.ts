@@ -31,19 +31,27 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
     ],
   };
 
-  function build(opts: { pautas?: any[]; uploads?: Array<string | null> } = {}) {
+  function build(opts: { pautas?: any[]; uploads?: Array<string | null>; condAssembleia?: number } = {}) {
     const ordem: string[] = [];
+    const condAssembleia = opts.condAssembleia ?? 1;
     const prisma: any = {
       isConnected: true,
       assembleias: {
-        findUnique: jest.fn(async () => ({ id_condominio: 1, titulo: 'AGO 2026', data: new Date('2026-11-10T00:00:00Z') })),
+        findUnique: jest.fn(async () => ({ id_condominio: condAssembleia, titulo: 'AGO 2026', data: new Date('2026-11-10T00:00:00Z') })),
         findFirst: jest.fn(async () => ({ anexos: '' })),
         delete: jest.fn(async () => {
           ordem.push('delete');
           return {};
         }),
       },
-      votacoes: { findMany: jest.fn(async () => opts.pautas ?? [pauta]) },
+      // Filtra como o banco: só as pautas do condomínio pedido.
+      votacoes: {
+        findMany: jest.fn(async ({ where }: any) =>
+          (opts.pautas ?? [{ ...pauta, id_condominio: condAssembleia }]).filter(
+            (p) => where?.id_condominio === undefined || p.id_condominio === where.id_condominio,
+          ),
+        ),
+      },
       apartamentos_Users: {
         findMany: jest.fn(async () => [
           { id_user: 5, id_apto: 100 },
@@ -62,7 +70,11 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
     const storage: any = {
       isDataUrl: (v: unknown) => typeof v === 'string' && v.startsWith('data:') && v.includes('base64,'),
       uploadDataUrl: jest.fn(async () => uploads.shift() ?? null),
-      exigirArquivoDoRegistro: jest.fn(async () => undefined),
+      // Como o real: só consulta os anexos gravados quando precisa (aqui, sempre).
+      exigirArquivoDoRegistro: jest.fn(async (_v: unknown, gravados: unknown) => {
+        if (typeof gravados === 'function') await gravados();
+      }),
+      deleteUrl: jest.fn(async () => true),
       chaveDoArquivo: jest.fn(() => null),
     };
     const tenant: any = {
@@ -101,6 +113,7 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
     expect(pasta).toBe('atas');
     expect(dataUrlTxt).toMatch(/^data:text\/plain;base64,/);
     const texto = Buffer.from(dataUrlTxt.split('base64,')[1], 'base64').toString('utf8');
+    expect(texto.charCodeAt(0)).toBe(0xfeff); // BOM: o navegador abre como UTF-8
     expect(texto).toContain('AGO 2026');
     expect(texto).toContain('Aprovação das contas de 2025');
     expect(texto).toContain('Aprovar: 1 voto(s)');
@@ -144,6 +157,50 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
     expect(storage.uploadDataUrl).toHaveBeenCalledTimes(1);
     expect(prisma.documentos.create).toHaveBeenCalledTimes(1);
     expect(prisma.assembleias.delete).toHaveBeenCalled();
+  });
+
+  it('corpo com o condomínio A e assembleia do condomínio B: apuração e documentos vão para B', async () => {
+    const { service, prisma, storage } = build({ condAssembleia: 2 });
+    await service.finish(1, assembleia(PDF), sindico);
+    expect(prisma.votacoes.findMany.mock.calls[0][0].where.id_condominio).toBe(2);
+    expect(storage.uploadDataUrl).toHaveBeenCalledTimes(2); // PDF e apuração
+    const docs = prisma.documentos.create.mock.calls.map((c: any) => c[0].data);
+    expect(docs).toHaveLength(2);
+    for (const d of docs) expect(d.id_condominio).toBe(2);
+    expect(prisma.assembleias.findFirst).toHaveBeenCalled();
+    for (const c of prisma.assembleias.findFirst.mock.calls) expect(c[0].where.id_condominio).toBe(2);
+  });
+
+  describe('arquivos órfãos no bucket', () => {
+    it('apuração não subiu: apaga o PDF enviado nesta chamada', async () => {
+      const { service, storage } = build({ uploads: [URL_PDF, null] });
+      await expect(service.finish(1, assembleia(PDF), sindico)).rejects.toThrow(/apuração/);
+      expect(storage.deleteUrl).toHaveBeenCalledWith(URL_PDF, ['atas/']);
+      expect(storage.deleteUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it('transação falhou: apaga o PDF e a apuração enviados, e repassa o erro', async () => {
+      const { service, prisma, storage } = build();
+      prisma.$transaction.mockRejectedValue(new Error('deadlock'));
+      await expect(service.finish(1, assembleia(PDF), sindico)).rejects.toThrow('deadlock');
+      expect(storage.deleteUrl).toHaveBeenCalledWith(URL_PDF, ['atas/']);
+      expect(storage.deleteUrl).toHaveBeenCalledWith(URL_TXT, ['atas/']);
+    });
+
+    it('ATA que já era anexo da assembleia: nunca é apagada, só a apuração nova', async () => {
+      const ANEXO = 'https://bucket.s3.amazonaws.com/assembleias/1-edital.pdf';
+      const { service, prisma, storage } = build({ uploads: [URL_TXT] });
+      prisma.$transaction.mockRejectedValue(new Error('falhou'));
+      await expect(service.finish(1, assembleia(ANEXO), sindico)).rejects.toThrow('falhou');
+      expect(storage.deleteUrl).toHaveBeenCalledWith(URL_TXT, ['atas/']);
+      expect(storage.deleteUrl).not.toHaveBeenCalledWith(ANEXO, expect.anything());
+    });
+
+    it('sucesso: não apaga nada', async () => {
+      const { service, storage } = build();
+      await service.finish(1, assembleia(PDF), sindico);
+      expect(storage.deleteUrl).not.toHaveBeenCalled();
+    });
   });
 
   it('nome longo não estoura a coluna (VarChar 255)', async () => {

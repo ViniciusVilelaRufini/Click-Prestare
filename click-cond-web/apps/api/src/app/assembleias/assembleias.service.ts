@@ -336,61 +336,79 @@ export class AssembleiasService {
       throw new BadRequestException('Anexe o PDF da ATA.');
     }
 
+    // Condomínio da ASSEMBLEIA, não o do corpo: um síndico com vínculo em A e
+    // B finalizando a de B com id_condominio = A não achava as pautas (nenhuma
+    // apuração), gravava a ATA em A e apagava a de B com os votos.
+    const idCond = alvo.id_condominio;
+
     // A ATA pode ser um dos anexos da própria assembleia; outra URL do bucket, não.
     await this.storage.exigirArquivoDoRegistro(doc, () =>
-      this.anexosGravados(Number(assembleia.id), Number(idCondominio)),
+      this.anexosGravados(Number(assembleia.id), idCond),
     );
-    let linkDoc = doc;
-    if (this.storage.isDataUrl(doc)) {
-      // Sem storage o upload devolve a própria data URL (não cabe em link_doc).
-      linkDoc = (await this.storage.uploadDataUrl(doc, 'atas')) ?? '';
-      if (!/^https?:\/\//i.test(linkDoc)) {
-        throw new BadRequestException('Não foi possível guardar o PDF da ATA. Tente de novo.');
+
+    // Arquivos que ESTA chamada subiu: se algo falha adiante, saem do bucket.
+    // O anexo da assembleia usado como ATA nunca entra aqui (não é upload).
+    const enviados: string[] = [];
+    try {
+      let linkDoc = doc;
+      if (this.storage.isDataUrl(doc)) {
+        // Sem storage o upload devolve a própria data URL (não cabe em link_doc).
+        linkDoc = (await this.storage.uploadDataUrl(doc, 'atas')) ?? '';
+        if (!/^https?:\/\//i.test(linkDoc)) {
+          throw new BadRequestException('Não foi possível guardar o PDF da ATA. Tente de novo.');
+        }
+        enviados.push(linkDoc);
       }
-    }
 
-    const nomeAta = `ATA ${assembleia.titulo} - ${assembleia.data}`.slice(0, 255);
+      const nomeAta = `ATA ${assembleia.titulo} - ${assembleia.data}`.slice(0, 255);
 
-    // O delete leva as pautas, as opções e os votos (cascade). A apuração de
-    // cada pauta fica num arquivo de texto publicado junto da ATA (sem coluna
-    // nova: Documentos só tem nome VarChar(255) e link_doc VarChar(500)).
-    const { formatadas: pautas } = await this.consultarVotacoes(Number(assembleia.id), false, Number(idCondominio));
-    let linkApuracao: string | null = null;
-    if (pautas.length > 0) {
-      const texto = textoApuracao(String(assembleia.titulo ?? ''), String(assembleia.data ?? ''), pautas);
-      const dataUrl = `data:text/plain;base64,${Buffer.from(`﻿${texto}`, 'utf8').toString('base64')}`;
-      linkApuracao = (await this.storage.uploadDataUrl(dataUrl, 'atas')) ?? '';
-      if (!/^https?:\/\//i.test(linkApuracao)) {
-        throw new BadRequestException(
-          'Não foi possível guardar a apuração das pautas. A assembleia não foi finalizada; tente de novo.',
-        );
+      // O delete leva as pautas, as opções e os votos (cascade). A apuração de
+      // cada pauta fica num arquivo de texto publicado junto da ATA (sem coluna
+      // nova: Documentos só tem nome VarChar(255) e link_doc VarChar(500)).
+      const { formatadas: pautas } = await this.consultarVotacoes(Number(assembleia.id), false, idCond);
+      let linkApuracao: string | null = null;
+      if (pautas.length > 0) {
+        const texto = textoApuracao(String(assembleia.titulo ?? ''), String(assembleia.data ?? ''), pautas);
+        // BOM: o navegador abre o .txt como UTF-8 (acentos).
+        const dataUrl = `data:text/plain;base64,${Buffer.from(`\uFEFF${texto}`, 'utf8').toString('base64')}`;
+        linkApuracao = (await this.storage.uploadDataUrl(dataUrl, 'atas')) ?? '';
+        if (!/^https?:\/\//i.test(linkApuracao)) {
+          throw new BadRequestException(
+            'Não foi possível guardar a apuração das pautas. A assembleia não foi finalizada; tente de novo.',
+          );
+        }
+        enviados.push(linkApuracao);
       }
-    }
 
-    // ATA, apuração e a remoção juntas: se algo falha, a assembleia fica.
-    await this.prisma.$transaction(async (tx) => {
-      await tx.documentos.create({
-        data: {
-          id_condominio: Number(idCondominio),
-          is_ata: 1,
-          nome: nomeAta,
-          link_doc: linkDoc,
-        },
-      });
-      if (linkApuracao) {
+      // ATA, apuração e a remoção juntas: se algo falha, a assembleia fica.
+      await this.prisma.$transaction(async (tx) => {
         await tx.documentos.create({
           data: {
-            id_condominio: Number(idCondominio),
+            id_condominio: idCond,
             is_ata: 1,
-            nome: `Apuração das pautas - ${nomeAta}`.slice(0, 255),
-            link_doc: linkApuracao,
+            nome: nomeAta,
+            link_doc: linkDoc,
           },
         });
-      }
-      await tx.assembleias.delete({
-        where: { id: Number(assembleia.id) },
+        if (linkApuracao) {
+          await tx.documentos.create({
+            data: {
+              id_condominio: idCond,
+              is_ata: 1,
+              nome: `Apuração das pautas - ${nomeAta}`.slice(0, 255),
+              link_doc: linkApuracao,
+            },
+          });
+        }
+        await tx.assembleias.delete({
+          where: { id: Number(assembleia.id) },
+        });
       });
-    });
+    } catch (e) {
+      // Best-effort: deleteUrl não lança e só apaga dentro de `atas/`.
+      for (const url of enviados) await this.storage.deleteUrl(url, ['atas/']);
+      throw e;
+    }
 
     return {
       message: 'Assembléia Finalizada!\nA ATA se encontra disponível no menu "Docs" na tela de seu condomínio.',
