@@ -197,16 +197,20 @@ export class ApartamentosService {
       this.assertAptoValido(dto.apto ?? atual.apto, dto.bloco ?? atual.bloco);
     }
 
-    let atualizado;
     try {
-      atualizado = await this.prisma.apartamentos.update({
-        where: { id: Number(id) },
-        data: {
-          ...(dto.bloco !== undefined && { bloco: dto.bloco }),
-          ...(dto.apto !== undefined && { apto: dto.apto }),
-          ...(dto.fracao !== undefined && { fracao: dto.fracao }),
-          ...(dto.qtd_vagas !== undefined && { qtd_vagas: Number(dto.qtd_vagas) || 0 }),
-        },
+      // Unidade e cadastro dos moradores dela na mesma transação: ou os dois mudam, ou nenhum.
+      return await this.prisma.$transaction(async (tx) => {
+        const atualizado = await tx.apartamentos.update({
+          where: { id: Number(id) },
+          data: {
+            ...(dto.bloco !== undefined && { bloco: dto.bloco }),
+            ...(dto.apto !== undefined && { apto: dto.apto }),
+            ...(dto.fracao !== undefined && { fracao: dto.fracao }),
+            ...(dto.qtd_vagas !== undefined && { qtd_vagas: Number(dto.qtd_vagas) || 0 }),
+          },
+        });
+        await this.propagarRenomeParaMoradores(tx, Number(id), atual, atualizado);
+        return atualizado;
       });
     } catch (err: any) {
       // Renomear para uma unidade que já existe cai no unique e caía aqui
@@ -226,18 +230,17 @@ export class ApartamentosService {
         `Não foi possível salvar o apartamento. (${err?.code ?? err?.name ?? 'erro'})`,
       );
     }
-
-    await this.propagarRenomeParaMoradores(Number(id), atual, atualizado);
-    return atualizado;
   }
 
   /**
    * A unidade de cada linha de Moradores é o bloco/apto gravados nela (lista, edição, encomendas).
-   * Renomeada a unidade, as linhas dos moradores vinculados que estavam nela recebem o texto novo —
-   * sem isto deixavam de casar com o vínculo. Mesma chave do cadastro de moradores: bloco
-   * normalizado ("Bloco A" = "A") e apto sem espaços nem caixa. Best-effort: a unidade já foi salva.
+   * Renomeada a unidade, as linhas que estavam nela recebem o texto novo — sem isto deixavam de casar
+   * com o vínculo. Linhas dos moradores vinculados: mesma chave do cadastro de moradores (bloco
+   * normalizado, "Bloco A" = "A"; apto sem espaços nem caixa). Linhas sem conta (id_user nulo): só
+   * pelo texto antigo EXATO, deste condomínio — "A"/101 e "Bloco A"/101 podem ser unidades diferentes.
    */
   private async propagarRenomeParaMoradores(
+    tx: any,
     idApto: number,
     antes: { apto: string | null; bloco: string | null; id_condominio: number },
     depois: { apto: string | null; bloco: string | null },
@@ -246,26 +249,34 @@ export class ApartamentosService {
       `${normalizarBloco(bloco)}|${(apto ?? '').trim().toLowerCase()}`;
     const chaveAntiga = chave(antes.bloco, antes.apto);
     if (chaveAntiga === chave(depois.bloco, depois.apto)) return;
-    try {
-      const vinculos = await this.prisma.apartamentos_Users.findMany({
-        where: { id_apto: idApto },
-        select: { id_user: true },
+    const vinculos: { id_user: number }[] = await tx.apartamentos_Users.findMany({
+      where: { id_apto: idApto },
+      select: { id_user: true },
+    });
+    const idsUsers = [...new Set(vinculos.map((v) => v.id_user))];
+    const linhas: { id: number; id_user: number | null; bloco: string | null; apartamento: string | null }[] =
+      await tx.moradores.findMany({
+        where: {
+          id_condominio: antes.id_condominio,
+          OR: [
+            ...(idsUsers.length > 0 ? [{ id_user: { in: idsUsers } }] : []),
+            { id_user: null, bloco: antes.bloco, apartamento: antes.apto },
+          ],
+        },
+        select: { id: true, id_user: true, bloco: true, apartamento: true },
       });
-      const idsUsers = [...new Set(vinculos.map((v) => v.id_user))];
-      if (idsUsers.length === 0) return;
-      const linhas = await this.prisma.moradores.findMany({
-        where: { id_condominio: antes.id_condominio, id_user: { in: idsUsers } },
-        select: { id: true, bloco: true, apartamento: true },
-      });
-      const ids = linhas.filter((l) => chave(l.bloco, l.apartamento) === chaveAntiga).map((l) => l.id);
-      if (ids.length === 0) return;
-      await this.prisma.moradores.updateMany({
-        where: { id: { in: ids } },
-        data: { bloco: depois.bloco ?? null, apartamento: depois.apto ?? null },
-      });
-    } catch (err: any) {
-      this.logger.error(`[apartamentos.update] unidade ${idApto} renomeada, mas o cadastro dos moradores não foi atualizado: ${err?.message ?? err}`);
-    }
+    const ids = linhas
+      .filter((l) =>
+        l.id_user == null
+          ? l.bloco === antes.bloco && l.apartamento === antes.apto
+          : chave(l.bloco, l.apartamento) === chaveAntiga,
+      )
+      .map((l) => l.id);
+    if (ids.length === 0) return;
+    await tx.moradores.updateMany({
+      where: { id: { in: ids } },
+      data: { bloco: depois.bloco ?? null, apartamento: depois.apto ?? null },
+    });
   }
 
   /**
