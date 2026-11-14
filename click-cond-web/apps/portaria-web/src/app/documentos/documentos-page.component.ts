@@ -116,6 +116,16 @@ export class DocumentosPageComponent implements OnInit {
     });
   }
 
+  /**
+   * Selo do cartão pela extensão do arquivo (a apuração das pautas, gravada ao
+   * finalizar a assembleia, é .txt). Sem extensão reconhecível: PDF, como antes.
+   */
+  seloArquivo(link: string | null | undefined): string {
+    const caminho = String(link ?? '').split(/[?#]/)[0];
+    const ext = /\.([a-z0-9]{2,4})$/i.exec(caminho)?.[1]?.toUpperCase();
+    return ext && ['PDF', 'TXT', 'CSV', 'DOC', 'DOCX', 'XLS', 'XLSX'].includes(ext) ? ext : 'PDF';
+  }
+
   async removerDocumento(doc: DocumentoItem) {
     const ok = await this.confirm.ask({
       title: 'Excluir documento',

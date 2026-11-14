@@ -130,4 +130,15 @@ describe('DocumentosPageComponent — erros, papel e confirmação', () => {
     expect(el.textContent).toContain('Sem arquivo');
     expect(Array.from(el.querySelectorAll('a')).find((a) => a.textContent?.includes('Abrir'))).toBeUndefined();
   });
+
+  it('selo do cartão sai da extensão do arquivo: a apuração (.txt, URL assinada) mostra TXT, a ATA mostra PDF', () => {
+    const { el } = render(SINDICO, {
+      listDocumentos: jest.fn(() => of([
+        { id: 1, nome: 'ATA AGO', link_doc: 'https://bucket/atas/1-a.pdf?X-Amz-Signature=abc' },
+        { id: 2, nome: 'Apuração das pautas - ATA AGO', link_doc: 'https://bucket/atas/2-b.txt?X-Amz-Signature=abc' },
+      ])),
+    });
+    const selos = Array.from(el.querySelectorAll('[data-selo-arquivo]')).map((s) => s.textContent?.trim());
+    expect(selos).toEqual(['PDF', 'TXT']);
+  });
 });
