@@ -178,6 +178,57 @@ describe('DeliveryFilaComponent', () => {
     expect(principal.disabled).toBe(false);
   });
 
+  describe('autoatendimento no portão', () => {
+    const PEDIDO = {
+      nome: 'Carlos Portão', plataforma: 'iFood', foto: 'https://s3.example/delivery-portao/x.jpg?X-Amz-Signature=1',
+      status: 'liberado', portao: 'Portão social', aberto_em: '2026-09-27T15:10:00', saida_aberta_em: '2026-09-27T15:25:00',
+    };
+    const auto = {
+      ...ATENDIMENTOS[1], id: 7, status: 'AGUARDANDO_AUTORIZACAO' as const, origem: 'autoatendimento' as const,
+      estabelecimento: 'iFood', nome_entregador: null, telefone_entregador: null, entregador: null, pedido_portao: PEDIDO,
+    };
+
+    it('fila mostra o selo "Autoatendimento" e a miniatura da selfie; entrega comum não', () => {
+      const fixture = montar();
+      store.ativos.set([auto, ATENDIMENTOS[0]]);
+      fixture.detectChanges();
+      const linhas = Array.from(fixture.nativeElement.querySelectorAll('section button')) as HTMLElement[];
+      const linhaAuto = linhas.find((l) => l.textContent?.includes('Carlos Portão'))!;
+      const linhaComum = linhas.find((l) => l.textContent?.includes('Pizzaria Central'))!;
+      expect(linhaAuto.textContent).toContain('Autoatendimento');
+      expect(linhaAuto.querySelector('img')?.getAttribute('src')).toBe(PEDIDO.foto);
+      expect(linhaComum.textContent).not.toContain('Autoatendimento');
+      expect(linhaComum.querySelector('img')).toBeNull();
+    });
+
+    it('detalhe mostra a selfie, a plataforma, o portão, entrada e saída, e o aviso sob o autorizar', () => {
+      const fixture = montar();
+      store.selecionar(auto);
+      fixture.detectChanges();
+      const painel = fixture.nativeElement.querySelector('aside') as HTMLElement;
+      const selfie = painel.querySelector('img[alt="Foto do entregador"]') as HTMLImageElement;
+      expect(selfie.getAttribute('src')).toBe(PEDIDO.foto);
+      expect(selfie.getAttribute('width')).toBe('120');
+      expect(painel.textContent).toContain('Carlos Portão');
+      expect(painel.textContent).toContain('iFood');
+      expect(painel.textContent).toContain('No portão: Portão social');
+      expect(painel.textContent).toContain('Entrou às 15:10');
+      expect(painel.textContent).toContain('Saiu às 15:25');
+      expect(painel.textContent).toContain('Autorizar aqui não abre o portão pelo sistema. Abra pelo meio de sempre.');
+      expect(botaoCom(painel, 'Autorizar subida').disabled).toBe(false);
+    });
+
+    it('detalhe de entrega comum não mostra selfie, portão nem o aviso', () => {
+      const fixture = montar();
+      store.selecionar(ATENDIMENTOS[0]);
+      fixture.detectChanges();
+      const painel = fixture.nativeElement.querySelector('aside') as HTMLElement;
+      expect(painel.querySelector('img[alt="Foto do entregador"]')).toBeNull();
+      expect(painel.textContent).not.toContain('No portão');
+      expect(painel.textContent).not.toContain('Autorizar aqui não abre o portão');
+    });
+  });
+
   it('não mostra "Nenhuma entrega na fila" enquanto a primeira carga está em andamento', () => {
     const fixture = montar();
     store.ativos.set([]);

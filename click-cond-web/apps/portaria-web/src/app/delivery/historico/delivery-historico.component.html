@@ -44,13 +44,21 @@
       } @else {
         @for (a of filtrados(); track a.id) {
           <button type="button" (click)="selecionado.set(a)"
-            [class]="'block w-full border-b border-slate-200 px-4 py-3 text-left transition last:border-b-0 hover:bg-graphite-300 ' + (selecionado()?.id === a.id ? 'bg-graphite-300' : '')">
-            <span class="flex items-start justify-between gap-2">
-              <strong class="truncate text-sm font-semibold text-white">{{ a.estabelecimento || 'Entrega sem estabelecimento' }}</strong>
-              <app-delivery-status-badge [status]="a.status" />
+            [class]="'flex w-full items-start gap-3 border-b border-slate-200 px-4 py-3 text-left transition last:border-b-0 hover:bg-graphite-300 ' + (selecionado()?.id === a.id ? 'bg-graphite-300' : '')">
+            @if (a.pedido_portao?.foto; as foto) {
+              <img [src]="foto" alt="" class="h-10 w-10 shrink-0 border border-slate-200 object-cover" />
+            }
+            <span class="block min-w-0 flex-1">
+              <span class="flex items-start justify-between gap-2">
+                <strong class="truncate text-sm font-semibold text-white">{{ a.estabelecimento || 'Entrega sem estabelecimento' }}</strong>
+                <app-delivery-status-badge [status]="a.status" />
+              </span>
+              <span class="mt-1 block text-sm text-slate-300">{{ store.unidade(a) }} · {{ store.nomeEntregador(a) }}</span>
+              @if (store.veioDoPortao(a)) {
+                <span class="ps-tag mt-1 inline-block">Autoatendimento</span>
+              }
+              <span class="mt-1 block text-xs text-slate-500">{{ a.created_at | date: 'dd/MM/yyyy HH:mm' }}</span>
             </span>
-            <span class="mt-1 block text-sm text-slate-300">{{ store.unidade(a) }} · {{ store.nomeEntregador(a) }}</span>
-            <span class="mt-1 block text-xs text-slate-500">{{ a.created_at | date: 'dd/MM/yyyy HH:mm' }}</span>
           </button>
         } @empty {
           <p class="p-10 text-center text-sm text-slate-400">Nenhum atendimento encerrado neste período.</p>
@@ -68,6 +76,21 @@
           </div>
           <button type="button" (click)="selecionado.set(null)" class="ps-btn ps-btn-ghost ps-btn-sm">Fechar</button>
         </div>
+        @if (a.pedido_portao; as pp) {
+          <div class="mb-4 flex items-start gap-3 border border-slate-200 bg-graphite-300 p-3">
+            @if (pp.foto) {
+              <img [src]="pp.foto" alt="Foto do entregador" width="120" height="120"
+                class="h-[120px] w-[120px] shrink-0 border border-slate-200 object-cover" />
+            }
+            <div class="min-w-0 space-y-0.5">
+              <p class="text-sm font-medium text-white">{{ store.nomeEntregador(a) }}</p>
+              @if (pp.plataforma) { <p class="text-xs text-slate-400">{{ pp.plataforma }}</p> }
+              <p class="text-xs text-slate-400">No portão: {{ pp.portao }}</p>
+              @if (pp.aberto_em) { <p class="text-xs text-slate-400">Entrou às {{ pp.aberto_em | date: 'HH:mm' }}</p> }
+              @if (pp.saida_aberta_em) { <p class="text-xs text-slate-400">Saiu às {{ pp.saida_aberta_em | date: 'HH:mm' }}</p> }
+            </div>
+          </div>
+        }
         <app-delivery-timeline [eventos]="a.eventos" />
       } @else {
         <p class="py-10 text-center text-sm text-slate-400">Selecione um atendimento para ver o ciclo completo.</p>

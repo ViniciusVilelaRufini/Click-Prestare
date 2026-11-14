@@ -5,6 +5,7 @@ import { AuthService } from '../auth/auth.service';
 import { API_BASE } from '../shared/api.config';
 import {
   AtualizarEntregadorDelivery,
+  ConfigAutoatendimento,
   CriarEntregadorDelivery,
   DeliveryAtendimento,
   DeliveryEntregador,
@@ -14,6 +15,7 @@ import {
 
 export type {
   AtualizarEntregadorDelivery,
+  ConfigAutoatendimento,
   CriarEntregadorDelivery,
   DeliveryAtendimento,
   DeliveryEntregador,
@@ -64,6 +66,22 @@ export class DeliveryApi {
     return this.http.post<DeliveryEntregador>(`${API_BASE}/delivery/entregadores`, {
       ...dto,
       id_condominio: this.idCondominio,
+    });
+  }
+
+  /** Opção "Autoatendimento no portão" do condomínio (leitura para quem opera a portaria). */
+  lerConfigEntrega(): Observable<ConfigAutoatendimento> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    return this.http.get<ConfigAutoatendimento>(`${API_BASE}/entrega/config`, { params });
+  }
+
+  /** Liga/desliga e define o horário. Só síndico (a API confere). */
+  salvarConfigEntrega(c: ConfigAutoatendimento): Observable<ConfigAutoatendimento> {
+    return this.http.put<ConfigAutoatendimento>(`${API_BASE}/entrega/config`, {
+      id_condominio: this.idCondominio,
+      habilitado: c.habilitado,
+      inicio: c.inicio,
+      fim: c.fim,
     });
   }
 

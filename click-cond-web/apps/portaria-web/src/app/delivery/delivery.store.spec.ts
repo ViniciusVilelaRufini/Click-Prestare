@@ -59,6 +59,45 @@ describe('DeliveryStore', () => {
     expect(store.erro()).toBe('Identifique o entregador antes de autorizar.');
   });
 
+  describe('autoatendimento no portão', () => {
+    const PEDIDO = { nome: 'Carlos Portão', plataforma: 'iFood', foto: 'https://s3/assinada.jpg', status: 'pendente', portao: 'Portão social', aberto_em: null, saida_aberta_em: null };
+    const auto = {
+      ...ATENDIMENTOS[1], id: 7, status: 'AGUARDANDO_AUTORIZACAO' as const, origem: 'autoatendimento' as const,
+      nome_entregador: null, entregador: null, pedido_portao: PEDIDO,
+    };
+
+    it('podeAutorizar: autoatendimento sem entregador selecionado pode; com entregador bloqueado não; origem portaria sem entregador não', () => {
+      store.selecionar(auto);
+      expect(store.podeAutorizar(auto)).toBe(true);
+
+      store.entregadores.set([{ id: 20, nome: 'João Motoboy', status: 'BLOQUEADO', veiculos: [] }]);
+      store.entregadorSelecionadoId.set(20);
+      expect(store.podeAutorizar(auto)).toBe(false);
+
+      const portaria = { ...auto, id: 8, origem: 'portaria' as const };
+      store.selecionar(portaria);
+      expect(store.podeAutorizar(portaria)).toBe(false);
+    });
+
+    it('autoriza o atendimento de autoatendimento sem entregador cadastrado', () => {
+      store.selecionar(auto);
+      store.atualizarStatus('AUTORIZADA');
+      expect(api.atualizarStatus).toHaveBeenCalledWith(7, 'AUTORIZADA', expect.objectContaining({ id_entregador: undefined }));
+    });
+
+    it('nomeEntregador usa o nome do pedido do portão quando não há entregador cadastrado', () => {
+      expect(store.nomeEntregador(auto)).toBe('Carlos Portão');
+      expect(store.nomeEntregador({ ...auto, pedido_portao: null })).toBe('Entregador ainda não identificado');
+      expect(store.nomeEntregador({ ...auto, entregador: { id: 9, nome: 'Cadastrado', status: 'ATIVO', veiculos: [] } })).toBe('Cadastrado');
+    });
+
+    it('veioDoPortao: origem autoatendimento ou pedido do portão', () => {
+      expect(store.veioDoPortao(auto)).toBe(true);
+      expect(store.veioDoPortao({ ...auto, origem: 'portaria' })).toBe(true);
+      expect(store.veioDoPortao(ATENDIMENTOS[0])).toBe(false);
+    });
+  });
+
   it('limpa erro antigo ao iniciar uma nova ação de status', () => {
     store.selecionar(ATENDIMENTOS[0]);
     store.erro.set('erro antigo');

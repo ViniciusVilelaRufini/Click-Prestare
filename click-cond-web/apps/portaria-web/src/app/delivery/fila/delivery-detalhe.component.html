@@ -21,7 +21,23 @@
 
       <div class="border border-slate-200 bg-graphite-300 p-3">
         <p class="text-xs text-slate-500">Entregador</p>
-        <p class="text-sm font-medium text-white">{{ store.nomeEntregador(a) }}</p>
+        @if (a.pedido_portao; as pp) {
+          <div class="mt-2 flex items-start gap-3">
+            @if (pp.foto) {
+              <img [src]="pp.foto" alt="Foto do entregador" width="120" height="120"
+                class="h-[120px] w-[120px] shrink-0 border border-slate-200 object-cover" />
+            }
+            <div class="min-w-0 space-y-0.5">
+              <p class="text-sm font-medium text-white">{{ store.nomeEntregador(a) }}</p>
+              @if (pp.plataforma) { <p class="text-xs text-slate-400">{{ pp.plataforma }}</p> }
+              <p class="text-xs text-slate-400">No portão: {{ pp.portao }}</p>
+              @if (pp.aberto_em) { <p class="text-xs text-slate-400">Entrou às {{ pp.aberto_em | date: 'HH:mm' }}</p> }
+              @if (pp.saida_aberta_em) { <p class="text-xs text-slate-400">Saiu às {{ pp.saida_aberta_em | date: 'HH:mm' }}</p> }
+            </div>
+          </div>
+        } @else {
+          <p class="text-sm font-medium text-white">{{ store.nomeEntregador(a) }}</p>
+        }
         @if (store.telefoneEntregador(a); as telefone) { <p class="text-xs text-slate-400">{{ telefone }}</p> }
         @if (a.entregador?.status === 'BLOQUEADO') {
           <p class="mt-1 text-xs font-medium text-red-700 dark:text-red-300">Bloqueado{{ a.entregador?.motivo_bloqueio ? ': ' + a.entregador?.motivo_bloqueio : '' }}</p>
@@ -66,6 +82,9 @@
                     class="ps-btn ps-btn-sec disabled:opacity-40">{{ verbo(s) }}</button>
                 }
               </div>
+            }
+            @if (avisoPortao()) {
+              <p class="text-xs text-slate-500">Autorizar aqui não abre o portão pelo sistema. Abra pelo meio de sempre.</p>
             }
             @if (acoes()?.recusar) {
               <button type="button" (click)="abrirRecusa()"
