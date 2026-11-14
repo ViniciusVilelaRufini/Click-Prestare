@@ -14,13 +14,16 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FacialService } from '../../facial/facial.service';
 import { PREFIXOS_FOTO_PEDIDO_PORTAO, StorageService } from '../../common/storage/storage.service';
-import { comLock } from '../../common/lock-distribuido';
+import { comLock, executarComLock } from '../../common/lock-distribuido';
 import { DeliveryService, DeliveryStatus, GanchoPortao } from '../delivery.service';
 import { TenantAccessService } from '../../auth/tenant-access.service';
 import type { JwtPayload } from '../../auth/jwt-payload.interface';
 import { assertOperador, assertSindicoEstrito, assertTenantStrict } from '../../auth/tenant.util';
 import {
+  CANCELA_SEM_RESPOSTA_MS,
+  CONCLUI_SEM_PORTEIRO_MS,
   EstadoPedido,
+  FOTO_RETENCAO_DIAS,
   horarioValido,
   FOTO_MIME,
   JANELA_ABERTURA_MS,
@@ -70,6 +73,12 @@ const TOKEN_PEDIDO = /^[0-9a-f]{64}$/;
 /** Aparelhos que abrem passagem (o leitor de tag/QR/placa só identifica). */
 const TIPOS_QUE_ABREM = ['botoeira', 'catraca', 'facial'];
 const BASE_URL_PADRAO = 'https://www.prestarecondominios.com.br';
+const ROTINA_MS = 5 * 60_000;
+const DIA_MS = 24 * 3_600_000;
+/** O lock com intervaloMinimoMs garante uma passada por dia no cluster. */
+const FOTOS_VERIFICA_MS = 3_600_000;
+const LOTE_ROTINA = 200;
+const LOTE_FOTOS = 500;
 
 export interface ConfigEntrega {
   habilitado: boolean;
@@ -110,6 +119,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
   private readonly logger = new Logger(DeliveryPortaoService.name);
   /** Público para os testes; em produção é Date.now. */
   agora: () => number = () => Date.now();
+  private timers: ReturnType<typeof setInterval>[] = [];
 
   constructor(
     private readonly prisma: PrismaService,
@@ -122,12 +132,132 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     this.delivery.registrarGanchoPortao(this);
   }
 
+  /**
+   * Rotina no padrão da API (setInterval + executarComLock, uma instância
+   * por vez): a cada 5 min (com uma hora, a conclusão dos 30 min poderia
+   * levar 90) e as fotos uma vez por dia no cluster.
+   */
   onModuleInit() {
-    // Rotina agendada (Tarefa 8).
+    if (process.env['NODE_ENV'] === 'test') return;
+    this.timers.push(
+      setInterval(() => void executarComLock(this.prisma, 'delivery-portao:tick', () => this.tick()), ROTINA_MS),
+      setInterval(
+        () => void executarComLock(this.prisma, 'delivery-portao:fotos', async () => void (await this.tickFotos()), { intervaloMinimoMs: DIA_MS }),
+        FOTOS_VERIFICA_MS,
+      ),
+    );
+    for (const t of this.timers) t.unref?.();
   }
 
   onModuleDestroy() {
-    // Rotina agendada (Tarefa 8).
+    for (const t of this.timers) clearInterval(t);
+    this.timers = [];
+  }
+
+  /**
+   * 1. pedido pendente vencido → expirado;
+   * 2. autoatendimento sem resposta há 2 h → CANCELADA ("Sem resposta do morador");
+   * 3. AUTORIZADA com o portão aberto há 30 min → CONCLUIDA;
+   * 4. autoatendimento AUTORIZADA sem abertura, ou RETIRADA_NA_PORTARIA, parado há 2 h → CONCLUIDA.
+   * Uma etapa (ou um atendimento) que falha não impede as outras.
+   */
+  async tick(): Promise<void> {
+    const agora = this.agora();
+    const db = (this.prisma as any).deliveryPedidosPortao;
+    const atendimentos = (this.prisma as any).deliveryAtendimentos;
+
+    await this.etapa('expirar pedidos', () =>
+      db.updateMany({ where: { status: 'pendente', expira_em: { lte: new Date(agora) } }, data: { status: 'expirado' } }),
+    );
+
+    await this.etapa('cancelar sem resposta', async () => {
+      const lista = await atendimentos.findMany({
+        where: {
+          origem: 'autoatendimento',
+          status: { in: ['CHEGOU', 'AGUARDANDO_AUTORIZACAO'] },
+          chegou_em: { lte: new Date(agora - CANCELA_SEM_RESPOSTA_MS) },
+        },
+        select: { id: true },
+        take: LOTE_ROTINA,
+      });
+      await this.transicionarCada(lista, 'CANCELADA', 'Sem resposta do morador');
+    });
+
+    await this.etapa('concluir após a entrada', async () => {
+      const abertos = await db.findMany({
+        where: { aberto_em: { lte: new Date(agora - SAIDA_MS) }, atendimento: { status: 'AUTORIZADA' } },
+        select: { id_atendimento: true },
+        take: LOTE_ROTINA,
+      });
+      const ids = [...new Set((abertos as any[]).map((p) => p.id_atendimento))].map((id) => ({ id }));
+      await this.transicionarCada(ids, 'CONCLUIDA', 'Concluído automaticamente após a entrada');
+    });
+
+    await this.etapa('encerrar sem porteiro', async () => {
+      const lista = await atendimentos.findMany({
+        where: {
+          origem: 'autoatendimento',
+          status: { in: ['AUTORIZADA', 'RETIRADA_NA_PORTARIA'] },
+          updated_at: { lte: new Date(agora - CONCLUI_SEM_PORTEIRO_MS) },
+        },
+        select: { id: true, status: true, pedidosPortao: { where: { aberto_em: { not: null } }, select: { id: true }, take: 1 } },
+        take: LOTE_ROTINA,
+      });
+      // Autorizado com o portão aberto é da etapa anterior (30 min).
+      const semAbertura = (lista as any[]).filter((a) => a.status !== 'AUTORIZADA' || !a.pedidosPortao?.length);
+      await this.transicionarCada(semAbertura, 'CONCLUIDA', 'Encerrado automaticamente');
+    });
+  }
+
+  /**
+   * Selfies com mais de `dias`: apaga do bucket (só dentro de
+   * delivery-portao/) e zera a coluna. Lotes de 500 por id; arquivo que falha
+   * fica para a próxima passada e não interrompe o lote.
+   */
+  async tickFotos(dias = FOTO_RETENCAO_DIAS): Promise<number> {
+    const limite = new Date(this.agora() - dias * DIA_MS);
+    const db = (this.prisma as any).deliveryPedidosPortao;
+    let cursor = 0;
+    let apagadas = 0;
+    for (;;) {
+      const lote = await db.findMany({
+        where: { id: { gt: cursor }, criado_em: { lt: limite }, foto: { not: null } },
+        select: { id: true, foto: true },
+        orderBy: { id: 'asc' },
+        take: LOTE_FOTOS,
+      });
+      if (!lote.length) break;
+      for (const p of lote as { id: number; foto: string }[]) {
+        cursor = p.id;
+        try {
+          if (!(await this.storage.deleteUrl(p.foto, PREFIXOS_FOTO_PEDIDO_PORTAO))) continue;
+          await db.update({ where: { id: p.id }, data: { foto: null } });
+          apagadas++;
+        } catch (e: any) {
+          this.logger.warn(`Foto do pedido de portão ${p.id} não apagada: ${e?.message ?? e}`);
+        }
+      }
+      if (lote.length < LOTE_FOTOS) break;
+    }
+    return apagadas;
+  }
+
+  private async etapa(nome: string, fn: () => Promise<unknown>) {
+    try {
+      await fn();
+    } catch (e: any) {
+      this.logger.warn(`Rotina do portão (${nome}): ${e?.message ?? e}`);
+    }
+  }
+
+  private async transicionarCada(lista: { id: number }[], status: DeliveryStatus, mensagem: string) {
+    for (const a of lista) {
+      try {
+        await this.delivery.transicionarPeloSistema(a.id, status, mensagem);
+      } catch (e: any) {
+        this.logger.warn(`Rotina do portão: delivery ${a.id} → ${status}: ${e?.message ?? e}`);
+      }
+    }
   }
 
   // ─────────────────────────────────────────── página pública
