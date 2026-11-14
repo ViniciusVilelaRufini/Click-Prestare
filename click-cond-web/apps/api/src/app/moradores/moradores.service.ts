@@ -1301,6 +1301,20 @@ export class MoradoresService {
                 const daNova = vinculos.filter((v) => v.id_apto === aptoObj.id);
                 const trocados = saem.filter((v) => v.id_apto !== aptoObj.id);
                 if (daNova.length > 0) {
+                  // Outra linha de Moradores do mesmo morador já é dessa unidade: mover esta deixaria a
+                  // pessoa duas vezes nela. Recusa sem mexer em nada.
+                  if (trocados.length > 0 && atual.id_condominio != null) {
+                    const outrasLinhas = await tx.moradores.findMany({
+                      where: { id_user: atual.id_user, id_condominio: atual.id_condominio, NOT: { id } },
+                      select: { bloco: true, apartamento: true },
+                    });
+                    const chaveNova = chaveUnidade(aptoObj.bloco, aptoObj.apto);
+                    if (outrasLinhas.some((l) => chaveUnidade(l.bloco, l.apartamento) === chaveNova)) {
+                      throw new BadRequestException(
+                        'Este morador já está cadastrado nessa unidade. Edite o cadastro dele nela ou remova este.',
+                      );
+                    }
+                  }
                   // Já tem a unidade nova: só some o vínculo da que saiu.
                   apagar = trocados;
                   vinculosFinais = daNova;

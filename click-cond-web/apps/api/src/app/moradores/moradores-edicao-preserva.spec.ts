@@ -84,7 +84,7 @@ describe('A1 — MoradoresService.findAll devolve tag RFID e QR Code', () => {
 
 describe('A2 — MoradoresService.update troca só o vínculo da unidade trocada', () => {
   /** Morador 43 (Users 41) do condomínio 1, com vínculos nos aptos 7 e 8 (vínculos 70 e 80). */
-  function harness(vinculos = [{ id: 70, id_apto: 7 }, { id: 80, id_apto: 8 }]) {
+  function harness(vinculos = [{ id: 70, id_apto: 7 }, { id: 80, id_apto: 8 }], outrasLinhas: any[] = []) {
     const tx: any = {
       apartamentos_Users: {
         findMany: jest.fn().mockResolvedValue(vinculos),
@@ -96,7 +96,11 @@ describe('A2 — MoradoresService.update troca só o vínculo da unidade trocada
       apartamentos: {
         findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, bloco: 'A', apto: String(100 + where.id), id_condominio: 1 })),
       },
-      moradores: { update: jest.fn().mockResolvedValue({ id: 43, id_user: 41, id_condominio: 1, nome: 'Ana' }) },
+      moradores: {
+        update: jest.fn().mockResolvedValue({ id: 43, id_user: 41, id_condominio: 1, nome: 'Ana' }),
+        // Outras linhas de Moradores do mesmo morador neste condomínio (nenhuma aqui).
+        findMany: jest.fn().mockResolvedValue(outrasLinhas),
+      },
       users: { update: jest.fn().mockResolvedValue({}) },
     };
     const prisma: any = {
@@ -159,6 +163,17 @@ describe('A2 — MoradoresService.update troca só o vínculo da unidade trocada
     expect(tx.apartamentos_Users.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [70] } } });
     expect(tx.apartamentos_Users.create).not.toHaveBeenCalled();
     expect(tx.apartamentos_Users.update).not.toHaveBeenCalled();
+  });
+
+  it('trocar para uma unidade que OUTRA linha dele já ocupa: recusa sem mexer em nada', async () => {
+    // A unidade 8 do mock é A/108; a outra linha do mesmo morador já é do "Bloco A" 108.
+    const { service, tx } = harness(undefined, [{ bloco: 'Bloco A', apartamento: '108' }]);
+
+    await expect(service.update(43, { id_apartamento: 8, id_apartamento_anterior: 7 } as any)).rejects.toThrow(
+      'Este morador já está cadastrado nessa unidade.',
+    );
+    expect(tx.apartamentos_Users.deleteMany).not.toHaveBeenCalled();
+    expect(tx.moradores.update).not.toHaveBeenCalled();
   });
 
   it('sem a unidade anterior e com vínculo único, troca esse vínculo (como antes)', async () => {
