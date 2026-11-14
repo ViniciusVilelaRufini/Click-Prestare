@@ -14,9 +14,10 @@ import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { randomBytes } from 'crypto';
 import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 
-import { rotuloBloco } from '../common/rotulo-bloco.util';
+import { normalizarBloco, rotuloBloco } from '../common/rotulo-bloco.util';
 import { validarCodigoTag } from '../common/tag-codigo.util';
 import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
+import { REVOGADO_PELO_OPERADOR } from '../consentimentos/consentimentos.service';
 export interface CreateMoradorDto {
   nome: string;
   documento?: string;
@@ -38,6 +39,47 @@ export interface CreateMoradorDto {
   foto_documento?: string;
   tag_rfid?: string;
   qrcode_acesso?: string;
+  /**
+   * Só na edição: a unidade que o formulário mostrava antes da troca. Com ela, trocar a unidade
+   * troca só aquele vínculo e mantém as outras unidades do morador no condomínio.
+   */
+  id_apartamento_anterior?: number;
+}
+
+/** Recusa da edição quando a unidade da linha e a anterior da tela são vínculos diferentes (sai com a mensagem, não a genérica). */
+class UnidadeDaTelaDivergente extends BadRequestException {}
+
+/** Chave da unidade: bloco normalizado ("Bloco A" = "A") e apto sem espaços nem caixa. */
+function chaveUnidade(bloco: string | null | undefined, apto: string | null | undefined): string {
+  return `${normalizarBloco(bloco)}|${(apto ?? '').trim().toLowerCase()}`;
+}
+
+/**
+ * Vínculos (Apartamentos_Users) da unidade de uma linha de Moradores, pelo bloco/apto gravados nela.
+ * Linha sem apto não aponta unidade nenhuma.
+ */
+function vinculosDaUnidade<T extends { apartamento?: { bloco: string | null; apto: string | null } | null }>(
+  vinculos: T[],
+  bloco: string | null | undefined,
+  apto: string | null | undefined,
+): T[] {
+  if (!(apto ?? '').trim()) return [];
+  const chave = chaveUnidade(bloco, apto);
+  return vinculos.filter((v) => v.apartamento && chaveUnidade(v.apartamento.bloco, v.apartamento.apto) === chave);
+}
+
+/**
+ * Unidade que a tela mostra para uma linha de Moradores: o vínculo deste condomínio com o bloco/apto
+ * da linha. Sem correspondência, só um vínculo único serve; com vários, 0 (a tela não chuta a unidade
+ * de outra linha do mesmo morador, que a edição trocaria por engano).
+ */
+function idApartamentoDaLinha(
+  linha: { bloco: string | null; apartamento: string | null },
+  vinculosDoCondominio: Array<{ id_apto: number; apartamento?: { bloco: string | null; apto: string | null } | null }>,
+): number {
+  const daLinha = vinculosDaUnidade(vinculosDoCondominio, linha.bloco, linha.apartamento);
+  if (daLinha.length > 0) return daLinha[0].id_apto;
+  return vinculosDoCondominio.length === 1 ? vinculosDoCondominio[0].id_apto : 0;
 }
 
 @Injectable()
@@ -325,6 +367,64 @@ export class MoradoresService {
   }
 
   /**
+   * Último registro de biometria de cada titular — a regra de ConsentimentosService.autorizouBiometria,
+   * que o FacialService.syncMorador usa para decidir se o rosto vai ao terminal. Só leitura: o console
+   * nunca grava consentimento de morador. `null` quando não deu para ler (a lista não cai pelo aviso).
+   */
+  private async biometriaAutorizadaPorUsuario(idsUser: Array<number | null | undefined>): Promise<Map<number, boolean> | null> {
+    const ids = [...new Set(idsUser.filter((v): v is number => v != null).map(Number))];
+    if (ids.length === 0) return new Map();
+    try {
+      const rows = await this.prisma.consentimentos.findMany({
+        where: { id_user: { in: ids }, tipo: 'biometria' },
+        orderBy: [{ registrado_em: 'desc' }, { id: 'desc' }],
+        select: { id_user: true, aceito: true },
+      });
+      const out = new Map<number, boolean>();
+      for (const r of rows) if (!out.has(r.id_user)) out.set(r.id_user, r.aceito === 1);
+      return out;
+    } catch (e: any) {
+      this.logger.warn(`[moradores.findAll] consentimentos de biometria não lidos: ${e?.message ?? e}`);
+      return null;
+    }
+  }
+
+  /**
+   * Para a tela avisar que o rosto cadastrado espera o aceite do morador no app (o syncMorador pula
+   * sem gravar status). Marca de revogação do operador aqui também conta como não autorizado.
+   * Sem conta que entra no app (sem Users ou sem login), não há aceite a esperar: primeiro o acesso.
+   * Menos para o menor dependente: a conta dele nasce sem login de propósito (o aceite é do
+   * responsável), então para ele vale o aviso de aguardar o aceite.
+   */
+  private estadoAceiteBiometria(
+    m: {
+      id_user: number | null;
+      foto_pessoa: string | null;
+      face_id: string | null;
+      face_sync_error: string | null;
+      data_nascimento?: Date | string | null;
+    },
+    autorizados: Map<number, boolean> | null,
+    conta: { login?: string | null; login_type?: string | null } | null | undefined,
+  ) {
+    const tem_conta_app = m.id_user != null && !!(conta?.login ?? '').trim();
+    const menorDependente = m.data_nascimento
+      ? calcularIdade(m.data_nascimento) < 18
+      : conta?.login_type === 'dependente_menor';
+    const biometria_autorizada =
+      autorizados == null
+        ? null
+        : m.id_user != null && m.face_sync_error !== REVOGADO_PELO_OPERADOR && autorizados.get(m.id_user) === true;
+    const rostoParado = biometria_autorizada === false && !!m.foto_pessoa && !m.face_id;
+    return {
+      tem_conta_app,
+      biometria_autorizada,
+      aguardando_aceite_biometria: rostoParado && (tem_conta_app || menorDependente),
+      biometria_sem_conta_app: rostoParado && !tem_conta_app && !menorDependente,
+    };
+  }
+
+  /**
    * Moradores no schema legado têm FK para Users e podem ter id_condominio.
    * Para a portaria, listamos moradores diretamente filtrados por id_condominio
    * e juntamos foto via Users. Quando o app legado popular Apartamentos_Users
@@ -356,6 +456,7 @@ export class MoradoresService {
         rels.filter((r) => r.user?.photo || r.user?.email || r.user?.phone || r.user?.cpf).map((r) => r.id_user),
         Number(idCondominio),
       );
+      const autorizados = await this.biometriaAutorizadaPorUsuario(rels.map((r) => r.id_user));
       const seen = new Set<number>();
       const out: any[] = [];
       for (const r of rels) {
@@ -367,7 +468,11 @@ export class MoradoresService {
         // condomínio ou para o Users.id (que coincide com o Moradores.id de
         // outra pessoa) abria e apagava o morador errado. Vínculo sem cadastro
         // aqui fica de fora — é resíduo de exclusão antiga.
-        const m = r.user?.moradores?.find((mor) => mor.id_condominio === condId);
+        // Uma linha de Moradores por unidade (app, link-user): a desta unidade, senão a do condomínio.
+        const doCondominio = (r.user?.moradores ?? []).filter((mor) => mor.id_condominio === condId);
+        const m =
+          doCondominio.find((mor) => chaveUnidade(mor.bloco, mor.apartamento) === chaveUnidade(r.apartamento?.bloco, r.apartamento?.apto)) ??
+          doCondominio[0];
         if (!m) {
           this.logger.warn(`[moradores.findAll] vínculo sem cadastro: apto ${idApto}, user ${r.id_user} — omitido`);
           continue;
@@ -392,6 +497,10 @@ export class MoradoresService {
           face_id: m?.face_id ?? null,
           face_sync_status: m?.face_sync_status ?? null,
           face_sync_error: m?.face_sync_error ?? null,
+          // A tela de edição monta o formulário com estes campos: sem eles, salvar apagava a tag e o QR.
+          tag_rfid: m?.tag_rfid ?? null,
+          qrcode_acesso: m?.qrcode_acesso ?? null,
+          ...this.estadoAceiteBiometria(m, autorizados, r.user),
         });
       }
       // Busca textual local (mesmo comportamento da query condo-wide).
@@ -433,10 +542,16 @@ export class MoradoresService {
         user: {
           select: {
             photo: true,
+            login: true,
+            login_type: true,
+            // Só os vínculos deste condomínio, na ordem em que nasceram: a unidade de cada linha sai deles.
             apartamentosUsers: {
+              where: { apartamento: { id_condominio: Number(idCondominio) } },
               select: {
                 id_apto: true,
+                apartamento: { select: { bloco: true, apto: true } },
               },
+              orderBy: { id: 'asc' },
             },
           },
         },
@@ -450,8 +565,9 @@ export class MoradoresService {
       list.filter((m) => !m.foto_pessoa && m.user?.photo).map((m) => m.id_user),
       Number(idCondominio),
     );
+    const autorizados = await this.biometriaAutorizadaPorUsuario(list.map((m) => m.id_user));
     return list.map((m) => {
-      const idAptoMapped = m.user?.apartamentosUsers?.[0]?.id_apto ?? 0;
+      const idAptoMapped = idApartamentoDaLinha(m, m.user?.apartamentosUsers ?? []);
       const fotoFinal = m.foto_pessoa ?? (m.id_user != null && compartilhadas.has(m.id_user) ? null : m.user?.photo) ?? null;
       return {
         id: m.id,
@@ -471,6 +587,9 @@ export class MoradoresService {
         face_id: m.face_id ?? null,
         face_sync_status: m.face_sync_status ?? null,
         face_sync_error: m.face_sync_error ?? null,
+        tag_rfid: m.tag_rfid ?? null,
+        qrcode_acesso: m.qrcode_acesso ?? null,
+        ...this.estadoAceiteBiometria(m, autorizados, m.user),
       };
     });
   }
@@ -490,7 +609,9 @@ export class MoradoresService {
             apartamentosUsers: {
               select: {
                 id_apto: true,
+                apartamento: { select: { bloco: true, apto: true, id_condominio: true } },
               },
+              orderBy: { id: 'asc' },
             },
           },
         },
@@ -502,10 +623,16 @@ export class MoradoresService {
       !!m.user?.photo && m.id_user != null && m.id_condominio != null &&
       (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, m.id_user, m.id_condominio));
     const fotoFinal = m.foto_pessoa ?? (contaCompartilhada ? null : m.user?.photo) ?? null;
-    const idAptoMapped = m.user?.apartamentosUsers?.[0]?.id_apto ?? 0;
+    const idAptoMapped = idApartamentoDaLinha(
+      m,
+      (m.user?.apartamentosUsers ?? []).filter((v: any) => v.apartamento?.id_condominio === m.id_condominio),
+    );
+    // Os vínculos do user são de TODOS os condomínios (Users é global): servem só para achar a
+    // unidade desta linha e não saem na resposta (GET da ficha, POST e PUT).
+    const { apartamentosUsers: _vinculos, ...userSemVinculos } = m.user ?? ({} as any);
     return {
       ...m,
-      ...(contaCompartilhada && m.user && { user: { ...m.user, photo: null } }),
+      user: m.user ? { ...userSemVinculos, ...(contaCompartilhada && { photo: null }) } : m.user,
       id_apartamento: idAptoMapped,
       photo: fotoFinal,
       foto_pessoa: fotoFinal,
@@ -1105,17 +1232,48 @@ export class MoradoresService {
           ? String(dto.tipo).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
           : undefined;
 
+        // Só os vínculos DESTE condomínio: sem o filtro, editar o morador
+        // aqui apagava o vínculo dele (ou do síndico) em outros prédios.
+        const escopoVinculos = {
+          id_user: atual.id_user as number,
+          ...(atual.id_condominio != null && { apartamento: { id_condominio: atual.id_condominio } }),
+        };
+        // O morador pode ter mais de uma unidade aqui, e o app e o link-user criam UMA linha de
+        // Moradores por unidade. A unidade desta linha é o bloco/apto dela: é esse vínculo que a
+        // edição troca (ou cujo tipo muda), nunca o das outras unidades. A unidade anterior que a
+        // tela manda só vale quando a linha não aponta um vínculo; sem as duas, só um vínculo único.
+        const precisaVinculos = !!atual.id_user && (dto.id_apartamento !== undefined || tipoNorm !== undefined);
+        const vinculos: { id: number; id_apto: number; apartamento?: { bloco: string | null; apto: string | null } | null }[] =
+          precisaVinculos
+            ? await tx.apartamentos_Users.findMany({
+                where: escopoVinculos,
+                select: { id: true, id_apto: true, apartamento: { select: { bloco: true, apto: true } } },
+                orderBy: { id: 'asc' },
+              })
+            : [];
+        const daLinha = vinculosDaUnidade(vinculos, atual.bloco, atual.apartamento);
+        const anterior = dto.id_apartamento_anterior != null ? Number(dto.id_apartamento_anterior) : undefined;
+        const doAnterior = anterior ? vinculos.filter((v) => v.id_apto === anterior) : [];
+        // Linha e tela apontando vínculos válidos e diferentes (ex.: no painel do 101 a lista mostrou a
+        // linha do 102): não há como saber qual unidade o operador quis trocar. Recusa sem mexer em nada.
+        if (
+          dto.id_apartamento !== undefined &&
+          daLinha.length > 0 &&
+          doAnterior.length > 0 &&
+          !doAnterior.some((v) => daLinha.some((d) => d.id === v.id))
+        ) {
+          throw new UnidadeDaTelaDivergente(
+            'Este cadastro é de outra unidade do morador. Abra-o pela lista de moradores para trocar a unidade.',
+          );
+        }
+        const saem =
+          daLinha.length > 0 ? daLinha : doAnterior.length > 0 ? doAnterior : vinculos.length === 1 ? vinculos : [];
+        // Vínculos que ficam com a unidade desta linha depois da edição: recebem o tipo novo.
+        let vinculosFinais: { id: number }[] = saem;
+        let tipoJaGravado = false;
+
         if (dto.id_apartamento !== undefined) {
-          if (atual.id_user) {
-            // Só os vínculos DESTE condomínio: sem o filtro, editar o morador
-            // aqui apagava o vínculo dele (ou do síndico) em outros prédios.
-            await tx.apartamentos_Users.deleteMany({
-              where: {
-                id_user: atual.id_user,
-                ...(atual.id_condominio != null && { apartamento: { id_condominio: atual.id_condominio } }),
-              },
-            });
-          }
+          let apagar: { id: number }[] = [];
 
           if (dto.id_apartamento > 0) {
             const aptoObj = await tx.apartamentos.findUnique({
@@ -1129,30 +1287,50 @@ export class MoradoresService {
               aptoNum = aptoObj.apto || '';
 
               if (atual.id_user) {
-                const dataVenc = new Date();
-                dataVenc.setDate(dataVenc.getDate() + 45);
-                await tx.apartamentos_Users.create({
-                  data: {
-                    id_apto: aptoObj.id,
-                    id_user: atual.id_user,
-                    tipo: tipoNorm || atual.tipo || 'proprietario',
-                    vencimento: dataVenc,
-                  },
-                });
+                const daNova = vinculos.filter((v) => v.id_apto === aptoObj.id);
+                const trocados = saem.filter((v) => v.id_apto !== aptoObj.id);
+                if (daNova.length > 0) {
+                  // Já tem a unidade nova: só some o vínculo da que saiu.
+                  apagar = trocados;
+                  vinculosFinais = daNova;
+                } else if (trocados.length > 0) {
+                  const [movido, ...repetidos] = trocados;
+                  await tx.apartamentos_Users.update({ where: { id: movido.id }, data: { id_apto: aptoObj.id } });
+                  apagar = repetidos;
+                  vinculosFinais = [movido];
+                } else {
+                  const dataVenc = new Date();
+                  dataVenc.setDate(dataVenc.getDate() + 45);
+                  await tx.apartamentos_Users.create({
+                    data: {
+                      id_apto: aptoObj.id,
+                      id_user: atual.id_user,
+                      tipo: tipoNorm || atual.tipo || 'proprietario',
+                      vencimento: dataVenc,
+                    },
+                  });
+                  tipoJaGravado = true;
+                }
               }
             }
           } else {
+            // Sem unidade: sai a desta linha; sem ela (cliente antigo), todas as deste condomínio.
+            apagar = daLinha.length > 0 || anterior !== undefined ? saem : vinculos;
+            vinculosFinais = [];
             bloco = '';
             aptoNum = '';
           }
-        } else if (tipoNorm !== undefined && atual.id_user) {
-          await tx.apartamentos_Users.updateMany({
-            where: {
-                id_user: atual.id_user,
-                ...(atual.id_condominio != null && { apartamento: { id_condominio: atual.id_condominio } }),
-              },
-            data: { tipo: tipoNorm },
-          });
+          if (apagar.length > 0) {
+            await tx.apartamentos_Users.deleteMany({ where: { id: { in: apagar.map((v) => v.id) } } });
+          }
+        }
+        // Tipo novo vale só para o vínculo da unidade desta linha (o dono do 101 pode ser inquilino do 102).
+        if (tipoNorm !== undefined && atual.id_user && !tipoJaGravado) {
+          if (vinculosFinais.length > 0) {
+            await tx.apartamentos_Users.updateMany({ where: { id: { in: vinculosFinais.map((v) => v.id) } }, data: { tipo: tipoNorm } });
+          } else if (dto.id_apartamento === undefined || dto.id_apartamento > 0) {
+            this.logger.warn(`[moradores.update] morador ${id}: tipo trocado sem vínculo identificável da unidade; vínculos não alterados.`);
+          }
         }
 
         // Atualiza moradores
@@ -1206,6 +1384,7 @@ export class MoradoresService {
         return morador;
       });
     } catch (err: any) {
+      if (err instanceof UnidadeDaTelaDivergente) throw err;
       this.logger.error(
         `[moradores.update] Falha ao atualizar morador ${id}: ${err?.message ?? err}`,
         err?.stack,

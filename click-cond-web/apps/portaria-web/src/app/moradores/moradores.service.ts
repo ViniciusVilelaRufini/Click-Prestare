@@ -24,6 +24,14 @@ export interface Morador {
   face_sync_error?: string | null;
   tag_rfid?: string | null;
   qrcode_acesso?: string | null;
+  /** O titular aceitou a biometria no app (null: não deu para saber). Sem o aceite, o rosto não vai aos terminais. */
+  biometria_autorizada?: boolean | null;
+  /** Tem foto do rosto no cadastro, mas ela espera o aceite do morador no app para ir aos terminais. */
+  aguardando_aceite_biometria?: boolean;
+  /** O morador tem conta que entra no app (Users com login). */
+  tem_conta_app?: boolean;
+  /** Tem foto do rosto, mas sem conta no app não há como aceitar a biometria: falta enviar o acesso. */
+  biometria_sem_conta_app?: boolean;
 }
 
 export interface CreateMorador {
@@ -39,6 +47,8 @@ export interface CreateMorador {
   foto_documento?: string;
   tag_rfid?: string;
   qrcode_acesso?: string;
+  /** Só na edição: a unidade que saiu, quando o operador troca a unidade. */
+  id_apartamento_anterior?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -85,9 +95,11 @@ export class MoradoresApi {
     return this.http.post<{ ok: boolean }>(`${this.base}/${id}/send-credentials`, {});
   }
 
+  // A rota mora em consentimentos (consentimentos.controller.ts), não em moradores.
   revogarBiometria(id: number): Observable<{ ok: boolean; status?: string; message?: string }> {
+    const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
     return this.http.post<{ ok: boolean; status?: string; message?: string }>(
-      `${this.base}/${id}/revogar-biometria`,
+      `${API_BASE}/condominios/${cid}/consentimentos/moradores/${id}/revogar-biometria`,
       {},
     );
   }

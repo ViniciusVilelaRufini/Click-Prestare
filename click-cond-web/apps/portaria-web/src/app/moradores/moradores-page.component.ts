@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
 import { VeiculosApi, Veiculo, Tag, CreateVeiculo } from './veiculos.service';
+import { OriginalEdicaoMorador, payloadEdicaoMorador } from './edicao-morador';
 import { ActivatedRoute } from '@angular/router';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
@@ -215,6 +216,12 @@ export class MoradoresPageComponent implements OnInit {
   dataNascimentoMasked = '';
   showForm = false;
   editingId: number | null = null;
+  /** Unidade, tag e QR como vieram do cadastro: na edição só vai o que o operador mudou. */
+  private originalEdicao: OriginalEdicaoMorador = { id_apartamento: 0, tag_rfid: null, qrcode_acesso: null };
+  /** Aceite de biometria do morador em edição (null no cadastro novo ou quando não se sabe). */
+  biometriaAutorizadaEdicao: boolean | null = null;
+  /** Morador em edição sem conta que entra no app: o aceite da biometria depende de enviar o acesso. */
+  semContaAppEdicao = false;
   readonly saving = signal(false);
   readonly revogandoBiometria = signal(false);
 
@@ -331,6 +338,8 @@ export class MoradoresPageComponent implements OnInit {
     this.fotoDocumentoBase64.set(null);
     this.dataNascimentoMasked = '';
     this.novo = this.estadoInicial();
+    this.biometriaAutorizadaEdicao = null;
+    this.semContaAppEdicao = false;
     this.veiculos.set([]);
     this.resetNovoVeiculo();
     this.error.set(null);
@@ -355,6 +364,10 @@ export class MoradoresPageComponent implements OnInit {
       tag_rfid: m.tag_rfid ?? '',
       qrcode_acesso: m.qrcode_acesso ?? '',
     };
+    this.originalEdicao = { id_apartamento: m.id_apartamento, tag_rfid: m.tag_rfid, qrcode_acesso: m.qrcode_acesso, tipo: m.tipo };
+    this.biometriaAutorizadaEdicao = m.biometria_autorizada ?? null;
+    // Com rosto parado no cadastro, a API já separa o menor dependente (conta sem login de propósito).
+    this.semContaAppEdicao = m.tem_conta_app === false && (m.foto_pessoa ? m.biometria_sem_conta_app === true : true);
     this.error.set(null);
     this.showForm = true;
     this.resetNovoVeiculo();
@@ -493,7 +506,7 @@ export class MoradoresPageComponent implements OnInit {
 
     this.saving.set(true);
     const obs = this.editingId
-      ? this.api.update(this.editingId, this.novo)
+      ? this.api.update(this.editingId, payloadEdicaoMorador(this.originalEdicao, this.novo))
       : this.api.create(this.novo);
     obs.subscribe({
       next: () => {
@@ -641,7 +654,8 @@ export class MoradoresPageComponent implements OnInit {
       this.toast.warning('Selecione um apartamento válido.');
       return;
     }
-    this.api.update(m.id, { id_apartamento: idApto }).subscribe({
+    // Com a unidade que sai: a API troca só esse vínculo e mantém as outras unidades do morador.
+    this.api.update(m.id, { id_apartamento: idApto, id_apartamento_anterior: m.id_apartamento || 0 }).subscribe({
       next: (updated) => {
         this.moradores.update(list => list.map(item => item.id === m.id ? { ...item, id_apartamento: updated.id_apartamento, bloco: updated.bloco, apartamento: updated.apartamento } : item));
         const current = this.selectedMorador();
