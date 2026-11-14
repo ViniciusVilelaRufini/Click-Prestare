@@ -14,7 +14,7 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FacialService } from '../../facial/facial.service';
 import { PREFIXOS_FOTO_PEDIDO_PORTAO, StorageService } from '../../common/storage/storage.service';
-import { comLock, executarComLock } from '../../common/lock-distribuido';
+import { ResultadoLock, comLock, executarComLock } from '../../common/lock-distribuido';
 import { DeliveryService, DeliveryStatus, GanchoPortao } from '../delivery.service';
 import { TenantAccessService } from '../../auth/tenant-access.service';
 import type { JwtPayload } from '../../auth/jwt-payload.interface';
@@ -86,6 +86,40 @@ const DIA_MS = 24 * 3_600_000;
 const FOTOS_VERIFICA_MS = 3_600_000;
 const LOTE_ROTINA = 200;
 const LOTE_FOTOS = 500;
+/**
+ * Espera máxima pelos locks do pedido (portão e unidade). A espera é feita
+ * FORA da transação: GET_LOCK sem espera, tentado de novo com pausas; cada
+ * tentativa devolve a conexão ao pool na hora.
+ */
+const ESPERA_LOCK_MS = 2_000;
+/** Pedidos em andamento por portão nesta instância (cada um segura até duas conexões). */
+const MAX_EM_ANDAMENTO_POR_PORTAO = 3;
+
+const dormir = (ms: number) =>
+  new Promise<void>((r) => {
+    const t = setTimeout(r, ms);
+    (t as any)?.unref?.();
+  });
+
+/**
+ * `comLock` sem espera dentro do MySQL: com o lock ocupado, a transação
+ * termina na hora (conexão de volta ao pool) e a próxima tentativa sai depois
+ * de uma pausa, até `esperaMs`. Nenhuma transação fica aberta só esperando.
+ */
+async function comLockSemSegurarConexao<T>(
+  prisma: PrismaService,
+  nome: string,
+  fn: () => Promise<T>,
+  opcoes: { esperaMs: number; duracaoMaximaMs: number },
+): Promise<ResultadoLock<T>> {
+  const limite = Date.now() + opcoes.esperaMs;
+  for (let pausa = 50; ; pausa = Math.min(pausa * 2, 400)) {
+    const r = await comLock(prisma, nome, fn, { esperaSegundos: 0, duracaoMaximaMs: opcoes.duracaoMaximaMs });
+    const resta = limite - Date.now();
+    if (r.obtido || resta <= 0) return r;
+    await dormir(Math.min(pausa, resta));
+  }
+}
 
 export interface ConfigEntrega {
   habilitado: boolean;
@@ -128,6 +162,8 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
   agora: () => number = () => Date.now();
   private tickInterval?: ReturnType<typeof setInterval>;
   private fotosInterval?: ReturnType<typeof setInterval>;
+  /** Pedidos em andamento por portão (id_device) nesta instância. */
+  private readonly emAndamento = new Map<number, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -331,36 +367,65 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     if (selfie !== 'ok') throw new BadRequestException(MSG_FORMATO);
 
     const agora = new Date(this.agora());
-    // Limite do portão contado no banco dentro do lock do portão (duas
-    // instâncias não passam as duas com 19). Ordem fixa portão → unidade:
-    // sem espera circular.
-    const r = await comLock(
-      this.prisma,
-      `delivery-portao:portao:${portao.id}`,
-      async () => {
-        const recentes = await (this.prisma as any).deliveryPedidosPortao.count({
-          where: { id_device: portao.id, criado_em: { gte: new Date(agora.getTime() - JANELA_LIMITE_PORTAO_MS) } },
-        });
-        if (recentes >= MAX_PEDIDOS_PORTAO_10MIN) throw new HttpException(MSG_LIMITE_PORTAO, 429);
-        // Um pedido pendente por unidade: dois entregadores no mesmo segundo,
-        // em duas instâncias da API, só um passa (o outro espera e vê o pendente).
-        const u = await comLock(
-          this.prisma,
-          `delivery-portao:apto:${idApartamento}`,
-          () => this.gravarPedido(portao, idApartamento, nome, plataforma, foto, agora),
-          { esperaSegundos: 5, duracaoMaximaMs: 60_000 },
-        );
-        if (!u.obtido) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
-        return u.valor;
-      },
-      { esperaSegundos: 10, duracaoMaximaMs: 90_000 },
-    );
-    if (!r.obtido) throw new HttpException(MSG_LIMITE_PORTAO, 429);
-    const { pedido, tokenPedido } = r.valor;
+    // Recusa rápida, sem lock nem transação: portão acima do limite não
+    // chega a disputar o lock (é ele que segura conexão do pool).
+    if ((await this.pedidosRecentesDoPortao(portao.id, agora)) >= MAX_PEDIDOS_PORTAO_10MIN) {
+      throw new HttpException(MSG_LIMITE_PORTAO, 429);
+    }
+    const { pedido, tokenPedido } = await this.comVagaNoPortao(portao.id, async () => {
+      // Limite do portão recontado dentro do lock do portão (duas instâncias
+      // não passam as duas com 19). Ordem fixa portão → unidade: sem espera circular.
+      const r = await comLockSemSegurarConexao(
+        this.prisma,
+        `delivery-portao:portao:${portao.id}`,
+        async () => {
+          if ((await this.pedidosRecentesDoPortao(portao.id, agora)) >= MAX_PEDIDOS_PORTAO_10MIN) {
+            throw new HttpException(MSG_LIMITE_PORTAO, 429);
+          }
+          // Um pedido pendente por unidade: dois entregadores no mesmo segundo,
+          // em duas instâncias da API, só um passa (o outro espera e vê o pendente).
+          const u = await comLockSemSegurarConexao(
+            this.prisma,
+            `delivery-portao:apto:${idApartamento}`,
+            () => this.gravarPedido(portao, idApartamento, nome, plataforma, foto, agora),
+            { esperaMs: ESPERA_LOCK_MS, duracaoMaximaMs: 60_000 },
+          );
+          if (!u.obtido) throw new ConflictException('Já há uma entrega aguardando esta unidade. Tente em alguns minutos.');
+          return u.valor;
+        },
+        { esperaMs: ESPERA_LOCK_MS, duracaoMaximaMs: 90_000 },
+      );
+      if (!r.obtido) throw new HttpException(MSG_LIMITE_PORTAO, 429);
+      return r.valor;
+    });
     // Já ligado dentro do lock; aqui só abre o card (fora do lock: o APNs não segura a unidade).
     await this.delivery.vincularPedidoPortao(pedido.id_atendimento, pedido.id);
     // O token em claro sai uma única vez.
     return { ...estadoDoPedido(pedido, agora), pedido: tokenPedido };
+  }
+
+  private pedidosRecentesDoPortao(idDevice: number, agora: Date): Promise<number> {
+    return (this.prisma as any).deliveryPedidosPortao.count({
+      where: { id_device: idDevice, criado_em: { gte: new Date(agora.getTime() - JANELA_LIMITE_PORTAO_MS) } },
+    });
+  }
+
+  /**
+   * Semáforo em memória: no máximo MAX_EM_ANDAMENTO_POR_PORTAO pedidos do
+   * mesmo portão em andamento nesta instância; o seguinte recebe 429 na hora
+   * (não fica na fila segurando a requisição).
+   */
+  private async comVagaNoPortao<T>(idDevice: number, fn: () => Promise<T>): Promise<T> {
+    const atual = this.emAndamento.get(idDevice) ?? 0;
+    if (atual >= MAX_EM_ANDAMENTO_POR_PORTAO) throw new HttpException(MSG_LIMITE_PORTAO, 429);
+    this.emAndamento.set(idDevice, atual + 1);
+    try {
+      return await fn();
+    } finally {
+      const n = (this.emAndamento.get(idDevice) ?? 1) - 1;
+      if (n > 0) this.emAndamento.set(idDevice, n);
+      else this.emAndamento.delete(idDevice);
+    }
   }
 
   private async gravarPedido(portao: Portao, idApartamento: number, nome: string, plataforma: string | null, foto: string, agora: Date) {

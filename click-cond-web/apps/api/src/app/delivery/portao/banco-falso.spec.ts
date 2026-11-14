@@ -247,19 +247,41 @@ export function criarBancoFalso(inicial: Record<string, Row[]> = {}, relogio: ()
     };
   }
 
-  // GET_LOCK com fila: o segundo espera o primeiro soltar (como o MySQL com espera > 0).
+  // GET_LOCK com fila: o segundo espera o primeiro soltar, até a espera pedida
+  // em segundos (0 = não espera), e devolve 0 se não conseguir — como o MySQL.
   const locks = new Map<string, Promise<void>>();
   const soltar = new Map<string, () => void>();
+  /** GET_LOCK parados esperando agora (cada um segura a transação e a conexão dele). */
+  const estado = { esperandoGetLock: 0 };
+  const pegar = (nome: string) => {
+    let liberar!: () => void;
+    locks.set(nome, new Promise<void>((r) => (liberar = r)));
+    soltar.set(nome, liberar);
+  };
   const prisma: any = {
     isConnected: true,
     $queryRaw: jest.fn(async (partes: TemplateStringsArray, ...valores: any[]) => {
       const sql = partes.join('?');
       const nome = String(valores[0]);
       if (sql.includes('GET_LOCK')) {
-        while (locks.has(nome)) await locks.get(nome);
-        let liberar!: () => void;
-        locks.set(nome, new Promise<void>((r) => (liberar = r)));
-        soltar.set(nome, liberar);
+        const espera = Number(valores[1] ?? 0);
+        if (locks.has(nome)) {
+          if (!(espera > 0)) return [{ ok: 0 }];
+          const limite = Date.now() + espera * 1000;
+          estado.esperandoGetLock++;
+          try {
+            while (locks.has(nome)) {
+              const resta = limite - Date.now();
+              if (resta <= 0) return [{ ok: 0 }];
+              let t: ReturnType<typeof setTimeout> | undefined;
+              await Promise.race([locks.get(nome), new Promise<void>((r) => (t = setTimeout(r, resta)))]);
+              if (t) clearTimeout(t);
+            }
+          } finally {
+            estado.esperandoGetLock--;
+          }
+        }
+        pegar(nome);
         return [{ ok: 1 }];
       }
       if (sql.includes('RELEASE_LOCK')) {
@@ -287,7 +309,19 @@ export function criarBancoFalso(inicial: Record<string, Row[]> = {}, relogio: ()
   ]) {
     prisma[modelo] = delegado(modelo);
   }
-  return { prisma, tabelas, tabela };
+  /** Outra instância segura o lock `nome` (já com o prefixo do MySQL) até chamar o retorno. */
+  const segurarLock = (nome: string) => {
+    pegar(nome);
+    return () => {
+      const l = soltar.get(nome);
+      locks.delete(nome);
+      soltar.delete(nome);
+      l?.();
+    };
+  };
+  /** Locks seguros agora (nomes do MySQL). */
+  const locksPresos = () => [...locks.keys()];
+  return { prisma, tabelas, tabela, estado, segurarLock, locksPresos };
 }
 
 describe('banco falso dos testes do portão', () => {
