@@ -1,7 +1,7 @@
 import { BadRequestException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
-import { type Gravados, StorageService } from '../common/storage/storage.service';
+import { type Gravados, PREFIXOS_FOTO_MORADOR, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
@@ -926,10 +926,6 @@ export class MoradoresService {
     const tagRfid = this.tagRfidParaGravar(dto.tag_rfid);
     await this.assertCredencialDisponivel(dto.id_condominio, tagRfid, dto.qrcode_acesso, null);
 
-    // Cadastro novo não tem foto gravada: URL do bucket nunca é dele.
-    const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa, []);
-    const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento, []);
-
     // Senha inicial SEMPRE aleatória. Com sendCredentials ela vai no e-mail de boas-vindas;
     // sem, ninguém a conhece e a conta é ativada por "Enviar credenciais" ou "Esqueci a senha".
     // Antes, sem o envio, virava os dígitos do CPF — que não é segredo.
@@ -949,9 +945,21 @@ export class MoradoresService {
       validarMaioridade(dto.data_nascimento, 'criação de conta de usuário no aplicativo');
     }
 
-    if (fotoPessoaUrl) {
+    // Antes do upload: recusa por idade não deixa foto órfã no bucket.
+    if (dto.foto_pessoa) {
       validarMaioridade(dto.data_nascimento, 'cadastro de biometria facial');
     }
+
+    // Cadastro novo não tem foto gravada: URL do bucket nunca é dele.
+    // `enviadas`: só o que ESTA chamada subiu (data URL) — é o que sai do bucket se o cadastro falhar.
+    const enviadas: string[] = [];
+    const subir = async (valor: string | undefined) => {
+      const url = await this.resolveFoto(valor, []);
+      if (url && valor && this.storage.isDataUrl(valor)) enviadas.push(url);
+      return url;
+    };
+    const fotoPessoaUrl = await subir(dto.foto_pessoa);
+    const fotoDocumentoUrl = await subir(dto.foto_documento);
 
     // Users, vínculo e cadastro numa transação só: antes, falhar o Moradores (texto longo demais,
     // por exemplo) deixava a conta e o vínculo gravados — o card da unidade contava "1 morador", o
@@ -1089,6 +1097,11 @@ export class MoradoresService {
         });
       });
     } catch (err: any) {
+      // Nada foi gravado: a foto que esta chamada subiu não pode ficar no bucket sem dono.
+      // deleteUrl só apaga dentro de moradores/, e arquivo que já existia nunca entra em `enviadas`.
+      for (const url of enviadas) {
+        await this.storage.deleteUrl(url, PREFIXOS_FOTO_MORADOR).catch(() => false);
+      }
       // Recusas da própria API (conta de outro condomínio, login da portaria) saem com a mensagem.
       if (err instanceof HttpException) throw err;
       this.logger.error(

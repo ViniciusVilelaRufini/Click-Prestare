@@ -28,15 +28,21 @@ describe('MoradoresService.create — Users, vínculo e Moradores numa transaç�
       },
       visitantes: { findFirst: jest.fn().mockResolvedValue(null) },
     };
+    const storage: any = {
+      isDataUrl: (v: string) => String(v ?? '').startsWith('data:'),
+      exigirArquivoDoRegistro: jest.fn(async () => undefined),
+      uploadDataUrl: jest.fn(async () => 'https://bucket/moradores/nova.jpg'),
+      deleteUrl: jest.fn(async () => true),
+    };
     const service = new MoradoresService(
       prisma,
       { sendWelcomeMorador: jest.fn().mockResolvedValue({}) } as any,
-      { isDataUrl: () => false, exigirArquivoDoRegistro: jest.fn(async () => undefined) } as any,
+      storage,
       { syncMorador: jest.fn().mockResolvedValue({}) } as any,
       { registrar: jest.fn().mockResolvedValue({}) } as any,
       { enviarMorador: jest.fn().mockResolvedValue({ enviado: false }) } as any,
     );
-    return { service, prisma, tx };
+    return { service, prisma, tx, storage };
   }
 
   it('conta, vínculo e cadastro saem pela mesma transação', async () => {
@@ -54,5 +60,29 @@ describe('MoradoresService.create — Users, vínculo e Moradores numa transaç�
     expect(erro).toBeInstanceOf(BadRequestException);
     expect(erro.message).toContain('Nao foi possivel cadastrar o morador');
     expect(erro.message).toContain('P2000');
+  });
+
+  it('idade recusada antes do upload: a foto nem sobe', async () => {
+    const { service, storage } = harness(jest.fn(async ({ data }: any) => ({ id: 1, ...data })));
+    await expect(
+      service.create({ nome: 'Ana', id_apartamento: 10, id_condominio: 1, foto_pessoa: 'data:image/jpeg;base64,AAA' } as any),
+    ).rejects.toThrow(/data de nascimento/);
+    expect(storage.uploadDataUrl).not.toHaveBeenCalled();
+  });
+
+  it('transação que falha apaga do bucket a foto que esta chamada subiu, só dentro de moradores/', async () => {
+    const { service, storage } = harness(jest.fn(async () => { throw new Error('Data too long'); }));
+    await service
+      .create({ nome: 'Ana', id_apartamento: 10, id_condominio: 1, data_nascimento: '1980-04-19', foto_pessoa: 'data:image/jpeg;base64,AAA' } as any)
+      .catch(() => undefined);
+    expect(storage.deleteUrl).toHaveBeenCalledWith('https://bucket/moradores/nova.jpg', ['moradores/']);
+  });
+
+  it('arquivo que já existia (URL, não upload desta chamada) nunca é apagado', async () => {
+    const { service, storage } = harness(jest.fn(async () => { throw new Error('Data too long'); }));
+    await service
+      .create({ nome: 'Ana', id_apartamento: 10, id_condominio: 1, data_nascimento: '1980-04-19', foto_documento: 'https://bucket/moradores/antigo.jpg' } as any)
+      .catch(() => undefined);
+    expect(storage.deleteUrl).not.toHaveBeenCalled();
   });
 });
