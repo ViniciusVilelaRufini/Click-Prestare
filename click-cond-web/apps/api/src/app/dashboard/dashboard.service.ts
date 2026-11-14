@@ -65,7 +65,16 @@ export interface DashboardSummary {
 }
 
 /** Status de ocorrência fechada — a mesma lista do app (mobile-auth.service). */
-export const STATUS_SOLUCIONADO = ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] as const;
+/**
+ * Pessoa no caminho legado (Visitantes, uma linha por visita): documento;
+ * sem documento, o nome — cópia da chave privada de VisitantesService.
+ */
+function chavePessoaLegado(v: { doc_identificacao?: string | null; nome?: string | null }): string {
+  const doc = (v.doc_identificacao ?? '').trim().toLowerCase();
+  return doc || `nome:${(v.nome ?? '').trim().toLowerCase()}`;
+}
+
+export const STATUS_SOLUCIONADO =['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] as const;
 
 @Injectable()
 export class DashboardService {
@@ -154,8 +163,13 @@ export class DashboardService {
       ocorrenciasSemana,
     ] = await Promise.all([
       // Visitantes ainda no condomínio: entrada registrada mas sem saída registrada, e is_visitante = 1 (ou is_prestador = 0)
+      // Conta PESSOAS, não visitas: a mesma pessoa com duas visitas abertas
+      // (unidades diferentes) contava 2, e a tela de Visitantes mostra 1
+      // "Dentro do condomínio" (agrupa por pessoa).
       pessoasMigrationEnabled(this.prisma)
-        ? this.prisma.visitas.count({
+        ? this.prisma.visitas.findMany({
+            select: { id_pessoa: true },
+            distinct: ['id_pessoa'],
             where: {
               id_condominio: idCondominio,
               // A Visita preserva o tipo que existia no momento do acesso.
@@ -167,15 +181,19 @@ export class DashboardService {
               NOT: { data_entrada: null },
               data_saida: null,
             },
-          })
-        : this.prisma.visitantes.count({
-            where: {
-              id_condominio: idCondominio,
-              is_prestador: { not: 1 },
-              NOT: { data_entrada: null },
-              data_saida: null,
-            },
-          }),
+          }).then((l) => l.length)
+        : this.prisma.visitantes
+            .findMany({
+              select: { doc_identificacao: true, nome: true },
+              where: {
+                id_condominio: idCondominio,
+                is_prestador: { not: 1 },
+                NOT: { data_entrada: null },
+                data_saida: null,
+              },
+            })
+            // Mesma chave de pessoa da lista legada (VisitantesService.chavePessoa).
+            .then((l) => new Set(l.map(chavePessoaLegado)).size),
       // Prestadores de serviço cadastrados
       this.prisma.prestadores_servico.count({
         where: {

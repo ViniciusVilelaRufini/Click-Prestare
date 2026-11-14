@@ -80,7 +80,6 @@ describe('DashboardService — summary() (Pessoas/Visitas)', () => {
     const { svc, prisma } = build();
     const r = await svc.summary(1);
     expect(r.visitantesAtivos).toBe(1);
-    expect(prisma.visitantes.count).toHaveBeenCalled();
     expect(prisma.visitantes.findMany).toHaveBeenCalled();
     expect(prisma.visitas.count).not.toHaveBeenCalled();
     expect(prisma.visitas.findMany).not.toHaveBeenCalled();
@@ -95,12 +94,13 @@ describe('DashboardService — summary() (Pessoas/Visitas)', () => {
     const { svc, prisma } = build();
     const r = await svc.summary(1);
     expect(r.visitantesAtivos).toBe(1);
-    expect(prisma.visitas.count).toHaveBeenCalled();
     expect(prisma.visitas.findMany).toHaveBeenCalled();
     expect(prisma.visitantes.count).not.toHaveBeenCalled();
     expect(prisma.visitantes.findMany).not.toHaveBeenCalled();
-    expect(prisma.visitas.count).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ pessoa: { tipo_pessoa: 'visitante' } }),
+    // Conta PESSOAS dentro (B9), com o tipo atual da Pessoa.
+    expect(prisma.visitas.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ pessoa: { tipo_pessoa: 'visitante' }, data_saida: null }),
+      distinct: ['id_pessoa'],
     }));
 
     const entrada = r.ultimosEventos.find((e) => e.detalhes.nome === 'Carlos Visitante');
@@ -209,5 +209,31 @@ describe('DashboardService — summary() (Pessoas/Visitas)', () => {
     const chamada = prisma.acessos_Facial.findMany.mock.calls.find(([a]: any) => a?.where?.id_pessoa?.in);
     expect(chamada).toBeDefined();
     expect(chamada[0].where.id_condominio).toBe(1);
+  });
+
+  describe('B9 — "Visitantes no condomínio" conta pessoas, como a tela de Visitantes', () => {
+    it('flag ON: a mesma pessoa com duas visitas abertas conta 1', async () => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+      const { svc, prisma, visitaMigrada } = build();
+      prisma.visitas.findMany = jest.fn(async (args: any) =>
+        // Como o banco: com distinct id_pessoa, uma linha por pessoa.
+        args?.distinct ? [{ id_pessoa: 800 }] : [visitaMigrada, { ...visitaMigrada, id: 502 }],
+      );
+      const r = await svc.summary(1);
+      expect(r.visitantesAtivos).toBe(1);
+    });
+
+    it('flag OFF: agrupa pelo documento (ou nome) da pessoa, como a lista', async () => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'false';
+      const { svc, prisma, visitanteLegado } = build();
+      prisma.visitantes.findMany = jest.fn(async () => [
+        visitanteLegado,
+        { ...visitanteLegado, id: 2, apartamento: { bloco: 'B', apto: '202' } },
+        { ...visitanteLegado, id: 3, doc_identificacao: null, nome: 'Ana Sem Doc' },
+        { ...visitanteLegado, id: 4, doc_identificacao: '  ', nome: 'ana sem doc ' },
+      ]);
+      const r = await svc.summary(1);
+      expect(r.visitantesAtivos).toBe(2);
+    });
   });
 });
