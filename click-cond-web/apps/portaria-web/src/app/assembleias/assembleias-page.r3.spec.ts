@@ -5,6 +5,7 @@ import { AssembleiasPageComponent } from './assembleias-page.component';
 import { AssembleiasApi } from './assembleias.service';
 import { AuthService } from '../auth/auth.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { ServerClockService } from '../core/server-clock.service';
 
 /**
  * Rodada 3:
@@ -48,6 +49,8 @@ describe('AssembleiasPageComponent — rodada 3', () => {
         { provide: AssembleiasApi, useValue: api },
         { provide: ConfirmService, useValue: { ask: jest.fn(async () => true) } },
         { provide: AuthService, useValue: { porteiroInfo: signal({ nome: 'X', turno: 'Diurno', id_condominio: 1 }), token } },
+        // "Hoje" vem do relógio do SERVIDOR (13/11/2026), não do navegador.
+        { provide: ServerClockService, useValue: { agora: () => new Date('2026-11-13T15:00:00Z') } },
       ],
     });
     const fixture = TestBed.createComponent(AssembleiasPageComponent);
@@ -57,7 +60,9 @@ describe('AssembleiasPageComponent — rodada 3', () => {
   const botoes = (el: HTMLElement, texto: string) =>
     Array.from(el.querySelectorAll('button')).filter((b) => b.textContent?.trim().includes(texto));
 
-  beforeEach(() => jest.useFakeTimers({ now: new Date('2026-11-13T15:00:00Z'), doNotFake: ['queueMicrotask'] }));
+  // Relógio do navegador errado de propósito (o PC da portaria costuma estar):
+  // a tela tem de usar o do servidor.
+  beforeEach(() => jest.useFakeTimers({ now: new Date('2030-01-01T15:00:00Z'), doNotFake: ['queueMicrotask'] }));
   afterEach(() => {
     TestBed.resetTestingModule();
     jest.useRealTimers();

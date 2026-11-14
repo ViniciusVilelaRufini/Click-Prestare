@@ -6,6 +6,7 @@ import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { AuthService } from '../auth/auth.service';
 import { papelDoToken } from '../auth/papel';
+import { ServerClockService } from '../core/server-clock.service';
 
 /** Mensagem do servidor quando houver; senão a do cliente; senão a padrão. */
 function msgErro(e: any, padrao: string): string {
@@ -19,9 +20,8 @@ function diaDe(data: string | undefined): number {
   return m ? Number(m[3]) * 10000 + Number(m[2]) * 100 + Number(m[1]) : 0;
 }
 
-/** Hoje no relógio do navegador, como AAAA-MM-DD (valor do input date). */
-function hojeIso(): string {
-  const d = new Date();
+/** Dia de `d` como AAAA-MM-DD (valor do input date). */
+function diaIso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -35,6 +35,13 @@ export class AssembleiasPageComponent implements OnInit {
   private api = inject(AssembleiasApi);
   private confirm = inject(ConfirmService);
   private auth = inject(AuthService);
+  /** Hora do servidor: o PC da portaria costuma estar com o relógio errado. */
+  private relogio = inject(ServerClockService);
+
+  /** Hoje (relógio do servidor) como AAAA-MM-DD. */
+  private hojeIso(): string {
+    return diaIso(this.relogio.agora());
+  }
 
   /**
    * Agendar, criar pauta/enquete, excluir, encerrar e finalizar são do síndico
@@ -207,12 +214,12 @@ export class AssembleiasPageComponent implements OnInit {
   /** A data da assembleia já passou (hoje ainda conta como próxima). */
   ehPassada(a: Assembleia): boolean {
     const dia = diaDe(a.data);
-    return dia > 0 && dia < Number(hojeIso().replace(/-/g, ''));
+    return dia > 0 && dia < Number(this.hojeIso().replace(/-/g, ''));
   }
 
   abrirModalAssembleia() {
     // Campo de data (AAAA-MM-DD): a API aceita esse formato e o DD/MM/AAAA.
-    this.novaAssembleia = { titulo: '', descricao: '', data: hojeIso(), hora: '19:30', local: 'Salão Principal', link: '' };
+    this.novaAssembleia = { titulo: '', descricao: '', data: this.hojeIso(), hora: '19:30', local: 'Salão Principal', link: '' };
     this.erroAssembleia.set(null);
     this.modalAssembleia.set(true);
   }
