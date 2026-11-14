@@ -5,7 +5,7 @@ import { type Gravados, StorageService, umaVez } from '../common/storage/storage
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { hojeBrasilia } from '../common/hora-brasilia.util';
+import { formatarDataHoraBrasilia, hojeBrasilia } from '../common/hora-brasilia.util';
 import { rotuloBloco } from '../common/rotulo-bloco.util';
 
 /** Título da assembleia sem espaços nas pontas; vazio é erro (não grava sem nome). */
@@ -13,6 +13,37 @@ function tituloObrigatorio(valor: unknown): string {
   const titulo = String(valor ?? '').trim();
   if (!titulo) throw new BadRequestException('Título é obrigatório.');
   return titulo;
+}
+
+/**
+ * Apuração das pautas em texto, gravada junto da ATA ao finalizar (a
+ * assembleia é apagada e leva as votações). `opcoes` vem no formato da API,
+ * "id;nome;votos" — o nome pode ter ';'.
+ */
+function textoApuracao(
+  titulo: string,
+  data: string,
+  pautas: Array<{ titulo: string; descricao?: string; data_inicio: string; data_termino: string; opcoes: string[] }>,
+): string {
+  const linhas = [
+    `Apuração das pautas - ${titulo}${data ? ` (${data})` : ''}`,
+    `Registrada ao finalizar a assembleia, em ${formatarDataHoraBrasilia(new Date())} (horário de Brasília).`,
+    'Conta um voto por unidade: o mais recente de cada unidade.',
+  ];
+  pautas.forEach((p, i) => {
+    linhas.push('', `${i + 1}. ${p.titulo}`);
+    if (p.descricao) linhas.push(`   ${p.descricao}`);
+    if (p.data_inicio || p.data_termino) linhas.push(`   Período: ${p.data_inicio} a ${p.data_termino}`);
+    let total = 0;
+    for (const op of p.opcoes) {
+      const partes = op.split(';');
+      const votos = Number(partes[partes.length - 1]) || 0;
+      total += votos;
+      linhas.push(`   - ${partes.slice(1, -1).join(';')}: ${votos} voto(s)`);
+    }
+    linhas.push(`   Total: ${total} voto(s)`);
+  });
+  return `${linhas.join('\n')}\n`;
 }
 
 /** Unidade do usuário no condomínio, para votar e mostrar o voto dela. */
@@ -231,7 +262,8 @@ export class AssembleiasService {
     }));
   }
 
-  async get(idCondominio: number, idAssembleia: number, userId: number, requester?: JwtPayload) {
+  /** `userId` nulo: operador do console sem Users.id — sem voto próprio. */
+  async get(idCondominio: number, idAssembleia: number, userId: number | null, requester?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) {
       return {
@@ -268,9 +300,9 @@ export class AssembleiasService {
       Number(idAssembleia), false, Number(idCondominio),
     );
     // Campo antigo (app até 1.2.41): opções em que a própria conta votou.
-    const meusVotos = await this.getMyVotosAssembleia(Number(idAssembleia), Number(userId));
+    const meusVotos = userId ? await this.getMyVotosAssembleia(Number(idAssembleia), Number(userId)) : [];
     // Novo: as unidades do usuário e o voto que vale em cada uma.
-    const unidades = await this.unidadesDoUsuario(Number(idCondominio), Number(userId));
+    const unidades = userId ? await this.unidadesDoUsuario(Number(idCondominio), Number(userId)) : [];
 
     return {
       assembleia: assembleiaFormatada,
@@ -297,32 +329,67 @@ export class AssembleiasService {
     if (!alvo) throw new NotFoundException('Assembleia não encontrada');
     await this.tenant.assertEntidade(alvo.id_condominio, requester, `assembleia #${assembleia.id}`);
 
-    // A ATA pode ser um dos anexos da própria assembleia; outra URL do bucket, não.
-    await this.storage.exigirArquivoDoRegistro(assembleia.doc, () =>
-      this.anexosGravados(Number(assembleia.id), Number(idCondominio)),
-    );
-    let linkDoc = '';
-    if (this.storage.isDataUrl(assembleia.doc)) {
-      linkDoc = (await this.storage.uploadDataUrl(assembleia.doc, 'atas')) ?? '';
-    } else {
-      linkDoc = assembleia.doc ?? '';
+    // Sem o arquivo, a ATA era gravada com link vazio e a assembleia apagada
+    // mesmo assim (o console não mandava `doc`).
+    const doc = typeof assembleia.doc === 'string' ? assembleia.doc.trim() : '';
+    if (!doc || (this.storage.isDataUrl(doc) && !/^data:application\/pdf[;,]/i.test(doc))) {
+      throw new BadRequestException('Anexe o PDF da ATA.');
     }
 
-    const nomeAta = `ATA ${assembleia.titulo} - ${assembleia.data}`;
+    // A ATA pode ser um dos anexos da própria assembleia; outra URL do bucket, não.
+    await this.storage.exigirArquivoDoRegistro(doc, () =>
+      this.anexosGravados(Number(assembleia.id), Number(idCondominio)),
+    );
+    let linkDoc = doc;
+    if (this.storage.isDataUrl(doc)) {
+      // Sem storage o upload devolve a própria data URL (não cabe em link_doc).
+      linkDoc = (await this.storage.uploadDataUrl(doc, 'atas')) ?? '';
+      if (!/^https?:\/\//i.test(linkDoc)) {
+        throw new BadRequestException('Não foi possível guardar o PDF da ATA. Tente de novo.');
+      }
+    }
 
-    // Gravar na tabela Documentos
-    await this.prisma.documentos.create({
-      data: {
-        id_condominio: Number(idCondominio),
-        is_ata: 1,
-        nome: nomeAta,
-        link_doc: linkDoc,
-      },
-    });
+    const nomeAta = `ATA ${assembleia.titulo} - ${assembleia.data}`.slice(0, 255);
 
-    // Remover assembleia finalizada
-    await this.prisma.assembleias.delete({
-      where: { id: Number(assembleia.id) },
+    // O delete leva as pautas, as opções e os votos (cascade). A apuração de
+    // cada pauta fica num arquivo de texto publicado junto da ATA (sem coluna
+    // nova: Documentos só tem nome VarChar(255) e link_doc VarChar(500)).
+    const { formatadas: pautas } = await this.consultarVotacoes(Number(assembleia.id), false, Number(idCondominio));
+    let linkApuracao: string | null = null;
+    if (pautas.length > 0) {
+      const texto = textoApuracao(String(assembleia.titulo ?? ''), String(assembleia.data ?? ''), pautas);
+      const dataUrl = `data:text/plain;base64,${Buffer.from(`﻿${texto}`, 'utf8').toString('base64')}`;
+      linkApuracao = (await this.storage.uploadDataUrl(dataUrl, 'atas')) ?? '';
+      if (!/^https?:\/\//i.test(linkApuracao)) {
+        throw new BadRequestException(
+          'Não foi possível guardar a apuração das pautas. A assembleia não foi finalizada; tente de novo.',
+        );
+      }
+    }
+
+    // ATA, apuração e a remoção juntas: se algo falha, a assembleia fica.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.documentos.create({
+        data: {
+          id_condominio: Number(idCondominio),
+          is_ata: 1,
+          nome: nomeAta,
+          link_doc: linkDoc,
+        },
+      });
+      if (linkApuracao) {
+        await tx.documentos.create({
+          data: {
+            id_condominio: Number(idCondominio),
+            is_ata: 1,
+            nome: `Apuração das pautas - ${nomeAta}`.slice(0, 255),
+            link_doc: linkApuracao,
+          },
+        });
+      }
+      await tx.assembleias.delete({
+        where: { id: Number(assembleia.id) },
+      });
     });
 
     return {
