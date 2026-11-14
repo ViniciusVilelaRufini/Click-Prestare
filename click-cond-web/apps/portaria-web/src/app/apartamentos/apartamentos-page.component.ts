@@ -11,13 +11,15 @@ import { AuthService } from '../auth/auth.service';
 import { MoradoresApi } from '../moradores/moradores.service';
 import { VagasApi, VagasResumo, VagaBeneficiarios } from './vagas.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { InputMaskDirective } from '../shared/input-mask.directive';
+import { papelDoToken } from '../auth/papel';
 
 declare var require: any;
 
 @Component({
   selector: 'app-apartamentos-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, InputMaskDirective],
   templateUrl: './apartamentos-page.component.html',
 })
 export class ApartamentosPageComponent implements OnInit {
@@ -37,13 +39,7 @@ export class ApartamentosPageComponent implements OnInit {
 
   // Form de adicionar morador no modal
   showAddMoradorForm = false;
-  novoMorador = {
-    nome: '',
-    documento: '',
-    email: '',
-    telefone: '',
-    tipo: 'proprietario'
-  };
+  novoMorador = this.novoMoradorVazio();
   readonly savingMorador = signal(false);
   readonly errorMorador = signal<string | null>(null);
   readonly apartamentos = signal<Apartamento[]>([]);
@@ -81,6 +77,17 @@ export class ApartamentosPageComponent implements OnInit {
     this.apartamentos().filter((a) => (a.qtdMoradores ?? 0) > 0).length,
   );
   readonly aptosVazios = computed(() => this.apartamentos().length - this.aptosOcupados());
+
+  /**
+   * Cadastrar, editar, excluir e importar unidades é do síndico e do funcionário do app (inclusive
+   * no console por QR Code): a API recusa o porteiro de login/senha (assertStaff), que via os botões
+   * e tomava 403. Mesma regra das telas de comunicados e assembleias. A API segue decidindo.
+   */
+  readonly podeGerenciarUnidades = computed(() => {
+    this.auth.porteiroInfo(); // recalcula ao entrar / trocar de condomínio
+    const papel = papelDoToken(this.auth.token);
+    return papel === 'sindico' || papel === 'funcionario';
+  });
 
   novo: CreateApartamento = { apto: '', bloco: '', fracao: '' };
   showForm = false;
@@ -140,7 +147,12 @@ export class ApartamentosPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.remove(a.id).subscribe({ next: () => this.carregar() });
+    this.error.set(null);
+    this.api.remove(a.id).subscribe({
+      next: () => this.carregar(),
+      // 409 (unidade com visitas no histórico) e 403 traziam a explicação e a tela não dizia nada.
+      error: (e) => this.error.set(e?.error?.message ?? e?.message ?? 'Não foi possível remover o apartamento.'),
+    });
   }
 
   abrirMoradoresBloco(blocoNome: string) {
@@ -173,24 +185,40 @@ export class ApartamentosPageComponent implements OnInit {
     const aptoId = this.moradoresApto?.id;
     if (!aptoId) return;
 
+    // O e-mail cria a conta do app, e a conta exige a data de nascimento (Cláusula 8.3).
+    const email = this.novoMorador.email.trim();
+    const digitosNasc = this.novoMorador.data_nascimento.replace(/\D/g, '');
+    if (digitosNasc.length > 0 && digitosNasc.length < 8) {
+      this.errorMorador.set('Data de nascimento incompleta. Use DD/MM/AAAA.');
+      return;
+    }
+    if (email && digitosNasc.length !== 8) {
+      this.errorMorador.set('Com e-mail, informe a data de nascimento: o e-mail cria o acesso ao app. Sem ela, deixe o e-mail em branco.');
+      return;
+    }
+    const dataNascimento = digitosNasc.length === 8
+      ? `${digitosNasc.slice(4, 8)}-${digitosNasc.slice(2, 4)}-${digitosNasc.slice(0, 2)}`
+      : undefined;
+
     this.savingMorador.set(true);
     this.errorMorador.set(null);
 
     const dto = {
       nome: this.novoMorador.nome.trim(),
       documento: this.novoMorador.documento.trim() || undefined,
-      email: this.novoMorador.email.trim() || undefined,
+      email: email || undefined,
       telefone: this.novoMorador.telefone.trim() || undefined,
+      data_nascimento: dataNascimento,
       tipo: this.novoMorador.tipo,
       id_apartamento: aptoId,
-      sendCredentials: !!this.novoMorador.email.trim()
+      sendCredentials: !!email
     };
 
     this.moradoresApi.create(dto).subscribe({
       next: () => {
         this.savingMorador.set(false);
         this.showAddMoradorForm = false;
-        this.novoMorador = { nome: '', documento: '', email: '', telefone: '', tipo: 'proprietario' };
+        this.novoMorador = this.novoMoradorVazio();
         this.carregarMoradores(this.moradoresBlocoNome, aptoId);
         this.carregar();
       },
@@ -224,6 +252,10 @@ export class ApartamentosPageComponent implements OnInit {
         alert(err?.error?.message ?? err?.message ?? 'Erro ao remover morador');
       }
     });
+  }
+
+  private novoMoradorVazio() {
+    return { nome: '', documento: '', email: '', telefone: '', data_nascimento: '', tipo: 'proprietario' };
   }
 
   private carregarMoradores(bloco?: string, aptoId?: number) {
@@ -355,8 +387,8 @@ export class ApartamentosPageComponent implements OnInit {
         this.bulkResult.set(res);
         this.carregar();
       },
-      error: () => {
-        alert('Erro ao importar em lote');
+      error: (e) => {
+        alert(e?.error?.message ?? e?.message ?? 'Erro ao importar em lote');
         this.bulkStatus.set('ready');
       },
     });
