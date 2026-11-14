@@ -303,7 +303,11 @@ struct BotaoCard: View {
   var body: some View {
     HStack(spacing: 8) {
       Image(systemName: simbolo).font(.system(size: 12, weight: .regular))
+      // Uma linha: "LIBERAR ENTRADA" (card do portão) é o rótulo mais longo;
+      // em tela estreita encolhe um pouco em vez de quebrar e estourar os 36 pt.
       Text(titulo.uppercased()).font(Fonte.rotulo(14)).tracking(2.8)
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
     }
     .foregroundColor(solido ? p.sobreMarca : p.ink)
     // 36 pt: a Live Activity tem teto de altura (ver TelaBloqueio).

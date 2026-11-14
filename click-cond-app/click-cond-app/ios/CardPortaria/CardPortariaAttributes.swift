@@ -35,6 +35,11 @@ struct CardPortariaAttributes: ActivityAttributes {
     var foto: String?
     /// Delivery recusado: motivo informado pela portaria.
     var motivo: String?
+    /// Delivery pedido pelo entregador no QR do portão, ainda sem resposta
+    /// (só na fase "aguardando"): os botões viram VOU BUSCAR / LIBERAR
+    /// ENTRADA. Opcional: o servidor só manda a chave nesse caso, e um estado
+    /// sem ela continua decodificando (nil = card de sempre).
+    var portao: Bool?
   }
 
   /// Cards_Ao_Vivo.id no servidor (confirmação e botões).
@@ -58,11 +63,15 @@ extension CardPortariaAttributes.ContentState {
   var dataResposta: Date? { horaResposta.map { Date(timeIntervalSince1970: $0) } }
   var dataEntrada: Date? { horaEntrada.map { Date(timeIntervalSince1970: $0) } }
 
+  /// Pedido do entregador no portão aguardando resposta.
+  var noPortao: Bool { fase == "aguardando" && portao == true }
+
   /// Mesmo estado, como resposta deste aparelho (atualização local imediata
   /// depois do botão; o push do servidor confirma em seguida).
   func respondido(fase novaFase: String) -> Self {
     var s = self
     s.fase = novaFase
+    s.portao = nil
     s.voceRespondeu = true
     s.pelaPortaria = false
     s.respondidoPor = nil

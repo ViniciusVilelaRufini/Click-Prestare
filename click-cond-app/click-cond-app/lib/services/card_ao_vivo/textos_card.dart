@@ -17,11 +17,25 @@ class TextosCard {
   /// Só aguardando tem NEGAR/AUTORIZAR.
   final bool comBotoes;
 
+  /// Delivery pedido pelo entregador no QR do portão, ainda sem resposta
+  /// (chave `portao` do conteúdo, só na fase aguardando): o botão da esquerda
+  /// vira VOU BUSCAR e o da direita, LIBERAR ENTRADA.
+  final bool portao;
+
+  /// Rótulo do botão da esquerda (segundo plano): NEGAR, RECUSAR ou VOU BUSCAR.
+  final String rotuloEsquerdo;
+
+  /// Rótulo do botão da direita (abre o app): AUTORIZAR ou LIBERAR ENTRADA.
+  final String rotuloDireito;
+
   const TextosCard({
     required this.titulo,
     required this.corpo,
     required this.emAndamento,
     required this.comBotoes,
+    this.portao = false,
+    this.rotuloEsquerdo = 'NEGAR',
+    this.rotuloDireito = 'AUTORIZAR',
   });
 }
 
@@ -44,11 +58,23 @@ TextosCard _textosDelivery(Map<String, dynamic> c) {
     case 'chegou':
       return TextosCard(titulo: '$nome · na portaria', corpo: linha, emAndamento: true, comBotoes: false);
     case 'aguardando':
+      if (c['portao'] == true) {
+        return TextosCard(
+          titulo: '$nome · no portão',
+          corpo: 'O entregador pede para entrar · $linha',
+          emAndamento: true,
+          comBotoes: true,
+          portao: true,
+          rotuloEsquerdo: 'VOU BUSCAR',
+          rotuloDireito: 'LIBERAR ENTRADA',
+        );
+      }
       return TextosCard(
         titulo: '$nome · na portaria',
         corpo: 'A portaria aguarda sua autorização · $linha',
         emAndamento: true,
         comBotoes: true,
+        rotuloEsquerdo: 'RECUSAR',
       );
     case 'autorizado':
       return TextosCard(

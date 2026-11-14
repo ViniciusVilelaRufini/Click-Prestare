@@ -28,6 +28,10 @@ class CardAndroid {
   static const acaoNegar = 'negar';
   static const acaoAutorizar = 'autorizar';
 
+  /// Delivery pedido no QR do portão: "vou buscar" (segundo plano, sem
+  /// desbloqueio; o portão não abre).
+  static const acaoVouBuscar = 'vou_buscar';
+
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   static Future<void>? _iniciando;
 
@@ -97,7 +101,7 @@ class CardAndroid {
   static void _respostaEmPrimeiroPlano(NotificationResponse r) {
     final dados = _lerPayload(r.payload);
     if (dados == null) return;
-    if (r.actionId == acaoNegar) {
+    if (acaoDeSegundoPlano(r.actionId)) {
       respostaCardSegundoPlano(r);
     } else if (r.actionId == acaoAutorizar) {
       aoAutorizarPelaNotificacao?.call(dados.idPedido, dados.origem);
@@ -188,10 +192,14 @@ class CardAndroid {
       usesChronometer: regressiva || progressiva,
       chronometerCountDown: regressiva,
       color: _corDaFase(fase),
+      // Entregador no portão: VOU BUSCAR no lugar de RECUSAR (recusar fica na
+      // tela do app) e LIBERAR ENTRADA no de AUTORIZAR, que segue abrindo o app.
       actions: t.comBotoes
           ? [
-              AndroidNotificationAction(acaoNegar, delivery ? 'RECUSAR' : 'NEGAR', cancelNotification: false),
-              const AndroidNotificationAction(acaoAutorizar, 'AUTORIZAR', showsUserInterface: true, cancelNotification: false),
+              AndroidNotificationAction(t.portao ? acaoVouBuscar : acaoNegar, t.rotuloEsquerdo,
+                  cancelNotification: false),
+              AndroidNotificationAction(acaoAutorizar, t.rotuloDireito,
+                  showsUserInterface: true, cancelNotification: false),
             ]
           : null,
     );
@@ -292,39 +300,54 @@ class _PayloadCard {
 /// timeout ou sessão vencida: o card fica, para o morador tentar de novo.
 bool respostaRecusadaFechaCard(int? statusHttp) => statusHttp == 400 || statusHttp == 409;
 
-/// NEGAR tocado na notificação, com o app fechado (isolate de segundo plano)
-/// ou aberto. Não pede desbloqueio: negar é seguro.
+/// Botões que respondem sem abrir o app: NEGAR/RECUSAR e, no delivery do
+/// portão, VOU BUSCAR. AUTORIZAR / LIBERAR ENTRADA abrem o app (desbloqueio).
+bool acaoDeSegundoPlano(String? actionId) =>
+    actionId == CardAndroid.acaoNegar || actionId == CardAndroid.acaoVouBuscar;
+
+/// Chamada à API de um botão de segundo plano do card do delivery:
+/// RECUSAR (mesmo motivo da tela do app) ou VOU BUSCAR.
+Future<DeliveryResult> respostaDeliveryDoCard(String acao, int idPedido) =>
+    acao == CardAndroid.acaoVouBuscar
+        ? apiVouBuscarDeliveryPorId(idPedido)
+        : apiResponderDeliveryPorId(idPedido, autorizar: false);
+
+/// Fase mostrada na hora, depois que a API aceitou o botão (o push do
+/// servidor confirma em seguida).
+String faseDepoisDoBotao(String acao) => acao == CardAndroid.acaoVouBuscar ? 'retirar' : 'recusado';
+
+/// NEGAR (ou VOU BUSCAR) tocado na notificação, com o app fechado (isolate
+/// de segundo plano) ou aberto. Não pede desbloqueio: nenhum dos dois abre
+/// nada.
 @pragma('vm:entry-point')
 Future<void> respostaCardSegundoPlano(NotificationResponse r) async {
-  if (r.actionId != CardAndroid.acaoNegar) return;
+  final acao = r.actionId;
+  if (acao == null || !acaoDeSegundoPlano(acao)) return;
   DartPluginRegistrant.ensureInitialized();
   final p = CardAndroid._lerPayload(r.payload);
   if (p == null) return;
   try {
     await ensureStorageReady();
     if (p.origem == 'delivery') {
-      // RECUSAR do delivery (mesmo motivo da tela do app).
-      final r = await apiResponderDeliveryPorId(p.idPedido, autorizar: false);
+      final r = await respostaDeliveryDoCard(acao, p.idPedido);
       if (r.success) {
-        await CardAndroid.mostrar(
-          idCartao: p.idCartao,
-          idPedido: p.idPedido,
-          origem: p.origem,
-          conteudo: {
-            ...p.conteudo,
-            'fase': 'recusado',
-            'voceRespondeu': true,
-            'pelaPortaria': false,
-            'horaResposta': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-          },
-        );
+        final conteudo = {
+          ...p.conteudo,
+          'fase': faseDepoisDoBotao(acao),
+          'voceRespondeu': true,
+          'pelaPortaria': false,
+          'horaResposta': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        }..remove('portao');
+        await CardAndroid.mostrar(idCartao: p.idCartao, idPedido: p.idPedido, origem: p.origem, conteudo: conteudo);
       } else {
-        logDebug('Card ao vivo: recusar não aceito (${r.statusCode}): ${r.message}');
+        logDebug('Card ao vivo: resposta "$acao" não aceita (${r.statusCode}): ${r.message}');
         // A portaria já mudou o atendimento: o card não fica parado na tela.
         if (respostaRecusadaFechaCard(r.statusCode)) await CardAndroid._plugin.cancel(id: p.idCartao);
       }
       return;
     }
+    // "Vou buscar" só existe no delivery: nunca vira NEGAR de visitante.
+    if (acao != CardAndroid.acaoNegar) return;
     final res = await apiResponderAutorizacao(p.idPedido, false);
     if (res is Map) {
       // Mostra o resultado na hora; o push do servidor confirma em seguida.
