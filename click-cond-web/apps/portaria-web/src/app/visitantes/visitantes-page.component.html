@@ -715,6 +715,13 @@
           </label>
         </div>
       </div>
+      <!-- Erro do formulário: o da página fica atrás do scrim. -->
+      @if (erroForm()) {
+        <div class="mx-4 md:mx-5 mb-2 p-3 border border-slate-300 text-xs text-rose-400 flex items-center gap-2" role="alert">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+          {{ erroForm() }}
+        </div>
+      }
       <!-- Barra de Ações (Salvar / Cancelar) -->
       <div class="ps-drawer-foot">
         <button
@@ -1831,6 +1838,12 @@
           </div>
         }
 
+        @if (erroModal()) {
+          <div class="mx-6 mb-4 p-3 border border-slate-300 text-xs text-rose-400 flex items-center gap-2" role="alert">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            {{ erroModal() }}
+          </div>
+        }
         <!-- Footer / Ações -->
         <div class="px-6 py-4 border-t border-slate-300 flex items-center justify-end gap-3">
           <button type="button"
@@ -1888,6 +1901,12 @@
         </div>
 
         <div class="p-6 space-y-4">
+          @if (erroModal()) {
+            <div class=" p-3 border border-slate-300 text-xs text-rose-400 flex items-center gap-2" role="alert">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              {{ erroModal() }}
+            </div>
+          }
           <!-- Card de identificação da pessoa -->
           <div class="flex items-center gap-3.5 p-3.5 border border-slate-300">
             <div class="w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent text-sm font-bold shrink-0 overflow-hidden shadow-2xs">
@@ -1999,10 +2018,33 @@
                 <div class="w-5 h-5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
               </div>
               <div>
-                <div class="text-sm font-bold text-slate-900 dark:text-white">Aguardando confirmação do morador</div>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs leading-relaxed">
-                  O morador foi notificado no aplicativo. A resposta atualizará aqui automaticamente em tempo real.
-                </p>
+                @if (pedidoSemAviso() === chavePessoa(ap)) {
+                  <!-- A API não achou ninguém da unidade com app (ou com o aviso ligado). -->
+                  <div class="text-sm font-bold text-slate-900 dark:text-white">Ninguém da unidade foi avisado</div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs leading-relaxed">
+                    Nenhum morador desta unidade recebeu o pedido no aplicativo. Interfone e registre a entrada abaixo.
+                  </p>
+                } @else {
+                  <div class="text-sm font-bold text-slate-900 dark:text-white">Aguardando confirmação do morador</div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs leading-relaxed">
+                    O morador foi notificado no aplicativo. A resposta atualizará aqui automaticamente em tempo real.
+                  </p>
+                }
+              </div>
+            </div>
+
+            <!-- Morador autorizou por interfone (ou a portaria decidiu): não precisa esperar os 3 min. -->
+            <div class="space-y-2 pt-1">
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                O morador autorizou por interfone?
+              </p>
+              <div class="flex items-center gap-2 flex-wrap">
+                <button type="button" (click)="registrarEntradaEFechar(ap)" class="ps-btn ps-btn-sec ps-btn-sm">
+                  Registrar Entrada Manual
+                </button>
+                <button type="button" (click)="liberarAcessoEFechar(ap)" class="ps-btn ps-btn-ghost ps-btn-sm">
+                  Liberar Catraca / Portão
+                </button>
               </div>
             </div>
           }

@@ -72,6 +72,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  // Erros de quem está com a gaveta (cadastro) ou um modal aberto: o `error`
+  // da página fica atrás do scrim e o porteiro não via nada.
+  readonly erroForm = signal<string | null>(null);
+  readonly erroModal = signal<string | null>(null);
+  // Pessoa (chavePessoa) cujo último pedido não chegou a ninguém da unidade
+  // (sem app, sem token ou aviso desligado): a janela manda interfonar.
+  readonly pedidoSemAviso = signal<number | null>(null);
   readonly search = signal('');
   readonly viewFilter = signal<'todos' | 'ativos' | 'liberados' | 'historico'>('todos');
   readonly pinsRevelados = signal<Set<number>>(new Set());
@@ -662,6 +669,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   fecharAuthModal() {
     this.authModalPessoaId.set(null);
+    this.erroModal.set(null);
   }
 
   /**
@@ -681,16 +689,21 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    */
   liberarAcessoEFechar(p: Pessoa) {
     const aptos = p.apartamentosVisitados ?? [];
-    const apto = aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ?? aptos[0];
+    // Pedido em andamento (o morador autorizou por interfone): libera a
+    // unidade DO PEDIDO, não outra já liberada da mesma pessoa.
+    const doPedido = p.auth_status === 'pendente' ? aptos.find((a) => a.auth_status === 'pendente') : undefined;
+    const apto = doPedido ?? aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ?? aptos[0];
     const targetId = apto?.visitanteId ?? p.id;
     const targetAptoId = apto?.id ?? p.id_apartamento;
     if (targetId == null) return; // sem visita: nada a liberar
+    this.erroModal.set(null);
     this.acao(this.service.liberar(targetId, targetAptoId)).subscribe({
       next: () => {
         this.fecharAuthModal();
         this.carregar();
       },
-      error: (e) => this.error.set(`Falha ao liberar acesso: ${e?.error?.message ?? e?.message ?? e}`),
+      // A janela do pedido está aberta: o erro aparece nela.
+      error: (e) => this.erroModal.set(`Falha ao liberar acesso: ${e?.error?.message ?? e?.message ?? e}`),
     });
   }
 
@@ -772,7 +785,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     pessoa.auth_status = 'pendente';
     pessoa.auth_solicitado_em = new Date().toISOString();
     this.fecharSolicitar();
-    this.authModalPessoaId.set(this.chavePessoa(pessoa)); // abre a janela "ao vivo" do pedido
+    const chave = this.chavePessoa(pessoa);
+    this.erroModal.set(null);
+    if (this.pedidoSemAviso() === chave) this.pedidoSemAviso.set(null);
+    this.authModalPessoaId.set(chave); // abre a janela "ao vivo" do pedido
     this.startAuthPolling();
 
     // A visita DA UNIDADE escolhida; sem visita lá, a principal + a unidade
@@ -781,12 +797,16 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const alvo = daUnidade?.visitanteId ?? pessoa.id;
     if (alvo == null) return; // sem visita (abrirSolicitar já bloqueia)
     this.acao(this.service.solicitarAutorizacao(alvo, idApto)).subscribe({
-      next: () => {
+      next: (res) => {
+        if (res?.avisados === 0) this.pedidoSemAviso.set(chave);
         this.carregar(true);
       },
       error: (e) => {
         pessoa.auth_status = null;
-        this.error.set(`Falha ao solicitar autorização: ${e?.error?.message ?? e?.message ?? e}`);
+        // A janela do pedido já está aberta: o erro aparece nela.
+        this.erroModal.set(`Falha ao solicitar autorização: ${e?.error?.message ?? e?.message ?? e}`);
+        // 409: outro porteiro/morador mudou o pedido — mostra o estado atual.
+        if (e?.status === 409) this.carregar(true);
       },
     });
   }
@@ -802,6 +822,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.fotoDocumentoBase64.set(null);
     this.pessoaEncontrada.set(null);
     this.error.set(null);
+    this.erroForm.set(null);
     this.showForm = true;
   }
 
@@ -832,6 +853,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.fotoDocumentoBase64.set(p.foto_documento ?? null);
     this.pessoaEncontrada.set(null);
     this.error.set(null);
+    this.erroForm.set(null);
     this.showForm = true;
   }
 
@@ -914,6 +936,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.fotoPessoaBase64.set(v.foto_pessoa ?? null);
     this.fotoDocumentoBase64.set(v.foto_documento ?? null);
     this.error.set(null);
+    this.erroForm.set(null);
     this.showForm = true;
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -944,6 +967,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.pessoaEncontrada.set(null);
     this.consentimentoBiometria.set(false);
     this.error.set(null);
+    this.erroForm.set(null);
   }
 
   /**
@@ -953,17 +977,18 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    */
   salvar(modo: 'liberar' | 'pedir' = 'liberar') {
     this.novo.categorias = Array.from(this.categoriasSelecionadas()).join(';');
+    this.erroForm.set(null);
 
     const erroDoc = erroDocumento(this.novo.doc_identificacao);
     if (erroDoc) {
-      this.error.set(erroDoc);
+      this.erroForm.set(erroDoc);
       return;
     }
     // "Liberado até" antes de "a partir de" deixava a visita liberada com uma
     // janela impossível. Vazio no término = acesso contínuo (continua valendo).
     const { data_hora_inicio: ini, data_hora_termino: fim } = this.novo;
     if (!(this.editingId && this.editandoIdentidade()) && ini && fim && fim <= ini) {
-      this.error.set('"Liberado até" precisa ser depois de "Liberado a partir de".');
+      this.erroForm.set('"Liberado até" precisa ser depois de "Liberado a partir de".');
       return;
     }
 
@@ -971,7 +996,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const novaPara = this.novaVisitaPara();
     if (novaPara) {
       if (!this.novo.id_apartamento) {
-        this.error.set('Selecione o apartamento da visita.');
+        this.erroForm.set('Selecione o apartamento da visita.');
         return;
       }
       this.saving.set(true);
@@ -996,7 +1021,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         },
         error: (e) => {
           this.saving.set(false);
-          this.error.set(`Falha ao criar visita: ${e?.error?.message ?? e?.message ?? e}`);
+          this.erroForm.set(`Falha ao criar visita: ${e?.error?.message ?? e?.message ?? e}`);
         },
       });
       return;
@@ -1005,7 +1030,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     // Modo: Editar identidade da pessoa (reflete em todas as visitas dela)
     if (this.editingId && this.editandoIdentidade()) {
       if (!this.novo.nome?.trim()) {
-        this.error.set('Informe o nome da pessoa.');
+        this.erroForm.set('Informe o nome da pessoa.');
         return;
       }
       this.saving.set(true);
@@ -1052,7 +1077,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         },
         error: (e) => {
           this.saving.set(false);
-          this.error.set(`Falha ao salvar: ${e?.error?.message ?? e?.message ?? e}`);
+          this.erroForm.set(`Falha ao salvar: ${e?.error?.message ?? e?.message ?? e}`);
         },
       });
       return;
@@ -1060,7 +1085,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
     // Modo: Pessoa nova (cria pessoa + primeira visita)
     if (!this.novo.nome?.trim() || !this.novo.id_apartamento) {
-      this.error.set('Informe nome e selecione o apartamento.');
+      this.erroForm.set('Informe nome e selecione o apartamento.');
       return;
     }
     this.saving.set(true);
@@ -1086,6 +1111,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
                 (x) => x.id === created.id || (x.apartamentosVisitados ?? []).some((a) => a.visitanteId === created.id),
               );
               if (p) {
+                this.erroModal.set(null);
+                this.pedidoSemAviso.set((created as any).avisados === 0 ? this.chavePessoa(p) : null);
                 this.authModalPessoaId.set(this.chavePessoa(p));
                 this.startAuthPolling();
               }
@@ -1094,7 +1121,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       },
       error: (e) => {
         this.saving.set(false);
-        this.error.set(`Falha ao salvar: ${e?.error?.message ?? e?.message ?? e}`);
+        this.erroForm.set(`Falha ao salvar: ${e?.error?.message ?? e?.message ?? e}`);
       },
     });
   }
@@ -1118,7 +1145,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         }
       }, 100);
     } catch (err: any) {
-      this.error.set('Não foi possível acessar a câmera: ' + (err.message || err));
+      this.erroForm.set('Não foi possível acessar a câmera: ' + (err.message || err));
       this.activeCamera.set(null);
     }
   }
@@ -1230,6 +1257,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       aptos[0] ??
       null;
 
+    this.erroModal.set(null);
     this.entradaModalPessoa.set(p);
     this.entradaModalAptoSelecionado.set(aptoPadrao);
     this.entradaJanelaInicio.set(this.localDateTime(0));
@@ -1254,6 +1282,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     if (apto.auth_status === 'autorizado') return { texto: 'Liberado pelo morador', tom: 'ok' };
     if (apto.liberado) return { texto: 'Liberado', tom: 'ok' };
     if (apto.auth_status === 'pendente') return { texto: 'Aguardando o morador', tom: 'aviso' };
+    if (apto.auth_status === 'negado') return { texto: 'Negado pelo morador', tom: 'aviso' };
     if (apto.autorizacao_expirada) return { texto: 'Autorização expirada', tom: 'aviso' };
     if (apto.noLocal) return { texto: 'Dentro do condomínio', tom: 'info' };
     return { texto: 'Sem autorização ativa', tom: 'neutro' };
@@ -1263,6 +1292,20 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.entradaModalPessoa.set(null);
     this.entradaModalAptoSelecionado.set(null);
     this.entradaSalvando.set(false);
+    this.erroModal.set(null);
+  }
+
+  /** Troca a cópia do modal de entrada pela pessoa da lista nova (mesma unidade selecionada). */
+  private atualizarEntradaModal(lista: Pessoa[]) {
+    const atual = this.entradaModalPessoa();
+    if (!atual) return;
+    const nova = lista.find((x) => this.chavePessoa(x) === this.chavePessoa(atual));
+    if (!nova) return;
+    const idApto = this.entradaModalAptoSelecionado()?.id;
+    this.entradaModalPessoa.set(nova);
+    this.entradaModalAptoSelecionado.set(
+      (nova.apartamentosVisitados ?? []).find((a) => a.id === idApto) ?? this.entradaModalAptoSelecionado(),
+    );
   }
 
   confirmarEntradaModal() {
@@ -1281,7 +1324,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       const inicio = this.entradaJanelaInicio();
       const fim = this.entradaJanelaFim();
       if (!inicio || !fim || new Date(fim).getTime() <= new Date(inicio).getTime()) {
-        this.error.set('Informe uma janela válida: o término deve ser depois do início.');
+        this.erroModal.set('Informe uma janela válida: o término deve ser depois do início.');
         return;
       }
       entrada$ = this.service
@@ -1293,9 +1336,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         .pipe(switchMap((nova: any) => this.service.checkIn(nova.id, idApartamento)));
     } else {
       if (idParaCheckIn == null) return; // sem visita (registrarEntradaManual já bloqueia)
-      entrada$ = this.service.checkIn(idParaCheckIn, idApartamento);
+      // O estado que o modal viu: se o morador negou depois, a API recusa (409).
+      entrada$ = this.service.checkIn(idParaCheckIn, idApartamento, apto?.auth_status ?? null);
     }
 
+    this.erroModal.set(null);
     this.entradaSalvando.set(true);
     this.acao(entrada$).subscribe({
       next: () => {
@@ -1305,7 +1350,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       },
       error: (e) => {
         this.entradaSalvando.set(false);
-        this.error.set(`Falha ao registrar entrada: ${e?.error?.message ?? e?.message ?? e}`);
+        this.erroModal.set(`Falha ao registrar entrada: ${e?.error?.message ?? e?.message ?? e}`);
+        // 409: o pedido mudou com o modal aberto — o modal passa a mostrar o estado atual.
+        if (e?.status === 409) this.carregar(true, (lista) => this.atualizarEntradaModal(lista));
       },
     });
   }

@@ -290,8 +290,16 @@ export class VisitantesService {
     });
   }
 
-  checkIn(id: number, idApartamento?: number): Observable<any> {
-    return this.http.post<any>(`${API_BASE}/visitantes/check-in`, { id, id_apartamento: idApartamento });
+  /**
+   * `esperado`: o auth_status da unidade que a tela viu ao abrir o modal. Se o
+   * morador negou depois disso, a API responde 409 em vez de passar por cima.
+   */
+  checkIn(id: number, idApartamento?: number, esperado?: string | null): Observable<any> {
+    return this.http.post<any>(`${API_BASE}/visitantes/check-in`, {
+      id,
+      id_apartamento: idApartamento,
+      ...(esperado !== undefined && { esperado }),
+    });
   }
 
   liberar(id: number, idApartamento?: number): Observable<any> {
@@ -306,7 +314,8 @@ export class VisitantesService {
    * Portaria remota: pede autorização ao morador (deixa o visitante pendente).
    * idApartamento (opcional) redireciona o pedido para outro apto/bloco.
    */
-  solicitarAutorizacao(id: number, idApartamento?: number): Observable<any> {
+  /** Resposta: `{ ok, avisados }` — `avisados: 0` = ninguém da unidade recebeu o pedido. */
+  solicitarAutorizacao(id: number, idApartamento?: number): Observable<{ ok: boolean; avisados?: number }> {
     return this.http.post<any>(
       `${API_BASE}/visitantes/${id}/solicitar-autorizacao`,
       idApartamento ? { id_apartamento: idApartamento } : {},

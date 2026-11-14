@@ -2592,8 +2592,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       this.fireFacialSyncPessoa(visita.id_pessoa);
     }
 
+    let avisados: number | undefined;
     if (pedirAutorizacao) {
-      await this.solicitarAutorizacaoViaPessoasVisitas(visita.id, operador);
+      const pedido = await this.solicitarAutorizacaoViaPessoasVisitas(visita.id, operador);
+      avisados = pedido?.avisados;
     }
 
     // Morador: a Pessoa achada pelo documento pode ser de outro apartamento.
@@ -2604,12 +2606,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       recortar &&
       !!aptosDoChamador &&
       (await pessoaTemVisitaForaDosAptos(this.prisma, visita.id_pessoa, aptosDoChamador));
-    return this.mapVisitaParaRespostaLegada(visita, {
+    const resposta = this.mapVisitaParaRespostaLegada(visita, {
       recortar,
       digitado: alheia
         ? { nome: dto.nome, doc_identificacao: dto.doc_identificacao ?? null, foto_pessoa: fotoPes ?? null }
         : undefined,
     });
+    // "Cadastrar e pedir": quantos moradores receberam o pedido (campo novo).
+    return avisados === undefined ? resposta : { ...resposta, avisados };
   }
 
   /**
@@ -3268,11 +3272,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, atualizados };
   }
 
-  private async checkInViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
+  private async checkInViaPessoasVisitas(
+    id: number,
+    payload?: JwtPayload,
+    idApartamento?: number,
+    esperado?: string | null,
+  ) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
+    this.assertNegativaConhecida(ref, esperado);
     // Só numa visita ainda NÃO encerrada: a saída pelo facial não limpa
     // auth_status, e o check-in numa visita usada abre uma passagem nova, que
     // não depende daquela autorização.
@@ -3330,6 +3340,18 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       await c.entrou('visita', ref.id);
     });
     return { ok: true };
+  }
+
+  /**
+   * A tela manda o `auth_status` que viu ao abrir o modal (`esperado`). Se o
+   * morador negou depois disso, a entrada não passa por cima da negativa sem o
+   * porteiro saber. Sem `esperado` (app, versões antigas), segue como antes.
+   */
+  private assertNegativaConhecida(ref: { auth_status?: string | null }, esperado?: string | null) {
+    if (esperado === undefined) return;
+    if (ref.auth_status === 'negado' && esperado !== 'negado') {
+      throw new ConflictException('O morador acabou de negar esta entrada. Confira antes de registrar.');
+    }
   }
 
   /**
@@ -3484,11 +3506,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
         }
         ref = daUnidade;
+        this.assertSemAutorizacaoValendo(daUnidade);
         idVisita = await this.visitaParaNovaPassagem(daUnidade);
       } else {
         idVisita = await novaVisitaEmOutraUnidade(this.prisma, principal, Number(idApartamento));
       }
     } else {
+      this.assertSemAutorizacaoValendo(principal);
       idVisita = await this.visitaParaNovaPassagem(principal);
     }
     // Visita copiada (herda a janela da antiga) ou janela já vencida: o
@@ -3517,7 +3541,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    await this.notificarMoradoresAutorizacao({
+    // O pedido zera `liberado`: o terminal precisa saber (antes seguia abrindo
+    // para quem estava liberado até aqui).
+    this.fireFacialSyncPessoa(v.id_pessoa);
+
+    const avisados = await this.notificarMoradoresAutorizacao({
       id: v.id,
       nome: v.pessoa.nome,
       id_apartamento: v.id_apartamento,
@@ -3537,7 +3565,21 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       detalhes: ctx ?? undefined,
     });
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizacao_solicitada', { id: v.id });
-    return { ok: true };
+    // `avisados` = moradores que receberam o card, o push ou o WhatsApp. Com 0
+    // a tela não diz "o morador foi notificado": manda interfonar.
+    return { ok: true, avisados };
+  }
+
+  /**
+   * Solicitar a partir de uma lista velha (outro porteiro já pediu e o morador
+   * autorizou) voltava a visita para `pendente`/`liberado 0` e mandava um
+   * segundo pedido. Autorização que ainda vale não é pedida de novo.
+   */
+  private assertSemAutorizacaoValendo(ref: any) {
+    const dentro = !!ref.data_entrada && !ref.data_saida;
+    if (!dentro && isAutorizacaoAtual(ref)) {
+      throw new ConflictException('O morador já autorizou esta visita. Atualize a lista.');
+    }
   }
 
   /**
@@ -4806,14 +4848,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async checkIn(id: number, payload?: JwtPayload, idApartamento?: number) {
+  async checkIn(id: number, payload?: JwtPayload, idApartamento?: number, esperado?: string | null) {
     if (pessoasMigrationEnabled(this.prisma)) {
-      return this.checkInViaPessoasVisitas(id, payload, idApartamento);
+      return this.checkInViaPessoasVisitas(id, payload, idApartamento, esperado);
     }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
+    this.assertNegativaConhecida(ref as any, esperado);
     const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
@@ -4974,7 +5017,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     is_prestador: number;
     foto_pessoa?: string | null;
     auth_solicitado_em?: Date | null;
-  }, origem: 'visitante' | 'visita' = 'visitante') {
+  }, origem: 'visitante' | 'visita' = 'visitante'): Promise<number> {
+    // Moradores alcançados por card, push ou WhatsApp (devolvido à portaria).
+    let avisados = 0;
     try {
       const moradores = await this.prisma.users.findMany({
         where: {
@@ -5028,8 +5073,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         }
       }
       for (const m of moradores) {
+        // Card aberto: chega no aparelho (ou no push comum de reserva do card).
+        let alcancou = viaCard;
         if (!viaCard && m.fcm_token && m.fcm_token.trim().length > 10) {
-          await this.notifications.sendPushNotification(
+          const r = await this.notifications.sendPushNotification(
             m.fcm_token.trim(),
             `${tipo} na portaria`,
             `${v.nome} quer entrar no seu apartamento. Autorizar?`,
@@ -5040,19 +5087,23 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               ...(photoUrl ? { photo: photoUrl } : {}),
             },
           );
+          if (r) alcancou = true;
         }
         if (m.phone) {
-          await this.notifications.sendWhatsApp(
+          const r = await this.notifications.sendWhatsApp(
             m.phone,
             `Olá, ${m.name}! ${v.nome} está na portaria pedindo autorização para entrar. Abra o app para Autorizar ou Negar.`,
           );
+          if (r) alcancou = true;
         }
+        if (alcancou) avisados++;
       }
     } catch (error) {
       this.logger.warn(
         `Falha ao notificar autorização do visitante ${v.id}: ${(error as any)?.message ?? error}`,
       );
     }
+    return avisados;
   }
 
   /**
@@ -5099,7 +5150,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         data_saida: null,
       },
     });
-    await this.notificarMoradoresAutorizacao(v);
+    const avisados = await this.notificarMoradoresAutorizacao(v);
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
     await this.auditoria.registrar({
@@ -5112,7 +5163,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       detalhes: ctx ?? undefined,
     });
     this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizacao_solicitada', { id: v.id });
-    return { ok: true };
+    return { ok: true, avisados };
   }
 
   /** Morador autoriza: libera o acesso (liberado=1), opcionalmente registra entrada imediata, e enrola no facial. */
