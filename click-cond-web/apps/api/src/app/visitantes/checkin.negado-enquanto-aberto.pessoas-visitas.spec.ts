@@ -28,7 +28,10 @@ describe('check-in (Pessoas/Visitas) — negativa que chegou com o modal aberto'
     const rel = (v: any) => ({ ...v, pessoa, apartamento: { bloco: 'A', apto: '106' } });
     const prisma: any = {
       isConnected: true,
-      visitas: { update: jest.fn(async ({ data }: any) => rel(Object.assign(visita, data))) },
+      visitas: {
+        update: jest.fn(async ({ data }: any) => rel(Object.assign(visita, data))),
+        updateMany: jest.fn(async () => ({ count: 0 })),
+      },
     };
     const svc = new VisitantesService(
       prisma, {} as any, {} as any, {} as any, { registrar: jest.fn() } as any, {} as any,
@@ -60,15 +63,61 @@ describe('check-in (Pessoas/Visitas) — negativa que chegou com o modal aberto'
     expect(visita.data_entrada).toBeInstanceOf(Date);
   });
 
-  it('quem não manda `esperado` (app, versões antigas) segue como antes', async () => {
+  // Rodada 1 da revisão, M-1: no console a falta de `esperado` conta como "não
+  // viu a negativa". O app (lib/controllers/controller_visitantes.dart,
+  // apiCheckInVisitante) manda só `{ id }` e o token dele não tem id_condominio:
+  // segue como antes.
+  it('console sem `esperado` sobre negativa: 409', async () => {
+    const { svc, prisma } = montar({});
+    await expect(svc.checkIn(1000004, porteiro)).rejects.toMatchObject({ status: 409 });
+    expect(prisma.visitas.update).not.toHaveBeenCalled();
+  });
+
+  it('app (token sem id_condominio) sem `esperado`: segue como antes', async () => {
     const { svc, visita } = montar({});
-    await svc.checkIn(1000004, porteiro);
+    const funcionarioApp = { sub: 40, nome: 'Funcionário', typeAccess: 'Funcionario', user: { id: 40 } } as any;
+    await svc.checkIn(1000004, funcionarioApp);
     expect(visita.data_entrada).toBeInstanceOf(Date);
+  });
+
+  it('entrada por cima da negativa conhecida limpa a negativa (a portaria decidiu)', async () => {
+    const { svc, visita } = montar({});
+    await svc.checkIn(1000004, porteiro, undefined, 'negado');
+    expect(visita.auth_status).toBeNull();
   });
 
   it('pendente que virou autorizado: a entrada segue', async () => {
     const { svc, visita } = montar({ auth_status: 'autorizado', liberado: 1 });
     await svc.checkIn(1000004, porteiro, undefined, 'pendente');
     expect(visita.data_entrada).toBeInstanceOf(Date);
+  });
+
+  // Revisão, I-1: Liberar Catraca/Portão com o pedido pendente e o morador
+  // negando antes da recarga gravava liberado=1 por cima da negativa.
+  describe('liberar', () => {
+    it('a tela viu "pendente" e o morador negou: 409 e nada é gravado', async () => {
+      const { svc, prisma, visita } = montar({});
+      await expect(svc.liberarAcesso(1000004, porteiro, undefined, 'pendente')).rejects.toMatchObject({ status: 409 });
+      expect(prisma.visitas.update).not.toHaveBeenCalled();
+      expect(visita.liberado).toBe(0);
+    });
+
+    it('console sem `esperado` sobre negativa: 409', async () => {
+      const { svc } = montar({});
+      await expect(svc.liberarAcesso(1000004, porteiro)).rejects.toMatchObject({ status: 409 });
+    });
+
+    it('negativa conhecida (esperado "negado"): libera e limpa a negativa', async () => {
+      const { svc, visita } = montar({});
+      await svc.liberarAcesso(1000004, porteiro, undefined, 'negado');
+      expect(visita.liberado).toBe(1);
+      expect(visita.auth_status).toBeNull();
+    });
+
+    it('sem negativa: libera normalmente sem `esperado`', async () => {
+      const { svc, visita } = montar({ auth_status: null });
+      await svc.liberarAcesso(1000004, porteiro);
+      expect(visita.liberado).toBe(1);
+    });
   });
 });

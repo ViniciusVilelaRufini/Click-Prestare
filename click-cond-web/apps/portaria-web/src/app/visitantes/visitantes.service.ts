@@ -302,8 +302,13 @@ export class VisitantesService {
     });
   }
 
-  liberar(id: number, idApartamento?: number): Observable<any> {
-    return this.http.post<any>(`${API_BASE}/visitantes/liberar`, { id, id_apartamento: idApartamento });
+  /** `esperado`: como no checkIn — negativa que a tela não viu dá 409. */
+  liberar(id: number, idApartamento?: number, esperado?: string | null): Observable<any> {
+    return this.http.post<any>(`${API_BASE}/visitantes/liberar`, {
+      id,
+      id_apartamento: idApartamento,
+      ...(esperado !== undefined && { esperado }),
+    });
   }
 
   checkOut(id: number): Observable<any> {

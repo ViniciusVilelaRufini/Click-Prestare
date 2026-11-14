@@ -697,13 +697,17 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const targetAptoId = apto?.id ?? p.id_apartamento;
     if (targetId == null) return; // sem visita: nada a liberar
     this.erroModal.set(null);
-    this.acao(this.service.liberar(targetId, targetAptoId)).subscribe({
+    // O estado que a tela viu: se o morador negou antes da recarga, a API recusa (409).
+    this.acao(this.service.liberar(targetId, targetAptoId, apto?.auth_status ?? null)).subscribe({
       next: () => {
         this.fecharAuthModal();
         this.carregar();
       },
       // A janela do pedido está aberta: o erro aparece nela.
-      error: (e) => this.erroModal.set(`Falha ao liberar acesso: ${e?.error?.message ?? e?.message ?? e}`),
+      error: (e) => {
+        this.erroModal.set(`Falha ao liberar acesso: ${e?.error?.message ?? e?.message ?? e}`);
+        if (e?.status === 409) this.carregar(true);
+      },
     });
   }
 
@@ -1250,7 +1254,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       : (this.pessoas().find((item) => item.id === v.id) ?? (v as any));
 
     const aptos = p.apartamentosVisitados ?? [];
+    // Pedido em aberto: a entrada é da unidade DO PEDIDO (o morador autorizou
+    // por interfone), não de outra unidade já liberada da mesma pessoa.
+    const doPedido = p.auth_status === 'pendente' ? aptos.find((a) => a.auth_status === 'pendente') : undefined;
     const aptoPadrao =
+      doPedido ??
       aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ??
       aptos.find((a) => a.autorizacao_expirada) ??
       aptos.find((a) => a.id === p.id_apartamento) ??

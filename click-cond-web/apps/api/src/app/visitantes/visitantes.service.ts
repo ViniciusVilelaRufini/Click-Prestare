@@ -3333,7 +3333,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
-    this.assertNegativaConhecida(ref, esperado);
+    this.assertNegativaConhecida(ref, esperado, payload);
     // Só numa visita ainda NÃO encerrada: a saída pelo facial não limpa
     // auth_status, e o check-in numa visita usada abre uma passagem nova, que
     // não depende daquela autorização.
@@ -3360,6 +3360,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           auth_respondido_em: new Date(),
           auth_respondido_por: idUsuarioDoToken(payload),
         }),
+        // A portaria decidiu por cima de uma negativa que ela viu: a negativa
+        // deixa de valer (fica na auditoria), senão travaria as próximas ações.
+        ...(ref.auth_status === 'negado' && { auth_status: null }),
       },
       include: {
         pessoa: true,
@@ -3395,11 +3398,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * A tela manda o `auth_status` que viu ao abrir o modal (`esperado`). Se o
-   * morador negou depois disso, a entrada não passa por cima da negativa sem o
-   * porteiro saber. Sem `esperado` (app, versões antigas), segue como antes.
+   * morador negou depois disso, a entrada/liberação não passa por cima da
+   * negativa sem o porteiro saber. No console (token com id_condominio) a falta
+   * de `esperado` conta como "não viu a negativa". O app manda só `{ id }`
+   * (apiCheckInVisitante) e o token dele não tem id_condominio: segue como antes.
    */
-  private assertNegativaConhecida(ref: { auth_status?: string | null }, esperado?: string | null) {
-    if (esperado === undefined) return;
+  private assertNegativaConhecida(
+    ref: { auth_status?: string | null },
+    esperado: string | null | undefined,
+    payload?: JwtPayload,
+  ) {
+    if (esperado === undefined && !payload?.id_condominio) return;
     if (ref.auth_status === 'negado' && esperado !== 'negado') {
       throw new ConflictException('O morador acabou de negar esta entrada. Confira antes de registrar.');
     }
@@ -3421,11 +3430,18 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return visitaParaNovaPassagem(this.prisma, ref);
   }
 
-  private async liberarAcessoViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
+  private async liberarAcessoViaPessoasVisitas(
+    id: number,
+    payload?: JwtPayload,
+    idApartamento?: number,
+    esperado?: string | null,
+  ) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
+    // Mesmo cuidado do check-in: o morador pode ter negado depois que a tela carregou.
+    this.assertNegativaConhecida(ref, esperado, payload);
     const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
@@ -3444,6 +3460,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           auth_respondido_em: new Date(),
           auth_respondido_por: idUsuarioDoToken(payload),
         }),
+        ...(ref.auth_status === 'negado' && { auth_status: null }),
       },
       include: {
         pessoa: true,
@@ -4918,7 +4935,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
-    this.assertNegativaConhecida(ref as any, esperado);
+    this.assertNegativaConhecida(ref as any, esperado, payload);
     const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
@@ -4965,14 +4982,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true };
   }
 
-  async liberarAcesso(id: number, payload?: JwtPayload, idApartamento?: number) {
+  async liberarAcesso(id: number, payload?: JwtPayload, idApartamento?: number, esperado?: string | null) {
     if (pessoasMigrationEnabled(this.prisma)) {
-      return this.liberarAcessoViaPessoasVisitas(id, payload, idApartamento);
+      return this.liberarAcessoViaPessoasVisitas(id, payload, idApartamento, esperado);
     }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
+    this.assertNegativaConhecida(ref as any, esperado, payload);
     const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);

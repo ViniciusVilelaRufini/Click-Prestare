@@ -110,7 +110,32 @@ describe('VisitantesPageComponent — pedido sem aviso e erros dentro do modal',
         ],
       } as unknown as Pessoa;
       tela.liberarAcessoEFechar(p);
-      expect(service.liberar).toHaveBeenCalledWith(1000004, 106);
+      // Manda o estado visto: o morador pode ter negado antes da recarga (revisão I-1).
+      expect(service.liberar).toHaveBeenCalledWith(1000004, 106, 'pendente');
+    });
+
+    it('409 no liberar (morador negou): erro na janela e a lista recarrega', () => {
+      const tela = build();
+      service.liberar.mockReturnValue(
+        throwError(() => ({ status: 409, error: { message: 'O morador acabou de negar esta entrada.' } })),
+      );
+      const antes = service.listarPessoas.mock.calls.length;
+      tela.liberarAcessoEFechar({ ...pessoa(), auth_status: 'pendente' } as unknown as Pessoa);
+      expect(tela.erroModal()).toContain('acabou de negar');
+      expect(service.listarPessoas.mock.calls.length).toBeGreaterThan(antes);
+    });
+
+    it('Registrar Entrada prefere a unidade do pedido em aberto (revisão M-2)', () => {
+      const tela = build();
+      tela.registrarEntradaManual({
+        ...pessoa(),
+        auth_status: 'pendente',
+        apartamentosVisitados: [
+          { id: 105, label: '105/A', visitanteId: 1000001, liberado: true, auth_status: null },
+          { id: 106, label: '106/A', visitanteId: 1000004, liberado: false, auth_status: 'pendente' },
+        ],
+      } as unknown as Pessoa);
+      expect(tela.entradaModalAptoSelecionado()?.id).toBe(106);
     });
   });
 
