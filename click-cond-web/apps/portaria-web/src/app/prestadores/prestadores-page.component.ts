@@ -11,6 +11,8 @@ import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.servi
 import { compressImage } from '../shared/image-compress.util';
 import { ConsentimentosApi } from '../core/consentimentos.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { AuthService } from '../auth/auth.service';
+import { papelDoToken } from '../auth/papel';
 
 @Component({
   selector: 'app-prestadores-page',
@@ -25,8 +27,19 @@ export class PrestadoresPageComponent implements OnInit {
   private aptApi = inject(ApartamentosApi);
   private route = inject(ActivatedRoute);
   private consentimentosApi = inject(ConsentimentosApi);
+  private auth = inject(AuthService);
 
   readonly consentimentoBiometria = signal(false);
+
+  /**
+   * Criar, mudar e revogar o login de portaria (a chave "Acesso Portaria Web") e remover quem o tem é do
+   * síndico: a API recusa o resto, como o app já fazia. Decide pelo papel do token — o `turno` é texto
+   * livre do cadastro do porteiro. A API segue decidindo.
+   */
+  readonly podeGerenciarAcesso = computed(() => {
+    this.auth.porteiroInfo(); // recalcula ao entrar / trocar de condomínio
+    return papelDoToken(this.auth.token) === 'sindico';
+  });
 
   constructor() {
     effect(() => {
@@ -417,7 +430,7 @@ export class PrestadoresPageComponent implements OnInit {
   salvar() {
     if (!this.novo.nome?.trim()) { this.error.set('Nome é obrigatório.'); return; }
 
-    if (this.novo.hasPortariaAccess) {
+    if (this.podeGerenciarAcesso() && this.novo.hasPortariaAccess) {
       if (!this.novo.email?.trim()) { this.error.set('E-mail é obrigatório para liberar acesso.'); return; }
       if (!this.editingId && !this.novo.senha?.trim()) { this.error.set('Senha é obrigatória para liberar acesso.'); return; }
     }
@@ -432,9 +445,12 @@ export class PrestadoresPageComponent implements OnInit {
     }
 
     this.saving.set(true);
+    // Sem a alçada, a chave e a senha nem vão: a API mantém o login como está.
+    const { hasPortariaAccess: _acesso, senha: _senha, ...semAcesso } = this.novo;
+    const dto = this.podeGerenciarAcesso() ? this.novo : semAcesso;
     const obs = this.editingId
-      ? this.api.update(this.editingId, this.novo)
-      : this.api.create(this.novo);
+      ? this.api.update(this.editingId, dto)
+      : this.api.create(dto);
     obs.subscribe({
       next: (saved: any) => {
         const idPessoa = this.editingId || saved?.id;
@@ -467,7 +483,11 @@ export class PrestadoresPageComponent implements OnInit {
       variant: 'danger',
     });
     if (!ok) return;
-    this.api.remove(p.id).subscribe({ next: () => this.carregar() });
+    this.error.set(null);
+    this.api.remove(p.id).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.error.set(e?.error?.message ?? e?.message ?? 'Erro ao remover.'),
+    });
   }
 
   toggleCategoriaSelecionada(cat: string) {
