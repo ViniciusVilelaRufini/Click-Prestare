@@ -17,6 +17,7 @@ import { idFuncionarioPortariaDoToken, idUsuarioDoToken } from '../auth/usuario-
 import { autorOcorrencia, OrigemOcorrencia, rotuloPortaria } from './autor-ocorrencia.util';
 import { subirAnexosOcorrencia } from './anexos-ocorrencia.util';
 import { INCLUDE_AUTOR_MENSAGEM, mensagemParaResposta } from './mensagem-ocorrencia.util';
+import { STATUS_SOLUCIONADO, ocorrenciaSolucionada } from '../common/status-ocorrencia.util';
 
 export type OcorrenciaStatus = 'Pendente' | 'Ciente' | 'Solucionado';
 
@@ -33,19 +34,23 @@ const STATUS_DA_RESPOSTA_APP: Record<string, OcorrenciaStatus> = {
  * De onde cada status pedido pode partir (updateStatus). 'Pendente' é o
  * Reabrir da tela: só de Solucionado (inclusive as grafias antigas).
  */
-/** Grafias antigas de "solucionado" ainda gravadas (o console já tratava 'Resolvida'). */
-const SOLUCIONADO_LEGADO = ['Solucionado', 'Solucionada', 'Resolvida', 'Resolvido'];
-
+// Grafias de "solucionado": a lista única de common/status-ocorrencia.util
+// (a mesma do dashboard e do PDF).
 const ORIGENS_DO_STATUS: Record<OcorrenciaStatus, string[]> = {
   Ciente: ['Pendente'],
   Solucionado: ['Pendente', 'Ciente'],
-  Pendente: SOLUCIONADO_LEGADO,
+  Pendente: [...STATUS_SOLUCIONADO],
 };
 
 /** Status para comparar: minúsculo, sem espaços, grafias antigas de solucionado juntas. */
 function statusComparavel(s: string | null | undefined): string {
-  const n = (s ?? 'Pendente').trim().toLowerCase();
-  return SOLUCIONADO_LEGADO.some((x) => x.toLowerCase() === n) ? 'solucionado' : n;
+  if (ocorrenciaSolucionada(s)) return 'solucionado';
+  return (s ?? 'Pendente').trim().toLowerCase();
+}
+
+/** Status gravado dentro do vocabulário atual (Pendente, Ciente ou alguma grafia de Solucionado). */
+function statusDoVocabulario(s: string | null | undefined): boolean {
+  return ['pendente', 'ciente', 'solucionado'].includes(statusComparavel(s));
 }
 
 /** Pendente = ninguém da equipe deu ciência ainda (status nulo conta como Pendente). */
@@ -543,7 +548,11 @@ export class OcorrenciasService {
         `A ocorrência mudou enquanto você via a lista (agora está ${atual.status}). A lista foi atualizada; confira antes de agir.`,
       );
     }
-    if (!origens.some((s) => statusComparavel(s) === atualNorm)) {
+    // Status legado fora do vocabulário (ex.: 'Em andamento'): nenhuma origem
+    // casaria e a ocorrência ficaria presa em 409. O console pode levá-la a
+    // qualquer status válido; a escrita fica condicionada ao valor lido.
+    const legado = !statusDoVocabulario(atual.status);
+    if (!legado && !origens.some((s) => statusComparavel(s) === atualNorm)) {
       throw new ConflictException(
         reabrindo
           ? `A ocorrência já está ${atual.status}: só é possível reabrir uma ocorrência solucionada.`
@@ -554,7 +563,7 @@ export class OcorrenciasService {
     // do cadastro). Com o prazo original a ocorrência voltava já "Atrasada".
     const data = reabrindo ? { status, prazo: await this.prazoDaCategoria(atual.tipo ?? null) } : { status };
     const r = await this.prisma.ocorrencias.updateMany({
-      where: { id, status: { in: origens }, ...(carimbo ? { updated_at: carimbo } : {}) },
+      where: { id, status: legado ? atual.status : { in: origens }, ...(carimbo ? { updated_at: carimbo } : {}) },
       data,
     });
     if (r.count === 0) {

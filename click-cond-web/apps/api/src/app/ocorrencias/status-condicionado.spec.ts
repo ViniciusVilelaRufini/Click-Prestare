@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { OcorrenciasController } from './ocorrencias.controller';
 import { OcorrenciasService } from './ocorrencias.service';
+import { STATUS_SOLUCIONADO, ocorrenciaSolucionada } from '../common/status-ocorrencia.util';
 
 /**
  * Mudar o status a partir de uma lista desatualizada fazia a ocorrência
@@ -76,7 +77,7 @@ describe('Ocorrências — status condicionado ao estado de origem', () => {
     const r: any = await svc.updateStatus(5, 'Pendente', sindico);
     expect(r.status).toBe('Pendente');
     const { where, data } = prisma.ocorrencias.updateMany.mock.calls[0][0];
-    expect(where).toEqual({ id: 5, status: { in: ['Solucionado', 'Solucionada', 'Resolvida', 'Resolvido'] } });
+    expect(where).toEqual({ id: 5, status: { in: ['Solucionado', 'solucionado', 'Solucionada', 'solucionada', 'Resolvida', 'resolvida', 'Resolvido', 'resolvido'] } });
     expect(data.status).toBe('Pendente');
     expect(data.prazo).toBeInstanceOf(Date);
     expect(oc.status).toBe('Pendente');
@@ -154,4 +155,35 @@ describe('Ocorrências — status condicionado ao estado de origem', () => {
     const e = await svc.updateStatus(5, 'Ciente', sindico).catch((x) => x);
     expect(e).toBeInstanceOf(ConflictException);
   });
+
+  // Onda final: uma lista só de "solucionado" (common/status-ocorrencia.util),
+  // a mesma do dashboard e do PDF.
+  it.each(['Solucionado', 'solucionado', 'Solucionada', 'Resolvida', 'Resolvido'])(
+    'grafia "%s" conta como solucionada no util comum e pode ser reaberta',
+    async (grafia) => {
+      expect(ocorrenciaSolucionada(grafia)).toBe(true);
+      const { svc, oc, prisma } = montar(grafia);
+      await svc.updateStatus(5, 'Pendente', sindico);
+      expect(oc.status).toBe('Pendente');
+      expect(prisma.ocorrencias.updateMany.mock.calls[0][0].where.status.in).toEqual([...STATUS_SOLUCIONADO]);
+    },
+  );
+
+  it('o util comum cobre as grafias que o dashboard precisa excluir das abertas', () => {
+    for (const g of ['Solucionada', 'Resolvido']) expect(STATUS_SOLUCIONADO).toContain(g);
+    expect(ocorrenciaSolucionada('Pendente')).toBe(false);
+    expect(ocorrenciaSolucionada('Ciente')).toBe(false);
+  });
+
+  // Status legado fora do vocabulário (ex.: 'Em andamento'): antes, toda
+  // mudança dava 409 "já está Em andamento" e a ocorrência ficava presa.
+  it.each(['Ciente', 'Solucionado', 'Pendente'] as const)(
+    'legado "Em andamento" → %s: grava, condicionado ao status legado lido',
+    async (destino) => {
+      const { svc, oc, prisma } = montar('Em andamento');
+      await svc.updateStatus(5, destino, sindico, { status: 'Em andamento' });
+      expect(oc.status).toBe(destino);
+      expect(prisma.ocorrencias.updateMany.mock.calls[0][0].where.status).toBe('Em andamento');
+    },
+  );
 });

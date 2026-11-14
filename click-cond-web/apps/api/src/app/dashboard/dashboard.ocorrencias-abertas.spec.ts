@@ -42,7 +42,7 @@ describe('DashboardService — ocorrências abertas, urgentes e eventos de dispo
     const abertas = prisma.ocorrencias.count.mock.calls.map((c: any[]) => c[0].where).find((w: any) => !w.OR);
     expect(abertas).toEqual({
       id_condominio: 1,
-      status: { notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] },
+      status: { notIn: ['Solucionado', 'solucionado', 'Solucionada', 'solucionada', 'Resolvida', 'resolvida', 'Resolvido', 'resolvido'] },
     });
   });
 
@@ -51,7 +51,7 @@ describe('DashboardService — ocorrências abertas, urgentes e eventos de dispo
     const r = await svc.summary(1);
     expect(r.ocorrenciasUrgentes).toBe(2);
     const urgentes = prisma.ocorrencias.count.mock.calls.map((c: any[]) => c[0].where).find((w: any) => w.OR);
-    expect(urgentes.status).toEqual({ notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] });
+    expect(urgentes.status).toEqual({ notIn: ['Solucionado', 'solucionado', 'Solucionada', 'solucionada', 'Resolvida', 'resolvida', 'Resolvido', 'resolvido'] });
     expect(urgentes.OR).toEqual([
       { prazo: { lt: expect.any(Date) } },
       { categoria: { prioridade: 1 } },
