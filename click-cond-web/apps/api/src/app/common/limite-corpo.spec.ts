@@ -76,6 +76,9 @@ describe('faixaDoCorpo (P-06)', () => {
   it('rotas públicas com foto (signup e convite por link) têm teto próprio, sem JWT', () => {
     expect(faixa('POST', '/api/sindico/signup')).toBe(LIMITE_PUBLICO_FOTO);
     expect(faixa('POST', '/api/convites/publico/abc123')).toBe(LIMITE_PUBLICO_FOTO);
+    expect(faixa('POST', '/api/entrega/publico/abc123')).toBe(LIMITE_PUBLICO_FOTO);
+    // Consulta, abertura e saída do pedido não levam foto.
+    expect(faixa('POST', '/api/entrega/publico/abc123/pedido/abrir')).toBe(LIMITE_PADRAO);
   });
 
   it('agente local e webhook do aparelho têm teto de hardware, sem JWT', () => {

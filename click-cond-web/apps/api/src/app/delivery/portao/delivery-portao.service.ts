@@ -10,13 +10,18 @@ import {
   OnModuleInit,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FacialService } from '../../facial/facial.service';
 import { PREFIXOS_FOTO_PEDIDO_PORTAO, StorageService } from '../../common/storage/storage.service';
 import { comLock } from '../../common/lock-distribuido';
 import { DeliveryService, DeliveryStatus, GanchoPortao } from '../delivery.service';
+import { TenantAccessService } from '../../auth/tenant-access.service';
+import type { JwtPayload } from '../../auth/jwt-payload.interface';
+import { assertOperador, assertSindicoEstrito, assertTenantStrict } from '../../auth/tenant.util';
 import {
   EstadoPedido,
+  horarioValido,
   FOTO_MIME,
   JANELA_ABERTURA_MS,
   MAX_FOTO_BYTES,
@@ -62,6 +67,30 @@ const JANELA_LIMITE_PORTAO_MS = 10 * 60_000;
 /** Token do QR do portão (48 hex no gerado; tolerante a tamanho, mas sem caracteres de caminho). */
 const TOKEN_PORTAO = /^[A-Za-z0-9_-]{16,64}$/;
 const TOKEN_PEDIDO = /^[0-9a-f]{64}$/;
+/** Aparelhos que abrem passagem (o leitor de tag/QR/placa só identifica). */
+const TIPOS_QUE_ABREM = ['botoeira', 'catraca', 'facial'];
+const BASE_URL_PADRAO = 'https://www.prestarecondominios.com.br';
+
+export interface ConfigEntrega {
+  habilitado: boolean;
+  inicio: string | null;
+  fim: string | null;
+}
+
+function paraConfig(c: { delivery_autoatendimento: unknown; delivery_auto_inicio: string | null; delivery_auto_fim: string | null }): ConfigEntrega {
+  return { habilitado: !!c.delivery_autoatendimento, inicio: c.delivery_auto_inicio ?? null, fim: c.delivery_auto_fim ?? null };
+}
+
+function idPositivo(v: unknown, msg: string): number {
+  const id = Number(v);
+  if (!Number.isInteger(id) || id <= 0) throw new BadRequestException(msg);
+  return id;
+}
+
+/** Mesma base dos links públicos do convite e do passe. */
+function baseUrlPublica(): string {
+  return (process.env.CONVITE_BASE_URL ?? '').trim().replace(/\/+$/, '') || BASE_URL_PADRAO;
+}
 
 type Portao = {
   id: number;
@@ -87,6 +116,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     private readonly delivery: DeliveryService,
     private readonly facial: FacialService,
     private readonly storage: StorageService,
+    private readonly tenant: TenantAccessService,
   ) {
     // Mão única: o DeliveryService só conhece o gancho.
     this.delivery.registrarGanchoPortao(this);
@@ -268,6 +298,77 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     }
     const atual = await this.relerPedido(pedido.id);
     return { ...estadoDoPedido(atual, agora), abriu };
+  }
+
+  // ─────────────────────────────────────────── configuração (síndico)
+
+  async lerConfig(idCondominio: number, user: JwtPayload): Promise<ConfigEntrega> {
+    const id = idPositivo(idCondominio, 'Condomínio inválido.');
+    assertOperador(user, 'ler o autoatendimento de entregas');
+    await this.tenant.assertCondominio(id, user);
+    const c = await (this.prisma as any).condominios.findUnique({
+      where: { id },
+      select: { delivery_autoatendimento: true, delivery_auto_inicio: true, delivery_auto_fim: true },
+    });
+    if (!c) throw new NotFoundException('Condomínio não encontrado.');
+    return paraConfig(c);
+  }
+
+  /** Liga/desliga e define o horário. Mexe em acesso físico: síndico pelo typeAccess. */
+  async salvarConfig(
+    idCondominio: number,
+    d: { habilitado: unknown; inicio: unknown; fim: unknown },
+    user: JwtPayload,
+  ): Promise<ConfigEntrega> {
+    const id = idPositivo(idCondominio, 'Condomínio inválido.');
+    assertSindicoEstrito(user, 'alterar o autoatendimento de entregas');
+    if (typeof d?.habilitado !== 'boolean') throw new BadRequestException('habilitado deve ser verdadeiro ou falso.');
+    const semHorario = d.inicio == null && d.fim == null;
+    if (!semHorario && !(horarioValido(d.inicio) && horarioValido(d.fim))) {
+      throw new BadRequestException('Horário inválido. Use HH:MM.');
+    }
+    await this.tenant.assertCondominio(id, user);
+    const c = await (this.prisma as any).condominios.update({
+      where: { id },
+      data: {
+        delivery_autoatendimento: d.habilitado,
+        delivery_auto_inicio: semHorario ? null : d.inicio,
+        delivery_auto_fim: semHorario ? null : d.fim,
+      },
+      select: { delivery_autoatendimento: true, delivery_auto_inicio: true, delivery_auto_fim: true },
+    });
+    return paraConfig(c);
+  }
+
+  /**
+   * Cria ou troca o token do QR de entregas do aparelho (trocar invalida a
+   * folha antiga). Só aparelho que abre: botoeira, catraca ou o próprio
+   * terminal facial.
+   */
+  async gerarTokenPortao(idDevice: number, user: JwtPayload): Promise<{ token: string; url: string }> {
+    const device = await this.aparelhoDoSindico(idDevice, user, 'gerar o QR de entregas');
+    if (!TIPOS_QUE_ABREM.includes(device.tipo)) throw new BadRequestException('Este tipo de aparelho não abre portão.');
+    const token = randomBytes(24).toString('hex');
+    await (this.prisma as any).facial_Devices.update({ where: { id: device.id }, data: { token_entrega: token } });
+    return { token, url: `${baseUrlPublica()}/entrega/${token}` };
+  }
+
+  async removerTokenPortao(idDevice: number, user: JwtPayload): Promise<{ ok: true }> {
+    const device = await this.aparelhoDoSindico(idDevice, user, 'desligar o QR de entregas');
+    await (this.prisma as any).facial_Devices.update({ where: { id: device.id }, data: { token_entrega: null } });
+    return { ok: true };
+  }
+
+  private async aparelhoDoSindico(idDevice: number, user: JwtPayload, contexto: string) {
+    const id = idPositivo(idDevice, 'Aparelho inválido.');
+    assertSindicoEstrito(user, contexto);
+    const device = await (this.prisma as any).facial_Devices.findUnique({
+      where: { id },
+      select: { id: true, id_condominio: true, tipo: true },
+    });
+    if (!device) throw new NotFoundException(`Terminal ${id} não encontrado`);
+    assertTenantStrict(device.id_condominio, user, `aparelho #${id}`);
+    return device as { id: number; id_condominio: number; tipo: string };
   }
 
   // ─────────────────────────────────────────── gancho do DeliveryService
