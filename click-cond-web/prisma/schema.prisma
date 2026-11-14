@@ -287,6 +287,9 @@ model Condominios {
   // do link do visitante. Desligado por padrão; com a opção ligada, o PIN de
   // visita lido como QR no leitor deixa de abrir (segue valendo digitado).
   qr_app_habilitado   Boolean @default(false)
+  // Passe na carteira (Apple Wallet): código diário P2. Desligado por padrão
+  // e só pode ser ligado com qr_app_habilitado ligado.
+  wallet_habilitado   Boolean @default(false)
   credenciaisAcesso   Credenciais_Acesso[]
 
   // Integração Superlógica: id_condominio_cond no ERP. Preenchido na ativação
@@ -1552,8 +1555,14 @@ model Credenciais_Acesso {
   valido_ate    DateTime?              @db.DateTime(0)
   revogada_em   DateTime?              @db.DateTime(0)
   criado_em     DateTime               @default(now()) @db.DateTime(0)
+  // Só nas credenciais de carteira: instante da última mudança do passe
+  // (emissão, troca diária, cancelamento, opção do condomínio). Responde ao
+  // serviço da Apple "quais passes mudaram desde…". Milissegundos: com
+  // DATETIME(0) duas mudanças no mesmo segundo se confundiriam no tag.
+  wallet_atualizado_em DateTime?       @db.DateTime(3)
   condominio    Condominios            @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_cred_cond")
   leituras      Credenciais_Leituras[]
+  walletRegistros Wallet_Registros[]
 
   @@index([id_condominio, tipo_pessoa, id_pessoa, origem], map: "idx_cred_pessoa")
   @@index([id_visita], map: "idx_cred_visita")
@@ -1572,6 +1581,22 @@ model Credenciais_Leituras {
 
   @@unique([id_credencial, id_device, contador], map: "un_credleit")
   @@index([lido_em], map: "idx_credleit_lido")
+}
+
+// Aparelhos registrados no serviço de atualização da Apple para um passe da
+// carteira (credencial wallet_apple). `push_token` é o token do APNs do
+// aparelho para aquele passe; nunca vai para log nem para resposta.
+model Wallet_Registros {
+  id            Int                @id @default(autoincrement())
+  id_credencial Int
+  device_id     String             @db.VarChar(100)
+  push_token    String             @db.VarChar(200)
+  criado_em     DateTime           @default(now()) @db.DateTime(0)
+  atualizado_em DateTime           @default(now()) @db.DateTime(0)
+  credencial    Credenciais_Acesso @relation(fields: [id_credencial], references: [id], onDelete: Cascade, map: "fk_walreg_cred")
+
+  @@unique([device_id, id_credencial], map: "un_walreg")
+  @@index([id_credencial], map: "idx_walreg_cred")
 }
 
 model Regras_Acesso {
