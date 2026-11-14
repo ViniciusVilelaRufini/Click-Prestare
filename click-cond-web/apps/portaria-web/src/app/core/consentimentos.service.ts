@@ -39,7 +39,7 @@ export class ConsentimentosApi {
 
   revogarBiometriaMorador(idMorador: number): Observable<{ ok: boolean; status?: string; message?: string }> {
     return this.http.post<{ ok: boolean; status?: string; message?: string }>(
-      `${API_BASE}/condominios/${this.idCondominio}/moradores/${idMorador}/revogar-biometria`,
+      `${API_BASE}/condominios/${this.idCondominio}/consentimentos/moradores/${idMorador}/revogar-biometria`,
       {},
     );
   }

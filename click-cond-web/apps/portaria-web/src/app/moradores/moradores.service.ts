@@ -85,9 +85,11 @@ export class MoradoresApi {
     return this.http.post<{ ok: boolean }>(`${this.base}/${id}/send-credentials`, {});
   }
 
+  // A rota mora em consentimentos (consentimentos.controller.ts), não em moradores.
   revogarBiometria(id: number): Observable<{ ok: boolean; status?: string; message?: string }> {
+    const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
     return this.http.post<{ ok: boolean; status?: string; message?: string }>(
-      `${this.base}/${id}/revogar-biometria`,
+      `${API_BASE}/condominios/${cid}/consentimentos/moradores/${id}/revogar-biometria`,
       {},
     );
   }
