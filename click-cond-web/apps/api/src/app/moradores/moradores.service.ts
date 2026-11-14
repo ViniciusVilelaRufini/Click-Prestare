@@ -961,8 +961,22 @@ export class MoradoresService {
       if (url && valor && this.storage.isDataUrl(valor)) enviadas.push(url);
       return url;
     };
+    // Mesma limpeza do catch da transação: deleteUrl só apaga dentro de moradores/,
+    // e só o que esta chamada subiu está em `enviadas`.
+    const apagarEnviadas = async () => {
+      for (const url of enviadas) {
+        await this.storage.deleteUrl(url, PREFIXOS_FOTO_MORADOR).catch(() => false);
+      }
+    };
     const fotoPessoaUrl = await subir(dto.foto_pessoa);
-    const fotoDocumentoUrl = await subir(dto.foto_documento);
+    let fotoDocumentoUrl: string | null;
+    try {
+      fotoDocumentoUrl = await subir(dto.foto_documento);
+    } catch (err) {
+      // foto_documento recusada (ou upload falhou) depois que a foto_pessoa já subiu.
+      await apagarEnviadas();
+      throw err;
+    }
 
     // Users, vínculo e cadastro numa transação só: antes, falhar o Moradores (texto longo demais,
     // por exemplo) deixava a conta e o vínculo gravados — o card da unidade contava "1 morador", o
@@ -1101,10 +1115,7 @@ export class MoradoresService {
       });
     } catch (err: any) {
       // Nada foi gravado: a foto que esta chamada subiu não pode ficar no bucket sem dono.
-      // deleteUrl só apaga dentro de moradores/, e arquivo que já existia nunca entra em `enviadas`.
-      for (const url of enviadas) {
-        await this.storage.deleteUrl(url, PREFIXOS_FOTO_MORADOR).catch(() => false);
-      }
+      await apagarEnviadas();
       // Recusas da própria API (conta de outro condomínio, login da portaria) saem com a mensagem.
       if (err instanceof HttpException) throw err;
       this.logger.error(

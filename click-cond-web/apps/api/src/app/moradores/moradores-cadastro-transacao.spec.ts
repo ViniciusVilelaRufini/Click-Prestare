@@ -85,4 +85,19 @@ describe('MoradoresService.create — Users, vínculo e Moradores numa transaç�
       .catch(() => undefined);
     expect(storage.deleteUrl).not.toHaveBeenCalled();
   });
+
+  it('foto_documento recusada depois que a foto_pessoa subiu: a foto_pessoa enviada sai do bucket', async () => {
+    const { service, storage, prisma } = harness(jest.fn(async ({ data }: any) => ({ id: 1, ...data })));
+    const recusa = new BadRequestException('Arquivo não pertence a este cadastro.');
+    storage.exigirArquivoDoRegistro.mockRejectedValueOnce(recusa);
+    const erro = await service
+      .create({
+        nome: 'Ana', id_apartamento: 10, id_condominio: 1, data_nascimento: '1980-04-19',
+        foto_pessoa: 'data:image/jpeg;base64,AAA', foto_documento: 'https://outro/qualquer.jpg',
+      } as any)
+      .catch((e) => e);
+    expect(erro).toBe(recusa);
+    expect(storage.deleteUrl).toHaveBeenCalledWith('https://bucket/moradores/nova.jpg', ['moradores/']);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
 });
