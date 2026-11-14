@@ -88,6 +88,51 @@ class DeliveryEvent {
   }
 }
 
+/// Pedido do entregador pelo QR do portão (autoatendimento): nome e
+/// plataforma informados na página, a selfie (link assinado) e o portão
+/// (aparelho) do QR lido. Só o mais recente vem na lista.
+class DeliveryPedidoPortao {
+  final String nome;
+  final String? plataforma;
+  final String? foto;
+
+  /// pendente | liberado | vou_buscar | recusado | expirado
+  final String status;
+  final String portao;
+  final String? abertoEm;
+  final String? saidaAbertaEm;
+
+  const DeliveryPedidoPortao({
+    required this.nome,
+    this.plataforma,
+    this.foto,
+    required this.status,
+    required this.portao,
+    this.abertoEm,
+    this.saidaAbertaEm,
+  });
+
+  /// Ainda sem resposta: o morador pode liberar, ir buscar ou recusar.
+  bool get pendente => status == 'pendente';
+
+  factory DeliveryPedidoPortao.fromJson(Map<String, dynamic> json) {
+    String? texto(dynamic v) {
+      final t = v?.toString().trim();
+      return t == null || t.isEmpty ? null : t;
+    }
+
+    return DeliveryPedidoPortao(
+      nome: texto(json['nome']) ?? '',
+      plataforma: texto(json['plataforma']),
+      foto: texto(json['foto']),
+      status: texto(json['status']) ?? '',
+      portao: texto(json['portao']) ?? '',
+      abertoEm: texto(json['aberto_em']),
+      saidaAbertaEm: texto(json['saida_aberta_em']),
+    );
+  }
+}
+
 /// Representação segura para a experiência do morador.
 ///
 /// A API inclui o entregador para uso da portaria, mas o app não materializa
@@ -105,6 +150,12 @@ class DeliveryModel {
   final String? createdAt;
   final List<DeliveryEvent> eventos;
 
+  /// portaria | autoatendimento (pedido do entregador no QR do portão).
+  final String? origem;
+
+  /// Pedido de portão mais recente; null quando a API não manda.
+  final DeliveryPedidoPortao? pedidoPortao;
+
   const DeliveryModel({
     this.id,
     this.idCondominio,
@@ -117,11 +168,18 @@ class DeliveryModel {
     this.motivo,
     this.createdAt,
     this.eventos = const [],
+    this.origem,
+    this.pedidoPortao,
   });
 
   factory DeliveryModel.fromJson(Map<String, dynamic> json) {
     final rawEvents = json['eventos'];
+    final rawPedido = json['pedido_portao'];
     return DeliveryModel(
+      origem: json['origem']?.toString(),
+      pedidoPortao: rawPedido is Map
+          ? DeliveryPedidoPortao.fromJson(Map<String, dynamic>.from(rawPedido))
+          : null,
       id: _asInt(json['id']),
       idCondominio: _asInt(json['id_condominio']),
       idApartamento: _asInt(json['id_apartamento']),
@@ -146,6 +204,10 @@ class DeliveryModel {
 
   /// A portaria pediu a autorização do morador (autorizar ou recusar).
   bool get canRespond => status == 'AGUARDANDO_AUTORIZACAO';
+
+  /// O entregador pediu pelo QR do portão e espera a resposta: "Liberar
+  /// entrada", "Vou buscar" ou "Recusar" (a API só aceita "vou buscar" aqui).
+  bool get respondeNoPortao => canRespond && (pedidoPortao?.pendente ?? false);
 
   String get statusLabel => deliveryStatusLabel(status);
 

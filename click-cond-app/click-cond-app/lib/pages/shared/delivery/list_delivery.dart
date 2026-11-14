@@ -3,6 +3,8 @@ import 'package:click/models/delivery_model.dart';
 import 'package:click/pages/shared/delivery/delivery_details_page.dart';
 import 'package:click/pages/shared/delivery/delivery_form_page.dart';
 import 'package:click/pages/shared/delivery/delivery_status_style.dart';
+import 'package:click/pages/shared/delivery/resposta_delivery.dart';
+import 'package:click/pages/shared/delivery/selfie_entregador.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -78,23 +80,20 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
 
   /// Mesma resposta dos detalhes (com confirmação para recusar), direto da
   /// lista.
-  Future<void> _responder(DeliveryModel delivery, bool autorizar) async {
+  Future<void> _responder(DeliveryModel delivery, RespostaDelivery resposta) async {
     HapticFeedback.lightImpact();
-    if (!autorizar) {
-      final confirmed = await showConfirmDialog(
-        context,
-        text: 'Recusar esta entrega? A portaria será avisada.',
-      );
+    if (resposta == RespostaDelivery.recusar) {
+      final confirmed = await showConfirmDialog(context, text: textoConfirmarRecusa(delivery));
       if (confirmed != true || !mounted) return;
     }
     setState(() => _respondendo.add(delivery.id));
-    final result = await apiResponderDelivery(delivery, autorizar: autorizar);
+    final result = await enviarRespostaDelivery(delivery, resposta);
     if (!mounted) return;
     setState(() => _respondendo.remove(delivery.id));
     if (result.success) {
       HapticFeedback.mediumImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(autorizar ? 'Entrega autorizada.' : 'Entrega recusada.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensagemRespostaDelivery(delivery, resposta))));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(result.message ?? 'Não foi possível enviar sua resposta.'),
@@ -196,8 +195,9 @@ class ListDeliveryState extends State<ListDelivery> with WidgetsBindingObserver 
               delivery: d,
               busy: _respondendo.contains(d.id),
               onOpen: () => _openDetails(d),
-              onAuthorize: () => _responder(d, true),
-              onRefuse: () => _responder(d, false),
+              onAuthorize: () => _responder(d, RespostaDelivery.autorizar),
+              onRefuse: () => _responder(d, RespostaDelivery.recusar),
+              onPickUp: () => _responder(d, RespostaDelivery.vouBuscar),
             ),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -318,6 +318,31 @@ class _PressScaleState extends State<_PressScale> {
 
 String _deliveryTitle(DeliveryModel delivery) => deliveryTitle(delivery);
 
+/// "Carlos · iFood · Portão social" (o que o entregador informou no portão).
+String _linhaEntregador(DeliveryPedidoPortao p) => [
+      p.nome.isEmpty ? 'Entregador' : p.nome,
+      if (p.plataforma != null) p.plataforma!,
+      if (p.portao.isNotEmpty) p.portao,
+    ].join(' · ');
+
+/// Ícone do status, ou a selfie do entregador quando o atendimento veio do
+/// QR do portão e tem foto (no lugar da foto de cadastro).
+Widget _iconeOuSelfie(BuildContext context, DeliveryModel delivery, DeliveryStatusStyle style) {
+  final foto = delivery.pedidoPortao?.foto;
+  if (foto != null) {
+    return SelfieEntregador(key: const Key('delivery-selfie-lista'), url: foto, tamanho: 44);
+  }
+  return Container(
+    width: 44,
+    height: 44,
+    decoration: BoxDecoration(
+      color: AppColors.accentGhost(context),
+      borderRadius: AppRadius.rmd,
+    ),
+    child: Icon(style.icon, color: style.foreground(context), size: 22),
+  );
+}
+
 /// Destaque no topo das ativas: a portaria pediu a autorização do morador.
 class _RespondBanner extends StatelessWidget {
   final DeliveryModel delivery;
@@ -326,20 +351,26 @@ class _RespondBanner extends StatelessWidget {
   final VoidCallback onAuthorize;
   final VoidCallback onRefuse;
 
+  /// "Vou buscar": só no pedido do entregador pelo QR do portão.
+  final VoidCallback onPickUp;
+
   const _RespondBanner({
     required this.delivery,
     required this.busy,
     required this.onOpen,
     required this.onAuthorize,
     required this.onRefuse,
+    required this.onPickUp,
   });
 
   @override
   Widget build(BuildContext context) {
     final style = DeliveryStatusStyle.of(delivery.status);
-    final title = _deliveryTitle(delivery);
+    final portao = delivery.respondeNoPortao;
+    final pedido = delivery.pedidoPortao;
+    final title = portao ? _linhaEntregador(pedido!) : _deliveryTitle(delivery);
     final time = deliveryTimeLabel(delivery);
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final chamada = portao ? 'Entregador no portão' : 'A portaria aguarda sua resposta';
     return Container(
       decoration: BoxDecoration(
         // Mesmo tratamento da faixa de rastreio dos detalhes.
@@ -353,7 +384,7 @@ class _RespondBanner extends StatelessWidget {
         children: [
           Semantics(
             button: true,
-            label: 'A portaria aguarda sua resposta: $title. Toque para ver os detalhes.',
+            label: '$chamada: $title. Toque para ver os detalhes.',
             onTap: onOpen,
             excludeSemantics: true,
             child: InkWell(
@@ -362,19 +393,22 @@ class _RespondBanner extends StatelessWidget {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 44),
                 child: Row(children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.accentGhost(context),
-                      shape: BoxShape.circle,
+                  if (pedido != null)
+                    SelfieEntregador(key: const Key('delivery-selfie-lista'), url: pedido.foto, tamanho: 44)
+                  else
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.accentGhost(context),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(style.icon, color: style.foreground(context), size: 22),
                     ),
-                    child: Icon(style.icon, color: style.foreground(context), size: 22),
-                  ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('A portaria aguarda sua resposta',
+                      Text(chamada,
                           style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 2),
                       Text(
@@ -391,7 +425,37 @@ class _RespondBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          Row(children: [
+          if (portao) ...[
+            AppButton(
+              label: 'Liberar entrada',
+              icon: PhosphorIcons.check,
+              size: AppButtonSize.md,
+              loading: busy,
+              onPressed: busy ? null : onAuthorize,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(children: [
+              Expanded(
+                child: AppButton(
+                  label: 'Vou buscar',
+                  icon: PhosphorIcons.personSimpleWalk,
+                  size: AppButtonSize.md,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: busy ? null : onPickUp,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: AppButton(
+                  label: 'Recusar',
+                  icon: PhosphorIcons.x,
+                  size: AppButtonSize.md,
+                  variant: AppButtonVariant.danger,
+                  onPressed: busy ? null : onRefuse,
+                ),
+              ),
+            ]),
+          ] else Row(children: [
             Expanded(
               child: AppButton(
                 label: 'Recusar',
@@ -462,15 +526,7 @@ class _DeliveryCard extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.accentGhost(context),
-                  borderRadius: AppRadius.rmd,
-                ),
-                child: Icon(style.icon, color: style.foreground(context), size: 22),
-              ),
+              _iconeOuSelfie(context, delivery, style),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -558,15 +614,7 @@ class _HistoryCard extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
                   child: Row(children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.accentGhost(context),
-                        borderRadius: AppRadius.rmd,
-                      ),
-                      child: Icon(style.icon, color: style.foreground(context), size: 22),
-                    ),
+                    _iconeOuSelfie(context, delivery, style),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
