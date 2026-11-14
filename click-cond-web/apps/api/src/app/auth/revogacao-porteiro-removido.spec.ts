@@ -28,7 +28,7 @@ describe('JwtStrategy — porteiro removido ou desativado', () => {
     await expect(validar(strategy, porteiro)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.funcionarios_Portaria.findFirst).toHaveBeenCalledWith({
       where: { id: 3, id_condominio: 7, ativo: 1, condominio: { ativo: 1 } },
-      select: { id: true },
+      select: { id: true, login: true, password: true },
     });
   });
 

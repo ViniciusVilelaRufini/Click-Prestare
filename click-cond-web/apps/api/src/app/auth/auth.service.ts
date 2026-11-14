@@ -10,6 +10,7 @@ import { autorDoToken, idUsuarioDoToken } from './usuario-do-token.util';
 import { TenantAccessService } from './tenant-access.service';
 import { MfaService } from './mfa/mfa.service';
 import { momentoTrocaSenha } from './senha-alterada.util';
+import { carimboCredencialPortaria } from './credencial-portaria.util';
 import { AuditoriaService, type AuditoriaAutorTipo } from '../auditoria/auditoria.service';
 
 /**
@@ -213,7 +214,7 @@ export class AuthService {
    * intencional, não um efeito colateral.
    */
   private async montarSessaoPortaria(
-    funcionario: { id: number; nome: string; turno: string | null; id_condominio: number },
+    funcionario: { id: number; nome: string; turno: string | null; id_condominio: number; login: string; password: string },
     login: string,
     deviceToken?: string,
   ) {
@@ -239,6 +240,8 @@ export class AuthService {
           turno: funcionario.turno,
           // sub = Funcionarios_Portaria.id: declarado, para ninguém inferir pela forma do token.
           tipo_sub: 'funcionario_portaria',
+          // Trocar o e-mail ou a senha mantém o id: o carimbo é o que derruba a sessão aberta (JwtStrategy).
+          cred: carimboCredencialPortaria(funcionario),
         };
 
     const resposta = {
@@ -326,6 +329,8 @@ export class AuthService {
             where: { id: funcionario.id },
             data: { password: newHash },
           });
+          // O carimbo da sessão (cred) é do hash que fica gravado.
+          funcionario.password = newHash;
         }
       }
 
@@ -714,7 +719,14 @@ export class AuthService {
       data: { password: newHash },
     });
 
-    return { success: true, message: 'Senha updated com sucesso.' };
+    // A senha nova muda o carimbo da credencial: as sessões abertas com a anterior caem (JwtStrategy). Esta, que
+    // fez a troca, recebe um token novo com o mesmo escopo, como no síndico.
+    const novoPayload: any = { ...sessao, cred: carimboCredencialPortaria({ login: funcionario.login, password: newHash }) };
+    delete novoPayload.iat;
+    delete novoPayload.exp;
+    const access_token = this.jwt.sign(novoPayload, { expiresIn: this.portariaJwtExpiresIn });
+
+    return { success: true, message: 'Senha atualizada com sucesso.', access_token };
   }
 
   async getCondominioNome(id: number, payload: JwtPayload | undefined) {
