@@ -16,11 +16,19 @@ import { REALTIME_ORIGIN } from './api.config';
  * rewrite da Vercel: confirmado em 04/09/2026 que o rewrite devolve o
  * index.html do SPA no handshake e não faz upgrade de WebSocket, o que deixava
  * o cliente num loop de reconexão e enchia o console de erro.
+ *
+ * Token: lido a cada (re)conexão. Quando a sessão troca de token sem sair (troca de senha, troca de condomínio),
+ * o socket reconecta com o novo — o antigo a API derruba (a revogação é conferida também no socket) — mantendo o
+ * mesmo objeto e os listeners que as telas já registraram.
  */
 @Injectable({ providedIn: 'root' })
 export class RealtimeService {
   private auth = inject(AuthService);
   private socket: Socket | null = null;
+
+  constructor() {
+    this.auth.tokenRenovado$.subscribe(() => this.reconectar());
+  }
 
   connect(): Socket | null {
     if (this.socket?.connected) return this.socket;
@@ -29,11 +37,18 @@ export class RealtimeService {
 
     this.socket = io(REALTIME_ORIGIN, {
       path: '/api/socket.io',
-      auth: { token },
+      auth: (cb: (dados: object) => void) => cb({ token: this.auth.token }),
       transports: ['websocket', 'polling'],
       reconnectionDelay: 2000,
     });
     return this.socket;
+  }
+
+  /** Reconecta o socket aberto com o token atual da sessão. Sem socket, nada a fazer. */
+  reconectar() {
+    if (!this.socket || !this.auth.token) return;
+    this.socket.disconnect();
+    this.socket.connect();
   }
 
   disconnect() {

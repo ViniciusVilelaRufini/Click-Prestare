@@ -58,4 +58,22 @@ describe('RealtimeGateway — revogação da sessão', () => {
     await gw.reconferirConexoes();
     expect(s.disconnect).toHaveBeenCalledWith(true);
   });
+
+  it('JwtStrategy não achado: registra erro e tenta de novo na próxima conexão (não guarda o nulo)', async () => {
+    const strategy = { validate: jest.fn(async () => { throw new UnauthorizedException('Sessão encerrada'); }) };
+    const moduleRef: any = {
+      get: jest.fn().mockImplementationOnce(() => { throw new Error('ainda não registrado'); }).mockReturnValue(strategy),
+    };
+    const gw = new RealtimeGateway(jwt, moduleRef);
+    const logger = { warn: jest.fn(), error: jest.fn() };
+    (gw as any).logger = logger;
+
+    await gw.handleConnection(socket());
+    expect(logger.error).toHaveBeenCalled();
+
+    const s = socket();
+    await gw.handleConnection(s);
+    expect(moduleRef.get).toHaveBeenCalledTimes(2);
+    expect(s.disconnect).toHaveBeenCalledWith(true);
+  });
 });

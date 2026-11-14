@@ -4077,7 +4077,8 @@ export class MobileAuthService {
           // morador, unidade ou equipe em outro prédio). As flags is_sindico/is_morador não bastam: o
           // cadastro de morador liga conta existente sem marcar is_morador, e o DELETE leva em cascata o
           // cadastro de morador da pessoa em outro condomínio. Flags ficam como trava extra.
-          if (!user.is_sindico && !user.is_morador && (await this.contaSoDaEquipeDoCondominio(user.id, fp.id_condominio))) {
+          // A contagem roda na própria transação (tx): fora dela, um vínculo criado no meio não seria visto.
+          if (!user.is_sindico && !user.is_morador && (await contaSoDaEquipeDoCondominio(tx as any, user.id, fp.id_condominio))) {
             await tx.users.delete({ where: { id: user.id } });
           }
         }

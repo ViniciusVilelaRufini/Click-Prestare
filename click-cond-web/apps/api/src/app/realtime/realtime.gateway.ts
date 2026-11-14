@@ -45,7 +45,7 @@ const RECONFERIR_MS = 60_000;
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, OnModuleDestroy {
   private readonly logger = new Logger(RealtimeGateway.name);
   private timer?: ReturnType<typeof setInterval>;
-  private strategy?: JwtStrategy | null;
+  private strategy: JwtStrategy | null = null;
 
   @WebSocketServer()
   server!: Server;
@@ -66,14 +66,18 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   /** O JwtStrategy do AuthModule, sem importar o módulo (este é global e os serviços do AuthModule usam o gateway). */
   private estrategia(): JwtStrategy | null {
-    if (this.strategy === undefined) {
-      try {
-        this.strategy = this.moduleRef?.get(JwtStrategy, { strict: false }) ?? null;
-      } catch {
-        this.strategy = null;
-      }
+    if (this.strategy) return this.strategy;
+    // Não achou: registra o erro e tenta de novo na próxima conexão. Antes o nulo ficava guardado para sempre, e o
+    // socket seguia só com jwt.verify até o processo reiniciar.
+    let erro = 'sem ModuleRef';
+    try {
+      this.strategy = this.moduleRef?.get(JwtStrategy, { strict: false }) ?? null;
+    } catch (err: any) {
+      this.strategy = null;
+      erro = err?.message ?? String(err);
     }
-    return this.strategy;
+    if (!this.strategy) this.logger.error(`JwtStrategy indisponível no socket; revogação não conferida (${erro}).`);
+    return this.strategy ?? null;
   }
 
   /** Assinatura, validade e a mesma revogação das rotas REST. Lança se a sessão não vale mais. */
