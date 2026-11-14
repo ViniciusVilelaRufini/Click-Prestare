@@ -93,6 +93,18 @@ describe('MoradoresService.update — só valida e sincroniza o que mudou (M3, M
     expect(facial.syncMorador).toHaveBeenCalledWith(5);
   });
 
+  it('preencher a data de adulto depois, com foto no cadastro, leva o rosto ao facial', async () => {
+    const { service, facial } = harness();
+    await service.update(5, { data_nascimento: '1980-04-19' } as any);
+    expect(facial.syncMorador).toHaveBeenCalledWith(5);
+  });
+
+  it('data trocada sem foto no cadastro não sincroniza', async () => {
+    const { service, facial } = harness({ foto_pessoa: null, email: null });
+    await service.update(5, { data_nascimento: '1980-04-19' } as any);
+    expect(facial.syncMorador).not.toHaveBeenCalled();
+  });
+
   it('e-mail trocado continua exigindo a data de nascimento', async () => {
     const { service } = harness();
     await expect(service.update(5, { email: 'novo@x.com' } as any)).rejects.toThrow(/data de nascimento/);

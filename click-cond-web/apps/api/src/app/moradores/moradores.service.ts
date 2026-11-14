@@ -1430,7 +1430,9 @@ export class MoradoresService {
 
     // Roda quando o campo foto foi tocado — INCLUSIVE remoção (foto null).
     // syncMorador cadastra (foto nova) ou remove o rosto do aparelho (sem foto).
-    if (fotoPessoaUrl !== undefined) {
+    // Também quando a data de nascimento mudou e há foto: sem a data o facial pula o morador, e
+    // preenchê-la depois (já validada acima) é o que leva o rosto aos terminais.
+    if (fotoPessoaUrl !== undefined || (dataMudou && fotoFinal)) {
       this.fireFacialSync(id);
     }
 
