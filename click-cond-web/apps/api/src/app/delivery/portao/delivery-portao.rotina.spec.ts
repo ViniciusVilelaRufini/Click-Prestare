@@ -52,12 +52,17 @@ describe('DeliveryPortaoService — rotina', () => {
     ]);
   });
 
-  it('autoatendimento sem resposta há 2h01 é cancelado com "Sem resposta do morador"; há 1h59 não', async () => {
+  it('autoatendimento sem resposta 2h01 depois do pedido é cancelado com "Sem resposta do morador"; 1h59 não', async () => {
     const { svc, tabela } = montarPortao({
       atendimentos: [
-        atendimento(1, { chegou_em: em(-2 * H - M) }),
-        atendimento(2, { chegou_em: em(-2 * H + M), id_apartamento: 102 }),
-        atendimento(3, { status: 'CHEGOU', chegou_em: em(-2 * H - M), id_apartamento: 110 }),
+        atendimento(1, { id_pedido_portao: 10 }),
+        atendimento(2, { id_pedido_portao: 11, id_apartamento: 102 }),
+        atendimento(3, { status: 'CHEGOU', id_pedido_portao: 12, id_apartamento: 110 }),
+      ],
+      pedidos: [
+        pedido(10, 1, { status: 'expirado', criado_em: em(-2 * H - M), expira_em: em(-2 * H + 4 * M) }),
+        pedido(11, 2, { status: 'expirado', criado_em: em(-2 * H + M), expira_em: em(-2 * H + 6 * M) }),
+        pedido(12, 3, { status: 'expirado', criado_em: em(-2 * H - M), expira_em: em(-2 * H + 4 * M) }),
       ],
     });
     await svc.tick();
@@ -66,6 +71,25 @@ describe('DeliveryPortaoService — rotina', () => {
     expect(a2.status).toBe('AGUARDANDO_AUTORIZACAO');
     expect(a3).toMatchObject({ status: 'CANCELADA', motivo: 'Sem resposta do morador' });
     expect(tabela('deliveryEventos').filter((e) => e.status_novo === 'CANCELADA').map((e) => e.autor_nome)).toEqual(['Sistema', 'Sistema']);
+  });
+
+  it('as 2 h contam do criado_em do pedido de portão, não do chegou_em do atendimento', async () => {
+    const { svc, tabela } = montarPortao({
+      atendimentos: [
+        // Chegou há 3 h, mas o pedido é de 1 h atrás: fica.
+        atendimento(1, { chegou_em: em(-3 * H), id_pedido_portao: 10 }),
+        // Chegou há 10 min (relógio do atendimento), mas o pedido é de 2h01: cancela.
+        atendimento(2, { chegou_em: em(-10 * M), id_pedido_portao: 11, id_apartamento: 102 }),
+        // Sem pedido de portão: a rotina não tem de onde contar.
+        atendimento(3, { chegou_em: em(-5 * H), id_apartamento: 110 }),
+      ],
+      pedidos: [
+        pedido(10, 1, { status: 'expirado', criado_em: em(-H), expira_em: em(-H + 5 * M) }),
+        pedido(11, 2, { status: 'expirado', criado_em: em(-2 * H - M), expira_em: em(-2 * H + 4 * M) }),
+      ],
+    });
+    await svc.tick();
+    expect(tabela('deliveryAtendimentos').map((a) => a.status)).toEqual(['AGUARDANDO_AUTORIZACAO', 'CANCELADA', 'AGUARDANDO_AUTORIZACAO']);
   });
 
   it('aviso AGENDADA/CHEGOU de origem portaria nunca é cancelado pela rotina', async () => {
@@ -132,9 +156,13 @@ describe('DeliveryPortaoService — rotina', () => {
   it('um erro num atendimento não impede os seguintes', async () => {
     const k = montarPortao({
       atendimentos: [
-        atendimento(1, { chegou_em: em(-3 * H) }),
-        atendimento(2, { chegou_em: em(-3 * H), id_apartamento: 102 }),
+        atendimento(1, { chegou_em: em(-3 * H), id_pedido_portao: 10 }),
+        atendimento(2, { chegou_em: em(-3 * H), id_pedido_portao: 11, id_apartamento: 102 }),
         atendimento(3, { status: 'RETIRADA_NA_PORTARIA', updated_at: em(-3 * H), id_apartamento: 110 }),
+      ],
+      pedidos: [
+        pedido(10, 1, { status: 'expirado', criado_em: em(-3 * H), expira_em: em(-3 * H + 5 * M) }),
+        pedido(11, 2, { status: 'expirado', criado_em: em(-3 * H), expira_em: em(-3 * H + 5 * M) }),
       ],
     });
     const original = k.delivery.transicionarPeloSistema.bind(k.delivery);
@@ -148,8 +176,8 @@ describe('DeliveryPortaoService — rotina', () => {
 
   it('erro numa etapa não impede as outras', async () => {
     const k = montarPortao({
-      atendimentos: [atendimento(1, { chegou_em: em(-3 * H) })],
-      pedidos: [pedido(10, 1, { expira_em: em(-1000) })],
+      atendimentos: [atendimento(1, { chegou_em: em(-3 * H), id_pedido_portao: 10 })],
+      pedidos: [pedido(10, 1, { criado_em: em(-3 * H), expira_em: em(-1000) })],
     });
     k.banco.prisma.deliveryPedidosPortao.updateMany.mockRejectedValueOnce(new Error('timeout'));
     await k.svc.tick();
