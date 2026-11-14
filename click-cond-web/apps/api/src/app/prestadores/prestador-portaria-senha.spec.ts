@@ -3,7 +3,8 @@ import { PrestadoresService } from './prestadores.service';
 
 /** dto.senha em branco virava '123456' no login de portaria e na conta do app do prestador. */
 describe('PrestadoresService — acesso à portaria sem senha padrão', () => {
-  const operador = { sub: 3, nome: 'Porteiro', id_condominio: 1 } as any;
+  // Conceder o login de portaria é do síndico (A5).
+  const operador = { sub: 51, nome: 'Síndico', id_condominio: 1, typeAccess: 'Sindico' } as any;
   const prestador = { id: 1, id_condominio: 1, id_apartamento: null, email: 'p@test', nome: 'Eletricista', telefone: null, foto_pessoa: null, foto_documento: null };
 
   function build(loginExistente: any = null) {

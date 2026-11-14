@@ -9,6 +9,8 @@ import { PrestadoresService } from './prestadores.service';
 describe('Prestador × login de portaria — cadastro e remoção', () => {
   const morador = { sub: 10, nome: 'Morador', typeAccess: 'Morador' } as any;
   const porteiroConsole = { sub: 3, nome: 'Porteiro A', id_condominio: 1 } as any;
+  // Conceder, mudar ou revogar o login de portaria (e remover quem o tem) é do síndico (A5).
+  const sindicoConsole = { sub: 51, nome: 'Síndico', id_condominio: 1, typeAccess: 'Sindico' } as any;
   // Login de outro porteiro (tela de funcionários: turno livre, não 'Geral').
   const vitima = { id: 9, login: 'b@x.com', email: 'b@x.com', id_condominio: 1, turno: 'Diurno', password: '$2b$04$vitima' };
   // Login que o próprio prestador recebeu pelo cadastro de prestador.
@@ -38,6 +40,8 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
         create: jest.fn(async () => ({})),
         update: jest.fn(async () => ({})),
       },
+      users: { findFirst: jest.fn(async () => null), create: jest.fn(async ({ data }: any) => ({ id: 9, ...data })), update: jest.fn(async () => ({})) },
+      funcionarios: { findFirst: jest.fn(async () => null), create: jest.fn(async () => ({})), update: jest.fn(async () => ({})), deleteMany: jest.fn(async () => ({ count: 0 })) },
     };
     const tenant: any = {
       assertCondominio: jest.fn(async () => undefined),
@@ -82,14 +86,14 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
 
   it('remove apaga só o login que o próprio prestador recebeu, pelo id', async () => {
     const { svc, prisma } = build('p@x.com');
-    await svc.remove(1, 1, porteiroConsole);
+    await svc.remove(1, 1, sindicoConsole);
     expect(prisma.funcionarios_Portaria.deleteMany).toHaveBeenCalledTimes(1);
     expect(prisma.funcionarios_Portaria.deleteMany).toHaveBeenCalledWith({ where: { id: 12 } });
   });
 
   it('remove acha e apaga o login quando prestador e login estão no e-mail novo (troca feita pelo app)', async () => {
     const { svc, prisma } = build('trocado@x.com');
-    await svc.remove(1, 1, porteiroConsole);
+    await svc.remove(1, 1, sindicoConsole);
     expect(prisma.funcionarios_Portaria.deleteMany).toHaveBeenCalledTimes(1);
     expect(prisma.funcionarios_Portaria.deleteMany).toHaveBeenCalledWith({ where: { id: 13 } });
   });
@@ -104,7 +108,7 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
   // re-credenciar, revogar e remover (todos acham o login pelo e-mail gravado no prestador).
   it('trocar o e-mail sem a flag leva junto o login de portaria do próprio prestador (só o campo login)', async () => {
     const { svc, prisma } = build('p@x.com');
-    await svc.update(1, { email: ' novo@x.com ' }, 1, porteiroConsole);
+    await svc.update(1, { email: ' novo@x.com ' }, 1, sindicoConsole);
     expect(prisma.prestadores_servico.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ email: 'novo@x.com' }) }),
     );
@@ -117,14 +121,14 @@ describe('Prestador × login de portaria — cadastro e remoção', () => {
   // E-mail só com espaços é "sem e-mail": nunca vira login '' nem fica gravado como ''.
   it.each([[''], ['   ']])('create com e-mail %p e acesso pedido não cria login e grava e-mail null', async (email) => {
     const { svc, prisma } = build(null);
-    await svc.create({ id_condominio: 1, nome: 'Novo', email, hasPortariaAccess: true, senha: 'Escolhida#1' } as any, porteiroConsole);
+    await svc.create({ id_condominio: 1, nome: 'Novo', email, hasPortariaAccess: true, senha: 'Escolhida#1' } as any, sindicoConsole);
     expect(prisma.funcionarios_Portaria.create).not.toHaveBeenCalled();
     expect(prisma.prestadores_servico.create).toHaveBeenCalledWith({ data: expect.objectContaining({ email: null }) });
   });
 
   it.each([[''], ['   ']])('limpar o e-mail com %p revoga o login do próprio prestador, como email: null', async (email) => {
     const { svc, prisma } = build('p@x.com');
-    await svc.update(1, { email }, 1, porteiroConsole);
+    await svc.update(1, { email }, 1, sindicoConsole);
     expect(prisma.prestadores_servico.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ email: null }) }),
     );
