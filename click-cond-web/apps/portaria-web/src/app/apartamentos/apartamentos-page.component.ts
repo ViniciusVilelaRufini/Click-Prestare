@@ -438,6 +438,7 @@ export class ApartamentosPageComponent implements OnInit {
       placa: '',
       fim: this.prazoPadraoVaga(null),
     };
+    this.prazoVagaDigitado = false;
     this.erroVaga.set(null);
     this.modalVaga.set(true);
     this.carregandoBeneficiarios.set(true);
@@ -450,21 +451,35 @@ export class ApartamentosPageComponent implements OnInit {
     });
   }
 
+  /** O porteiro já mexeu no prazo: trocar o visitante não sobrescreve. */
+  private prazoVagaDigitado = false;
+
+  editarPrazoVaga(valor: string) {
+    this.novaVaga.fim = valor;
+    this.prazoVagaDigitado = true;
+  }
+
   /** Ao escolher o visitante, o prazo sugerido passa a ser o fim da visita dele. */
   escolherVisitanteVaga(id: number | null) {
     this.novaVaga.id_visitante = id;
+    if (this.prazoVagaDigitado) return;
     const v = this.beneficiariosVaga()?.visitantes?.find((x) => x.id === id);
     this.novaVaga.fim = this.prazoPadraoVaga(v?.termino ?? null);
   }
 
-  /** Fim da visita se ainda for futuro; senão, hoje às 23:59. */
+  /**
+   * Fim da visita se ainda for futuro; senão, hoje às 23:59. Nunca menos que
+   * agora + 1 h (perto da meia-noite, "hoje 23:59" já teria passado).
+   */
   private prazoPadraoVaga(termino: string | null): string {
+    const minimo = Date.now() + 60 * 60 * 1000;
     const t = termino ? new Date(termino) : null;
-    const d = t && !isNaN(t.getTime()) && t.getTime() > Date.now() ? t : (() => {
+    let d = t && !isNaN(t.getTime()) && t.getTime() > Date.now() ? t : (() => {
       const h = new Date();
       h.setHours(23, 59, 0, 0);
       return h;
     })();
+    if (d.getTime() < minimo) d = new Date(minimo);
     const p = (n: number) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   }

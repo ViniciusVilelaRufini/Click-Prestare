@@ -113,9 +113,38 @@ describe('ApartamentosPageComponent — vagas de visitante com prazo', () => {
         inquilinos: [],
       })),
     });
+    jest.useFakeTimers({ advanceTimers: true }).setSystemTime(new Date(2026, 10, 14, 15, 0));
+    try {
+      tela.abrirModalVaga();
+      tela.escolherVisitanteVaga(3);
+      expect(tela.novaVaga.fim).toBe('2026-11-14T23:59');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('Liberar vaga perto da meia-noite: a sugestão nunca nasce no passado (mínimo agora + 1 h)', () => {
+    const { tela } = build();
+    jest.useFakeTimers({ advanceTimers: true }).setSystemTime(new Date(2026, 10, 14, 23, 30));
+    try {
+      tela.abrirModalVaga();
+      expect(tela.novaVaga.fim).toBe('2026-11-15T00:30');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('Liberar vaga: trocar o visitante não sobrescreve o prazo que o porteiro digitou', () => {
+    const { tela } = build({
+      beneficiarios: jest.fn(() => of({
+        visitantes: [{ id: 3, nome: 'Ana', doc_identificacao: null, tem_foto: true, termino: new Date(2099, 0, 2, 18, 0).toISOString() }],
+        inquilinos: [],
+      })),
+    });
     tela.abrirModalVaga();
+    tela.editarPrazoVaga('2099-03-01T10:00');
     tela.escolherVisitanteVaga(3);
-    expect(tela.novaVaga.fim).toMatch(/T23:59$/);
+    expect(tela.novaVaga.fim).toBe('2099-03-01T10:00');
   });
 
   it('Revogar vaga vencida avisa que o acesso do visitante não muda', async () => {
