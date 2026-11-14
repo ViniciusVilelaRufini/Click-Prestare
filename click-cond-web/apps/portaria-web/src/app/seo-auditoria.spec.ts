@@ -281,7 +281,7 @@ describe('regras do Amplify', () => {
     const spa = regras().find((x) => x.target === '/index.html')!;
     const re = new RegExp(spa.source.slice(2, -2));
     ['/dashboard/abc', '/login/qualquer', '/prestadores/x'].forEach((c) => expect([c, re.test(c)]).toEqual([c, false]));
-    ['/convite/abc_DEF-123', '/prestadores/cadastro', '/login/'].forEach((c) => expect([c, re.test(c)]).toEqual([c, true]));
+    ['/convite/abc_DEF-123', '/passe/abc', '/entrega/abc123', '/entrega', '/prestadores/cadastro', '/login/'].forEach((c) => expect([c, re.test(c)]).toEqual([c, true]));
   });
 });
 
@@ -350,7 +350,7 @@ describe('cabeçalhos de segurança', () => {
   it('HSTS com subdomínios, noindex no console e cache imutável nos arquivos com hash', () => {
     const h = readFileSync(join(process.cwd(), '../docs/operacao/amplify-cabecalhos.yml'), 'utf8');
     expect(h).toContain('max-age=63072000; includeSubDomains');
-    ["'/'", "'/login'", "'/dashboard'", "'/convite/*'"].forEach((p) => expect(h).toContain(`pattern: ${p}`));
+    ["'/'", "'/login'", "'/dashboard'", "'/convite/*'", "'/entrega'", "'/entrega/*'"].forEach((p) => expect(h).toContain(`pattern: ${p}`));
     expect(h).toMatch(/pattern: '\/chunk-\*\.js'\s+headers:\s+- key: Cache-Control\s+value: public, max-age=31536000, immutable/);
   });
 });

@@ -15,6 +15,10 @@ const passePorQueryCanMatch: CanMatchFn = () => {
   return Boolean(url?.queryParams['passe']) || /^passe(=|&|$)/.test(url?.fragment ?? '');
 };
 
+/** QR de entregas colado no portão: `/?entrega=<token>` (o token do portão é público, está impresso). */
+const entregaPorQueryCanMatch: CanMatchFn = () =>
+  Boolean(inject(Router).getCurrentNavigation()?.extractedUrl.queryParams['entrega']);
+
 const redefinirSenhaPorQueryCanMatch: CanMatchFn = () => {
   const queryParams = inject(Router).getCurrentNavigation()?.extractedUrl.queryParams;
   return Boolean(
@@ -53,6 +57,16 @@ export const appRoutes: Route[] = [
     canMatch: [passePorQueryCanMatch],
     loadComponent: () =>
       import('./passe/passe-page.component').then((m) => m.PassePageComponent),
+  },
+  {
+    // Página do entregador no portão, na raiz como o convite e o passe: o
+    // Amplify não entrega caminho profundo ao SPA. O QR impresso aponta para
+    // `/?entrega=<token>`.
+    path: '',
+    pathMatch: 'full',
+    canMatch: [entregaPorQueryCanMatch],
+    loadComponent: () =>
+      import('./entrega/entrega-page.component').then((m) => m.EntregaPageComponent),
   },
   {
     path: 'login',
@@ -104,6 +118,20 @@ export const appRoutes: Route[] = [
     path: 'passe',
     loadComponent: () =>
       import('./passe/passe-page.component').then((m) => m.PassePageComponent),
+  },
+  {
+    // Pública como o convite: a trava é o token do portão (só abre a página do
+    // entregador; quem decide a entrada é o morador). Mantida para quando a
+    // hospedagem servir caminho profundo; o QR gerado hoje usa `?entrega=`.
+    path: 'entrega/:token',
+    loadComponent: () =>
+      import('./entrega/entrega-page.component').then((m) => m.EntregaPageComponent),
+  },
+  {
+    // Sem token: tela de QR indisponível, em vez de tela branca.
+    path: 'entrega',
+    loadComponent: () =>
+      import('./entrega/entrega-page.component').then((m) => m.EntregaPageComponent),
   },
   {
     path: 'politica-de-privacidade',
