@@ -114,6 +114,43 @@ describe('PrestadoresPageComponent — acesso à portaria só para o síndico', 
     expect(botoesExcluir(el)).toHaveLength(3);
   });
 
+  // Trocar o e-mail de acesso troca a credencial: a API exige senha nova no mesmo pedido.
+  it('síndico troca o e-mail de quem tem login sem senha: a tela pede a senha e não envia', () => {
+    const { atualizar, cmp, el, api } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar(comLogin as any);
+    cmp.novo.email = 'novo@x.com';
+    cmp.salvar();
+    atualizar();
+    expect(api.update).not.toHaveBeenCalled();
+    expect(el.textContent).toContain('Defina uma nova senha ao trocar o e-mail de acesso.');
+  });
+
+  it('síndico troca o e-mail de quem tem login com senha nova: envia e-mail e senha', () => {
+    const { cmp, api } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar(comLogin as any);
+    cmp.novo.email = 'novo@x.com';
+    cmp.novo.senha = 'Nova#123';
+    cmp.salvar();
+    expect((api.update.mock.calls[0] as any[])[1]).toEqual(expect.objectContaining({ email: 'novo@x.com', senha: 'Nova#123' }));
+  });
+
+  it('síndico edita quem tem login sem trocar o e-mail: senha em branco continua valendo', () => {
+    const { cmp, api } = render(SINDICO, 'Síndico');
+    cmp.abrirEditar(comLogin as any);
+    cmp.novo.telefone = '(11) 9999';
+    cmp.salvar();
+    expect(api.update).toHaveBeenCalled();
+  });
+
+  it('erro da API ao salvar aparece na tela', () => {
+    const { atualizar, cmp, el, api } = render(SINDICO, 'Síndico');
+    api.update.mockReturnValue(throwError(() => ({ error: { message: 'Já existe um funcionário com este e-mail.' } })));
+    cmp.abrirEditar(comLogin as any);
+    cmp.salvar();
+    atualizar();
+    expect(el.textContent).toContain('Já existe um funcionário com este e-mail.');
+  });
+
   it('erro ao remover aparece na tela', async () => {
     const { atualizar, cmp, el, api } = render(SINDICO, 'Síndico');
     api.remove.mockReturnValue(throwError(() => ({ error: { message: 'Acesso negado: remover exige síndico.' } })));

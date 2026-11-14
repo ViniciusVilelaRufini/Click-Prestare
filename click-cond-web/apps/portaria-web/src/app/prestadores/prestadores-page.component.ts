@@ -321,6 +321,8 @@ export class PrestadoresPageComponent implements OnInit {
   novo: CreatePrestador = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '' };
   showForm = false;
   editingId: number | null = null;
+  /** E-mail de acesso de quem já tem login, ao abrir a edição: trocá-lo exige senha nova (a API recusa sem). */
+  emailDeAcessoOriginal: string | null = null;
   readonly saving = signal(false);
 
   ngOnInit() {
@@ -359,6 +361,7 @@ export class PrestadoresPageComponent implements OnInit {
 
   abrirNovo() {
     this.editingId = null;
+    this.emailDeAcessoOriginal = null;
     this.novo = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '', id_apartamento: 0, dias_semana: 'seg,ter,qua,qui,sex', foto_pessoa: undefined, foto_documento: undefined };
     this.categoriasSelecionadas.set(new Set());
     this.fotoPessoaBase64.set(null);
@@ -370,6 +373,7 @@ export class PrestadoresPageComponent implements OnInit {
 
   abrirEditar(p: Prestador) {
     this.editingId = p.id;
+    this.emailDeAcessoOriginal = (p.loginPortariaProprio ?? p.hasPortariaAccess) ? (p.email ?? '').trim() : null;
     this.fotoPessoaBase64.set(p.foto_pessoa ?? null);
     this.fotoDocumentoBase64.set(p.foto_documento ?? null);
     this.novo = {
@@ -434,6 +438,10 @@ export class PrestadoresPageComponent implements OnInit {
       if (!this.novo.email?.trim()) { this.error.set('E-mail é obrigatório para liberar acesso.'); return; }
       if (!this.editingId && !this.novo.senha?.trim()) { this.error.set('Senha é obrigatória para liberar acesso.'); return; }
     }
+    if (this.trocaEmailDeAcesso() && !this.novo.senha?.trim()) {
+      this.error.set('Defina uma nova senha ao trocar o e-mail de acesso.');
+      return;
+    }
 
     this.novo.categorias = Array.from(this.categoriasSelecionadas()).join(';');
 
@@ -473,6 +481,13 @@ export class PrestadoresPageComponent implements OnInit {
         this.error.set(e?.error?.message ?? e?.message ?? 'Erro');
       },
     });
+  }
+
+  /** Editando quem tem login, o e-mail de acesso mudou: a credencial muda junto, então a senha é obrigatória. */
+  trocaEmailDeAcesso(): boolean {
+    if (this.editingId === null || this.emailDeAcessoOriginal === null || !this.podeGerenciarAcesso()) return false;
+    const atual = (this.novo.email ?? '').trim().toLowerCase();
+    return !!atual && atual !== this.emailDeAcessoOriginal.toLowerCase();
   }
 
   async remover(p: Prestador) {
