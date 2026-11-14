@@ -207,7 +207,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
   }
 
   /**
-   * 1. pedido pendente vencido → expirado;
+   * 1. pedido pendente vencido → expirado (o card vai a "Entregador não esperou");
    * 2. autoatendimento sem resposta 2 h depois do pedido de portão → CANCELADA ("Sem resposta do morador");
    * 3. AUTORIZADA com o portão aberto há 30 min → CONCLUIDA;
    * 4. autoatendimento AUTORIZADA sem abertura, ou RETIRADA_NA_PORTARIA, parado há 2 h → CONCLUIDA.
@@ -218,9 +218,20 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     const db = (this.prisma as any).deliveryPedidosPortao;
     const atendimentos = (this.prisma as any).deliveryAtendimentos;
 
-    await this.etapa('expirar pedidos', () =>
-      db.updateMany({ where: { status: 'pendente', expira_em: { lte: new Date(agora) } }, data: { status: 'expirado' } }),
-    );
+    await this.etapa('expirar pedidos', async () => {
+      const vencidos = (await db.findMany({
+        where: { status: 'pendente', expira_em: { lte: new Date(agora) } },
+        select: { id: true, id_atendimento: true },
+        take: LOTE_ROTINA,
+      })) as { id: number; id_atendimento: number }[];
+      for (const p of vencidos) {
+        try {
+          await this.vencerPedido(p);
+        } catch (e: any) {
+          this.logger.warn(`Rotina do portão: pedido ${p.id} vencido: ${e?.message ?? e}`);
+        }
+      }
+    });
 
     await this.etapa('cancelar sem resposta', async () => {
       const lista = await atendimentos.findMany({
@@ -414,8 +425,16 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
         throw e;
       }
     });
-    // Fora dos locks: cancelamento (card e notificação) dos atendimentos da
+    // Fora dos locks: card dos pedidos que venceram agora ("Entregador não
+    // esperou") e cancelamento (card e notificação) dos atendimentos da
     // unidade cujo pedido de portão venceu sem resposta.
+    const vencidos = (await (this.prisma as any).deliveryPedidosPortao.findMany({
+      where: { status: 'pendente', expira_em: { lte: agora }, atendimento: { id_apartamento: idApartamento } },
+      select: { id: true, id_atendimento: true },
+    })) as { id: number; id_atendimento: number }[];
+    for (const p of vencidos) {
+      await this.vencerPedido(p).catch((e: any) => this.logger.warn(`Pedido de portão ${p.id} vencido: ${e?.message ?? e}`));
+    }
     for (const id of semResposta) {
       await this.delivery
         .transicionarPeloSistema(id, 'CANCELADA', MOTIVO_SEM_RESPOSTA)
@@ -491,13 +510,8 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
    * chama os cancela depois de soltar os locks.
    */
   private async gravarPedido(portao: Portao, idApartamento: number, nome: string, plataforma: string | null, url: string, agora: Date) {
-    const db = (this.prisma as any).deliveryPedidosPortao;
-    // Vencido não bloqueia a unidade.
-    await db.updateMany({
-      where: { status: 'pendente', expira_em: { lte: agora }, atendimento: { id_apartamento: idApartamento } },
-      data: { status: 'expirado' },
-    });
     // Contados no banco, dentro do lock da unidade (vale com várias instâncias).
+    // Pendente vencido não bloqueia a unidade (é marcado depois, fora do lock).
     await this.conferirUnidade(portao, idApartamento, agora);
 
     // Atendimentos da unidade ainda abertos cujo pedido de portão venceu sem
@@ -778,9 +792,23 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     const db = (this.prisma as any).deliveryPedidosPortao;
     await db.update({ where: { id: pedido.id }, data: { visto_em: agora } });
     if (pedido.status === 'pendente' && agora.getTime() >= new Date(pedido.expira_em).getTime()) {
-      await db.updateMany({ where: { id: pedido.id, status: 'pendente' }, data: { status: 'expirado' } });
+      await this.vencerPedido(pedido);
     }
     return this.relerPedido(pedido.id);
+  }
+
+  /**
+   * Pendente → expirado (só quem troca segue) e o card do atendimento vai ao
+   * estado final "Entregador não esperou". Devolve se foi esta chamada que venceu.
+   */
+  private async vencerPedido(p: { id: number; id_atendimento: number }): Promise<boolean> {
+    const r = await (this.prisma as any).deliveryPedidosPortao.updateMany({
+      where: { id: p.id, status: 'pendente' },
+      data: { status: 'expirado' },
+    });
+    if (r.count !== 1) return false;
+    await this.delivery.aoVencerPedidoPortao(p.id_atendimento);
+    return true;
   }
 
   private async relerPedido(id: number) {

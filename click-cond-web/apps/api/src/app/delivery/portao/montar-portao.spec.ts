@@ -80,6 +80,7 @@ export function montarPortao(
     atualizarDelivery: jest.fn(async () => ({ cobertos: new Set<string>() })),
     encerrarDeOutros: jest.fn(async () => undefined),
     encerrar: jest.fn(async () => undefined),
+    entregadorNaoEsperou: jest.fn(async () => undefined),
   };
   const facial: any = { abrirDispositivoInterno: jest.fn(async () => ({ ok: true })) };
   const delivery = new DeliveryService(banco.prisma, notifications, tenant, storage, card);

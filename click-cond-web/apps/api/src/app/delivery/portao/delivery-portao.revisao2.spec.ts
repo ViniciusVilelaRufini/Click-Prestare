@@ -156,6 +156,58 @@ describe('autoatendimento no portão — segunda revisão', () => {
     });
   });
 
+  describe('[3] pedido vencido: card final "Entregador não esperou" e resposta 409', () => {
+    const morador7 = { sub: 7, typeAccess: 'Morador', nome: 'Ana Lima' } as any;
+    const MSG = 'O entregador não está mais no portão.';
+
+    async function vencido() {
+      const k = montarPortao();
+      const r = await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      k.avancar(5 * M + 1000);
+      return { ...k, tokenPedido: r.pedido, id: k.tabela('deliveryAtendimentos')[0].id };
+    }
+
+    it('rotina vence o pedido e leva o card ao estado final', async () => {
+      const k = await vencido();
+      await k.svc.tick();
+      expect(k.tabela('deliveryPedidosPortao')[0].status).toBe('expirado');
+      expect(k.card.entregadorNaoEsperou).toHaveBeenCalledTimes(1);
+      expect(k.card.entregadorNaoEsperou).toHaveBeenCalledWith(expect.objectContaining({ id: k.id, status: 'AGUARDANDO_AUTORIZACAO' }));
+      await k.svc.tick();
+      expect(k.card.entregadorNaoEsperou).toHaveBeenCalledTimes(1);
+    });
+
+    it('consulta da página que encontra o pedido vencido também leva o card ao estado final (uma vez)', async () => {
+      const k = await vencido();
+      expect(await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido)).toMatchObject({ situacao: 'expirado' });
+      await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido);
+      expect(k.card.entregadorNaoEsperou).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([['AUTORIZADA'], ['RETIRADA_NA_PORTARIA']])(
+      'morador responde %s ao pedido vencido: 409 "O entregador não está mais no portão." e nada muda',
+      async (status) => {
+        for (const rotinaAntes of [false, true]) {
+          const k = await vencido();
+          if (rotinaAntes) await k.svc.tick();
+          const e = await erroDe(k.delivery.atualizarStatus(k.id, { status } as any, morador7));
+          expect(e?.getStatus?.()).toBe(409);
+          expect(e.message).toBe(MSG);
+          expect(k.tabela('deliveryAtendimentos')[0]).toMatchObject({ status: 'AGUARDANDO_AUTORIZACAO', autorizado_em: null });
+          expect(k.tabela('deliveryPedidosPortao')[0]).toMatchObject({ status: 'expirado', liberado_ate: null, respondido_em: null });
+          expect(k.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+          expect(k.card.entregadorNaoEsperou).toHaveBeenCalled();
+        }
+      },
+    );
+
+    it('recusar o pedido vencido continua valendo', async () => {
+      const k = await vencido();
+      await k.delivery.atualizarStatus(k.id, { status: 'RECUSADA', motivo: 'Não pedi' } as any, morador7);
+      expect(k.tabela('deliveryAtendimentos')[0].status).toBe('RECUSADA');
+    });
+  });
+
   describe('[4] a foto sobe antes dos locks; dentro deles só banco', () => {
     it('upload sem nenhum lock preso', async () => {
       const k = montarPortao();
