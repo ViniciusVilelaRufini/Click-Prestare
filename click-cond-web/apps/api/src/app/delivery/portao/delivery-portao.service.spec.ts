@@ -66,7 +66,8 @@ describe('DeliveryPortaoService', () => {
     const r = await svc.criarPedido(TOKEN_PORTAO, entrada);
     expect(r.pedido).toMatch(/^[0-9a-f]{64}$/);
     expect(r).toMatchObject({ situacao: 'aguardando', pode_abrir: false, pode_sair: false, liberado_ate: null });
-    expect(storage.uploadDataUrl).toHaveBeenCalledWith(FOTO, 'delivery-portao');
+    // A foto recodificada pelo sharp (JPEG), não os bytes recebidos.
+    expect(storage.uploadDataUrl).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/jpeg;base64,/), 'delivery-portao');
     const [p] = tabela('deliveryPedidosPortao');
     expect(p).toMatchObject({
       id_device: 30,

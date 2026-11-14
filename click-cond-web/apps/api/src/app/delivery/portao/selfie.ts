@@ -26,13 +26,18 @@ async function carregarSharp(): Promise<Sharp | null> {
 const MAX_PIXELS = 24_000_000;
 const DATA_URL = /^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/is;
 
-export type ResultadoSelfie = 'ok' | 'invalida' | 'sem_conferencia';
+/** Lado maior da selfie gravada (a página já manda ~800 px). */
+const LADO_MAXIMO = 1280;
 
 /**
- * 'ok': decodificou inteira e o formato real é o declarado.
  * 'invalida': não é imagem, está cortada, é de outro tipo ou grande demais.
  * 'sem_conferencia': o sharp não carregou (falha fechada: quem chama recusa).
+ * Válida: a data URL da foto RECODIFICADA (JPEG, orientação aplicada, sem
+ * EXIF/GPS nem outro metadado) — é ela que vai para o bucket, nunca os
+ * bytes que a página mandou.
  */
+export type ResultadoSelfie = { ok: true; dataUrl: string } | 'invalida' | 'sem_conferencia';
+
 export async function conferirSelfie(dataUrl: string): Promise<ResultadoSelfie> {
   const m = DATA_URL.exec(dataUrl);
   if (!m) return 'invalida';
@@ -44,9 +49,15 @@ export async function conferirSelfie(dataUrl: string): Promise<ResultadoSelfie> 
   try {
     const meta = await sharp(bytes, { limitInputPixels: MAX_PIXELS }).metadata();
     if (meta.format !== declarado) return 'invalida';
-    // Decodifica tudo (failOn padrão 'warning': JPEG cortado falha).
-    await sharp(bytes, { limitInputPixels: MAX_PIXELS }).resize(16, 16, { fit: 'inside' }).raw().toBuffer();
-    return 'ok';
+    // Decodifica tudo (failOn padrão 'warning': JPEG cortado falha) e
+    // recodifica: sem withMetadata, o sharp não copia EXIF, GPS nem ICC.
+    const jpeg = await sharp(bytes, { limitInputPixels: MAX_PIXELS })
+      .rotate()
+      .resize(LADO_MAXIMO, LADO_MAXIMO, { fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 85, mozjpeg: true })
+      .toBuffer();
+    return { ok: true, dataUrl: `data:image/jpeg;base64,${jpeg.toString('base64')}` };
   } catch {
     return 'invalida';
   }

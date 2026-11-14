@@ -90,4 +90,36 @@ describe('autoatendimento no portão — segunda revisão', () => {
       expect(k.tabela('deliveryPedidosPortao')).toHaveLength(3);
     }, 15_000);
   });
+
+  describe('[10] a selfie gravada é a recodificada pelo sharp (JPEG, sem EXIF/GPS)', () => {
+    const bytesDe = (dataUrl: string) => Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
+
+    it('JPEG com EXIF e GPS sobe como JPEG novo, sem metadados', async () => {
+      const sharp = (await import('sharp')).default;
+      const original = await sharp({ create: { width: 32, height: 32, channels: 3, background: { r: 200, g: 100, b: 50 } } })
+        .jpeg()
+        .withExif({ IFD0: { Copyright: 'Teste' }, IFD3: { GPSLatitudeRef: 'S', GPSLatitude: '23/1 32/1 0/1' } })
+        .toBuffer();
+      expect((await sharp(original).metadata()).exif).toBeDefined();
+      const k = montarPortao();
+      await k.svc.criarPedido(TOKEN_PORTAO, { ...entrada, foto: `data:image/jpeg;base64,${original.toString('base64')}` });
+      const [[enviado]] = k.storage.uploadDataUrl.mock.calls as any[];
+      expect(enviado.startsWith('data:image/jpeg;base64,')).toBe(true);
+      const bytes = bytesDe(enviado);
+      expect(bytes.equals(original)).toBe(false);
+      const meta = await sharp(bytes).metadata();
+      expect(meta.format).toBe('jpeg');
+      expect(meta.exif).toBeUndefined();
+    });
+
+    it('PNG sobe convertido para JPEG', async () => {
+      const sharp = (await import('sharp')).default;
+      const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: { r: 0, g: 0, b: 255 } } }).png().toBuffer();
+      const k = montarPortao();
+      await k.svc.criarPedido(TOKEN_PORTAO, { ...entrada, foto: `data:image/png;base64,${png.toString('base64')}` });
+      const [[enviado]] = k.storage.uploadDataUrl.mock.calls as any[];
+      expect(enviado.startsWith('data:image/jpeg;base64,')).toBe(true);
+      expect((await sharp(bytesDe(enviado)).metadata()).format).toBe('jpeg');
+    });
+  });
 });
