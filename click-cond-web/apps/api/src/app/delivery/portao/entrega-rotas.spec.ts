@@ -146,12 +146,13 @@ describe('rotas do autoatendimento no portão', () => {
     expect(tabela('condominios')[0]).toMatchObject({ delivery_auto_inicio: null, delivery_auto_fim: null });
   });
 
-  it('gerar token em leitor de tag: 400; em botoeira: token de 48 hex e url terminando em /entrega/<token>', async () => {
+  it('gerar token em leitor de tag: 400; em botoeira: token de 48 hex e url na raiz com ?entrega=<token>', async () => {
     const { config, tabela } = montar();
     await expect(config.gerarToken(32, sindico)).rejects.toThrow(new BadRequestException('Este tipo de aparelho não abre portão.'));
     const r = await config.gerarToken(30, sindico);
     expect(r.token).toMatch(/^[0-9a-f]{48}$/);
-    expect(r.url.endsWith(`/entrega/${r.token}`)).toBe(true);
+    // A hospedagem (Amplify) não serve caminho profundo para o SPA: link na raiz, como convite e passe.
+    expect(r.url.endsWith(`/?entrega=${r.token}`)).toBe(true);
     expect(r.url).toMatch(/^https:\/\//);
     expect(tabela('facial_Devices').find((d) => d.id === 30).token_entrega).toBe(r.token);
     // O terminal facial também abre a própria porta.

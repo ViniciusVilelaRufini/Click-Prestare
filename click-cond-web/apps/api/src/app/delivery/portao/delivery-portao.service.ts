@@ -486,7 +486,9 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     if (!TIPOS_QUE_ABREM.includes(device.tipo)) throw new BadRequestException('Este tipo de aparelho não abre portão.');
     const token = randomBytes(24).toString('hex');
     await (this.prisma as any).facial_Devices.update({ where: { id: device.id }, data: { token_entrega: token } });
-    return { token, url: `${baseUrlPublica()}/entrega/${token}` };
+    // Na raiz, como o convite (`/?convite=`) e o passe (`/#passe=`): a
+    // hospedagem da portaria-web (Amplify) não serve caminho profundo ao SPA.
+    return { token, url: `${baseUrlPublica()}/?entrega=${token}` };
   }
 
   async removerTokenPortao(idDevice: number, user: JwtPayload): Promise<{ ok: true }> {
