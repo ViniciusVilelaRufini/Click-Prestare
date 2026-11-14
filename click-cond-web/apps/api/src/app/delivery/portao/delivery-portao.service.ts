@@ -208,9 +208,10 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
 
   /**
    * 1. pedido pendente vencido → expirado (o card vai a "Entregador não esperou");
-   * 2. autoatendimento sem resposta 2 h depois do pedido de portão → CANCELADA ("Sem resposta do morador");
+   * 2. atendimento com pedido de portão sem resposta 2 h depois do pedido → CANCELADA ("Sem resposta do morador");
    * 3. AUTORIZADA com o portão aberto há 30 min → CONCLUIDA;
-   * 4. autoatendimento AUTORIZADA sem abertura, ou RETIRADA_NA_PORTARIA, parado há 2 h → CONCLUIDA.
+   * 4. com pedido de portão, AUTORIZADA sem abertura ou RETIRADA_NA_PORTARIA, parado há 2 h → CONCLUIDA.
+   * "Com pedido de portão" inclui o aviso AGENDADA do morador reaproveitado pelo portão.
    * Uma etapa (ou um atendimento) que falha não impede as outras.
    */
   async tick(): Promise<void> {
@@ -236,7 +237,8 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     await this.etapa('cancelar sem resposta', async () => {
       const lista = await atendimentos.findMany({
         where: {
-          origem: 'autoatendimento',
+          // Todo atendimento com pedido de portão: o criado pelo portão e o
+          // aviso AGENDADA reaproveitado (origem 'portaria').
           status: { in: ['CHEGOU', 'AGUARDANDO_AUTORIZACAO'] },
           // Conta do pedido de portão (o único do atendimento), não do chegou_em.
           id_pedido_portao: { not: null },
@@ -261,7 +263,9 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     await this.etapa('encerrar sem porteiro', async () => {
       const lista = await atendimentos.findMany({
         where: {
-          origem: 'autoatendimento',
+          // Com pedido de portão (também o aviso reaproveitado); o atendimento
+          // só da portaria é ela quem conclui.
+          id_pedido_portao: { not: null },
           status: { in: ['AUTORIZADA', 'RETIRADA_NA_PORTARIA'] },
           updated_at: { lte: new Date(agora - CONCLUI_SEM_PORTEIRO_MS) },
         },

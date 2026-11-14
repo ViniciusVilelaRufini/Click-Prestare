@@ -252,6 +252,37 @@ describe('autoatendimento no portão — segunda revisão', () => {
     });
   });
 
+  describe('[7] aviso AGENDADA reaproveitado pelo portão também é encerrado pela rotina', () => {
+    const H = 3_600_000;
+    const reaproveitado = (extra: Record<string, unknown> = {}) => ({
+      id: 4, id_condominio: 1, id_apartamento: 101, id_morador_user: 7, origem: 'portaria', status: 'AGUARDANDO_AUTORIZACAO',
+      modo_entrega: 'UNIDADE', id_pedido_portao: 40, chegou_em: new Date(T0 - 3 * H), created_at: new Date(T0 - 5 * H),
+      updated_at: new Date(T0 - 3 * H), ...extra,
+    });
+    const pedido = (extra: Record<string, unknown> = {}) => ({
+      id: 40, id_atendimento: 4, id_device: 30, nome: 'Carlos', token_hash: 'e'.repeat(64), status: 'expirado',
+      criado_em: new Date(T0 - 2 * H - M), expira_em: new Date(T0 - 2 * H + 4 * M), ...extra,
+    });
+
+    it('sem resposta 2 h depois do pedido de portão: CANCELADA com "Sem resposta do morador"', async () => {
+      const k = montarPortao({ atendimentos: [reaproveitado()], pedidos: [pedido()] });
+      await k.svc.tick();
+      expect(k.tabela('deliveryAtendimentos')[0]).toMatchObject({ status: 'CANCELADA', motivo: 'Sem resposta do morador' });
+    });
+
+    it('autorizado sem abertura ou "vou buscar" parado há 2 h: CONCLUIDA', async () => {
+      const k = montarPortao({
+        atendimentos: [
+          reaproveitado({ status: 'AUTORIZADA', updated_at: new Date(T0 - 2 * H - M) }),
+          reaproveitado({ id: 5, id_apartamento: 102, id_pedido_portao: 41, status: 'RETIRADA_NA_PORTARIA', updated_at: new Date(T0 - 2 * H - M) }),
+        ],
+        pedidos: [pedido({ status: 'liberado' }), pedido({ id: 41, id_atendimento: 5, token_hash: 'd'.repeat(64), status: 'vou_buscar' })],
+      });
+      await k.svc.tick();
+      expect(k.tabela('deliveryAtendimentos').map((a: any) => a.status)).toEqual(['CONCLUIDA', 'CONCLUIDA']);
+    });
+  });
+
   describe('[4] a foto sobe antes dos locks; dentro deles só banco', () => {
     it('upload sem nenhum lock preso', async () => {
       const k = montarPortao();

@@ -158,11 +158,12 @@ describe('DeliveryPortaoService — rotina', () => {
       atendimentos: [
         atendimento(1, { chegou_em: em(-3 * H), id_pedido_portao: 10 }),
         atendimento(2, { chegou_em: em(-3 * H), id_pedido_portao: 11, id_apartamento: 102 }),
-        atendimento(3, { status: 'RETIRADA_NA_PORTARIA', updated_at: em(-3 * H), id_apartamento: 110 }),
+        atendimento(3, { status: 'RETIRADA_NA_PORTARIA', updated_at: em(-3 * H), id_apartamento: 110, id_pedido_portao: 12 }),
       ],
       pedidos: [
         pedido(10, 1, { status: 'expirado', criado_em: em(-3 * H), expira_em: em(-3 * H + 5 * M) }),
         pedido(11, 2, { status: 'expirado', criado_em: em(-3 * H), expira_em: em(-3 * H + 5 * M) }),
+        pedido(12, 3, { status: 'vou_buscar', criado_em: em(-3 * H), expira_em: em(-3 * H + 5 * M) }),
       ],
     });
     const original = k.delivery.transicionarPeloSistema.bind(k.delivery);
