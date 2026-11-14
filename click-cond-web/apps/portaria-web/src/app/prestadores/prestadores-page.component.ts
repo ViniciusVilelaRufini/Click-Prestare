@@ -214,7 +214,11 @@ export class PrestadoresPageComponent implements OnInit {
     });
     if (!ok) return;
     // `id_pessoa` quando disponível — ver comentário de `salvarAcesso`.
-    this.visitantesApi.removerPessoa(this.chavePessoa(p)).subscribe({ next: () => this.carregar() });
+    this.error.set(null);
+    this.visitantesApi.removerPessoa(this.chavePessoa(p)).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.error.set(e?.error?.message ?? e?.message ?? 'Erro ao remover.'),
+    });
   }
 
   togglePinAcesso(id: number, event: Event) {
@@ -484,7 +488,7 @@ export class PrestadoresPageComponent implements OnInit {
   }
 
   /**
-   * Editando quem tem login PRÓPRIO (loginPortariaProprio: turno 'Geral', como na API), com a chave ligada, o
+   * Editando quem tem login PRÓPRIO (loginPortariaProprio, o critério da API), com a chave ligada, o
    * e-mail de acesso mudou: a credencial muda junto, então a senha é obrigatória. Com a chave desligada é
    * revogação — a API não pede senha, e o campo nem aparece.
    */
