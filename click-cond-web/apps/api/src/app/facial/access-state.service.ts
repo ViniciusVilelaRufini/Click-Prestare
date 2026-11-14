@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { rotuloDeCredencial } from '../credenciais/codigo-dinamico.util';
 
 /**
  * Estado de acesso em memória para anti-passback e cooldown.
@@ -50,7 +51,7 @@ export class AccessStateService {
     const last = this.lastSeen.get(key);
     if (last && now - last < this.cooldownMs) {
       this.logger.debug(
-        `Debounce: ${credencial} no device ${idDevice} já visto há ${now - last}ms`,
+        `Debounce: ${rotuloDeCredencial(credencial)} no device ${idDevice} já visto há ${now - last}ms`,
       );
       return true;
     }

@@ -15,6 +15,7 @@ import { AgentBridgeService } from './agent-bridge.service';
 import { AgentVersionService } from './agent-version.service';
 import { DescobertaService } from './descoberta.service';
 import { CardAoVivoModule } from '../card-ao-vivo/card-ao-vivo.module';
+import { CredenciaisNucleoModule } from '../credenciais/credenciais-nucleo.module';
 
 /**
  * O simulador de terminal e a botoeira mock são andaimes de teste — existem
@@ -35,7 +36,9 @@ const simuladorHabilitado =
 
 @Module({
   // Card ao vivo: a entrada pelo terminal leva o card da portaria remota a ENTROU.
-  imports: [CardAoVivoModule],
+  // Núcleo das credenciais: valida o QR dinâmico no webhook (sem ciclo com
+  // VisitantesModule, que importa este módulo).
+  imports: [CardAoVivoModule, CredenciaisNucleoModule],
   controllers: [
     FacialController,
     FacialWebhookController,
