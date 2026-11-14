@@ -28,13 +28,15 @@ const SINDICO = jwt({ sub: 7, nome: 'Síndico', id_condominio: 1, typeAccess: 'S
 const PORTEIRO = jwt({ sub: 3, nome: 'João', id_condominio: 1, turno: 'Diurno', tipo_sub: 'funcionario_portaria' });
 const PORTEIRO_TURNO_SINDICO = jwt({ sub: 4, nome: 'Zé', id_condominio: 1, turno: 'Síndico', tipo_sub: 'funcionario_portaria' });
 
-const comLogin = { id: 1, nome: 'Eletricista', telefone: null, email: 'p@x.com', categorias: '', id_condominio: 1, hasPortariaAccess: true };
-const semLogin = { id: 2, nome: 'Jardineiro', telefone: null, email: null, categorias: '', id_condominio: 1, hasPortariaAccess: false };
+const comLogin = { id: 1, nome: 'Eletricista', telefone: null, email: 'p@x.com', categorias: '', id_condominio: 1, hasPortariaAccess: true, loginPortariaProprio: true };
+const semLogin = { id: 2, nome: 'Jardineiro', telefone: null, email: null, categorias: '', id_condominio: 1, hasPortariaAccess: false, loginPortariaProprio: false };
+// Login próprio desativado: a lista diz "sem acesso", mas remover ainda revoga esse login e a API pede síndico.
+const loginInativo = { id: 3, nome: 'Pintor', telefone: null, email: 'i@x.com', categorias: '', id_condominio: 1, hasPortariaAccess: false, loginPortariaProprio: true };
 
 describe('PrestadoresPageComponent — acesso à portaria só para o síndico', () => {
   function render(token: string, turno: string | null) {
     const api = {
-      list: jest.fn(() => of([comLogin, semLogin])),
+      list: jest.fn(() => of([comLogin, semLogin, loginInativo])),
       create: jest.fn(() => of({ id: 3 })),
       update: jest.fn(() => of({ id: 1 })),
       remove: jest.fn(() => of({ ok: true })),
@@ -102,14 +104,14 @@ describe('PrestadoresPageComponent — acesso à portaria só para o síndico', 
     expect((api.update.mock.calls[0] as any[])[1]).toHaveProperty('hasPortariaAccess', true);
   });
 
-  it('porteiro não vê Excluir no prestador que tem login; nos outros, vê', () => {
+  it('porteiro não vê Excluir no prestador que tem login próprio, mesmo inativo; nos outros, vê', () => {
     const { el } = render(PORTEIRO, 'Diurno');
     expect(botoesExcluir(el)).toHaveLength(1);
   });
 
   it('síndico vê Excluir em todos', () => {
     const { el } = render(SINDICO, 'Síndico');
-    expect(botoesExcluir(el)).toHaveLength(2);
+    expect(botoesExcluir(el)).toHaveLength(3);
   });
 
   it('erro ao remover aparece na tela', async () => {
