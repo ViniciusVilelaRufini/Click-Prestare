@@ -109,6 +109,7 @@
     "passport-jwt": "^4.0.1",
     "pdf-parse": "^2.4.5",
     "pdfmake": "^0.3.8",
+    "qrcode-generator": "^2.0.4",
     "reflect-metadata": "^0.1.13",
     "resend": "^6.12.3",
     "rxjs": "^7.8.0",

@@ -135,6 +135,16 @@ customHeaders:
     headers:
       - key: X-Robots-Tag
         value: noindex
+  # Passe do visitante (QR dinâmico). O link gerado hoje é /?passe=<token>,
+  # coberto pela raiz; estes cobrem a rota passe/:token do SPA.
+  - pattern: '/passe'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
+  - pattern: '/passe/*'
+    headers:
+      - key: X-Robots-Tag
+        value: noindex
   # Aliases do SPA para as páginas legais: a versão indexável é a .html estática.
   - pattern: '/politica-de-privacidade'
     headers:

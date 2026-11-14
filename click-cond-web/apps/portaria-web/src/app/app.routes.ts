@@ -5,6 +5,9 @@ import { authGuard } from './auth/auth.guard';
 const convitePorQueryCanMatch: CanMatchFn = () =>
   Boolean(inject(Router).getCurrentNavigation()?.extractedUrl.queryParams['convite']);
 
+const passePorQueryCanMatch: CanMatchFn = () =>
+  Boolean(inject(Router).getCurrentNavigation()?.extractedUrl.queryParams['passe']);
+
 const redefinirSenhaPorQueryCanMatch: CanMatchFn = () => {
   const queryParams = inject(Router).getCurrentNavigation()?.extractedUrl.queryParams;
   return Boolean(
@@ -33,6 +36,16 @@ export const appRoutes: Route[] = [
     canMatch: [convitePorQueryCanMatch],
     loadComponent: () =>
       import('./convite/convite-page.component').then((m) => m.ConvitePageComponent),
+  },
+  {
+    // Passe do visitante (QR dinâmico), pelo mesmo fallback de query na raiz:
+    // é o link que a API gera (`/?passe=<token>`), porque o Amplify não
+    // entrega caminho profundo ao SPA.
+    path: '',
+    pathMatch: 'full',
+    canMatch: [passePorQueryCanMatch],
+    loadComponent: () =>
+      import('./passe/passe-page.component').then((m) => m.PassePageComponent),
   },
   {
     path: 'login',
@@ -70,6 +83,20 @@ export const appRoutes: Route[] = [
     path: 'convite',
     loadComponent: () =>
       import('./convite/convite-page.component').then((m) => m.ConvitePageComponent),
+  },
+  {
+    // Pública como o convite: a trava é o token do passe (HMAC do servidor,
+    // trocado quando o morador cancela o link). Mantida para quando a
+    // hospedagem servir caminho profundo; o link gerado hoje usa `?passe=`.
+    path: 'passe/:token',
+    loadComponent: () =>
+      import('./passe/passe-page.component').then((m) => m.PassePageComponent),
+  },
+  {
+    // Sem token: mesma tela de passe indisponível, em vez de tela branca.
+    path: 'passe',
+    loadComponent: () =>
+      import('./passe/passe-page.component').then((m) => m.PassePageComponent),
   },
   {
     path: 'politica-de-privacidade',
