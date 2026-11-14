@@ -27,7 +27,7 @@ describe('check-out — visitante recorrente mantém a liberação', () => {
     const prisma: any = {
       isConnected: true,
       visitas: { update: jest.fn(async ({ data }: any) => rel(Object.assign(visita, data))) },
-      vagas: { updateMany: jest.fn(async () => ({ count: 0 })) },
+      vagas: { findFirst: jest.fn(async () => null), updateMany: jest.fn(async () => ({ count: 0 })) },
     };
     const svc = new VisitantesService(
       prisma, {} as any, {} as any, {} as any, { registrar: jest.fn() } as any, {} as any,
@@ -47,7 +47,7 @@ describe('check-out — visitante recorrente mantém a liberação', () => {
     const prisma: any = {
       isConnected: true,
       visitantes: { update: jest.fn(async ({ data }: any) => Object.assign(visitante, data)) },
-      vagas: { updateMany: jest.fn(async () => ({ count: 0 })) },
+      vagas: { findFirst: jest.fn(async () => null), updateMany: jest.fn(async () => ({ count: 0 })) },
     };
     const svc = new VisitantesService(
       prisma, {} as any, {} as any, { unsyncVisitante: jest.fn(async () => true), syncVisitante: jest.fn(async () => ({})) } as any,

@@ -99,13 +99,14 @@ describe('VisitantesPageComponent — lista viva e mensagens do servidor', () =>
     expect(tela.error()).toContain('Este visitante não está no condomínio.');
   });
 
-  it('erro ao liberar e ao registrar entrada mostra o motivo do servidor', () => {
+  // Rodada 3, item 9: os dois saem de dentro de um modal — o erro aparece nele.
+  it('erro ao liberar e ao registrar entrada mostra o motivo do servidor (no modal)', () => {
     const tela = build();
     const p = { id: 1, nome: 'QA', apartamentosVisitados: [{ id: 106, label: '106', visitanteId: 1 }] } as any;
     tela.liberarAcessoEFechar(p);
-    expect(tela.error()).toContain('Acesso negado: bloqueado.');
+    expect(tela.erroModal()).toContain('Acesso negado: bloqueado.');
     tela.registrarEntradaManual(p);
     tela.confirmarEntradaModal();
-    expect(tela.error()).toContain('A autorização desta visita está expirada.');
+    expect(tela.erroModal()).toContain('A autorização desta visita está expirada.');
   });
 });

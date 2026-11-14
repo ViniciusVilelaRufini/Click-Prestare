@@ -230,8 +230,10 @@ export class VisitantesGlobalController {
     @Body('id', ParseIntPipe) id: number,
     @ReqUser() payload: JwtPayload,
     @Body('id_apartamento') idApartamento?: number,
+    // auth_status que a tela viu ao abrir o modal (opcional; o app não manda).
+    @Body('esperado') esperado?: string | null,
   ) {
-    return this.service.checkIn(id, payload, idApartamento ? Number(idApartamento) : undefined);
+    return this.service.checkIn(id, payload, idApartamento ? Number(idApartamento) : undefined, esperado);
   }
 
   @SkipAudit()
@@ -240,8 +242,10 @@ export class VisitantesGlobalController {
     @Body('id', ParseIntPipe) id: number,
     @ReqUser() payload: JwtPayload,
     @Body('id_apartamento') idApartamento?: number,
+    // auth_status que a tela viu (o console manda; ver assertNegativaConhecida).
+    @Body('esperado') esperado?: string | null,
   ) {
-    return this.service.liberarAcesso(id, payload, idApartamento ? Number(idApartamento) : undefined);
+    return this.service.liberarAcesso(id, payload, idApartamento ? Number(idApartamento) : undefined, esperado);
   }
 
   @SkipAudit()

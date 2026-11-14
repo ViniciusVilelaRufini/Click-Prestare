@@ -107,6 +107,6 @@ describe('VisitantesPageComponent — entrada com autorização expirada', () =>
     tela.registrarEntradaManual(pessoa(false));
     tela.confirmarEntradaModal();
     expect(service.novaVisitaPessoa).not.toHaveBeenCalled();
-    expect(service.checkIn).toHaveBeenCalledWith(1000005, 106);
+    expect(service.checkIn).toHaveBeenCalledWith(1000005, 106, null);
   });
 });
