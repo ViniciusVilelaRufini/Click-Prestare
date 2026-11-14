@@ -169,7 +169,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
 
   /**
    * 1. pedido pendente vencido → expirado;
-   * 2. autoatendimento sem resposta há 2 h → CANCELADA ("Sem resposta do morador");
+   * 2. autoatendimento sem resposta 2 h depois do pedido de portão → CANCELADA ("Sem resposta do morador");
    * 3. AUTORIZADA com o portão aberto há 30 min → CONCLUIDA;
    * 4. autoatendimento AUTORIZADA sem abertura, ou RETIRADA_NA_PORTARIA, parado há 2 h → CONCLUIDA.
    * Uma etapa (ou um atendimento) que falha não impede as outras.
@@ -188,7 +188,9 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
         where: {
           origem: 'autoatendimento',
           status: { in: ['CHEGOU', 'AGUARDANDO_AUTORIZACAO'] },
-          chegou_em: { lte: new Date(agora - CANCELA_SEM_RESPOSTA_MS) },
+          // Conta do pedido de portão (o único do atendimento), não do chegou_em.
+          id_pedido_portao: { not: null },
+          pedidosPortao: { some: { criado_em: { lte: new Date(agora - CANCELA_SEM_RESPOSTA_MS) } } },
         },
         select: { id: true },
         take: LOTE_ROTINA,
