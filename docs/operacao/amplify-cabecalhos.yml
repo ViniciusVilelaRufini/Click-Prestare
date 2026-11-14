@@ -135,8 +135,9 @@ customHeaders:
     headers:
       - key: X-Robots-Tag
         value: noindex
-  # Passe do visitante (QR dinâmico). O link gerado hoje é /?passe=<token>,
-  # coberto pela raiz; estes cobrem a rota passe/:token do SPA.
+  # Passe do visitante (QR dinâmico). O link gerado hoje é /#passe=<token>
+  # (o fragmento não chega ao servidor), coberto pela raiz; estes cobrem a
+  # rota passe/:token do SPA, aceita por compatibilidade.
   - pattern: '/passe'
     headers:
       - key: X-Robots-Tag

@@ -26,6 +26,8 @@ const QR_VALE_NA_TELA_MS = 30_000;
 const NOVA_TENTATIVA_MS = 5_000;
 /** Busca que não responde vira falha de rede (o QR não pode esperar). */
 const TEMPO_LIMITE_MS = 10_000;
+/** Cópia do token nesta aba, para sobreviver a recarregar a página. */
+const CHAVE_ABA = 'prestare_passe_token';
 /** Margem branca obrigatória do QR, em módulos. */
 const MARGEM_MODULOS = 4;
 
@@ -45,7 +47,8 @@ const MARGEM_MODULOS = 4;
  *  - 404 é a mesma tela para todo motivo (link cancelado, visita encerrada,
  *    opção desligada): a página não ajuda a descobrir quais links existem.
  *
- * O token está na URL desta página. Nada aqui fala com terceiros: o QR é
+ * O token chega no fragmento da URL (`/#passe=…`), sai da barra assim que é
+ * lido e vai à API no corpo de um POST. Nada aqui fala com terceiros: o QR é
  * desenhado no próprio navegador (qrcode-generator → SVG), não há imagem nem
  * link externo, e a página pede `no-referrer` para o navegador não repassar a
  * URL.
@@ -220,14 +223,11 @@ export class PassePageComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.pedirSemReferrer();
 
-    this.token =
-      this.route.snapshot.paramMap.get('token') ??
-      this.route.snapshot.queryParamMap.get('passe') ??
-      '';
+    this.token = this.lerToken();
 
     // Link cortado ao copiar do WhatsApp: mesma tela de qualquer passe
     // inválido, sem gastar chamada e sem ficar em branco.
-    if (!this.token.trim()) {
+    if (!this.token) {
       this.parar();
       this.indisponivel.set(true);
       return;
@@ -248,8 +248,10 @@ export class PassePageComponent implements OnInit, OnDestroy {
     if (this.parado || this.busca) return;
     this.limparProxima();
 
+    // POST com o token no corpo: na URL ele ficaria nos logs de acesso do
+    // CloudFront e do nginx.
     this.busca = this.http
-      .get<PassePublico>(`${API_BASE}/passes/publico/${encodeURIComponent(this.token)}`)
+      .post<PassePublico>(`${API_BASE}/passes/publico`, { token: this.token })
       .pipe(timeout(TEMPO_LIMITE_MS))
       .subscribe({
         next: (d) => {
@@ -268,6 +270,7 @@ export class PassePageComponent implements OnInit, OnDestroy {
           if (this.parado) return;
           if (e instanceof HttpErrorResponse && e.status === 404) {
             this.parar();
+            this.guardarNaAba(null);
             this.dados.set(null);
             this.indisponivel.set(true);
             return;
@@ -303,7 +306,55 @@ export class PassePageComponent implements OnInit, OnDestroy {
     this.document.removeEventListener('visibilitychange', this.aoMudarVisibilidade);
   }
 
-  /** O token está na URL: o navegador não deve repassá-la a ninguém. */
+  /**
+   * Token do passe. O link gerado é `/#passe=<token>`: o fragmento não vai ao
+   * servidor, então não cai em log de acesso. `?passe=` e `passe/:token`
+   * continuam aceitos por compatibilidade.
+   *
+   * Lido o token, ele sai da barra de endereço (`history.replaceState`) para
+   * não ficar no histórico do navegador, e fica só nesta aba
+   * (sessionStorage): o celular recarrega aba em segundo plano, e sem isso o
+   * visitante na frente do leitor cairia em "Passe indisponível". A URL vira
+   * `/#passe`, que continua abrindo esta página e lê a cópia da aba.
+   */
+  private lerToken(): string {
+    const snap = this.route.snapshot;
+    const fragmento = snap.fragment ?? this.document.defaultView?.location.hash.replace(/^#/, '') ?? '';
+    const doFragmento = new URLSearchParams(fragmento).get('passe');
+    const daUrl = (snap.paramMap.get('token') ?? snap.queryParamMap.get('passe') ?? doFragmento ?? '').trim();
+
+    if (daUrl) {
+      this.guardarNaAba(daUrl);
+      this.limparBarraDeEndereco();
+      return daUrl;
+    }
+    try {
+      return (this.document.defaultView?.sessionStorage.getItem(CHAVE_ABA) ?? '').trim();
+    } catch {
+      return '';
+    }
+  }
+
+  private guardarNaAba(token: string | null) {
+    try {
+      const s = this.document.defaultView?.sessionStorage;
+      if (token) s?.setItem(CHAVE_ABA, token);
+      else s?.removeItem(CHAVE_ABA);
+    } catch {
+      /* sem storage: só não sobrevive a recarregar a aba */
+    }
+  }
+
+  private limparBarraDeEndereco() {
+    try {
+      const w = this.document.defaultView;
+      w?.history.replaceState(w.history.state, '', '/#passe');
+    } catch {
+      /* navegador sem History API: o token só fica na barra */
+    }
+  }
+
+  /** O token esteve na URL: o navegador não deve repassá-la a ninguém. */
   private pedirSemReferrer() {
     const head = this.document.head;
     if (!head || head.querySelector('meta[name="referrer"]')) return;

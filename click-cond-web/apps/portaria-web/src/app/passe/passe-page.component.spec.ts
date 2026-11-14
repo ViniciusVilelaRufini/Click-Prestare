@@ -20,7 +20,8 @@ import { appRoutes } from '../app.routes';
  */
 
 const TOKEN = 'b5.QUJDREVGR0g';
-const URL_PASSE = `${API_BASE}/passes/publico/${TOKEN}`;
+/** O token vai no corpo de um POST, nunca na URL (que cai em log de acesso). */
+const URL_PASSE = { method: 'POST', url: `${API_BASE}/passes/publico` };
 
 const CODIGO_1 = 'P1AAAAAAIDQRCMABTQCSPWDO5F3Q';
 const CODIGO_2 = 'P1AAAAAAIDQRCMDS3DSX2WSX2IVM';
@@ -72,6 +73,8 @@ describe('PassePageComponent — passe público do visitante', () => {
 
   beforeEach(() => {
     visibilidade = 'visible';
+    sessionStorage.clear();
+    history.replaceState(null, '', '/');
     jest.useFakeTimers().setSystemTime(new Date('2026-11-14T15:00:05.000Z'));
   });
 
@@ -82,7 +85,11 @@ describe('PassePageComponent — passe público do visitante', () => {
     jest.useRealTimers();
   });
 
-  function montar(params: Record<string, string> = { token: TOKEN }, query: Record<string, string> = {}) {
+  function montar(
+    params: Record<string, string> = { token: TOKEN },
+    query: Record<string, string> = {},
+    fragment: string | null = null,
+  ) {
     TestBed.configureTestingModule({
       imports: [PassePageComponent],
       providers: [
@@ -92,7 +99,7 @@ describe('PassePageComponent — passe público do visitante', () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            snapshot: { paramMap: convertToParamMap(params), queryParamMap: convertToParamMap(query) },
+            snapshot: { paramMap: convertToParamMap(params), queryParamMap: convertToParamMap(query), fragment },
           },
         },
         { provide: ThemeService, useValue: { isLight: signal(false) } },
@@ -113,9 +120,51 @@ describe('PassePageComponent — passe público do visitante', () => {
   }
 
   function responder(corpo: unknown) {
-    http.expectOne(URL_PASSE).flush(corpo);
+    const req = http.expectOne(URL_PASSE);
+    expect(req.request.body).toEqual({ token: TOKEN });
+    req.flush(corpo);
     fixture.detectChanges();
   }
+
+  it('lê o token do fragmento #passe= e o envia no corpo do POST, não na URL', () => {
+    const el = montar({}, {}, `passe=${TOKEN}`);
+    const req = http.expectOne(URL_PASSE);
+    expect(req.request.url).not.toContain(TOKEN);
+    expect(req.request.urlWithParams).not.toContain(TOKEN);
+    expect(req.request.body).toEqual({ token: TOKEN });
+    req.flush(resposta(CODIGO_1, 30));
+    fixture.detectChanges();
+    expect(desenhado(el)).toBe(caminhoEsperado(CODIGO_1));
+  });
+
+  it.each([
+    ['fragmento', {}, {}, `passe=${TOKEN}`],
+    ['query (links antigos)', {}, { passe: TOKEN }, null],
+    ['rota passe/:token', { token: TOKEN }, {}, null],
+  ])('tira o token da barra de endereço lido por %s', (_n, params, query, fragment) => {
+    history.replaceState(null, '', fragment ? `/#${fragment}` : `/?passe=${TOKEN}`);
+    montar(params as Record<string, string>, query as Record<string, string>, fragment as string | null);
+    expect(location.href).not.toContain(TOKEN);
+    expect(location.pathname + location.search + location.hash).toBe('/#passe');
+    responder(resposta(CODIGO_1, 30));
+  });
+
+  it('a aba recarregada em /#passe continua com o mesmo passe', () => {
+    montar({}, {}, `passe=${TOKEN}`);
+    responder(resposta(CODIGO_1, 30));
+    fixture.destroy();
+    TestBed.resetTestingModule();
+
+    const el = montar({}, {}, 'passe');
+    responder(resposta(CODIGO_2, 30));
+    expect(desenhado(el)).toBe(caminhoEsperado(CODIGO_2));
+  });
+
+  it('passe indisponível apaga a cópia da aba', () => {
+    montar({}, {}, `passe=${TOKEN}`);
+    http.expectOne(URL_PASSE).flush({ message: 'Passe indisponível.' }, { status: 404, statusText: 'Not Found' });
+    expect(sessionStorage.getItem('prestare_passe_token')).toBeNull();
+  });
 
   it('desenha o QR com o código recebido e mostra nome, condomínio e unidade', () => {
     const el = montar();
@@ -293,7 +342,24 @@ describe('PassePageComponent — rotas públicas', () => {
     return { component, http };
   }
 
-  it('abre o passe pela raiz com ?passe= (o Amplify não serve caminho profundo)', async () => {
+  beforeEach(() => sessionStorage.clear());
+
+  it('abre o passe pela raiz com #passe= (o link gerado; o fragmento não vai ao servidor)', async () => {
+    const { component, http } = await navegar(`/#passe=${TOKEN}`);
+    const req = http.expectOne(URL_PASSE);
+    expect(req.request.body).toEqual({ token: TOKEN });
+    req.flush(resposta(CODIGO_1, 30));
+    expect(component).toBeInstanceOf(PassePageComponent);
+  });
+
+  it('a raiz com #passe (token já tirado da barra) continua abrindo o passe da aba', async () => {
+    sessionStorage.setItem('prestare_passe_token', TOKEN);
+    const { component, http } = await navegar('/#passe');
+    expect(http.expectOne(URL_PASSE).request.body).toEqual({ token: TOKEN });
+    expect(component).toBeInstanceOf(PassePageComponent);
+  });
+
+  it('abre o passe pela raiz com ?passe= (links antigos)', async () => {
     const { component, http } = await navegar(`/?passe=${TOKEN}`);
     http.expectOne(URL_PASSE).flush(resposta(CODIGO_1, 30));
     expect(component).toBeInstanceOf(PassePageComponent);

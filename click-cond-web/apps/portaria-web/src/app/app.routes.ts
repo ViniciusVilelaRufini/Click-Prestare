@@ -5,8 +5,15 @@ import { authGuard } from './auth/auth.guard';
 const convitePorQueryCanMatch: CanMatchFn = () =>
   Boolean(inject(Router).getCurrentNavigation()?.extractedUrl.queryParams['convite']);
 
-const passePorQueryCanMatch: CanMatchFn = () =>
-  Boolean(inject(Router).getCurrentNavigation()?.extractedUrl.queryParams['passe']);
+/**
+ * Passe do visitante na raiz: `/#passe=<token>` (o link gerado — fragmento não
+ * vai ao servidor nem a log de acesso), `/#passe` (a página tira o token da
+ * barra e fica com a cópia da aba) e `/?passe=<token>` (links antigos).
+ */
+const passePorQueryCanMatch: CanMatchFn = () => {
+  const url = inject(Router).getCurrentNavigation()?.extractedUrl;
+  return Boolean(url?.queryParams['passe']) || /^passe(=|&|$)/.test(url?.fragment ?? '');
+};
 
 const redefinirSenhaPorQueryCanMatch: CanMatchFn = () => {
   const queryParams = inject(Router).getCurrentNavigation()?.extractedUrl.queryParams;
@@ -38,9 +45,9 @@ export const appRoutes: Route[] = [
       import('./convite/convite-page.component').then((m) => m.ConvitePageComponent),
   },
   {
-    // Passe do visitante (QR dinâmico), pelo mesmo fallback de query na raiz:
-    // é o link que a API gera (`/?passe=<token>`), porque o Amplify não
-    // entrega caminho profundo ao SPA.
+    // Passe do visitante (QR dinâmico), na raiz como o convite, porque o
+    // Amplify não entrega caminho profundo ao SPA. O link que a API gera é
+    // `/#passe=<token>`; ver passePorQueryCanMatch.
     path: '',
     pathMatch: 'full',
     canMatch: [passePorQueryCanMatch],
@@ -87,7 +94,7 @@ export const appRoutes: Route[] = [
   {
     // Pública como o convite: a trava é o token do passe (HMAC do servidor,
     // trocado quando o morador cancela o link). Mantida para quando a
-    // hospedagem servir caminho profundo; o link gerado hoje usa `?passe=`.
+    // hospedagem servir caminho profundo; o link gerado hoje usa `#passe=`.
     path: 'passe/:token',
     loadComponent: () =>
       import('./passe/passe-page.component').then((m) => m.PassePageComponent),
