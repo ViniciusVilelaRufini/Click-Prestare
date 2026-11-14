@@ -276,6 +276,12 @@ model Condominios {
   dias_atraso_aviso_2 Int     @default(5)
   dias_atraso_aviso_3 Int     @default(10)
 
+  // QR no app: credencial dinâmica (código que muda a cada 30 s) do morador e
+  // do link do visitante. Desligado por padrão; com a opção ligada, o PIN de
+  // visita lido como QR no leitor deixa de abrir (segue valendo digitado).
+  qr_app_habilitado   Boolean @default(false)
+  credenciaisAcesso   Credenciais_Acesso[]
+
   // Integração Superlógica: id_condominio_cond no ERP. Preenchido na ativação
   // comercial. Vazio = condomínio ignorado pela integração.
   //
@@ -1467,6 +1473,49 @@ model Acessos_Facial {
   @@index([id_condominio, timestamp], map: "idx_acfac_cond_ts")
   @@index([id_pessoa, tipo_pessoa], map: "idx_acfac_pessoa")
   @@index([id_device], map: "idx_acfac_device")
+}
+
+// Credencial de acesso por QR dinâmico. O app (morador) ou a página pública do
+// visitante gera, a partir de `segredo`, um código que muda a cada 30 s; a
+// nuvem confere no webhook do leitor. `segredo` guarda o hex já passado por
+// encryptSecret. Uma credencial ativa por pessoa, condomínio e origem.
+model Credenciais_Acesso {
+  id            Int                    @id @default(autoincrement())
+  id_condominio Int
+  // 'morador' | 'visita'
+  tipo_pessoa   String                 @db.VarChar(20)
+  id_pessoa     Int?
+  id_visita     Int?
+  id_visitante  Int?
+  segredo       String                 @db.VarChar(255)
+  // Texto curto livre, sem enum nem CHECK: hoje 'app' e 'link'; o projeto 3
+  // acrescenta 'wallet_apple' e 'wallet_google'.
+  origem        String                 @default("app") @db.VarChar(20)
+  versao_link   Int                    @default(1)
+  valido_de     DateTime?              @db.DateTime(0)
+  valido_ate    DateTime?              @db.DateTime(0)
+  revogada_em   DateTime?              @db.DateTime(0)
+  criado_em     DateTime               @default(now()) @db.DateTime(0)
+  condominio    Condominios            @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_cred_cond")
+  leituras      Credenciais_Leituras[]
+
+  @@index([id_condominio, tipo_pessoa, id_pessoa, origem], map: "idx_cred_pessoa")
+  @@index([id_visita], map: "idx_cred_visita")
+  @@index([id_visitante], map: "idx_cred_visitante")
+}
+
+// Anti-reuso: o mesmo código (credencial + contador) só abre uma vez em cada
+// leitor. Linhas antigas (> 10 min) são apagadas de forma oportunista.
+model Credenciais_Leituras {
+  id            Int                @id @default(autoincrement())
+  id_credencial Int
+  id_device     Int
+  contador      Int
+  lido_em       DateTime           @default(now()) @db.DateTime(0)
+  credencial    Credenciais_Acesso @relation(fields: [id_credencial], references: [id], onDelete: Cascade, map: "fk_credleit_cred")
+
+  @@unique([id_credencial, id_device, contador], map: "un_credleit")
+  @@index([lido_em], map: "idx_credleit_lido")
 }
 
 model Regras_Acesso {
