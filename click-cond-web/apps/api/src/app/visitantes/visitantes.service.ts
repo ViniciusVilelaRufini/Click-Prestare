@@ -959,6 +959,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       Boolean(v?.codigo_acesso) &&
       !v.data_saida &&
       (!v.data_hora_termino || new Date(v.data_hora_termino).getTime() >= agoraScore);
+    // Vigência da janela da visita (mesma leitura da tela: janelaEncerrada/agendado).
+    const janelaEncerrada = (v: any) =>
+      !!v?.data_hora_termino && new Date(v.data_hora_termino).getTime() < agoraScore;
+    const janelaFutura = (v: any) =>
+      !!v?.data_hora_inicio && new Date(v.data_hora_inicio).getTime() > agoraScore;
+    const dentro = (v: any) => !!v?.data_entrada && !v.data_saida;
+    // Selo "PIN": só o PIN que o terminal/Validar PIN aceitaria (janela não
+    // encerrada e visita liberada) ou que serve para a saída de quem está dentro.
+    const pinAtivo = (v: any) => pinVigente(v) && (v.liberado === 1 || dentro(v));
     const score = (v: any) => {
       if (v.data_entrada && !v.data_saida) return 1000; // No condomínio agora
       if (isAutorizacaoAtual(v, agoraScore)) return 900; // Autorizado pelo morador (ainda válido)
@@ -1024,7 +1033,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           const principal = arr[0] as any;
 
           const noLocal = arr.some((r) => r.data_entrada && !r.data_saida);
-          const temPinAtivo = arr.some((r) => r.codigo_acesso && !r.data_saida);
+          const temPinAtivo = arr.some(pinAtivo);
           const totalVisitas = arr.length;
 
           const ultEntrada = arr
@@ -1082,7 +1091,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
             const isLiberado = regs.some((r) => {
               if (vagaPorVisita.has(r.id)) return true;
-              if ((r as any).is_prestador === 1) return r.liberado === 1;
+              if ((r as any).is_prestador === 1) return r.liberado === 1 && !janelaEncerrada(r);
               if (r.data_saida) {
                 const saida = new Date(r.data_saida).getTime();
                 const resp = (r as any).auth_respondido_em ? new Date((r as any).auth_respondido_em).getTime() : 0;
@@ -1091,11 +1100,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               }
               if (r.liberado === 1 && r.data_entrada && !r.data_saida) return true;
               if (r.liberado === 1) {
-                const respEm = (r as any).auth_respondido_em
-                  ? new Date((r as any).auth_respondido_em).getTime()
-                  : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
-                const refTime = respEm || (r.created_at ? new Date(r.created_at).getTime() : 0);
-                return (now - refTime) <= AUTORIZACAO_EXPIRACAO_MS;
+                // Autorização do morador: os 10 min do pedido (mesma regra do
+                // check-in). Liberação da portaria/app: vale enquanto a janela
+                // não termina — antes também expirava 10 min após o cadastro.
+                if ((r as any).auth_status === 'autorizado') return isAutorizacaoAtual(r, now);
+                return !janelaEncerrada(r);
               }
               return false;
             });
@@ -1158,7 +1167,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               auth_respondido_em: (regAtivoApto as any).auth_respondido_em
                 ? new Date((regAtivoApto as any).auth_respondido_em).toISOString()
                 : null,
-              temPinAtivo: regs.some((r) => Boolean(r.codigo_acesso && !r.data_saida)),
+              temPinAtivo: regs.some(pinAtivo),
               autorizacao_expirada: autorizacaoExpirada,
               pedido_expirado: pedidoExpiradoApto,
               noLocal: noLocalApto,
@@ -1222,17 +1231,21 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               principal?.tag_rfid ??
               arr.map((r) => (r as any).tag_rfid).find((t) => t && String(t).trim()) ??
               null,
-            statusLabel: noLocal
-              ? 'No condomínio'
-              : arr.some((r) =>
-                    r.is_prestador === 1
-                      ? r.liberado === 1
-                      : r.liberado === 1 && !r.data_entrada && !r.data_saida,
-                  )
-                ? 'Liberado'
-                : temPinAtivo
-                  ? 'Agendado'
-                  : 'Histórico',
+            // "Liberado" só para o que o terminal aceita agora: janela não
+            // encerrada, autorização do morador ainda valendo numa visita não
+            // usada; janela futura é "Agendado". O painel "Na portaria agora"
+            // lê este rótulo.
+            statusLabel: (() => {
+              if (noLocal) return 'No condomínio';
+              const liberadaAgora = (r: any) =>
+                r.liberado === 1 &&
+                !janelaEncerrada(r) &&
+                !(r.auth_status === 'autorizado' && !r.data_entrada && !r.data_saida && !isAutorizacaoAtual(r, agoraScore)) &&
+                (r.is_prestador === 1 || vagaPorVisita.has(r.id) || (!r.data_entrada && !r.data_saida));
+              if (arr.some((r) => liberadaAgora(r) && !janelaFutura(r))) return 'Liberado';
+              if (arr.some(liberadaAgora) || temPinAtivo) return 'Agendado';
+              return 'Histórico';
+            })(),
             data_hora_inicio: principal?.data_hora_inicio ? new Date(principal.data_hora_inicio).toISOString() : null,
             data_hora_termino: principal?.data_hora_termino ? new Date(principal.data_hora_termino).toISOString() : null,
             // Mesmo contrato do legado: entrada/saída da visita ATUAL
