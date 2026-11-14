@@ -86,20 +86,20 @@ describe('CredenciaisValidacaoService', () => {
     });
   });
 
-  it('visita válida devolve o PIN da visita, pela tabela certa conforme a flag', async () => {
+  it('visita válida devolve o id e o PIN da visita da credencial, pela tabela certa conforme a flag', async () => {
     const credVisita = credencial({ tipo_pessoa: 'visita', id_pessoa: null, id_visita: 300, id_visitante: 30, origem: 'link' });
 
     process.env.PESSOAS_MIGRATION_ENABLED = 'true';
     const comFlag = build({ cred: credVisita, visita: { id: 300, id_condominio: 1, codigo_acesso: '482913' } });
     const r1 = await comFlag.svc.validarLeitura(codigo(), LEITOR, AGORA);
-    expect(r1).toMatchObject({ ok: true, alvo: { tipo: 'visita', codigoAcesso: '482913' } });
+    expect(r1).toMatchObject({ ok: true, alvo: { tipo: 'visita', idVisita: 300, codigoAcesso: '482913' } });
     expect(comFlag.prisma.visitas.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 300 } }));
     expect(comFlag.prisma.visitantes.findUnique).not.toHaveBeenCalled();
 
     process.env.PESSOAS_MIGRATION_ENABLED = 'false';
     const semFlag = build({ cred: credVisita, visitante: { id: 30, id_condominio: 1, codigo_acesso: '111222' } });
     const r2 = await semFlag.svc.validarLeitura(codigo(), LEITOR, AGORA);
-    expect(r2).toMatchObject({ ok: true, alvo: { tipo: 'visita', codigoAcesso: '111222' } });
+    expect(r2).toMatchObject({ ok: true, alvo: { tipo: 'visita', idVisita: 30, codigoAcesso: '111222' } });
     expect(semFlag.prisma.visitantes.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 30 } }));
     expect(semFlag.prisma.visitas.findUnique).not.toHaveBeenCalled();
   });

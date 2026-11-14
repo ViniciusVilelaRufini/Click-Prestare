@@ -77,12 +77,12 @@ describe('FacialService — webhook com código dinâmico', () => {
     contador: 1,
     alvo: { tipo: 'morador', morador: { id: 11, nome: 'Ana', tipo: 'morador' } },
   };
-  const okVisita = (pin = '482913') => ({
+  const okVisita = (pin = '482913', idVisita = 30) => ({
     ok: true,
     rotulo: 'cred:7',
     idCredencial: 7,
     contador: 1,
-    alvo: { tipo: 'visita', codigoAcesso: pin },
+    alvo: { tipo: 'visita', idVisita, codigoAcesso: pin },
   });
   const negado = (motivo = 'assinatura') => ({ ok: false, rotulo: 'cred:7', motivo });
 
@@ -91,18 +91,21 @@ describe('FacialService — webhook com código dinâmico', () => {
       validacao?: any;
       opcao?: boolean;
       visitante?: any;
+      /** Várias linhas de visita (ex.: duas com o mesmo PIN). */
+      visitantes?: any[];
       sessaoDeCaptura?: any;
       accessStateReal?: boolean;
     } = {},
   ) {
     const acessos: any[] = [];
     const vis = opts.visitante ?? null;
+    const linhas: any[] = opts.visitantes ?? (vis ? [vis] : []);
     const visitantesPor = ({ where }: any) =>
-      vis &&
-      (where?.id === undefined || where.id === vis.id) &&
-      (where?.codigo_acesso === undefined || where.codigo_acesso === vis.codigo_acesso)
-        ? [vis]
-        : [];
+      linhas.filter(
+        (l) =>
+          (where?.id === undefined || where.id === l.id) &&
+          (where?.codigo_acesso === undefined || where.codigo_acesso === l.codigo_acesso),
+      );
     const filtraMoradores = ({ where }: any) =>
       [ANA].filter(
         (m) =>
@@ -127,12 +130,14 @@ describe('FacialService — webhook com código dinâmico', () => {
         findMany: jest.fn(async (args: any) => visitantesPor(args)),
         findFirst: jest.fn(async (args: any) => visitantesPor(args)[0] ?? null),
         findUnique: jest.fn(async (args: any) => visitantesPor(args)[0] ?? null),
-        updateMany: jest.fn(async ({ data }: any) => {
-          if (!vis) return { count: 0 };
-          Object.assign(vis, data);
-          return { count: 1 };
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          const alvos = visitantesPor({ where: { id: where?.id } });
+          for (const l of alvos) Object.assign(l, data);
+          return { count: alvos.length };
         }),
-        update: jest.fn(async ({ data }: any) => Object.assign(vis ?? {}, data)),
+        update: jest.fn(async ({ where, data }: any) =>
+          Object.assign(visitantesPor({ where: { id: where?.id } })[0] ?? {}, data),
+        ),
       },
       veiculos: { findMany: jest.fn(async () => []) },
       vagas: { findFirst: jest.fn(async () => null), count: jest.fn(async () => 0) },
@@ -236,6 +241,39 @@ describe('FacialService — webhook com código dinâmico', () => {
     expect(semAcionamento(fora.acessos).map((a) => a.evento)).toEqual(['negado']);
     expect(semAcionamento(fora.acessos)[0].face_id).toBe('cred:7');
     expect(fora.client.triggerRelay).not.toHaveBeenCalled();
+  });
+
+  it('credencial de visita abre EXATAMENTE a visita da credencial, mesmo com outra visita de mesmo PIN', async () => {
+    // O PIN só é único entre visitas sem data_saida; saída por facial/tag/
+    // manual não anula o PIN, então duas visitas podem ter o mesmo código.
+    // B é mais nova e "pronta": pelo desempate do PIN seria a escolhida.
+    const a = visitante({ id: 30, nome: 'Ana Visita' });
+    const b = visitante({ id: 31, nome: 'Bruno Outro' });
+    const { svc, prisma, acessos } = build({ validacao: okVisita('482913', 30), visitantes: [a, b] });
+
+    const res = await svc.processWebhook('tok', leitura());
+
+    expect(res).toEqual(expect.objectContaining({ ok: true, tipo: 'visitante', id: 30, evento: 'entrada' }));
+    expect(semAcionamento(acessos)[0]).toEqual(
+      expect.objectContaining({ face_id: 'cred:7', id_pessoa: 30, nome_pessoa: 'Ana Visita', evento: 'entrada' }),
+    );
+    const consultas = prisma.visitantes.findMany.mock.calls.filter((c: any[]) => c[0]?.where?.codigo_acesso === '482913');
+    expect(consultas.length).toBeGreaterThan(0);
+    for (const c of consultas) expect(c[0].where.id).toBe(30);
+    expect(a.data_entrada).toBeInstanceOf(Date);
+    expect(b.data_entrada).toBeNull();
+  });
+
+  it('credencial de visita cuja visita perdeu o PIN é negada, mesmo havendo outra visita com o mesmo PIN', async () => {
+    const a = visitante({ id: 30, codigo_acesso: null });
+    const b = visitante({ id: 31 });
+    const { svc, acessos, client } = build({ validacao: okVisita('482913', 30), visitantes: [a, b] });
+
+    await expect(svc.processWebhook('tok', leitura())).rejects.toThrow(/Visita encerrada/);
+
+    expect(acessos.map((x) => x.evento)).toEqual(['negado']);
+    expect(b.data_entrada).toBeNull();
+    expect(client.triggerRelay).not.toHaveBeenCalled();
   });
 
   it('código P1 negado grava "negado" com o texto do motivo e face_id sem o código', async () => {

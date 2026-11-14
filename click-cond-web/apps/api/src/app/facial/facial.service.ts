@@ -477,6 +477,11 @@ export function montarInstaladorBat(apiBase: string, token: string, downloadUrl:
  */
 type CredencialVisitaWhere = {
   id_condominio: number;
+  /**
+   * Visita exata (credencial dinâmica de visita): com ele o PIN só confirma
+   * que a visita segue valendo, e nenhuma outra visita de mesmo PIN entra.
+   */
+  id?: number;
   codigo_acesso?: string;
   tag_rfid?: string | { in: string[] };
   /** Só visita NÃO encerrada — ver `VISITA_NAO_ENCERRADA`. */
@@ -5311,8 +5316,13 @@ export class FacialService {
         faceIdSalvo = resultado.rotulo;
       } else {
         // Visita: segue pelo caminho do PIN, de modo que janela, dias,
-        // bloqueio e baixa continuam sendo os de hoje.
+        // bloqueio e baixa continuam sendo os de hoje — mas presa à visita
+        // da credencial (`id`). O PIN não é único entre visitas encerradas
+        // por facial/tag/manual: só por ele, a leitura podia abrir (e dar
+        // baixa) na visita de outra pessoa. O mesmo `where` vale para a
+        // reresolução pelo evento final mais abaixo.
         const whereCredencialQr = {
+          id: resultado.alvo.idVisita,
           codigo_acesso: resultado.alvo.codigoAcesso,
           id_condominio: device.id_condominio,
         };

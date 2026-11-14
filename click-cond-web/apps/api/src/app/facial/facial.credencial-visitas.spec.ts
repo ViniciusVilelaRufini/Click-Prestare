@@ -611,4 +611,127 @@ describe('FacialService — webhook, credencial (PIN/tag) em Visitas (Lote B, Cr
       );
     });
   });
+
+  /**
+   * Credencial dinâmica de visita (QR do passe): a validação diz QUAL visita
+   * é a da credencial. O PIN não é único entre visitas encerradas por facial/
+   * tag/manual (só `data_saida` nula entra na checagem de colisão), então a
+   * resolução e a reresolução têm de ficar presas a essa visita.
+   */
+  describe('flag ON — credencial dinâmica de visita resolve a visita da credencial, não o PIN', () => {
+    beforeEach(() => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+    });
+
+    function buildComCredencial(prisma: any, idVisita: number) {
+      const accessState: any = {
+        shouldDebounce: jest.fn(() => false),
+        checkAntiPassback: jest.fn(() => ({ ok: true })),
+        hasPresenca: jest.fn(() => false),
+        setPresenca: jest.fn(),
+      };
+      const validacao: any = {
+        validarLeitura: jest.fn(async () => ({
+          ok: true,
+          rotulo: 'cred:7',
+          idCredencial: 7,
+          contador: 1,
+          alvo: { tipo: 'visita', idVisita, codigoAcesso: '654321' },
+        })),
+        qrAppHabilitado: jest.fn(async () => true),
+      };
+      return new FacialService(
+        prisma,
+        {} as any,
+        { sendPushNotification: jest.fn() } as any,
+        { consumeForDevice: jest.fn(() => null) } as any,
+        { registrar: jest.fn() } as any,
+        accessState,
+        {} as any,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        validacao,
+      );
+    }
+
+    const visitaCom = (id: number, idPessoa: number, extra: any = {}) => {
+      const agora = Date.now();
+      return {
+        id,
+        id_pessoa: idPessoa,
+        id_condominio: 1,
+        id_apartamento: 101,
+        is_prestador: 0,
+        liberado: 1,
+        bloqueado: 0,
+        tag_rfid: null,
+        codigo_acesso: '654321',
+        data_hora_inicio: new Date(agora - 3_600_000),
+        data_hora_termino: new Date(agora + 3_600_000),
+        data_entrada: null,
+        data_saida: null,
+        dias_semana: null,
+        pessoa: { id: idPessoa, nome: `Pessoa ${idPessoa}`, bloqueado: 0 },
+        ...extra,
+      };
+    };
+
+    function prismaFiltrando(visitas: any[]) {
+      const { prisma } = buildPrisma({ visitasCandidatos: visitas });
+      prisma.visitas.findMany.mockImplementation(async ({ where }: any) =>
+        visitas.filter(
+          (v) =>
+            (where?.id === undefined || where.id === v.id) &&
+            (where?.codigo_acesso === undefined || where.codigo_acesso === v.codigo_acesso) &&
+            (where?.id_condominio === undefined || where.id_condominio === v.id_condominio),
+        ),
+      );
+      prisma.visitas.findFirst.mockImplementation(async ({ where }: any) =>
+        visitas.find((v) => v.id_pessoa === where?.id_pessoa && v.data_entrada && !v.data_saida) ?? null,
+      );
+      return prisma;
+    }
+
+    it('duas visitas com o mesmo PIN: o código da credencial de A dá entrada só em A', async () => {
+      const a = visitaCom(601, 61);
+      const b = visitaCom(602, 62); // mais nova e pronta: o desempate do PIN a escolheria
+      const prisma = prismaFiltrando([a, b]);
+      prisma.facial_Devices.findFirst.mockResolvedValue(DEVICE_QR);
+      const svc = buildComCredencial(prisma, 601);
+
+      const res = await svc.processWebhook('tok-qr', { qrcode: 'P1AAAAAAIDQRCMABTQCSPWDO5F3Q', event: 'entrada' });
+
+      expect(res).toEqual(expect.objectContaining({ ok: true, evento: 'entrada', id: 61 }));
+      for (const [args] of prisma.visitas.findMany.mock.calls) expect(args.where.id).toBe(601);
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: 601 }) }),
+      );
+      expect(prisma.visitas.updateMany).not.toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: 602 }) }),
+      );
+    });
+
+    it('leitor em "auto": a reresolução pelo evento final continua presa à visita da credencial', async () => {
+      const a = visitaCom(601, 61, { data_entrada: new Date(Date.now() - 1_800_000) }); // A está dentro
+      const b = visitaCom(602, 62);
+      const prisma = prismaFiltrando([a, b]);
+      prisma.facial_Devices.findFirst.mockResolvedValue({ ...DEVICE_QR, sentido: 'auto' });
+      const svc = buildComCredencial(prisma, 601);
+
+      const res = await svc.processWebhook('tok-qr', { qrcode: 'P1AAAAAAIDQRCMABTQCSPWDO5F3Q', event: 'access' });
+
+      expect(res).toEqual(expect.objectContaining({ ok: true, evento: 'saida', id: 61 }));
+      for (const [args] of prisma.visitas.findMany.mock.calls) expect(args.where.id).toBe(601);
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 601 }),
+          data: expect.objectContaining({ data_saida: expect.any(Date) }),
+        }),
+      );
+      expect(b.data_entrada).toBeNull();
+    });
+  });
 });

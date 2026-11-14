@@ -33,6 +33,14 @@ export const TEXTO_NEGACAO: Record<MotivoNegacao, string> = {
   morador_removido: 'Morador não encontrado',
 };
 
+/**
+ * Visita da credencial. `idVisita` é o id no espaço em uso pela flag
+ * (`Visitas.id` ligada, `Visitantes.id` desligada) e é o que identifica a
+ * visita: o PIN não é único entre visitas encerradas, então resolver só por
+ * ele podia abrir a visita de outra pessoa com o mesmo código.
+ */
+export type AlvoVisita = { tipo: 'visita'; idVisita: number; codigoAcesso: string };
+
 export type ResultadoLeitura =
   | {
       ok: true;
@@ -41,7 +49,7 @@ export type ResultadoLeitura =
       contador: number;
       alvo:
         | { tipo: 'morador'; morador: { id: number; nome: string; tipo: string | null } }
-        | { tipo: 'visita'; codigoAcesso: string };
+        | AlvoVisita;
     }
   | { ok: false; rotulo: string; motivo: MotivoNegacao };
 
@@ -119,7 +127,7 @@ export class CredenciaisValidacaoService {
     // 8. Alvo.
     let alvo:
       | { tipo: 'morador'; morador: { id: number; nome: string; tipo: string | null } }
-      | { tipo: 'visita'; codigoAcesso: string };
+      | AlvoVisita;
     if (cred.tipo_pessoa === 'morador') {
       const morador =
         cred.id_pessoa != null
@@ -143,7 +151,7 @@ export class CredenciaisValidacaoService {
       if (!visita || visita.id_condominio !== device.id_condominio || !visita.codigo_acesso) {
         return negar('visita_encerrada');
       }
-      alvo = { tipo: 'visita', codigoAcesso: visita.codigo_acesso };
+      alvo = { tipo: 'visita', idVisita: visita.id, codigoAcesso: visita.codigo_acesso };
     } else {
       return negar('desconhecida');
     }
