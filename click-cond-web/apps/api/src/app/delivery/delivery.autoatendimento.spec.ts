@@ -196,8 +196,21 @@ describe('DeliveryService — autoatendimento no portão', () => {
     const semPedido = montar({ atendimentos: [atendimentoAuto({ origem: 'portaria', id_morador_user: 7, id_pedido_portao: null })] });
     await expect(semPedido.svc.atualizarStatus(1, { status: 'RETIRADA_NA_PORTARIA' } as any, morador7)).rejects.toBeInstanceOf(ForbiddenException);
 
-    const pedidoRespondido = montar({ atendimentos: [atendimentoAuto()], pedidos: [pedidoPendente({ status: 'expirado' })] });
+    const pedidoRespondido = montar({ atendimentos: [atendimentoAuto()], pedidos: [pedidoPendente({ status: 'recusado' })] });
     await expect(pedidoRespondido.svc.atualizarStatus(1, { status: 'RETIRADA_NA_PORTARIA' } as any, morador7)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('pedido de portão vencido: AUTORIZADA ou RETIRADA_NA_PORTARIA do morador → 409 e o card vai a "Entregador não esperou"', async () => {
+    for (const status of ['AUTORIZADA', 'RETIRADA_NA_PORTARIA']) {
+      const k = montar({ atendimentos: [atendimentoAuto()], pedidos: [pedidoPendente({ status: 'expirado' })] });
+      (k.card as any).entregadorNaoEsperou = jest.fn(async () => undefined);
+      await expect(k.svc.atualizarStatus(1, { status } as any, morador7)).rejects.toThrow(
+        new ConflictException('O entregador não está mais no portão.'),
+      );
+      expect(k.tabela('deliveryAtendimentos')[0].status).toBe('AGUARDANDO_AUTORIZACAO');
+      expect(k.tabela('deliveryEventos')).toHaveLength(0);
+      expect((k.card as any).entregadorNaoEsperou).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
+    }
   });
 
   it('primeira resposta em atendimento sem dono grava o dono e encerra o card dos outros', async () => {

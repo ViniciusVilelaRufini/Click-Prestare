@@ -71,6 +71,7 @@ const TRANSICOES_DO_SISTEMA: Partial<Record<DeliveryStatus, readonly DeliverySta
   AGUARDANDO_AUTORIZACAO: ['CANCELADA'],
 };
 const MSG_JA_TEM_PEDIDO = 'Este atendimento já tem um pedido de portão.';
+const MSG_ENTREGADOR_SAIU = 'O entregador não está mais no portão.';
 const AUTOR_AUTOATENDIMENTO = 'Autoatendimento';
 const AUTOR_SISTEMA = 'Sistema';
 
@@ -363,8 +364,18 @@ export class DeliveryService {
     // outra mudança é da portaria. Pedido do entregador no portão ainda
     // pendente: o morador também pode responder "vou buscar".
     const pedido = await this.pedidoAtivo(atendimento.id_pedido_portao);
+    // Pedido do portão deste atendimento que venceu (marcado ou só pelo prazo):
+    // o entregador não está mais lá para liberar ou mandar descer.
+    const pedidoVencido =
+      !!pedido &&
+      statusAtual === 'AGUARDANDO_AUTORIZACAO' &&
+      Number(pedido.id_atendimento) === Number(atendimento.id) &&
+      (pedido.status === 'expirado' ||
+        (pedido.status === 'pendente' && this.agora() >= new Date(pedido.expira_em).getTime()));
     const respostasDoMorador: DeliveryStatus[] =
-      pedido?.status === 'pendente' ? ['AUTORIZADA', 'RECUSADA', 'RETIRADA_NA_PORTARIA'] : ['AUTORIZADA', 'RECUSADA'];
+      pedido?.status === 'pendente' || pedidoVencido
+        ? ['AUTORIZADA', 'RECUSADA', 'RETIRADA_NA_PORTARIA']
+        : ['AUTORIZADA', 'RECUSADA'];
     // Quem responde como morador decide-se pelo vínculo com a unidade, não
     // pelo papel: síndico ou funcionário que mora na unidade e responde pelo
     // app (token sem condomínio) é morador (a nuvem abre o portão). No
@@ -382,6 +393,15 @@ export class DeliveryService {
     const vinculoAtual =
       podeComoMorador && (await this.temVinculoNaUnidade(atendimento.id_apartamento, this.idUsuario(user)));
     const respostaDoMorador = ehDono || vinculoAtual;
+    if (pedidoVencido && respostaDoMorador && (statusNovo === 'AUTORIZADA' || statusNovo === 'RETIRADA_NA_PORTARIA')) {
+      // Nada muda no atendimento; o pedido fica vencido e o card vai ao
+      // estado final (o Android fecha o card no 409).
+      await (this.prisma as any).deliveryPedidosPortao
+        .updateMany({ where: { id: pedido.id, status: 'pendente' }, data: { status: 'expirado' } })
+        .catch((e: any) => this.logger.warn(`Pedido de portão ${pedido.id} vencido: ${e?.message ?? e}`));
+      await this.comTeto(this.aoVencerPedidoPortao(atendimento.id));
+      throw new ConflictException(MSG_ENTREGADOR_SAIU);
+    }
     /** Agiu como morador (resposta da unidade, ou o morador cancelando o próprio aviso). */
     const comoMorador = respostaDoMorador || !operador;
     // Atendimento do autoatendimento sem dono: quem responde primeiro vira o dono.
@@ -674,6 +694,21 @@ export class DeliveryService {
     }).catch((e: any) => this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`));
     await this.comTeto(Promise.all([gancho, aviso]));
     return true;
+  }
+
+  /**
+   * O pedido de portão do atendimento venceu sem resposta (rotina, consulta
+   * da página, pedido novo da unidade ou resposta tarde do morador): o card
+   * que pede a liberação vai ao estado final "Entregador não esperou" e
+   * encerra. Melhor esforço; nunca rejeita.
+   */
+  async aoVencerPedidoPortao(idAtendimento: number): Promise<void> {
+    if (!this.cardAoVivo) return;
+    try {
+      await this.cardAoVivo.entregadorNaoEsperou(await this.atendimentoParaCard(Number(idAtendimento)));
+    } catch (e: any) {
+      this.logger.warn(`Card ao vivo do delivery ${idAtendimento} (pedido vencido): ${e?.message ?? e}`);
+    }
   }
 
   /** Chama o gancho do portão, se houver; nunca rejeita. */

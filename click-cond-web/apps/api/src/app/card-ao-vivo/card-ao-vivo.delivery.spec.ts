@@ -286,4 +286,36 @@ describe('CardAoVivoService — delivery', () => {
     expect(token).toBe(TOKEN);
     expect(corpo.aps['content-state'].fase).toBe('aguardando');
   });
+  it('entregador do portão não esperou: o card em aguardando vai ao estado final "Entregador não esperou" e encerra', async () => {
+    const k = await abertoEConfirmado({ aparelhos: [iphone, android] });
+    const portao = { ...a, status: 'AGUARDANDO_AUTORIZACAO' as const, portao: true };
+    await k.svc.atualizarDelivery(portao, 1, { voceRespondeu: false });
+    k.apns.enviar.mockClear();
+    k.notifications.enviarDados.mockClear();
+    await k.svc.entregadorNaoEsperou(portao);
+    const corpo = ultimoApns(k.apns);
+    expect(corpo.aps.event).toBe('end');
+    expect(corpo.aps['dismissal-date']).toBe(corpo.aps.timestamp + 120);
+    expect(corpo.aps['content-state']).toMatchObject({ fase: 'recusado', motivo: 'Entregador não esperou', voceRespondeu: false });
+    // Sem os botões do portão.
+    expect(corpo.aps['content-state'].portao).toBeUndefined();
+    expect(k.notifications.enviarDados).toHaveBeenCalledWith(
+      'fcm-android',
+      expect.objectContaining({ fase: 'recusado', origem: 'delivery' }),
+    );
+    expect(k.prisma.cards_Ao_Vivo.rows.every((r: any) => r.encerrado_em)).toBe(true);
+    // Segunda chamada (rotina e consulta ao mesmo tempo): nada mais sai.
+    k.apns.enviar.mockClear();
+    await k.svc.entregadorNaoEsperou(portao);
+    expect(k.apns.enviar).not.toHaveBeenCalled();
+  });
+
+  it('card já em outra fase (a portaria autorizou) não vira "Entregador não esperou"', async () => {
+    const k = await abertoEConfirmado();
+    await k.svc.atualizarDelivery({ ...a, status: 'AUTORIZADA', autorizado_em: new Date(T0) }, 1, { voceRespondeu: false });
+    k.apns.enviar.mockClear();
+    await k.svc.entregadorNaoEsperou({ ...a, status: 'AUTORIZADA' });
+    expect(k.apns.enviar).not.toHaveBeenCalled();
+    expect(k.prisma.cards_Ao_Vivo.rows[0].fase).toBe('autorizado');
+  });
 });

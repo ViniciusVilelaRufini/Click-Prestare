@@ -121,6 +121,8 @@ export const LIBERADO_ESPERA_SEG = 600;
 export const DISMISSAL_ENTROU_SEG = 300;
 export const DISMISSAL_FINAL_SEG = 120;
 export const CHAVE_APNS_S3 = 'config/apns/AuthKey.p8';
+/** Estado final do card do portão quando o pedido do entregador vence sem resposta. */
+export const MOTIVO_ENTREGADOR_NAO_ESPEROU = 'Entregador não esperou';
 
 @Injectable()
 export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
@@ -247,6 +249,25 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     }
     await this.aplicarConteudo(abertas, () => c, dismissalDelivery(fase), null, alerta);
     return { cobertos };
+  }
+
+  /**
+   * O pedido do entregador no QR do portão venceu sem resposta: o card que
+   * ainda pede a liberação (fase aguardando) vai ao estado final "Entregador
+   * não esperou" e encerra (some em 2 min). Card em outra fase não muda.
+   * O app de hoje desenha a fase `recusado` com o motivo.
+   */
+  async entregadorNaoEsperou(a: AtendimentoCard): Promise<void> {
+    const abertas = await this.linhasAbertas('delivery', a.id, ['aguardando']);
+    if (!abertas.length) return;
+    const agora = new Date(this.agora());
+    const c = conteudoDelivery(
+      { ...a, portao: false, motivo: MOTIVO_ENTREGADOR_NAO_ESPEROU, recusado_em: agora },
+      'recusado',
+      { voceRespondeu: false },
+      epochSeg(agora),
+    );
+    await this.aplicarConteudo(abertas, () => c, DISMISSAL_FINAL_SEG, ['aguardando']);
   }
 
   /** Núcleo de abertura, comum à portaria e ao delivery. */

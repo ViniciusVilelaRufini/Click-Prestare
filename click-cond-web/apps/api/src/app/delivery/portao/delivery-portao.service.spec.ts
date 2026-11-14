@@ -302,13 +302,14 @@ describe('DeliveryPortaoService', () => {
     expect(j.facial.abrirDispositivoInterno).toHaveBeenCalledTimes(1);
   });
 
-  it('[RF 2] morador libera pedido já vencido: nada abre e liberado_ate continua nulo', async () => {
+  it('[RF 2] morador libera pedido já vencido: 409, nada abre e liberado_ate continua nulo', async () => {
+    const saiu = new ConflictException('O entregador não está mais no portão.');
     const k = await comPedido();
     k.avancar(5 * 60_000 + 1000);
     // A página ainda está aberta, mas o pedido venceu.
     await k.svc.consultar(TOKEN_PORTAO, k.tokenPedido);
-    const r = await k.delivery.atualizarStatus(k.idAtendimento, { status: 'AUTORIZADA' } as any, morador7);
-    expect(r.status).toBe('AUTORIZADA');
+    await expect(k.delivery.atualizarStatus(k.idAtendimento, { status: 'AUTORIZADA' } as any, morador7)).rejects.toThrow(saiu);
+    expect(k.tabela('deliveryAtendimentos')[0].status).toBe('AGUARDANDO_AUTORIZACAO');
     const [p] = k.tabela('deliveryPedidosPortao');
     expect(p.status).toBe('expirado');
     expect(p.liberado_ate).toBeNull();
@@ -318,7 +319,7 @@ describe('DeliveryPortaoService', () => {
     // Vencido mas ainda marcado como pendente (sem consulta nem rotina).
     const s = await comPedido();
     s.avancar(5 * 60_000 + 1000);
-    await s.delivery.atualizarStatus(s.idAtendimento, { status: 'AUTORIZADA' } as any, morador7);
+    await expect(s.delivery.atualizarStatus(s.idAtendimento, { status: 'AUTORIZADA' } as any, morador7)).rejects.toThrow(saiu);
     expect(s.tabela('deliveryPedidosPortao')[0]).toMatchObject({ status: 'expirado', liberado_ate: null });
     expect(s.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
   });
