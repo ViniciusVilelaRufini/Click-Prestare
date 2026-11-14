@@ -37,7 +37,12 @@ describe('PrestadoresService.update — só o login de portaria do próprio pres
       },
       // As contas dos porteiros são da equipe deste condomínio: assertContaLivreParaPortaria passa (é o caso do achado).
       users: { findFirst: jest.fn(async () => ({ id: 5 })), create: jest.fn(), update: jest.fn(async () => ({})) },
-      funcionarios: { findFirst: jest.fn(async () => ({ id: 1 })), create: jest.fn(), update: jest.fn(async () => ({})) },
+      funcionarios: { findFirst: jest.fn(async () => ({ id: 1 })), create: jest.fn(), update: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
+      // Re-credenciar com senha pergunta se a conta é só de equipe (aí a senha do app acompanha a nova).
+      sindicos: { count: jest.fn(async () => 0) },
+      sindicos_Condominios: { count: jest.fn(async () => 0) },
+      moradores: { count: jest.fn(async () => 0) },
+      apartamentos_Users: { count: jest.fn(async () => 0) },
     };
     const tenant: any = {
       assertEntidade: jest.fn(async () => undefined),
