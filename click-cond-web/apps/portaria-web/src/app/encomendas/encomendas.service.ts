@@ -27,6 +27,8 @@ export interface Encomenda {
   foto_volume?: string | null;
   /** create/notificar/receber/corrigir unidade: quantos moradores o aviso alcançou. */
   avisados?: number;
+  /** Lista leve: a retirada tem assinatura ou foto (abertas por GET :id). */
+  tem_comprovante?: boolean;
 }
 
 export interface CreateEncomenda {
@@ -50,11 +52,22 @@ export class EncomendasApi {
     return `${API_BASE}/condominios/${cid}/encomendas`;
   }
 
-  list(status?: string): Observable<Encomenda[]> {
+  /**
+   * `leve`: sem assinatura/foto da retirada (vem `tem_comprovante`);
+   * `retiradasDias`: só as retiradas desses últimos dias (as que aguardam vêm sempre).
+   */
+  list(status?: string, opcoes: { leve?: boolean; retiradasDias?: number } = {}): Observable<Encomenda[]> {
     let params = new HttpParams();
     if (status) params = params.set('status', status);
+    if (opcoes.leve) params = params.set('leve', '1');
+    if (opcoes.retiradasDias) params = params.set('retiradas_dias', String(opcoes.retiradasDias));
 
     return this.http.get<Encomenda[]>(this.base, { params });
+  }
+
+  /** Uma encomenda completa (com assinatura e foto da retirada). */
+  get(id: number): Observable<Encomenda> {
+    return this.http.get<Encomenda>(`${this.base}/${id}`);
   }
 
   create(dto: CreateEncomenda): Observable<Encomenda> {
