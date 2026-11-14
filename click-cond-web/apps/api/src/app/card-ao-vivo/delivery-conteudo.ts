@@ -34,6 +34,8 @@ export interface AtendimentoCard {
   entregadorPlataforma: string | null;
   /** Foto do entregador como está no cadastro (URL do bucket, chave ou data URL). */
   fotoEntregador: string | null;
+  /** Pedido de portão pendente (autoatendimento): liga a variante do card. */
+  portao?: boolean;
 }
 
 /** null = sem card (AGENDADA); 'encerrar' = some na hora (CANCELADA). */
@@ -90,15 +92,20 @@ export function conteudoDelivery(
     ...(fase === 'recusado' ? { motivo: cortar(a.motivo?.trim() || null, 200) } : {}),
   };
   if (extras.foto) c.foto = extras.foto;
+  if (fase === 'aguardando' && a.portao) c.portao = true;
   return c;
 }
 
 /** Aviso que toca: chegada, pedido de autorização e "retire na portaria". */
-export function alertaDelivery(fase: FaseCard, c: Pick<ConteudoCard, 'nome'>): AlertaCard | null {
+export function alertaDelivery(
+  fase: FaseCard,
+  c: Pick<ConteudoCard, 'nome'> & Partial<Pick<ConteudoCard, 'tipo' | 'portao'>>,
+): AlertaCard | null {
   switch (fase) {
     case 'chegou':
       return { titulo: 'Delivery na portaria', corpo: `${c.nome} chegou. Acompanhe pelo card.` };
     case 'aguardando':
+      if (c.portao) return { titulo: 'Entregador no portão', corpo: `${c.tipo || 'Entregador'} pede para entrar.` };
       return { titulo: 'Autorize a entrega', corpo: `A portaria aguarda sua autorização para ${c.nome}.` };
     case 'retirar':
       return { titulo: 'Retire na portaria', corpo: `Sua entrega de ${c.nome} está na portaria.` };

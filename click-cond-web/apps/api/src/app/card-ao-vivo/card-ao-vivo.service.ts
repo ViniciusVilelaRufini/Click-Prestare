@@ -185,17 +185,19 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
    */
   async abrirDelivery(
     a: AtendimentoCard,
-    idUser: number,
+    idUser: number | number[],
     opts: { voceRespondeu?: boolean; semAvisoComum?: boolean } = {},
   ): Promise<void> {
     const fase = faseDoStatus(a.status);
-    if (!fase || fase === 'encerrar' || !idUser) return;
+    // Autoatendimento do portão sem dono: todos os vínculos do apartamento.
+    const ids = [...new Set((Array.isArray(idUser) ? idUser : [idUser]).filter((u) => !!u))];
+    if (!fase || fase === 'encerrar' || !ids.length) return;
     await this.encerrar('delivery', a.id);
     const conteudo = conteudoDelivery(a, fase, { voceRespondeu: !!opts.voceRespondeu }, epochSeg(new Date(this.agora())));
     await this.abrirNucleo({
       origem: 'delivery',
       id: a.id,
-      idsUsuarios: [idUser],
+      idsUsuarios: ids,
       conteudo,
       pushComum: opts.semAvisoComum ? null : this.pushComumDelivery(a.id, a.status, a.motivo),
       foto: () => (a.fotoEntregador ? this.fotoDoCard({ fotoOrigem: a.fotoEntregador }) : Promise.resolve(null)),
@@ -212,7 +214,7 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
    */
   async atualizarDelivery(
     a: AtendimentoCard,
-    idUser: number,
+    idUser: number | number[],
     opts: { voceRespondeu: boolean },
   ): Promise<{ cobertos: Set<string>; abriu?: boolean }> {
     const cobertos = new Set<string>();
@@ -233,8 +235,8 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
     }
     const foto = a.fotoEntregador ? await this.fotoDoCard({ fotoOrigem: a.fotoEntregador }) : null;
     const seg = epochSeg(new Date(this.agora()));
-    const alerta = alertaDelivery(fase, { nome: a.estabelecimento?.trim() || 'Delivery' });
     let c = conteudoDelivery(a, fase, { voceRespondeu: opts.voceRespondeu, foto }, seg);
+    const alerta = alertaDelivery(fase, c);
     // Foto no estado: o push (APNs ou dados do Android) não pode passar de 4 KB.
     // Mede o push que vai sair de fato (fim no entregue/recusado, atualização no resto).
     const dismissal = dismissalDelivery(fase);
@@ -468,6 +470,16 @@ export class CardAoVivoService implements OnModuleInit, OnModuleDestroy {
   /** Some com o card na hora (visitante excluído, check-out, re-solicitação). */
   async encerrar(origem: OrigemPedido, id: number): Promise<void> {
     const linhas = await this.linhasAbertas(origem, id);
+    if (linhas.length) await this.encerrarLinhas(linhas);
+  }
+
+  /**
+   * Some na hora com o card do pedido nos aparelhos de quem não é
+   * `idUserQueFica` (autoatendimento do portão: o primeiro morador que
+   * responde vira o dono; para os outros o card fecha).
+   */
+  async encerrarDeOutros(origem: OrigemPedido, id: number, idUserQueFica: number): Promise<void> {
+    const linhas = (await this.linhasAbertas(origem, id)).filter((l) => l.id_user !== idUserQueFica);
     if (linhas.length) await this.encerrarLinhas(linhas);
   }
 

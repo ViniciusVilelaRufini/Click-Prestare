@@ -191,6 +191,62 @@ describe('CardAoVivoService — delivery', () => {
     expect(ultimoApns(k.apns).aps.attributes.foto).toBeUndefined();
   });
 
+  describe('vários moradores (autoatendimento do portão)', () => {
+    const ap7 = { id_user: 7, fcm_token: 'fcm-7', plataforma: 'android', card_token_inicio: null, card_android: 1, card_versao: 2 };
+    const ap9 = { id_user: 9, fcm_token: 'fcm-9', plataforma: 'ios', card_token_inicio: 'bb22cc33dd44ee55', card_versao: 2 };
+    const dois = [{ id: 7, fcm_token: 'fcm-7' }, { id: 9, fcm_token: 'fcm-9' }];
+    const portao: AtendimentoCard = { ...a, status: 'AGUARDANDO_AUTORIZACAO', portao: true };
+
+    it('abrirDelivery com [7, 9] abre nos aparelhos dos dois usuários', async () => {
+      const { svc, apns, notifications, prisma } = montarCard({ aparelhos: [ap7, ap9], usuarios: dois });
+      await svc.abrirDelivery(portao, [7, 9]);
+      expect(prisma.cards_Ao_Vivo.rows.map((r: any) => r.id_user).sort()).toEqual([7, 9]);
+      expect(notifications.enviarDados).toHaveBeenCalledWith('fcm-7', expect.objectContaining({ origem: 'delivery', fase: 'aguardando' }));
+      const corpo = ultimoApns(apns);
+      expect(corpo.aps['content-state']).toMatchObject({ fase: 'aguardando', portao: true });
+      expect(corpo.aps.alert).toEqual({ title: 'Entregador no portão', body: 'Carlos · iFood pede para entrar.', sound: 'default' });
+    });
+
+    it('abrirDelivery com lista vazia não envia nada', async () => {
+      const { svc, apns, notifications, prisma } = montarCard({ aparelhos: [ap7, ap9], usuarios: dois });
+      await svc.abrirDelivery(portao, []);
+      expect(apns.enviar).not.toHaveBeenCalled();
+      expect(notifications.enviarDados).not.toHaveBeenCalled();
+      expect(notifications.enviarParaAparelho).not.toHaveBeenCalled();
+      expect(prisma.cards_Ao_Vivo.rows).toHaveLength(0);
+    });
+
+    it('encerrarDeOutros(delivery, 5, 7) encerra a linha do usuário 9 e mantém a do 7', async () => {
+      const { svc, apns, prisma } = montarCard({ aparelhos: [ap7, ap9], usuarios: dois });
+      await svc.abrirDelivery({ ...portao, id: 5 }, [7, 9]);
+      const linha9 = prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === 9);
+      await svc.confirmar(9, linha9.id, TOKEN);
+      apns.enviar.mockClear();
+      await svc.encerrarDeOutros('delivery', 5, 7);
+      const [l7, l9] = [7, 9].map((u) => prisma.cards_Ao_Vivo.rows.find((r: any) => r.id_user === u));
+      expect(l7.encerrado_em).toBeNull();
+      expect(l9.encerrado_em).not.toBeNull();
+      const [token, corpo] = apns.enviar.mock.calls[0] as any[];
+      expect(token).toBe(TOKEN);
+      expect(corpo.aps.event).toBe('end');
+      expect(corpo.aps['dismissal-date']).toBe(corpo.aps.timestamp);
+    });
+
+    it('atualizarDelivery reabre para a lista inteira quando não há card aberto', async () => {
+      const { svc, prisma } = montarCard({ aparelhos: [ap7, ap9], usuarios: dois });
+      const r = await svc.atualizarDelivery(portao, [7, 9], { voceRespondeu: false });
+      expect(r.abriu).toBe(true);
+      expect(prisma.cards_Ao_Vivo.rows.map((x: any) => x.id_user).sort()).toEqual([7, 9]);
+    });
+
+    it('atualização do card aberto na fase aguardando do portão toca com o texto do portão', async () => {
+      const { svc, apns } = await abertoEConfirmado();
+      await svc.atualizarDelivery(portao, 1, { voceRespondeu: false });
+      expect(ultimoApns(apns).aps.alert.title).toBe('Entregador no portão');
+      expect(ultimoApns(apns).aps['content-state'].portao).toBe(true);
+    });
+  });
+
   it('reserva: iPhone que não confirmou em 10 s recebe a notificação de hoje', async () => {
     const { svc, notifications, avancar } = montarCard({ aparelhos: [iphone], usuarios });
     await svc.abrirDelivery(a, 1);
