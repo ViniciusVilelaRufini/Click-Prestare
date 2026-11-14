@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import { FOTO, T0, TOKEN_PORTAO, montarPortao } from './montar-portao.spec';
+import { hashToken } from './portao-regras';
 
 /**
  * Segunda revisão do autoatendimento no portão
@@ -205,6 +206,49 @@ describe('autoatendimento no portão — segunda revisão', () => {
       const k = await vencido();
       await k.delivery.atualizarStatus(k.id, { status: 'RECUSADA', motivo: 'Não pedi' } as any, morador7);
       expect(k.tabela('deliveryAtendimentos')[0].status).toBe('RECUSADA');
+    });
+  });
+
+  describe('[6] abertura confere o QR do pedido e o condomínio ativo', () => {
+    const morador7 = { sub: 7, typeAccess: 'Morador', nome: 'Ana Lima' } as any;
+
+    async function presente() {
+      const k = montarPortao();
+      const r = await k.svc.criarPedido(TOKEN_PORTAO, entrada);
+      k.avancar(3000);
+      return { ...k, tokenPedido: r.pedido, id: k.tabela('deliveryAtendimentos')[0].id };
+    }
+
+    it('o pedido guarda o hash do QR vigente', async () => {
+      const k = await presente();
+      expect(k.tabela('deliveryPedidosPortao')[0].token_portao_hash).toBe(hashToken(TOKEN_PORTAO));
+    });
+
+    it.each([
+      ['QR trocado', (k: any) => (k.tabela('facial_Devices')[0].token_entrega = 'c'.repeat(48))],
+      ['QR desligado', (k: any) => (k.tabela('facial_Devices')[0].token_entrega = null)],
+      ['condomínio inativo', (k: any) => (k.tabela('condominios')[0].ativo = 0)],
+      ['aparelho inativo', (k: any) => (k.tabela('facial_Devices')[0].ativo = 0)],
+    ])('%s depois do pedido: o morador libera e a nuvem não abre; o pedido expira', async (_n, mudar) => {
+      const k = await presente();
+      mudar(k);
+      await k.delivery.atualizarStatus(k.id, { status: 'AUTORIZADA' } as any, morador7);
+      expect(k.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+      expect(k.tabela('deliveryPedidosPortao')[0]).toMatchObject({ status: 'expirado', liberado_ate: null });
+    });
+
+    it('liberado com a página ausente e o condomínio desativado depois: a abertura não aciona e o pedido expira', async () => {
+      const k = await presente();
+      k.avancar(40_000);
+      await k.delivery.atualizarStatus(k.id, { status: 'AUTORIZADA' } as any, morador7);
+      expect(k.tabela('deliveryPedidosPortao')[0].status).toBe('liberado');
+      // A página não chega mais ao botão (o QR do condomínio inativo é 404);
+      // a abertura em si também confere.
+      k.tabela('condominios')[0].ativo = 0;
+      const abrir = (k.svc as any).abrirEntrada.bind(k.svc);
+      expect(await abrir(k.tabela('deliveryPedidosPortao')[0], new Date(T0 + 44_000))).toBe(false);
+      expect(k.facial.abrirDispositivoInterno).not.toHaveBeenCalled();
+      expect(k.tabela('deliveryPedidosPortao')[0].status).toBe('expirado');
     });
   });
 

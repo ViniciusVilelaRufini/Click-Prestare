@@ -1185,6 +1185,8 @@ model DeliveryPedidosPortao {
   foto             String?              @db.VarChar(500)
   /// sha256 do token que a página guarda; o token em claro nunca é gravado.
   token_hash       String               @unique(map: "un_delivery_pedido_token") @db.VarChar(64)
+  /// sha256 do QR do portão (Facial_Devices.token_entrega) com que o pedido foi feito; a abertura exige o mesmo QR vigente.
+  token_portao_hash String?             @db.VarChar(64)
   /// pendente | liberado | vou_buscar | recusado | expirado
   status           String               @default("pendente") @db.VarChar(20)
   visto_em         DateTime?            @db.DateTime(0)

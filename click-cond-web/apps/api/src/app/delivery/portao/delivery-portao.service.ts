@@ -410,7 +410,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
             const u = await comLockSemSegurarConexao(
               this.prisma,
               `delivery-portao:apto:${idApartamento}`,
-              () => this.gravarPedido(portao, idApartamento, nome, plataforma, url, agora),
+              () => this.gravarPedido(portao, hashToken(token), idApartamento, nome, plataforma, url, agora),
               { esperaMs: ESPERA_LOCK_MS, duracaoMaximaMs: 60_000 },
             );
             if (!u.obtido) throw new ConflictException(MSG_UNIDADE_AGUARDANDO);
@@ -509,7 +509,16 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
    * atendimentos da unidade a cancelar (pedido vencido sem resposta); quem
    * chama os cancela depois de soltar os locks.
    */
-  private async gravarPedido(portao: Portao, idApartamento: number, nome: string, plataforma: string | null, url: string, agora: Date) {
+  private async gravarPedido(
+    portao: Portao,
+    /** Hash do QR com que o pedido foi feito: a abertura só vale com o mesmo QR vigente. */
+    tokenPortaoHash: string,
+    idApartamento: number,
+    nome: string,
+    plataforma: string | null,
+    url: string,
+    agora: Date,
+  ) {
     // Contados no banco, dentro do lock da unidade (vale com várias instâncias).
     // Pendente vencido não bloqueia a unidade (é marcado depois, fora do lock).
     await this.conferirUnidade(portao, idApartamento, agora);
@@ -540,6 +549,7 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
             plataforma,
             foto: url,
             token_hash: hashToken(tokenPedido),
+            token_portao_hash: tokenPortaoHash,
             status: 'pendente',
             visto_em: agora,
             criado_em: agora,
@@ -710,9 +720,10 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
             await db.updateMany({ where: pendente, data: { status: 'liberado', respondido_em: agora, liberado_ate: null } });
             return;
           }
-          if (agora.getTime() >= new Date(pedido.expira_em).getTime() || (await this.portaoIndisponivel(pedido.id_device))) {
-            // Resposta tarde, ou a opção foi desligada / saiu do horário:
-            // o atendimento fica AUTORIZADA, nada abre e não há janela.
+          if (agora.getTime() >= new Date(pedido.expira_em).getTime() || !(await this.portaoAceitaAbertura(pedido))) {
+            // Resposta tarde; opção desligada / fora do horário; QR trocado
+            // ou desligado; aparelho ou condomínio inativo: o atendimento
+            // fica AUTORIZADA, nada abre e não há janela.
             await db.updateMany({ where: pendente, data: { status: 'expirado' } });
             return;
           }
@@ -759,6 +770,12 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
    */
   private async abrirEntrada(pedido: any, agora: Date): Promise<boolean> {
     const db = (this.prisma as any).deliveryPedidosPortao;
+    if (!(await this.portaoAceitaAbertura(pedido))) {
+      // QR trocado/desligado, aparelho ou condomínio inativo, opção desligada:
+      // nada abre e o pedido expira (a página mostra "expirado").
+      await db.updateMany({ where: { id: pedido.id, status: 'liberado', aberto_em: null, abrindo_em: null }, data: { status: 'expirado' } });
+      return false;
+    }
     const reserva = await db.updateMany({
       where: { id: pedido.id, status: 'liberado', aberto_em: null, abrindo_em: null, liberado_ate: { gte: agora } },
       data: { abrindo_em: agora },
@@ -845,24 +862,34 @@ export class DeliveryPortaoService implements GanchoPortao, OnModuleInit, OnModu
     const pedido = await (this.prisma as any).deliveryPedidosPortao.findUnique({ where: { token_hash: hashToken(tokenPedido) } });
     // Pedido de outro portão não é lido nem aberto por este QR.
     if (!pedido || pedido.id_device !== portao.id) throw new NotFoundException(MSG_PEDIDO);
+    // Pedido feito com outro QR deste aparelho (trocado depois) não é lido por este.
+    if (pedido.token_portao_hash && pedido.token_portao_hash !== hashToken(token)) throw new NotFoundException(MSG_PEDIDO);
     return { portao, pedido };
   }
 
-  /** Condomínio do aparelho com a opção desligada ou fora do horário (aparelho sumido conta como indisponível). */
-  private async portaoIndisponivel(idDevice: number): Promise<boolean> {
+  /**
+   * O aparelho do pedido ainda pode abrir para ele: aparelho e condomínio
+   * ativos, opção ligada e no horário, e o QR vigente do aparelho é o MESMO
+   * com que o pedido foi feito (QR trocado ou desligado → não abre). Aparelho
+   * sumido, ou pedido sem o hash do QR, não abre.
+   */
+  private async portaoAceitaAbertura(pedido: { id_device: number; token_portao_hash?: string | null }): Promise<boolean> {
     const d = await (this.prisma as any).facial_Devices.findUnique({
-      where: { id: Number(idDevice) },
+      where: { id: Number(pedido.id_device) },
       select: {
         id: true,
         id_condominio: true,
         nome: true,
+        ativo: true,
+        token_entrega: true,
         condominio: {
-          select: { id: true, nome: true, delivery_autoatendimento: true, delivery_auto_inicio: true, delivery_auto_fim: true },
+          select: { id: true, nome: true, ativo: true, delivery_autoatendimento: true, delivery_auto_inicio: true, delivery_auto_fim: true },
         },
       },
     });
-    if (!d?.condominio) return true;
-    return this.motivoIndisponivel(d as Portao) !== null;
+    if (!d?.condominio || d.ativo !== 1 || d.condominio.ativo !== 1) return false;
+    if (!d.token_entrega || !pedido.token_portao_hash || hashToken(d.token_entrega) !== pedido.token_portao_hash) return false;
+    return this.motivoIndisponivel(d as Portao) === null;
   }
 
   private motivoIndisponivel(portao: Portao): 'desligado' | 'fora_horario' | null {
