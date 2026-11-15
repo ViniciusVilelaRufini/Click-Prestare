@@ -59,6 +59,8 @@ export interface GuaritaEstado {
   aguardando_aprovacao?: number | null;
   /** Motivo da última falha reportada pelo agente ou pela API (palavra recusada, receptores, agente desatualizado). */
   erro?: string | null;
+  /** Tipo do erro (API nova). "Tentar de novo" só faz sentido em `receptores`. */
+  erro_tipo?: 'receptores' | 'agente_desatualizado' | 'agente_offline' | 'palavra' | 'conexao' | null;
   /** O agente local está falando com a nuvem (false = o problema é o agente, não o Guarita). */
   agente_online?: boolean | null;
   aviso_relogio?: boolean | null;

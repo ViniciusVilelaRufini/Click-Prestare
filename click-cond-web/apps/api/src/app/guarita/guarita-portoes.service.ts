@@ -127,7 +127,12 @@ export class GuaritaPortoesService {
 
     let falha: string | null = null;
     if (!this.bridge.isOnline(portao.device.id)) {
-      falha = 'O Agente Local deste condomínio não está conectado. O comando não foi enviado.';
+      // Agente ligado mas antigo: ele não recebe o Guarita no poll, então
+      // "não conectado" confundia a portaria (achado no teste em produção).
+      const desatualizado = await this.bridge.agenteSemGuarita?.(portao.device.id_condominio);
+      falha = desatualizado
+        ? 'O agente instalado não fala com o Módulo Guarita. Atualize o agente. O comando não foi enviado.'
+        : 'O Agente Local deste condomínio não está conectado. O comando não foi enviado.';
     } else {
       const estado = await this.agente.lerEstado(portao.device.id);
       if (estado && estado.conectado === false) {

@@ -129,6 +129,18 @@ describe('GuaritaConfigComponent — aviso e estado', () => {
     tela.ngOnDestroy();
   });
 
+  it('agente desatualizado: mostra o erro, sem "Tentar de novo" (o botão só vale para receptores)', () => {
+    const { el, tela } = build({
+      estado: jest.fn(() =>
+        of({ conectado: null, autorizado: null, erro: 'O agente instalado não fala com o Módulo Guarita. Atualize o agente.', erro_tipo: 'agente_desatualizado' }),
+      ),
+    });
+    const erro = el.querySelector('[data-guarita-erro]') as HTMLElement;
+    expect(erro.textContent).toContain('Atualize o agente');
+    expect(botao(erro, 'Tentar de novo')).toBeFalsy();
+    tela.ngOnDestroy();
+  });
+
   it('"Tentar de novo": rota ausente (404) esconde o botão, sem erro; outro erro aparece como veio', () => {
     const { f, el, tela } = build({
       estado: jest.fn(() => of({ ...estadoOk, erro: 'Receptores não atualizados: falha.' })),

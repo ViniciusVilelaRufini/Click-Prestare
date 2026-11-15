@@ -84,6 +84,14 @@ describe('Guarita — abrir portão', () => {
     expect(bridge.enqueue).not.toHaveBeenCalled();
   });
 
+  it('agente ligado mas antigo (não fala com o Guarita) → diz para atualizar o agente, nada na ponte', async () => {
+    const velho = montarConsole(jest.fn, { agenteOnline: false });
+    (velho.bridge as any).agenteSemGuarita = jest.fn(async () => true);
+    const p: any = await velho.ctrl.criarPortao(7, 10, PORTAO, OPERADOR);
+    await expect(velho.ctrl.abrirPortao(7, 10, p.id, OPERADOR)).rejects.toThrow(/Atualize o agente/);
+    expect(velho.bridge.enqueue).not.toHaveBeenCalled();
+  });
+
   it('agente offline ou Guarita desconectado → erro claro, nada na ponte (e auditado)', async () => {
     const off = montarConsole(jest.fn, { agenteOnline: false });
     const p: any = await off.ctrl.criarPortao(7, 10, PORTAO, OPERADOR);
