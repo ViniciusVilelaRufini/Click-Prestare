@@ -259,6 +259,11 @@ model Condominios {
   deliveryEntregadores DeliveryEntregadores[]
   deliveryVeiculos     DeliveryVeiculos[]
   deliveryAtendimentos DeliveryAtendimentos[]
+  guaritaOperacoes     Guarita_Operacoes[]
+  guaritaEventos       Guarita_Eventos[]
+  guaritaBackups       Guarita_Backups[]
+  guaritaPortoes       Guarita_Portoes[]
+  guaritaAlertas       Guarita_Alertas[]
 
   // Recorrência Automática
   recorrencia_ativa      Boolean @default(false)
@@ -332,6 +337,8 @@ model Apartamentos {
   vagas               Vagas[]
   deliveryAtendimentos DeliveryAtendimentos[]
   votos               Votacoes_Usuarios[]
+  // Dispositivos do Módulo Guarita casados com esta unidade (Tags.id_apto).
+  tagsGuarita         Tags[]
 
   @@unique([id_condominio, bloco, apto], map: "un_apto_cond")
   // Impede dois apartamentos do mesmo condomínio carregarem o mesmo
@@ -418,11 +425,33 @@ model Tags {
   ativo         Int          @default(1) @db.TinyInt
   created_at    DateTime     @default(now()) @db.DateTime(0)
   updated_at    DateTime     @default(now()) @updatedAt @db.DateTime(0)
+  // Módulo Guarita (Nice/Linear): todas anuláveis. Tag sem id_device é a tag
+  // de sempre (antena/leitor), sem relação com o Guarita.
+  // id_device: o Guarita (Facial_Devices tipo 'guarita') onde o dispositivo mora.
+  id_device        Int?
+  // Unidade casada pelo bloco+unidade gravados no Guarita (importação).
+  id_apto          Int?
+  // 1 RF (controle), 2 TA (TAG ativo), 3 CT (cartão), 6 TP (TAG passivo).
+  guarita_tipo     Int?      @db.TinyInt
+  // Serial em hex maiúsculo (RF: 7 dígitos; demais: 6).
+  guarita_serial   String?   @db.VarChar(8)
+  // Contador do rolling code (só RF; vem da captura 42/90 ou da leitura).
+  guarita_contador Int?
+  // aguardando_aprovacao | pendente | gravado | ativo | falhou | a_vincular | removendo
+  guarita_estado   String?   @db.VarChar(24)
+  guarita_erro     String?   @db.VarChar(255)
+  // Frame de 39 bytes (hex) lido do Guarita ou o da última gravação confirmada.
+  guarita_frame    String?   @db.Char(78)
+  guarita_em       DateTime? @db.DateTime(0)
   condominio    Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_tag_cond")
+  dispositivoGuarita Facial_Devices? @relation(fields: [id_device], references: [id], onDelete: SetNull, map: "fk_tag_guarita_device")
+  apartamento   Apartamentos? @relation(fields: [id_apto], references: [id], onDelete: SetNull, map: "fk_tag_guarita_apto")
   veiculos      Veiculos[]
 
   @@unique([id_condominio, codigo], map: "un_tag_cond_codigo")
   @@index([id_condominio], map: "idx_tag_cond")
+  @@index([id_device, guarita_tipo, guarita_serial], map: "idx_tag_guarita")
+  @@index([id_apto], map: "fk_tag_guarita_apto")
 }
 
 model Veiculos {
@@ -1541,6 +1570,13 @@ model Facial_Devices {
   etapasComoAbertura Caminhos_Etapas[]     @relation("EtapaAbertura")
   acessos            Acessos_Facial[]
   pedidosPortao      DeliveryPedidosPortao[]
+  // Módulo Guarita (tipo 'guarita'): dispositivos, fila, eventos, cópias, portões e alertas.
+  tagsGuarita        Tags[]
+  guaritaOperacoes   Guarita_Operacoes[]
+  guaritaEventos     Guarita_Eventos[]
+  guaritaBackups     Guarita_Backups[]
+  guaritaPortoes     Guarita_Portoes[]
+  guaritaAlertas     Guarita_Alertas[]
 
   @@index([id_condominio], map: "idx_facdev_cond")
   @@index([id_area_social], map: "idx_facdev_area")
@@ -2074,4 +2110,126 @@ model Agente_Dispositivos_Estado {
   ticket_aberto      Int       @default(0) @db.TinyInt
 
   @@map("agente_dispositivos_estado")
+}
+
+// ---------------------------------------------------------------------------
+// Módulo Guarita (Nice / Linear-HCS). O aparelho é um Facial_Devices com
+// tipo 'guarita' e fabricante 'linear'; os dispositivos dele (controle, TAG,
+// cartão) são Tags. SQL: prisma/sql/2026-11-15-guarita.sql.
+// ---------------------------------------------------------------------------
+
+/// Fila de operações nuvem → agente para um Guarita, executadas em ordem de id.
+/// tipo: cadastrar | editar | apagar | atualizar_receptores | importar | conferir
+/// (entregues ao agente) e captura (janela de 60 s do cadastro por aproximação,
+/// nunca entregue). estado: pendente | enviada | processando | ok | falhou | cancelada.
+model Guarita_Operacoes {
+  id            Int                   @id @default(autoincrement())
+  id_condominio Int
+  id_device     Int
+  id_tag        Int?
+  /// Só na captura: veículo que recebe o dispositivo capturado.
+  id_veiculo    Int?
+  tipo          String                @db.VarChar(24)
+  frame_hex     String?               @db.Char(78)
+  estado        String                @default("pendente") @db.VarChar(16)
+  codigo        Int?
+  erro          String?               @db.VarChar(255)
+  criado_por    String?               @db.VarChar(120)
+  created_at    DateTime              @default(now()) @db.DateTime(0)
+  enviada_em    DateTime?             @db.DateTime(0)
+  concluida_em  DateTime?             @db.DateTime(0)
+  condominio    Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_gop_cond")
+  dispositivo   Facial_Devices        @relation(fields: [id_device], references: [id], onDelete: Cascade, map: "fk_gop_device")
+  partes        Guarita_Importacoes[]
+
+  @@index([id_device, estado, id], map: "idx_gop_device_estado")
+  @@index([id_condominio], map: "fk_gop_cond")
+  @@index([id_tag], map: "idx_gop_tag")
+}
+
+/// Evento bruto do Guarita (16 bytes). `chave` = sha256 do conteúdo sem o bit
+/// "lido": o mesmo evento visto ao vivo e na recuperação vira UMA linha.
+model Guarita_Eventos {
+  id            Int            @id @default(autoincrement())
+  id_condominio Int
+  id_device     Int
+  chave         String         @db.Char(64)
+  frame_hex     String         @db.Char(32)
+  ocorrido_em   DateTime?      @db.DateTime(0)
+  origem        String         @db.VarChar(12)
+  id_acesso     Int?
+  created_at    DateTime       @default(now()) @db.DateTime(0)
+  condominio    Condominios    @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_gev_cond")
+  dispositivo   Facial_Devices @relation(fields: [id_device], references: [id], onDelete: Cascade, map: "fk_gev_device")
+
+  @@unique([id_device, chave], map: "un_gev_device_chave")
+  @@index([id_condominio, created_at], map: "idx_gev_cond_criado")
+}
+
+/// Cópia de segurança do cadastro lido do Guarita (dados = JSON: array de hex de 39 bytes).
+model Guarita_Backups {
+  id            Int            @id @default(autoincrement())
+  id_condominio Int
+  id_device     Int
+  motivo        String         @db.VarChar(40)
+  total         Int
+  dados         String         @db.LongText
+  created_at    DateTime       @default(now()) @db.DateTime(0)
+  condominio    Condominios    @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_gbk_cond")
+  dispositivo   Facial_Devices @relation(fields: [id_device], references: [id], onDelete: Cascade, map: "fk_gbk_device")
+
+  @@index([id_device, motivo, id], map: "idx_gbk_device_motivo")
+  @@index([id_condominio], map: "fk_gbk_cond")
+}
+
+/// Portão nomeado pelo síndico: (receptor, botão) → nome no histórico;
+/// (receptor, relé) → botão de abrir na portaria.
+model Guarita_Portoes {
+  id            Int            @id @default(autoincrement())
+  id_condominio Int
+  id_device     Int
+  nome          String         @db.VarChar(100)
+  tipo_receptor Int            @db.TinyInt
+  num_receptor  Int            @db.TinyInt
+  botao         Int?           @db.TinyInt
+  rele          Int?           @db.TinyInt
+  sentido       String?        @db.VarChar(10)
+  created_at    DateTime       @default(now()) @db.DateTime(0)
+  updated_at    DateTime       @default(now()) @updatedAt @db.DateTime(0)
+  condominio    Condominios    @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_gpt_cond")
+  dispositivo   Facial_Devices @relation(fields: [id_device], references: [id], onDelete: Cascade, map: "fk_gpt_device")
+
+  @@index([id_device], map: "fk_gpt_device")
+  @@index([id_condominio], map: "fk_gpt_cond")
+}
+
+/// Alerta do Guarita para a portaria (pânico, clonagem, porta violada, bateria fraca...).
+model Guarita_Alertas {
+  id            Int            @id @default(autoincrement())
+  id_condominio Int
+  id_device     Int
+  tipo          String         @db.VarChar(30)
+  descricao     String         @db.VarChar(255)
+  dados         String?        @db.Text
+  created_at    DateTime       @default(now()) @db.DateTime(0)
+  visto_em      DateTime?      @db.DateTime(0)
+  visto_por     String?        @db.VarChar(120)
+  condominio    Condominios    @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_gal_cond")
+  dispositivo   Facial_Devices @relation(fields: [id_device], references: [id], onDelete: Cascade, map: "fk_gal_device")
+
+  @@index([id_condominio, visto_em, id], map: "idx_gal_cond_visto")
+  @@index([id_device], map: "fk_gal_device")
+}
+
+/// Partes de uma importação/conferência (o agente manda até 500 frames por parte).
+/// Só viram cadastro quando a parte com `fim` chegou e todas as anteriores existem.
+model Guarita_Importacoes {
+  id          Int               @id @default(autoincrement())
+  id_operacao Int
+  parte       Int
+  frames      String            @db.LongText
+  fim         Int               @default(0) @db.TinyInt
+  operacao    Guarita_Operacoes @relation(fields: [id_operacao], references: [id], onDelete: Cascade, map: "fk_gim_operacao")
+
+  @@unique([id_operacao, parte], map: "un_gim_operacao_parte")
 }
