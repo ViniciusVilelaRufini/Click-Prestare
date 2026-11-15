@@ -121,7 +121,7 @@ const statusRecebidos = [];
 const telemetrias = []; // payloads recebidos em POST condo/:token/telemetria
 const descobertos = []; // payloads recebidos em POST condo/:token/descobertos
 // Rotas do Guarita (contrato do plano; a API real é de outra raia).
-const guaritaNuvem = { ops: [], resultados: [], eventos: [], estados: [], naoCadastrados: [], pedidosEventFacial: 0 };
+const guaritaNuvem = { ops: [], resultados: [], eventos: [], estados: [], naoCadastrados: [], pedidosEventFacial: 0, urlsDoPoll: [] };
 // "Procurar na rede" do portal: true até o próximo /poll responder (zera
 // sozinho — como o campo `descobrir` de verdade, que é um pedido único).
 let pedirDescoberta = false;
@@ -149,6 +149,7 @@ function criarNuvem() {
       const p = req.url.split('?')[0];
 
       if (p === `/api/facial/agent/condo/${TOKEN}/poll`) {
+        guaritaNuvem.urlsDoPoll.push(req.url);
         const devices = Object.values(DEVICES).map((device) => {
           const commands = filaComandos.get(device.id);
           filaComandos.set(device.id, []);
@@ -938,6 +939,16 @@ async function main() {
       JSON.stringify(guaritaNuvem.naoCadastrados),
     );
     checar('guarita: evento do Guarita nunca vai pela rota /event (facial)', guaritaNuvem.pedidosEventFacial === 0);
+    checar(
+      'guarita: todo poll declara capacidades=guarita',
+      guaritaNuvem.urlsDoPoll.length > 0 && guaritaNuvem.urlsDoPoll.every((u) => /[?&]capacidades=guarita(&|$)/.test(u)),
+      JSON.stringify(guaritaNuvem.urlsDoPoll.slice(0, 2)),
+    );
+    checar(
+      'guarita: telemetria declara capacidades',
+      telemetrias.length > 0 && JSON.stringify(telemetrias[telemetrias.length - 1].capacidades) === '["guarita"]',
+      JSON.stringify(telemetrias[telemetrias.length - 1] && telemetrias[telemetrias.length - 1].capacidades),
+    );
     checar(
       'guarita: o simulador não recebeu nenhum comando proibido',
       guaritaSim.comandosProibidosRecebidos().length === 0,

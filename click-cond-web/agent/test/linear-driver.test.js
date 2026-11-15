@@ -915,3 +915,41 @@ test('Menor 5: depois de entregue, a importação não fica guardada em memória
     await esperarAte(() => !c.servico().executadas.has(50), { rotulo: 'liberada' });
   });
 });
+
+test('item 7: o agente declara a capacidade guarita no poll (query capacidades=guarita) e na telemetria', () => {
+  const { CAPACIDADES, QUERY_CAPACIDADES, urlComCapacidades } = require('../src/core/capacidades');
+  assert.deepEqual([...CAPACIDADES], ['guarita']);
+  assert.equal(QUERY_CAPACIDADES, 'capacidades=guarita');
+  assert.equal(urlComCapacidades('/api/facial/agent/condo/T/poll'), '/api/facial/agent/condo/T/poll?capacidades=guarita');
+  assert.equal(urlComCapacidades('/x?a=1'), '/x?a=1&capacidades=guarita');
+  const fonte = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
+  assert.match(fonte, /cloudRequest\('GET', urlComCapacidades\(`\/api\/facial\/agent\/condo\/\$\{token\}\/poll`\)\)/);
+  assert.ok(!/cloudRequest\('GET', `\/api\/facial\/agent\/condo\/\$\{token\}\/poll`\)/.test(fonte), 'sobrou poll sem capacidades');
+  const telemetria = require('../src/core/telemetria');
+  const payload = telemetria.montarPayload({
+    supervisor: { saudeTodos: () => [] },
+    pendentes: () => 0,
+    iniciadoEm: 'x',
+  });
+  assert.deepEqual(payload.capacidades, ['guarita']);
+});
+
+test('item 7: device tipo guarita nunca cai no REST genérico/ping HTTP — qualquer fabricante; modo legado o ignora com aviso', () => {
+  const registro = require('../src/drivers/registro');
+  const guarita = require('../src/drivers/linear-guarita');
+  for (const fabricante of [undefined, null, '', 'zkteco', 'topdata', 'henry', 'generico', 'hikvision', 'control_id', 'toString', 42]) {
+    assert.equal(registro.resolverDriver({ tipo: 'guarita', fabricante }), guarita, String(fabricante));
+  }
+  const fonte = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
+  // executeOnDevice: o Guarita é resolvido ANTES da lista SEM_COMANDO_HTTP e do REST genérico.
+  const exec = fonte.slice(fonte.indexOf('async function executeOnDevice'), fonte.indexOf('function falhaDeComando'));
+  assert.ok(exec.indexOf("device.tipo === TIPO_GUARITA") > 0 && exec.indexOf("device.tipo === TIPO_GUARITA") < exec.indexOf('SEM_COMANDO_HTTP'));
+  const ping = fonte.slice(fonte.indexOf('async function doPing'), fonte.indexOf('async function doOpenDoor'));
+  assert.ok(ping.indexOf('TIPO_GUARITA') > 0 && ping.indexOf('TIPO_GUARITA') < ping.indexOf("lanRequest(device, 'GET', '/status')"));
+  // Modo legado (token por aparelho, sem Supervisor): ignora o Guarita com aviso.
+  const legado = fonte.slice(fonte.indexOf('async function runDeviceLoop'), fonte.indexOf('// ---------- Tradução comando lógico'));
+  assert.match(legado, /body\.device && body\.device\.tipo === TIPO_GUARITA/);
+  assert.match(legado, /não é suportado no modo legado/);
+  const iGuarita = legado.indexOf('body.device.tipo === TIPO_GUARITA');
+  assert.ok(iGuarita < legado.indexOf('despachante.despachar('), 'o aviso vem antes de despachar');
+});
