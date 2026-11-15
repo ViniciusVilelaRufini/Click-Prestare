@@ -132,7 +132,11 @@ export type GuaritaEstadoTag =
   /** O código já está no Guarita em outra unidade: não grava; só desfazer o vínculo. */
   | 'conflito'
   /** Estava gravada e sumiu do Guarita (conferência): regravar ou desfazer o vínculo. */
-  | 'ausente';
+  | 'ausente'
+  /** O Guarita não respondeu à gravação: a API confere de novo sozinha. */
+  | 'incerto'
+  /** A remoção desistiu depois das tentativas: o dispositivo ainda pode abrir o portão. */
+  | 'remocao_falhou';
 
 /**
  * Campos de Guarita que a tag pode trazer em `GET condominios/:id/tags` e no
@@ -202,6 +206,7 @@ export function rotuloEstadoGuarita(
   estado: string | null | undefined,
   erro?: string | null,
 ): { texto: string; dot: string; dica?: string } | null {
+  const motivo = (erro ?? '').trim();
   switch (estado) {
     case 'aguardando_aprovacao':
       return { texto: 'Aguardando aprovação', dot: 'ps-dot-warn' };
@@ -212,17 +217,26 @@ export function rotuloEstadoGuarita(
     case 'ativo':
       return { texto: 'Ativo nos portões', dot: 'ps-dot-ok' };
     case 'falhou': {
-      const motivo = (erro ?? '').trim();
+      // "ok" como motivo é texto do agente que não diz nada: fica só "Falhou".
+      const motivo = (erro ?? '').trim().toLowerCase() === 'ok' ? '' : (erro ?? '').trim();
       return { texto: motivo ? `Falhou: ${motivo}` : 'Falhou', dot: 'ps-dot-danger' };
     }
     case 'removendo':
-      return { texto: 'Removendo', dot: 'ps-dot-warn' };
+      return { texto: 'Removendo', dot: 'ps-dot-warn', ...(motivo ? { dica: motivo } : {}) };
+    case 'incerto':
+      return {
+        texto: 'Não confirmado no Guarita',
+        dot: 'ps-dot-warn',
+        dica: 'O Guarita não respondeu. O Prestare vai conferir de novo sozinho.',
+      };
+    case 'remocao_falhou':
+      return { texto: 'Remoção não concluída: ainda pode abrir o portão', dot: 'ps-dot-danger', ...(motivo ? { dica: motivo } : {}) };
     case 'a_vincular':
       return { texto: 'A vincular', dot: 'ps-dot-warn' };
     case 'recusada':
       return { texto: 'Recusada pela portaria', dot: 'ps-dot-danger' };
     case 'conflito':
-      return { texto: 'Conflito: código já usado em outra unidade no Guarita', dot: 'ps-dot-danger' };
+      return { texto: 'Conflito: código já usado em outra unidade no Guarita', dot: 'ps-dot-danger', ...(motivo ? { dica: motivo } : {}) };
     case 'ausente':
       return { texto: 'Não está mais no Guarita', dot: 'ps-dot-warn' };
     default:
@@ -240,7 +254,7 @@ export const MSG_CODIGO_IMPRESSO_INVALIDO = 'Código inválido. Use o formato im
  */
 export function codigoImpressoValido(codigo: string | null | undefined): boolean {
   const s = String(codigo ?? '').trim().replace(/^W\s*:\s*/i, '');
-  const m = /^(\d{1,3})[\s,.-]+(\d{1,5})$/.exec(s);
+  const m = /^(\d{3})[\s,.-]+(\d{5})$/.exec(s);
   return !!m && Number(m[1]) <= 255 && Number(m[2]) <= 65535;
 }
 
@@ -437,6 +451,11 @@ export class GuaritaService {
   /** Tira a tag do Prestare; nada muda no Guarita (estados `conflito`/`ausente`). API nova; 404 = sem a rota. */
   desfazer(deviceId: number, idTag: number): Observable<unknown> {
     return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/desfazer`, {});
+  }
+
+  /** Tenta de novo apagar do Guarita a tag em `remocao_falhou`. API nova; 404 = sem a rota. */
+  removerDeNovo(deviceId: number, idTag: number): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/remover-de-novo`, {});
   }
 
   /** Grava de novo no Guarita a tag que sumiu dele (estado `ausente`). API nova; 404 = sem a rota. */

@@ -562,7 +562,7 @@ export class VeiculosPageComponent implements OnInit {
    */
   tagNoGuarita(t: Tag): boolean {
     const e = this.estadoGuaritaDaTag(t)?.estado;
-    return !!e && ['pendente', 'gravado', 'ativo', 'falhou', 'a_vincular', 'removendo'].includes(e);
+    return !!e && ['pendente', 'gravado', 'ativo', 'falhou', 'a_vincular', 'removendo', 'incerto'].includes(e);
   }
 
   seloGuaritaDaTag(t: Tag): { texto: string; dot: string; dica?: string } | null {
@@ -574,6 +574,11 @@ export class VeiculosPageComponent implements OnInit {
   tagConflitoOuAusente(t: Tag): boolean {
     const e = this.estadoGuaritaDaTag(t)?.estado;
     return e === 'conflito' || e === 'ausente';
+  }
+
+  /** A remoção no Guarita desistiu: o dispositivo ainda pode abrir o portão. */
+  tagRemocaoFalhou(t: Tag): boolean {
+    return this.estadoGuaritaDaTag(t)?.estado === 'remocao_falhou';
   }
 
   tagRemovendo(t: Tag): boolean {
@@ -775,6 +780,24 @@ export class VeiculosPageComponent implements OnInit {
     if (!ok || this.guaritaEmAcao() !== null) return;
     this.executarNoGuarita(idTag, this.guaritaApi.desfazer(deviceId, idTag), 'Não foi possível desfazer o vínculo.', () =>
       this.semRotaDesfazer.set(true),
+    );
+  }
+
+  readonly semRotaRemoverDeNovo = signal(false);
+
+  podeRemoverDeNovo(idTag: number | null | undefined): boolean {
+    return this.estadoGuaritaDaTagId(idTag) === 'remocao_falhou' && !this.semRotaRemoverDeNovo();
+  }
+
+  removerDeNovo(idTag: number | null | undefined) {
+    if (!idTag || this.guaritaEmAcao() !== null) return;
+    const deviceId = this.guaritaDaTag(idTag);
+    if (deviceId == null) {
+      this.erroGuarita.set('Não foi possível saber de qual Guarita é esta tag.');
+      return;
+    }
+    this.executarNoGuarita(idTag, this.guaritaApi.removerDeNovo(deviceId, idTag), 'Não foi possível pedir a remoção de novo.', () =>
+      this.semRotaRemoverDeNovo.set(true),
     );
   }
 
