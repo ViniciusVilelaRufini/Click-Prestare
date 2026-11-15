@@ -83,6 +83,18 @@ export function nomeCurto(nome: string | null | undefined): string {
  *
  * NÃO validado em aparelho.
  */
+/** Estados em que a tag nunca recebe `editar` (o veículo é salvo só no Prestare). */
+const ESTADOS_SEM_EDICAO: string[] = [
+  'removendo',
+  'remocao_falhou',
+  'conflito',
+  'incerto',
+  'ausente',
+  'recusada',
+  'aguardando_aprovacao',
+  'a_vincular',
+];
+
 /** Remoção que falha volta à fila até isto (uma vez por conexão/conferência). */
 export const MAX_TENTATIVAS_REMOCAO = 5;
 
@@ -163,6 +175,10 @@ export class GuaritaOperacoesService {
    */
   async enfileirarEdicao(idTag: number, autor: string): Promise<{ id_operacao: number } | null> {
     const tag = await this.tagDoGuarita(idTag);
+    // Tag saindo, em conflito, sem confirmação, fora do Guarita ou ainda não
+    // aprovada: o dado do veículo é salvo no Prestare, nada vai ao Guarita (e
+    // o estado de remoção nunca é trocado por uma edição — N1).
+    if (ESTADOS_SEM_EDICAO.includes(tag.guarita_estado ?? '')) return null;
     const cadastroPendente = await this.prisma.guarita_Operacoes.findFirst({
       where: { id_tag: tag.id, tipo: 'cadastrar', estado: ESTADO_OP.pendente },
       orderBy: { id: 'desc' },
@@ -193,10 +209,11 @@ export class GuaritaOperacoesService {
     }
     // Cadastro entregue e ainda sem resultado: a edição entra atrás dele (a fila
     // só a entrega depois do resultado, e a cancela se o cadastro não der ok).
-    const cadastroEmVoo = await this.prisma.guarita_Operacoes.count({
-      where: { id_tag: tag.id, tipo: 'cadastrar', estado: { in: [ESTADO_OP.enviada, ESTADO_OP.processando] } },
+    // Idem com uma edição em voo: a nova sai depois, com o frame que a anterior confirmar.
+    const gravacaoEmVoo = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: { in: ['cadastrar', 'editar'] }, estado: { in: [ESTADO_OP.enviada, ESTADO_OP.processando] } },
     });
-    if (cadastroEmVoo === 0 && !(await this.podeEscrever(tag))) return null;
+    if (gravacaoEmVoo === 0 && !this.podeEditar(tag)) return null;
     const base = (await this.frameConhecido(tag)) ?? null;
     const frame = await this.montarFrameOuRegistrar(tag, base);
     return this.criarGravacao(tag, 'editar', frame, autor, ESTADO_TAG.pendente);
@@ -224,6 +241,22 @@ export class GuaritaOperacoesService {
    * `recusada`, nulo) nunca escreve.
    */
   async podeEscrever(tag: any): Promise<boolean> {
+    return this.podeApagar(tag);
+  }
+
+  /**
+   * Pode receber `editar`? Só `gravado` e `ativo` (o dispositivo está no
+   * Guarita com os dados do Prestare). Tag em remoção, incerta, em conflito,
+   * ausente, recusada ou aguardando NUNCA é editada (a edição a tiraria da
+   * remoção — N1).
+   */
+  podeEditar(tag: any): boolean {
+    if (!tag || tag.id_device == null || tag.guarita_tipo == null || !tag.guarita_serial) return false;
+    return tag.guarita_estado === ESTADO_TAG.gravado || tag.guarita_estado === ESTADO_TAG.ativo;
+  }
+
+  /** Pode receber `apagar`? A lista branca (inclui `incerto`, `removendo`, `remocao_falhou`). */
+  async podeApagar(tag: any): Promise<boolean> {
     if (!tag || tag.id_device == null || tag.guarita_tipo == null || !tag.guarita_serial) return false;
     const e = tag.guarita_estado;
     if (e === ESTADO_TAG.gravado || e === ESTADO_TAG.ativo || e === ESTADO_TAG.removendo || e === ESTADO_TAG.remocaoFalhou) return true;
@@ -454,7 +487,16 @@ export class GuaritaOperacoesService {
         criado_por: String(autor ?? 'Portaria').slice(0, 120),
       },
     });
-    await this.prisma.tags.update({ where: { id: tag.id }, data: { guarita_estado: estado, guarita_erro: null } });
+    // Estado de remoção nunca é trocado por outro: de `removendo`/`remocao_falhou`
+    // só se sai por remoção confirmada ou por "desfazer".
+    const removendo = [ESTADO_TAG.removendo, ESTADO_TAG.remocaoFalhou];
+    await this.prisma.tags.updateMany({
+      where:
+        tipo === 'apagar'
+          ? { id: tag.id }
+          : { id: tag.id, OR: [{ guarita_estado: null }, { guarita_estado: { notIn: removendo } }] },
+      data: { guarita_estado: estado, guarita_erro: null },
+    });
     await this.garantirAtualizarReceptores(tag.id_condominio, tag.id_device);
     return { id_operacao: op.id };
   }

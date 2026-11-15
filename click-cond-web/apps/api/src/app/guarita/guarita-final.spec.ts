@@ -205,6 +205,45 @@ describe('remoção que esgota as tentativas', () => {
   });
 });
 
+describe('N1 — tag em remoção nunca volta a ativo', () => {
+  it('bloquear → remoção falha → editar placa: continua em remoção, alerta aberto, e a nova tentativa acontece', async () => {
+    const { TagsService } = require('../veiculos/tags.service');
+    const { VeiculosService } = require('../veiculos/veiculos.service');
+    const m = montar();
+    await new TagsService(m.db as any, m.ops).definirAtivo(7, 1, false);
+    const l1 = await m.agente.buscarOperacoes(DEV);
+    const ap = l1.operacoes.find((o) => o.tipo === 'apagar')!;
+    await m.agente.registrarResultado(DEV, ap.id, { ok: false, codigo: 0xfe, erro: 'O Guarita recusou os dados do dispositivo.' });
+    for (const o of l1.operacoes) if (o.tipo === 'atualizar_receptores') await m.agente.registrarResultado(DEV, o.id, { ok: true, codigo: 0 });
+    expect(tag(m.db).guarita_estado).toBe('removendo');
+
+    const v = new VeiculosService(m.db as any, m.ops);
+    const upd = m.db.veiculos.update;
+    m.db.veiculos.update = async (a: any) => Object.assign(await upd(a), { tag: tag(m.db) });
+    await v.update(7, 70, { placa: 'XYZ9A87', id_tag: 1 } as any);
+    expect(m.db.linhas('veiculos')[0].placa).toBe('XYZ9A87'); // o veículo foi salvo no Prestare
+    expect(ops(m.db, 'editar')).toHaveLength(0);
+    expect(tag(m.db).guarita_estado).toBe('removendo');
+    expect(tag(m.db).guarita_erro).toMatch(/Remoção/);
+    expect(m.db.linhas('guarita_Alertas').filter((a: any) => a.tipo === 'remocao_pendente' && !a.visto_em)).toHaveLength(1);
+
+    // Reconexão: a nova tentativa de remoção sai.
+    await m.agente.registrarEstado(DEV, { conectado: true, autorizado: true });
+    expect(ops(m.db, 'apagar').filter((o: any) => o.estado === 'pendente')).toHaveLength(1);
+  });
+
+  it.each(['removendo', 'remocao_falhou', 'conflito', 'incerto', 'ausente', 'recusada', 'aguardando_aprovacao'])(
+    'tag %s: editar não entra na fila e o estado não muda',
+    async (estado) => {
+      const m = montar();
+      tag(m.db).guarita_estado = estado;
+      expect(await m.ops.enfileirarEdicao(1, 'x')).toBeNull();
+      expect(ops(m.db, 'editar')).toHaveLength(0);
+      expect(tag(m.db).guarita_estado).toBe(estado);
+    },
+  );
+});
+
 describe('C1 — duas gravações da mesma tag no mesmo lote', () => {
   it('cenário A: troca de unidade e saída logo depois → o dispositivo é removido do Guarita', async () => {
     const m = montar();
