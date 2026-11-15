@@ -21,6 +21,7 @@ import { normalizarBloco, rotuloBloco } from '../common/rotulo-bloco.util';
 import { validarCodigoTag } from '../common/tag-codigo.util';
 import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
 import { REVOGADO_PELO_OPERADOR } from '../consentimentos/consentimentos.service';
+import { GuaritaOperacoesService } from '../guarita/guarita-operacoes.service';
 export interface CreateMoradorDto {
   nome: string;
   documento?: string;
@@ -175,6 +176,8 @@ export class MoradoresService {
     @Optional() private readonly wallet?: WalletService,
     // "Enviar Acesso" para conta que já tem senha: o mesmo link do "Esqueci a senha" do morador.
     @Optional() private readonly mobileAuth?: MobileAuthService,
+    // Módulo Guarita: o morador que sai tem os dispositivos dele removidos do Guarita.
+    @Optional() private readonly guarita?: GuaritaOperacoesService,
   ) {}
 
   private gerarSenhaAleatoria(): string {
@@ -1636,6 +1639,17 @@ export class MoradoresService {
       this.fireFacialSync(id);
     }
 
+    // Módulo Guarita: unidade trocada → os dispositivos do morador são
+    // regravados com a unidade nova; unidade desvinculada → removidos do
+    // Guarita. Só enfileira (best-effort); a edição do morador já foi gravada.
+    if (this.guarita && dto.id_apartamento !== undefined) {
+      const unidadeAntes = `${(atual.bloco ?? '').trim()}|${(atual.apartamento ?? '').trim()}`;
+      const unidadeDepois = `${((result as any).bloco ?? '').trim()}|${((result as any).apartamento ?? '').trim()}`;
+      if (unidadeAntes !== unidadeDepois) {
+        await this.refletirUnidadeNoGuarita(id, !((result as any).apartamento ?? '').trim(), operador?.nome ?? 'Portaria');
+      }
+    }
+
     // Diff dos campos sensíveis para o log.
     const camposAuditar = ['nome', 'documento', 'email', 'telefone', 'tipo', 'tag_rfid', 'qrcode_acesso'] as const;
     const changes: Record<string, { de: any; para: any }> = {};
@@ -1675,6 +1689,9 @@ export class MoradoresService {
       where: { id },
       select: { face_id: true, id_condominio: true, nome: true, id_user: true },
     });
+    // Módulo Guarita: as tags vêm pelos veículos, que a cascata da transação
+    // abaixo apaga — por isso são lidas aqui, antes dela.
+    const tagsGuarita = this.guarita ? await this.guarita.tagsDoMorador(id).catch(() => [] as number[]) : [];
     try {
       await this.prisma.$transaction(async (tx) => {
         if (morador?.id_user && morador?.id_condominio) {
@@ -1727,6 +1744,44 @@ export class MoradoresService {
       this.facial
         .unsyncMorador(id, morador.face_id, morador.id_condominio)
         .catch((err) => this.logger.warn(`Unsync facial morador ${id} falhou: ${err?.message ?? err}`));
+    }
+    // Módulo Guarita: controle/tag de ex-morador abrindo o portão é o risco
+    // maior — a remoção entra na fila na hora. Só condomínio com Guarita recebe
+    // a contagem na resposta (sem Guarita a resposta continua vazia).
+    if (this.guarita && morador?.id_condominio) {
+      const guaritas = await this.guarita.guaritasDoCondominio(morador.id_condominio).catch(() => []);
+      const guarita_remocoes = tagsGuarita.length
+        ? await this.guarita.enfileirarRemocoes(tagsGuarita, operador?.nome ?? 'Portaria')
+        : 0;
+      if (guaritas.length > 0 || guarita_remocoes > 0) return { guarita_remocoes };
+    }
+    return undefined;
+  }
+
+  /**
+   * Troca/saída de unidade no Guarita: desvinculado → remove; outra unidade →
+   * regrava (edição) os dispositivos já gravados. Nunca lança.
+   */
+  private async refletirUnidadeNoGuarita(idMorador: number, semUnidade: boolean, autor: string) {
+    const g = this.guarita as GuaritaOperacoesService;
+    try {
+      const ids = await g.tagsDoMorador(idMorador);
+      if (!ids.length) return;
+      if (semUnidade) {
+        await g.enfileirarRemocoes(ids, autor);
+        return;
+      }
+      const tags = await this.prisma.tags.findMany({
+        where: { id: { in: ids }, guarita_estado: { in: ['gravado', 'ativo', 'falhou', 'pendente'] } },
+        select: { id: true },
+      });
+      for (const t of tags) {
+        await g.enfileirarEdicao(t.id, autor).catch((err: any) =>
+          this.logger.warn(`Edição da tag ${t.id} no Guarita (troca de unidade) não entrou na fila: ${err?.message ?? err}`),
+        );
+      }
+    } catch (err: any) {
+      this.logger.warn(`Guarita: troca de unidade do morador ${idMorador} não refletida: ${err?.message ?? err}`);
     }
   }
 

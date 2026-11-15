@@ -33,6 +33,7 @@ import { EncomendasModule } from '../encomendas/encomendas.module';
 import { SuperlogicaModule } from '../superlogica/superlogica.module';
 import { CardAoVivoModule } from '../card-ao-vivo/card-ao-vivo.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { GuaritaNucleoModule } from '../guarita/guarita-nucleo.module';
 
 @Module({
   imports: [
@@ -56,6 +57,8 @@ import { WalletModule } from '../wallet/wallet.module';
     SuperlogicaModule,
     // Excluir morador (removeMorador) ou a conta revoga os passes da carteira.
     WalletModule,
+    // Módulo Guarita: veículos/tags do app e exclusões de morador/conta.
+    GuaritaNucleoModule,
   ],
   controllers: [
     AuthController,

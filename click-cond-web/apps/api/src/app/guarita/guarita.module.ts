@@ -4,6 +4,7 @@ import { GuaritaAgenteController } from './guarita-agente.controller';
 import { GuaritaAgenteService } from './guarita-agente.service';
 import { GuaritaController } from './guarita.controller';
 import { GuaritaImportacaoService } from './guarita-importacao.service';
+import { GuaritaNucleoModule } from './guarita-nucleo.module';
 
 /**
  * Integração com o Módulo Guarita MG3000 (Nice / Linear-HCS) pelo Agente Local.
@@ -15,7 +16,7 @@ import { GuaritaImportacaoService } from './guarita-importacao.service';
  * ponte de comandos (AgentBridgeService) para o relé.
  */
 @Module({
-  imports: [FacialModule],
+  imports: [FacialModule, GuaritaNucleoModule],
   controllers: [GuaritaAgenteController, GuaritaController],
   providers: [GuaritaAgenteService, GuaritaImportacaoService],
   exports: [GuaritaAgenteService],

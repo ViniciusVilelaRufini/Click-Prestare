@@ -141,16 +141,20 @@ describe('GuaritaAgente — GET operacoes', () => {
     expect((await service.buscarOperacoes(dev, depois(2000))).operacoes.map((o) => o.id)).toEqual([2]);
   });
 
-  it('atualizar_receptores só sai 30 s depois da última gravação e sozinho', async () => {
+  it('atualizar_receptores sai junto com as gravações do lote (o agente o junta ao 29 automático)', async () => {
     const { service, db } = montar();
     comCopia(db);
     semearOp(db, [
-      { tipo: 'cadastrar', estado: 'ok', concluida_em: T0, frame_hex: 'D'.repeat(78) },
+      { tipo: 'cadastrar', frame_hex: 'D'.repeat(78) },
       { tipo: 'atualizar_receptores' },
+      { tipo: 'editar', frame_hex: 'E'.repeat(78) },
     ]);
     const dev = { id: 10, id_condominio: 7, nome: 'G' };
-    expect((await service.buscarOperacoes(dev, depois(29_000))).operacoes).toEqual([]);
-    expect((await service.buscarOperacoes(dev, depois(30_000))).operacoes).toEqual([{ id: 2, tipo: 'atualizar_receptores' }]);
+    expect((await service.buscarOperacoes(dev, T0)).operacoes.map((o) => o.tipo)).toEqual([
+      'cadastrar',
+      'atualizar_receptores',
+      'editar',
+    ]);
   });
 
   it('a janela de captura nunca é entregue ao agente', async () => {

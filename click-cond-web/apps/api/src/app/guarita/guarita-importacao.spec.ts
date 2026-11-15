@@ -2,7 +2,8 @@ import { ConflictException, ForbiddenException, NotFoundException } from '@nestj
 import { criarBancoFalso } from './guarita-banco-falso.spec';
 import { GuaritaImportacaoService } from './guarita-importacao.service';
 import { GuaritaAgenteService } from './guarita-agente.service';
-import { GuaritaController } from './guarita.controller';
+import { GuaritaController } from "./guarita.controller";
+import { GuaritaOperacoesService } from "./guarita-operacoes.service";
 import { codificarDispositivo } from './guarita-frame.util';
 
 /**
@@ -55,7 +56,7 @@ function montar() {
   const agente = new GuaritaAgenteService(db as any, facial);
   const importacao = new GuaritaImportacaoService(db as any);
   (agente as any).importacao = importacao;
-  const ctrl = new GuaritaController(importacao);
+  const ctrl = new GuaritaController(importacao, new GuaritaOperacoesService(db as any));
   const device = { id: 10, id_condominio: 7, nome: 'Guarita' };
   return { db, agente, importacao, ctrl, device };
 }
@@ -136,6 +137,21 @@ describe('Guarita — importação em partes', () => {
     expect(db.linhas('guarita_Operacoes')[0]).toMatchObject({ estado: 'falhou', erro: 'Leitura incompleta: 1 de 2' });
     expect(db.linhas('guarita_Importacoes')).toHaveLength(0);
     expect(db.linhas('tags')).toHaveLength(0);
+  });
+
+  it('contrato do agente: partes começam em 1; Guarita vazio chega como { frames_hex: [], parte: 1, fim: true }', async () => {
+    const { ctrl, agente, device, db } = montar();
+    const id = await abrir(ctrl);
+    await agente.registrarResultado(device, id, { ok: true, frames_hex: [], parte: 1, fim: true });
+    expect(db.linhas('guarita_Backups')[0]).toMatchObject({ total: 0, dados: '[]' });
+    expect(db.linhas('tags')).toHaveLength(0);
+    expect(db.linhas('guarita_Operacoes')[0].estado).toBe('ok');
+
+    const id2 = await abrir(ctrl);
+    await agente.registrarResultado(device, id2, { ok: true, parte: 2, frames_hex: [frame(2, '000002')], fim: true });
+    expect(db.linhas('tags')).toHaveLength(0); // falta a parte 1
+    await agente.registrarResultado(device, id2, { ok: true, parte: 1, frames_hex: [frame(2, '000001')] });
+    expect(db.linhas('tags')).toHaveLength(2);
   });
 
   it('Guarita vazio (fim sem frames) gera cópia com total 0', async () => {

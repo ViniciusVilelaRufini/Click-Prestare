@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { validarPlaca } from '../common/placa.util';
+import { GuaritaOperacoesService } from '../guarita/guarita-operacoes.service';
 
 export interface VeiculoDto {
   placa: string;
@@ -11,7 +12,24 @@ export interface VeiculoDto {
 
 @Injectable()
 export class VeiculosService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(VeiculosService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    // Módulo Guarita: editar/excluir o veículo ou trocar a tag dele enfileira a
+    // operação no Guarita. Opcional (specs antigos instanciam só com o Prisma);
+    // tag sem id_device não passa por nada disso.
+    @Optional() private readonly guarita?: GuaritaOperacoesService,
+  ) {}
+
+  /** Tag do Guarita ainda "a vincular" ganhou veículo pela tela de Veículos: vira ativa (já está no Guarita). */
+  private async vincularTagDoGuarita(idTag: number | null) {
+    if (!this.guarita || idTag == null) return;
+    await this.prisma.tags.updateMany({
+      where: { id: Number(idTag), id_device: { not: null }, guarita_estado: 'a_vincular' },
+      data: { guarita_estado: 'ativo', guarita_erro: null },
+    });
+  }
 
   private normalizar(dto: VeiculoDto) {
     return {
@@ -90,10 +108,15 @@ export class VeiculosService {
     await this.assertTagDoCondominio(idCondominio, data.id_tag);
     await this.assertTagLivre(data.id_tag, null);
     try {
-      return await this.prisma.veiculos.create({
+      const criado = await this.prisma.veiculos.create({
         data: { ...data, id_condominio: idCondominio, id_morador: idMorador },
         include: { tag: true },
       });
+      if (this.guarita && criado.tag?.id_device != null && criado.tag.guarita_estado === 'a_vincular') {
+        await this.vincularTagDoGuarita(criado.id_tag);
+        return { ...criado, tag: { ...criado.tag, guarita_estado: 'ativo' } };
+      }
+      return criado;
     } catch (err: any) {
       if (err?.code === 'P2002') {
         throw new BadRequestException('Já existe um veículo com essa placa neste condomínio.');
@@ -116,8 +139,9 @@ export class VeiculosService {
     if (data.id_tag == null || Number(data.id_tag) !== existing.id_tag) {
       await this.assertTagLivre(data.id_tag, Number(id));
     }
+    let atualizado: any;
     try {
-      return await this.prisma.veiculos.update({
+      atualizado = await this.prisma.veiculos.update({
         where: { id: Number(id) },
         data,
         include: { tag: true },
@@ -128,14 +152,55 @@ export class VeiculosService {
       }
       throw err;
     }
+    if (this.guarita) await this.refletirNoGuarita(existing, atualizado);
+    return atualizado;
   }
 
-  async remove(idCondominio: number, id: number) {
+  async remove(idCondominio: number, id: number, autor = 'Portaria') {
     const existing = await this.prisma.veiculos.findFirst({
       where: { id: Number(id), id_condominio: idCondominio },
     });
     if (!existing) throw new NotFoundException(`Veículo ${id} não encontrado`);
+    // Tag do Guarita do veículo: conferida antes do delete; a remoção entra na fila.
+    const tagDoGuarita = this.guarita ? await this.guarita.ehTagDeGuarita(existing.id_tag) : false;
     await this.prisma.veiculos.delete({ where: { id: Number(id) } });
+    if (tagDoGuarita && this.guarita) {
+      const removida = await this.guarita.enfileirarRemocao(Number(existing.id_tag), autor);
+      return { ok: true, guarita_remocoes: removida ? 1 : 0 };
+    }
     return { ok: true };
+  }
+
+  /**
+   * Depois de salvar o veículo: a tag do Guarita que saiu é removida dele; a
+   * que entrou "a vincular" vira ativa; a mesma tag com placa/cor/marca
+   * diferentes é regravada (edição). Falha ao montar a edição não desfaz o
+   * veículo: fica registrada na tag.
+   */
+  private async refletirNoGuarita(antes: any, depois: any) {
+    const g = this.guarita as GuaritaOperacoesService;
+    if (antes.id_tag != null && antes.id_tag !== depois.id_tag && (await g.ehTagDeGuarita(antes.id_tag))) {
+      await g.enfileirarRemocao(antes.id_tag, 'Portaria (troca de tag)');
+    }
+    if (depois.id_tag != null && depois.id_tag !== antes.id_tag) {
+      await this.vincularTagDoGuarita(depois.id_tag);
+      return;
+    }
+    const tag = depois.tag;
+    const mudou =
+      antes.placa !== depois.placa ||
+      (antes.cor ?? null) !== (depois.cor ?? null) ||
+      (antes.marca_modelo ?? null) !== (depois.marca_modelo ?? null);
+    if (!tag || tag.id_device == null || !mudou) return;
+    if (!['gravado', 'ativo', 'falhou', 'pendente'].includes(tag.guarita_estado)) return;
+    try {
+      await g.enfileirarEdicao(tag.id, 'Portaria (edição do veículo)');
+    } catch (err: any) {
+      this.logger.warn(`Edição da tag ${tag.id} no Guarita não entrou na fila: ${err?.message ?? err}`);
+      await this.prisma.tags.update({
+        where: { id: tag.id },
+        data: { guarita_erro: String(err?.message ?? err).slice(0, 255) },
+      });
+    }
   }
 }

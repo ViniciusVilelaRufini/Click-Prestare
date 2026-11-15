@@ -372,6 +372,23 @@ export class GuaritaImportacaoService {
       });
       dif.so_no_prestare.push({ id_tag: t.id, tipo: t.guarita_tipo as number, serial: t.guarita_serial as string });
     }
+    // Recadastro também precisa do 29 (o agente só informa o 29 com esta operação na fila).
+    if (dif.so_no_prestare.some((d) => !d.sem_frame)) {
+      const pendente = await this.prisma.guarita_Operacoes.count({
+        where: { id_device: device.id, tipo: 'atualizar_receptores', estado: ESTADO_OP.pendente },
+      });
+      if (pendente === 0) {
+        await this.prisma.guarita_Operacoes.create({
+          data: {
+            id_condominio: device.id_condominio,
+            id_device: device.id,
+            tipo: 'atualizar_receptores',
+            estado: ESTADO_OP.pendente,
+            criado_por: 'Conferência do Guarita',
+          },
+        });
+      }
+    }
     return {
       resumo: {
         so_no_guarita: dif.so_no_guarita.length,

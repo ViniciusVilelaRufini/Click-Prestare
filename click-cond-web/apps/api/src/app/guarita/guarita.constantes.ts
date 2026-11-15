@@ -81,9 +81,6 @@ export const REENTREGA_MS = 5 * 60 * 1000;
 /** No máximo isto por `GET operacoes`. */
 export const MAX_OPERACOES_POR_PEDIDO = 50;
 
-/** O 29 (atualizar receptores) só sai 30 s depois da última gravação do lote. */
-export const ESPERA_ATUALIZAR_RECEPTORES_MS = 30 * 1000;
-
 /** Frames por parte na importação (o agente manda até isto em cada POST). */
 export const MAX_FRAMES_POR_PARTE = 500;
 

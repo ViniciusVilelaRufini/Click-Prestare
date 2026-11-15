@@ -3,8 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FacialService } from '../facial/facial.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { GuaritaImportacaoService } from './guarita-importacao.service';
+import { GuaritaOperacoesService } from './guarita-operacoes.service';
 import {
-  ESPERA_ATUALIZAR_RECEPTORES_MS,
   ESTADO_OP,
   ESTADO_TTL_MS,
   MAX_OPERACOES_POR_PEDIDO,
@@ -122,6 +122,7 @@ export class GuaritaAgenteService {
     private readonly prisma: PrismaService,
     private readonly facial: FacialService,
     @Optional() private readonly importacao?: GuaritaImportacaoService,
+    @Optional() private readonly operacoes?: GuaritaOperacoesService,
   ) {
     this.estado = new EstadoCompartilhado(prisma);
   }
@@ -160,9 +161,10 @@ export class GuaritaAgenteService {
    * entrega; o lote para na primeira que a outra instância levou.
    *
    * Barreiras: importação/conferência sai sozinha (fecha o lote); gravação
-   * (67) só sai depois que existe cópia de segurança do cadastro; o
-   * `atualizar_receptores` (29) só sai sem gravação aberta antes dele e 30 s
-   * depois da última gravação concluída.
+   * (67) só sai depois que existe cópia de segurança do cadastro. O
+   * `atualizar_receptores` sai junto com as gravações do lote: o agente o junta
+   * ao 29 automático (um só, 30 s depois da última gravação) e devolve o
+   * resultado do 29 nele.
    */
   async buscarOperacoes(device: GuaritaDoAgente, agora = new Date()): Promise<{ operacoes: OperacaoEntregue[] }> {
     const limiteReentrega = new Date(agora.getTime() - REENTREGA_MS);
@@ -204,15 +206,6 @@ export class GuaritaAgenteService {
         if (temCopia === null) temCopia = await this.temCopiaDeSeguranca(device.id);
         if (!temCopia) break;
       }
-      if (op.tipo === 'atualizar_receptores') {
-        if (lote.some((o) => TIPOS_GRAVACAO.includes(o.tipo))) break;
-        const ultima = await this.prisma.guarita_Operacoes.findFirst({
-          where: { id_device: device.id, tipo: { in: [...TIPOS_GRAVACAO] }, estado: { in: [ESTADO_OP.ok, ESTADO_OP.falhou] } },
-          orderBy: { concluida_em: 'desc' },
-          select: { concluida_em: true },
-        });
-        if (ultima?.concluida_em && agora.getTime() - ultima.concluida_em.getTime() < ESPERA_ATUALIZAR_RECEPTORES_MS) break;
-      }
       const r = await this.prisma.guarita_Operacoes.updateMany({
         where: {
           id: op.id,
@@ -225,7 +218,7 @@ export class GuaritaAgenteService {
       });
       if (r.count !== 1) break;
       lote.push(op.frame_hex ? { id: op.id, tipo: op.tipo, frame_hex: op.frame_hex } : { id: op.id, tipo: op.tipo });
-      if (TIPOS_LEITURA.includes(op.tipo) || op.tipo === 'atualizar_receptores') break;
+      if (TIPOS_LEITURA.includes(op.tipo)) break;
     }
     return { operacoes: lote };
   }
@@ -257,6 +250,12 @@ export class GuaritaAgenteService {
     if (TIPOS_LEITURA.includes(op.tipo)) {
       if (!this.importacao) throw new Error('GuaritaImportacaoService ausente');
       await this.importacao.receberResultado(device, op, r);
+      return { ok: true };
+    }
+    if (this.operacoes) {
+      // Gravação (67) e atualizar receptores (29): efeito nas tags.
+      await this.operacoes.aplicarResultado(op.id, r);
+      if (!r.ok) this.logger.warn(`Guarita ${device.id}: operação ${op.id} (${op.tipo}) falhou (código ${r.codigo ?? '-'})`);
       return { ok: true };
     }
     const agora = new Date();

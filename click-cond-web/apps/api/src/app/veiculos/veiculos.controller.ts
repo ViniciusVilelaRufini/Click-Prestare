@@ -66,6 +66,6 @@ export class VeiculosController {
     @ReqUser() user: JwtPayload,
   ) {
     assertOperador(user, 'remover veículo');
-    return this.service.remove(idCondominio, id);
+    return this.service.remove(idCondominio, id, user?.nome ?? 'Portaria');
   }
 }

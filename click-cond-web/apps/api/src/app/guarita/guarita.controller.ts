@@ -3,6 +3,7 @@ import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import { GuaritaImportacaoService } from './guarita-importacao.service';
+import { GuaritaOperacoesService } from './guarita-operacoes.service';
 import { autorDoUsuario } from './guarita-comum.util';
 
 /**
@@ -17,7 +18,10 @@ import { autorDoUsuario } from './guarita-comum.util';
  */
 @Controller('condominios/:idCondominio/guarita')
 export class GuaritaController {
-  constructor(private readonly importacao: GuaritaImportacaoService) {}
+  constructor(
+    private readonly importacao: GuaritaImportacaoService,
+    private readonly operacoes: GuaritaOperacoesService,
+  ) {}
 
   // ------------------------------------------------ importação / conferência
 
@@ -75,6 +79,31 @@ export class GuaritaController {
   ) {
     assertOperador(user, 'vincular dispositivo do Guarita');
     return this.importacao.vincular(idCondominio, deviceId, idTag, body?.id_veiculo);
+  }
+
+  /** Tag vinculada pelo morador no app: vai para o Guarita (cadastro na fila). Corpo opcional `{ tipo?: 2|3|6, codigo_impresso? }`. */
+  @Post(':deviceId/dispositivos/:idTag/aprovar')
+  async aprovar(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idTag', ParseIntPipe) idTag: number,
+    @Body() body: { tipo?: number; codigo_impresso?: string } | undefined,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'aprovar tag no Guarita');
+    return this.operacoes.aprovar(idCondominio, deviceId, idTag, body, autorDoUsuario(user));
+  }
+
+  /** Tag vinculada pelo morador no app: não vai para o Guarita (continua como tag comum do veículo). */
+  @Post(':deviceId/dispositivos/:idTag/recusar')
+  async recusar(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idTag', ParseIntPipe) idTag: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'recusar tag no Guarita');
+    return this.operacoes.recusar(idCondominio, deviceId, idTag);
   }
 
   // ------------------------------------------------- cópias de segurança

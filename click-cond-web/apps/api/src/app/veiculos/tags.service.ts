@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { validarCodigoTag } from '../common/tag-codigo.util';
 import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
+import { GuaritaOperacoesService } from '../guarita/guarita-operacoes.service';
 
 export interface TagDto {
   codigo: string;
@@ -14,7 +15,12 @@ const TAG_CODIGO_COLUNA = 100;
 
 @Injectable()
 export class TagsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Módulo Guarita: bloquear/excluir uma tag que o Prestare gravou num Guarita
+    // enfileira a remoção nele. Opcional (specs antigos instanciam só com o Prisma).
+    @Optional() private readonly guarita?: GuaritaOperacoesService,
+  ) {}
 
   /**
    * Lista as tags do condomínio. Com `livres=true`, retorna só as que não estão
@@ -93,20 +99,56 @@ export class TagsService {
    * Bloqueia (`ativo=false`) ou reativa a tag. Bloqueada, ela deixa de abrir
    * no leitor mas continua vinculada ao veículo — é o caso de tag perdida.
    */
-  async definirAtivo(idCondominio: number, id: number, ativo: boolean | number) {
+  async definirAtivo(idCondominio: number, id: number, ativo: boolean | number, autor = 'Portaria') {
     if (ativo !== true && ativo !== false && ativo !== 0 && ativo !== 1) {
       throw new BadRequestException('Informe "ativo" como verdadeiro (reativar) ou falso (bloquear).');
     }
     const tag = await this.tagDoCondominio(idCondominio, id);
+    const reativar = ativo === true || ativo === 1;
+    // Tag do Guarita (tag sem id_device segue exatamente como antes).
+    if (this.guarita && tag.id_device != null) {
+      if (reativar && tag.guarita_estado === 'removendo') {
+        throw new BadRequestException(
+          'Esta tag está sendo removida do Guarita. Para usá-la de novo, cadastre-a pela captura.',
+        );
+      }
+      if (!reativar) {
+        // Bloquear um dispositivo gravado no Guarita = tirá-lo de lá (o portão é ele quem abre).
+        const removida = await this.guarita.enfileirarRemocao(tag.id, autor);
+        const atualizada = await this.prisma.tags.update({ where: { id: tag.id }, data: { ativo: 0 } });
+        return { ...atualizada, guarita_remocoes: removida ? 1 : 0 };
+      }
+    }
     return this.prisma.tags.update({
       where: { id: tag.id },
-      data: { ativo: ativo === true || ativo === 1 ? 1 : 0 },
+      data: { ativo: reativar ? 1 : 0 },
     });
   }
 
   /** Exclui a tag, desvinculando-a antes dos veículos que a usam. */
-  async remove(idCondominio: number, id: number) {
+  async remove(idCondominio: number, id: number, autor = 'Portaria') {
     const tag = await this.tagDoCondominio(idCondominio, id);
+    if (this.guarita && tag.id_device != null) {
+      // Gravada pelo Prestare: a linha só some quando o Guarita confirmar a
+      // remoção (GuaritaOperacoesService.aplicarResultado). A vincular (o
+      // Prestare não a gravou) ou aguardando aprovação: sai só do Prestare.
+      const removida = await this.guarita.enfileirarRemocao(tag.id, autor);
+      if (removida) {
+        await this.prisma.veiculos.updateMany({
+          where: { id_tag: tag.id, id_condominio: idCondominio },
+          data: { id_tag: null },
+        });
+        return { ok: true, guarita_remocoes: 1 };
+      }
+      await this.prisma.$transaction([
+        this.prisma.veiculos.updateMany({
+          where: { id_tag: tag.id, id_condominio: idCondominio },
+          data: { id_tag: null },
+        }),
+        this.prisma.tags.delete({ where: { id: tag.id } }),
+      ]);
+      return { ok: true, guarita_remocoes: 0 };
+    }
     await this.prisma.$transaction([
       this.prisma.veiculos.updateMany({
         where: { id_tag: tag.id, id_condominio: idCondominio },
