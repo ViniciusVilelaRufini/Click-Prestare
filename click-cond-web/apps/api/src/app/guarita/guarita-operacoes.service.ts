@@ -50,6 +50,8 @@ export interface ResultadoGravacao {
 
 /** Texto do desfecho desconhecido (também marca a operação: é por ele que as tentativas são contadas). */
 export const MSG_INCERTO = 'Não foi possível confirmar no Guarita.';
+/** Depois do segundo cadastro incerto (sem mais tentativa automática). */
+export const MSG_INCERTO_CONFERIR = 'Não foi possível confirmar no Guarita. Use Conferir agora.';
 
 /** Código de tag criado pelos fluxos do Guarita (importação, captura, digitado): G<tipo>-<serial>[-D<id>]. */
 const CODIGO_DO_GUARITA = /^G[1236]-[0-9A-F]+(-D\d+)?$/;
@@ -744,9 +746,9 @@ export class GuaritaOperacoesService {
       await this.marcarConflito(op, r);
       return;
     }
-    // Desfecho desconhecido: o agente avisa (`incerto`); um cadastro que falha
-    // sem código do 67 também pode ter sido gravado (a resposta se perdeu).
-    const incerto = r.incerto === true || (op.tipo === 'cadastrar' && !r.ok && r.codigo === undefined);
+    // Desfecho desconhecido: só quando o agente diz (`incerto`). "Não foi
+    // gravado" que o agente conferiu (ok:false sem incerto) é falha (R4).
+    const incerto = r.incerto === true;
     if (incerto && TIPOS_GRAVACAO.includes(op.tipo)) {
       await this.marcarIncerto(op);
       return;
@@ -902,9 +904,11 @@ export class GuaritaOperacoesService {
     });
     if (op.tipo === 'cadastrar') {
       const saindo = tag.guarita_estado === ESTADO_TAG.removendo;
+      // Segundo incerto do mesmo cadastro: não há nova tentativa sozinha; a tela diz o que fazer.
+      const texto = tentativas >= 2 ? MSG_INCERTO_CONFERIR : MSG_INCERTO;
       await this.prisma.tags.update({
         where: { id: tag.id },
-        data: { guarita_erro: MSG_INCERTO, ...(!saindo && { guarita_estado: ESTADO_TAG.incerto }) },
+        data: { guarita_erro: texto, ...(!saindo && { guarita_estado: ESTADO_TAG.incerto }) },
       });
       if (!saindo && tentativas === 1 && op.frame_hex) {
         await this.prisma.guarita_Operacoes.create({

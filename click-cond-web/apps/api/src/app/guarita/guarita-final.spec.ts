@@ -111,15 +111,13 @@ describe('I2 — gravação sem resposta é incerta', () => {
     expect(lote.operacoes.find((o) => o.tipo === 'apagar')).toMatchObject({ esperado: { unidade: 308, bloco: 1 } });
   });
 
-  it('cadastro que falha sem código do 67 (agente antigo) também é incerto, e a saída do morador gera apagar', async () => {
+  it('R4: "não foi gravado" conferido pelo agente (ok:false sem incerto) é falhou, com o erro', async () => {
     const m = montar();
     Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
     const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
     await m.agente.buscarOperacoes(DEV);
-    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, erro: 'O Guarita não respondeu.' });
-    expect(tag(m.db).guarita_estado).toBe('incerto');
-    expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(true);
-    expect(ops(m.db, 'apagar')).toHaveLength(1);
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, erro: 'O Guarita não respondeu e o dispositivo não foi gravado.' });
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'falhou', guarita_erro: 'O Guarita não respondeu e o dispositivo não foi gravado.' });
   });
 
   it('segundo cadastro incerto não volta de novo à fila (uma vez só)', async () => {
@@ -133,7 +131,7 @@ describe('I2 — gravação sem resposta é incerta', () => {
     const repetido = lote.operacoes.find((o) => o.tipo === 'cadastrar')!;
     await m.agente.registrarResultado(DEV, repetido.id, { ok: false, incerto: true });
     expect(ops(m.db, 'cadastrar').filter((o: any) => o.estado === 'pendente')).toHaveLength(0);
-    expect(tag(m.db).guarita_estado).toBe('incerto');
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'incerto', guarita_erro: 'Não foi possível confirmar no Guarita. Use Conferir agora.' });
   });
 
   it('apagar incerto: continua removendo, alerta, e volta à fila', async () => {
