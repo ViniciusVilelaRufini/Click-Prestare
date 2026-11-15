@@ -227,6 +227,52 @@
             }
           </div>
         }
+
+        <!-- Passe na carteira: o mesmo acesso num passe da Apple Wallet, com código que muda uma vez por dia. Depende do QR no app. -->
+        <div class="mt-6 pt-5 border-t border-white/5">
+          <div class="flex items-start justify-between gap-4">
+            <div class="space-y-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <h3 id="wallet-titulo" class="text-sm font-semibold text-white">Passe na carteira (iPhone)</h3>
+                @if (wallet() !== null) {
+                  <span class="ps-tag">{{ walletLigado() ? 'Ligado' : 'Desligado' }}</span>
+                }
+              </div>
+              <p class="text-sm text-slate-400 leading-relaxed max-w-2xl">
+                O morador adiciona o acesso à Carteira do iPhone e abre o portão mostrando o passe, sem abrir o app.
+                O código do passe muda uma vez por dia. O síndico ou o porteiro cancela o passe de um morador em
+                Moradores, na edição do cadastro.
+              </p>
+              @if (qrApp() === false) {
+                <p class="text-xs text-slate-500" data-wallet-dica>Ligue primeiro o QR no app.</p>
+              }
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              data-wallet-switch
+              [attr.aria-checked]="walletLigado()"
+              aria-labelledby="wallet-titulo"
+              [disabled]="walletBloqueado()"
+              (click)="alternarWallet()"
+              class="w-10 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none relative shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+              [ngClass]="walletLigado() ? 'bg-accent' : 'bg-slate-250 dark:bg-slate-700'"
+              title="Ligar/Desligar passe na carteira"
+            >
+              <div
+                class="w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-200"
+                [ngClass]="walletLigado() ? 'translate-x-4' : 'translate-x-0'"
+              ></div>
+            </button>
+          </div>
+
+          @if (walletErro()) {
+            <div data-wallet-erro class="mt-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm font-medium" role="alert">
+              {{ walletErro() }}
+            </div>
+          }
+        </div>
       </section>
     }
     <div class="ps-panel p-6 animate-fadeIn">

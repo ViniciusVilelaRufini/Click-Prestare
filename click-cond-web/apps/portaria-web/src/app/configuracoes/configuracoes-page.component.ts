@@ -16,6 +16,12 @@ import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 export const AVISO_QR_APP =
   'O QR depende da internet do condomínio. Antes de ligar, confirme que todo morador sem rosto cadastrado tem tag ou que há porteiro. Com a opção ligada, o PIN do visitante deixa de abrir quando mostrado como QR no leitor; continua valendo digitado na portaria.';
 
+/** Aviso mostrado antes de ligar o passe na carteira (texto do plano, sem variação). */
+export const AVISO_WALLET =
+  'O passe na carteira abre sem o app e, no iPhone, até com a tela bloqueada. O código muda uma vez por dia, então é menos seguro que o QR do app: um print vale até o dia seguinte, e uma cópia do passe continua recebendo o código novo até alguém cancelar. Se um morador perder o celular, cancele o passe dele em Moradores.';
+
+type OpcaoCredenciais = { qr_app_habilitado: boolean; wallet_habilitado?: boolean };
+
 @Component({
   selector: 'app-configuracoes-page',
   standalone: true,
@@ -52,6 +58,19 @@ export class ConfiguracoesPageComponent implements OnInit {
   readonly qrAppSalvando = signal(false);
   readonly qrAppErro = signal<string | null>(null);
 
+  /**
+   * "Passe na carteira" vem na mesma rota de opção. Só vale com o QR no app
+   * ligado: a API recusa ligar sem ele e desliga junto quando o QR desliga.
+   */
+  readonly wallet = signal<boolean | null>(null);
+  readonly walletSalvando = signal(false);
+  readonly walletErro = signal<string | null>(null);
+  /** O que a chave mostra: desligada sempre que o QR no app está desligado. */
+  readonly walletLigado = computed(() => this.qrApp() === true && this.wallet() === true);
+  readonly walletBloqueado = computed(
+    () => this.qrApp() !== true || this.wallet() === null || this.walletSalvando() || this.qrAppSalvando(),
+  );
+
   ngOnInit() {
     if (this.ehSindico()) this.carregarQrApp();
   }
@@ -65,13 +84,19 @@ export class ConfiguracoesPageComponent implements OnInit {
     const url = this.urlOpcaoQrApp();
     if (!url) return;
     this.qrAppErro.set(null);
-    this.http.get<{ qr_app_habilitado: boolean }>(url).subscribe({
-      next: (r) => this.qrApp.set(!!r?.qr_app_habilitado),
+    this.http.get<OpcaoCredenciais>(url).subscribe({
+      next: (r) => this.aplicarOpcao(r),
       error: () => {
         this.qrApp.set(null);
+        this.wallet.set(null);
         this.qrAppErro.set('Não foi possível carregar a opção do QR no app.');
       },
     });
+  }
+
+  private aplicarOpcao(r: OpcaoCredenciais | null | undefined) {
+    this.qrApp.set(!!r?.qr_app_habilitado);
+    this.wallet.set(!!r?.wallet_habilitado);
   }
 
   /**
@@ -98,15 +123,52 @@ export class ConfiguracoesPageComponent implements OnInit {
     this.qrAppErro.set(null);
     this.qrAppSalvando.set(true);
     this.qrApp.set(novo);
-    this.http.patch<{ qr_app_habilitado: boolean }>(url, { qr_app_habilitado: novo }).subscribe({
+    this.http.patch<OpcaoCredenciais>(url, { qr_app_habilitado: novo }).subscribe({
       next: (r) => {
         this.qrAppSalvando.set(false);
-        this.qrApp.set(!!r?.qr_app_habilitado);
+        this.aplicarOpcao(r);
       },
       error: (err: any) => {
         this.qrAppSalvando.set(false);
         this.qrApp.set(atual);
         this.qrAppErro.set(err?.error?.message || 'Não foi possível alterar o QR no app. Tente de novo.');
+      },
+    });
+  }
+
+  /**
+   * Ligar pede confirmação com o aviso (código diário, print vale até o dia
+   * seguinte, cancelamento em Moradores). Desligar vai direto. A chave muda na
+   * hora e volta se a API recusar.
+   */
+  async alternarWallet() {
+    const atual = this.wallet();
+    const url = this.urlOpcaoQrApp();
+    if (atual === null || !url || this.walletBloqueado()) return;
+    const novo = !atual;
+
+    if (novo) {
+      const ok = await this.confirm.ask({
+        title: 'Ligar o passe na carteira?',
+        message: AVISO_WALLET,
+        confirmLabel: 'Ligar',
+        variant: 'primary',
+      });
+      if (!ok) return;
+    }
+
+    this.walletErro.set(null);
+    this.walletSalvando.set(true);
+    this.wallet.set(novo);
+    this.http.patch<OpcaoCredenciais>(url, { wallet_habilitado: novo }).subscribe({
+      next: (r) => {
+        this.walletSalvando.set(false);
+        this.aplicarOpcao(r);
+      },
+      error: (err: any) => {
+        this.walletSalvando.set(false);
+        this.wallet.set(atual);
+        this.walletErro.set(err?.error?.message || 'Não foi possível alterar o passe na carteira. Tente de novo.');
       },
     });
   }

@@ -384,6 +384,43 @@ export class MoradoresPageComponent implements OnInit {
     this.carregarTagsLivres();
   }
 
+  // === Passe da carteira (só ao editar um morador existente) ===
+  readonly cancelandoPasse = signal(false);
+
+  /**
+   * Celular perdido: o operador cancela o passe da carteira do morador em
+   * edição. O formulário continua aberto em qualquer resultado.
+   */
+  async cancelarPasseCarteira() {
+    const id = this.editingId;
+    if (!id || this.cancelandoPasse()) return;
+    const nome = this.novo.nome?.trim() || 'este morador';
+    const ok = await this.confirm.ask({
+      title: 'Cancelar passe da carteira',
+      message: `Cancelar o passe da carteira de ${nome}? O passe deixa de abrir na hora. O QR do app e o rosto continuam funcionando.`,
+      confirmLabel: 'Cancelar passe',
+      cancelLabel: 'Voltar',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    this.cancelandoPasse.set(true);
+    await new Promise<void>((fim) => {
+      this.api.cancelarPasseCarteira(id).subscribe({
+        next: (r) => {
+          this.cancelandoPasse.set(false);
+          if ((r?.cancelados ?? 0) > 0) this.toast.success('Passe cancelado.');
+          else this.toast.info('Este morador não tinha passe ativo.');
+          fim();
+        },
+        error: (e) => {
+          this.cancelandoPasse.set(false);
+          this.toast.error(e?.error?.message ?? e?.message ?? 'Não foi possível cancelar o passe. Tente de novo.');
+          fim();
+        },
+      });
+    });
+  }
+
   // === Veículos ===
   private resetNovoVeiculo() {
     this.novoVeiculo = { placa: '', cor: '', marca_modelo: '', id_tag: null };

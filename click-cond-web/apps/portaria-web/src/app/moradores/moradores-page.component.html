@@ -569,6 +569,34 @@
               </div>
             </div>
           </div>
+
+          <!-- Passe da carteira: celular perdido, o operador cancela o passe do morador -->
+          <div class="ps-panel p-4 md:p-5 space-y-3">
+            <div class="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-white/5">
+              <span class="w-2 h-2 rounded-full bg-accent"></span>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                4. Passe na carteira do celular
+              </h3>
+            </div>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-xl">
+                Se o morador perder o celular, cancele o passe da carteira. O passe deixa de abrir na hora;
+                o QR do app e o rosto continuam funcionando.
+              </p>
+              <button
+                type="button"
+                data-cancelar-passe
+                (click)="cancelarPasseCarteira()"
+                [disabled]="cancelandoPasse()"
+                class="ps-btn ps-btn-sec ps-btn-sm shrink-0 disabled:opacity-50"
+              >
+                @if (cancelandoPasse()) {
+                  <div class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                }
+                Cancelar passe da carteira
+              </button>
+            </div>
+          </div>
         }
 
         <!-- Opções de Acesso Inicial (ao cadastrar novo) -->
