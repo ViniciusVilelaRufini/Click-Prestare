@@ -413,6 +413,9 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
   });
 
   describe('meu voto por unidade', () => {
+    // Os campos de direito de voto (tipo_vinculo, pode_votar, motivo,
+    // votado_por) são conferidos em assembleia-robusta.spec.ts.
+    const basico = (lista: any[]) => lista.map(({ id_votacao, id_apto, rotulo, opcao }) => ({ id_votacao, id_apto, rotulo, opcao }));
     it('enquete: lista cada unidade do usuário com o voto que vale nela, e mantém meuVoto', async () => {
       const { svc } = build({
         votos: [
@@ -425,7 +428,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
         { id_apto: 200, rotulo: 'Apto 21 Bloco A' },
         { id_apto: 300, rotulo: 'Apto 31' },
       ]);
-      expect(r.votosPorUnidade).toEqual([
+      expect(basico(r.votosPorUnidade)).toEqual([
         { id_votacao: 5, id_apto: 200, rotulo: 'Apto 21 Bloco A', opcao: '9' },
         { id_votacao: 5, id_apto: 300, rotulo: 'Apto 31', opcao: '10' },
       ]);
@@ -445,7 +448,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       expect(r.meuVoto).toEqual(['10']);
       const { svc: svc2 } = build();
       const r2 = await svc2.enqueteGetDetails(5, 61, token(61));
-      expect(r2.votosPorUnidade).toEqual([{ id_votacao: 5, id_apto: 300, rotulo: 'Apto 31', opcao: null }]);
+      expect(basico(r2.votosPorUnidade)).toEqual([{ id_votacao: 5, id_apto: 300, rotulo: 'Apto 31', opcao: null }]);
       expect(r2.meuVoto).toEqual([]);
     });
 
@@ -458,7 +461,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       });
       const r: any = await svc.get(COND, 3, 60, token(60));
       expect(r.unidades.map((u: any) => u.id_apto)).toEqual([200, 300]);
-      expect(r.votosPorUnidade).toEqual([
+      expect(basico(r.votosPorUnidade)).toEqual([
         { id_votacao: 5, id_apto: 200, rotulo: 'Apto 21 Bloco A', opcao: '9' },
         { id_votacao: 5, id_apto: 300, rotulo: 'Apto 31', opcao: null },
         { id_votacao: 6, id_apto: 200, rotulo: 'Apto 21 Bloco A', opcao: null },

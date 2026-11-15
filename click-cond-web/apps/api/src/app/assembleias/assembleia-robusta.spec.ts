@@ -547,3 +547,119 @@ describe('2.2 — apuração', () => {
     expect(await apurar(svc)).toEqual(['51;Aprovar;1', '52;Rejeitar;0']);
   });
 });
+
+describe('2.3 — resultado parcial oculto', () => {
+  const t = (hhmm: string) => new Date(`2026-11-14T${hhmm}:00Z`);
+  const novo = (v: Partial<Voto>) => ({ nome_votante: 'X', rotulo_unidade: 'Apto', ...v });
+  // Votos vigentes: unidade 100 (inquilino 11 → Rejeitar, depois proprietário 10
+  // → Aprovar, que vale) e unidade 200 (inquilino 21 → Rejeitar).
+  const VOTOS = [
+    novo({ id: 1, id_opcao: 52, id_user: 11, id_apto: 100, tipo_vinculo: 'inquilino', created_at: t('09:00'), substituido_em: t('10:00') }),
+    novo({ id: 2, id_opcao: 51, id_user: 10, id_apto: 100, tipo_vinculo: 'proprietario', created_at: t('10:00') }),
+    novo({ id: 3, id_opcao: 52, id_user: 21, id_apto: 200, tipo_vinculo: 'inquilino', created_at: t('10:00') }),
+  ] as any;
+
+  it('aberta: contagem zerada para TODOS (morador, síndico e porteiro), com participação e resultado_oculto', async () => {
+    const { svc } = build({ votos: VOTOS });
+    const porteiro: any = { sub: 3, nome: 'João', id_condominio: 1, tipo_sub: 'funcionario_portaria' };
+    for (const [user, token] of [[10, morador(10)], [7, sindico], [null, porteiro]] as const) {
+      const r: any = await svc.get(COND, 3, user, token);
+      const pauta = r.votacoes.find((v: any) => v.id === 5);
+      expect(pauta.opcoes).toEqual(['51;Aprovar;0', '52;Rejeitar;0']);
+      expect(pauta).toMatchObject({
+        status: 1, resultado_oculto: true, somente_proprietarios: 0, encerrada_em: null,
+        participacao: { unidades_votaram: 2, unidades_total: 3 },
+      });
+    }
+  });
+
+  it('aberta: enqueteGetAll e enqueteGetDetails também escondem', async () => {
+    const { svc } = build({
+      votos: [novo({ id: 1, id_opcao: 61, id_user: 10, id_apto: 100, tipo_vinculo: 'proprietario', created_at: t('10:00') })] as any,
+    });
+    const lista: any[] = await svc.enqueteGetAll(COND, sindico);
+    expect(lista.map((v) => v.id)).toEqual([6]);
+    expect(lista[0]).toMatchObject({ opcoes: ['61;Azul;0', '62;Verde;0'], resultado_oculto: true, participacao: { unidades_votaram: 1, unidades_total: 3 } });
+    const det: any = await svc.enqueteGetDetails(6, 10, morador(10));
+    expect(det.votacao).toMatchObject({ opcoes: ['61;Azul;0', '62;Verde;0'], resultado_oculto: true });
+    // O próprio voto continua visível.
+    expect(det.meuVoto).toEqual(['61']);
+    expect(det.votosPorUnidade[0]).toMatchObject({ id_apto: 100, opcao: '61' });
+  });
+
+  it('agendada também esconde', async () => {
+    const { svc, votacoes } = build({ votos: VOTOS });
+    votacoes[0].data_inicio = new Date('2099-01-01T00:00:00Z');
+    const r: any = await svc.get(COND, 3, 10, morador(10));
+    expect(r.votacoes.find((v: any) => v.id === 5)).toMatchObject({ status: 0, resultado_oculto: true, opcoes: ['51;Aprovar;0', '52;Rejeitar;0'] });
+  });
+
+  it('encerrada (encerrada_em ou assembleia finalizada): contagem real e resultado_oculto false', async () => {
+    const enc = build({ votos: VOTOS });
+    enc.votacoes[0].encerrada_em = new Date('2026-11-14T20:00:00Z');
+    enc.votacoes[0].somente_proprietarios = 1;
+    const r: any = await enc.svc.get(COND, 3, 10, morador(10));
+    expect(r.votacoes.find((v: any) => v.id === 5)).toMatchObject({
+      status: 2, resultado_oculto: false, opcoes: ['51;Aprovar;1', '52;Rejeitar;1'], somente_proprietarios: 1,
+      encerrada_em: '2026-11-14T20:00:00.000Z', participacao: { unidades_votaram: 2, unidades_total: 3 },
+    });
+    const fin = build({ votos: VOTOS, assembleias: [{ id: 3, finalizada_em: new Date('2026-11-14T21:00:00Z') }] });
+    const r2: any = await fin.svc.get(COND, 3, 10, morador(10));
+    expect(r2.votacoes.find((v: any) => v.id === 5)).toMatchObject({ status: 2, resultado_oculto: false, opcoes: ['51;Aprovar;1', '52;Rejeitar;1'] });
+  });
+
+  describe('votosPorUnidade', () => {
+    const daPauta = (r: any) => r.votosPorUnidade.find((v: any) => v.id_votacao === 5);
+
+    it('o proprietário vê o voto vigente da unidade, mesmo dado pelo inquilino', async () => {
+      const { svc } = build({ votos: [novo({ id: 1, id_opcao: 52, id_user: 11, id_apto: 100, tipo_vinculo: 'inquilino', created_at: t('09:00') })] as any });
+      expect(daPauta(await svc.get(COND, 3, 10, morador(10)))).toEqual({
+        id_votacao: 5, id_apto: 100, rotulo: 'Apto 11 Bloco A', opcao: '52',
+        tipo_vinculo: 'proprietario', pode_votar: true, motivo: null, votado_por: 'inquilino',
+      });
+    });
+
+    it('o inquilino NÃO vê a opção do proprietário: sabe só que ele votou e por que não pode votar', async () => {
+      const { svc } = build({ votos: VOTOS });
+      const r: any = await svc.get(COND, 3, 11, morador(11));
+      expect(daPauta(r)).toEqual({
+        id_votacao: 5, id_apto: 100, rotulo: 'Apto 11 Bloco A', opcao: null,
+        tipo_vinculo: 'inquilino', pode_votar: false, motivo: 'O proprietário já votou por esta unidade.', votado_por: 'proprietario',
+      });
+      // meusVotos: só os vigentes da própria conta (o dele foi substituído).
+      expect(r.meusVotos).toEqual([]);
+    });
+
+    it('o próprio voto aparece para quem votou', async () => {
+      const { svc } = build({ votos: VOTOS });
+      const r: any = await svc.get(COND, 3, 21, morador(21));
+      expect(daPauta(r)).toMatchObject({ id_apto: 200, opcao: '52', tipo_vinculo: 'inquilino', pode_votar: true, votado_por: 'inquilino' });
+      expect(r.meusVotos).toEqual(['52']);
+    });
+
+    it('membro em pauta, somente proprietários e votação encerrada: pode_votar false com o motivo pronto', async () => {
+      const { svc, votacoes } = build();
+      const membro: any = await svc.get(COND, 3, 12, morador(12));
+      expect(daPauta(membro)).toMatchObject({
+        tipo_vinculo: 'membro', pode_votar: false, votado_por: null, opcao: null,
+        motivo: 'Membros da unidade não votam em pauta de assembleia: vota o proprietário (ou o inquilino, quando a pauta permite).',
+      });
+      votacoes[0].somente_proprietarios = 1;
+      expect(daPauta(await svc.get(COND, 3, 11, morador(11)))).toMatchObject({ pode_votar: false, motivo: 'Somente proprietários votam nesta pauta.' });
+      votacoes[0].encerrada_em = new Date();
+      expect(daPauta(await svc.get(COND, 3, 10, morador(10)))).toMatchObject({ pode_votar: false, motivo: 'Votação encerrada.' });
+      votacoes[0].encerrada_em = null;
+      votacoes[0].data_inicio = new Date('2099-01-01T00:00:00Z');
+      expect(daPauta(await svc.get(COND, 3, 10, morador(10)))).toMatchObject({ pode_votar: false, motivo: 'A votação ainda não começou.' });
+    });
+
+    it('membro na enquete pode votar enquanto ninguém de nível acima votou', async () => {
+      const { svc } = build();
+      const r: any = await svc.enqueteGetDetails(6, 12, morador(12));
+      expect(r.votosPorUnidade).toEqual([
+        { id_votacao: 6, id_apto: 100, rotulo: 'Apto 11 Bloco A', opcao: null, tipo_vinculo: 'membro', pode_votar: true, motivo: null, votado_por: null },
+      ]);
+      expect(r.unidades).toEqual([{ id_apto: 100, rotulo: 'Apto 11 Bloco A' }]);
+    });
+  });
+});

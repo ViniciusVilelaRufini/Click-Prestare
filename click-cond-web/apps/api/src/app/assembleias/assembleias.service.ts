@@ -144,8 +144,24 @@ function mensagemVotoProtegido(autor: TipoVinculo, quem: TipoVinculo): string {
   return `${dono} da unidade já votou; o voto dele não pode ser alterado por ${NOME_DO_VINCULO[quem]}.`;
 }
 
-/** Voto que vale hoje numa unidade do usuário (`opcao` nulo: a unidade não votou). */
-export type VotoDaUnidade = { id_votacao: number; id_apto: number; rotulo: string; opcao: string | null };
+/**
+ * Voto que vale hoje numa unidade do usuário. `opcao` nulo: a unidade não
+ * votou — ou votou um vínculo mais alto, cuja opção não é mostrada (ver
+ * votosPorUnidade). `votado_por`: nível de quem deu o voto vigente.
+ */
+export type VotoDaUnidade = {
+  id_votacao: number;
+  id_apto: number;
+  rotulo: string;
+  opcao: string | null;
+  tipo_vinculo: TipoVinculo;
+  pode_votar: boolean;
+  motivo: string | null;
+  votado_por: TipoVinculo | null;
+};
+
+/** O que votosPorUnidade precisa saber de cada votação. */
+type DadosDaVotacao = { status: number; id_assembleia: number | null; somente_proprietarios: number };
 
 /**
  * Voto apurado de uma unidade: o vigente mais recente dela, com o autor e o
@@ -408,7 +424,7 @@ export class AssembleiasService {
     };
 
     // Buscar votações da assembleia
-    const { formatadas: votacoes, apuracao } = await this.consultarVotacoes(
+    const { formatadas: votacoes, apuracao, dados } = await this.consultarVotacoes(
       Number(idAssembleia), false, Number(idCondominio),
     );
     // Campo antigo (app até 1.2.41): opções em que a própria conta votou.
@@ -421,7 +437,7 @@ export class AssembleiasService {
       votacoes,
       meusVotos,
       unidades: unidades.map(({ id_apto, rotulo }) => ({ id_apto, rotulo })),
-      votosPorUnidade: this.votosPorUnidade(votacoes.map((v) => v.id), unidades, apuracao),
+      votosPorUnidade: this.votosPorUnidade(votacoes.map((v) => v.id), unidades, apuracao, dados, userId),
     };
   }
 
@@ -875,7 +891,7 @@ export class AssembleiasService {
     if (!raw) throw new NotFoundException('Enquete não encontrada');
     await this.tenant.assertEntidade(raw.id_condominio, requester, `enquete #${idVotacao}`);
 
-    const { formatadas: list, apuracao } = await this.consultarVotacoes(undefined, true, undefined, Number(idVotacao));
+    const { formatadas: list, apuracao, dados } = await this.consultarVotacoes(undefined, true, undefined, Number(idVotacao));
     const votacao = list[0];
 
     if (!votacao) throw new NotFoundException('Enquete não encontrada');
@@ -901,7 +917,7 @@ export class AssembleiasService {
       votacao,
       meuVoto,
       unidades: unidades.map(({ id_apto, rotulo }) => ({ id_apto, rotulo })),
-      votosPorUnidade: this.votosPorUnidade([votacao.id], unidades, apuracao),
+      votosPorUnidade: this.votosPorUnidade([votacao.id], unidades, apuracao, dados, Number(userId)),
     };
   }
 
@@ -920,12 +936,21 @@ export class AssembleiasService {
   /**
    * Votações no formato da API mais a apuração por unidade
    * (`apuracao.get(idVotacao).get(idApto)` = voto que vale na unidade).
+   *
+   * Resultado parcial oculto: enquanto a votação está agendada ou aberta
+   * (status 0/1), `opcoes` sai com 0 voto em todas, para TODOS (morador,
+   * síndico, porteiro, console) — o formato "id;nome;votos" fica (o app
+   * 1.2.48 faz parse dele) e `resultado_oculto` diz que está oculto. A
+   * participação (unidades que votaram / total de unidades do condomínio)
+   * aparece sempre: é o quórum. `revelar` (só para a apuração da ATA, dentro
+   * do finish) devolve a contagem real.
    */
   private async consultarVotacoes(
     idAssembleia?: number,
     isEnquete: boolean = false,
     idCondominio?: number,
     idVotacaoEspecifica?: number,
+    revelar = false,
   ) {
     const whereClause: any = {};
     if (idAssembleia !== undefined) whereClause.id_assembleia = idAssembleia;
@@ -949,6 +974,9 @@ export class AssembleiasService {
           },
           orderBy: { id: 'asc' },
         },
+        assembleia: { select: { finalizada_em: true } },
+        // Total de unidades do condomínio (denominador da participação).
+        condominio: { select: { _count: { select: { apartamentos: true } } } },
       },
       orderBy: { created_at: 'desc' },
     });
@@ -965,6 +993,7 @@ export class AssembleiasService {
     }
 
     const apuracao = new Map<number, Map<ChaveUnidade, VotoApurado>>();
+    const dados = new Map<number, DadosDaVotacao>();
     const formatadas = votacoesDb.map(v => {
       const ultimoVoto = this.apurar(v.opcoes, vinculosPorCond.get(v.id_condominio) ?? new Map());
       apuracao.set(v.id, ultimoVoto);
@@ -983,11 +1012,15 @@ export class AssembleiasService {
           : v.data_termino;
       const dFimStr = fimExibido ? fimExibido.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 
-      // Computar o status como inteiro (0 = agendado, 1 = em andamento, 2 = finalizado)
-      const statusInt = this.calcStatusInt(v.data_inicio, v.data_termino, v.encerrada_em);
+      // 0 = agendada, 1 = em andamento, 2 = encerrada (pela data, pelo
+      // Encerrar ou pela assembleia finalizada).
+      const statusInt = this.calcStatusInt(v.data_inicio, v.data_termino, v.encerrada_em ?? v.assembleia?.finalizada_em);
+      const oculto = statusInt !== 2 && !revelar;
+      const somenteProprietarios = v.somente_proprietarios ? 1 : 0;
+      dados.set(v.id, { status: statusInt, id_assembleia: v.id_assembleia ?? null, somente_proprietarios: somenteProprietarios });
 
-      // Mapear opções para o formato de string do group_concat: "id;nome;votos"
-      const opcoesStrArray = v.opcoes.map(op => `${op.id};${op.nome};${votosPorOpcao.get(op.id) ?? 0}`);
+      // Formato do group_concat antigo: "id;nome;votos" (0 enquanto oculto).
+      const opcoesStrArray = v.opcoes.map(op => `${op.id};${op.nome};${oculto ? 0 : (votosPorOpcao.get(op.id) ?? 0)}`);
 
       return {
         id: v.id,
@@ -997,10 +1030,16 @@ export class AssembleiasService {
         data_termino: dFimStr,
         status: statusInt,
         opcoes: opcoesStrArray,
+        resultado_oculto: oculto,
+        somente_proprietarios: somenteProprietarios,
+        participacao: {
+          unidades_votaram: ultimoVoto.size,
+          unidades_total: v.condominio?._count?.apartamentos ?? 0,
+        },
         encerrada_em: v.encerrada_em ? new Date(v.encerrada_em).toISOString() : null,
       };
     });
-    return { formatadas, apuracao };
+    return { formatadas, apuracao, dados };
   }
 
   /**
@@ -1065,16 +1104,44 @@ export class AssembleiasService {
     return Math.min(...vinculos.keys());
   }
 
-  /** Para cada votação × unidade do usuário, a opção que vale nela (ou nulo). */
+  /**
+   * Para cada votação × unidade do usuário: o voto que vale nela, o vínculo
+   * do usuário com ela e se ele pode votar (com o motivo pronto para a tela).
+   * A opção do voto vigente só aparece se o voto é do próprio usuário OU ele
+   * é de nível igual/superior ao autor: o proprietário vê o que o inquilino
+   * votou pela unidade; o inquilino não vê o voto do proprietário (sabe só
+   * que ele votou, por `votado_por`).
+   */
   private votosPorUnidade(
     idsVotacoes: number[],
-    unidades: UnidadeVoto[],
+    unidades: UnidadeDoUsuario[],
     apuracao: Map<number, Map<ChaveUnidade, VotoApurado>>,
+    dados: Map<number, DadosDaVotacao>,
+    userId: number | null,
   ): VotoDaUnidade[] {
     return idsVotacoes.flatMap((idVotacao) =>
       unidades.map((u) => {
         const voto = apuracao.get(idVotacao)?.get(u.id_apto);
-        return { id_votacao: idVotacao, id_apto: u.id_apto, rotulo: u.rotulo, opcao: voto ? String(voto.id_opcao) : null };
+        const d = dados.get(idVotacao);
+        const proprio = !!voto && userId != null && voto.id_user === userId;
+        const acima = !!voto && nivelVinculo(voto.tipo) > nivelVinculo(u.tipo);
+        let motivo: string | null = null;
+        if (d?.status === 2) motivo = 'Votação encerrada.';
+        else if (d?.status === 0) motivo = 'A votação ainda não começou.';
+        else if (d) motivo = motivoSemDireito(d, u.tipo);
+        if (!motivo && acima && voto) {
+          motivo = `${voto.tipo === 'proprietario' ? 'O proprietário' : 'O inquilino'} já votou por esta unidade.`;
+        }
+        return {
+          id_votacao: idVotacao,
+          id_apto: u.id_apto,
+          rotulo: u.rotulo,
+          opcao: voto && (proprio || !acima) ? String(voto.id_opcao) : null,
+          tipo_vinculo: u.tipo,
+          pode_votar: motivo == null,
+          motivo,
+          votado_por: voto ? voto.tipo : null,
+        };
       }),
     );
   }
