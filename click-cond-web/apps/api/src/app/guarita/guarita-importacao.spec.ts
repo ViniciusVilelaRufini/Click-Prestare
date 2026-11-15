@@ -210,6 +210,13 @@ describe('Guarita — casamento com unidade e veículo', () => {
     expect(t2).toMatchObject({ id_apto: 2, guarita_estado: 'a_vincular' });
   });
 
+  it('I5: placa bate mas a unidade do Guarita não é a do dono do veículo → a_vincular', async () => {
+    // XYZ9876 é do Bruno (202 B); o frame diz unidade 101 bloco A.
+    const { db } = await importar([frame(2, '000005', { unidade: 101, bloco: 'A', placa: 'XYZ9876' })]);
+    expect(db.linhas('tags')[0].guarita_estado).toBe('a_vincular');
+    expect(db.linhas('veiculos').find((v: any) => v.id === 71).id_tag).toBeNull();
+  });
+
   it('placa ambígua (dois veículos) não vincula', async () => {
     const m = montar();
     // Mesma placa normalizada em dois veículos ativos (grafias diferentes).

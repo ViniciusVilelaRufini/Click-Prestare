@@ -334,7 +334,7 @@ export class GuaritaImportacaoService {
     });
     const veiculos = await this.prisma.veiculos.findMany({
       where: { id_condominio: device.id_condominio, ativo: 1 },
-      select: { id: true, placa: true, id_tag: true },
+      select: { id: true, placa: true, id_tag: true, id_morador: true },
     });
 
     const agora = new Date();
@@ -497,6 +497,20 @@ export class GuaritaImportacaoService {
     return casam.length === 1 ? casam[0].id : null;
   }
 
+  /** A unidade do dispositivo (frame) é a do morador dono do veículo? (conversão estrita, I4) */
+  private async mesmaUnidadeDoMorador(
+    idMorador: number | undefined,
+    d: DispositivoGuarita,
+    aptos: Array<{ id: number; bloco: string | null; apto: string | null }>,
+  ): Promise<boolean> {
+    if (idMorador == null) return false;
+    const m = await this.prisma.moradores.findUnique({ where: { id: idMorador }, select: { bloco: true, apartamento: true } });
+    if (!m) return false;
+    const semBlocos = aptos.every((a) => !String(a.bloco ?? '').trim());
+    const u = unidadeGuaritaDoTexto(m.bloco, m.apartamento, semBlocos);
+    return u.ok && u.unidade === d.unidade && u.bloco === blocoParaByte(d.bloco);
+  }
+
   /**
    * Tag nova para um dispositivo lido do Guarita: `a_vincular`, ou `ativo` se a
    * placa casou com exatamente UM veículo ativo sem tag (só na importação).
@@ -505,13 +519,17 @@ export class GuaritaImportacaoService {
     device: GuaritaDoAgente,
     d: DispositivoGuarita,
     aptos: Array<{ id: number; bloco: string | null; apto: string | null }>,
-    veiculos: Array<{ id: number; placa: string; id_tag: number | null }>,
+    veiculos: Array<{ id: number; placa: string; id_tag: number | null; id_morador?: number }>,
     autoVincular: boolean,
     agora: Date,
   ): Promise<{ id: number; vinculada: boolean }> {
     const placa = normalizarPlaca(d.placa);
     const candidatos = autoVincular && placa ? veiculos.filter((v) => normalizarPlaca(v.placa) === placa) : [];
-    const veiculo = candidatos.length === 1 && candidatos[0].id_tag == null ? candidatos[0] : null;
+    let veiculo = candidatos.length === 1 && candidatos[0].id_tag == null ? candidatos[0] : null;
+    // I5: a placa sozinha não basta — a unidade gravada no Guarita tem de ser a
+    // do morador dono do veículo (carro vendido entre moradores, cadastro
+    // errado...). Senão fica a vincular, para o síndico decidir.
+    if (veiculo && !(await this.mesmaUnidadeDoMorador(veiculo.id_morador, d, aptos))) veiculo = null;
     const base = `G${d.tipo}-${d.serialHex}`;
     const dados = {
       id_condominio: device.id_condominio,
