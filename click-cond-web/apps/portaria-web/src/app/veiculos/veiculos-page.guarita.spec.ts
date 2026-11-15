@@ -24,6 +24,7 @@ const guarita = { id: 7, nome: 'Guarita garagem', tipo: 'guarita', fabricante: '
 const disp = (id: number, estado: string, extra: Record<string, unknown> = {}) => ({
   id, id_device: 7, guarita_tipo: 2, guarita_serial: `0F086${id}`, guarita_estado: estado, guarita_erro: null, ...extra,
 });
+const pagina = (itens: any[], total = itens.length, pag = 1) => of({ itens, total, pagina: pag, por_pagina: 50 });
 
 function build(opts: {
   guaritas?: any[];
@@ -45,7 +46,8 @@ function build(opts: {
   };
   const guaritaApi = {
     listarGuaritas: jest.fn(() => of(opts.guaritas ?? [])),
-    dispositivos: jest.fn(opts.dispositivos ?? (() => of([]))),
+    dispositivos: jest.fn(opts.dispositivos ?? (() => pagina([]))),
+    veiculosParaVincular: jest.fn(() => of([] as any[])),
     aprovar: jest.fn(() => of({ ok: true })),
     recusar: jest.fn(() => of({ ok: true })),
     vincular: jest.fn(() => of({ ok: true })),
@@ -109,7 +111,7 @@ describe('VeiculosPageComponent — selo do estado no Guarita', () => {
   ])('%s → "%s"', (estado, erro, texto) => {
     const { el } = build({
       guaritas: [guarita],
-      dispositivos: () => of([disp(1, estado, { guarita_erro: erro })]),
+      tags: [tagG(1, { guarita_estado: estado, guarita_erro: erro, id_device: 7 })],
     });
     const selo = el.querySelector('[data-guarita-estado]');
     expect(selo?.textContent?.trim()).toBe(texto);
@@ -119,8 +121,7 @@ describe('VeiculosPageComponent — selo do estado no Guarita', () => {
     const { el } = build({
       guaritas: [guarita],
       veiculos: [carro(100, 1, 'ABC1D23'), carro(102, 2, 'GHI7J89')],
-      tags: [tagG(1), tagG(2)],
-      dispositivos: () => of([disp(1, 'gravado'), disp(2, 'ativo')]),
+      tags: [tagG(1, { guarita_estado: 'gravado' }), tagG(2, { guarita_estado: 'ativo' })],
     });
     const selos = Array.from(el.querySelectorAll('[data-guarita-estado]')).map((s) => s.textContent?.trim());
     expect(selos).toEqual(['Gravado no Guarita', 'Ativo nos portões']);
@@ -129,7 +130,7 @@ describe('VeiculosPageComponent — selo do estado no Guarita', () => {
     expect(dicas).toEqual(['Ainda não vale nos portões']);
   });
 
-  it('sem a lista do Guarita (rota 404), usa o estado da própria tag; sem estado, sem selo e sem erro', () => {
+  it('lista do Guarita ausente (rota 404): selo pela tag; tag sem estado, sem selo; nenhum erro', () => {
     const { el } = build({
       guaritas: [guarita],
       veiculos: [carro(100, 1, 'ABC1D23'), carro(102, 2, 'GHI7J89')],
@@ -142,7 +143,7 @@ describe('VeiculosPageComponent — selo do estado no Guarita', () => {
   });
 
   it('estado desconhecido não vira selo', () => {
-    const { el } = build({ guaritas: [guarita], dispositivos: () => of([disp(1, 'coisa_nova')]) });
+    const { el } = build({ guaritas: [guarita], tags: [tagG(1, { guarita_estado: 'coisa_nova' })] });
     expect(el.querySelector('[data-guarita-estado]')).toBeNull();
   });
 });
@@ -150,7 +151,7 @@ describe('VeiculosPageComponent — selo do estado no Guarita', () => {
 describe('VeiculosPageComponent — aprovar ou recusar a tag vinculada pelo morador', () => {
   // O morador digitou "015 02158" no app; a tag está aguardando a portaria.
   const tagApp = tagG(1, { codigo: '015 02158', guarita_estado: 'aguardando_aprovacao', id_device: 7 });
-  const opts = { guaritas: [guarita], tags: [tagApp], dispositivos: () => of([disp(1, 'aguardando_aprovacao')]) };
+  const opts = { guaritas: [guarita], tags: [tagApp] };
 
   it('só a tag aguardando tem "Aprovar"/"Recusar"', () => {
     const { el } = build(opts);
@@ -322,20 +323,18 @@ describe('VeiculosPageComponent — tag de Guarita na aba "Tags RFID"', () => {
   });
 });
 
-describe('VeiculosPageComponent — lista "A vincular"', () => {
-  const opts = {
-    guaritas: [guarita],
-    dispositivos: () => of([
-      disp(1, 'ativo'),
-      disp(30, 'a_vincular', { unidade: 101, bloco: 'A', rotulo: 'JOAO SILVA', placa: 'XYZ9K88' }),
-      disp(31, 'a_vincular', { guarita_tipo: 1, unidade: null, bloco: null }),
-    ]),
-  };
+describe('VeiculosPageComponent — lista "A vincular" (paginada no servidor)', () => {
+  const itens = [
+    disp(30, 'a_vincular', { unidade: 101, bloco: 'A', rotulo: 'JOAO SILVA', placa: 'XYZ9K88' }),
+    disp(31, 'a_vincular', { guarita_tipo: 1, unidade: null, bloco: null }),
+  ];
 
-  it('a aba aparece com a contagem e lista o que está só no Guarita', () => {
-    const { f, el } = build(opts);
+  it('pede só a página 1 de "a_vincular" (50 por página) e mostra o total do servidor na aba', () => {
+    const { f, el, guaritaApi } = build({ guaritas: [guarita], dispositivos: () => pagina(itens, 812) });
+    expect(guaritaApi.dispositivos).toHaveBeenCalledTimes(1);
+    expect(guaritaApi.dispositivos).toHaveBeenCalledWith(7, { estado: 'a_vincular', busca: '', pagina: 1, por_pagina: 50 });
     const aba = el.querySelector('[data-aba-a-vincular]') as HTMLButtonElement;
-    expect(aba.textContent?.replace(/\s+/g, ' ').trim()).toBe('A vincular 2');
+    expect(aba.textContent?.replace(/\s+/g, ' ').trim()).toBe('A vincular 812');
     aba.click();
     f.detectChanges();
     const linhas = el.querySelectorAll('[data-a-vincular]');
@@ -346,19 +345,92 @@ describe('VeiculosPageComponent — lista "A vincular"', () => {
     expect(linhas[0].textContent).toContain('JOAO SILVA · XYZ9K88');
     expect(linhas[1].textContent).toContain('Controle remoto');
     expect(linhas[1].textContent).toContain('Sem unidade');
-    // A aba não tem botão de criar no cabeçalho.
+    // Nenhum <select> por linha.
+    expect(el.querySelectorAll('[data-a-vincular] select').length).toBe(0);
+    expect(el.querySelector('[data-paginas-a-vincular]')?.textContent).toContain('Página 1 de 17');
     expect(el.textContent).not.toContain('Nova Tag');
   });
 
-  it('vincular exige escolher o veículo e chama a API com ele', () => {
-    const { tela, guaritaApi } = build(opts);
-    const d = tela.aVincular()[0];
-    tela.vincularDispositivo(d);
-    expect(guaritaApi.vincular).not.toHaveBeenCalled();
-    expect(tela.erroGuarita()).toContain('Escolha o veículo');
-    tela.vinculoEscolhido[d.id] = 101;
-    tela.vincularDispositivo(d);
+  it('próxima página e busca vão para o servidor (busca com espera de 300 ms)', () => {
+    jest.useFakeTimers();
+    const { tela, guaritaApi } = build({ guaritas: [guarita], dispositivos: () => pagina(itens, 120) });
+    tela.paginaVincular(1);
+    expect(guaritaApi.dispositivos).toHaveBeenLastCalledWith(7, expect.objectContaining({ pagina: 2 }));
+    tela.onBuscaVincular('101');
+    tela.onBuscaVincular('101 A');
+    jest.advanceTimersByTime(300);
+    expect(guaritaApi.dispositivos).toHaveBeenCalledTimes(3);
+    expect(guaritaApi.dispositivos).toHaveBeenLastCalledWith(7, { estado: 'a_vincular', busca: '101 A', pagina: 1, por_pagina: 50 });
+  });
+
+  it('API que devolve lista pura = página única, sem paginação na tela', () => {
+    const { f, el, tela } = build({
+      guaritas: [guarita],
+      dispositivos: () => of({ itens: itens, total: 2, pagina: 1, por_pagina: 2 }),
+    });
+    tela.tab.set('a_vincular');
+    f.detectChanges();
+    expect(el.querySelectorAll('[data-a-vincular]').length).toBe(2);
+    expect(el.querySelector('[data-paginas-a-vincular]')).toBeNull();
+  });
+
+  it('rota ausente (404): aba vazia, sem erro', () => {
+    const { f, el, tela } = build({ guaritas: [guarita], dispositivos: () => throwError(() => ({ status: 404 })) });
+    tela.tab.set('a_vincular');
+    f.detectChanges();
+    expect(el.textContent).toContain('Nada a vincular');
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('vincular abre a busca de veículo (API nova, até 20) e vincula o escolhido', () => {
+    const opcao = { id: 101, placa: 'DEF4G56', morador_nome: 'Ana Souza', apartamento: '101', bloco: 'A' };
+    const { f, el, tela, guaritaApi, api } = build({
+      guaritas: [guarita],
+      dispositivos: () => pagina(itens),
+      guaritaExtra: { veiculosParaVincular: jest.fn(() => of([opcao])) },
+    });
+    tela.abrirVincular(tela.aVincular()[0]);
+    f.detectChanges();
+    expect(guaritaApi.veiculosParaVincular).toHaveBeenCalledWith(7, '');
+    const opcoes = el.querySelectorAll('[data-guarita-vincular] [data-opcao-vincular]');
+    expect(opcoes.length).toBe(1);
+    expect(opcoes[0].textContent).toContain('DEF4G56');
+    (opcoes[0] as HTMLButtonElement).click();
     expect(guaritaApi.vincular).toHaveBeenCalledWith(7, 30, 101);
+    f.detectChanges();
+    expect(el.querySelector('[data-guarita-vincular]')).toBeNull();
+    expect(api.listAll).toHaveBeenCalledTimes(2);
+  });
+
+  it('sem a busca na API (404): procura nos veículos já carregados, só os sem tag', () => {
+    jest.useFakeTimers();
+    const { tela, guaritaApi } = build({
+      guaritas: [guarita],
+      dispositivos: () => pagina(itens),
+      guaritaExtra: { veiculosParaVincular: jest.fn(() => throwError(() => ({ status: 404 }))) },
+    });
+    tela.abrirVincular(tela.aVincular()[0]);
+    // carro 100 tem tag; só o 101 (sem tag) aparece.
+    expect(tela.opcoesVincular().map((o) => o.id)).toEqual([101]);
+    tela.onBuscaVeiculoVincular('zzz');
+    jest.advanceTimersByTime(300);
+    expect(tela.opcoesVincular()).toEqual([]);
+    expect(guaritaApi.veiculosParaVincular).toHaveBeenCalledTimes(1);
+  });
+
+  it('erro ao vincular aparece na gaveta como veio', () => {
+    const { f, el, tela } = build({
+      guaritas: [guarita],
+      dispositivos: () => pagina(itens),
+      guaritaExtra: {
+        veiculosParaVincular: jest.fn(() => of([{ id: 101, placa: 'DEF4G56' }])),
+        vincular: jest.fn(() => throwError(() => ({ status: 400, error: { message: 'Este veículo já tem uma tag.' } }))),
+      },
+    });
+    tela.abrirVincular(tela.aVincular()[0]);
+    tela.escolherVeiculoParaVincular(tela.opcoesVincular()[0]);
+    f.detectChanges();
+    expect(el.querySelector('[data-guarita-vincular] [role="alert"]')?.textContent?.trim()).toBe('Este veículo já tem uma tag.');
   });
 });
 

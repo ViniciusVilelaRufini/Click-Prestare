@@ -38,7 +38,7 @@
     @if (temGuarita()) {
       <button (click)="tab.set('a_vincular')" [class.on]="tab() === 'a_vincular'" data-aba-a-vincular>
         A vincular
-        <span class="ml-1.5">{{ aVincular().length }}</span>
+        <span class="ml-1.5">{{ totalAVincular() }}</span>
       </button>
     }
   </div>
@@ -160,14 +160,45 @@
 
   } @else if (tab() === 'a_vincular' && temGuarita()) {
 
-    <!-- A vincular: dispositivos que estão no Guarita e o Prestare ainda não ligou a um veículo -->
+    <!-- A vincular: dispositivos que estão no Guarita e o Prestare ainda não ligou a um veículo.
+         Paginada e com busca no servidor (prédio com centenas de controles importados). -->
+    <div class="flex flex-wrap items-center gap-3">
+      @if (guaritas().length > 1) {
+        <select
+          [ngModel]="guaritaVincular"
+          (ngModelChange)="trocarGuaritaVincular($event)"
+          aria-label="Módulo Guarita"
+          class="px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition"
+        >
+          @for (g of guaritas(); track g.id) {
+            <option [ngValue]="g.id">{{ g.nome }}</option>
+          }
+        </select>
+      }
+      <label class="ps-field max-w-md flex-1">
+        <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input
+          [ngModel]="buscaVincular"
+          (ngModelChange)="onBuscaVincular($event)"
+          name="busca_a_vincular"
+          type="text"
+          placeholder="Buscar por serial, unidade, bloco, rótulo ou placa..."
+        />
+      </label>
+    </div>
     @if (erroGuarita()) {
       <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroGuarita() }}</div>
     }
     @if (aVincular().length === 0) {
       <div class="ps-panel ps-empty">
-        <p class="text-sm text-slate-300 font-medium">Nada a vincular</p>
-        <p class="text-xs text-slate-500 mt-1">Dispositivos importados do Guarita sem veículo aparecem aqui</p>
+        @if (carregandoVincular()) {
+          <div class="inline-block w-6 h-6 border-2 border-t-[var(--ink)] border-[var(--line-200)] rounded-full animate-spin"></div>
+        } @else {
+          <p class="text-sm text-slate-300 font-medium">{{ buscaVincular.trim() ? 'Nada encontrado' : 'Nada a vincular' }}</p>
+          <p class="text-xs text-slate-500 mt-1">Dispositivos importados do Guarita sem veículo aparecem aqui</p>
+        }
       </div>
     } @else {
       <div class="ps-tablewrap">
@@ -176,7 +207,6 @@
             <tr>
               <th>Dispositivo</th>
               <th>No Guarita</th>
-              <th>Veículo</th>
               <th class="!text-right">Ações</th>
             </tr>
           </thead>
@@ -193,26 +223,23 @@
                     <span class="block text-xs text-slate-500 mt-0.5">{{ d.rotulo }}{{ d.rotulo && d.placa ? ' · ' : '' }}{{ d.placa }}</span>
                   }
                 </td>
-                <td>
-                  <select
-                    [(ngModel)]="vinculoEscolhido[d.id]"
-                    [attr.aria-label]="'Veículo para ' + (d.guarita_serial || d.codigo)"
-                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition"
-                  >
-                    <option [ngValue]="null">Escolha o veículo</option>
-                    @for (v of veiculos(); track v.id) {
-                      <option [ngValue]="v.id">{{ v.placa }}{{ v.morador?.nome ? ' · ' + v.morador?.nome : '' }}{{ v.morador?.apartamento ? ' · Apto ' + v.morador?.apartamento : '' }}</option>
-                    }
-                  </select>
-                </td>
                 <td class="text-right">
-                  <button type="button" (click)="vincularDispositivo(d)" [disabled]="guaritaEmAcao() === d.id"
+                  <button type="button" (click)="abrirVincular(d)" [disabled]="guaritaEmAcao() === d.id"
                     class="ps-btn ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Vincular</button>
                 </td>
               </tr>
             }
           </tbody>
         </table>
+      </div>
+    }
+    @if (totalPaginasVincular() > 1) {
+      <div data-paginas-a-vincular class="flex items-center justify-end gap-3 text-xs text-slate-500">
+        <span>Página {{ pagVincular()?.pagina ?? 1 }} de {{ totalPaginasVincular() }} · {{ totalAVincular() }} dispositivo(s)</span>
+        <button type="button" (click)="paginaVincular(-1)" [disabled]="(pagVincular()?.pagina ?? 1) <= 1 || carregandoVincular()"
+          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Anterior</button>
+        <button type="button" (click)="paginaVincular(1)" [disabled]="(pagVincular()?.pagina ?? 1) >= totalPaginasVincular() || carregandoVincular()"
+          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Próxima</button>
       </div>
     }
 
@@ -440,6 +467,62 @@
             }
           </button>
         </div>
+    </div>
+  }
+
+  <!-- VINCULAR DISPOSITIVO DO GUARITA A UM VEÍCULO: busca sob demanda, no máximo 20 -->
+  @if (vinculando(); as vd) {
+    <div class="ps-scrim on"></div>
+    <div class="ps-drawer on" data-guarita-vincular>
+      <div class="ps-drawer-head">
+        <h3 class="ps-h2">Vincular a um veículo</h3>
+        <button type="button" (click)="fecharVincular()" aria-label="Fechar vínculo do dispositivo" class="ps-ibtn">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="ps-drawer-body">
+        <p class="text-sm">
+          <span class="font-semibold">{{ rotuloTipoGuarita[vd.guarita_tipo ?? 0] ?? 'Dispositivo' }}</span>
+          · <span class="font-mono">{{ vd.guarita_serial || vd.codigo }}</span>
+          <span class="block text-xs text-slate-500 mt-0.5">{{ unidadeDoDispositivo(vd) }}{{ vd.placa ? ' · ' + vd.placa : '' }}</span>
+        </p>
+        <div>
+          <label class="ps-label block mb-1.5" for="veiculos-vincular-busca">Veículo</label>
+          <input id="veiculos-vincular-busca" name="busca_veiculo_vincular"
+            [ngModel]="buscaVeiculoVincular"
+            (ngModelChange)="onBuscaVeiculoVincular($event)"
+            type="text"
+            autocomplete="off"
+            placeholder="Placa, nome do morador ou unidade"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition placeholder:text-slate-600"
+          />
+          <p class="text-xs text-slate-500 mt-1.5">Só veículos sem tag; mostra até 20 por busca.</p>
+        </div>
+        @if (buscandoVeiculoVincular()) {
+          <p class="text-xs text-slate-500">Buscando…</p>
+        }
+        @for (op of opcoesVincular(); track op.id) {
+          <button type="button" (click)="escolherVeiculoParaVincular(op)" [disabled]="guaritaEmAcao() !== null"
+            data-opcao-vincular
+            class="w-full text-left px-3.5 py-2.5 rounded-xl border border-white/10 text-sm hover:bg-white/5 transition disabled:opacity-50">
+            <span class="font-mono font-semibold tracking-wider">{{ op.placa }}</span>
+            @if (op.morador_nome) { <span class="text-slate-500"> · {{ op.morador_nome }}</span> }
+            @if (op.apartamento) { <span class="text-slate-500"> · Apto {{ op.apartamento }}{{ op.bloco ? ' ' + op.bloco : '' }}</span> }
+          </button>
+        } @empty {
+          @if (!buscandoVeiculoVincular()) {
+            <p class="text-xs text-slate-500">Nenhum veículo sem tag encontrado.</p>
+          }
+        }
+        @if (erroVincular()) {
+          <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroVincular() }}</div>
+        }
+      </div>
+      <div class="ps-drawer-foot">
+        <button type="button" (click)="fecharVincular()" class="ps-btn ps-btn-sec">Cancelar</button>
+      </div>
     </div>
   }
 

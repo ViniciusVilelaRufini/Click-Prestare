@@ -156,6 +156,27 @@ export interface GuaritaDispositivo {
   morador_nome?: string | null;
 }
 
+/** Página de uma lista do servidor (`{ itens, total, pagina, por_pagina }`). */
+export interface PaginaGuarita<T> {
+  itens: T[];
+  total: number;
+  pagina: number;
+  por_pagina: number;
+}
+
+/** Veículo oferecido para vincular um dispositivo "a vincular" (só veículo ativo sem tag). */
+export interface VeiculoParaVincular {
+  id: number;
+  placa: string;
+  marca_modelo?: string | null;
+  morador_nome?: string | null;
+  apartamento?: string | null;
+  bloco?: string | null;
+}
+
+/** Quantos veículos a busca do vínculo mostra de cada vez. */
+export const LIMITE_VEICULOS_PARA_VINCULAR = 20;
+
 /** Item de `GET …/:deviceId/captura` (Task B6). */
 export interface GuaritaCapturado {
   tipo: number;
@@ -314,16 +335,63 @@ export class GuaritaService {
 
   // ===================== Veículos (Task C2) =====================
 
-  /** Dispositivos do Guarita conhecidos pelo Prestare; `estado` filtra (ex.: 'a_vincular'). */
-  dispositivos(deviceId: number, estado?: string): Observable<GuaritaDispositivo[]> {
+  /**
+   * Dispositivos do Guarita conhecidos pelo Prestare, paginados e com busca no
+   * servidor (API nova: `{ itens, total, pagina, por_pagina }`). API que
+   * devolve a lista pura = página única.
+   */
+  dispositivos(
+    deviceId: number,
+    filtro: { estado?: string; busca?: string; pagina?: number; por_pagina?: number } = {},
+  ): Observable<PaginaGuarita<GuaritaDispositivo>> {
     let params = new HttpParams();
-    if (estado) params = params.set('estado', estado);
-    return this.http.get<any[]>(`${this.dev(deviceId)}/dispositivos`, { params }).pipe(
-      map((lista) =>
-        (Array.isArray(lista) ? lista : [])
-          .map((d) => ({ ...d, id: Number(d?.id_tag ?? d?.id), id_device: deviceId }) as GuaritaDispositivo)
-          .filter((d) => Number.isFinite(d.id)),
-      ),
+    if (filtro.estado) params = params.set('estado', filtro.estado);
+    const busca = filtro.busca?.trim();
+    if (busca) params = params.set('busca', busca);
+    params = params.set('pagina', filtro.pagina ?? 1).set('por_pagina', filtro.por_pagina ?? 50);
+    const normalizar = (lista: unknown): GuaritaDispositivo[] =>
+      (Array.isArray(lista) ? lista : [])
+        .map((d: any) => ({ ...d, id: Number(d?.id_tag ?? d?.id), id_device: deviceId }) as GuaritaDispositivo)
+        .filter((d) => Number.isFinite(d.id));
+    return this.http.get<unknown>(`${this.dev(deviceId)}/dispositivos`, { params }).pipe(
+      map((r: any) => {
+        if (Array.isArray(r)) {
+          const itens = normalizar(r);
+          return { itens, total: itens.length, pagina: 1, por_pagina: itens.length };
+        }
+        const itens = normalizar(r?.itens);
+        return {
+          itens,
+          total: Number.isFinite(Number(r?.total)) ? Number(r.total) : itens.length,
+          pagina: Number(r?.pagina) || 1,
+          por_pagina: Number(r?.por_pagina) || itens.length || 50,
+        };
+      }),
+    );
+  }
+
+  /**
+   * Veículos ativos sem tag que casam com a busca (placa, nome, unidade), no
+   * máximo 20. API nova; quem chama cai na lista já carregada se der 404.
+   */
+  veiculosParaVincular(deviceId: number, busca: string): Observable<VeiculoParaVincular[]> {
+    let params = new HttpParams().set('limite', LIMITE_VEICULOS_PARA_VINCULAR);
+    if (busca.trim()) params = params.set('busca', busca.trim());
+    return this.http.get<unknown>(`${this.dev(deviceId)}/veiculos-para-vincular`, { params }).pipe(
+      map((r: any) => {
+        const lista = Array.isArray(r) ? r : Array.isArray(r?.itens) ? r.itens : [];
+        return lista
+          .filter((v: any) => v && Number.isFinite(Number(v.id)))
+          .slice(0, LIMITE_VEICULOS_PARA_VINCULAR)
+          .map((v: any) => ({
+            id: Number(v.id),
+            placa: String(v.placa ?? ''),
+            marca_modelo: v.marca_modelo ?? null,
+            morador_nome: v.morador_nome ?? v.morador?.nome ?? null,
+            apartamento: v.apartamento ?? v.morador?.apartamento ?? null,
+            bloco: v.bloco ?? v.morador?.bloco ?? null,
+          }));
+      }),
     );
   }
 

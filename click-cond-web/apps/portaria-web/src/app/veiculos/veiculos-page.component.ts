@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Observable, catchError, forkJoin, of } from 'rxjs';
+import { Observable } from 'rxjs';
 import { VeiculosApi, Tag, VeiculoComMorador } from '../moradores/veiculos.service';
 import { Morador, MoradoresApi } from '../moradores/moradores.service';
 import { ConfirmService } from '../shared/confirm.service';
@@ -13,7 +13,10 @@ import {
   GuaritaDevice,
   GuaritaDispositivo,
   GuaritaService,
+  LIMITE_VEICULOS_PARA_VINCULAR,
   MSG_CODIGO_IMPRESSO_INVALIDO,
+  PaginaGuarita,
+  VeiculoParaVincular,
   ROTULO_TIPO_GUARITA,
   codigoImpressoValido,
   rotuloEstadoGuarita,
@@ -352,64 +355,204 @@ export class VeiculosPageComponent implements OnInit {
   /** Guaritas ativos do condomínio. Vazio = a tela é exatamente a de sempre. */
   readonly guaritas = signal<GuaritaDevice[]>([]);
   readonly temGuarita = computed(() => this.guaritas().length > 0);
-  /** Dispositivos do Guarita conhecidos pelo Prestare (de todos os Guaritas). */
-  readonly dispositivosGuarita = signal<GuaritaDispositivo[]>([]);
-  readonly aVincular = computed(() => this.dispositivosGuarita().filter((d) => d.guarita_estado === 'a_vincular'));
   readonly rotuloTipoGuarita = ROTULO_TIPO_GUARITA;
   /** Tag com aprovar/recusar/vincular em andamento (um clique = uma chamada). */
   readonly guaritaEmAcao = signal<number | null>(null);
   readonly erroGuarita = signal<string | null>(null);
-  /** Veículo escolhido para cada item "a vincular" (id da tag → id do veículo). */
-  vinculoEscolhido: Record<number, number | null> = {};
   /** Veículo com o cadastro de controle/tag aberto. */
   readonly capturaVeiculo = signal<VeiculoComMorador | null>(null);
 
   carregarGuarita() {
     this.guaritaApi.listarGuaritas().subscribe((lista) => {
       this.guaritas.set(lista);
-      this.carregarDispositivosGuarita();
+      if (!lista.length) return;
+      this.guaritaVincular = lista[0].id;
+      this.carregarAVincular();
     });
-  }
-
-  private carregarDispositivosGuarita() {
-    const lista = this.guaritas();
-    if (!lista.length) {
-      this.dispositivosGuarita.set([]);
-      return;
-    }
-    // Rota ausente (API antiga) ou falha num Guarita = lista vazia daquele Guarita, sem erro na tela.
-    forkJoin(
-      lista.map((g) => this.guaritaApi.dispositivos(g.id).pipe(catchError(() => of([] as GuaritaDispositivo[])))),
-    ).subscribe((partes) => this.dispositivosGuarita.set(partes.flat()));
   }
 
   private recarregarTudo() {
     this.carregar();
-    this.carregarDispositivosGuarita();
+    if (this.temGuarita()) this.carregarAVincular();
   }
 
-  private dispositivoDaTag(idTag: number | null | undefined): GuaritaDispositivo | undefined {
-    if (!idTag) return undefined;
-    return this.dispositivosGuarita().find((d) => d.id === idTag);
+  // ---- "A vincular": paginada e com busca no servidor ----
+
+  static readonly POR_PAGINA_A_VINCULAR = 50;
+  /** Guarita cuja lista "A vincular" está na tela. */
+  guaritaVincular: number | null = null;
+  buscaVincular = '';
+  readonly pagVincular = signal<PaginaGuarita<GuaritaDispositivo> | null>(null);
+  readonly carregandoVincular = signal(false);
+  readonly aVincular = computed(() => this.pagVincular()?.itens ?? []);
+  readonly totalAVincular = computed(() => this.pagVincular()?.total ?? 0);
+  readonly totalPaginasVincular = computed(() => {
+    const p = this.pagVincular();
+    if (!p || !p.total) return 1;
+    return Math.max(1, Math.ceil(p.total / (p.por_pagina || VeiculosPageComponent.POR_PAGINA_A_VINCULAR)));
+  });
+  private timerBuscaVincular?: ReturnType<typeof setTimeout>;
+  /** Evita que a resposta de uma busca antiga sobrescreva a atual. */
+  private pedidoVincular = 0;
+
+  carregarAVincular(pagina = 1) {
+    const deviceId = this.guaritaVincular;
+    if (deviceId == null) return;
+    const pedido = ++this.pedidoVincular;
+    this.carregandoVincular.set(true);
+    this.guaritaApi
+      .dispositivos(deviceId, {
+        estado: 'a_vincular',
+        busca: this.buscaVincular,
+        pagina,
+        por_pagina: VeiculosPageComponent.POR_PAGINA_A_VINCULAR,
+      })
+      .subscribe({
+        next: (p) => {
+          if (pedido !== this.pedidoVincular) return;
+          this.carregandoVincular.set(false);
+          this.pagVincular.set(p);
+        },
+        error: (e) => {
+          if (pedido !== this.pedidoVincular) return;
+          this.carregandoVincular.set(false);
+          this.pagVincular.set(null);
+          // Rota ausente (API antiga) = lista vazia, sem erro vermelho.
+          if (e?.status !== 404) this.erroGuarita.set(mensagemDaApi(e, 'Não foi possível carregar a lista "A vincular".'));
+        },
+      });
   }
 
-  /** Estado do veículo no Guarita: da lista do Guarita ou, na falta dela, da própria tag. */
-  private estadoGuaritaDoVeiculo(v: VeiculoComMorador): { estado: string; erro: string | null } | null {
-    if (!this.temGuarita() || !v.id_tag) return null;
-    const d = this.dispositivoDaTag(v.id_tag);
-    const t = this.tagDoVeiculo(v) as (Tag & CamposGuaritaDaTag) | null;
-    const estado = d?.guarita_estado ?? t?.guarita_estado ?? null;
-    if (!estado) return null;
-    return { estado, erro: d?.guarita_erro ?? t?.guarita_erro ?? null };
+  onBuscaVincular(termo: string) {
+    this.buscaVincular = termo;
+    if (this.timerBuscaVincular) clearTimeout(this.timerBuscaVincular);
+    this.timerBuscaVincular = setTimeout(() => this.carregarAVincular(1), 300);
   }
 
-  /** Estado no Guarita de uma tag da aba "Tags RFID" (null sem Guarita ou sem estado). */
-  private estadoGuaritaDaTag(t: Tag): { estado: string; erro: string | null } | null {
-    if (!this.temGuarita()) return null;
-    const d = this.dispositivoDaTag(t.id);
+  trocarGuaritaVincular(id: number) {
+    this.guaritaVincular = Number(id);
+    this.carregarAVincular(1);
+  }
+
+  paginaVincular(delta: number) {
+    const atual = this.pagVincular()?.pagina ?? 1;
+    const nova = atual + delta;
+    if (nova < 1 || nova > this.totalPaginasVincular() || this.carregandoVincular()) return;
+    this.carregarAVincular(nova);
+  }
+
+  // ---- Vincular um dispositivo: busca do veículo sob demanda (no máximo 20) ----
+
+  readonly vinculando = signal<GuaritaDispositivo | null>(null);
+  buscaVeiculoVincular = '';
+  readonly opcoesVincular = signal<VeiculoParaVincular[]>([]);
+  readonly buscandoVeiculoVincular = signal(false);
+  readonly erroVincular = signal<string | null>(null);
+  /** A API não tem a busca (404): procura na lista de veículos já carregada. */
+  private buscaVeiculoLocal = false;
+  private timerBuscaVeiculo?: ReturnType<typeof setTimeout>;
+  private pedidoVeiculo = 0;
+
+  abrirVincular(d: GuaritaDispositivo) {
+    this.erroVincular.set(null);
+    this.buscaVeiculoVincular = '';
+    this.opcoesVincular.set([]);
+    this.vinculando.set(d);
+    this.buscarVeiculoParaVincular();
+  }
+
+  fecharVincular() {
+    this.vinculando.set(null);
+    if (this.timerBuscaVeiculo) clearTimeout(this.timerBuscaVeiculo);
+  }
+
+  onBuscaVeiculoVincular(termo: string) {
+    this.buscaVeiculoVincular = termo;
+    if (this.timerBuscaVeiculo) clearTimeout(this.timerBuscaVeiculo);
+    this.timerBuscaVeiculo = setTimeout(() => this.buscarVeiculoParaVincular(), 300);
+  }
+
+  private buscarVeiculoParaVincular() {
+    const d = this.vinculando();
+    if (!d) return;
+    const termo = this.buscaVeiculoVincular;
+    if (this.buscaVeiculoLocal) {
+      this.opcoesVincular.set(this.veiculosLocaisParaVincular(termo));
+      return;
+    }
+    const pedido = ++this.pedidoVeiculo;
+    this.buscandoVeiculoVincular.set(true);
+    this.guaritaApi.veiculosParaVincular(d.id_device, termo).subscribe({
+      next: (lista) => {
+        if (pedido !== this.pedidoVeiculo) return;
+        this.buscandoVeiculoVincular.set(false);
+        this.opcoesVincular.set(lista);
+      },
+      error: (e) => {
+        if (pedido !== this.pedidoVeiculo) return;
+        this.buscandoVeiculoVincular.set(false);
+        if (e?.status === 404) {
+          this.buscaVeiculoLocal = true;
+          this.opcoesVincular.set(this.veiculosLocaisParaVincular(termo));
+          return;
+        }
+        this.erroVincular.set(mensagemDaApi(e, 'Não foi possível buscar os veículos.'));
+      },
+    });
+  }
+
+  /** Veículos já carregados nesta tela, sem tag (a API recusa os que têm), filtrados pela busca. */
+  private veiculosLocaisParaVincular(termo: string): VeiculoParaVincular[] {
+    const q = termo.toLowerCase().trim();
+    return this.veiculos()
+      .filter((v) => !v.id_tag)
+      .filter(
+        (v) =>
+          !q ||
+          v.placa.toLowerCase().includes(q) ||
+          (v.morador?.nome ?? '').toLowerCase().includes(q) ||
+          (v.morador?.apartamento ?? '').toLowerCase().includes(q),
+      )
+      .slice(0, LIMITE_VEICULOS_PARA_VINCULAR)
+      .map((v) => ({
+        id: v.id,
+        placa: v.placa,
+        marca_modelo: v.marca_modelo,
+        morador_nome: v.morador?.nome ?? null,
+        apartamento: v.morador?.apartamento ?? null,
+        bloco: v.morador?.bloco ?? null,
+      }));
+  }
+
+  escolherVeiculoParaVincular(op: VeiculoParaVincular) {
+    const d = this.vinculando();
+    if (!d || this.guaritaEmAcao() !== null) return;
+    this.guaritaEmAcao.set(d.id);
+    this.erroVincular.set(null);
+    this.guaritaApi.vincular(d.id_device, d.id, op.id).subscribe({
+      next: () => {
+        this.guaritaEmAcao.set(null);
+        this.vinculando.set(null);
+        this.recarregarTudo();
+      },
+      error: (e) => {
+        this.guaritaEmAcao.set(null);
+        this.erroVincular.set(mensagemDaApi(e, 'Não foi possível vincular o dispositivo.'));
+      },
+    });
+  }
+
+  /** Estado no Guarita da tag (colunas da própria tag; a lista de tags já vem inteira). */
+  private estadoGuaritaDaTag(t: Tag | null | undefined): { estado: string; erro: string | null } | null {
+    if (!this.temGuarita() || !t) return null;
     const g = t as Tag & CamposGuaritaDaTag;
-    const estado = d?.guarita_estado ?? g.guarita_estado ?? null;
-    return estado ? { estado, erro: d?.guarita_erro ?? g.guarita_erro ?? null } : null;
+    return g.guarita_estado ? { estado: g.guarita_estado, erro: g.guarita_erro ?? null } : null;
+  }
+
+  /** Estado do veículo no Guarita: o da tag dele. */
+  private estadoGuaritaDoVeiculo(v: VeiculoComMorador): { estado: string; erro: string | null } | null {
+    if (!v.id_tag) return null;
+    return this.estadoGuaritaDaTag(this.tagDoVeiculo(v));
   }
 
   /**
@@ -451,8 +594,6 @@ export class VeiculosPageComponent implements OnInit {
         this.tags.update((lista) =>
           lista.map((x) => (x.id === t.id ? { ...x, ...atualizada, guarita_estado: estado } as Tag : x)),
         );
-        // A lista do Guarita (se carregada) também passa a dizer "Removendo".
-        this.dispositivosGuarita.update((l) => l.map((d) => (d.id === t.id ? { ...d, guarita_estado: estado } : d)));
       },
       error: (e) => {
         this.tagEmAcao.set(null);
@@ -470,10 +611,8 @@ export class VeiculosPageComponent implements OnInit {
     return this.estadoGuaritaDoVeiculo(v)?.estado === 'aguardando_aprovacao';
   }
 
-  /** De qual Guarita é a tag: da lista do Guarita, da coluna da tag ou o único do condomínio. */
+  /** De qual Guarita é a tag: da coluna da tag ou o único do condomínio. */
   private guaritaDaTag(idTag: number): number | null {
-    const d = this.dispositivoDaTag(idTag);
-    if (d) return d.id_device;
     const t = this.tags().find((x) => x.id === idTag) as (Tag & CamposGuaritaDaTag) | undefined;
     if (t?.id_device) return t.id_device;
     const lista = this.guaritas();
@@ -573,20 +712,6 @@ export class VeiculosPageComponent implements OnInit {
     });
     if (!ok || this.guaritaEmAcao() !== null) return;
     this.executarNoGuarita(idTag, this.guaritaApi.recusar(deviceId, idTag), 'Não foi possível recusar a tag.');
-  }
-
-  vincularDispositivo(d: GuaritaDispositivo) {
-    if (this.guaritaEmAcao() !== null) return;
-    const idVeiculo = this.vinculoEscolhido[d.id];
-    if (!idVeiculo) {
-      this.erroGuarita.set('Escolha o veículo para vincular.');
-      return;
-    }
-    this.executarNoGuarita(
-      d.id,
-      this.guaritaApi.vincular(d.id_device, d.id, Number(idVeiculo)),
-      'Não foi possível vincular o dispositivo.',
-    );
   }
 
   private executarNoGuarita(idTag: number, req: Observable<unknown>, padrao: string) {

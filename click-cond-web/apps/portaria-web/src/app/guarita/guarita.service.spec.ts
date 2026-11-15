@@ -74,16 +74,38 @@ describe('GuaritaService — rotas do console', () => {
     req.flush(new Blob(['[]']));
   });
 
-  it('dispositivos: filtro por estado e id da tag normalizado (id ou id_tag)', () => {
-    let lista: any[] | undefined;
-    api.dispositivos(7, 'a_vincular').subscribe((l) => (lista = l));
+  it('dispositivos: estado, busca e página vão ao servidor; resposta paginada normalizada', () => {
+    let pag: any;
+    api.dispositivos(7, { estado: 'a_vincular', busca: ' 101 ', pagina: 2, por_pagina: 50 }).subscribe((p) => (pag = p));
     const req = http.expectOne((r) => r.url === `${base}/7/dispositivos`);
     expect(req.request.method).toBe('GET');
     expect(req.request.params.get('estado')).toBe('a_vincular');
-    req.flush([{ id: 30, guarita_estado: 'a_vincular' }, { id_tag: 31, guarita_estado: 'a_vincular' }]);
-    expect(lista?.map((d) => [d.id, d.id_device])).toEqual([[30, 7], [31, 7]]);
-    api.dispositivos(7).subscribe();
-    expect(http.expectOne((r) => r.url === `${base}/7/dispositivos`).request.params.has('estado')).toBe(false);
+    expect(req.request.params.get('busca')).toBe('101');
+    expect(req.request.params.get('pagina')).toBe('2');
+    expect(req.request.params.get('por_pagina')).toBe('50');
+    req.flush({ itens: [{ id: 30 }, { id_tag: 31 }], total: 812, pagina: 2, por_pagina: 50 });
+    expect(pag.itens.map((d: any) => [d.id, d.id_device])).toEqual([[30, 7], [31, 7]]);
+    expect([pag.total, pag.pagina, pag.por_pagina]).toEqual([812, 2, 50]);
+  });
+
+  it('dispositivos: lista pura (API anterior) vira página única', () => {
+    let pag: any;
+    api.dispositivos(7).subscribe((p) => (pag = p));
+    const req = http.expectOne((r) => r.url === `${base}/7/dispositivos`);
+    expect(req.request.params.has('estado')).toBe(false);
+    expect(req.request.params.has('busca')).toBe(false);
+    req.flush([{ id: 30 }, { id: 31 }, { id: 32 }]);
+    expect([pag.itens.length, pag.total, pag.pagina]).toEqual([3, 3, 1]);
+  });
+
+  it('veiculosParaVincular: busca e limite 20; aceita morador aninhado', () => {
+    let lista: any[] | undefined;
+    api.veiculosParaVincular(7, ' ABC ').subscribe((l) => (lista = l));
+    const req = http.expectOne((r) => r.url === `${base}/7/veiculos-para-vincular`);
+    expect(req.request.params.get('busca')).toBe('ABC');
+    expect(req.request.params.get('limite')).toBe('20');
+    req.flush([{ id: 1, placa: 'ABC1D23', morador: { nome: 'Ana', apartamento: '101', bloco: 'A' } }]);
+    expect(lista).toEqual([{ id: 1, placa: 'ABC1D23', marca_modelo: null, morador_nome: 'Ana', apartamento: '101', bloco: 'A' }]);
   });
 
   it.each([
