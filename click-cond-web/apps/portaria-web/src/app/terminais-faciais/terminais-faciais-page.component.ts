@@ -18,6 +18,12 @@ import {
 import { AreaSocial, AreasSociaisApi } from '../areas-sociais/areas-sociais.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { htmlDaFolha, svgDoQr } from './folha-qr-entregas';
+import { GuaritaConfigComponent } from '../guarita/guarita-config.component';
+import {
+  FABRICANTE_GUARITA,
+  PORTA_PADRAO_GUARITA,
+  TIPO_DEVICE_GUARITA,
+} from '../guarita/guarita.service';
 
 /**
  * Compara versões do agente (`AAAA.MM.DD[.N]`) segmento a segmento,
@@ -215,7 +221,7 @@ export const AVISO_QR_ENTREGAS_TROCA = 'O QR impresso deixa de valer. Continuar?
 @Component({
   selector: 'app-terminais-faciais-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, GuaritaConfigComponent],
   templateUrl: './terminais-faciais-page.component.html',
 })
 export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
@@ -858,7 +864,26 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       ],
       modeloPlaceholder: 'Ex: Intelbras VIP 5450 LPR',
     },
+    {
+      value: TIPO_DEVICE_GUARITA,
+      label: 'Módulo Guarita (Nice/Linear)',
+      hint: 'Central da garagem (MG3000). O Guarita continua decidindo a abertura; a Prestare importa o cadastro, grava controles e tags, traz o histórico e aciona os relés pelo agente local.',
+      // Não usa usuário/senha HTTP: só a palavra de autorização TCP, opcional.
+      requerAuth: false,
+      fabricantes: [{ value: FABRICANTE_GUARITA, label: 'Nice / Linear-HCS' }],
+      modeloPlaceholder: 'Ex: MG3000',
+    },
   ] as const;
+
+  /** Cadastro em edição é de um Módulo Guarita. */
+  get ehGuarita(): boolean {
+    return this.form.tipo === TIPO_DEVICE_GUARITA;
+  }
+
+  /** Guaritas ativos da lista: cada um ganha o seu painel abaixo dos cartões. */
+  readonly guaritas = computed(() =>
+    this.terminais().filter((t) => t.tipo === TIPO_DEVICE_GUARITA && t.ativo !== 0),
+  );
 
   get tipoSelecionado() {
     return (
@@ -885,6 +910,13 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     if (!tipoCfg.requerAuth) {
       this.form.api_user = '';
       this.form.api_password = '';
+    }
+    // Porta padrão do Guarita (9000) e de volta à 80 ao sair dele — só quando
+    // a porta ainda é a padrão do tipo anterior, para não apagar o que foi digitado.
+    if (this.editingId() == null) {
+      const porta = Number(this.form.porta);
+      if (this.ehGuarita && (porta === 80 || !porta)) this.form.porta = PORTA_PADRAO_GUARITA;
+      else if (!this.ehGuarita && porta === PORTA_PADRAO_GUARITA) this.form.porta = 80;
     }
     // Só no cadastro novo: na edição o sentido é escolha de quem cadastrou.
     if (this.editingId() == null) {
@@ -1267,14 +1299,15 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   }
 
   // Botoeira é só acionador (não identifica pessoa), então sentido não se aplica.
+  // No Guarita o sentido é de cada portão (painel do Guarita), não do aparelho.
   get mostrarSentido(): boolean {
-    return this.form.tipo !== 'botoeira';
+    return this.form.tipo !== 'botoeira' && !this.ehGuarita;
   }
 
   // Vincular a uma área de lazer só faz sentido em terminais que identificam
-  // pessoas (facial/catraca) — botoeira não conta ocupação.
+  // pessoas (facial/catraca) — botoeira e Guarita (garagem) não contam ocupação.
   get mostrarArea(): boolean {
-    return this.form.tipo !== 'botoeira';
+    return this.form.tipo !== 'botoeira' && !this.ehGuarita;
   }
 
   // Confiança mínima só faz sentido em reconhecimento facial.
@@ -1418,8 +1451,10 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       fabricante: this.form.fabricante,
       modelo: this.form.modelo || undefined,
       ip: this.form.ip,
-      porta: Number(this.form.porta) || 80,
-      api_user: this.form.api_user || undefined,
+      porta: Number(this.form.porta) || (this.ehGuarita ? PORTA_PADRAO_GUARITA : 80),
+      // Guarita: sem usuário; a "senha" é a palavra de autorização TCP (em
+      // branco na edição = manter a atual, como nas demais senhas).
+      api_user: this.ehGuarita ? undefined : this.form.api_user || undefined,
       api_password: this.form.api_password || undefined,
       mac: this.form.mac ?? undefined,
       numero_serie: this.form.numero_serie ?? undefined,
