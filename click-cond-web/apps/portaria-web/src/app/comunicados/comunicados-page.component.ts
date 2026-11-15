@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -51,34 +51,61 @@ export class ComunicadosPageComponent implements OnInit {
     return papel === 'sindico' || papel === 'funcionario';
   }
 
+  /** Condomínio da sessão: trocar de condomínio reconsulta a permissão. */
+  private readonly idCondominio = computed(() => this.auth.porteiroInfo()?.id_condominio ?? null);
+  /** Só a resposta da consulta mais recente vale (troca de condomínio no meio). */
+  private consultaAcesso = 0;
+  /** `?novo=true` chegou antes da resposta de `acesso`: decide quando ela chegar. */
+  private novoPendente = false;
+
+  constructor() {
+    effect(() => {
+      this.idCondominio();
+      untracked(() => this.carregarAcesso());
+    });
+  }
+
   readonly ultimo = computed(() => this.comunicados()[0] ?? null);
   readonly recentes = computed(
     () => this.comunicados().filter((c) => this.isRecent(c)).length,
   );
 
   ngOnInit() {
-    this.carregarAcesso();
     this.carregar();
     this.route.queryParams.subscribe((params) => {
       if (params['novo'] === 'true') {
-        this.abrirNovo();
+        if (this.gerenciar() === null) this.novoPendente = true;
+        else this.abrirNovo();
       }
     });
   }
 
   /** Porteiro nem pergunta (só leitura). Falha na consulta: vale o papel, e a API decide no salvar. */
   carregarAcesso() {
+    const n = ++this.consultaAcesso;
     if (!this.ehEquipe()) {
-      this.gerenciar.set(false);
+      this.aplicarAcesso(false);
       return;
     }
+    this.gerenciar.set(null);
     this.api.acesso().subscribe({
-      next: (r) => this.gerenciar.set(r?.gerenciar === true),
+      next: (r) => n === this.consultaAcesso && this.aplicarAcesso(r?.gerenciar === true),
       error: (e) => {
+        if (n !== this.consultaAcesso) return;
         console.warn('Permissão de comunicados não consultada:', e?.error?.message ?? e?.message);
-        this.gerenciar.set(true);
+        this.aplicarAcesso(true);
       },
     });
+  }
+
+  private aplicarAcesso(gerenciar: boolean) {
+    this.gerenciar.set(gerenciar);
+    // Drawer aberto no condomínio anterior, sem permissão neste: fecha.
+    if (!this.podePublicar() && this.showForm) this.cancelar();
+    if (this.novoPendente) {
+      this.novoPendente = false;
+      this.abrirNovo();
+    }
   }
 
   carregar() {
