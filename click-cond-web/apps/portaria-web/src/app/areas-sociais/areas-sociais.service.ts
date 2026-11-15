@@ -39,8 +39,12 @@ export interface AgendamentoArea {
   /** A área cancela a reserva aprovada que não for confirmada até o início. */
   exige_confirmacao?: boolean;
   motivo_recusa?: string | null;
-  /** Quem aprovou (ou agendou, na reserva feita pela administração). */
+  /** Quem aprovou, com o "Síndico" genérico da API (o app publicado lê este). */
   aprovado_por?: string | null;
+  /** Quem agendou: morador, "Portaria · <nome>" ou o síndico. Null = reserva antiga. */
+  criado_por?: string | null;
+  /** Só quem de fato decidiu (null = nasceu aprovada). Ausente = API anterior a este campo. */
+  aprovado_por_nome?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

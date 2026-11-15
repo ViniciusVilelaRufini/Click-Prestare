@@ -7,13 +7,15 @@
       <p class="text-sm">Gestão de espaços de lazer, regras de uso e aprovação de reservas</p>
     </div>
 
-    <!-- Botão Nova Área -->
-    <button (click)="abrirModalArea()" class="ps-btn">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/>
-      </svg>
-      Cadastrar Espaço
-    </button>
+    <!-- Botão Nova Área (síndico/funcionário; o porteiro só agenda) -->
+    @if (podeGerirEspacos()) {
+      <button (click)="abrirModalArea()" class="ps-btn">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/>
+        </svg>
+        Cadastrar Espaço
+      </button>
+    }
   </div>
 
   <!-- Stats Ricos -->
@@ -103,7 +105,9 @@
     @if (areas().length === 0) {
       <div class="ps-panel ps-empty">
         <p class="text-sm text-slate-300 font-medium">Nenhum espaço cadastrado</p>
-        <p class="text-xs text-slate-500 mt-1">Utilize o botão acima para adicionar churrasqueiras, salões ou academias</p>
+        <p class="text-xs text-slate-500 mt-1">
+          {{ podeGerirEspacos() ? 'Utilize o botão acima para adicionar churrasqueiras, salões ou academias' : 'O síndico cadastra os espaços pelo app ou por aqui' }}
+        </p>
       </div>
     } @else {
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -156,26 +160,30 @@
                     Agendar
                   </button>
 
-                  <button
-                    (click)="abrirModalEditarArea(area)"
-                    class="ps-btn ps-btn-sec ps-btn-sm"
-                    title="Editar espaço"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-                    </svg>
-                    Editar
-                  </button>
+                  @if (podeGerirEspacos()) {
+                    <button
+                      (click)="abrirModalEditarArea(area)"
+                      class="ps-btn ps-btn-sec ps-btn-sm"
+                      title="Editar espaço"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                      </svg>
+                      Editar
+                    </button>
+                  }
                 </div>
-                <button
-                  (click)="excluirArea(area.id)"
-                  class="ps-ibtn hover:!text-red-400"
-                  title="Excluir Espaço" aria-label="Excluir Espaço"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                  </svg>
-                </button>
+                @if (podeGerirEspacos()) {
+                  <button
+                    (click)="excluirArea(area.id)"
+                    class="ps-ibtn hover:!text-red-400"
+                    title="Excluir Espaço" aria-label="Excluir Espaço"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                  </button>
+                }
               </div>
             </div>
           </div>
@@ -210,7 +218,7 @@
     } @else {
       <div class="space-y-3">
         @for (ag of agendamentosVisiveis(); track ag.id) {
-          <div class="ps-panel p-5 border-l-2 flex items-center justify-between gap-6 flex-wrap"
+          <div class="ps-panel p-5 border-l-2 flex items-center justify-between gap-6 flex-wrap" data-reserva
                [class.!border-l-amber-500]="ag.status === 'pendente'"
                [class.!border-l-emerald-500]="ag.status === 'aprovado'"
                [class.!border-l-red-500]="ag.status === 'recusado'"
@@ -305,8 +313,11 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                   Solicitado em {{ ag.data_criacao }}
-                  @if (ag.status === 'aprovado' && ag.aprovado_por) {
-                    · Aprovada por {{ ag.aprovado_por }}
+                  @if (ag.criado_por) {
+                    · Agendada por {{ ag.criado_por }}
+                  }
+                  @if (aprovadaPor(ag); as aprovador) {
+                    · Aprovada por {{ aprovador }}
                   }
                 </p>
               </div>
@@ -512,6 +523,57 @@
             </label>
           </div>
 
+          <!-- Grade de horários: mesmo formato que o app grava (índice 0 = segunda;
+               fim 00:00 no campo vira 24:00, o fim do dia). -->
+          <div>
+            <span class="ps-label block mb-1.5">Horários de funcionamento</span>
+            <p class="mb-2 text-[11px] text-slate-500">
+              Horários que o morador pode reservar. Para ir até a meia-noite, use 00:00 no fim.
+            </p>
+            <div class="space-y-2">
+              @for (dia of grade; track $index; let d = $index) {
+                <div class="p-3 border border-slate-300 bg-graphite-50">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-semibold text-white">{{ dia.nome }}</span>
+                    <button type="button" (click)="adicionarBloco(d)" class="ps-btn ps-btn-ghost ps-btn-sm">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/>
+                      </svg>
+                      Adicionar horário
+                    </button>
+                  </div>
+                  @if (dia.horarios.length === 0) {
+                    <p class="text-[11px] text-slate-500 mt-1">Sem horários: não abre para reserva neste dia.</p>
+                  }
+                  @for (b of dia.horarios; track $index; let i = $index) {
+                    <div class="flex items-center gap-2 mt-2">
+                      <input type="time"
+                        [ngModel]="horaNoCampo(b.horarioDe)"
+                        (ngModelChange)="definirHora(d, i, 'horarioDe', $event)"
+                        [attr.aria-label]="dia.nome + ': início do horário ' + (i + 1)"
+                        class="h-9 px-2 text-sm bg-graphite-50 border border-slate-300 text-white focus:outline-none focus:border-[var(--ink)] transition dark:[color-scheme:dark]" />
+                      <span class="text-xs text-slate-500">às</span>
+                      <input type="time"
+                        [ngModel]="horaNoCampo(b.horarioAte)"
+                        (ngModelChange)="definirHora(d, i, 'horarioAte', $event)"
+                        [attr.aria-label]="dia.nome + ': fim do horário ' + (i + 1)"
+                        class="h-9 px-2 text-sm bg-graphite-50 border border-slate-300 text-white focus:outline-none focus:border-[var(--ink)] transition dark:[color-scheme:dark]" />
+                      <button type="button" (click)="removerBloco(d, i)" class="ps-ibtn hover:!text-red-400"
+                              title="Remover horário" aria-label="Remover horário">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                      </button>
+                    </div>
+                  }
+                  @if (erroDoDia(d); as erro) {
+                    <p class="text-[11px] text-[var(--signal-danger)] mt-1.5" role="alert">{{ erro }}</p>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
           <!-- Regras do espaço: texto que o morador vê e aceita antes de reservar.
                Vazio = sem regras cadastradas, o app não exige aceite nenhum. -->
           <div>
@@ -534,7 +596,7 @@
           </button>
           <button
             (click)="salvarArea()"
-            [disabled]="!novaArea.nome || salvando()"
+            [disabled]="!novaArea.nome || salvando() || !gradeValida()"
             class="ps-btn disabled:opacity-50 disabled:cursor-not-allowed"
           >
             @if (salvando()) {

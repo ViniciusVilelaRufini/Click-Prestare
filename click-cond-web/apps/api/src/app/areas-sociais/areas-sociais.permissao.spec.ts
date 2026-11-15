@@ -106,6 +106,39 @@ describe('AreasSociaisService — flags areas_sociais e manutencoes_programadas'
     });
   });
 
+  // Decisão do dono (rodada 4): o porteiro do console agenda, aprova, recusa,
+  // cancela e confirma reserva, mas NÃO cria, edita nem exclui o espaço.
+  // O token dele não tem typeAccess (montarSessaoPortaria).
+  describe('porteiro do console', () => {
+    const porteiro: any = { sub: 7, nome: 'João', id_condominio: 2, turno: 'Manhã', tipo_sub: 'funcionario_portaria' };
+    const sindicoConsole: any = { sub: 9, nome: 'Ana', id_condominio: 2, turno: 'Síndico', typeAccess: 'Sindico' };
+
+    it('NEGA criar espaço', async () => {
+      const { service, prisma } = build();
+      await expect(service.insert(2, area, porteiro)).rejects.toThrow(ForbiddenException);
+      expect(prisma.areas_Sociais.create).not.toHaveBeenCalled();
+    });
+
+    it('NEGA editar espaço', async () => {
+      const { service, prisma } = build();
+      prisma.areas_Sociais.updateMany = jest.fn(async () => ({ count: 1 }));
+      await expect(service.update(2, area, porteiro)).rejects.toThrow(ForbiddenException);
+      expect(prisma.areas_Sociais.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('NEGA excluir espaço', async () => {
+      const { service, prisma } = build();
+      await expect(service.remove(4, porteiro)).rejects.toThrow(ForbiddenException);
+      expect(prisma.areas_Sociais.delete).not.toHaveBeenCalled();
+    });
+
+    it('o síndico logado no console continua criando', async () => {
+      const { service, prisma } = build();
+      await service.insert(2, area, sindicoConsole);
+      expect(prisma.areas_Sociais.create).toHaveBeenCalled();
+    });
+  });
+
   describe('manutencoes_programadas', () => {
     const manutencao: any = { id: 8, id_area_social: 4, data_inicio: '01/10/2026', data_fim: '02/10/2026' };
 

@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { AreasSociaisPageComponent } from './areas-sociais-page.component';
 import { AgendamentoArea, AreasSociaisApi } from './areas-sociais.service';
 import { ApartamentosApi } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { AuthService } from '../auth/auth.service';
 
 /**
  * Aba Reservas: as ações sobre a reserva (aprovar, recusar, cancelar) falhavam
@@ -35,6 +37,7 @@ function build(opts: { lista?: AgendamentoArea[]; api?: Record<string, unknown>;
       { provide: AreasSociaisApi, useValue: api },
       { provide: ApartamentosApi, useValue: { list: jest.fn(() => of([])) } },
       { provide: ConfirmService, useValue: confirm },
+      { provide: AuthService, useValue: { porteiroInfo: signal(null), token: null } },
     ],
   });
   const f = TestBed.createComponent(AreasSociaisPageComponent);

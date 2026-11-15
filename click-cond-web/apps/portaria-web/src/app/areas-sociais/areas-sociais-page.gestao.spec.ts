@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { AreasSociaisPageComponent } from './areas-sociais-page.component';
 import { AgendamentoArea, AreaSocial, AreasSociaisApi } from './areas-sociais.service';
 import { ApartamentosApi } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { AuthService } from '../auth/auth.service';
 
 /**
  * Gestão de espaços e da fila de reservas no console:
@@ -39,6 +41,7 @@ function build(opts: { lista?: AgendamentoArea[]; api?: Record<string, unknown>;
       { provide: AreasSociaisApi, useValue: api },
       { provide: ApartamentosApi, useValue: { list: jest.fn(() => of(opts.aptos ?? [])) } },
       { provide: ConfirmService, useValue: { ask: jest.fn(() => Promise.resolve(true)) } },
+      { provide: AuthService, useValue: { porteiroInfo: signal(null), token: null } },
     ],
   });
   const f = TestBed.createComponent(AreasSociaisPageComponent);
@@ -129,11 +132,33 @@ describe('AreasSociaisPageComponent — gestão de espaços e da fila', () => {
       expect(tela.agendamentosVisiveis().map((a) => a.id)).toEqual([1]);
     });
 
-    it('aprovada mostra quem aprovou ou agendou', () => {
+    it('aprovada mostra quem aprovou (API antiga, só aprovado_por)', () => {
       const { f, tela, el } = build({ lista });
       tela.tab.set('reservas');
       f.detectChanges();
       expect(el.textContent).toContain('Aprovada por Carlos');
+    });
+
+    it('"Agendada por" e "Aprovada por" aparecem separados', () => {
+      const { f, tela, el } = build({
+        lista: [
+          // agendada pela portaria, nasceu aprovada: sem aprovador
+          reserva({ id: 1, status: 'aprovado', criado_por: 'Portaria · João', aprovado_por_nome: null, aprovado_por: 'Síndico' }),
+          // pedida pelo morador e aprovada pela síndica
+          reserva({ id: 2, status: 'aprovado', criado_por: 'Bruno Lima', aprovado_por_nome: 'Ana Souza', aprovado_por: 'Ana Souza' }),
+          // gravada antes da coluna nova: só o aprovador que ela já tinha
+          reserva({ id: 3, status: 'aprovado', criado_por: null, aprovado_por_nome: 'Carlos', aprovado_por: 'Carlos' }),
+        ],
+      });
+      tela.tab.set('reservas');
+      f.detectChanges();
+      const linhas = Array.from(el.querySelectorAll('[data-reserva]')).map((n) => n.textContent ?? '');
+      expect(linhas[0]).toContain('Agendada por Portaria · João');
+      expect(linhas[0]).not.toContain('Aprovada por');
+      expect(linhas[1]).toContain('Agendada por Bruno Lima');
+      expect(linhas[1]).toContain('Aprovada por Ana Souza');
+      expect(linhas[2]).not.toContain('Agendada por');
+      expect(linhas[2]).toContain('Aprovada por Carlos');
     });
   });
 });

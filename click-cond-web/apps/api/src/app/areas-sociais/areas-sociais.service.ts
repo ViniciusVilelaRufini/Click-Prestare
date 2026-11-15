@@ -12,7 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { type Gravados, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
-import { assertOperador, isOperador } from '../auth/tenant.util';
+import { assertOperador, assertStaff, isOperador } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { fimEmMinutos } from './fim-reserva.util';
@@ -94,6 +94,18 @@ function dataHoraBr(d: Date): string {
   const dia = d.toLocaleDateString('pt-BR', { timeZone: TIMEZONE_CONDOMINIO });
   const hora = d.toLocaleTimeString('pt-BR', { timeZone: TIMEZONE_CONDOMINIO, hour: '2-digit', minute: '2-digit' });
   return `${dia} às ${hora}`;
+}
+
+/**
+ * Quem agendou, para `criado_por_nome` (VARCHAR 120): o nome do token. O
+ * porteiro do console (token sem typeAccess) sai como "Portaria · <nome>";
+ * síndico, funcionário e morador, pelo nome. Sem nome nenhum, null.
+ */
+export function nomeDeQuemAgendou(user?: JwtPayload): string | null {
+  const nome = String(user?.nome ?? user?.user?.name ?? '').trim();
+  const tipo = user?.typeAccess ?? user?.user?.typeAccess;
+  const rotulo = !tipo && isOperador(user) ? (nome ? `Portaria · ${nome}` : 'Portaria') : nome;
+  return rotulo ? rotulo.slice(0, 120) : null;
 }
 
 /** De quais status cada mudança pedida em updateStatusAgendamento pode partir. */
@@ -324,9 +336,12 @@ export class AreasSociaisService {
   // GESTÃO DE ÁREAS SOCIAIS
   // ==========================================
   async insert(idCondominio: number, areaSocial: any, user?: JwtPayload) {
-    assertOperador(user, 'criar área social');
+    // Cadastrar espaço é de síndico ou funcionário com a flag `areas_sociais`:
+    // o porteiro do console (token sem typeAccess) agenda e decide reserva,
+    // mas não cria, edita nem exclui o espaço (decisão do dono, rodada 4).
+    assertStaff(user, 'criar área social');
     await this.tenant.assertCondominio(idCondominio, user);
-    // assertOperador so separa operador de morador. A flag e o que o sindico
+    // assertStaff so separa sindico/funcionario do resto. A flag e o que o sindico
     // desliga quando nao quer aquele funcionario mexendo nas areas.
     await this.tenant.assertPermissaoFuncionario(idCondominio, 'areas_sociais', user);
     if (!this.prisma.isConnected) {
@@ -364,7 +379,7 @@ export class AreasSociaisService {
   }
 
   async update(idCondominio: number, areaSocial: any, user?: JwtPayload) {
-    assertOperador(user, 'editar área social');
+    assertStaff(user, 'editar área social');
     await this.tenant.assertCondominio(idCondominio, user);
     await this.tenant.assertPermissaoFuncionario(idCondominio, 'areas_sociais', user);
     if (!this.prisma.isConnected) {
@@ -451,7 +466,7 @@ export class AreasSociaisService {
   }
 
   async remove(id: number, user?: JwtPayload) {
-    assertOperador(user, 'remover área social');
+    assertStaff(user, 'remover área social');
     if (!this.prisma.isConnected) return { success: true };
     const area = await this.prisma.areas_Sociais.findUnique({ where: { id: Number(id) } });
     if (!area) throw new NotFoundException('Área social não encontrada');
@@ -1039,15 +1054,10 @@ export class AreasSociaisService {
         hora_ate: horaAteObj,
         status: statusInicial,
         convidados,
-        // Agendada pela administração já nasce aprovada por quem agendou: a fila
-        // do console e o app mostram o nome em "aprovado por".
-        ...(peloSindico
-          ? {
-              aprovado_por_nome:
-                (user as any)?.name ?? user?.nome ?? (user as any)?.user?.name ?? 'Administração',
-              aprovado_em: new Date(),
-            }
-          : {}),
+        // Quem agendou fica em criado_por_nome; aprovado_por_nome é só de quem
+        // aprovou (updateStatusAgendamento). A reserva da administração nasce
+        // aprovada sem "aprovador".
+        criado_por_nome: nomeDeQuemAgendou(user),
       },
     });
 
@@ -1370,8 +1380,12 @@ export class AreasSociaisService {
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
       convidados: ag.convidados ?? null,
       confirmada_em: ag.confirmada_em ?? null,
+      // `aprovado_por` segue como o app publicado lê (com o "Síndico" genérico).
       aprovado_por: ag.aprovado_por_nome ?? (ag.status === 'aprovado' ? 'Síndico' : null),
       aprovado_em: ag.aprovado_em ? dataHoraBr(ag.aprovado_em) : null,
+      // Campos novos (o app ignora): quem agendou e quem de fato decidiu.
+      criado_por: ag.criado_por_nome ?? null,
+      aprovado_por_nome: ag.aprovado_por_nome ?? null,
       motivo_recusa: ag.motivo_recusa ?? null,
       // A fila do console oferece "Confirmar presença" só onde a área exige.
       exige_confirmacao: ag.area?.exige_confirmacao === 1,
@@ -1429,8 +1443,12 @@ export class AreasSociaisService {
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
       convidados: ag.convidados ?? null,
       confirmada_em: ag.confirmada_em ?? null,
+      // `aprovado_por` segue como o app publicado lê (com o "Síndico" genérico).
       aprovado_por: ag.aprovado_por_nome ?? (ag.status === 'aprovado' ? 'Síndico' : null),
       aprovado_em: ag.aprovado_em ? dataHoraBr(ag.aprovado_em) : null,
+      // Campos novos (o app ignora): quem agendou e quem de fato decidiu.
+      criado_por: ag.criado_por_nome ?? null,
+      aprovado_por_nome: ag.aprovado_por_nome ?? null,
       motivo_recusa: ag.motivo_recusa ?? null,
     }));
   }

@@ -595,9 +595,14 @@ model Areas_Sociais_Agendamentos {
   // teve como confirmar (sem token/push falhou) — e nesse caso a reserva não
   // pode ser cancelada por falta de confirmação.
   lembrete_enviado_em DateTime? @db.DateTime(0)
+  // Quem decidiu (aprovou/recusou) ou cancelou. Reserva gravada antes de
+  // criado_por_nome existir pode trazer aqui quem agendou (rodada 3).
   aprovado_por_nome   String?   @db.VarChar(255)
   aprovado_em         DateTime? @db.DateTime(0)
   motivo_recusa       String?   @db.Text
+  // Quem agendou: o morador pelo app, "Portaria · <nome>" ou o síndico quando
+  // agendada pelo console em nome do morador. Null = reserva antiga.
+  criado_por_nome     String?   @db.VarChar(120)
   created_at     DateTime      @default(now()) @db.DateTime(0)
   updated_at     DateTime      @default(now()) @updatedAt @db.DateTime(0)
   apartamento    Apartamentos  @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_asa_apto")

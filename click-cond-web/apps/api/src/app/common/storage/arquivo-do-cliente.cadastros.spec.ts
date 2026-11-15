@@ -183,6 +183,7 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
   });
 
   describe('AreasSociaisService (imagem da área)', () => {
+    // Cadastro de espaço é de síndico/funcionário (o porteiro do console só agenda).
     function build() {
       const prisma: any = {
         isConnected: true,
@@ -197,15 +198,15 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
 
     it('editar com chave de outra área: 400; com a mesma: aceito', async () => {
       const { service, prisma } = build();
-      await arquivoInvalido(service.update(1, { id: 2, nome: 'Salão', imagem: ALHEIA }, porteiro));
+      await arquivoInvalido(service.update(1, { id: 2, nome: 'Salão', imagem: ALHEIA }, sindico));
       expect(prisma.areas_Sociais.updateMany).not.toHaveBeenCalled();
-      await service.update(1, { id: 2, nome: 'Salão', imagem: MINHA }, porteiro);
+      await service.update(1, { id: 2, nome: 'Salão', imagem: MINHA }, sindico);
       expect(prisma.areas_Sociais.updateMany.mock.calls[0][0].data.imagem).toBe(MINHA);
     });
 
     it('criar com URL do bucket: 400', async () => {
       const { service, prisma } = build();
-      await arquivoInvalido(service.insert(1, { nome: 'Salão', imagem: MINHA }, porteiro));
+      await arquivoInvalido(service.insert(1, { nome: 'Salão', imagem: MINHA }, sindico));
       expect(prisma.areas_Sociais.create).not.toHaveBeenCalled();
     });
 
@@ -236,7 +237,7 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
     it('o último bloco da noite terminando em 24:00 (gerado pelo app) é preservado', async () => {
       const { service, prisma } = build();
       const grade = [{ nome: 'Segunda', horarios: [{ horarioDe: '22:00', horarioAte: '23:00' }, { horarioDe: '23:00', horarioAte: '24:00' }] }];
-      await service.insert(1, { nome: 'Salão', horarios: grade }, porteiro);
+      await service.insert(1, { nome: 'Salão', horarios: grade }, sindico);
       expect(JSON.parse(prisma.areas_Sociais.create.mock.calls[0][0].data.horarios)).toEqual(grade);
     });
 
@@ -245,22 +246,22 @@ describe('cadastros — campos de arquivo recebidos do cliente', () => {
       const semNome = Array.from({ length: 7 }, () => ({ horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }] }));
       semNome[1] = { nome: 'Tu', horarios: [] } as any; // curto demais para o substring(0, 3) do app
       semNome[2] = { nome: 'Quarta-feira', horarios: [] } as any;
-      await service.insert(1, { nome: 'Salão', horarios: semNome }, porteiro);
+      await service.insert(1, { nome: 'Salão', horarios: semNome }, sindico);
       const nomes = JSON.parse(prisma.areas_Sociais.create.mock.calls[0][0].data.horarios).map((d: any) => d.nome);
       expect(nomes).toEqual(['Segunda', 'Terça', 'Quarta-feira', 'Quinta', 'Sexta', 'Sábado', 'Domingo']);
     });
 
     it('criar: horarios é saneado para o formato da grade (chaves desconhecidas e horas inválidas caem)', async () => {
       const { service, prisma } = build();
-      await service.insert(1, { nome: 'Salão', horarios: contaminado }, porteiro);
+      await service.insert(1, { nome: 'Salão', horarios: contaminado }, sindico);
       expect(JSON.parse(prisma.areas_Sociais.create.mock.calls[0][0].data.horarios)).toEqual(saneado);
     });
 
     it('editar: horarios em string JSON também é saneado; JSON inválido vira grade vazia', async () => {
       const { service, prisma } = build();
-      await service.update(1, { id: 2, nome: 'Salão', horarios: JSON.stringify(contaminado) }, porteiro);
+      await service.update(1, { id: 2, nome: 'Salão', horarios: JSON.stringify(contaminado) }, sindico);
       expect(JSON.parse(prisma.areas_Sociais.updateMany.mock.calls[0][0].data.horarios)).toEqual(saneado);
-      await service.update(1, { id: 2, nome: 'Salão', horarios: '{"foto":' }, porteiro);
+      await service.update(1, { id: 2, nome: 'Salão', horarios: '{"foto":' }, sindico);
       expect(JSON.parse(prisma.areas_Sociais.updateMany.mock.calls[1][0].data.horarios)).toEqual([]);
     });
   });
