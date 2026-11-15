@@ -167,6 +167,8 @@ export type VotoDaUnidade = {
   pode_votar: boolean;
   motivo: string | null;
   votado_por: TipoVinculo | null;
+  /** O voto vigente da unidade é da própria conta (false: de outra conta, ou não há voto). */
+  voto_proprio: boolean;
 };
 
 /**
@@ -1493,6 +1495,7 @@ export class AssembleiasService {
           pode_votar: motivo == null,
           motivo,
           votado_por: voto ? voto.tipo : null,
+          voto_proprio: proprio,
         };
       }),
     );

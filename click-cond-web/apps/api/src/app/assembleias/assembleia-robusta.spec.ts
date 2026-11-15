@@ -626,7 +626,7 @@ describe('2.3 — resultado parcial oculto', () => {
       const { svc } = build({ votos: [novo({ id: 1, id_opcao: 52, id_user: 11, id_apto: 100, tipo_vinculo: 'inquilino', created_at: t('09:00') })] as any });
       expect(daPauta(await svc.get(COND, 3, 10, morador(10)))).toEqual({
         id_votacao: 5, id_apto: 100, rotulo: 'Apto 11 Bloco A', opcao: '52',
-        tipo_vinculo: 'proprietario', pode_votar: true, motivo: null, votado_por: 'inquilino',
+        tipo_vinculo: 'proprietario', pode_votar: true, motivo: null, votado_por: 'inquilino', voto_proprio: false,
       });
     });
 
@@ -636,6 +636,7 @@ describe('2.3 — resultado parcial oculto', () => {
       expect(daPauta(r)).toEqual({
         id_votacao: 5, id_apto: 100, rotulo: 'Apto 11 Bloco A', opcao: null,
         tipo_vinculo: 'inquilino', pode_votar: false, motivo: 'O proprietário já votou por esta unidade.', votado_por: 'proprietario',
+        voto_proprio: false,
       });
       // meusVotos: só os vigentes da própria conta (o dele foi substituído).
       expect(r.meusVotos).toEqual([]);
@@ -644,7 +645,7 @@ describe('2.3 — resultado parcial oculto', () => {
     it('o próprio voto aparece para quem votou', async () => {
       const { svc } = build({ votos: VOTOS });
       const r: any = await svc.get(COND, 3, 21, morador(21));
-      expect(daPauta(r)).toMatchObject({ id_apto: 200, opcao: '52', tipo_vinculo: 'inquilino', pode_votar: true, votado_por: 'inquilino' });
+      expect(daPauta(r)).toMatchObject({ id_apto: 200, opcao: '52', tipo_vinculo: 'inquilino', pode_votar: true, votado_por: 'inquilino', voto_proprio: true });
       expect(r.meusVotos).toEqual(['52']);
     });
 
@@ -664,11 +665,20 @@ describe('2.3 — resultado parcial oculto', () => {
       expect(daPauta(await svc.get(COND, 3, 10, morador(10)))).toMatchObject({ pode_votar: false, motivo: 'A votação ainda não começou.' });
     });
 
+    it('voto_proprio: verdadeiro só quando o voto vigente da unidade é da própria conta (coproprietário vê false)', async () => {
+      const { svc } = build({ votos: [novo({ id: 1, id_opcao: 61, id_user: 10, id_apto: 100, tipo_vinculo: 'proprietario', created_at: t('09:00') })] as any });
+      const daEnquete = (r: any) => r.votosPorUnidade.find((v: any) => v.id_votacao === 6);
+      expect(daEnquete(await svc.enqueteGetDetails(6, 10, morador(10)))).toMatchObject({ voto_proprio: true, votado_por: 'proprietario', opcao: '61' });
+      // Outro proprietário da mesma unidade: vê a opção (mesmo nível), mas o voto não é dele.
+      expect(daEnquete(await svc.enqueteGetDetails(6, 13, morador(13)))).toMatchObject({ voto_proprio: false, votado_por: 'proprietario', opcao: '61' });
+      expect(daEnquete(await svc.enqueteGetDetails(6, 20, morador(20)))).toMatchObject({ voto_proprio: false, votado_por: null });
+    });
+
     it('membro na enquete pode votar enquanto ninguém de nível acima votou', async () => {
       const { svc } = build();
       const r: any = await svc.enqueteGetDetails(6, 12, morador(12));
       expect(r.votosPorUnidade).toEqual([
-        { id_votacao: 6, id_apto: 100, rotulo: 'Apto 11 Bloco A', opcao: null, tipo_vinculo: 'membro', pode_votar: true, motivo: null, votado_por: null },
+        { id_votacao: 6, id_apto: 100, rotulo: 'Apto 11 Bloco A', opcao: null, tipo_vinculo: 'membro', pode_votar: true, motivo: null, votado_por: null, voto_proprio: false },
       ]);
       expect(r.unidades).toEqual([{ id_apto: 100, rotulo: 'Apto 11 Bloco A' }]);
     });
