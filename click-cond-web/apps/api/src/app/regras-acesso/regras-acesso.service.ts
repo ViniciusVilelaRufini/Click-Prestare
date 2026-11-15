@@ -148,6 +148,17 @@ export class RegrasAcessoService {
       where: { id: { in: lista }, id_condominio: Number(idCondominio) },
     });
     if (ok !== lista.length) throw new BadRequestException('Dispositivo não pertence a este condomínio.');
+    // Módulo Guarita: quem decide a abertura é o próprio Guarita (receptores e
+    // grupos dele); a regra do Prestare não chega lá e só daria a impressão de
+    // restringir o portão.
+    const guaritas = await this.prisma.facial_Devices.count({
+      where: { id: { in: lista }, tipo: 'guarita' },
+    });
+    if (guaritas > 0) {
+      throw new BadRequestException(
+        'O Módulo Guarita não entra em regras de acesso: quem libera o portão é o próprio Guarita.',
+      );
+    }
   }
 
   async create(idCondominio: number, dto: CreateRegraAcessoDto, operador?: JwtPayload) {

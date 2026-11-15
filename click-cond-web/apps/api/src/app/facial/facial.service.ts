@@ -207,7 +207,36 @@ export const TIPOS_DISPOSITIVO = [
   'tag_reader',
   'qrcode_reader',
   'lpr',
+  // Módulo Guarita (Nice/Linear): fala com o Prestare só pelo driver
+  // `linear-guarita` do agente e pelas rotas de apps/api/src/app/guarita.
+  // Nunca recebe rosto (sync é só tipo 'facial'), nunca entra em
+  // processAgentEvent/processWebhook e não é acionável pelo triggerDevice.
+  'guarita',
 ] as const;
+
+/** Módulo Guarita: tipo de dispositivo. A palavra de autorização mora em api_password (cifrada). */
+export const TIPO_GUARITA = 'guarita';
+/** Porta TCP principal do Guarita. */
+const PORTA_PADRAO_GUARITA = 9000;
+/** Palavra de autorização TCP do Guarita: até 15 caracteres ASCII imprimíveis. */
+const PALAVRA_GUARITA_MAX = 15;
+
+/**
+ * Palavra de autorização do Guarita: vazia (sem autorização) ou até 15
+ * caracteres ASCII de 0x20 a 0x7D. O valor nunca entra na mensagem de erro.
+ */
+function validarPalavraGuarita(palavra: unknown): string | null {
+  if (palavra === null || palavra === undefined || palavra === '') return null;
+  if (typeof palavra !== 'string' || palavra.length > PALAVRA_GUARITA_MAX || !/^[\x20-\x7D]+$/.test(palavra)) {
+    throw new BadRequestException(
+      `A palavra de autorização do Guarita deve ter até ${PALAVRA_GUARITA_MAX} caracteres, sem acento.`,
+    );
+  }
+  return palavra;
+}
+
+/** Esta versão da integração trabalha com UM Módulo Guarita por condomínio. */
+const MSG_UM_GUARITA = 'Esta versão aceita um Módulo Guarita por condomínio.';
 
 /** Intervalo mínimo entre avisos de "payload sem credencial" do mesmo dispositivo. */
 const AVISO_SEM_CREDENCIAL_MS = 10 * 60 * 1000;
@@ -1357,6 +1386,57 @@ export class FacialService {
   }
 
   /**
+   * Excluir o Guarita: recusado (409) enquanto houver operação na fila
+   * (pendente/enviada) ou tag saindo/entrando (`removendo`/`pendente`) — a
+   * cascata levaria as remoções de ex-moradores. Fora disso, as tags dele
+   * perdem os campos do Guarita (voltam a ser linha sem estado) antes do
+   * delete.
+   */
+  private async prepararExclusaoDoGuarita(idDevice: number) {
+    const abertas = await this.prisma.guarita_Operacoes.count({
+      where: { id_device: idDevice, tipo: { not: 'captura' }, estado: { in: ['pendente', 'enviada', 'processando'] } },
+    });
+    const emCurso = await this.prisma.tags.count({
+      where: { id_device: idDevice, guarita_estado: { in: ['removendo', 'pendente'] } },
+    });
+    if (abertas > 0 || emCurso > 0) {
+      throw new ConflictException(
+        'Este Guarita tem operações na fila ou dispositivos sendo gravados/removidos. Espere a fila terminar (ou desative o aparelho) antes de excluí-lo.',
+      );
+    }
+    await this.prisma.tags.updateMany({
+      where: { id_device: idDevice },
+      data: {
+        id_device: null,
+        guarita_tipo: null,
+        guarita_serial: null,
+        guarita_contador: null,
+        guarita_estado: null,
+        guarita_erro: null,
+        guarita_frame: null,
+        guarita_em: null,
+      },
+    });
+  }
+
+  /**
+   * Módulo Guarita: no máximo UM ativo por condomínio nesta versão (as tags,
+   * a saída do morador e a captura são por Guarita; dois aparelhos com o mesmo
+   * controle deixariam o ex-morador entrando pelo segundo).
+   */
+  private async assertUmGuaritaPorCondominio(idCondominio: number, ignorarId?: number) {
+    const outros = await this.prisma.facial_Devices.count({
+      where: {
+        id_condominio: Number(idCondominio),
+        tipo: TIPO_GUARITA,
+        ativo: 1,
+        ...(ignorarId !== undefined ? { id: { not: ignorarId } } : {}),
+      },
+    });
+    if (outros > 0) throw new BadRequestException(MSG_UM_GUARITA);
+  }
+
+  /**
    * Dois cadastros ATIVOS do MESMO TIPO apontando para o mesmo aparelho (mesmo
    * ip:porta, ou mesmo MAC) no condomínio: os comandos e os eventos se
    * misturam. Recusa.
@@ -1489,8 +1569,11 @@ export class FacialService {
 
   async createDevice(dto: CreateDeviceDto, operador?: JwtPayload) {
     const campos = this.validarCamposDispositivo(dto, { criando: true });
+    const ehGuarita = campos.tipo === TIPO_GUARITA;
     const ip = validarIpDispositivo(dto.ip);
-    const porta = validarPortaDispositivo(dto.porta ?? 80);
+    const porta = validarPortaDispositivo(dto.porta ?? (ehGuarita ? PORTA_PADRAO_GUARITA : 80));
+    const palavraGuarita = ehGuarita ? validarPalavraGuarita(dto.api_password) : undefined;
+    if (ehGuarita) await this.assertUmGuaritaPorCondominio(dto.id_condominio);
     await this.assertAreaDoCondominio(dto.id_area_social, dto.id_condominio);
     const mac = normalizarMac(dto.mac ?? null);
     await this.assertDispositivoNaoDuplicado({
@@ -1512,8 +1595,8 @@ export class FacialService {
         modelo: dto.modelo ?? null,
         ip,
         porta,
-        api_user: dto.api_user ?? null,
-        api_password: encryptSecret(dto.api_password ?? null),
+        api_user: ehGuarita ? null : dto.api_user ?? null,
+        api_password: encryptSecret(ehGuarita ? palavraGuarita ?? null : dto.api_password ?? null),
         id_area_social: dto.id_area_social ?? null,
         webhook_token: token,
         mac,
@@ -1586,6 +1669,26 @@ export class FacialService {
   async updateDevice(id: number, dto: UpdateDeviceDto, operador?: JwtPayload) {
     const antes = await this.getDevice(id);
     const campos = this.validarCamposDispositivo(dto, { criando: false, tipoAtual: antes.tipo });
+    // Guarita: a tela nunca reexibe a palavra de autorização, então reenviar o
+    // formulário com o campo vazio NÃO apaga a palavra gravada (só um valor
+    // novo a substitui).
+    const ehGuarita = (campos.tipo ?? antes.tipo) === TIPO_GUARITA;
+    const palavraGuarita =
+      ehGuarita && dto.api_password !== undefined && dto.api_password !== null && dto.api_password !== ''
+        ? validarPalavraGuarita(dto.api_password)
+        : undefined;
+    // Virando Guarita sem palavra nova: a senha herdada do aparelho antigo só
+    // serve se for uma palavra válida (1–15 caracteres 0x20–0x7D).
+    if (ehGuarita && antes.tipo !== TIPO_GUARITA && palavraGuarita === undefined && antes.api_password) {
+      try {
+        validarPalavraGuarita(antes.api_password);
+      } catch {
+        throw new BadRequestException(
+          'A senha deste aparelho não serve como palavra de autorização do Guarita. Informe a palavra (até 15 caracteres, sem acento) ou deixe em branco.',
+        );
+      }
+    }
+    const trocaSenha = ehGuarita ? palavraGuarita !== undefined : dto.api_password !== undefined;
     const ip = dto.ip !== undefined ? validarIpDispositivo(dto.ip) : undefined;
     const porta = dto.porta !== undefined ? validarPortaDispositivo(dto.porta ?? 80) : undefined;
     await this.assertAreaDoCondominio(dto.id_area_social, antes.id_condominio);
@@ -1600,6 +1703,9 @@ export class FacialService {
     const tipoFinal = campos.tipo ?? antes.tipo;
     const ativoFinal = dto.ativo !== undefined ? (dto.ativo ? 1 : 0) : antes.ativo;
     const reativou = antes.ativo !== 1 && ativoFinal === 1;
+    if (tipoFinal === TIPO_GUARITA && ativoFinal === 1 && (antes.tipo !== TIPO_GUARITA || reativou)) {
+      await this.assertUmGuaritaPorCondominio(antes.id_condominio, id);
+    }
     const mudouEndereco = ipFinal !== antes.ip || portaFinal !== antes.porta;
     const mudouTipo = tipoFinal !== antes.tipo;
     if (ativoFinal === 1 && (mudouEndereco || mudouTipo || reativou)) {
@@ -1627,8 +1733,8 @@ export class FacialService {
         ...(ip !== undefined && { ip }),
         ...(porta !== undefined && { porta }),
         ...(dto.api_user !== undefined && { api_user: dto.api_user }),
-        ...(dto.api_password !== undefined && {
-          api_password: encryptSecret(dto.api_password),
+        ...(trocaSenha && {
+          api_password: encryptSecret(ehGuarita ? palavraGuarita ?? null : dto.api_password ?? null),
         }),
         ...(dto.id_area_social !== undefined && {
           id_area_social: dto.id_area_social,
@@ -1654,7 +1760,7 @@ export class FacialService {
         diff[k] = { de: (antes as any)[k], para: (atual as any)[k] };
       }
     }
-    if (dto.api_password !== undefined)
+    if (trocaSenha)
       diff['api_password'] = { de: '***', para: '***' };
     await this.auditoria.registrar({
       id_condominio: atual.id_condominio,
@@ -1837,6 +1943,8 @@ export class FacialService {
     const totalPedidosPortao = await (this.prisma as any).deliveryPedidosPortao.count({ where: { id_device: id } });
     if (totalPedidosPortao > 0) throw new ConflictException(MSG_DEVICE_COM_ENTREGAS);
 
+    if (device.tipo === TIPO_GUARITA) await this.prepararExclusaoDoGuarita(id);
+
     try {
       await this.prisma.facial_Devices.delete({ where: { id } });
     } catch (err: any) {
@@ -1874,6 +1982,10 @@ export class FacialService {
     mensagem: string;
   }> {
     const device = await this.getDevice(id);
+    // Módulo Guarita: a conexão é UMA sessão TCP mantida pelo agente; testar
+    // abrindo outra (ou por HTTP direto) derrubaria/ocuparia a porta. A
+    // resposta sai do último estado que o agente reportou (POST .../estado).
+    if (device.tipo === TIPO_GUARITA) return this.testarGuaritaPeloEstado(device);
     const diagnostico = await this.client.diagnosticar(this.toConfig(device));
     const online = diagnostico.ok === true;
     const motivo = online ? null : (diagnostico.motivo ?? 'sem_resposta');
@@ -1885,6 +1997,48 @@ export class FacialService {
       motivo,
       ...(diagnostico.detalhe ? { detalhe: diagnostico.detalhe } : {}),
       mensagem: motivo === null ? MENSAGEM_DIAGNOSTICO_OK : MENSAGENS_DIAGNOSTICO[motivo],
+    };
+  }
+
+  /** "Testar conexão" do Guarita: só lê o estado guardado (chave guarita:estado:<id>, GuaritaAgenteService). */
+  private async testarGuaritaPeloEstado(device: { id: number }): Promise<{
+    online: boolean;
+    motivo: MotivoDiagnostico | null;
+    detalhe?: string;
+    mensagem: string;
+  }> {
+    const estado = (
+      await this.estado.obter<{ conectado: boolean; autorizado: boolean; erro: string | null; recebido_em: string }>(
+        `guarita:estado:${device.id}`,
+      )
+    )?.valor;
+    if (!estado) {
+      const agenteOnline = !!this.agent?.isOnline?.(device.id);
+      return agenteOnline
+        ? {
+            online: false,
+            motivo: 'sem_resposta',
+            detalhe: 'O agente ainda não informou o estado do Guarita.',
+            mensagem: 'O Agente Local ainda não informou o estado da conexão com o Guarita. Aguarde um minuto e teste de novo.',
+          }
+        : { online: false, motivo: 'agente_offline', mensagem: MENSAGENS_DIAGNOSTICO.agente_offline };
+    }
+    if (estado.conectado && estado.autorizado) {
+      return { online: true, motivo: null, mensagem: 'O Guarita está conectado ao Agente Local.' };
+    }
+    if (estado.conectado === false && estado.autorizado === false && /recusad|negad/i.test(estado.erro ?? '')) {
+      return {
+        online: false,
+        motivo: 'credencial_invalida',
+        ...(estado.erro ? { detalhe: estado.erro } : {}),
+        mensagem: 'O Guarita recusou a palavra de autorização. Confira a palavra cadastrada.',
+      };
+    }
+    return {
+      online: false,
+      motivo: 'sem_resposta',
+      ...(estado.erro ? { detalhe: estado.erro } : {}),
+      mensagem: 'O Agente Local não está conectado ao Guarita. Confira o IP, a porta e se outro programa está usando a conexão.',
     };
   }
 
@@ -4880,6 +5034,13 @@ export class FacialService {
       where: { webhook_token: token, ativo: 1, condominio: { ativo: 1 } },
     });
     if (!device) throw new UnauthorizedException('Token de webhook inválido');
+    // O Guarita já decide e abre o portão sozinho: um evento dele por aqui
+    // passaria pela ponte leitor→abertura e acionaria botoeiras/catracas. O
+    // evento do Guarita entra só pela rota própria (GuaritaAgenteController),
+    // que registra e nunca aciona.
+    if (device.tipo === TIPO_GUARITA) {
+      throw new BadRequestException('O Módulo Guarita não envia eventos por webhook.');
+    }
     return this.runWebhook(device, payload);
   }
 

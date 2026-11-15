@@ -28,6 +28,7 @@ import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
 import { WalletService } from '../wallet/wallet.service';
+import { GuaritaOperacoesService } from '../guarita/guarita-operacoes.service';
 import { temaValido } from '../card-ao-vivo/conteudo';
 import { assertStaff, assertSindico, assertSindicoEstrito, assertOperador, isOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
@@ -100,6 +101,21 @@ const MSG_CODIGO_INVALIDO = 'Código incorreto ou expirado. Confira o código ou
 const MSG_SIGNUP_GENERICA =
   'Não foi possível concluir o cadastro com esses dados. Se você já tem conta, entre ou recupere a senha.';
 
+/**
+ * Estado da tag no Guarita como o app o vê (campos opcionais; app 1.2.49
+ * ignora). `conflito` sai como `falhou` com explicação; `ausente` e
+ * `a_vincular` (coisas do console) não são enviados; tag sem Guarita, nada.
+ */
+export function camposGuaritaParaApp(tag: any): Record<string, string | null> {
+  if (!tag || tag.id_device == null || !tag.guarita_estado) return {};
+  const estado: string = tag.guarita_estado;
+  if (estado === 'ausente' || estado === 'a_vincular') return {};
+  if (estado === 'conflito') {
+    return { guarita_estado: 'falhou', guarita_erro: 'Este código já está em uso em outra unidade. Procure a portaria.' };
+  }
+  return { guarita_estado: estado, guarita_erro: tag.guarita_erro ?? null };
+}
+
 @Injectable()
 export class MobileAuthService {
   constructor(
@@ -120,6 +136,9 @@ export class MobileAuthService {
     @Optional() private readonly wallet?: WalletService,
     // Registro das mudanças na equipe da portaria (ativar/desativar, turno) feitas pelo console.
     @Optional() private readonly auditoria?: AuditoriaService,
+    // Módulo Guarita: tag vinculada no app fica aguardando aprovação; veículo/morador/conta
+    // excluídos tiram os dispositivos do Guarita. Sem Guarita no condomínio, nada muda.
+    @Optional() private readonly guarita?: GuaritaOperacoesService,
   ) {}
 
   /** Estado entre instâncias (trava da senha do perfil); criado sob demanda. */
@@ -2386,11 +2405,16 @@ export class MobileAuthService {
     // do remove do morador (best-effort): falha de terminal não impede a exclusão da conta.
     // As mesmas linhas, lidas antes do DELETE, dizem de quem revogar os passes da carteira depois.
     let linhasMorador: Array<{ id: number; face_id: string | null; id_condominio: number | null }> = [];
+    const tagsGuarita: number[] = [];
     try {
       linhasMorador = await this.prisma.moradores.findMany({
         where: { id_user: idUser },
         select: { id: true, face_id: true, id_condominio: true },
       });
+      // Módulo Guarita: as tags vêm pelos veículos, que a cascata do DELETE leva.
+      if (this.guarita) {
+        for (const m of linhasMorador) tagsGuarita.push(...(await this.guarita.tagsDoMorador(m.id)));
+      }
       for (const m of linhasMorador.filter((l) => l.face_id)) {
         this.facial
           .unsyncMorador(m.id, m.face_id, m.id_condominio)
@@ -2416,6 +2440,11 @@ export class MobileAuthService {
       }),
       this.prisma.$executeRaw`DELETE FROM Users WHERE id = ${idUser}`,
     ]);
+    if (tagsGuarita.length && this.guarita) {
+      await this.guarita
+        .enfileirarRemocoes(tagsGuarita, 'Exclusão de conta')
+        .catch((err: any) => this.logger.warn(`Exclusão de conta ${idUser}: remoção no Guarita falhou: ${err?.message ?? err}`));
+    }
     // Passe da carteira: a validação já nega (morador_removido); revogar e avisar faz o passe
     // aparecer inválido no celular. Em segundo plano (revogarDoMorador nunca lança).
     if (this.wallet) {
@@ -5239,6 +5268,8 @@ export class MobileAuthService {
     if (!atual) throw new NotFoundException('Morador não encontrado.');
     await this.tenant.assertEntidade(atual.id_condominio, user, `morador #${id}`);
     await this.exigirFlagFuncionario(atual.id_condominio, 'apartamentos', user);
+    // Módulo Guarita: tags pelos veículos, lidas antes da cascata da transação.
+    const tagsGuarita = this.guarita ? await this.guarita.tagsDoMorador(Number(id)).catch(() => [] as number[]) : [];
     // Mesma regra do painel web (MoradoresService.remove): apagar só a linha
     // de Moradores deixava o vínculo Apartamentos_Users — o usuário seguia
     // com acesso à unidade, e a lista do apto o mostrava com o Users.id no
@@ -5274,6 +5305,9 @@ export class MobileAuthService {
       this.facial
         .unsyncMorador(Number(id), atual.face_id, atual.id_condominio)
         .catch((err: any) => this.logger.warn(`Unsync facial morador ${id} falhou: ${err?.message ?? err}`));
+    }
+    if (tagsGuarita.length && this.guarita) {
+      await this.guarita.enfileirarRemocoes(tagsGuarita, user?.nome ?? 'Síndico (app)');
     }
     return true;
   }
@@ -6074,6 +6108,8 @@ export class MobileAuthService {
       id_tag: v.id_tag,
       id_condominio: v.id_condominio,
       tag_codigo: v.tag?.codigo ?? null,
+      // Módulo Guarita: só aparece quando a tag é de um Guarita (app 1.2.49 ignora).
+      ...camposGuaritaParaApp(v.tag),
     }));
   }
 
@@ -6097,7 +6133,8 @@ export class MobileAuthService {
       if (veiculo?.tag_codigo !== undefined) {
         await this.vincularTagAoVeiculo(m.id_condominio, criado.id, veiculo.tag_codigo);
       }
-      return criado;
+      const campos = await this.estadoGuaritaDoVeiculo(criado.id);
+      return campos ? { ...criado, ...campos } : criado;
     } catch (err: any) {
       if (err?.code === 'P2002') {
         throw new BadRequestException('Já existe um veículo com essa placa neste condomínio.');
@@ -6115,11 +6152,26 @@ export class MobileAuthService {
   private async vincularTagAoVeiculo(idCondominio: number, idVeiculo: number, codigoRaw: any) {
     const digitado = (codigoRaw ?? '').toString().trim();
 
+    // Módulo Guarita (só condomínio com Guarita ativo): a tag atual do veículo,
+    // se for de um Guarita, é removida dele quando o morador a troca ou
+    // desvincula; o app reenvia o código a cada edição, e o código da tag do
+    // Guarita (G<tipo>-<serial>) reenviado não mexe em nada.
+    const guaritas = this.guarita ? await this.guarita.guaritasDoCondominio(idCondominio) : [];
+    // A tag atual é olhada mesmo com o Guarita desativado ou offline: trocar ou
+    // tirar a tag pelo app enfileira a remoção dela (fica pendente na fila).
+    const tagAtual = this.guarita ? await this.tagAtualDoVeiculo(idVeiculo) : null;
+    if (tagAtual?.id_device != null && digitado && digitado.toUpperCase() === String(tagAtual.codigo).toUpperCase()) {
+      return;
+    }
+
     if (!digitado) {
       await this.prisma.veiculos.update({
         where: { id: idVeiculo },
         data: { id_tag: null },
       });
+      if (tagAtual?.id_device != null && this.guarita) {
+        await this.guarita.enfileirarRemocao(tagAtual.id, 'App do morador (desvinculou a tag)');
+      }
       return;
     }
 
@@ -6180,6 +6232,34 @@ export class MobileAuthService {
       where: { id: idVeiculo },
       data: { id_tag: tag.id },
     });
+
+    if (this.guarita && tagAtual?.id_device != null && tagAtual.id !== tag.id) {
+      await this.guarita.enfileirarRemocao(tagAtual.id, 'App do morador (trocou a tag)');
+    }
+    if (guaritas.length && this.guarita) {
+      // A gravação vale no portão de verdade e o app deixa digitar qualquer
+      // código: a portaria aprova no console antes de ir para o Guarita.
+      if ((tag as any).id_device == null) {
+        await this.guarita.marcarAguardandoAprovacao(tag.id, guaritas[0].id, digitado);
+      }
+    }
+  }
+
+  /** Tag atual do veículo (para o Módulo Guarita). */
+  private async tagAtualDoVeiculo(idVeiculo: number) {
+    const v = await this.prisma.veiculos.findUnique({ where: { id: idVeiculo }, select: { id_tag: true } });
+    if (v?.id_tag == null) return null;
+    return this.prisma.tags.findUnique({
+      where: { id: v.id_tag },
+      select: { id: true, codigo: true, id_device: true, guarita_estado: true, guarita_erro: true },
+    });
+  }
+
+  /** `guarita_estado`/`guarita_erro` da tag do veículo para o app, ou null (campos opcionais). */
+  private async estadoGuaritaDoVeiculo(idVeiculo: number): Promise<Record<string, string | null> | null> {
+    if (!this.guarita) return null;
+    const campos = camposGuaritaParaApp(await this.tagAtualDoVeiculo(idVeiculo));
+    return Object.keys(campos).length ? campos : null;
   }
 
   async atualizarVeiculoMorador(idUser: number, idCondominio: number, veiculo: any) {
@@ -6204,7 +6284,8 @@ export class MobileAuthService {
       if (veiculo?.tag_codigo !== undefined) {
         await this.vincularTagAoVeiculo(m.id_condominio, Number(veiculo.id), veiculo.tag_codigo);
       }
-      return { ok: true };
+      const campos = await this.estadoGuaritaDoVeiculo(Number(veiculo.id));
+      return campos ? { ok: true, ...campos } : { ok: true };
     } catch (err: any) {
       if (err?.code === 'P2002') {
         throw new BadRequestException('Já existe um veículo com essa placa neste condomínio.');
@@ -6217,7 +6298,14 @@ export class MobileAuthService {
     if (!this.prisma.isConnected) throw new ServiceUnavailableException('Banco de dados indisponível.');
     const m = await this.resolveMoradorId(idUser, idCondominio);
     if (!m) throw new BadRequestException('Acesso negado.');
+    // Módulo Guarita: a tag do veículo é lida antes do delete; a remoção entra na fila depois.
+    const tagsGuarita = this.guarita
+      ? await this.guarita.tagsDosVeiculos({ id: Number(id), id_morador: m.id })
+      : [];
     await this.prisma.veiculos.deleteMany({ where: { id: Number(id), id_morador: m.id } });
+    if (tagsGuarita.length && this.guarita) {
+      await this.guarita.enfileirarRemocoes(tagsGuarita, 'App do morador (excluiu o veículo)');
+    }
     return { ok: true };
   }
 

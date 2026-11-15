@@ -644,6 +644,31 @@ export class AgentBridgeService implements OnModuleDestroy {
   async consumirPedidoDeAtualizacao(idCondominio: number): Promise<boolean> {
     return (await this.estado.consumirUmaVez<boolean>(`agente:pedido-atualizacao:${idCondominio}`)) !== null;
   }
+
+  // ---- Módulo Guarita: agente que não fala com ele ----
+  /** Só para não gravar a cada poll (a cada ~2 s): uma escrita por condomínio a cada minuto, por instância. */
+  private readonly avisoGuaritaGravadoEm = new Map<string, number>();
+
+  /**
+   * O poll veio de um agente que NÃO declarou `capacidades=guarita` num
+   * condomínio com Guarita (o Guarita foi omitido da lista). Fica 3 min no
+   * estado compartilhado para o console avisar "atualize o agente".
+   */
+  async marcarAgenteSemGuarita(idCondominio: number, semSuporte: boolean): Promise<void> {
+    const chave = `guarita:agente-sem-suporte:${idCondominio}`;
+    const memo = `${chave}:${semSuporte ? 1 : 0}`;
+    const agora = Date.now();
+    if (agora - (this.avisoGuaritaGravadoEm.get(memo) ?? 0) < 60_000) return;
+    this.avisoGuaritaGravadoEm.set(memo, agora);
+    if (this.avisoGuaritaGravadoEm.size > 5000) this.avisoGuaritaGravadoEm.clear();
+    if (semSuporte) await this.estado.definir(chave, true, 3 * 60 * 1000);
+    else await this.estado.remover(chave);
+  }
+
+  /** O último agente deste condomínio fez poll sem a capacidade `guarita`? */
+  async agenteSemGuarita(idCondominio: number): Promise<boolean> {
+    return (await this.estado.obter<boolean>(`guarita:agente-sem-suporte:${idCondominio}`)) !== null;
+  }
 }
 
 export type AgentCommandType =
@@ -654,7 +679,10 @@ export type AgentCommandType =
   | 'remove'
   | 'snapshot'
   | 'list_users'
-  | 'remove_users';
+  | 'remove_users'
+  // Módulo Guarita: aciona um relé pelo comando 13 (com gera_evt). Um clique =
+  // um frame; o Guarita não responde ao 13, o agente confirma a escrita.
+  | 'guarita_rele';
 
 /**
  * Fator sobre a base (AGENT_COMMAND_TIMEOUT_MS) por tipo de comando.
@@ -673,6 +701,10 @@ export type AgentCommandType =
  * 25 s fica abaixo dos 30 s de resposta da origem no CloudFront da API
  * (OriginReadTimeout conferido em 10/11/2026): acima disso a requisição que
  * espera o comando recebe 504 antes de a nuvem responder.
+ *
+ * 2/3 (10 s) — `guarita_rele`: abrir portão pelo Guarita. Abertura velha não
+ * pode sair minutos depois do clique; 10 s na fila é o mesmo teto do
+ * `open_door` no agente (core/despacho.js).
  */
 const FATOR_TIMEOUT_POR_TIPO: Record<AgentCommandType, number> = {
   ping: 1,
@@ -683,6 +715,7 @@ const FATOR_TIMEOUT_POR_TIPO: Record<AgentCommandType, number> = {
   update: 5 / 3,
   list_users: 5 / 3,
   remove_users: 5 / 3,
+  guarita_rele: 2 / 3,
 };
 
 export interface AgentCommandInput {
@@ -696,6 +729,8 @@ export interface AgentCommandInput {
   validFrom?: string;
   validTo?: string;
   userTimes?: number;
+  /** `guarita_rele`: receptor (tipo 1/2/3/6, CAN 0..7) e relé (1..4) a acionar. */
+  payload?: { tipo_receptor: number; num_receptor: number; rele: number };
 }
 
 export interface AgentCommand extends AgentCommandInput {

@@ -64,9 +64,21 @@ const API_URL_PUBLICA_PADRAO = 'https://api.prestarecondominios.com.br';
  * terminal sem esses campos.
  */
 function semSegredosSeNaoSindico<T extends Record<string, any>>(d: T, user: JwtPayload): T {
-  if (isSindicoEstrito(user)) return d;
+  if (isSindicoEstrito(user)) return semPalavraDoGuarita(d);
   const { webhook_token: _t, api_password: _p, api_user: _u, ...resto } = d;
-  return resto as unknown as T;
+  return semPalavraDoGuarita(resto as unknown as T);
+}
+
+/**
+ * Módulo Guarita: a palavra de autorização (api_password) não sai em resposta
+ * de rota do console NEM para o síndico — a tela só precisa saber se há uma
+ * gravada (`tem_palavra`). Só o agente a recebe, decifrada, no poll.
+ * Outros tipos de dispositivo: resposta inalterada.
+ */
+export function semPalavraDoGuarita<T extends Record<string, any>>(d: T): T {
+  if (!d || d['tipo'] !== 'guarita') return d;
+  const { api_password: palavra, ...resto } = d;
+  return { ...resto, tem_palavra: !!palavra } as unknown as T;
 }
 
 @Controller('facial')
@@ -135,7 +147,7 @@ export class FacialController {
   create(@Body() body: CreateDeviceDto, @ReqUser() user: JwtPayload) {
     assertTenantStrict(body.id_condominio, user, `criação de dispositivo`);
     assertSindicoEstrito(user, 'criar terminal');
-    return this.service.createDevice(body, user);
+    return this.service.createDevice(body, user).then((d) => semPalavraDoGuarita(d));
   }
 
   @Put('devices/:id')
@@ -147,7 +159,7 @@ export class FacialController {
     const device = await this.service.getDevice(id);
     assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
     assertSindicoEstrito(user, 'editar terminal');
-    return this.service.updateDevice(id, body, user);
+    return this.service.updateDevice(id, body, user).then((d) => semPalavraDoGuarita(d));
   }
 
   @Delete('devices/:id')
