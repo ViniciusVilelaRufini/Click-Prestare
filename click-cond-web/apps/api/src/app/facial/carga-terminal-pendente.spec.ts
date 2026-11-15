@@ -137,17 +137,22 @@ describe('carga pendente do terminal facial', () => {
         face_id: 'pessoa_7',
         face_sync_status: 'synced',
         tipo_pessoa: 'visitante',
-        visitas: [],
+        // A janela do aparelho e o "pode estar no terminal" vêm das visitas
+        // vigentes da pessoa (rodada 4, item 3b), não só da escolhida.
+        visitas: [
+          {
+            id: 70,
+            liberado: 1,
+            bloqueado: 0,
+            data_entrada: null,
+            data_saida: null,
+            data_hora_inicio: null,
+            data_hora_termino: null,
+            dias_semana: null,
+            is_prestador: 1,
+          },
+        ],
       };
-      jest.spyOn(svc as any, 'resolverVisitaAtivaPessoa').mockReturnValue({
-        liberado: 1,
-        data_entrada: null,
-        data_saida: null,
-        data_hora_inicio: null,
-        data_hora_termino: null,
-        dias_semana: null,
-        is_prestador: 1,
-      });
 
       const r: any = await svc.pushPessoaToDevices(pessoa, { deviceIds: [2], cargaRestrita: true });
 

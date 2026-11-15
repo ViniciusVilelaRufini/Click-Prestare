@@ -51,7 +51,10 @@ import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
 import { prazoAutorizacaoRemotaMs } from '../common/janela-visita';
 import {
   contextoVisita,
+  dentroDoCondominio as estaDentroDoCondominio,
+  escolherVisita,
   prazoRemotoEfetivoMs,
+  vigentesParaEntrada,
   visitaAtiva as visitaAtivaNoTerminal,
   type ContextoVisita,
 } from './escolha-visita.util';
@@ -3246,9 +3249,14 @@ export class FacialService {
    * APARELHO é derivada; sem uma visita ativa a pessoa fica sem janela
    * nenhuma (permanente), que é o ponto do Finding 4.
    */
-  private resolverVisitaAtivaPessoa(pessoa: any, ctx: ContextoVisita = contextoVisita()): any | null {
-    const visitas: any[] = pessoa.visitas ?? [];
-    return visitas.find((v) => visitaAtivaNoTerminal(v, ctx)) ?? null;
+  private resolverVisitaAtivaPessoa(
+    pessoa: any,
+    ctx: ContextoVisita = contextoVisita(),
+    evento?: string | null,
+  ): any | null {
+    // Várias visitas vivas: ordem determinística (dentro na saída e no sync;
+    // liberada mais recentemente na entrada) — ver escolherVisita.
+    return escolherVisita(pessoa.visitas ?? [], ctx, evento);
   }
 
   /**
@@ -3280,13 +3288,14 @@ export class FacialService {
    * na hora 0 BRT, que reestende o teto de validade de fim-de-dia que
    * `dias_semana` impõe (ver `fimDoDiaBRT` abaixo).
    *
-   * TODO (não corrigido nesta rodada — documentado para quem terminar a
-   * migração): quando uma Pessoa tem várias Visitas ativas sobrepostas,
-   * `resolverVisitaAtivaPessoa` usa `.find(...)` sobre `pessoa.visitas`
-   * (populado por `include: { visitas: true }` sem `orderBy`) — a ordem de
-   * retorno do banco decide qual visita "vence", então a janela mais estreita
-   * pode ganhar e travar a pessoa fora mais cedo do que qualquer uma das
-   * visitas isoladamente permitiria.
+   * Várias visitas vivas (ex.: a pré-autorização do 202 e a liberação da
+   * portaria no 101): o aparelho guarda UMA janela por pessoa. Todas as
+   * visitas vigentes contêm o "agora", então a união delas é um intervalo só e
+   * é ela que vai (do início mais cedo ao fim mais tarde) — com só a janela da
+   * escolhida, o rosto deixaria de abrir quando ela terminasse, com a outra
+   * ainda valendo. Categoria e limite de usos vêm da visita escolhida
+   * (`escolherVisita`); visita que não vale (ex.: autorização remota vencida)
+   * não entra na união.
    */
   async pushPessoaToDevices(pessoa: any, opts: { deviceIds?: number[]; cargaRestrita?: boolean } = {}) {
     const devices = await this.prisma.facial_Devices.findMany({
@@ -3317,51 +3326,44 @@ export class FacialService {
     const agora = Date.now();
     const ctx = contextoVisita(agora, await this.vagasVigentesComPrazoRemoto(pessoa.visitas ?? []));
     const visitaAtiva = this.resolverVisitaAtivaPessoa(pessoa, ctx);
-    const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
-    const dentroDoCondominio = !!(
-      visitaAtiva?.data_entrada &&
-      !visitaAtiva?.data_saida &&
-      agora - new Date(visitaAtiva.data_entrada).getTime() < VINTE_QUATRO_HORAS_MS
-    );
-    const inicioMs = visitaAtiva?.data_hora_inicio
-      ? new Date(visitaAtiva.data_hora_inicio).getTime()
-      : null;
-    const terminoMs = visitaAtiva?.data_hora_termino
-      ? new Date(visitaAtiva.data_hora_termino).getTime()
-      : null;
-    // Autorização remota não usada: o aparelho recebe o prazo de 10 min, não
-    // o fim da janela de 4 h que o pedido abriu.
-    const prazoRemotoMs = visitaAtiva ? prazoRemotoEfetivoMs(visitaAtiva, ctx) : null;
-    const fimNoAparelhoMs =
-      prazoRemotoMs === null ? terminoMs : terminoMs === null ? prazoRemotoMs : Math.min(terminoMs, prazoRemotoMs);
-    const GRACE = 15 * 60 * 1000;
-    const dentroJanela =
-      (inicioMs === null || agora >= inicioMs - GRACE) &&
-      (terminoMs === null || agora <= terminoMs + GRACE) &&
-      (prazoRemotoMs === null || agora <= prazoRemotoMs);
+    const vigentes = vigentesParaEntrada(pessoa.visitas ?? [], ctx);
+    const dentroDoCondominio = !!visitaAtiva && estaDentroDoCondominio(visitaAtiva, agora);
 
-    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-    const agoraBRT = new Date(
-      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
-    );
-    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
-    const diasPermitidos: string[] = visitaAtiva?.dias_semana
-      ? String(visitaAtiva.dias_semana).split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean)
-      : [];
-    const diaAutorizado = diasPermitidos.length === 0 || diasPermitidos.includes(diaSemanaAtual);
-
-    const validFrom = visitaAtiva?.data_hora_inicio
-      ? this.formatDahuaTime(new Date(visitaAtiva.data_hora_inicio))
-      : undefined;
-    let validTo =
-      dentroDoCondominio && !dentroJanela
-        ? undefined
-        : fimNoAparelhoMs !== null
-          ? this.formatDahuaTime(new Date(fimNoAparelhoMs))
-          : undefined;
-    if (!dentroDoCondominio && diasPermitidos.length > 0) {
-      const fimHoje = this.fimDoDiaBRT();
-      validTo = !validTo || validTo > fimHoje ? fimHoje : validTo;
+    // Fim de cada visita NO APARELHO: o término, o prazo de 10 min da
+    // autorização remota ainda não usada (não o fim das 4 h que o pedido
+    // abriu) e, fora do condomínio, o fim do dia para quem tem dias da semana
+    // (amanhã o terminal nega sozinho, mesmo offline; o tick da virada
+    // reestende). Dentro do condomínio o teto do dia não vale: impediria a
+    // saída depois da meia-noite. undefined = sem fim (permanente).
+    const fimHoje = this.fimDoDiaBRT();
+    const fimNoAparelho = (v: any): string | undefined => {
+      const fins: string[] = [];
+      if (v.data_hora_termino) fins.push(this.formatDahuaTime(new Date(v.data_hora_termino)));
+      const prazoRemoto = prazoRemotoEfetivoMs(v, ctx);
+      if (prazoRemoto !== null) fins.push(this.formatDahuaTime(new Date(prazoRemoto)));
+      if (!dentroDoCondominio && String(v.dias_semana ?? '').split(',').some((d) => d.trim())) {
+        fins.push(fimHoje);
+      }
+      // Strings "YYYY-MM-DD HH:MM:SS" comparam cronologicamente.
+      return fins.length ? fins.sort()[0] : undefined;
+    };
+    let validFrom: string | undefined;
+    let validTo: string | undefined;
+    if (vigentes.length > 0) {
+      validFrom = vigentes.every((v) => v.data_hora_inicio)
+        ? this.formatDahuaTime(
+            new Date(Math.min(...vigentes.map((v) => new Date(v.data_hora_inicio).getTime()))),
+          )
+        : undefined;
+      const fins = vigentes.map(fimNoAparelho);
+      validTo = fins.some((f) => f === undefined) ? undefined : (fins as string[]).sort()[fins.length - 1];
+    } else {
+      // Só DENTRO, com a janela já encerrada: não manda o ValidTo vencido — o
+      // aparelho negaria a saída legítima.
+      validFrom = visitaAtiva?.data_hora_inicio
+        ? this.formatDahuaTime(new Date(visitaAtiva.data_hora_inicio))
+        : undefined;
+      validTo = undefined;
     }
 
     // A categoria (pra userTimes) vem da AUTORIZAÇÃO ativa (Visitas.is_prestador),
@@ -3393,9 +3395,9 @@ export class FacialService {
       }
     }
 
-    // Autorização "geral" (fora do condomínio, dentro da janela) — mesmo
-    // critério de `syncVisitante`.
-    const liberadoGeral = !!visitaAtiva && visitaAtiva.liberado === 1 && dentroJanela && diaAutorizado;
+    // Autorização "geral" (fora do condomínio, dentro da janela): alguma
+    // visita libera a entrada agora — mesmo critério de `syncVisitante`.
+    const liberadoGeral = vigentes.length > 0;
     const categoria: CategoriaPessoa = ehPrestador ? 'prestador' : 'visitante';
 
     let faceId: string | null = pessoa.face_id ?? null;
@@ -5868,7 +5870,10 @@ export class FacialService {
               isBacklog ? timestamp.getTime() : Date.now(),
               await this.vagasVigentesComPrazoRemoto(pessoaComVisitas.visitas ?? []),
             );
-            visitaAtivaMigrada = this.resolverVisitaAtivaPessoa(pessoaComVisitas, ctxVisita);
+            // Pelo evento FINAL (depois da alternância do "auto"): na saída, a
+            // visita em que a pessoa está dentro; na entrada, a liberada mais
+            // recentemente — é dela a unidade do aviso "chegou".
+            visitaAtivaMigrada = this.resolverVisitaAtivaPessoa(pessoaComVisitas, ctxVisita, evento);
             if (visitaAtivaMigrada) {
               v = {
                 id: visitaAtivaMigrada.id,
@@ -7087,9 +7092,16 @@ export class FacialService {
     if (evento === 'saida') {
       const dentro = candidatos
         .filter((v: any) => v.data_entrada && !v.data_saida)
-        .sort((a: any, b: any) => b.data_entrada!.getTime() - a.data_entrada!.getTime());
+        .sort((a: any, b: any) => b.data_entrada!.getTime() - a.data_entrada!.getTime() || b.id - a.id);
       if (dentro.length) return dentro[0];
     } else {
+      // Mesmo critério do rosto (escolherVisita): a visita que libera a
+      // entrada agora (janela, dia, prazo da autorização remota), liberada
+      // mais recentemente. A tag é gravada em todas as visitas da pessoa: pelo
+      // id, a entrada caía na pré-autorização de outra unidade.
+      const ctx = contextoVisita(Date.now(), await this.vagasVigentesComPrazoRemoto(candidatos));
+      const vigente = vigentesParaEntrada(candidatos, ctx).find((v) => !estaDentroDoCondominio(v, ctx.agora));
+      if (vigente) return vigente;
       const prontos = candidatos
         .filter((v: any) => v.liberado === 1 && !v.data_entrada && !v.data_saida)
         .sort((a: any, b: any) => b.id - a.id);
