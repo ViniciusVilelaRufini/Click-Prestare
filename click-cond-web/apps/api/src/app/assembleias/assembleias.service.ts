@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../prisma/generated';
 import { type Gravados, StorageService, umaVez } from '../common/storage/storage.service';
@@ -9,6 +9,7 @@ import { formatarDataHoraBrasilia, hojeBrasilia } from '../common/hora-brasilia.
 import { rotuloBloco } from '../common/rotulo-bloco.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { avisarMoradoresDoCondominio } from '../comunicados/avisar-moradores.util';
+import { maiorVinculo, nivelVinculo, normalizarTipoVinculo, type TipoVinculo } from '../common/tipo-vinculo.util';
 
 /** Título da assembleia sem espaços nas pontas; vazio é erro (não grava sem nome). */
 function tituloObrigatorio(valor: unknown): string {
@@ -96,6 +97,52 @@ function textoApuracao(
 
 /** Unidade do usuário no condomínio, para votar e mostrar o voto dela. */
 export type UnidadeVoto = { id_apto: number; rotulo: string };
+
+/** Unidade do usuário com o vínculo mais alto dele nela (uso interno). */
+type UnidadeDoUsuario = UnidadeVoto & { tipo: TipoVinculo };
+
+/** Rótulo da unidade: "Apto 11 Bloco A", "Apto 31", o bloco, ou "Unidade 5". */
+function rotuloDaUnidade(
+  idApto: number,
+  apartamento: { bloco?: string | null; apto?: string | null } | null | undefined,
+): string {
+  const apto = (apartamento?.apto ?? '').trim();
+  const bloco = rotuloBloco(apartamento?.bloco);
+  return apto ? (bloco ? `Apto ${apto} ${bloco}` : `Apto ${apto}`) : bloco || `Unidade ${idApto}`;
+}
+
+const MSG_ASSEMBLEIA_FINALIZADA_VOTO = 'Esta assembleia já foi finalizada; a votação está encerrada.';
+
+const NOME_DO_VINCULO: Record<TipoVinculo, string> = {
+  proprietario: 'proprietário',
+  inquilino: 'inquilino',
+  membro: 'membro da unidade',
+};
+
+/**
+ * Por que o vínculo não vota nesta votação (null: vota). Pauta de assembleia
+ * (`id_assembleia` preenchido): membro não vota; `somente_proprietarios` barra
+ * inquilino e membro em pauta e em enquete.
+ */
+function motivoSemDireito(
+  votacao: { id_assembleia: number | null; somente_proprietarios?: number | null },
+  tipo: TipoVinculo,
+): string | null {
+  const pauta = votacao.id_assembleia != null;
+  if (pauta && tipo === 'membro') {
+    return 'Membros da unidade não votam em pauta de assembleia: vota o proprietário (ou o inquilino, quando a pauta permite).';
+  }
+  if (votacao.somente_proprietarios && tipo !== 'proprietario') {
+    return pauta ? 'Somente proprietários votam nesta pauta.' : 'Somente proprietários votam nesta enquete.';
+  }
+  return null;
+}
+
+/** 409 de quem tenta trocar o voto dado por um vínculo mais alto. */
+function mensagemVotoProtegido(autor: TipoVinculo, quem: TipoVinculo): string {
+  const dono = autor === 'proprietario' ? 'O proprietário' : 'O inquilino';
+  return `${dono} da unidade já votou; o voto dele não pode ser alterado por ${NOME_DO_VINCULO[quem]}.`;
+}
 
 /** Voto que vale hoje numa unidade do usuário (`opcao` nulo: a unidade não votou). */
 export type VotoDaUnidade = { id_votacao: number; id_apto: number; rotulo: string; opcao: string | null };
@@ -364,7 +411,7 @@ export class AssembleiasService {
       assembleia: assembleiaFormatada,
       votacoes,
       meusVotos,
-      unidades,
+      unidades: unidades.map(({ id_apto, rotulo }) => ({ id_apto, rotulo })),
       votosPorUnidade: this.votosPorUnidade(votacoes.map((v) => v.id), unidades, apuracao),
     };
   }
@@ -622,34 +669,45 @@ export class AssembleiasService {
 
   /**
    * Um voto por UNIDADE (votação × apartamento), de quem tem vínculo
-   * (`Apartamentos_Users`, qualquer tipo) com a unidade, no condomínio da
-   * votação. O voto grava a unidade em `id_apto` — antes não gravava, e quem
-   * tinha duas unidades votava só pela de menor `id_apto`.
+   * (`Apartamentos_Users`) com a unidade, no condomínio da votação.
    *
    * Qual unidade:
    *  - `idApto` informado (app novo): tem de ser uma unidade do usuário neste
    *    condomínio, senão 403;
    *  - sem `idApto` (app antigo): a única unidade, ou a de menor `id_apto`
-   *    quando há várias — a mesma "unidade atribuída" de antes, para o app
-   *    antigo continuar votando como votava.
+   *    quando há várias — a mesma "unidade atribuída" de antes.
    *
-   * O voto novo substitui o da MESMA unidade: os votos com `id_apto = U` e os
-   * antigos (`id_apto` nulo, anteriores à coluna) das contas cuja unidade
-   * atribuída é U. Nunca o de outra unidade. A transação trava a linha do
-   * apartamento (FOR UPDATE) para que dois votos simultâneos da unidade não
-   * gravem duas linhas; se ainda sobrar duplicata (não há índice único — a
-   * coluna tem nulos antigos), a apuração fica com a mais recente.
+   * Quem vota (tipo do vínculo, o mais alto da conta na unidade):
+   *  - pauta de assembleia (`id_assembleia` preenchido): proprietário; inquilino
+   *    só se a pauta não é `somente_proprietarios` (Lei 4.591 art. 24 §4º);
+   *    membro não vota (403);
+   *  - enquete: qualquer vínculo, salvo `somente_proprietarios`.
+   *
+   * Quem troca o voto: o voto vigente da unidade só é substituído por vínculo
+   * de nível IGUAL OU SUPERIOR ao de quem o deu (409). Voto vigente antigo, sem
+   * `tipo_vinculo`: vale o vínculo atual do autor com a unidade; sem vínculo ou
+   * sem conta, membro. Substituir não apaga: o anterior recebe `substituido_em`
+   * (trilha). Mesmo autor e mesma opção: nada muda (idempotente).
+   *
+   * Vigentes da unidade U: os votos com `id_apto = U` e os antigos sem
+   * `id_apto` (e sem retrato) das contas cuja unidade atribuída é U. A
+   * transação trava a linha do apartamento (FOR UPDATE) e só então lê o
+   * vigente, para dois votos simultâneos da unidade não gravarem duas linhas
+   * vigentes; se ainda sobrar duplicata, a apuração fica com a mais recente.
    */
   async registerVoto(votacaoId: number, opcaoId: number, userId: number, requester?: JwtPayload, idApto?: number) {
     if (!this.prisma.isConnected) return { success: true };
 
     const votacao = await this.prisma.votacoes.findUnique({
       where: { id: Number(votacaoId) },
-      include: { opcoes: { select: { id: true } } },
+      include: { opcoes: { select: { id: true } }, assembleia: { select: { finalizada_em: true } } },
     });
     if (!votacao) throw new NotFoundException('Votação não encontrada');
     await this.tenant.assertEntidade(votacao.id_condominio, requester, `votação #${votacaoId}`);
 
+    if (votacao.assembleia?.finalizada_em) {
+      throw new BadRequestException(MSG_ASSEMBLEIA_FINALIZADA_VOTO);
+    }
     const status = this.calcStatusInt(votacao.data_inicio, votacao.data_termino, votacao.encerrada_em);
     if (status === 0) throw new BadRequestException('Votação ainda não foi iniciada');
     if (status === 2) throw new BadRequestException('Votação já foi finalizada');
@@ -667,49 +725,78 @@ export class AssembleiasService {
     if (minhasUnidades.length === 0) {
       throw new ForbiddenException('Somente moradores com unidade no condomínio podem votar.');
     }
-    let unidade: number;
+    let minha: UnidadeDoUsuario;
     if (idApto != null) {
-      if (!minhasUnidades.some((u) => u.id_apto === idApto)) {
-        throw new ForbiddenException('Você não tem vínculo com esta unidade.');
-      }
-      unidade = idApto;
+      const achada = minhasUnidades.find((u) => u.id_apto === idApto);
+      if (!achada) throw new ForbiddenException('Você não tem vínculo com esta unidade.');
+      minha = achada;
     } else {
       // App antigo: a menor id_apto (a lista vem ordenada).
-      unidade = minhasUnidades[0].id_apto;
+      minha = minhasUnidades[0];
     }
+    const unidade = minha.id_apto;
 
-    // Votos antigos (sem id_apto) contam pela unidade atribuída da conta: os
-    // que caem em U são os das contas do apto cuja menor unidade é U.
+    const semDireito = motivoSemDireito(votacao, minha.tipo);
+    if (semDireito) throw new ForbiddenException(semDireito);
+
+    // Vínculos da unidade: nível do autor do voto antigo (sem retrato) e, para
+    // os votos antigos sem id_apto, as contas cuja unidade atribuída é U.
     const contasDoApto = await this.prisma.apartamentos_Users.findMany({
       where: { id_apto: unidade },
-      select: { id_user: true },
+      select: { id_user: true, tipo: true },
     });
+    const tiposNaUnidade = new Map<number, Array<string | null>>();
+    for (const v of contasDoApto) tiposNaUnidade.set(v.id_user, [...(tiposNaUnidade.get(v.id_user) ?? []), v.tipo]);
     const candidatos = [...new Set([Number(userId), ...contasDoApto.map((v) => v.id_user)])];
     const atribuidas = await this.unidadesAtribuidas(votacao.id_condominio, candidatos);
     const antigosDe = candidatos.filter((id) => atribuidas.get(id) === unidade);
+    const nivelDoAutorAntigo = (idUser: number | null): TipoVinculo =>
+      (idUser == null ? null : maiorVinculo(tiposNaUnidade.get(idUser) ?? [])) ?? 'membro';
 
-    // READ COMMITTED: em REPEATABLE READ o DELETE que não acha linhas deixa
-    // gap lock no idx_vu_apto_opcao, e duas unidades DIFERENTES votando pela
-    // primeira vez ao mesmo tempo podiam dar deadlock. A mesma unidade segue
-    // serializada pelo FOR UPDATE. Deadlock residual (P2034): refaz até 2 vezes.
+    const nomeVotante = await this.nomeDoVotante(votacao.id_condominio, Number(userId));
+
+    // READ COMMITTED: em REPEATABLE READ a leitura/escrita que não acha linhas
+    // deixa gap lock no idx_vu_apto_opcao, e duas unidades DIFERENTES votando
+    // pela primeira vez ao mesmo tempo podiam dar deadlock. A mesma unidade
+    // segue serializada pelo FOR UPDATE. Deadlock residual (P2034): refaz até 2 vezes.
     for (let tentativa = 0; ; tentativa++) {
       try {
         await this.prisma.$transaction(
           async (tx) => {
             // Serializa os votos da unidade: o segundo espera o primeiro
-            // confirmar e então apaga a linha que ele gravou.
+            // confirmar e então vê o voto que ele gravou como vigente.
             await tx.$queryRaw`SELECT id FROM Apartamentos WHERE id = ${unidade} FOR UPDATE`;
-            await tx.votacoes_Usuarios.deleteMany({
+            const vigentes = await tx.votacoes_Usuarios.findMany({
               where: {
                 id_opcao: { in: idsOpcoes },
-                OR: [{ id_apto: unidade }, { id_apto: null, id_user: { in: antigosDe } }],
+                substituido_em: null,
+                OR: [{ id_apto: unidade }, { id_apto: null, tipo_vinculo: null, id_user: { in: antigosDe } }],
               },
+              select: { id: true, id_opcao: true, id_user: true, tipo_vinculo: true, created_at: true },
+              orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
             });
+            const atual = vigentes[0];
+            if (atual) {
+              const nivelAtual = atual.tipo_vinculo
+                ? normalizarTipoVinculo(atual.tipo_vinculo)
+                : nivelDoAutorAntigo(atual.id_user);
+              if (nivelVinculo(minha.tipo) < nivelVinculo(nivelAtual)) {
+                throw new ConflictException(mensagemVotoProtegido(nivelAtual, minha.tipo));
+              }
+              if (atual.id_user === Number(userId) && atual.id_opcao === Number(opcaoId)) return;
+              await tx.votacoes_Usuarios.updateMany({
+                where: { id: { in: vigentes.map((v) => v.id) } },
+                data: { substituido_em: new Date() },
+              });
+            }
             await tx.votacoes_Usuarios.create({
               data: {
                 id_opcao: Number(opcaoId),
                 id_user: Number(userId),
                 id_apto: unidade,
+                tipo_vinculo: minha.tipo,
+                nome_votante: nomeVotante,
+                rotulo_unidade: minha.rotulo.slice(0, 120),
               },
             });
           },
@@ -722,6 +809,22 @@ export class AssembleiasService {
     }
 
     return { success: true };
+  }
+
+  /**
+   * Nome do votante para o retrato do voto: o do cadastro de morador da conta
+   * NESTE condomínio, senão `Users.name`; nenhum: null.
+   */
+  private async nomeDoVotante(idCondominio: number, userId: number): Promise<string | null> {
+    const morador = await this.prisma.moradores.findFirst({
+      where: { id_user: userId, id_condominio: idCondominio },
+      select: { nome: true },
+      orderBy: { id: 'asc' },
+    });
+    const nome = (morador?.nome ?? '').trim();
+    if (nome) return nome.slice(0, 255);
+    const user = await this.prisma.users.findUnique({ where: { id: userId }, select: { name: true } });
+    return (user?.name ?? '').trim().slice(0, 255) || null;
   }
 
   /** Quantas vezes o voto é refeito depois de um deadlock (P2034). */
@@ -772,6 +875,7 @@ export class AssembleiasService {
     const vu = await this.prisma.votacoes_Usuarios.findFirst({
       where: {
         id_user: Number(userId),
+        substituido_em: null,
         opcao: { id_votacao: Number(idVotacao) },
       },
       select: { id_opcao: true },
@@ -784,7 +888,12 @@ export class AssembleiasService {
     // Novo: as unidades do usuário e o voto que vale em cada uma.
     const unidades = await this.unidadesDoUsuario(raw.id_condominio, Number(userId));
 
-    return { votacao, meuVoto, unidades, votosPorUnidade: this.votosPorUnidade([votacao.id], unidades, apuracao) };
+    return {
+      votacao,
+      meuVoto,
+      unidades: unidades.map(({ id_apto, rotulo }) => ({ id_apto, rotulo })),
+      votosPorUnidade: this.votosPorUnidade([votacao.id], unidades, apuracao),
+    };
   }
 
   // ==========================================
@@ -921,23 +1030,24 @@ export class AssembleiasService {
 
   /**
    * Unidades do usuário no condomínio (vínculo em `Apartamentos_Users`, sem
-   * repetir), em ordem de `id_apto` — a primeira é a unidade atribuída. Serve
-   * ao voto (qual unidade) e ao app (escolher a unidade e mostrar o voto dela).
+   * repetir), em ordem de `id_apto` — a primeira é a unidade atribuída — com
+   * o vínculo mais alto da conta em cada uma. Serve ao voto (qual unidade e se
+   * pode votar) e ao app (escolher a unidade e mostrar o voto dela).
    */
-  private async unidadesDoUsuario(idCondominio: number, userId: number): Promise<UnidadeVoto[]> {
+  private async unidadesDoUsuario(idCondominio: number, userId: number): Promise<UnidadeDoUsuario[]> {
     const vinculos = await this.prisma.apartamentos_Users.findMany({
       where: { id_user: Number(userId), apartamento: { id_condominio: Number(idCondominio) } },
-      select: { id_apto: true, apartamento: { select: { bloco: true, apto: true } } },
+      select: { id_apto: true, tipo: true, apartamento: { select: { bloco: true, apto: true } } },
     });
-    const porApto = new Map<number, UnidadeVoto>();
-    for (const { id_apto, apartamento } of vinculos) {
-      if (porApto.has(id_apto)) continue;
-      const apto = (apartamento?.apto ?? '').trim();
-      const bloco = rotuloBloco(apartamento?.bloco);
-      const rotulo = apto ? (bloco ? `Apto ${apto} ${bloco}` : `Apto ${apto}`) : bloco || `Unidade ${id_apto}`;
-      porApto.set(id_apto, { id_apto, rotulo });
+    const porApto = new Map<number, { id_apto: number; rotulo: string; tipos: Array<string | null> }>();
+    for (const { id_apto, tipo, apartamento } of vinculos) {
+      const atual = porApto.get(id_apto);
+      if (atual) atual.tipos.push(tipo);
+      else porApto.set(id_apto, { id_apto, rotulo: rotuloDaUnidade(id_apto, apartamento), tipos: [tipo] });
     }
-    return [...porApto.values()].sort((a, b) => a.id_apto - b.id_apto);
+    return [...porApto.values()]
+      .map(({ tipos, ...u }) => ({ ...u, tipo: maiorVinculo(tipos) ?? 'proprietario' }))
+      .sort((a, b) => a.id_apto - b.id_apto);
   }
 
   /**
@@ -977,6 +1087,8 @@ export class AssembleiasService {
     const votosDb = await this.prisma.votacoes_Usuarios.findMany({
       where: {
         id_user: Number(userId),
+        // Só os votos vigentes: o substituído fica na tabela como trilha.
+        substituido_em: null,
         opcao: {
           votacao: { id_assembleia: Number(idAssembleia) },
         },

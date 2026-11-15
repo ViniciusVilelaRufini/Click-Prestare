@@ -1,0 +1,476 @@
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { AssembleiasController } from './assembleias.controller';
+import { AssembleiasService } from './assembleias.service';
+
+/**
+ * Rodada 5 — assembleia robusta. Pedido do dono (15/11): "Hoje um inquilino
+ * consegue trocar o voto do proprietário, o resultado parcial aparece durante
+ * a votação e os votos são apagados no fim, o que traz risco jurídico."
+ *
+ * O prisma aqui é um banco em memória (where com igualdade, null, in, not,
+ * gt, OR/AND e os filtros de relação que o serviço usa): os testes conferem o
+ * que ficou gravado e o que a API devolve, não o formato das consultas.
+ */
+
+type Voto = {
+  id: number;
+  id_opcao: number;
+  id_user: number | null;
+  id_apto: number | null;
+  created_at: Date;
+  tipo_vinculo: string | null;
+  nome_votante: string | null;
+  rotulo_unidade: string | null;
+  substituido_em: Date | null;
+};
+
+const COND = 1;
+// Unidades do condomínio 1: 100 (Apto 11 Bloco A), 200 (Apto 21 Bloco A),
+// 300 (Apto 31). 400 é do condomínio 2.
+const APTOS_PADRAO = [
+  { id: 100, id_condominio: 1, bloco: 'A', apto: '11' },
+  { id: 200, id_condominio: 1, bloco: 'A', apto: '21' },
+  { id: 300, id_condominio: 1, bloco: null, apto: '31' },
+  { id: 400, id_condominio: 2, bloco: null, apto: '41' },
+];
+// Unidade 100: P=10 proprietário, I=11 inquilino, M=12 membro (dependente),
+// P2=13 outro proprietário (cônjuge); 14 é membro E proprietário (vale o mais
+// alto). Unidade 200: 20 proprietário (tipo nulo = legado), 21 inquilino.
+const VINCULOS_PADRAO = [
+  { id_user: 10, id_apto: 100, tipo: 'Proprietário' },
+  { id_user: 11, id_apto: 100, tipo: 'inquilino' },
+  { id_user: 12, id_apto: 100, tipo: 'dependente' },
+  { id_user: 13, id_apto: 100, tipo: 'proprietario' },
+  { id_user: 14, id_apto: 100, tipo: 'membro' },
+  { id_user: 14, id_apto: 100, tipo: 'proprietario' },
+  { id_user: 20, id_apto: 200, tipo: null },
+  { id_user: 21, id_apto: 200, tipo: 'Inquilino' },
+];
+const MORADORES_PADRAO = [
+  { id_user: 10, id_condominio: 1, nome: 'Paula Proprietária' },
+  { id_user: 10, id_condominio: 2, nome: 'Paula em outro prédio' },
+  { id_user: 11, id_condominio: 1, nome: 'Igor Inquilino' },
+];
+const USERS_PADRAO = [
+  { id: 10, name: 'paula.conta' },
+  { id: 11, name: 'igor.conta' },
+  { id: 12, name: 'Marcos Membro' },
+  { id: 13, name: 'Pedro Cônjuge' },
+  { id: 14, name: 'Quatorze' },
+  { id: 20, name: 'Vinte' },
+  { id: 21, name: 'Vinte e Um' },
+];
+
+const ABERTA = { data_inicio: new Date('2020-01-01T00:00:00Z'), data_termino: new Date('2099-01-01T00:00:00Z'), encerrada_em: null };
+
+/** Avalia um `where` do Prisma sobre um objeto (o subconjunto que o serviço usa). */
+function casa(row: any, where: any, relacoes: Record<string, (row: any, sub: any) => boolean> = {}): boolean {
+  if (!where) return true;
+  return Object.entries(where).every(([campo, filtro]: [string, any]) => {
+    if (filtro === undefined) return true;
+    if (campo === 'OR') return (filtro as any[]).some((w) => casa(row, w, relacoes));
+    if (campo === 'AND') return (filtro as any[]).every((w) => casa(row, w, relacoes));
+    if (campo === 'NOT') return !casa(row, filtro, relacoes);
+    if (relacoes[campo]) return relacoes[campo](row, filtro);
+    const v = row[campo];
+    if (filtro === null) return v === null || v === undefined;
+    if (typeof filtro === 'object' && !(filtro instanceof Date)) {
+      if ('in' in filtro) return filtro.in.includes(v);
+      if ('equals' in filtro) return v === filtro.equals;
+      if ('not' in filtro) return filtro.not === null ? v !== null && v !== undefined : v !== filtro.not;
+      if ('gt' in filtro) return v != null && v > filtro.gt;
+      throw new Error(`filtro não suportado no fake: ${campo} ${JSON.stringify(filtro)}`);
+    }
+    if (filtro instanceof Date) return v instanceof Date && v.getTime() === filtro.getTime();
+    return v === filtro;
+  });
+}
+
+function build(
+  opts: {
+    votacoes?: any[];
+    votos?: Array<Partial<Voto> & { id: number; id_opcao: number }>;
+    vinculos?: Array<{ id_user: number; id_apto: number; tipo: string | null }>;
+    assembleias?: any[];
+    aptos?: typeof APTOS_PADRAO;
+  } = {},
+) {
+  const aptos = opts.aptos ?? APTOS_PADRAO;
+  const vinculos = opts.vinculos ?? VINCULOS_PADRAO;
+  // Votação 5: pauta da assembleia 3 (opções 51 e 52). Votação 6: enquete
+  // avulsa (opções 61 e 62). Ambas abertas.
+  const votacoes: any[] = (
+    opts.votacoes ?? [
+      { id: 5, id_assembleia: 3, is_enquete: 0, titulo: 'Contas 2025', opcoes: [{ id: 51, nome: 'Aprovar' }, { id: 52, nome: 'Rejeitar' }] },
+      { id: 6, id_assembleia: null, is_enquete: 1, titulo: 'Cor da fachada', opcoes: [{ id: 61, nome: 'Azul' }, { id: 62, nome: 'Verde' }] },
+    ]
+  ).map((v) => ({ id_condominio: COND, descricao: '', somente_proprietarios: 0, created_at: new Date('2026-11-01T00:00:00Z'), ...ABERTA, ...v }));
+  const assembleias: any[] = (opts.assembleias ?? [{ id: 3 }]).map((a) => ({
+    id_condominio: COND, titulo: 'AGO 2026', descricao: '', data: new Date('2026-11-20T00:00:00Z'), hora: null,
+    link: '', local: '', anexos: '', finalizada_em: null, finalizada_por: null, id_documento_ata: null, apuracao_hash: null, ...a,
+  }));
+  let seq = 1000;
+  let relogio = Date.parse('2026-11-14T12:00:00Z');
+  const votos: Voto[] = (opts.votos ?? []).map((v) => ({
+    id_user: null, id_apto: null, created_at: new Date('2026-11-14T10:00:00Z'),
+    tipo_vinculo: null, nome_votante: null, rotulo_unidade: null, substituido_em: null, ...v,
+  }));
+  const documentos: any[] = [];
+  const ordem: string[] = [];
+
+  const votacaoDaOpcao = (idOpcao: number) => votacoes.find((v) => v.opcoes.some((o: any) => o.id === idOpcao));
+  const relVoto = {
+    opcao: (row: Voto, sub: any) => {
+      const vt = votacaoDaOpcao(row.id_opcao);
+      if (!vt) return false;
+      if (sub.id_votacao !== undefined && vt.id !== sub.id_votacao) return false;
+      if (sub.votacao?.id_assembleia !== undefined && vt.id_assembleia !== sub.votacao.id_assembleia) return false;
+      return true;
+    },
+  };
+  const linhaVinculo = (v: { id_user: number; id_apto: number; tipo: string | null }) => ({
+    ...v,
+    apartamento: aptos.find((a) => a.id === v.id_apto),
+  });
+  const relVinculo = { apartamento: (row: any, sub: any) => !!row.apartamento && casa(row.apartamento, sub) };
+  const ordenar = (lista: Voto[]) => [...lista].sort((a, b) => b.created_at.getTime() - a.created_at.getTime() || b.id - a.id);
+  const assembleiaDe = (v: any) => assembleias.find((a) => a.id === v.id_assembleia) ?? null;
+
+  const votacaoCompleta = (v: any, include: any) => {
+    const filtroVotos = include?.opcoes?.include?.votos?.where;
+    return {
+      ...v,
+      assembleia: assembleiaDe(v) ? { finalizada_em: assembleiaDe(v).finalizada_em } : null,
+      condominio: { _count: { apartamentos: aptos.filter((a) => a.id_condominio === v.id_condominio).length } },
+      opcoes: v.opcoes.map((o: any) => ({
+        ...o,
+        votos: votos.filter((x) => x.id_opcao === o.id && casa(x, filtroVotos)).map((x) => ({ ...x })),
+      })),
+    };
+  };
+
+  const prisma: any = {
+    isConnected: true,
+    votacoes: {
+      findUnique: jest.fn(async ({ where, include }: any) => {
+        const v = votacoes.find((x) => x.id === where.id);
+        return v ? votacaoCompleta(v, include) : null;
+      }),
+      findMany: jest.fn(async ({ where, include }: any) =>
+        votacoes.filter((v) => casa(v, where)).map((v) => votacaoCompleta(v, include)),
+      ),
+      update: jest.fn(async ({ where, data }: any) => {
+        const v = votacoes.find((x) => x.id === where.id);
+        Object.assign(v, data);
+        return v;
+      }),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const alvo = votacoes.filter((v) => casa(v, where));
+        for (const v of alvo) Object.assign(v, data);
+        return { count: alvo.length };
+      }),
+      delete: jest.fn(async ({ where }: any) => {
+        ordem.push(`delete votacao ${where.id}`);
+        return {};
+      }),
+      create: jest.fn(async ({ data }: any) => ({ id: 77, ...data })),
+    },
+    votacoes_Opcoes: { createMany: jest.fn(async () => ({ count: 2 })) },
+    apartamentos: {
+      findMany: jest.fn(async ({ where }: any) => aptos.filter((a) => casa(a, where))),
+    },
+    apartamentos_Users: {
+      findMany: jest.fn(async ({ where }: any) => vinculos.map(linhaVinculo).filter((row) => casa(row, where, relVinculo))),
+    },
+    moradores: {
+      findFirst: jest.fn(async ({ where }: any) => MORADORES_PADRAO.find((m) => casa(m, where)) ?? null),
+      findMany: jest.fn(async ({ where }: any) => MORADORES_PADRAO.filter((m) => casa(m, where))),
+    },
+    users: {
+      findUnique: jest.fn(async ({ where }: any) => USERS_PADRAO.find((u) => u.id === where.id) ?? null),
+      findMany: jest.fn(async ({ where }: any) => USERS_PADRAO.filter((u) => casa(u, where))),
+    },
+    votacoes_Usuarios: {
+      findMany: jest.fn(async ({ where, orderBy }: any) => {
+        const l = votos.filter((v) => casa(v, where, relVoto));
+        return orderBy ? ordenar(l) : l;
+      }),
+      findFirst: jest.fn(async ({ where }: any) => ordenar(votos.filter((v) => casa(v, where, relVoto)))[0] ?? null),
+      count: jest.fn(async ({ where }: any) => votos.filter((v) => casa(v, where, relVoto)).length),
+      create: jest.fn(async ({ data }: any) => {
+        ordem.push('create');
+        relogio += 60_000;
+        const novo: Voto = {
+          id: ++seq, id_apto: null, created_at: new Date(relogio), tipo_vinculo: null, nome_votante: null,
+          rotulo_unidade: null, substituido_em: null, ...data,
+        };
+        votos.push(novo);
+        return novo;
+      }),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        ordem.push('updateMany');
+        const alvo = votos.filter((v) => casa(v, where, relVoto));
+        for (const v of alvo) Object.assign(v, data);
+        return { count: alvo.length };
+      }),
+      deleteMany: jest.fn(async () => {
+        throw new Error('voto não se apaga');
+      }),
+    },
+    assembleias: {
+      findUnique: jest.fn(async ({ where }: any) => assembleias.find((a) => a.id === where.id) ?? null),
+      findFirst: jest.fn(async ({ where }: any) => assembleias.find((a) => casa(a, where)) ?? null),
+      findMany: jest.fn(async ({ where }: any) => assembleias.filter((a) => casa(a, where))),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const alvo = assembleias.filter((a) => casa(a, where));
+        for (const a of alvo) Object.assign(a, data);
+        return { count: alvo.length };
+      }),
+      delete: jest.fn(async () => {
+        ordem.push('delete assembleia');
+        return {};
+      }),
+    },
+    documentos: {
+      create: jest.fn(async ({ data }: any) => {
+        const d = { id: 900 + documentos.length, ...data };
+        documentos.push(d);
+        return d;
+      }),
+      findUnique: jest.fn(async ({ where }: any) => documentos.find((d) => d.id === where.id) ?? null),
+    },
+  };
+  prisma.$queryRaw = jest.fn(async () => {
+    ordem.push('lock');
+    return [];
+  });
+  prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
+  const tenant: any = { assertEntidade: jest.fn(async () => undefined), assertCondominio: jest.fn(async () => undefined) };
+  const storage: any = {
+    isDataUrl: (v: unknown) => typeof v === 'string' && v.startsWith('data:') && v.includes('base64,'),
+    uploadDataUrl: jest.fn(async (_d: string, pasta: string) => `https://bucket.s3.amazonaws.com/${pasta}/${++seq}.bin`),
+    exigirArquivoDoRegistro: jest.fn(async () => undefined),
+    deleteUrl: jest.fn(async () => true),
+    chaveDoArquivo: jest.fn(() => null),
+  };
+  const svc = new AssembleiasService(prisma, storage, tenant);
+  return { svc, prisma, votos, votacoes, assembleias, documentos, storage, ordem };
+}
+
+const morador = (id: number) => ({ sub: id, nome: `U${id}`, typeAccess: 'Morador', user: { id } }) as any;
+const sindico: any = { sub: 7, typeAccess: 'Sindico', user: { id: 7 } };
+const votar = (svc: AssembleiasService, user: number, votacao: number, opcao: number, idApto?: number) =>
+  svc.registerVoto(votacao, opcao, user, morador(user), idApto);
+const vigentes = (votos: Voto[]) => votos.filter((v) => v.substituido_em == null);
+
+describe('2.1 — quem vota e quem pode trocar o voto', () => {
+  describe('hierarquia da unidade (pauta e enquete)', () => {
+    it.each([5, 6])('votação %i: inquilino NÃO troca o voto do proprietário (409) e nada muda', async (vt) => {
+      const { svc, votos } = build();
+      const [sim, nao] = vt === 5 ? [51, 52] : [61, 62];
+      await votar(svc, 10, vt, sim);
+      await expect(votar(svc, 11, vt, nao)).rejects.toThrow(
+        new ConflictException('O proprietário da unidade já votou; o voto dele não pode ser alterado por inquilino.'),
+      );
+      expect(votos.map((v) => [v.id_user, v.id_opcao, v.substituido_em])).toEqual([[10, sim, null]]);
+    });
+
+    it('membro não troca o voto do inquilino nem do proprietário na enquete (409, texto próprio)', async () => {
+      const { svc } = build();
+      await votar(svc, 11, 6, 61);
+      await expect(votar(svc, 12, 6, 62)).rejects.toThrow(
+        new ConflictException('O inquilino da unidade já votou; o voto dele não pode ser alterado por membro da unidade.'),
+      );
+      await votar(svc, 10, 6, 61);
+      await expect(votar(svc, 12, 6, 62)).rejects.toThrow(
+        new ConflictException('O proprietário da unidade já votou; o voto dele não pode ser alterado por membro da unidade.'),
+      );
+    });
+
+    it('proprietário substitui o voto do inquilino: o antigo FICA, com substituido_em', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-15T13:00:00Z'), doNotFake: ['nextTick', 'setImmediate'] });
+      try {
+        const { svc, votos } = build();
+        await votar(svc, 11, 5, 52);
+        await votar(svc, 10, 5, 51);
+        expect(votos.map((v) => [v.id_user, v.id_opcao, v.tipo_vinculo])).toEqual([
+          [11, 52, 'inquilino'],
+          [10, 51, 'proprietario'],
+        ]);
+        expect(votos[0].substituido_em?.toISOString()).toBe('2026-11-15T13:00:00.000Z');
+        expect(votos[1].substituido_em).toBeNull();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('outro proprietário (mesmo nível) substitui; membro substitui membro', async () => {
+      const { svc, votos } = build();
+      await votar(svc, 10, 6, 61);
+      await votar(svc, 13, 6, 62);
+      expect(vigentes(votos).map((v) => [v.id_user, v.id_opcao])).toEqual([[13, 62]]);
+      const b = build();
+      await votar(b.svc, 12, 6, 61);
+      await votar(b.svc, 11, 6, 62); // inquilino > membro
+      expect(vigentes(b.votos).map((v) => v.id_user)).toEqual([11]);
+    });
+
+    it('vários vínculos da mesma conta na unidade: vale o mais alto (membro + proprietário = proprietário)', async () => {
+      const { svc, votos } = build();
+      await votar(svc, 14, 5, 51);
+      expect(votos[0].tipo_vinculo).toBe('proprietario');
+      await expect(votar(svc, 11, 5, 52)).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('tipo nulo (legado) é proprietário', async () => {
+      const { svc, votos } = build();
+      await votar(svc, 20, 5, 51);
+      expect(votos[0].tipo_vinculo).toBe('proprietario');
+      await expect(votar(svc, 21, 5, 52)).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('votar de novo na MESMA opção pelo mesmo autor: sucesso, sem linha nova', async () => {
+      const { svc, votos } = build();
+      await votar(svc, 10, 5, 51);
+      await expect(votar(svc, 10, 5, 51)).resolves.toEqual({ success: true });
+      expect(votos).toHaveLength(1);
+      expect(votos[0].substituido_em).toBeNull();
+    });
+
+    it('o mesmo autor trocando de opção: o voto anterior fica como substituído', async () => {
+      const { svc, votos } = build();
+      await votar(svc, 10, 5, 51);
+      await votar(svc, 10, 5, 52);
+      expect(votos.map((v) => [v.id_opcao, v.substituido_em == null])).toEqual([[51, false], [52, true]]);
+    });
+
+    it('voto de outra unidade não é tocado', async () => {
+      const { svc, votos } = build();
+      await votar(svc, 20, 5, 51);
+      await votar(svc, 10, 5, 52);
+      expect(vigentes(votos).map((v) => [v.id_apto, v.id_opcao])).toEqual([[200, 51], [100, 52]]);
+    });
+  });
+
+  describe('voto vigente antigo (sem tipo_vinculo)', () => {
+    it('nível do vínculo ATUAL do autor: voto antigo do proprietário não é trocado pelo inquilino', async () => {
+      const { svc, votos } = build({ votos: [{ id: 1, id_opcao: 51, id_user: 10, id_apto: 100 }] });
+      await expect(votar(svc, 11, 5, 52)).rejects.toBeInstanceOf(ConflictException);
+      expect(votos).toHaveLength(1);
+    });
+
+    it('voto antigo sem id_apto (unidade atribuída) também conta como vigente da unidade', async () => {
+      const { svc, votos } = build({ votos: [{ id: 1, id_opcao: 51, id_user: 10, id_apto: null }] });
+      await expect(votar(svc, 11, 5, 52)).rejects.toBeInstanceOf(ConflictException);
+      await votar(svc, 13, 5, 52);
+      expect(votos.map((v) => [v.id, v.substituido_em == null])).toEqual([[1, false], [1001, true]]);
+    });
+
+    it('autor que saiu da unidade ou excluiu a conta conta como membro: qualquer um substitui', async () => {
+      const saiu = build({ votos: [{ id: 1, id_opcao: 61, id_user: 99, id_apto: 100 }] });
+      await votar(saiu.svc, 12, 6, 62);
+      expect(vigentes(saiu.votos).map((v) => v.id_user)).toEqual([12]);
+      const semConta = build({ votos: [{ id: 1, id_opcao: 61, id_user: null, id_apto: 100 }] });
+      await votar(semConta.svc, 12, 6, 62);
+      expect(vigentes(semConta.votos).map((v) => v.id_user)).toEqual([12]);
+    });
+  });
+
+  describe('direito de voto', () => {
+    it('membro NÃO vota em pauta de assembleia (403 com mensagem clara)', async () => {
+      const { svc, votos } = build();
+      await expect(votar(svc, 12, 5, 51)).rejects.toThrow(
+        new ForbiddenException(
+          'Membros da unidade não votam em pauta de assembleia: vota o proprietário (ou o inquilino, quando a pauta permite).',
+        ),
+      );
+      expect(votos).toEqual([]);
+    });
+
+    it('membro vota em enquete', async () => {
+      const { svc, votos } = build();
+      await votar(svc, 12, 6, 61);
+      expect(votos.map((v) => [v.id_user, v.tipo_vinculo])).toEqual([[12, 'membro']]);
+    });
+
+    it('inquilino vota em pauta quando ela não é "somente proprietários"', async () => {
+      const { svc, votos } = build();
+      await votar(svc, 11, 5, 51);
+      expect(votos.map((v) => v.tipo_vinculo)).toEqual(['inquilino']);
+    });
+
+    it.each([
+      [5, 'Somente proprietários votam nesta pauta.'],
+      [6, 'Somente proprietários votam nesta enquete.'],
+    ])('somente_proprietarios barra inquilino e membro na votação %i (403)', async (vt, msg) => {
+      const { svc, votos, votacoes } = build();
+      votacoes.find((v) => v.id === vt).somente_proprietarios = 1;
+      const opcao = vt === 5 ? 51 : 61;
+      await expect(votar(svc, 11, vt, opcao)).rejects.toThrow(new ForbiddenException(msg));
+      if (vt === 6) await expect(votar(svc, 12, vt, opcao)).rejects.toThrow(new ForbiddenException(msg));
+      await votar(svc, 10, vt, opcao);
+      expect(votos.map((v) => v.id_user)).toEqual([10]);
+    });
+  });
+
+  describe('retrato gravado no voto', () => {
+    it('tipo, nome do morador NAQUELE condomínio, rótulo da unidade, id_apto e id_user', async () => {
+      const { svc, votos } = build();
+      await votar(svc, 10, 5, 51);
+      expect(votos[0]).toMatchObject({
+        id_user: 10, id_apto: 100, id_opcao: 51, tipo_vinculo: 'proprietario',
+        nome_votante: 'Paula Proprietária', rotulo_unidade: 'Apto 11 Bloco A', substituido_em: null,
+      });
+    });
+
+    it('sem cadastro de morador no condomínio: Users.name', async () => {
+      const { svc, votos } = build();
+      await votar(svc, 13, 5, 51);
+      expect(votos[0].nome_votante).toBe('Pedro Cônjuge');
+    });
+  });
+
+  describe('recusas (400)', () => {
+    it('assembleia da pauta finalizada', async () => {
+      const { svc, votos } = build({ assembleias: [{ id: 3, finalizada_em: new Date('2026-11-14T00:00:00Z') }] });
+      await expect(votar(svc, 10, 5, 51)).rejects.toThrow(
+        new BadRequestException('Esta assembleia já foi finalizada; a votação está encerrada.'),
+      );
+      expect(votos).toEqual([]);
+    });
+
+    it('votação encerrada (encerrada_em), mesmo dentro do período', async () => {
+      const { svc, votacoes } = build();
+      votacoes[1].encerrada_em = new Date('2026-11-14T00:00:00Z');
+      await expect(votar(svc, 10, 6, 61)).rejects.toThrow(new BadRequestException('Votação já foi finalizada'));
+    });
+
+    it('fora do período', async () => {
+      const { svc, votacoes } = build();
+      votacoes[1].data_inicio = new Date('2099-01-01T00:00:00Z');
+      await expect(votar(svc, 10, 6, 61)).rejects.toThrow(new BadRequestException('Votação ainda não foi iniciada'));
+      votacoes[1].data_inicio = new Date('2020-01-01T00:00:00Z');
+      votacoes[1].data_termino = new Date('2020-02-01T00:00:00Z');
+      await expect(votar(svc, 10, 6, 61)).rejects.toThrow(new BadRequestException('Votação já foi finalizada'));
+    });
+  });
+
+  describe('transação', () => {
+    it('trava a unidade (FOR UPDATE) antes de ler o voto vigente e de gravar; nunca apaga voto', async () => {
+      const { svc, prisma, ordem } = build();
+      await votar(svc, 11, 5, 52);
+      await votar(svc, 10, 5, 51);
+      expect(ordem).toEqual(['lock', 'create', 'lock', 'updateMany', 'create']);
+      expect(prisma.votacoes_Usuarios.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'ReadCommitted' });
+    });
+  });
+
+  it('payload exato do app 1.2.48 ({ voto: { votacao_id, opcao_id, id_apto? } }) continua 200', async () => {
+    const { svc, votos } = build();
+    const ctrl = new AssembleiasController(svc);
+    await expect(ctrl.registerVoto({ voto: { votacao_id: 5, opcao_id: 51 } }, morador(10))).resolves.toEqual({ success: true });
+    await expect(ctrl.registerVoto({ voto: { votacao_id: 6, opcao_id: 61, id_apto: 200 } }, morador(20))).resolves.toEqual({ success: true });
+    expect(votos.map((v) => [v.id_user, v.id_apto])).toEqual([[10, 100], [20, 200]]);
+  });
+});
