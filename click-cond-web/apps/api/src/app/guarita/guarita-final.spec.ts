@@ -216,6 +216,20 @@ describe('remoção que esgota as tentativas', () => {
   });
 });
 
+describe('R7 — lido fora de faixa não derruba o resultado', () => {
+  it('lido.unidade 12000 e bloco 999 são ignorados e o resto é processado', async () => {
+    const m = montar();
+    m.db.linhas('moradores')[0].apartamento = '202';
+    const ed = (await m.ops.enfileirarEdicao(1, 'x'))!;
+    await m.agente.buscarOperacoes(DEV);
+    await expect(
+      m.agente.registrarResultado(DEV, ed.id_operacao, { ok: true, codigo: 0, lido: { unidade: 12000, bloco: 999 } }),
+    ).resolves.toEqual({ ok: true });
+    expect(tag(m.db).guarita_estado).toBe('gravado');
+    expect(m.agente.validarResultado({ ok: false, conflito: true, lido: { unidade: 12000, bloco: 1, frame_hex: 'zz' } })).toEqual({ ok: false, conflito: true });
+  });
+});
+
 describe('R6 — conflito de cadastro quando o morador sai', () => {
   it('o Prestare nunca gravou este dispositivo: desfaz só no Prestare, sem alerta', async () => {
     const m = montar();

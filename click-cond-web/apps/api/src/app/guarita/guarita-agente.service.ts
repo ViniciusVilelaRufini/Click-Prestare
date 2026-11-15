@@ -359,8 +359,11 @@ export class GuaritaAgenteService {
     let lido: { unidade?: number; bloco?: number; frame_hex?: string } | null = null;
     if (b.lido && typeof b.lido === 'object') {
       const l = b.lido as Record<string, unknown>;
-      const unidade = inteiroOuNulo(l.unidade, 'lido.unidade', 0, 9999);
-      const bloco = inteiroOuNulo(l.bloco, 'lido.bloco', 0, 255);
+      // R7: `lido` é informativo — fora de faixa é ignorado, sem derrubar o resultado.
+      const dentro = (v: unknown, max: number): number | null =>
+        typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= max ? v : null;
+      const unidade = dentro(l.unidade, 9999);
+      const bloco = dentro(l.bloco, 255);
       const frameLido = typeof l.frame_hex === 'string' && /^[0-9a-fA-F]{78}$/.test(l.frame_hex.trim()) ? l.frame_hex.trim().toUpperCase() : null;
       const montado = {
         ...(unidade !== null && bloco !== null && { unidade, bloco }),
