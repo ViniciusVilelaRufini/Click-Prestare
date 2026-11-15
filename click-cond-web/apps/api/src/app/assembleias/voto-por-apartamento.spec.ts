@@ -44,7 +44,9 @@ describe('Votação — um voto por apartamento', () => {
           opcoes: OPCOES,
         })),
         findMany: jest.fn(async () => [{
+          // Encerrada: a contagem só aparece depois de encerrar (rodada 5).
           id: 5, id_condominio: ID_COND, titulo: 'QA', descricao: null, data_inicio: null, data_termino: null,
+          encerrada_em: new Date('2026-11-12T00:00:00Z'),
           opcoes: [
             { id: 9, nome: 'Sim', votos: votos.filter((v) => v.id_opcao === 9) },
             { id: 10, nome: 'Não', votos: votos.filter((v) => v.id_opcao === 10) },

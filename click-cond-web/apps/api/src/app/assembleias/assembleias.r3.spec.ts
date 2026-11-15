@@ -35,49 +35,57 @@ describe('AssembleiasService — rodada 3', () => {
     return { service, prisma };
   }
 
+  // Rodada 5: encerrar grava `encerrada_em` (o status sai dela) e o término
+  // vira HOJE de Brasília quando estava no futuro — não mais "ontem". Os
+  // casos completos estão em encerrar-votacao.spec.ts.
   describe('M3 — encerrar enquete às 22h de Brasília', () => {
     afterEach(() => jest.useRealTimers());
 
-    it('grava o término como ONTEM no calendário de Brasília (a enquete sai como encerrada)', async () => {
+    it('o término exibido é HOJE no calendário de Brasília (12/11, não 13/11 do UTC) e a enquete fica encerrada', async () => {
       // 13/11 01:30 UTC = 12/11 22:30 em Brasília.
       jest.useFakeTimers({ now: new Date('2026-11-13T01:30:00Z') });
       const { service, prisma } = build();
+      prisma.votacoes.findUnique.mockResolvedValue({ id_condominio: 1, encerrada_em: null, data_termino: new Date('2026-11-30T00:00:00Z') });
       await service.finishVotacao(9, sindico);
-      const termino: Date = prisma.votacoes.update.mock.calls[0][0].data.data_termino;
-      // @db.Date guarda a data UTC: tem de ser 11/11, não 12/11.
-      expect(termino.toISOString().slice(0, 10)).toBe('2026-11-11');
-      expect((service as any).calcStatusInt(new Date('2026-11-01T00:00:00Z'), termino)).toBe(2);
-    });
-
-    // Guarda de regressão (passa antes e depois da correção): de manhã o dia
-    // UTC e o de Brasília coincidem; o defeito só aparece entre 21h e 24h.
-    it('regressão: de manhã continua gravando ontem', async () => {
-      jest.useFakeTimers({ now: new Date('2026-11-12T12:00:00Z') });
-      const { service, prisma } = build();
-      await service.finishVotacao(9, sindico);
-      const termino: Date = prisma.votacoes.update.mock.calls[0][0].data.data_termino;
-      expect(termino.toISOString().slice(0, 10)).toBe('2026-11-11');
+      const { data } = prisma.votacoes.update.mock.calls[0][0];
+      expect(data.data_termino.toISOString().slice(0, 10)).toBe('2026-11-12');
+      expect((service as any).calcStatusInt(new Date('2026-11-01T00:00:00Z'), data.data_termino, data.encerrada_em)).toBe(2);
     });
   });
 
   describe('M3 — enquete que começou hoje e foi encerrada hoje', () => {
     afterEach(() => jest.useRealTimers());
 
-    it('mostra "13/11 a 13/11" (não "13/11 a 12/11") e continua encerrada', async () => {
+    it('mostra "13/11 a 13/11" e continua encerrada', async () => {
       jest.useFakeTimers({ now: new Date('2026-11-13T15:00:00Z') });
       const { service, prisma } = build();
+      prisma.votacoes.findUnique.mockResolvedValue({ id_condominio: 1, encerrada_em: null, data_termino: new Date('2026-11-20T00:00:00Z') });
       await service.finishVotacao(9, sindico);
-      const termino: Date = prisma.votacoes.update.mock.calls[0][0].data.data_termino;
+      const { data } = prisma.votacoes.update.mock.calls[0][0];
       prisma.votacoes.findMany = jest.fn(async () => [
         {
           id: 9, id_condominio: 1, titulo: 'Academia', descricao: '', created_at: new Date(),
-          data_inicio: new Date('2026-11-13T00:00:00Z'), data_termino: termino, opcoes: [],
+          data_inicio: new Date('2026-11-13T00:00:00Z'), data_termino: data.data_termino,
+          encerrada_em: data.encerrada_em, opcoes: [],
         },
       ]);
       const [enquete] = await service.enqueteGetAll(1, sindico);
       expect(enquete.data_inicio).toBe('13/11/2026');
       expect(enquete.data_termino).toBe('13/11/2026');
       expect(enquete.status).toBe(2);
+    });
+
+    it('linha antiga (término = ontem, sem encerrada_em) continua "13/11 a 13/11" e encerrada', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-13T15:00:00Z') });
+      const { service, prisma } = build();
+      prisma.votacoes.findMany = jest.fn(async () => [
+        {
+          id: 9, id_condominio: 1, titulo: 'Academia', descricao: '', created_at: new Date(),
+          data_inicio: new Date('2026-11-13T00:00:00Z'), data_termino: new Date('2026-11-12T00:00:00Z'), opcoes: [],
+        },
+      ]);
+      const [enquete] = await service.enqueteGetAll(1, sindico);
+      expect([enquete.data_termino, enquete.status]).toEqual(['13/11/2026', 2]);
     });
   });
 

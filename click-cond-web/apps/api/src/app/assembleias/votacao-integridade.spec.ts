@@ -30,7 +30,9 @@ describe('Votação — integridade', () => {
     const prisma: any = {
       votacoes: {
         findMany: jest.fn(async () => [{
+          // Encerrada: a contagem só aparece depois de encerrar (rodada 5).
           id: 5, id_condominio: 1, titulo: 'QA', descricao: null, data_inicio: null, data_termino: null,
+          encerrada_em: new Date('2026-09-24T00:00:00Z'),
           opcoes: [
             { id: 9, nome: 'Sim', votos: [
               { id: 1, id_user: 50, created_at: new Date('2026-09-23T12:00:00Z') },

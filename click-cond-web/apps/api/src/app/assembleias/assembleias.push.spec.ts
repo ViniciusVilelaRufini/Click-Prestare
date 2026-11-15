@@ -39,6 +39,7 @@ function prismaBase(extra: Record<string, any> = {}) {
       findFirst: jest.fn(async () => ({ id: 5, anexos: '' })),
       findUnique: jest.fn(async () => ({ id_condominio: 1, titulo: 'AGO 2026', data: new Date('2026-11-20T00:00:00Z') })),
       delete: jest.fn(async () => ({})),
+      updateMany: jest.fn(async () => ({ count: 1 })),
     },
     votacoes: {
       create: jest.fn(async () => ({ id: 9 })),
@@ -46,6 +47,7 @@ function prismaBase(extra: Record<string, any> = {}) {
     },
     votacoes_Opcoes: { createMany: jest.fn(async () => ({ count: 2 })) },
     apartamentos_Users: { findMany: jest.fn(async () => []) },
+    votacoes_Usuarios: { count: jest.fn(async () => 0) },
     documentos: { create: jest.fn(async ({ data }: any) => ({ id: 62, ...data })) },
     ...extra,
   };
@@ -216,7 +218,9 @@ describe('push ao publicar ATA', () => {
       svc.finish(1, { id: 2, doc: 'data:application/pdf;base64,JVBERi0xLjQK' }, sindico),
     ).resolves.toEqual(expect.objectContaining({ message: expect.any(String) }));
     await esvaziar();
-    expect(prisma.assembleias.delete).toHaveBeenCalledTimes(1);
+    // Rodada 5: finalizar marca a assembleia (não apaga).
+    expect(prisma.assembleias.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
   });
 
   describe('Documentos', () => {

@@ -13,9 +13,10 @@ import { AssembleiasService } from './assembleias.service';
  *  - `id_apto` de unidade sem vínculo com o usuário → 403;
  *  - sem `id_apto` (app antigo) → a única unidade, ou a menor `id_apto` quando
  *    há várias (a mesma atribuída de antes, para não quebrar o app antigo);
- *  - um voto por (votação, unidade): o novo apaga o da mesma unidade — inclusive
- *    o voto antigo, sem `id_apto`, de conta cuja unidade atribuída é ela — e
- *    nunca o de outra unidade;
+ *  - um voto por (votação, unidade): o novo SUBSTITUI o da mesma unidade —
+ *    inclusive o voto antigo, sem `id_apto`, de conta cuja unidade atribuída é
+ *    ela — e nunca o de outra unidade. Desde a rodada 5 o substituído não é
+ *    apagado: fica com `substituido_em` (trilha) e só os vigentes contam;
  *  - a apuração deduplica por `id_apto` (ou pela unidade atribuída no voto
  *    antigo), fica com o mais recente e descarta votante sem vínculo.
  *
@@ -51,7 +52,12 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
     { id: 6, id_condominio: COND, id_assembleia: 3, is_enquete: 0, titulo: 'Portão', opcoes: [{ id: 11, nome: 'Sim' }, { id: 12, nome: 'Não' }] },
   ];
 
-  type Voto = { id: number; id_opcao: number; id_user: number; id_apto: number | null; created_at: Date };
+  type Voto = {
+    id: number; id_opcao: number; id_user: number; id_apto: number | null; created_at: Date;
+    tipo_vinculo?: string | null; substituido_em?: Date | null;
+  };
+  /** Votos que valem (o substituído fica na tabela como trilha). */
+  const vigentes = (lista: Voto[]) => lista.filter((v) => v.substituido_em == null);
 
   /** Avalia um `where` do Prisma sobre um objeto (o subconjunto que o serviço usa). */
   function casa(row: any, where: any, relacoes: Record<string, (row: any, sub: any) => boolean> = {}): boolean {
@@ -61,6 +67,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       if (campo === 'AND') return (filtro as any[]).every((w) => casa(row, w, relacoes));
       if (relacoes[campo]) return relacoes[campo](row, filtro);
       const v = row[campo];
+      if (filtro === undefined) return true;
       if (filtro === null) return v === null || v === undefined;
       if (typeof filtro === 'object' && !(filtro instanceof Date)) {
         if ('in' in filtro) return filtro.in.includes(v);
@@ -75,7 +82,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
     const vinculos = opts.vinculos ?? VINCULOS_PADRAO;
     let seq = 1000;
     let relogio = Date.parse('2026-11-11T12:00:00Z');
-    const votos: Voto[] = (opts.votos ?? []).map((v: any) => ({ id_apto: null, ...v }));
+    const votos: Voto[] = (opts.votos ?? []).map((v: any) => ({ id_apto: null, tipo_vinculo: null, substituido_em: null, ...v }));
     const ordem: string[] = [];
     const locks: Array<{ sql: string; valores: unknown[] }> = [];
 
@@ -117,21 +124,25 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
             ...vt,
             data_inicio: new Date('2020-01-01T00:00:00Z'),
             data_termino: new Date('2099-01-01T00:00:00Z'),
+            encerrada_em: null,
+            assembleia: { finalizada_em: null },
             opcoes: vt.opcoes.map((o) => ({ id: o.id })),
           };
         }),
+        // Encerradas (a contagem só aparece depois de encerrar — rodada 5).
         findMany: jest.fn(async ({ where }: any) =>
           VOTACOES.filter((vt) => casa(vt, where)).map((vt) => ({
             ...vt,
             descricao: null,
             data_inicio: null,
             data_termino: null,
+            encerrada_em: new Date('2026-11-12T00:00:00Z'),
             created_at: new Date('2026-11-01T00:00:00Z'),
             opcoes: vt.opcoes.map((o) => ({
               ...o,
-              votos: votos
+              votos: vigentes(votos)
                 .filter((v) => v.id_opcao === o.id)
-                .map((v) => ({ id: v.id, id_user: v.id_user, id_apto: v.id_apto, created_at: v.created_at })),
+                .map((v) => ({ id: v.id, id_user: v.id_user, id_apto: v.id_apto, created_at: v.created_at, tipo_vinculo: v.tipo_vinculo ?? null })),
             })),
           })),
         ),
@@ -141,17 +152,19 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
           vinculos.map(linhaVinculo).filter((row) => casa(row, where, relVinculo)),
         ),
       },
+      moradores: { findFirst: jest.fn(async () => null) },
+      users: { findUnique: jest.fn(async ({ where }: any) => ({ name: `Conta ${where.id}` })) },
       votacoes_Usuarios: {
-        deleteMany: jest.fn(async ({ where }: any) => {
-          ordem.push('deleteMany');
-          const antes = votos.length;
-          for (let i = votos.length - 1; i >= 0; i--) if (casa(votos[i], where, relVoto)) votos.splice(i, 1);
-          return { count: antes - votos.length };
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          ordem.push('updateMany');
+          const alvo = votos.filter((v) => casa(v, where, relVoto));
+          for (const v of alvo) Object.assign(v, data);
+          return { count: alvo.length };
         }),
         create: jest.fn(async ({ data }: any) => {
           ordem.push('create');
           relogio += 60_000;
-          const novo: Voto = { id: ++seq, id_apto: null, created_at: new Date(relogio), ...data };
+          const novo: Voto = { id: ++seq, id_apto: null, created_at: new Date(relogio), substituido_em: null, ...data };
           votos.push(novo);
           return novo;
         }),
@@ -194,7 +207,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       const { svc, votos } = build();
       await votar(svc, 60, 9, 200);
       await votar(svc, 60, 10, 300);
-      expect(votos.map((v) => [v.id_user, v.id_apto, v.id_opcao])).toEqual([[60, 200, 9], [60, 300, 10]]);
+      expect(vigentes(votos).map((v) => [v.id_user, v.id_apto, v.id_opcao])).toEqual([[60, 200, 9], [60, 300, 10]]);
       expect(await apurar(svc)).toEqual(['9;Sim;1', '10;Não;1']);
     });
 
@@ -203,7 +216,11 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       await votar(svc, 60, 9, 200);
       await votar(svc, 60, 9, 300);
       await votar(svc, 60, 10, 200);
-      expect(votos.map((v) => [v.id_apto, v.id_opcao])).toEqual([[300, 9], [200, 10]]);
+      expect(vigentes(votos).map((v) => [v.id_apto, v.id_opcao])).toEqual([[300, 9], [200, 10]]);
+      // O voto trocado fica, marcado como substituído.
+      expect(votos.map((v) => [v.id_apto, v.id_opcao, v.substituido_em == null])).toEqual([
+        [200, 9, false], [300, 9, true], [200, 10, true],
+      ]);
       expect(await apurar(svc)).toEqual(['9;Sim;1', '10;Não;1']);
     });
 
@@ -211,7 +228,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       const { svc, votos } = build();
       await votar(svc, 50, 9);
       await votar(svc, 51, 10);
-      expect(votos.map((v) => [v.id_user, v.id_apto, v.id_opcao])).toEqual([[51, 100, 10]]);
+      expect(vigentes(votos).map((v) => [v.id_user, v.id_apto, v.id_opcao])).toEqual([[51, 100, 10]]);
       expect(await apurar(svc)).toEqual(['9;Sim;0', '10;Não;1']);
     });
 
@@ -219,39 +236,39 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       const { svc, votos } = build();
       await votar(svc, 60, 9, 200);
       await votar(svc, 61, 10);
-      expect(votos.map((v) => [v.id_user, v.id_apto])).toEqual([[60, 200], [61, 300]]);
+      expect(vigentes(votos).map((v) => [v.id_user, v.id_apto])).toEqual([[60, 200], [61, 300]]);
       expect(await apurar(svc)).toEqual(['9;Sim;1', '10;Não;1']);
     });
 
     it('voto antigo (id_apto nulo) é substituído pelo voto novo da mesma unidade atribuída', async () => {
       const { svc, votos } = build({ votos: [{ id: 1, id_user: 50, id_opcao: 9, created_at: t('10:00') }] });
       await votar(svc, 51, 10);
-      expect(votos.map((v) => [v.id_user, v.id_apto, v.id_opcao])).toEqual([[51, 100, 10]]);
+      expect(vigentes(votos).map((v) => [v.id_user, v.id_apto, v.id_opcao])).toEqual([[51, 100, 10]]);
       expect(await apurar(svc)).toEqual(['9;Sim;0', '10;Não;1']);
     });
 
     it('voto antigo de X (atribuído à 200) fica quando X vota pela 300, e sai quando vota pela 200', async () => {
       const { svc, votos } = build({ votos: [{ id: 1, id_user: 60, id_opcao: 9, created_at: t('10:00') }] });
       await votar(svc, 60, 10, 300);
-      expect(votos.map((v) => [v.id, v.id_apto])).toEqual([[1, null], [1001, 300]]);
+      expect(vigentes(votos).map((v) => [v.id, v.id_apto])).toEqual([[1, null], [1001, 300]]);
       expect(await apurar(svc)).toEqual(['9;Sim;1', '10;Não;1']);
 
       await votar(svc, 60, 10, 200);
-      expect(votos.map((v) => v.id_apto)).toEqual([300, 200]);
+      expect(vigentes(votos).map((v) => v.id_apto)).toEqual([300, 200]);
       expect(await apurar(svc)).toEqual(['9;Sim;0', '10;Não;2']);
     });
 
     it('voto antigo de Y (atribuído à 300) sai quando X vota pela 300', async () => {
       const { svc, votos } = build({ votos: [{ id: 1, id_user: 61, id_opcao: 9, created_at: t('10:00') }] });
       await votar(svc, 60, 10, 300);
-      expect(votos.map((v) => [v.id_user, v.id_apto])).toEqual([[60, 300]]);
+      expect(vigentes(votos).map((v) => [v.id_user, v.id_apto])).toEqual([[60, 300]]);
     });
 
     it('não apaga voto de outra votação', async () => {
       const { svc, votos } = build();
       await votar(svc, 50, 11); // votação 6
       await votar(svc, 51, 9); // votação 5, mesma unidade
-      expect(votos.map((v) => [v.id_user, v.id_opcao])).toEqual([[50, 11], [51, 9]]);
+      expect(vigentes(votos).map((v) => [v.id_user, v.id_opcao])).toEqual([[50, 11], [51, 9]]);
     });
 
     it('id_apto de unidade sem vínculo com o usuário → 403', async () => {
@@ -291,10 +308,10 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       await expect(votar(svc, 70, 9)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('trava a linha da unidade (FOR UPDATE) na transação antes de apagar e gravar', async () => {
-      const { svc, ordem, locks } = build();
+    it('trava a linha da unidade (FOR UPDATE) na transação antes de substituir e gravar', async () => {
+      const { svc, ordem, locks } = build({ votos: [{ id: 1, id_user: 61, id_apto: 300, id_opcao: 10, created_at: t('10:00') }] });
       await votar(svc, 60, 9, 300);
-      expect(ordem).toEqual(['tx', 'lock', 'deleteMany', 'create']);
+      expect(ordem).toEqual(['tx', 'lock', 'updateMany', 'create']);
       expect(locks[0].sql).toMatch(/FROM\s+`?Apartamentos`?\s+WHERE\s+`?id`?\s*=\s*\?\s+FOR UPDATE/i);
       expect(locks[0].valores).toEqual([300]);
     });
@@ -328,7 +345,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       });
       await expect(votar(svc, 60, 9, 300)).resolves.toEqual({ success: true });
       expect(tentativas).toBe(2);
-      expect(votos.map((v) => [v.id_user, v.id_apto, v.id_opcao])).toEqual([[60, 300, 9]]);
+      expect(vigentes(votos).map((v) => [v.id_user, v.id_apto, v.id_opcao])).toEqual([[60, 300, 9]]);
     });
 
     it('P2034 em todas: desiste depois de 2 novas tentativas e propaga o erro', async () => {
@@ -396,6 +413,9 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
   });
 
   describe('meu voto por unidade', () => {
+    // Os campos de direito de voto (tipo_vinculo, pode_votar, motivo,
+    // votado_por) são conferidos em assembleia-robusta.spec.ts.
+    const basico = (lista: any[]) => lista.map(({ id_votacao, id_apto, rotulo, opcao }) => ({ id_votacao, id_apto, rotulo, opcao }));
     it('enquete: lista cada unidade do usuário com o voto que vale nela, e mantém meuVoto', async () => {
       const { svc } = build({
         votos: [
@@ -408,7 +428,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
         { id_apto: 200, rotulo: 'Apto 21 Bloco A' },
         { id_apto: 300, rotulo: 'Apto 31' },
       ]);
-      expect(r.votosPorUnidade).toEqual([
+      expect(basico(r.votosPorUnidade)).toEqual([
         { id_votacao: 5, id_apto: 200, rotulo: 'Apto 21 Bloco A', opcao: '9' },
         { id_votacao: 5, id_apto: 300, rotulo: 'Apto 31', opcao: '10' },
       ]);
@@ -428,7 +448,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       expect(r.meuVoto).toEqual(['10']);
       const { svc: svc2 } = build();
       const r2 = await svc2.enqueteGetDetails(5, 61, token(61));
-      expect(r2.votosPorUnidade).toEqual([{ id_votacao: 5, id_apto: 300, rotulo: 'Apto 31', opcao: null }]);
+      expect(basico(r2.votosPorUnidade)).toEqual([{ id_votacao: 5, id_apto: 300, rotulo: 'Apto 31', opcao: null }]);
       expect(r2.meuVoto).toEqual([]);
     });
 
@@ -441,7 +461,7 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
       });
       const r: any = await svc.get(COND, 3, 60, token(60));
       expect(r.unidades.map((u: any) => u.id_apto)).toEqual([200, 300]);
-      expect(r.votosPorUnidade).toEqual([
+      expect(basico(r.votosPorUnidade)).toEqual([
         { id_votacao: 5, id_apto: 200, rotulo: 'Apto 21 Bloco A', opcao: '9' },
         { id_votacao: 5, id_apto: 300, rotulo: 'Apto 31', opcao: null },
         { id_votacao: 6, id_apto: 200, rotulo: 'Apto 21 Bloco A', opcao: null },

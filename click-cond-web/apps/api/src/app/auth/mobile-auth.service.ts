@@ -42,6 +42,7 @@ import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { subirAnexosOcorrencia } from '../ocorrencias/anexos-ocorrencia.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 import { STATUS_SOLUCIONADO } from '../common/status-ocorrencia.util';
+import { normalizarTipoVinculo } from '../common/tipo-vinculo.util';
 
 /** Senha atual errada na troca de e-mail do perfil: 10 falhas em 10 min travam a conta por 10 min. */
 const MAX_FALHAS_SENHA_PERFIL = 10;
@@ -136,15 +137,7 @@ export class MobileAuthService {
    * Usado para comparar tipos de forma robusta a acento/caixa.
    */
   private normalizeTipo(raw: string | null | undefined): 'proprietario' | 'inquilino' | 'membro' {
-    const t = (raw ?? '')
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .toLowerCase()
-      .trim();
-    if (t === 'inquilino') return 'inquilino';
-    if (t === 'membro' || t === 'dependente') return 'membro';
-    // 'proprietario', 'morador', '', null e variantes corrompidas → proprietario
-    return 'proprietario';
+    return normalizarTipoVinculo(raw);
   }
 
   private parseDate(dateStr: string | Date | null | undefined): Date | null {
@@ -2410,8 +2403,11 @@ export class MobileAuthService {
     }
     // Cobrança do condomínio (tudo que não é conta pessoal 'D') guarda o morador em id_usuario e
     // fk_fin_user é ON DELETE CASCADE: a exclusão apagava a taxa condominial da unidade. Desvincula antes,
-    // na mesma transação do DELETE. Votos (Votacoes_Usuarios.id_user) e mensagens de ocorrência
-    // (OcorrenciaMensagens.id_usuario) são NOT NULL e seguem em cascata até aplicar
+    // na mesma transação do DELETE. Votos de assembleia/enquete FICAM: desde
+    // prisma/sql/2026-11-15-assembleia-robusta.sql a FK fk_vu_user é ON DELETE SET NULL (id_user vira
+    // nulo) e o voto guarda o retrato (tipo do vínculo, nome do votante, rótulo da unidade), então a
+    // apuração e o mapa de votação não mudam. Mensagens de ocorrência (OcorrenciaMensagens.id_usuario)
+    // ainda são NOT NULL e seguem em cascata até aplicar a parte 2 de
     // prisma/sql/2026-11-12-PROPOSTA-exclusao-conta-preserva-votos-mensagens.sql (não aplicado).
     await this.prisma.$transaction([
       this.prisma.financeiro.updateMany({

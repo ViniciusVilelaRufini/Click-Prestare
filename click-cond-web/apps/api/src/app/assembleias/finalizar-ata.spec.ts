@@ -6,10 +6,11 @@ import { AssembleiasService } from './assembleias.service';
  * ATA com `link_doc = ''` e apagava a assembleia — o cascade levava as
  * pautas, as opções e os votos, e a apuração deixava de existir.
  *
- * Agora: sem o PDF da ATA, 400 e nada muda. Com ele, antes de apagar, a
- * apuração de cada pauta (pergunta, opções e votos) vira um arquivo de texto
- * publicado junto da ATA, em Documentos > Atas. Tudo numa transação: se algo
- * falha, a assembleia fica.
+ * Agora: sem o PDF da ATA, 400 e nada muda. Com ele, a apuração de cada pauta
+ * (pergunta, opções e votos) vira um arquivo de texto publicado junto da ATA,
+ * em Documentos > Atas. Desde a rodada 5 a assembleia NÃO é apagada: é marcada
+ * como finalizada (ver assembleia-robusta.spec.ts). Tudo numa transação: se
+ * algo falha, a assembleia fica como estava.
  */
 describe('AssembleiasService.finish — ATA obrigatória e apuração preservada', () => {
   const sindico: any = { sub: 7, typeAccess: 'Sindico', user: { id: 7 } };
@@ -43,6 +44,10 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
           ordem.push('delete');
           return {};
         }),
+        updateMany: jest.fn(async () => {
+          ordem.push('finalizada');
+          return { count: 1 };
+        }),
       },
       // Filtra como o banco: só as pautas do condomínio pedido.
       votacoes: {
@@ -51,6 +56,7 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
             (p) => where?.id_condominio === undefined || p.id_condominio === where.id_condominio,
           ),
         ),
+        updateMany: jest.fn(async () => ({ count: 0 })),
       },
       apartamentos_Users: {
         findMany: jest.fn(async () => [
@@ -58,6 +64,16 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
           { id_user: 6, id_apto: 101 },
         ]),
       },
+      // Conferência de que nenhum voto chegou durante a finalização.
+      votacoes_Usuarios: {
+        count: jest.fn(async () =>
+          (opts.pautas ?? [pauta]).reduce((n: number, p: any) => n + p.opcoes.reduce((m: number, o: any) => m + o.votos.length, 0), 0),
+        ),
+      },
+      // Mapa nominal (base do código de integridade) dos votos antigos.
+      apartamentos: { findMany: jest.fn(async () => [{ id: 100, bloco: 'A', apto: '1' }, { id: 101, bloco: 'A', apto: '2' }]) },
+      users: { findMany: jest.fn(async () => [{ id: 5, name: 'Cinco' }, { id: 6, name: 'Seis' }]) },
+      moradores: { findMany: jest.fn(async () => []) },
       documentos: {
         create: jest.fn(async ({ data }: any) => {
           ordem.push(`doc:${data.nome}`);
@@ -93,7 +109,7 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
       new BadRequestException('Anexe o PDF da ATA.'),
     );
     expect(prisma.documentos.create).not.toHaveBeenCalled();
-    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+    expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
   });
 
   it('arquivo que não é PDF: 400 e a assembleia fica', async () => {
@@ -101,10 +117,10 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
     await expect(service.finish(1, assembleia('data:image/png;base64,iVBORw0KGgo='), sindico)).rejects.toThrow(
       'Anexe o PDF da ATA.',
     );
-    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+    expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
   });
 
-  it('com o PDF: grava a ATA com o arquivo e a apuração das pautas antes de apagar', async () => {
+  it('com o PDF: grava a ATA com o arquivo e a apuração das pautas e marca a assembleia como finalizada (sem apagar)', async () => {
     const { service, prisma, storage, ordem } = build();
     const res: any = await service.finish(1, assembleia(PDF), sindico);
 
@@ -126,7 +142,8 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
       expect.objectContaining({ is_ata: 1, nome: 'ATA AGO 2026 - 10/11/2026', link_doc: URL_PDF, id_condominio: 1 }),
       expect.objectContaining({ is_ata: 1, nome: 'Apuração das pautas - ATA AGO 2026 - 10/11/2026', link_doc: URL_TXT }),
     ]);
-    expect(ordem[ordem.length - 1]).toBe('delete');
+    expect(ordem[ordem.length - 1]).toBe('finalizada');
+    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
     expect(prisma.$transaction).toHaveBeenCalled();
     expect(res.message).toContain('ATA');
   });
@@ -135,20 +152,20 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
     const { service, prisma } = build({ uploads: [null] });
     await expect(service.finish(1, assembleia(PDF), sindico)).rejects.toThrow(/PDF da ATA/);
     expect(prisma.documentos.create).not.toHaveBeenCalled();
-    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+    expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
   });
 
   it('storage devolveu a própria data URL (sem bucket): erro e a assembleia fica', async () => {
     const { service, prisma } = build({ uploads: [PDF] });
     await expect(service.finish(1, assembleia(PDF), sindico)).rejects.toThrow(/PDF da ATA/);
-    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+    expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
   });
 
   it('não conseguiu guardar a apuração: erro e a assembleia fica', async () => {
     const { service, prisma } = build({ uploads: [URL_PDF, null] });
     await expect(service.finish(1, assembleia(PDF), sindico)).rejects.toThrow(/apuração/);
     expect(prisma.documentos.create).not.toHaveBeenCalled();
-    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+    expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
   });
 
   it('assembleia sem pautas: só a ATA, sem arquivo de apuração', async () => {
@@ -156,7 +173,8 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
     await service.finish(1, assembleia(PDF), sindico);
     expect(storage.uploadDataUrl).toHaveBeenCalledTimes(1);
     expect(prisma.documentos.create).toHaveBeenCalledTimes(1);
-    expect(prisma.assembleias.delete).toHaveBeenCalled();
+    expect(prisma.assembleias.updateMany).toHaveBeenCalled();
+    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
   });
 
   it('corpo com o condomínio A e assembleia do condomínio B: apuração e documentos vão para B', async () => {
@@ -235,7 +253,7 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
   ])('anexo que não é PDF (%s) como ATA: 400 e a assembleia fica', async (url) => {
     const { service, prisma } = build();
     await expect(service.finish(1, assembleia(url), sindico)).rejects.toThrow('Anexe o PDF da ATA.');
-    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+    expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
   });
 
   it('anexo PDF com URL assinada (query) é aceito como ATA', async () => {

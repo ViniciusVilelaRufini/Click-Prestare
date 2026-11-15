@@ -1,4 +1,9 @@
-import { hojeBrasilia, intervaloHojeBrasilia } from './hora-brasilia.util';
+import {
+  formatarDataHoraBrasilia,
+  formatarDataHoraSegundosBrasilia,
+  hojeBrasilia,
+  intervaloHojeBrasilia,
+} from './hora-brasilia.util';
 
 describe('intervaloHojeBrasilia — dia civil de Brasília como instantes', () => {
   const tzOriginal = process.env.TZ;
@@ -38,4 +43,16 @@ describe('intervaloHojeBrasilia — dia civil de Brasília como instantes', () =
       });
     });
   }
+});
+
+describe('formatarDataHoraSegundosBrasilia', () => {
+  it('"dd/MM/aaaa HH:mm:ss" no horário de Brasília; nulo vira ""', () => {
+    expect(formatarDataHoraSegundosBrasilia(new Date('2026-11-15T02:05:09Z'))).toBe('14/11/2026 23:05:09');
+    expect(formatarDataHoraSegundosBrasilia(new Date('2026-11-15T13:00:00Z'))).toBe('15/11/2026 10:00:00');
+    expect(formatarDataHoraSegundosBrasilia(null)).toBe('');
+  });
+
+  it('formatarDataHoraBrasilia continua sem os segundos', () => {
+    expect(formatarDataHoraBrasilia(new Date('2026-11-15T02:05:09Z'))).toBe('14/11/2026 23:05');
+  });
 });

@@ -93,7 +93,7 @@ describe('ArquivosPrivadosInterceptor', () => {
       const chaves = [
         'photo', 'profile_image', 'foto', 'foto_pessoa', 'foto_documento', 'fotoPessoa', 'fotoDocumento',
         'foto_url', 'imagem', 'foto_volume', 'retirado_foto', 'retirado_assinatura', 'link_doc',
-        'url_boleto', 'url_comprovante', 'url',
+        'link_ata', 'url_boleto', 'url_comprovante', 'url',
       ];
       const corpo = Object.fromEntries(chaves.map((k) => [k, NOSSA]));
       const saida: any = await executar({ dados: { lista: [corpo] }, fotos: { foto: [NOSSA, NOSSA] } }).saida;

@@ -52,9 +52,15 @@ export class AssembleiasController {
     return this.service.remove(Number(body.id), payload);
   }
 
+  /** `?incluir_finalizadas=1`: também as finalizadas (por último); sem ele, como o app 1.2.48 espera. */
   @Get('get-all')
-  getAll(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
-    return this.service.getAll(Number(idCondominio), payload);
+  getAll(
+    @Query('id_condominio') idCondominio: string,
+    @ReqUser() payload: JwtPayload,
+    @Query('incluir_finalizadas') incluirFinalizadas?: string,
+  ) {
+    const incluir = ['1', 'true'].includes(String(incluirFinalizadas ?? '').trim().toLowerCase());
+    return this.service.getAll(Number(idCondominio), payload, incluir);
   }
 
   @Get('get')
@@ -117,6 +123,12 @@ export class AssembleiasController {
       payload,
       idApto,
     );
+  }
+
+  /** Mapa de votação nominal (síndico/staff, votação encerrada). */
+  @Get('votacoes/mapa')
+  mapa(@Query('id') id: string, @ReqUser() payload: JwtPayload) {
+    return this.service.mapaVotacao(Number(id), payload);
   }
 
   @Get('votacoes/enquetes/get-all')
