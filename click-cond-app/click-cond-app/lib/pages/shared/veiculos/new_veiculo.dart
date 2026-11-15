@@ -163,6 +163,7 @@ class _NewVeiculoState extends State<NewVeiculo> {
               SeloEstadoGuarita(
                 estado: widget.veiculo?.guaritaEstado,
                 erro: widget.veiculo?.guaritaErro,
+                valeNoPortao: widget.veiculo?.guaritaValeNoPortao,
               ),
             ],
             const SizedBox(height: AppSpacing.xl),
