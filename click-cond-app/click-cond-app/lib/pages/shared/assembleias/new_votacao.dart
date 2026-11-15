@@ -10,6 +10,7 @@ import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewVotacao extends StatefulWidget {
@@ -17,12 +18,25 @@ class NewVotacao extends StatefulWidget {
   final int? idAssembleia;
   final bool? isEnquete;
 
+  /// Chave "Somente proprietários".
+  static const chaveSomenteProprietarios = Key('nova-votacao-somente-proprietarios');
+
+  /// Explicação da chave numa pauta de assembleia.
+  static const ajudaSomenteProprietariosPauta =
+      'Inquilinos não votam nesta pauta. Use em despesas extraordinárias, obras e alteração de convenção.';
+
+  /// Explicação da chave numa enquete.
+  static const ajudaSomenteProprietariosEnquete = 'Inquilinos e demais moradores não votam nesta enquete.';
+
   @override
   _NewVotacaoPageState createState() => _NewVotacaoPageState();
 }
 
 class _NewVotacaoPageState extends State<NewVotacao> {
   var _isSaving = false;
+
+  /// Só proprietários votam (`somente_proprietarios`).
+  var _somenteProprietarios = false;
 
   final txtNome = TextEditingController();
   final txtDescricao = TextEditingController();
@@ -69,6 +83,7 @@ class _NewVotacaoPageState extends State<NewVotacao> {
         id_assembleia: widget.idAssembleia ?? 0,
         is_enquete: widget.isEnquete,
         opcoes: ops,
+        somenteProprietarios: _somenteProprietarios,
       );
 
       var res = await apiSaveObject("assembleias/votacoes", "votacao", obj, false);
@@ -136,6 +151,40 @@ class _NewVotacaoPageState extends State<NewVotacao> {
                 ),
               ],
             ),
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.surface(context),
+                borderRadius: AppRadius.rmd,
+                border: Border.all(color: AppColors.border(context)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Somente proprietários', style: AppTypography.bodyMedium(context)),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.isEnquete == true
+                              ? NewVotacao.ajudaSomenteProprietariosEnquete
+                              : NewVotacao.ajudaSomenteProprietariosPauta,
+                          style: AppTypography.caption(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Switch(
+                    key: NewVotacao.chaveSomenteProprietarios,
+                    value: _somenteProprietarios,
+                    onChanged: _isSaving ? null : (v) => setState(() => _somenteProprietarios = v),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: AppSpacing.xl),
             _section(getText('votacao_opcoes')),
             AppInput(label: '${getText('votacao_opcao')} 1', controller: txtOpcao1, prefixIcon: PhosphorIcons.circle, textCapitalization: TextCapitalization.sentences),
@@ -177,13 +226,18 @@ class VotacaoModel {
   int? id_assembleia;
   List<String>? opcoes;
 
+  /// Só proprietários votam. A API antiga ignora o campo.
+  bool somenteProprietarios;
+
   VotacaoModel({this.titulo, this.descricao, this.data_inicio, this.hora_inicio,
-      this.data_termino, this.hora_termino, this.is_enquete, this.id_assembleia, this.opcoes});
+      this.data_termino, this.hora_termino, this.is_enquete, this.id_assembleia, this.opcoes,
+      this.somenteProprietarios = false});
 
   Map toJson() => {
         'titulo': titulo, 'descricao': descricao, 'data_inicio': data_inicio,
         'hora_inicio': hora_inicio, 'data_termino': data_termino,
         'hora_termino': hora_termino, 'is_enquete': is_enquete,
         'id_assembleia': id_assembleia, 'opcoes': opcoes,
+        'somente_proprietarios': somenteProprietarios ? 1 : 0,
       };
 }
