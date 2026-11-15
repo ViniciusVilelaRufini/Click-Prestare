@@ -47,6 +47,11 @@ function dataDaAssembleia(valor: unknown): Date | undefined {
   return br ? new Date(ano, mes - 1, dia) : ref;
 }
 
+/** Bandeira do corpo (true/1/'1'/'true') em 0/1 para coluna TINYINT. */
+function simNao(valor: unknown): 0 | 1 {
+  return valor === true || valor === 1 || valor === '1' || String(valor).toLowerCase() === 'true' ? 1 : 0;
+}
+
 /** Data @db.Date (meia-noite UTC) em DD/MM/AAAA; nula: ''. */
 function dataDbBr(d: Date | null | undefined): string {
   return d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }) : '';
@@ -518,6 +523,9 @@ export class AssembleiasService {
       throw new BadRequestException('A data de término não pode ser anterior à data de início.');
     }
     const isEnquete = votacao.is_enquete ? 1 : 0;
+    // Inquilino não vota (despesa extraordinária, obra, convenção). O app
+    // 1.2.48 não manda: 0.
+    const somenteProprietarios = simNao(votacao.somente_proprietarios);
 
     const idAssembleia = votacao.id_assembleia ? Number(votacao.id_assembleia) : null;
     if (idAssembleia) {
@@ -540,6 +548,7 @@ export class AssembleiasService {
           id_assembleia: idAssembleia,
           id_condominio: Number(idCondominio),
           is_enquete: isEnquete,
+          somente_proprietarios: somenteProprietarios,
         },
       });
       await tx.votacoes_Opcoes.createMany({
