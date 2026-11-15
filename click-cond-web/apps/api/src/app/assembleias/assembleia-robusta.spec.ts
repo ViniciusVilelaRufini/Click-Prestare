@@ -493,7 +493,7 @@ describe('2.1 — quem vota e quem pode trocar o voto', () => {
       await votar(svc, 10, 5, 51);
       expect(ordem).toEqual(['lock', 'lock', 'lock', 'create', 'lock', 'lock', 'lock', 'updateMany', 'create']);
       expect(prisma.votacoes_Usuarios.deleteMany).not.toHaveBeenCalled();
-      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'ReadCommitted' });
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({ isolationLevel: 'ReadCommitted' }));
     });
   });
 
@@ -1328,5 +1328,99 @@ describe('N-3 — voto antigo congelado que não contava', () => {
     const depois = await svc.mapaVotacao(5, sindico);
     expect(depois).toEqual(antes);
     expect(hashMapas([depois])).toBe(assembleias[0].apuracao_hash);
+  });
+});
+
+describe('N-1 — quem espera a trava do finish recebe 409, não 500', () => {
+  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const OCUPADA = 'A assembleia está sendo finalizada agora. Tente de novo em instantes.';
+  const expirou = () => Object.assign(new Error('Transaction already closed: the timeout for this transaction was 20000 ms'), { code: 'P2028' });
+  const lockWait = () =>
+    Object.assign(new Error('Raw query failed. Code: `1205`. Message: `Lock wait timeout exceeded; try restarting transaction`'), {
+      code: 'P2010', meta: { code: '1205' },
+    });
+  const falhaNaTransacao = (prisma: any, erro: () => Error) => {
+    prisma.$transaction = jest.fn(async () => {
+      throw erro();
+    });
+  };
+
+  it('prazos coerentes: quem espera tem timeout maior que o do finish; o finish é o mais curto', async () => {
+    const { svc, prisma } = build();
+    await votar(svc, 10, 5, 51);
+    const opcoesDoVoto = prisma.$transaction.mock.calls[0][1];
+    await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+    const opcoesDoFinish = prisma.$transaction.mock.calls[1][1];
+    expect(opcoesDoVoto).toEqual({ isolationLevel: 'ReadCommitted', timeout: 20_000, maxWait: 5_000 });
+    expect(opcoesDoFinish).toEqual({ isolationLevel: 'ReadCommitted', timeout: 15_000, maxWait: 5_000 });
+    expect(opcoesDoVoto.timeout).toBeGreaterThan(opcoesDoFinish.timeout);
+  });
+
+  it.each([
+    ['expirou a transação (P2028)', expirou],
+    ['lock wait timeout do MySQL (1205)', lockWait],
+  ])('%s → 409 com texto pronto, sem refazer, em voto, encerrar, nova pauta, editar e excluir', async (_n, erro) => {
+    const casos: Array<[string, (b: ReturnType<typeof build>) => Promise<unknown>, string]> = [
+      ['voto em pauta', (b) => votar(b.svc, 10, 5, 51), OCUPADA],
+      ['voto em enquete', (b) => votar(b.svc, 10, 6, 61), 'A votação está sendo encerrada agora. Tente de novo em instantes.'],
+      ['encerrar pauta', (b) => b.svc.finishVotacao(5, sindico), OCUPADA],
+      ['nova pauta', (b) => b.svc.insertVotacao({ titulo: 'N', data_inicio: '01/12/2026', data_termino: '10/12/2026', opcoes: ['Sim', 'Não'], id_assembleia: 3 }, COND, sindico), OCUPADA],
+      ['editar', (b) => b.svc.update(COND, { id: 3, titulo: 'Outro' }, 7, sindico), OCUPADA],
+      ['excluir assembleia', (b) => b.svc.remove(3, sindico), OCUPADA],
+      ['excluir pauta', (b) => b.svc.removeVotacao(5, sindico), OCUPADA],
+    ];
+    for (const [nome, chamar, msg] of casos) {
+      const b = build();
+      falhaNaTransacao(b.prisma, erro);
+      await expect(chamar(b)).rejects.toThrow(new ConflictException(msg));
+      expect([nome, b.prisma.$transaction.mock.calls.length]).toEqual([nome, 1]);
+    }
+  });
+
+  it('o próprio finish que estoura o prazo: 409 e o PDF enviado sai do bucket', async () => {
+    const { svc, prisma, storage } = build();
+    falhaNaTransacao(prisma, expirou);
+    await expect(svc.finish(COND, { id: 3, doc: PDF }, sindico)).rejects.toThrow(
+      new ConflictException('A finalização demorou demais e foi desfeita. Tente de novo em instantes.'),
+    );
+    expect(storage.deleteUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('outros erros não são traduzidos', async () => {
+    const { svc, prisma } = build();
+    falhaNaTransacao(prisma, () => Object.assign(new Error('falha'), { code: 'P2002' }));
+    await expect(votar(svc, 10, 5, 51)).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('upload do .txt dentro do finish tem teto de 10 s: estourou → 400, nada finalizado, e o arquivo que chegar atrasado sai do bucket', async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+    try {
+      const { svc, storage, assembleias, documentos } = build();
+      let entregar: (url: string) => void = () => undefined;
+      storage.uploadDataUrl.mockImplementation(async (_d: string, pasta: string) =>
+        storage.uploadDataUrl.mock.calls.length === 1
+          ? `https://bucket.s3.amazonaws.com/${pasta}/ata.pdf`
+          : new Promise<string>((r) => (entregar = r)),
+      );
+      const resultado = svc.finish(COND, { id: 3, doc: PDF }, sindico).then(
+        () => 'ok',
+        (e) => e,
+      );
+      await jest.advanceTimersByTimeAsync(9_999);
+      expect(storage.uploadDataUrl).toHaveBeenCalledTimes(2);
+      await jest.advanceTimersByTimeAsync(2);
+      const erro = await resultado;
+      expect(erro).toEqual(
+        new BadRequestException('Não foi possível guardar a apuração das pautas. A assembleia não foi finalizada; tente de novo.'),
+      );
+      expect(assembleias[0].finalizada_em).toBeNull();
+      expect(documentos).toEqual([]);
+      expect(storage.deleteUrl).toHaveBeenCalledWith('https://bucket.s3.amazonaws.com/atas/ata.pdf', ['atas/']);
+      entregar('https://bucket.s3.amazonaws.com/atas/atrasado.txt');
+      await jest.advanceTimersByTimeAsync(0);
+      expect(storage.deleteUrl).toHaveBeenCalledWith('https://bucket.s3.amazonaws.com/atas/atrasado.txt', ['atas/']);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

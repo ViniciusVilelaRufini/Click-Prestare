@@ -122,6 +122,53 @@ function rotuloDaUnidade(
 const MSG_ASSEMBLEIA_FINALIZADA_VOTO = 'Esta assembleia já foi finalizada; a votação está encerrada.';
 const MSG_JA_FINALIZADA = 'Assembleia já finalizada.';
 
+/**
+ * Prazos das transações (Prisma 6: padrão timeout 5 s / maxWait 2 s). O finish
+ * segura a trava X da assembleia por no máximo TIMEOUT_FINISH_MS (o upload do
+ * .txt dentro dele tem teto TETO_UPLOAD_APURACAO_MS); quem espera essa trava
+ * (voto, encerrar, nova pauta, editar, excluir) tem prazo MAIOR, para receber a
+ * resposta certa (400 "finalizada" ou o voto aceito) depois que o finish solta.
+ * Se ainda assim estourar, vira 409 com texto pronto (ver emTransacao).
+ */
+const TETO_UPLOAD_APURACAO_MS = 10_000;
+const TIMEOUT_FINISH_MS = 15_000;
+const TIMEOUT_ESPERA_MS = 20_000;
+const MAX_WAIT_CONEXAO_MS = 5_000;
+
+const MSG_ASSEMBLEIA_OCUPADA = 'A assembleia está sendo finalizada agora. Tente de novo em instantes.';
+const MSG_VOTACAO_OCUPADA = 'A votação está sendo encerrada agora. Tente de novo em instantes.';
+const MSG_FINISH_DEMOROU = 'A finalização demorou demais e foi desfeita. Tente de novo em instantes.';
+
+/**
+ * A transação desistiu de esperar: expirou no Prisma (P2028), o MySQL desistiu
+ * da trava (1205, "Lock wait timeout exceeded") ou não houve conexão livre no
+ * pool (P2024). Nada foi gravado: vira 409 "tente de novo" em vez de 500.
+ */
+function esperaEsgotada(e: unknown): boolean {
+  const erro = e as { code?: string; meta?: { code?: string | number }; message?: string };
+  if (erro?.code === 'P2028' || erro?.code === 'P2024') return true;
+  if (String(erro?.meta?.code ?? '') === '1205') return true;
+  return /Lock wait timeout exceeded/i.test(String(erro?.message ?? ''));
+}
+
+/** `p` com teto: `{ ok: false }` se não resolver em `ms` (o resultado atrasado é de quem chamou). */
+function comTeto<T>(p: Promise<T>, ms: number): Promise<{ ok: true; valor: T } | { ok: false }> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve({ ok: false }), ms);
+    timer.unref?.();
+    p.then(
+      (valor) => {
+        clearTimeout(timer);
+        resolve({ ok: true, valor });
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 const NOME_DO_VINCULO: Record<TipoVinculo, string> = {
   proprietario: 'proprietário',
   inquilino: 'inquilino',
@@ -735,7 +782,16 @@ export class AssembleiasService {
             );
             // BOM: o navegador abre o .txt como UTF-8 (acentos).
             const dataUrl = `data:text/plain;base64,${Buffer.from(`\uFEFF${texto}`, 'utf8').toString('base64')}`;
-            linkApuracao = (await this.storage.uploadDataUrl(dataUrl, 'atas')) ?? '';
+            // Teto curto: a trava X da assembleia está presa enquanto sobe.
+            // Estourou: desiste (rollback) e o arquivo que chegar depois sai do bucket.
+            const subida = this.storage.uploadDataUrl(dataUrl, 'atas');
+            const resultado = await comTeto(subida, TETO_UPLOAD_APURACAO_MS);
+            if (!resultado.ok) {
+              void subida
+                .then((atrasado) => (atrasado && /^https?:\/\//i.test(atrasado) ? this.storage.deleteUrl(atrasado, ['atas/']) : false))
+                .catch(() => undefined);
+            }
+            linkApuracao = (resultado.ok ? resultado.valor : null) ?? '';
             if (!/^https?:\/\//i.test(linkApuracao)) {
               throw new BadRequestException(
                 'Não foi possível guardar a apuração das pautas. A assembleia não foi finalizada; tente de novo.',
@@ -775,7 +831,7 @@ export class AssembleiasService {
           });
           if (marcada.count === 0) throw new BadRequestException(MSG_JA_FINALIZADA);
         },
-        { refazer: false, timeout: 30_000 },
+        { refazer: false, timeout: TIMEOUT_FINISH_MS, ocupada: MSG_FINISH_DEMOROU },
       );
       // Um aviso pela ATA (a apuração vai junto, sem push próprio).
       this.avisarMoradores(idCond, 'ATA publicada', nomeAta, { type: 'ata', id: String(idAta ?? '') });
@@ -923,7 +979,7 @@ export class AssembleiasService {
         }
       }
       await tx.votacoes.delete({ where: { id: Number(id) } });
-    });
+    }, { ocupada: atual.id_assembleia != null ? MSG_ASSEMBLEIA_OCUPADA : MSG_VOTACAO_OCUPADA });
     return { success: true };
   }
 
@@ -966,7 +1022,7 @@ export class AssembleiasService {
           ...(linha.data_termino && diaUtc(linha.data_termino) > hoje ? { data_termino: hoje } : {}),
         },
       });
-    });
+    }, { ocupada: atual.id_assembleia != null ? MSG_ASSEMBLEIA_OCUPADA : MSG_VOTACAO_OCUPADA });
 
     return { success: true };
   }
@@ -1111,7 +1167,7 @@ export class AssembleiasService {
           rotulo_unidade: minha.rotulo.slice(0, 120),
         },
       });
-    });
+    }, { ocupada: votacao.id_assembleia != null ? MSG_ASSEMBLEIA_OCUPADA : MSG_VOTACAO_OCUPADA });
 
     return { success: true };
   }
@@ -1154,15 +1210,19 @@ export class AssembleiasService {
    */
   private async emTransacao<T>(
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
-    opcoes: { refazer?: boolean; timeout?: number } = {},
+    opcoes: { refazer?: boolean; timeout?: number; ocupada?: string } = {},
   ): Promise<T> {
     for (let tentativa = 0; ; tentativa++) {
       try {
         return await this.prisma.$transaction(fn, {
           isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
-          ...(opcoes.timeout ? { timeout: opcoes.timeout } : {}),
+          timeout: opcoes.timeout ?? TIMEOUT_ESPERA_MS,
+          maxWait: MAX_WAIT_CONEXAO_MS,
         });
       } catch (e) {
+        // Espera esgotada (finish segurando a trava, MySQL desistiu, pool
+        // cheio): 409 com texto pronto, sem refazer.
+        if (esperaEsgotada(e)) throw new ConflictException(opcoes.ocupada ?? MSG_ASSEMBLEIA_OCUPADA);
         const deadlock = (e as { code?: string })?.code === 'P2034';
         if (!deadlock || opcoes.refazer === false || tentativa >= AssembleiasService.NOVAS_TENTATIVAS_VOTO) throw e;
       }

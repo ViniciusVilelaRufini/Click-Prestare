@@ -343,7 +343,8 @@ describe('Votação — um voto por unidade (id_apto no voto)', () => {
     it('roda em READ COMMITTED', async () => {
       const { svc, prisma } = build();
       await votar(svc, 60, 9, 300);
-      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'ReadCommitted' });
+      // Prazos maiores que o do finish (ver assembleia-robusta.spec.ts, N-1).
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'ReadCommitted', timeout: 20_000, maxWait: 5_000 });
     });
 
     it('P2034 na 1ª tentativa: refaz e grava um voto só', async () => {
