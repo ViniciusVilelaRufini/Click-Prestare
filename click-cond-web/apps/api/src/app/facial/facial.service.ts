@@ -1386,6 +1386,40 @@ export class FacialService {
   }
 
   /**
+   * Excluir o Guarita: recusado (409) enquanto houver operação na fila
+   * (pendente/enviada) ou tag saindo/entrando (`removendo`/`pendente`) — a
+   * cascata levaria as remoções de ex-moradores. Fora disso, as tags dele
+   * perdem os campos do Guarita (voltam a ser linha sem estado) antes do
+   * delete; as tags criadas pelo próprio Guarita (código G…) sem veículo saem.
+   */
+  private async prepararExclusaoDoGuarita(idDevice: number) {
+    const abertas = await this.prisma.guarita_Operacoes.count({
+      where: { id_device: idDevice, tipo: { not: 'captura' }, estado: { in: ['pendente', 'enviada', 'processando'] } },
+    });
+    const emCurso = await this.prisma.tags.count({
+      where: { id_device: idDevice, guarita_estado: { in: ['removendo', 'pendente'] } },
+    });
+    if (abertas > 0 || emCurso > 0) {
+      throw new ConflictException(
+        'Este Guarita tem operações na fila ou dispositivos sendo gravados/removidos. Espere a fila terminar (ou desative o aparelho) antes de excluí-lo.',
+      );
+    }
+    await this.prisma.tags.updateMany({
+      where: { id_device: idDevice },
+      data: {
+        id_device: null,
+        guarita_tipo: null,
+        guarita_serial: null,
+        guarita_contador: null,
+        guarita_estado: null,
+        guarita_erro: null,
+        guarita_frame: null,
+        guarita_em: null,
+      },
+    });
+  }
+
+  /**
    * Módulo Guarita: no máximo UM ativo por condomínio nesta versão (as tags,
    * a saída do morador e a captura são por Guarita; dois aparelhos com o mesmo
    * controle deixariam o ex-morador entrando pelo segundo).
@@ -1897,6 +1931,8 @@ export class FacialService {
     // (selfie, horários) são histórico do condomínio, como os acessos.
     const totalPedidosPortao = await (this.prisma as any).deliveryPedidosPortao.count({ where: { id_device: id } });
     if (totalPedidosPortao > 0) throw new ConflictException(MSG_DEVICE_COM_ENTREGAS);
+
+    if (device.tipo === TIPO_GUARITA) await this.prepararExclusaoDoGuarita(id);
 
     try {
       await this.prisma.facial_Devices.delete({ where: { id } });
