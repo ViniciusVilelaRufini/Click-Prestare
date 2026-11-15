@@ -63,6 +63,8 @@ export interface ResultadoOperacaoDto {
   lido?: { unidade: number; bloco: number } | null;
   /** cadastrar 0x02 na mesma unidade / apagar 0x03: já estava como pedido (ok normal). */
   ja_estava?: boolean;
+  /** A pergunta foi escrita e a resposta não chegou (o agente não conseguiu conferir). */
+  incerto?: boolean;
 }
 
 /** Corpo de `POST estado`. */
@@ -350,6 +352,7 @@ export class GuaritaAgenteService {
     const fim = booleanoOpcional(b.fim);
     const conflito = b.conflito === true;
     const jaEstava = b.ja_estava === true;
+    const incerto = b.incerto === true;
     let lido: { unidade: number; bloco: number } | null = null;
     if (b.lido && typeof b.lido === 'object') {
       const l = b.lido as Record<string, unknown>;
@@ -366,6 +369,7 @@ export class GuaritaAgenteService {
       ...(fim !== undefined && { fim }),
       ...(conflito && { conflito, lido }),
       ...(jaEstava && { ja_estava: true }),
+      ...(incerto && { incerto: true }),
     };
   }
 

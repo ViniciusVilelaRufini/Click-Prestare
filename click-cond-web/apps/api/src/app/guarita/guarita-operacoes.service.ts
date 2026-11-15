@@ -44,7 +44,12 @@ export interface ResultadoGravacao {
   lido?: { unidade: number; bloco: number } | null;
   /** Cadastrar (0x02 na mesma unidade) ou apagar (0x03): já estava como pedido. */
   ja_estava?: boolean;
+  /** A pergunta foi escrita e a resposta não chegou: o desfecho é desconhecido. */
+  incerto?: boolean;
 }
+
+/** Texto do desfecho desconhecido (também marca a operação: é por ele que as tentativas são contadas). */
+export const MSG_INCERTO = 'Não foi possível confirmar no Guarita.';
 
 /** Código de tag criado pelos fluxos do Guarita (importação, captura, digitado): G<tipo>-<serial>[-D<id>]. */
 const CODIGO_DO_GUARITA = /^G[1236]-[0-9A-F]+(-D\d+)?$/;
@@ -222,6 +227,8 @@ export class GuaritaOperacoesService {
     if (!tag || tag.id_device == null || tag.guarita_tipo == null || !tag.guarita_serial) return false;
     const e = tag.guarita_estado;
     if (e === ESTADO_TAG.gravado || e === ESTADO_TAG.ativo || e === ESTADO_TAG.removendo) return true;
+    // Cadastro talvez gravado: pode receber apagar (o agente confere a unidade antes).
+    if (e === ESTADO_TAG.incerto) return true;
     if (e !== ESTADO_TAG.pendente && e !== ESTADO_TAG.falhou) return false;
     const confirmacoes = await this.prisma.guarita_Operacoes.count({
       where: {
@@ -681,6 +688,13 @@ export class GuaritaOperacoesService {
       await this.marcarConflito(op, r);
       return;
     }
+    // Desfecho desconhecido: o agente avisa (`incerto`); um cadastro que falha
+    // sem código do 67 também pode ter sido gravado (a resposta se perdeu).
+    const incerto = r.incerto === true || (op.tipo === 'cadastrar' && !r.ok && r.codigo === undefined);
+    if (incerto && TIPOS_GRAVACAO.includes(op.tipo)) {
+      await this.marcarIncerto(op);
+      return;
+    }
     const apagouJa = op.tipo === 'apagar' && !r.ok && r.codigo === 0x03;
     const ok = r.ok || apagouJa;
     const mensagem = ok ? null : (r.erro ?? (r.codigo !== undefined ? MENSAGENS_67[r.codigo] : undefined) ?? 'O Guarita não respondeu.');
@@ -778,6 +792,65 @@ export class GuaritaOperacoesService {
       if (tag.guarita_estado === ESTADO_TAG.removendo && !(await this.podeEscrever({ ...tag, guarita_estado: ESTADO_TAG.pendente }))) {
         await this.desfazerNoPrestare(tag);
       }
+    }
+  }
+
+  /**
+   * Gravação escrita sem resposta. Nada é dado como feito nem como não feito:
+   *  - cadastrar → tag `incerto` e o PRÓPRIO cadastro volta uma vez à fila (o
+   *    agente responde `ja_estava` se ele já estiver lá); morador que sai com a
+   *    tag `incerto` recebe `apagar` com a unidade pedida;
+   *  - apagar → continua `removendo`, alerta, e volta à fila (conta nas tentativas);
+   *  - editar → volta à fila (conta nas tentativas).
+   */
+  private async marcarIncerto(op: any) {
+    const agora = new Date();
+    const reivindicou = await this.prisma.guarita_Operacoes.updateMany({
+      where: { id: op.id, estado: { in: ABERTAS } },
+      data: { estado: ESTADO_OP.falhou, codigo: null, erro: MSG_INCERTO, concluida_em: agora },
+    });
+    if (reivindicou.count !== 1 || op.id_tag == null) return;
+    const tag = await this.prisma.tags.findUnique({ where: { id: op.id_tag } });
+    if (!tag) return;
+    const tentativas = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: op.tipo, estado: ESTADO_OP.falhou, ...(op.tipo === 'apagar' ? {} : { erro: MSG_INCERTO }) },
+    });
+    if (op.tipo === 'cadastrar') {
+      const saindo = tag.guarita_estado === ESTADO_TAG.removendo;
+      await this.prisma.tags.update({
+        where: { id: tag.id },
+        data: { guarita_erro: MSG_INCERTO, ...(!saindo && { guarita_estado: ESTADO_TAG.incerto }) },
+      });
+      if (!saindo && tentativas === 1 && op.frame_hex) {
+        await this.prisma.guarita_Operacoes.create({
+          data: {
+            id_condominio: tag.id_condominio,
+            id_device: op.id_device,
+            id_tag: tag.id,
+            tipo: 'cadastrar',
+            frame_hex: op.frame_hex,
+            estado: ESTADO_OP.pendente,
+            criado_por: 'Conferir cadastro sem confirmação',
+          },
+        });
+        await this.garantirAtualizarReceptores(tag.id_condominio, op.id_device);
+      }
+      return;
+    }
+    if (op.tipo === 'apagar') {
+      await this.prisma.tags.update({
+        where: { id: tag.id },
+        data: { guarita_erro: `Remoção: ${MSG_INCERTO}`, guarita_estado: ESTADO_TAG.removendo },
+      });
+      await this.alertarRemocaoPendente(tag, MSG_INCERTO);
+      if (tentativas < MAX_TENTATIVAS_REMOCAO && op.frame_hex) {
+        await this.criarGravacao(tag, 'apagar', op.frame_hex, `Nova tentativa de remoção (${tentativas + 1}/${MAX_TENTATIVAS_REMOCAO})`, ESTADO_TAG.removendo);
+      }
+      return;
+    }
+    await this.prisma.tags.update({ where: { id: tag.id }, data: { guarita_erro: MSG_INCERTO } });
+    if (tentativas < MAX_TENTATIVAS_REMOCAO && op.frame_hex) {
+      await this.criarGravacao(tag, 'editar', op.frame_hex, 'Nova tentativa de edição sem confirmação', tag.guarita_estado ?? ESTADO_TAG.pendente);
     }
   }
 

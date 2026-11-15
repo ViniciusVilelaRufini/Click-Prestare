@@ -93,6 +93,61 @@ describe('I1 — reimportação não adota a unidade nova de uma tag controlada'
   });
 });
 
+describe('I2 — gravação sem resposta é incerta', () => {
+  it('cadastro incerto: estado incerto, o cadastro volta uma vez; morador sai → apagar com a unidade pedida', async () => {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
+    m.guarita.delete('0F086E');
+    const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
+    await m.agente.buscarOperacoes(DEV);
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, incerto: true, erro: 'O Guarita não respondeu.' });
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'incerto', guarita_erro: 'Não foi possível confirmar no Guarita.' });
+    expect(ops(m.db, 'cadastrar').filter((o: any) => o.estado === 'pendente')).toHaveLength(1);
+    // Morador sai com a tag incerta: o cadastro repetido é cancelado e sai apagar com a unidade pedida.
+    expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(true);
+    // fecha o 29 pendente do lote anterior
+    for (const o of m.db.linhas('guarita_Operacoes')) if (o.estado === 'enviada') o.estado = 'ok';
+    const lote = await m.agente.buscarOperacoes(DEV);
+    expect(lote.operacoes.find((o) => o.tipo === 'apagar')).toMatchObject({ esperado: { unidade: 308, bloco: 1 } });
+  });
+
+  it('cadastro que falha sem código do 67 (agente antigo) também é incerto, e a saída do morador gera apagar', async () => {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
+    const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
+    await m.agente.buscarOperacoes(DEV);
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, erro: 'O Guarita não respondeu.' });
+    expect(tag(m.db).guarita_estado).toBe('incerto');
+    expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(true);
+    expect(ops(m.db, 'apagar')).toHaveLength(1);
+  });
+
+  it('segundo cadastro incerto não volta de novo à fila (uma vez só)', async () => {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
+    const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
+    await m.agente.buscarOperacoes(DEV);
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, incerto: true });
+    for (const o of m.db.linhas('guarita_Operacoes')) if (o.estado === 'enviada') o.estado = 'ok';
+    const lote = await m.agente.buscarOperacoes(DEV);
+    const repetido = lote.operacoes.find((o) => o.tipo === 'cadastrar')!;
+    await m.agente.registrarResultado(DEV, repetido.id, { ok: false, incerto: true });
+    expect(ops(m.db, 'cadastrar').filter((o: any) => o.estado === 'pendente')).toHaveLength(0);
+    expect(tag(m.db).guarita_estado).toBe('incerto');
+  });
+
+  it('apagar incerto: continua removendo, alerta, e volta à fila', async () => {
+    const m = montar();
+    await m.ops.enfileirarRemocao(1, 'x');
+    const lote = await m.agente.buscarOperacoes(DEV);
+    const ap = lote.operacoes.find((o) => o.tipo === 'apagar')!;
+    await m.agente.registrarResultado(DEV, ap.id, { ok: false, incerto: true });
+    expect(tag(m.db).guarita_estado).toBe('removendo');
+    expect(m.db.linhas('guarita_Alertas').map((a: any) => a.tipo)).toContain('remocao_pendente');
+    expect(ops(m.db, 'apagar').filter((o: any) => o.estado === 'pendente')).toHaveLength(1);
+  });
+});
+
 describe('C1 — duas gravações da mesma tag no mesmo lote', () => {
   it('cenário A: troca de unidade e saída logo depois → o dispositivo é removido do Guarita', async () => {
     const m = montar();
