@@ -317,4 +317,78 @@ describe('FacialService — autorização remota vale 10 min no portão', () => 
       );
     });
   });
+
+  // Rodada 2, Importante 1: o sentido `auto` é o padrão (um facial só na
+  // portaria). Quem entrou pela autorização remota tem de conseguir SAIR por
+  // ele: o rosto fica no `auto` com 1 uso; a próxima leitura vira saída e a
+  // saída tira o rosto de todos. No leitor só de entrada o rosto sai.
+  describe('terminal de sentido auto', () => {
+    const DEVICE_AUTO_WEBHOOK = {
+      id: 7, id_condominio: 1, tipo: 'facial', sentido: 'auto', ativo: 1,
+      confianca_minima: 0, nome: 'Facial portaria', webhook_token: 'tok-auto',
+    };
+    const lerRosto = (svc: any) =>
+      svc.processWebhook('tok-auto', { event: 'reconhecimento', external_id: 'pessoa_2000100', timestamp: new Date().toISOString() });
+
+    for (const tipo of ['avulso', 'prestador'] as const) {
+      const extra = tipo === 'prestador' ? { is_prestador: 1, is_visitante: 0 } : {};
+
+      it(`${tipo}: entra pelo auto → o rosto continua no auto com 1 uso (e sai do leitor só de entrada)`, async () => {
+        const visita = visitaRemota(5, { ...extra });
+        const { svc, prisma } = montar(visita, { device: DEVICE_AUTO_WEBHOOK });
+        await lerRosto(svc);
+        expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ data_entrada: expect.any(Date) }) }),
+        );
+
+        // Estado depois da entrada: dentro, autorização usada.
+        const dentro = visitaRemota(6, { ...extra, data_entrada: new Date(Date.now() - MIN) });
+        const m = montar(dentro);
+        m.prisma.facial_Devices.findMany.mockResolvedValue([
+          { ...DEVICE_FACIAL, id: 910, sentido: 'auto' },
+          { ...DEVICE_FACIAL, id: 911, sentido: 'entrada' },
+        ]);
+        await m.svc.syncPessoa(dentro.id_pessoa);
+        const noAuto = m.client.updatePerson.mock.calls.find((c: any[]) => c[0].id === 910);
+        expect(noAuto?.[2]).toEqual(
+          expect.objectContaining({
+            userTimes: 1,
+            validTo: (m.svc as any).formatDahuaTime(new Date(dentro.data_entrada.getTime() + 24 * 60 * MIN)),
+          }),
+        );
+        expect(m.client.removePerson).toHaveBeenCalledWith(expect.objectContaining({ id: 911 }), 'face_remota');
+      });
+
+      it(`${tipo}: a leitura seguinte no auto vira SAÍDA (não uma 2ª entrada), liberado vai a 0 e o rosto sai de todos`, async () => {
+        const dentro = visitaRemota(30, { ...extra, data_entrada: new Date(Date.now() - 25 * MIN) });
+        const { svc, prisma } = montar(dentro, { device: DEVICE_AUTO_WEBHOOK });
+        // Último acesso registrado: a entrada (alternância do `auto`).
+        prisma.acessos_Facial.findFirst.mockResolvedValue({ evento: 'entrada' });
+        await lerRosto(svc);
+        expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ id: dentro.id }),
+            data: expect.objectContaining({ data_saida: expect.any(Date), liberado: 0 }),
+          }),
+        );
+        expect(negados(prisma)).toHaveLength(0);
+
+        // Depois da saída: sem liberação, o sync tira o rosto de todos.
+        const saiu = visitaRemota(30, {
+          ...extra, data_entrada: new Date(Date.now() - 25 * MIN), data_saida: new Date(), liberado: 0,
+        });
+        const m = montar(saiu);
+        const unsync = jest.spyOn(m.svc as any, 'unsyncPessoa').mockResolvedValue(true);
+        await m.svc.syncPessoa(saiu.id_pessoa);
+        expect(unsync).toHaveBeenCalled();
+      });
+    }
+
+    it('menor 2: prestador vindo de autorização remota, ainda não usado, vai ao aparelho com 1 uso', async () => {
+      const visita = visitaRemota(3, { is_prestador: 1, is_visitante: 0 });
+      const { svc, client } = montar(visita);
+      await svc.syncPessoa(visita.id_pessoa);
+      expect(client.updatePerson.mock.calls[0][2]).toEqual(expect.objectContaining({ userTimes: 1 }));
+    });
+  });
 });

@@ -3341,10 +3341,17 @@ export class FacialService {
     // ainda não usada (não o fim das 4 h que o pedido abriu) e, fora do
     // condomínio, o fim do dia para quem tem dias da semana (amanhã o terminal
     // nega sozinho, mesmo offline; o tick da virada reestende). Dentro do
-    // condomínio sem liberação de entrada: sem ValidTo — o vencido faria o
-    // aparelho negar a saída legítima. undefined = sem fim (permanente).
+    // condomínio sem liberação de entrada: sem ValidTo no leitor de SAÍDA — o
+    // término vencido faria o aparelho negar a saída legítima; no de sentido
+    // AUTO vai o limite da própria regra de "dentro" (24 h depois da entrada;
+    // depois disso a nuvem não o trata mais como dentro), ver o laço abaixo.
+    // undefined = sem fim (permanente).
     let validTo: string | undefined;
-    if (visitaAtiva && !(dentroDoCondominio && !liberaEntradaAgora)) {
+    const soParaSair = !!visitaAtiva && dentroDoCondominio && !liberaEntradaAgora;
+    const limiteDeQuemEstaDentro = soParaSair
+      ? this.formatDahuaTime(new Date(new Date(visitaAtiva.data_entrada).getTime() + 24 * 60 * 60 * 1000))
+      : undefined;
+    if (visitaAtiva && !soParaSair) {
       const fins: string[] = [];
       if (visitaAtiva.data_hora_termino) fins.push(this.formatDahuaTime(new Date(visitaAtiva.data_hora_termino)));
       const prazoRemoto = prazoRemotoEfetivoMs(visitaAtiva, ctx);
@@ -3389,6 +3396,7 @@ export class FacialService {
     // escolhida — mesmo critério de `syncVisitante`.
     const liberadoGeral = liberaEntradaAgora;
     const categoria: CategoriaPessoa = ehPrestador ? 'prestador' : 'visitante';
+    const remotaNaEscolhida = !!visitaAtiva && ehAutorizacaoRemota(visitaAtiva);
 
     let faceId: string | null = pessoa.face_id ?? null;
     let allOk = true;
@@ -3410,10 +3418,14 @@ export class FacialService {
         // ele, uma pessoa expirada mas ainda DENTRO do condomínio ficava
         // enrolada (sem validTo — ver acima) em TODO terminal, inclusive
         // entrada/auto — abrindo a porta de entrada pra quem já devia ter
-        // perdido acesso. "Sem expiração" só é seguro no leitor de SAÍDA,
-        // pra deixar quem está dentro sair.
+        // perdido acesso. Quem está DENTRO (inclusive por autorização remota
+        // já usada) fica nos leitores de SAÍDA e de sentido AUTO — o padrão,
+        // e num condomínio com um facial só na portaria é por ele que se sai —
+        // com 1 uso: a próxima leitura num `auto` vira SAÍDA pela alternância
+        // da nuvem, e a saída tira o rosto de todos. Leitor só de ENTRADA, não.
+        const sentidoSaiPorEle = device.sentido === 'saida' || !device.sentido || device.sentido === 'auto';
         const podeEstarNoDispositivo =
-          liberadoGeral || (dentroDoCondominio && device.sentido === 'saida');
+          liberadoGeral || (dentroDoCondominio && sentidoSaiPorEle);
 
         if (!podeEstarNoDispositivo) {
           await this.client.removePerson(this.toConfig(device), faceId ?? externalId);
@@ -3423,18 +3435,23 @@ export class FacialService {
         // Mesma regra do syncVisitante: prestador (pela VISITA, não pela
         // identidade — ver `ehPrestador` acima) e pessoa com vaga ativa têm
         // usos ilimitados (-1); os demais têm o contador do aparelho (UseTime).
+        // Autorização remota (uma entrada) conta como avulso, mesmo para
+        // prestador: offline, o aparelho não pode deixar entrar várias vezes.
         let userTimes = -1;
-        if (!ehPrestador && !temVagaAtiva) {
+        if ((!ehPrestador || remotaNaEscolhida) && !temVagaAtiva) {
           if (dentroDoCondominio) userTimes = 1;
           else userTimes = device.sentido === 'auto' ? 2 : 1;
         }
+        // Só para sair: no leitor de saída sem ValidTo; nos demais (auto), o
+        // limite de 24 h de quem está dentro.
+        const validToDispositivo = soParaSair && device.sentido !== 'saida' ? limiteDeQuemEstaDentro : validTo;
 
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: pessoa.nome,
             fotoBase64,
             validFrom,
-            validTo,
+            validTo: validToDispositivo,
             userTimes,
           });
         } else {
@@ -3443,7 +3460,7 @@ export class FacialService {
             nome: pessoa.nome,
             fotoBase64,
             validFrom,
-            validTo,
+            validTo: validToDispositivo,
             userTimes,
           });
           faceId = r.faceId;
