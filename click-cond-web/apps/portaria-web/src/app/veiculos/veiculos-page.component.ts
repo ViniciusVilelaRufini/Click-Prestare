@@ -13,7 +13,9 @@ import {
   GuaritaDevice,
   GuaritaDispositivo,
   GuaritaService,
+  MSG_CODIGO_IMPRESSO_INVALIDO,
   ROTULO_TIPO_GUARITA,
+  codigoImpressoValido,
   rotuloEstadoGuarita,
 } from '../guarita/guarita.service';
 import { GuaritaCapturaComponent } from '../guarita/guarita-captura.component';
@@ -417,7 +419,24 @@ export class VeiculosPageComponent implements OnInit {
     return lista.length === 1 ? lista[0].id : null;
   }
 
-  async aprovarTag(v: VeiculoComMorador) {
+  // ---- Aprovar: confirmar tipo e código impresso antes de gravar no Guarita ----
+
+  /** Tag em aprovação (gaveta aberta). */
+  readonly aprovacao = signal<{ v: VeiculoComMorador; idTag: number; deviceId: number } | null>(null);
+  /** 1 = controle remoto (só por captura); 2 TA, 3 CT, 6 TP. null = ainda não escolhido. */
+  aprovTipo: 1 | 2 | 3 | 6 | null = null;
+  aprovCodigo = '';
+  readonly erroAprovacao = signal<string | null>(null);
+  readonly enviandoAprovacao = signal(false);
+  readonly tiposAprovacao: { valor: 1 | 2 | 3 | 6; rotulo: string }[] = [
+    { valor: 2, rotulo: 'TAG ativo' },
+    { valor: 6, rotulo: 'TAG passivo' },
+    { valor: 3, rotulo: 'Cartão' },
+    { valor: 1, rotulo: 'Controle remoto' },
+  ];
+
+  /** Abre o passo de confirmação, com o código que o morador digitou no app. */
+  aprovarTag(v: VeiculoComMorador) {
     const idTag = v.id_tag;
     if (!idTag || this.guaritaEmAcao() !== null) return;
     const deviceId = this.guaritaDaTag(idTag);
@@ -425,14 +444,56 @@ export class VeiculosPageComponent implements OnInit {
       this.erroGuarita.set('Não foi possível saber de qual Guarita é esta tag.');
       return;
     }
-    const ok = await this.confirm.ask({
-      title: 'Aprovar tag',
-      message: `A tag do veículo ${v.placa} será gravada no Guarita e passará a abrir os portões.`,
-      confirmLabel: 'Aprovar',
-      variant: 'primary',
+    const tag = this.tagDoVeiculo(v) as (Tag & CamposGuaritaDaTag) | null;
+    const codigo = tag?.codigo ?? '';
+    // "G2-0F086E" é o código interno de uma tag de Guarita, não o impresso.
+    this.aprovCodigo = /^G\d-/i.test(codigo) ? '' : codigo;
+    const tipo = Number(tag?.guarita_tipo);
+    this.aprovTipo = tipo === 2 || tipo === 3 || tipo === 6 ? tipo : null;
+    this.erroAprovacao.set(null);
+    this.erroGuarita.set(null);
+    this.aprovacao.set({ v, idTag, deviceId });
+  }
+
+  fecharAprovacao() {
+    this.aprovacao.set(null);
+  }
+
+  confirmarAprovacao() {
+    const a = this.aprovacao();
+    if (!a || this.enviandoAprovacao()) return;
+    const tipo = this.aprovTipo == null ? null : Number(this.aprovTipo);
+    if (tipo == null) {
+      this.erroAprovacao.set('Escolha o tipo do dispositivo.');
+      return;
+    }
+    if (tipo === 1) return; // controle remoto: só por captura (botão próprio)
+    const codigo = this.aprovCodigo.trim();
+    if (!codigoImpressoValido(codigo)) {
+      this.erroAprovacao.set(MSG_CODIGO_IMPRESSO_INVALIDO);
+      return;
+    }
+    this.enviandoAprovacao.set(true);
+    this.erroAprovacao.set(null);
+    this.guaritaApi.aprovar(a.deviceId, a.idTag, { tipo: tipo as 2 | 3 | 6, codigo_impresso: codigo }).subscribe({
+      next: () => {
+        this.enviandoAprovacao.set(false);
+        this.aprovacao.set(null);
+        this.recarregarTudo();
+      },
+      error: (e) => {
+        this.enviandoAprovacao.set(false);
+        this.erroAprovacao.set(mensagemDaApi(e, 'Não foi possível aprovar a tag.'));
+      },
     });
-    if (!ok || this.guaritaEmAcao() !== null) return;
-    this.executarNoGuarita(idTag, this.guaritaApi.aprovar(deviceId, idTag), 'Não foi possível aprovar a tag.');
+  }
+
+  /** Controle remoto não entra digitado: fecha a aprovação e abre a captura do veículo. */
+  capturarAgora() {
+    const a = this.aprovacao();
+    if (!a) return;
+    this.aprovacao.set(null);
+    this.abrirCapturaGuarita(a.v);
   }
 
   async recusarTag(v: VeiculoComMorador) {

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { GuaritaService } from './guarita.service';
+import { GuaritaService, codigoImpressoValido } from './guarita.service';
 import { AuthService } from '../auth/auth.service';
 import { API_BASE } from '../shared/api.config';
 
@@ -153,5 +153,29 @@ describe('GuaritaService — rotas do console', () => {
     expect(u.request.method).toBe('PUT');
     expect(u.request.body).toEqual(dto);
     u.flush({ id: 1, ...dto });
+  });
+});
+
+describe('codigoImpressoValido', () => {
+  it.each(['015 02158', 'W: 015 02158', '015,02158', '015-02158', '255 65535', '0 0'])('aceita %s', (c) => {
+    expect(codigoImpressoValido(c)).toBe(true);
+  });
+  it.each(['', '12345678', 'E2000017221101441890', '256 00001', '015 65536', 'abc def', '015'])('recusa %s', (c) => {
+    expect(codigoImpressoValido(c)).toBe(false);
+  });
+});
+
+describe('GuaritaService — aprovar com tipo e código', () => {
+  it('manda { tipo, codigo_impresso } quando informados', () => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: { porteiroInfo: () => ({ id_condominio: 3 }) } }],
+    });
+    const api = TestBed.inject(GuaritaService);
+    const http = TestBed.inject(HttpTestingController);
+    api.aprovar(7, 30, { tipo: 2, codigo_impresso: '015 02158' }).subscribe();
+    const req = http.expectOne(`${API_BASE}/condominios/3/guarita/7/dispositivos/30/aprovar`);
+    expect(req.request.body).toEqual({ tipo: 2, codigo_impresso: '015 02158' });
+    req.flush({});
+    http.verify();
   });
 });

@@ -189,6 +189,20 @@ export function rotuloEstadoGuarita(
   }
 }
 
+/** Mesma mensagem que a API devolve para código impresso inválido. */
+export const MSG_CODIGO_IMPRESSO_INVALIDO = 'Código inválido. Use o formato impresso no cartão: 015 02158.';
+
+/**
+ * Código impresso na TAG/cartão no formato Wiegand "015 02158" (também
+ * "015,02158", "015-02158", com ou sem "W:"): facility 0–255 e número 0–65535.
+ * A conversão para o serial fica na API; aqui só barra o que ela recusaria.
+ */
+export function codigoImpressoValido(codigo: string | null | undefined): boolean {
+  const s = String(codigo ?? '').trim().replace(/^W\s*:\s*/i, '');
+  const m = /^(\d{1,3})[\s,.-]+(\d{1,5})$/.exec(s);
+  return !!m && Number(m[1]) <= 255 && Number(m[2]) <= 65535;
+}
+
 /** Controle remoto (RF) sem contador não pode ser gravado: o Guarita exige o contador. */
 export function capturadoBloqueado(c: Pick<GuaritaCapturado, 'tipo' | 'tem_contador'>): boolean {
   return Number(c.tipo) === 1 && c.tem_contador !== true;
@@ -309,8 +323,12 @@ export class GuaritaService {
   }
 
   /** Tag vinculada pelo morador no app: aprovar enfileira a gravação no Guarita. */
-  aprovar(deviceId: number, idTag: number): Observable<unknown> {
-    return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/aprovar`, {});
+  aprovar(
+    deviceId: number,
+    idTag: number,
+    dto?: { tipo: 2 | 3 | 6; codigo_impresso: string },
+  ): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/aprovar`, dto ?? {});
   }
 
   /** Recusar desfaz o vínculo; nada é gravado no Guarita. */

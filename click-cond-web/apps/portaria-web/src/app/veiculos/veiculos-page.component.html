@@ -432,6 +432,77 @@
     </div>
   }
 
+  <!-- APROVAR TAG DO MORADOR NO GUARITA: tipo e código impresso conferidos antes de gravar -->
+  @if (aprovacao(); as ap) {
+    <div class="ps-scrim on"></div>
+    <div class="ps-drawer on" data-guarita-aprovacao>
+      <div class="ps-drawer-head">
+        <h3 class="ps-h2">Aprovar tag no Guarita</h3>
+        <button type="button" (click)="fecharAprovacao()" aria-label="Fechar aprovação da tag" class="ps-ibtn">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="ps-drawer-body">
+        <p class="text-sm">
+          Veículo <span class="font-mono font-semibold tracking-wider">{{ ap.v.placa }}</span>
+          @if (ap.v.morador?.nome) {
+            <span class="text-slate-500"> · {{ ap.v.morador?.nome }}</span>
+          }
+        </p>
+        <p class="text-xs text-slate-500">Confira o tipo e o código impresso no dispositivo: é isso que será gravado no Guarita.</p>
+
+        <div>
+          <label class="ps-label block mb-1.5" for="veiculos-aprov-tipo">Tipo do dispositivo</label>
+          <select id="veiculos-aprov-tipo" name="aprov_tipo"
+            [(ngModel)]="aprovTipo"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition"
+          >
+            <option [ngValue]="null">Escolha o tipo</option>
+            @for (t of tiposAprovacao; track t.valor) {
+              <option [ngValue]="t.valor">{{ t.rotulo }}</option>
+            }
+          </select>
+        </div>
+
+        @if (aprovTipo === 1) {
+          <div data-aprov-controle class="p-3 border border-[var(--line-200)] text-xs">
+            Controle remoto só pode ser cadastrado por captura no Guarita: o Guarita exige o contador do controle, que não está impresso.
+          </div>
+        } @else {
+          <div>
+            <label class="ps-label block mb-1.5" for="veiculos-aprov-codigo">Código impresso</label>
+            <input id="veiculos-aprov-codigo" name="aprov_codigo"
+              [(ngModel)]="aprovCodigo"
+              type="text"
+              autocomplete="off"
+              placeholder="015 02158"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:outline-none focus:border-accent transition placeholder:text-slate-600"
+            />
+            <p class="text-xs text-slate-500 mt-1.5">Como está impresso na TAG ou no cartão (ex.: W: 015 02158). Veio preenchido com o que o morador digitou; corrija se preciso.</p>
+          </div>
+        }
+
+        @if (erroAprovacao()) {
+          <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroAprovacao() }}</div>
+        }
+      </div>
+
+      <div class="ps-drawer-foot">
+        <button type="button" (click)="fecharAprovacao()" class="ps-btn ps-btn-sec">Cancelar</button>
+        @if (aprovTipo === 1) {
+          <button type="button" (click)="capturarAgora()" class="ps-btn">Capturar agora</button>
+        } @else {
+          <button type="button" (click)="confirmarAprovacao()" [disabled]="enviandoAprovacao()" class="ps-btn disabled:opacity-50 disabled:cursor-not-allowed">
+            {{ enviandoAprovacao() ? 'Enviando…' : 'Aprovar e gravar' }}
+          </button>
+        }
+      </div>
+    </div>
+  }
+
   <!-- CADASTRO DE CONTROLE/TAG NO GUARITA -->
   @if (capturaVeiculo(); as cv) {
     <app-guarita-captura

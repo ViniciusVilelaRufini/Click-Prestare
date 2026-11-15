@@ -144,7 +144,9 @@ describe('VeiculosPageComponent — selo do estado no Guarita', () => {
 });
 
 describe('VeiculosPageComponent — aprovar ou recusar a tag vinculada pelo morador', () => {
-  const opts = { guaritas: [guarita], dispositivos: () => of([disp(1, 'aguardando_aprovacao')]) };
+  // O morador digitou "015 02158" no app; a tag está aguardando a portaria.
+  const tagApp = tagG(1, { codigo: '015 02158', guarita_estado: 'aguardando_aprovacao', id_device: 7 });
+  const opts = { guaritas: [guarita], tags: [tagApp], dispositivos: () => of([disp(1, 'aguardando_aprovacao')]) };
 
   it('só a tag aguardando tem "Aprovar"/"Recusar"', () => {
     const { el } = build(opts);
@@ -152,20 +154,99 @@ describe('VeiculosPageComponent — aprovar ou recusar a tag vinculada pelo mora
     expect(botoes(el, 'Recusar').length).toBe(1);
   });
 
-  it('aprovar pede confirmação, chama a API do Guarita certo e recarrega', async () => {
-    const { tela, guaritaApi, confirm, api } = build(opts);
-    await tela.aprovarTag(tela.veiculos()[0]);
-    expect(confirm.ask).toHaveBeenCalled();
-    expect(guaritaApi.aprovar).toHaveBeenCalledWith(7, 1);
-    expect(api.listAll).toHaveBeenCalledTimes(2);
-    expect(guaritaApi.dispositivos).toHaveBeenCalledTimes(2);
+  it('"Aprovar" abre o passo com o código que o morador digitou e o tipo a escolher', () => {
+    const { f, el, tela, guaritaApi } = build(opts);
+    botoes(el, 'Aprovar')[0].click();
+    f.detectChanges();
+    const gaveta = el.querySelector('[data-guarita-aprovacao]') as HTMLElement;
+    expect(gaveta).not.toBeNull();
+    expect(tela.aprovCodigo).toBe('015 02158');
+    expect(tela.aprovTipo).toBeNull();
+    const opcoes = Array.from(gaveta.querySelectorAll('select[name="aprov_tipo"] option')).map((o) => o.textContent?.trim());
+    expect(opcoes).toEqual(['Escolha o tipo', 'TAG ativo', 'TAG passivo', 'Cartão', 'Controle remoto']);
+    expect(guaritaApi.aprovar).not.toHaveBeenCalled();
   });
 
-  it('cancelar a confirmação não chama a API', async () => {
-    const { tela, guaritaApi } = build({ ...opts, confirma: false });
-    await tela.aprovarTag(tela.veiculos()[0]);
-    await tela.recusarTag(tela.veiculos()[0]);
+  it('sem tipo escolhido não envia', () => {
+    const { tela, guaritaApi } = build(opts);
+    tela.aprovarTag(tela.veiculos()[0]);
+    tela.confirmarAprovacao();
     expect(guaritaApi.aprovar).not.toHaveBeenCalled();
+    expect(tela.erroAprovacao()).toBe('Escolha o tipo do dispositivo.');
+  });
+
+  it('código fora do formato impresso é barrado antes de enviar', () => {
+    const { tela, guaritaApi } = build({ ...opts, tags: [{ ...tagApp, codigo: 'E2000017221101441890' }] });
+    tela.aprovarTag(tela.veiculos()[0]);
+    expect(tela.aprovCodigo).toBe('E2000017221101441890');
+    tela.aprovTipo = 2;
+    tela.confirmarAprovacao();
+    expect(guaritaApi.aprovar).not.toHaveBeenCalled();
+    expect(tela.erroAprovacao()).toBe('Código inválido. Use o formato impresso no cartão: 015 02158.');
+  });
+
+  it('envia { tipo, codigo_impresso } ao Guarita certo, fecha e recarrega', () => {
+    const { tela, guaritaApi, api } = build(opts);
+    tela.aprovarTag(tela.veiculos()[0]);
+    tela.aprovTipo = 3;
+    tela.aprovCodigo = ' 015,02158 ';
+    tela.confirmarAprovacao();
+    expect(guaritaApi.aprovar).toHaveBeenCalledWith(7, 1, { tipo: 3, codigo_impresso: '015,02158' });
+    expect(tela.aprovacao()).toBeNull();
+    expect(api.listAll).toHaveBeenCalledTimes(2);
+  });
+
+  it('código interno "G2-…" não é pré-preenchido', () => {
+    const { tela } = build({ ...opts, tags: [{ ...tagApp, codigo: 'G2-0F086E', guarita_tipo: 2 }] });
+    tela.aprovarTag(tela.veiculos()[0]);
+    expect(tela.aprovCodigo).toBe('');
+    expect(tela.aprovTipo).toBe(2);
+  });
+
+  it('controle remoto: explica que só entra por captura e "Capturar agora" abre a captura do veículo', () => {
+    jest.useFakeTimers();
+    const { f, el, tela, guaritaApi } = build(opts);
+    tela.aprovarTag(tela.veiculos()[0]);
+    tela.aprovTipo = 1;
+    f.detectChanges();
+    const gaveta = el.querySelector('[data-guarita-aprovacao]') as HTMLElement;
+    expect(gaveta.querySelector('[data-aprov-controle]')?.textContent).toContain('só pode ser cadastrado por captura');
+    expect(gaveta.querySelector('input[name="aprov_codigo"]')).toBeNull();
+    tela.confirmarAprovacao();
+    expect(guaritaApi.aprovar).not.toHaveBeenCalled();
+    botoes(gaveta, 'Capturar agora')[0].click();
+    f.detectChanges();
+    expect(el.querySelector('[data-guarita-aprovacao]')).toBeNull();
+    expect(el.querySelector('app-guarita-captura')).not.toBeNull();
+    expect(guaritaApi.abrirCaptura).toHaveBeenCalledWith(7, 100);
+  });
+
+  it('dois cliques em "Aprovar e gravar" = uma chamada', () => {
+    const { tela, guaritaApi } = build({ ...opts, guaritaExtra: { aprovar: jest.fn(() => ({ subscribe: () => undefined })) } });
+    tela.aprovarTag(tela.veiculos()[0]);
+    tela.aprovTipo = 6;
+    tela.confirmarAprovacao();
+    tela.confirmarAprovacao();
+    expect(guaritaApi.aprovar).toHaveBeenCalledTimes(1);
+  });
+
+  it('erro 400 da API aparece na gaveta como veio', () => {
+    const msg = 'Informe o código impresso na tag (ex.: 015 02158) para gravar no Guarita.';
+    const { f, el, tela } = build({
+      ...opts,
+      guaritaExtra: { aprovar: jest.fn(() => throwError(() => ({ status: 400, error: { message: msg } }))) },
+    });
+    tela.aprovarTag(tela.veiculos()[0]);
+    tela.aprovTipo = 2;
+    tela.confirmarAprovacao();
+    f.detectChanges();
+    expect(el.querySelector('[data-guarita-aprovacao] [role="alert"]')?.textContent?.trim()).toBe(msg);
+    expect(tela.aprovacao()).not.toBeNull();
+  });
+
+  it('recusar pede confirmação; cancelar não chama a API', async () => {
+    const { tela, guaritaApi } = build({ ...opts, confirma: false });
+    await tela.recusarTag(tela.veiculos()[0]);
     expect(guaritaApi.recusar).not.toHaveBeenCalled();
   });
 
@@ -173,23 +254,6 @@ describe('VeiculosPageComponent — aprovar ou recusar a tag vinculada pelo mora
     const { tela, guaritaApi } = build(opts);
     await tela.recusarTag(tela.veiculos()[0]);
     expect(guaritaApi.recusar).toHaveBeenCalledWith(7, 1);
-  });
-
-  it('dois cliques em "Aprovar" = uma chamada', async () => {
-    const { tela, guaritaApi } = build({ ...opts, guaritaExtra: { aprovar: jest.fn(() => ({ subscribe: () => undefined })) } });
-    const v = tela.veiculos()[0];
-    await Promise.all([tela.aprovarTag(v), tela.aprovarTag(v)]);
-    expect(guaritaApi.aprovar).toHaveBeenCalledTimes(1);
-  });
-
-  it('erro da API aparece como veio', async () => {
-    const { f, el, tela } = build({
-      ...opts,
-      guaritaExtra: { aprovar: jest.fn(() => throwError(() => ({ status: 409, error: { message: 'Esta tag já está em outro veículo.' } }))) },
-    });
-    await tela.aprovarTag(tela.veiculos()[0]);
-    f.detectChanges();
-    expect(el.querySelector('[data-erro-guarita]')?.textContent?.trim()).toBe('Esta tag já está em outro veículo.');
   });
 });
 
