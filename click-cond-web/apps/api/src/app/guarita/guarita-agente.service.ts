@@ -215,11 +215,18 @@ export class GuaritaAgenteService {
 
     let temCopia: boolean | null = null;
     const lote: OperacaoEntregue[] = [];
+    // Uma gravação por tag por lote: a seguinte da mesma tag só sai depois do
+    // resultado da anterior, com o `esperado` do que ela deixou confirmado.
+    const tagsNoLote = new Set<number>();
     for (const op of fila) {
       if (lote.length >= MAX_OPERACOES_POR_PEDIDO) break;
       if (TIPOS_GRAVACAO.includes(op.tipo)) {
         if (temCopia === null) temCopia = await this.temCopiaDeSeguranca(device.id);
         if (!temCopia) break;
+      }
+      if (TIPOS_GRAVACAO.includes(op.tipo) && op.id_tag != null) {
+        if (tagsNoLote.has(op.id_tag)) continue;
+        tagsNoLote.add(op.id_tag);
       }
       // editar/apagar levam o que o Prestare acredita estar no Guarita; sem
       // isso não há como o agente conferir, e a operação não sai.

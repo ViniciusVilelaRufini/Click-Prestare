@@ -171,6 +171,21 @@ export class GuaritaOperacoesService {
       });
       if (r.count === 1) return { id_operacao: cadastroPendente.id };
     }
+    // Edição ainda não entregue: só troca o frame dela (nunca duas edições da
+    // mesma tag na fila, cada uma com um `esperado`).
+    const edicaoPendente = await this.prisma.guarita_Operacoes.findFirst({
+      where: { id_tag: tag.id, tipo: 'editar', estado: ESTADO_OP.pendente },
+      orderBy: { id: 'desc' },
+      select: { id: true },
+    });
+    if (edicaoPendente) {
+      const frame = await this.montarFrameOuRegistrar(tag, (await this.frameConhecido(tag)) ?? null);
+      const r = await this.prisma.guarita_Operacoes.updateMany({
+        where: { id: edicaoPendente.id, estado: ESTADO_OP.pendente },
+        data: { frame_hex: frame },
+      });
+      if (r.count === 1) return { id_operacao: edicaoPendente.id };
+    }
     // Cadastro entregue e ainda sem resultado: a edição entra atrás dele (a fila
     // só a entrega depois do resultado, e a cancela se o cadastro não der ok).
     const cadastroEmVoo = await this.prisma.guarita_Operacoes.count({
@@ -345,9 +360,16 @@ export class GuaritaOperacoesService {
       await this.desfazerNoPrestare(tag);
       return false;
     }
-    // Cadastro desta tag ainda não entregue: cancela (nada chegou ao Guarita).
+    // Em conflito quando o morador sai: não apaga (o dispositivo lá é de
+    // outra unidade), mas a intenção de remover não some — alerta e texto na tag.
+    if (estado === ESTADO_TAG.conflito) {
+      await this.alertarRemocaoNaoConfirmada(tag);
+      return false;
+    }
+    // Cadastro e edição desta tag ainda não entregues: cancela (o apagar usa o
+    // frame confirmado atual).
     await this.prisma.guarita_Operacoes.updateMany({
-      where: { id_tag: tag.id, tipo: 'cadastrar', estado: ESTADO_OP.pendente },
+      where: { id_tag: tag.id, tipo: { in: ['cadastrar', 'editar'] }, estado: ESTADO_OP.pendente },
       data: { estado: ESTADO_OP.cancelada, concluida_em: new Date() },
     });
     // Cadastro já entregue e sem resultado: o apagar entra na fila e só sai
@@ -827,6 +849,49 @@ export class GuaritaOperacoesService {
     });
     if (reivindicou.count !== 1 || op.id_tag == null) return;
     await this.marcarTagEmConflito(op.id_tag, mensagem);
+    // Conflito numa REMOÇÃO: a intenção era tirar alguém — não pode sumir em silêncio.
+    if (op.tipo === 'apagar') {
+      const tag = await this.prisma.tags.findUnique({ where: { id: op.id_tag } });
+      if (tag) await this.alertarRemocaoNaoConfirmada(tag);
+    }
+  }
+
+  /** Quem é o dono do dispositivo, para os textos: o morador do veículo, ou o rótulo/unidade do frame. */
+  private async quemDaTag(tag: any): Promise<string> {
+    const v = await this.prisma.veiculos.findFirst({ where: { id_tag: tag.id }, select: { id_morador: true } });
+    const m = v ? await this.prisma.moradores.findUnique({ where: { id: v.id_morador }, select: { nome: true, bloco: true, apartamento: true } }) : null;
+    if (m) return `${m.nome}${m.apartamento ? ` (unidade ${m.apartamento}${m.bloco ? ` bloco ${m.bloco}` : ''})` : ''}`;
+    try {
+      const frame = await this.frameConhecido(tag);
+      const d = frame ? decodificarDispositivo(frame) : null;
+      if (d) return `${d.rotulo ? `${d.rotulo}, ` : ''}unidade ${d.unidade} bloco ${d.bloco}`;
+    } catch {
+      /* cai no serial */
+    }
+    return `serial ${tag.guarita_serial ?? '?'}`;
+  }
+
+  /**
+   * A remoção não pôde ser confirmada porque o Guarita mostra o dispositivo em
+   * outra unidade: tag `conflito` com o texto e alerta `remocao_pendente` (no
+   * máximo um a cada 12 h por tag).
+   */
+  async alertarRemocaoNaoConfirmada(tag: any) {
+    const texto = `Não foi possível confirmar a remoção do dispositivo de ${await this.quemDaTag(tag)} no Guarita. Confira no aparelho.`.slice(0, 255);
+    await this.prisma.tags.updateMany({
+      where: { id: tag.id },
+      data: { guarita_estado: ESTADO_TAG.conflito, guarita_erro: texto },
+    });
+    if (!(await this.estado.criarSeAusente(`guarita:alerta-remocao-conflito:${tag.id}`, true, 12 * 60 * 60 * 1000))) return;
+    await this.prisma.guarita_Alertas.create({
+      data: {
+        id_condominio: tag.id_condominio,
+        id_device: tag.id_device,
+        tipo: 'remocao_pendente',
+        descricao: texto,
+        dados: JSON.stringify({ id_tag: tag.id, serial: tag.guarita_serial, tipo: tag.guarita_tipo, motivo: 'conflito' }),
+      },
+    });
   }
 
   /** Tag → `conflito` e operações pendentes dela canceladas (usado também pela importação/conferência). */
