@@ -1,10 +1,12 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { ChatIaService } from '../chat-ia/chat-ia.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { NotificationsService } from '../notifications/notifications.service';
+import { avisarMoradoresDoCondominio } from '../comunicados/avisar-moradores.util';
 
 @Injectable()
 export class DocumentosService {
@@ -15,6 +17,8 @@ export class DocumentosService {
     private readonly storage: StorageService,
     private readonly tenant: TenantAccessService,
     private readonly chatIa: ChatIaService,
+    // Global (NotificationsModule). Opcional só porque specs instanciam o service sem ele.
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   async insert(idCondominio: number, documento: any, user?: JwtPayload) {
@@ -71,6 +75,16 @@ export class DocumentosService {
           `Falha ao indexar documento ${criado.id}: ${e?.message ?? e}`,
         ),
       );
+
+    // ATA publicada avisa os moradores (mesmo envio do "Novo comunicado").
+    // Sem esperar: falha no push não desfaz a publicação.
+    if (isAta) {
+      void avisarMoradoresDoCondominio(
+        { prisma: this.prisma, notifications: this.notifications, logger: this.logger },
+        Number(idCondominio),
+        { titulo: 'ATA publicada', corpo: String(documento.nome ?? '').trim() || 'Nova ATA', data: { type: 'ata', id: String(criado.id) } },
+      );
+    }
 
     return { success: true };
   }
