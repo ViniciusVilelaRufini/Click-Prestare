@@ -230,18 +230,97 @@ describe('R7 — lido fora de faixa não derruba o resultado', () => {
   });
 });
 
-describe('R6 — conflito de cadastro quando o morador sai', () => {
-  it('o Prestare nunca gravou este dispositivo: desfaz só no Prestare, sem alerta', async () => {
+describe('R6/F2 — conflito de cadastro quando o morador sai', () => {
+  it('cadastro entregue que voltou conflito: sai apagar com a unidade pedida; lá está outra → alerta, nada apagado', async () => {
     const m = montar();
     Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
+    m.guarita.set('0F086E', fr(202, 'B', 'BRUNO'));
     const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
     await m.agente.buscarOperacoes(DEV);
     await m.agente.registrarResultado(DEV, id_operacao, { ok: false, codigo: 2, erro: 'outra unidade' });
     expect(tag(m.db).guarita_estado).toBe('conflito');
+    expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(true);
+    for (const o of m.db.linhas('guarita_Operacoes')) if (o.estado === 'enviada') o.estado = 'ok';
+    await rodarAgente(m);
+    expect(m.guarita.get('0F086E')).toBe(fr(202, 'B', 'BRUNO')); // o do Bruno ficou
+    expect(m.db.linhas('guarita_Alertas').filter((a: any) => a.tipo === 'remocao_pendente')).toHaveLength(1);
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'conflito' });
+  });
+
+  it('nenhuma gravação entregue (o cadastro nem saiu): desfaz só no Prestare, sem alerta e sem apagar', async () => {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
+    await m.ops.enfileirarCadastro(1, 'x');
     expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(false);
-    expect(m.db.linhas('guarita_Alertas')).toHaveLength(0);
     expect(tag(m.db)).toBeUndefined();
     expect(ops(m.db, 'apagar')).toHaveLength(0);
+    expect(m.db.linhas('guarita_Alertas')).toHaveLength(0);
+  });
+});
+
+describe('F2 — conflito depois de cadastro incerto não se desfaz em silêncio', () => {
+  async function cenarioDoRevisor(noGuarita: string | null) {
+    const { TagsService } = require('../veiculos/tags.service');
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: null, guarita_frame: null });
+    if (noGuarita) m.guarita.set('0F086E', noGuarita);
+    else m.guarita.delete('0F086E');
+    const fecha29 = async (l: any) => {
+      for (const o of l.operacoes) if (o.tipo === 'atualizar_receptores') await m.agente.registrarResultado(DEV, o.id, { ok: true, codigo: 0 });
+    };
+    const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
+    const l1 = await m.agente.buscarOperacoes(DEV);
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, incerto: true });
+    await fecha29(l1);
+    m.db.linhas('moradores')[0].apartamento = '202';
+    const l2 = await m.agente.buscarOperacoes(DEV);
+    const c2 = l2.operacoes.find((o: any) => o.tipo === 'cadastrar')!;
+    expect(c2.frame_hex!.slice(12, 18)).toBe('020201');
+    await m.agente.registrarResultado(DEV, c2.id, { ok: false, codigo: 2, conflito: true, lido: { unidade: 308, bloco: 1, frame_hex: fr(308, 'B') }, erro: 'outra unidade' });
+    await fecha29(l2);
+    expect(tag(m.db).guarita_estado).toBe('conflito');
+    const r = await new TagsService(m.db as any, m.ops).remove(7, 1);
+    return { m, r };
+  }
+
+  it('cadastro 308 incerto → mora no 202 → recadastro dá conflito (lá está 308) → sai: apagar com esperado 308 confirmado', async () => {
+    const { m, r } = await cenarioDoRevisor(fr(308, 'B'));
+    expect(r).toEqual({ ok: true, guarita_remocoes: 1 });
+    await rodarAgente(m);
+    const apagar = ops(m.db, 'apagar');
+    // a unidade mais recente primeiro (202, conflito), depois a anterior (308, ok)
+    expect(apagar.map((o: any) => [decodificarDispositivo(o.frame_hex).unidade, o.estado])).toEqual([[202, 'falhou'], [308, 'ok']]);
+    expect(m.guarita.has('0F086E')).toBe(false);
+    expect(tag(m.db)).toBeUndefined();
+  });
+
+  it('o dispositivo está numa terceira unidade: nenhum apagar confirma → alerta remocao_pendente e a tag fica visível', async () => {
+    const { m } = await cenarioDoRevisor(fr(101, 'B', 'CARLA'));
+    await rodarAgente(m);
+    expect(ops(m.db, 'apagar')).toHaveLength(2); // no máximo as duas últimas unidades
+    expect(m.guarita.get('0F086E')).toBe(fr(101, 'B', 'CARLA'));
+    expect(m.db.linhas('guarita_Alertas').filter((a: any) => a.tipo === 'remocao_pendente')).toHaveLength(1);
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'conflito' });
+  });
+
+  it('o apagar sai para o agente só com tipo + serial (o resto zerado), como antes', async () => {
+    const { m } = await cenarioDoRevisor(fr(308, 'B'));
+    const lote = await m.agente.buscarOperacoes(DEV);
+    const ap = lote.operacoes.find((o: any) => o.tipo === 'apagar')!;
+    expect(ap.frame_hex).toBe('300F086E' + '00'.repeat(35));
+    expect(ap.esperado).toEqual({ unidade: 202, bloco: 1 });
+  });
+
+  it('cadastro entregue, morador sai com ele em voo e o resultado é falha: o apagar NÃO é cancelado', async () => {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
+    m.guarita.delete('0F086E');
+    const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
+    await m.agente.buscarOperacoes(DEV);
+    expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(true);
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: false, erro: 'O Guarita não respondeu e o dispositivo não foi gravado.' });
+    expect(ops(m.db, 'apagar').filter((o: any) => o.estado === 'pendente')).toHaveLength(1);
+    expect(tag(m.db).guarita_estado).toBe('removendo');
   });
 });
 
