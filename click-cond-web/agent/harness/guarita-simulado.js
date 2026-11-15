@@ -513,6 +513,10 @@ function criarGuaritaSimulado(opcoes = {}) {
       silencio: (n = 1) => {
         falhasPendentes.silencio += n;
       },
+      /** Desfaz o calar: o comando volta a ser respondido. */
+      falar: (comando) => {
+        calados.delete(comando);
+      },
       /** Este comando NUNCA tem resposta (firmware que não o implementa). */
       calar: (comando) => {
         calados.add(comando);
