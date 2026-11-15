@@ -235,6 +235,9 @@ function validarPalavraGuarita(palavra: unknown): string | null {
   return palavra;
 }
 
+/** Esta versão da integração trabalha com UM Módulo Guarita por condomínio. */
+const MSG_UM_GUARITA = 'Esta versão aceita um Módulo Guarita por condomínio.';
+
 /** Intervalo mínimo entre avisos de "payload sem credencial" do mesmo dispositivo. */
 const AVISO_SEM_CREDENCIAL_MS = 10 * 60 * 1000;
 
@@ -1383,6 +1386,23 @@ export class FacialService {
   }
 
   /**
+   * Módulo Guarita: no máximo UM ativo por condomínio nesta versão (as tags,
+   * a saída do morador e a captura são por Guarita; dois aparelhos com o mesmo
+   * controle deixariam o ex-morador entrando pelo segundo).
+   */
+  private async assertUmGuaritaPorCondominio(idCondominio: number, ignorarId?: number) {
+    const outros = await this.prisma.facial_Devices.count({
+      where: {
+        id_condominio: Number(idCondominio),
+        tipo: TIPO_GUARITA,
+        ativo: 1,
+        ...(ignorarId !== undefined ? { id: { not: ignorarId } } : {}),
+      },
+    });
+    if (outros > 0) throw new BadRequestException(MSG_UM_GUARITA);
+  }
+
+  /**
    * Dois cadastros ATIVOS do MESMO TIPO apontando para o mesmo aparelho (mesmo
    * ip:porta, ou mesmo MAC) no condomínio: os comandos e os eventos se
    * misturam. Recusa.
@@ -1519,6 +1539,7 @@ export class FacialService {
     const ip = validarIpDispositivo(dto.ip);
     const porta = validarPortaDispositivo(dto.porta ?? (ehGuarita ? PORTA_PADRAO_GUARITA : 80));
     const palavraGuarita = ehGuarita ? validarPalavraGuarita(dto.api_password) : undefined;
+    if (ehGuarita) await this.assertUmGuaritaPorCondominio(dto.id_condominio);
     await this.assertAreaDoCondominio(dto.id_area_social, dto.id_condominio);
     const mac = normalizarMac(dto.mac ?? null);
     await this.assertDispositivoNaoDuplicado({
@@ -1637,6 +1658,9 @@ export class FacialService {
     const tipoFinal = campos.tipo ?? antes.tipo;
     const ativoFinal = dto.ativo !== undefined ? (dto.ativo ? 1 : 0) : antes.ativo;
     const reativou = antes.ativo !== 1 && ativoFinal === 1;
+    if (tipoFinal === TIPO_GUARITA && ativoFinal === 1 && (antes.tipo !== TIPO_GUARITA || reativou)) {
+      await this.assertUmGuaritaPorCondominio(antes.id_condominio, id);
+    }
     const mudouEndereco = ipFinal !== antes.ip || portaFinal !== antes.porta;
     const mudouTipo = tipoFinal !== antes.tipo;
     if (ativoFinal === 1 && (mudouEndereco || mudouTipo || reativou)) {
