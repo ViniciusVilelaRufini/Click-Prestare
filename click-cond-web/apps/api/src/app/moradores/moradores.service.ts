@@ -503,9 +503,8 @@ export class MoradoresService {
           face_id: m?.face_id ?? null,
           face_sync_status: m?.face_sync_status ?? null,
           face_sync_error: m?.face_sync_error ?? null,
-          // A tela de edição monta o formulário com estes campos: sem eles, salvar apagava a tag e o QR.
-          tag_rfid: m?.tag_rfid ?? null,
-          qrcode_acesso: m?.qrcode_acesso ?? null,
+          // Tag RFID e QR Code não saem na lista (eram a credencial do prédio inteiro num GET só):
+          // ficam na ficha (findOne), que a tela carrega antes de editar.
           ...this.estadoAceiteBiometria(m, autorizados, r.user),
         });
       }
@@ -593,8 +592,7 @@ export class MoradoresService {
         face_id: m.face_id ?? null,
         face_sync_status: m.face_sync_status ?? null,
         face_sync_error: m.face_sync_error ?? null,
-        tag_rfid: m.tag_rfid ?? null,
-        qrcode_acesso: m.qrcode_acesso ?? null,
+        // Sem tag_rfid e qrcode_acesso: só na ficha (findOne). Esta lista também alimenta o CRM.
         ...this.estadoAceiteBiometria(m, autorizados, m.user),
       };
     });

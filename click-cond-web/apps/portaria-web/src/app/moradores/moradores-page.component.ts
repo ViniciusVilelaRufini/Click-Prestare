@@ -309,6 +309,13 @@ export class MoradoresPageComponent implements OnInit {
   abrirDetalhes(m: Morador) {
     this.selectedMorador.set(m);
     this.abaDetalhe.set('geral');
+    // Tag RFID e QR Code não vêm na lista: o painel os lê da ficha.
+    this.api.get(m.id).subscribe({
+      next: (ficha) => {
+        if (this.selectedMorador()?.id === m.id) this.selectedMorador.set({ ...this.selectedMorador()!, ...ficha });
+      },
+      error: (e) => this.toast.error(e?.error?.message ?? e?.message ?? 'Não foi possível carregar a ficha do morador.'),
+    });
     // Lazy-load das outras abas — só dispara o request ao abrir o painel
     this.atividade.set(null);
     this.atividadeError.set(null);
@@ -345,7 +352,18 @@ export class MoradoresPageComponent implements OnInit {
     this.error.set(null);
     this.showForm = true;
   }
+  /**
+   * A lista não traz tag RFID nem QR Code: o formulário nasce da ficha (GET :id). Sem ela o
+   * formulário não abre — montar com tag vazia faria parecer que o morador não tem credencial.
+   */
   abrirEditar(m: Morador) {
+    this.api.get(m.id).subscribe({
+      next: (ficha) => this.montarEdicao({ ...m, ...ficha }),
+      error: (e) => this.toast.error(e?.error?.message ?? e?.message ?? 'Não foi possível abrir o cadastro do morador.'),
+    });
+  }
+
+  private montarEdicao(m: Morador) {
     this.editingId = m.id;
     this.fotoPessoaBase64.set(m.foto_pessoa ?? m.photo ?? null);
     this.fotoDocumentoBase64.set(m.foto_documento ?? null);

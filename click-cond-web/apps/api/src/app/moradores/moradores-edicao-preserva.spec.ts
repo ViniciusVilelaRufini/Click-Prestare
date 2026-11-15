@@ -3,7 +3,8 @@ import { MoradoresService } from './moradores.service';
 /**
  * Rodada 2 de ciclos (cadastros):
  * A1 — a lista do console não devolvia tag_rfid nem qrcode_acesso; a tela regravava '' e a API
- *      apagava a tag e o QR do morador em qualquer edição.
+ *      apagava a tag e o QR do morador em qualquer edição. Na rodada 4 os dois saíram da lista de
+ *      vez (ficam só na ficha) e a tela só os envia quando o operador os altera.
  * A2 — editar um morador com duas unidades apagava todos os vínculos dele no condomínio
  *      (deleteMany) e recriava um só, com prazo novo de +45 dias.
  */
@@ -25,7 +26,7 @@ const semVinculoFora = {
   funcionarios: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
 };
 
-describe('A1 — MoradoresService.findAll devolve tag RFID e QR Code', () => {
+describe('Rodada 4 — tag RFID e QR Code ficam só na ficha, fora da lista', () => {
   const linha = {
     id: 43,
     id_user: 41,
@@ -34,10 +35,12 @@ describe('A1 — MoradoresService.findAll devolve tag RFID e QR Code', () => {
     tag_rfid: 'ABC123',
     qrcode_acesso: 'QR-9',
     foto_pessoa: null,
+    bloco: 'A',
+    apartamento: '101',
     user: { photo: null, apartamentosUsers: [{ id_apto: 7 }] },
   };
 
-  it('na lista do condomínio inteiro', async () => {
+  it('a lista do condomínio inteiro (a mesma do CRM) não traz tag nem QR', async () => {
     const prisma: any = {
       isConnected: true,
       ...semVinculoFora,
@@ -45,10 +48,11 @@ describe('A1 — MoradoresService.findAll devolve tag RFID e QR Code', () => {
       apartamentos_Users: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const [m] = await novoServico(prisma).findAll(1);
-    expect(m).toEqual(expect.objectContaining({ tag_rfid: 'ABC123', qrcode_acesso: 'QR-9' }));
+    expect(m).not.toHaveProperty('tag_rfid');
+    expect(m).not.toHaveProperty('qrcode_acesso');
   });
 
-  it('na lista filtrada por apartamento', async () => {
+  it('a lista filtrada por apartamento não traz tag nem QR', async () => {
     const prisma: any = {
       isConnected: true,
       ...semVinculoFora,
@@ -66,19 +70,20 @@ describe('A1 — MoradoresService.findAll devolve tag RFID e QR Code', () => {
       },
     };
     const [m] = await novoServico(prisma).findAll(1, undefined, 7);
-    expect(m).toEqual(expect.objectContaining({ tag_rfid: 'ABC123', qrcode_acesso: 'QR-9' }));
+    expect(m.id).toBe(43);
+    expect(m).not.toHaveProperty('tag_rfid');
+    expect(m).not.toHaveProperty('qrcode_acesso');
   });
 
-  it('sem tag e sem QR, devolve null (não omite o campo)', async () => {
+  it('a ficha (findOne) continua trazendo tag e QR', async () => {
     const prisma: any = {
       isConnected: true,
       ...semVinculoFora,
-      moradores: { findMany: jest.fn().mockResolvedValue([{ ...linha, tag_rfid: null, qrcode_acesso: null }]) },
-      apartamentos_Users: { findMany: jest.fn().mockResolvedValue([]) },
+      moradores: { findUnique: jest.fn().mockResolvedValue(linha), count: jest.fn().mockResolvedValue(0) },
+      apartamentos_Users: { count: jest.fn().mockResolvedValue(0) },
     };
-    const [m] = await novoServico(prisma).findAll(1);
-    expect(m).toHaveProperty('tag_rfid', null);
-    expect(m).toHaveProperty('qrcode_acesso', null);
+    const m: any = await novoServico(prisma).findOne(43);
+    expect(m).toEqual(expect.objectContaining({ tag_rfid: 'ABC123', qrcode_acesso: 'QR-9' }));
   });
 });
 

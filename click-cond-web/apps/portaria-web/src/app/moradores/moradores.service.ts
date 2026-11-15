@@ -22,6 +22,7 @@ export interface Morador {
   face_id?: string | null;
   face_sync_status?: string | null;
   face_sync_error?: string | null;
+  /** Só na ficha (GET :id): a lista não traz a tag nem o QR. */
   tag_rfid?: string | null;
   qrcode_acesso?: string | null;
   /** O titular aceitou a biometria no app (null: não deu para saber). Sem o aceite, o rosto não vai aos terminais. */
@@ -77,6 +78,11 @@ export class MoradoresApi {
       {},
       { params },
     );
+  }
+
+  /** Ficha do morador (GET :id). Tag RFID e QR Code só vêm por aqui, não pela lista. */
+  get(id: number): Observable<Morador> {
+    return this.http.get<Morador>(`${this.base}/${id}`);
   }
 
   create(dto: CreateMorador): Observable<Morador> {

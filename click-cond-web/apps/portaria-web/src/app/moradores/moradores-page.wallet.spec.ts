@@ -57,7 +57,7 @@ describe('MoradoresPageComponent — Cancelar passe da carteira', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: MoradoresApi, useValue: { cancelarPasseCarteira, list: jest.fn(() => of([])) } },
+        { provide: MoradoresApi, useValue: { cancelarPasseCarteira, list: jest.fn(() => of([])), get: jest.fn((id: number) => of({ id })) } },
         {
           provide: VeiculosApi,
           useValue: { listByMorador: jest.fn(() => of([])), listTags: jest.fn(() => of([])) },
