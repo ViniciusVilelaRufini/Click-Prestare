@@ -12,7 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { type Gravados, StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
-import { assertOperador, isOperador } from '../auth/tenant.util';
+import { assertOperador, assertStaff, isOperador } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { fimEmMinutos } from './fim-reserva.util';
@@ -324,9 +324,12 @@ export class AreasSociaisService {
   // GESTÃO DE ÁREAS SOCIAIS
   // ==========================================
   async insert(idCondominio: number, areaSocial: any, user?: JwtPayload) {
-    assertOperador(user, 'criar área social');
+    // Cadastrar espaço é de síndico ou funcionário com a flag `areas_sociais`:
+    // o porteiro do console (token sem typeAccess) agenda e decide reserva,
+    // mas não cria, edita nem exclui o espaço (decisão do dono, rodada 4).
+    assertStaff(user, 'criar área social');
     await this.tenant.assertCondominio(idCondominio, user);
-    // assertOperador so separa operador de morador. A flag e o que o sindico
+    // assertStaff so separa sindico/funcionario do resto. A flag e o que o sindico
     // desliga quando nao quer aquele funcionario mexendo nas areas.
     await this.tenant.assertPermissaoFuncionario(idCondominio, 'areas_sociais', user);
     if (!this.prisma.isConnected) {
@@ -364,7 +367,7 @@ export class AreasSociaisService {
   }
 
   async update(idCondominio: number, areaSocial: any, user?: JwtPayload) {
-    assertOperador(user, 'editar área social');
+    assertStaff(user, 'editar área social');
     await this.tenant.assertCondominio(idCondominio, user);
     await this.tenant.assertPermissaoFuncionario(idCondominio, 'areas_sociais', user);
     if (!this.prisma.isConnected) {
@@ -451,7 +454,7 @@ export class AreasSociaisService {
   }
 
   async remove(id: number, user?: JwtPayload) {
-    assertOperador(user, 'remover área social');
+    assertStaff(user, 'remover área social');
     if (!this.prisma.isConnected) return { success: true };
     const area = await this.prisma.areas_Sociais.findUnique({ where: { id: Number(id) } });
     if (!area) throw new NotFoundException('Área social não encontrada');

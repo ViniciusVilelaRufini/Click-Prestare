@@ -5,6 +5,8 @@ import { AgendamentoArea, AreaSocial, AreasSociaisApi } from './areas-sociais.se
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
+import { AuthService } from '../auth/auth.service';
+import { papelDoToken } from '../auth/papel';
 
 /** Intervalo da recarga silenciosa da lista de reservas. */
 const RECARGA_RESERVAS_MS = 30_000;
@@ -20,6 +22,20 @@ export class AreasSociaisPageComponent implements OnInit {
   private apartamentosApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
   private destroyRef = inject(DestroyRef);
+  private auth = inject(AuthService);
+
+  /**
+   * Cadastrar, editar e excluir espaço é do síndico e do funcionário do app
+   * (inclusive no console por QR Code): a API recusa o porteiro de
+   * login/senha (assertStaff). Agendar, aprovar, recusar, cancelar e
+   * confirmar presença continuam com ele. Decide pelo papel do token, como
+   * em comunicados — o `turno` é texto livre. A API segue decidindo.
+   */
+  readonly podeGerirEspacos = computed(() => {
+    this.auth.porteiroInfo(); // recalcula ao entrar / trocar de condomínio
+    const papel = papelDoToken(this.auth.token);
+    return papel === 'sindico' || papel === 'funcionario';
+  });
 
   readonly areas = signal<AreaSocial[]>([]);
   readonly agendamentos = signal<AgendamentoArea[]>([]);
