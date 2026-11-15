@@ -1,4 +1,5 @@
 import { T0, montarPortao } from './portao/montar-portao.spec';
+import { LOTE_SEM_CHEGADA } from './delivery.service';
 
 /**
  * Rodada 4 — aviso de delivery parado.
@@ -99,5 +100,30 @@ describe('delivery — aviso AGENDADA sem chegada', () => {
     });
     await k.svc.tick();
     expect(k.tabela('deliveryAtendimentos')[0].status).toBe('CHEGOU');
+  });
+  describe('rodada 1: trabalho limitado por passada', () => {
+    it('cancela no máximo um lote por tick; o resto sai no seguinte', async () => {
+      const total = LOTE_SEM_CHEGADA + 7;
+      const k = montarPortao({
+        atendimentos: Array.from({ length: total }, (_, i) => aviso(i + 1, { created_at: em(-30 * H), id_apartamento: 101 })),
+      });
+      await k.svc.tick();
+      const cancelados = () => k.tabela('deliveryAtendimentos').filter((a: any) => a.status === 'CANCELADA').length;
+      expect(LOTE_SEM_CHEGADA).toBeLessThanOrEqual(50);
+      expect(cancelados()).toBe(LOTE_SEM_CHEGADA);
+      await k.svc.tick();
+      expect(cancelados()).toBe(total);
+    });
+
+    it('não espera o card/aviso de cada cancelamento (nem o teto de 2 s)', async () => {
+      const k = montarPortao({
+        atendimentos: [1, 2, 3].map((id) => aviso(id, { created_at: em(-30 * H), id_apartamento: 101 })),
+      });
+      k.card.atualizarDelivery.mockImplementation(() => new Promise(() => undefined)); // APNs travado
+      const inicio = Date.now();
+      await k.svc.tick();
+      expect(Date.now() - inicio).toBeLessThan(1500); // antes: 3 × 2 s
+      expect(k.tabela('deliveryAtendimentos').every((a: any) => a.status === 'CANCELADA')).toBe(true);
+    });
   });
 });

@@ -73,7 +73,12 @@ const TRANSICOES_DO_SISTEMA: Partial<Record<DeliveryStatus, readonly DeliverySta
 /** Aviso AGENDADA sem chegada é cancelado este tempo depois da previsão (ou da criação, sem previsão). */
 export const AVISO_SEM_CHEGADA_MS = 24 * 3_600_000;
 export const MOTIVO_SEM_CHEGADA = 'Sem chegada';
-const LOTE_SEM_CHEGADA = 200;
+/**
+ * Avisos cancelados por passada da rotina (5 min). Pequeno de propósito: o
+ * primeiro tick depois do deploy pega o acumulado e não pode segurar o lock
+ * da rotina por minutos; o resto sai nas passadas seguintes.
+ */
+export const LOTE_SEM_CHEGADA = 50;
 const MSG_JA_TEM_PEDIDO = 'Este atendimento já tem um pedido de portão.';
 const MSG_ENTREGADOR_SAIU = 'O entregador não está mais no portão.';
 const AUTOR_AUTOATENDIMENTO = 'Autoatendimento';
@@ -674,9 +679,14 @@ export class DeliveryService {
     idAtendimento: number,
     statusNovo: DeliveryStatus,
     mensagem: string,
-    /** Só transiciona a partir deste status (o atendimento pode ter mudado depois da consulta da rotina). */
-    somenteDe?: DeliveryStatus,
+    opcoes: {
+      /** Só transiciona a partir deste status (o atendimento pode ter mudado depois da consulta da rotina). */
+      somenteDe?: DeliveryStatus;
+      /** Não espera o card/aviso (nem o teto): a rotina em lote não fica presa no APNs/FCM. */
+      semEsperarAviso?: boolean;
+    } = {},
   ): Promise<boolean> {
+    const { somenteDe } = opcoes;
     const atendimento = await (this.prisma as any).deliveryAtendimentos.findUnique({ where: { id: Number(idAtendimento) } });
     if (!atendimento) return false;
     const statusAtual = atendimento.status as DeliveryStatus;
@@ -703,7 +713,8 @@ export class DeliveryService {
     const aviso = this.avisarMorador(atualizado, statusNovo, false, false, data.motivo, null, {
       semNotificacaoComum: statusNovo === 'CANCELADA',
     }).catch((e: any) => this.logger.warn(`Aviso do delivery ${atualizado.id}: ${e?.message ?? e}`));
-    await this.comTeto(Promise.all([gancho, aviso]));
+    // Ambos nunca rejeitam; em lote seguem em segundo plano.
+    if (!opcoes.semEsperarAviso) await this.comTeto(Promise.all([gancho, aviso]));
     return true;
   }
 
@@ -718,6 +729,9 @@ export class DeliveryService {
   async cancelarAvisosSemChegada(): Promise<number> {
     const corte = new Date(this.agora() - AVISO_SEM_CHEGADA_MS);
     const lista = (await (this.prisma as any).deliveryAtendimentos.findMany({
+      // Status primeiro: AGENDADA é um conjunto pequeno (a própria rotina o
+      // esvazia), e o índice da tabela (id_condominio, status, created_at)
+      // tem o status logo depois do condomínio.
       where: {
         status: 'AGENDADA',
         OR: [{ previsao_em: { lte: corte } }, { previsao_em: null, created_at: { lte: corte } }],
@@ -729,7 +743,11 @@ export class DeliveryService {
     let cancelados = 0;
     for (const a of lista) {
       try {
-        if (await this.transicionarPeloSistema(a.id, 'CANCELADA', MOTIVO_SEM_CHEGADA, 'AGENDADA')) cancelados++;
+        const ok = await this.transicionarPeloSistema(a.id, 'CANCELADA', MOTIVO_SEM_CHEGADA, {
+          somenteDe: 'AGENDADA',
+          semEsperarAviso: true,
+        });
+        if (ok) cancelados++;
       } catch (e: any) {
         this.logger.warn(`Aviso de delivery ${a.id} sem chegada: ${e?.message ?? e}`);
       }
