@@ -110,7 +110,7 @@ describe('GuaritaService — rotas do console', () => {
 
   it.each([
     ['vincular', () => api.vincular(7, 30, 101), `${base}/7/dispositivos/30/vincular`, { id_veiculo: 101 }],
-    ['aprovar', () => api.aprovar(7, 30), `${base}/7/dispositivos/30/aprovar`, {}],
+    ['aprovar', () => api.aprovar(7, 30, { tipo: 6, codigo_impresso: '015 02158' }), `${base}/7/dispositivos/30/aprovar`, { tipo: 6, codigo_impresso: '015 02158' }],
     ['recusar', () => api.recusar(7, 30), `${base}/7/dispositivos/30/recusar`, {}],
     ['desfazer', () => api.desfazer(7, 30), `${base}/7/dispositivos/30/desfazer`, {}],
     ['regravar', () => api.regravar(7, 30), `${base}/7/dispositivos/30/regravar`, {}],

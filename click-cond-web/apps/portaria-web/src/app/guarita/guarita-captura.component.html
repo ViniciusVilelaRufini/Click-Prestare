@@ -65,7 +65,7 @@
             <button type="button" (click)="usar(c)" [disabled]="bloqueado(c) || enviando()" class="ps-btn ps-btn-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">Usar este</button>
           </div>
         } @empty {
-          @if (janelaUsada()) {
+          @if (janelaUsada() && (!janelaAberta() || segundos() <= 50)) {
             <p data-guarita-orientacao class="text-xs text-slate-500">{{ orientacao }}.</p>
           }
         }

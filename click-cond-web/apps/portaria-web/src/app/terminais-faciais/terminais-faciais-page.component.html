@@ -1494,6 +1494,11 @@
               />
               <p data-nota-palavra class="text-[10px] text-slate-400 dark:text-slate-500">
                 @if (editingId()) {
+                  @if (temPalavraEmEdicao() === true) {
+                    Há uma palavra gravada.
+                  } @else if (temPalavraEmEdicao() === false) {
+                    Nenhuma palavra gravada.
+                  }
                   Em branco mantém a palavra atual. Ela nunca é mostrada de novo.
                 } @else {
                   Só se o Guarita foi programado para pedir autorização na conexão TCP (até 15 caracteres). Ela nunca é mostrada de novo.

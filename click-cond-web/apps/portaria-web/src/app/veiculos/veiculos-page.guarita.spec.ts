@@ -498,12 +498,12 @@ describe('VeiculosPageComponent — lista "A vincular" (paginada no servidor)', 
 });
 
 describe('VeiculosPageComponent — "Cadastrar controle/tag"', () => {
-  it('cada veículo tem o botão; ele abre a captura daquele veículo', () => {
+  it('só veículo sem tag tem o botão (a API recusa os que têm); ele abre a captura daquele veículo', () => {
     jest.useFakeTimers();
     const { f, el, tela, guaritaApi } = build({ guaritas: [guarita] });
     const lista = botoes(el, 'Cadastrar controle/tag');
-    expect(lista.length).toBe(2);
-    lista[1].click();
+    expect(lista.length).toBe(1);
+    lista[0].click();
     f.detectChanges();
     expect(el.querySelector('app-guarita-captura')).not.toBeNull();
     expect(guaritaApi.abrirCaptura).toHaveBeenCalledWith(7, 101);

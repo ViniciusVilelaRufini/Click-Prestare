@@ -121,14 +121,22 @@ export class GuaritaCapturaComponent implements OnInit, OnDestroy {
     if ((JANELA_CAPTURA_S - restante) % LER_CAPTURA_A_CADA_S === 0) this.ler(deviceId);
   }
 
+  private lendo = false;
+
   private ler(deviceId: number) {
+    // Em rede lenta não empilha pedidos (a resposta antiga não chega depois da nova).
+    if (this.lendo) return;
+    this.lendo = true;
     this.api.lerCaptura(deviceId).subscribe({
       next: (lista) => {
+        this.lendo = false;
         if (this.destruido) return;
         this.recebidos.set(lista);
       },
       // Falha de uma leitura não apaga o que já chegou; a próxima tenta de novo.
-      error: () => {},
+      error: () => {
+        this.lendo = false;
+      },
     });
   }
 

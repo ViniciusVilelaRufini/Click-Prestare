@@ -36,6 +36,8 @@ export interface TerminalFacial {
   token_entrega?: string | null;
   created_at: string;
   updated_at: string;
+  /** Só no Guarita: há palavra de autorização gravada (a palavra em si nunca vem). */
+  tem_palavra?: boolean;
   /** True se há um Agente Local fazendo polling deste device agora. */
   agent_online?: boolean;
   /**

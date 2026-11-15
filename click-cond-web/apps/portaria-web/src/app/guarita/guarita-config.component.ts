@@ -18,7 +18,7 @@ import {
   mensagemDaApiGuarita,
 } from './guarita.service';
 
-export type ConexaoGuarita = 'conectado' | 'negado' | 'sem_resposta' | 'aguardando';
+export type ConexaoGuarita = 'conectado' | 'negado' | 'sem_resposta' | 'aguardando' | 'agente_offline';
 
 /**
  * Situação da ligação com o Guarita a partir do estado que o agente reportou.
@@ -28,6 +28,8 @@ export type ConexaoGuarita = 'conectado' | 'negado' | 'sem_resposta' | 'aguardan
  */
 export function conexaoDoGuarita(e: GuaritaEstado | null | undefined): ConexaoGuarita | null {
   if (!e) return null;
+  // Sem agente não há como saber do Guarita: diz onde está o problema.
+  if (e.agente_online === false) return 'agente_offline';
   const recusou = /recusad|negad/i.test(e.erro ?? '');
   if (e.autorizado === false && (e.conectado === true || recusou)) return 'negado';
   if (e.conectado === true) return 'conectado';
@@ -40,6 +42,7 @@ export const ROTULO_CONEXAO: Record<ConexaoGuarita, string> = {
   negado: 'Autorização negada',
   sem_resposta: 'Sem resposta',
   aguardando: 'Aguardando o agente',
+  agente_offline: 'Agente desconectado',
 };
 
 /** Aviso da diferença de relógio; null quando dentro do limite ou desconhecida. */
@@ -81,7 +84,15 @@ function textoDoAndamento(tipo: TipoOperacaoTela, op: GuaritaOperacao): { texto:
       if (tipo === 'conferir' && op.resumo) {
         const r = op.resumo;
         return {
-          texto: `Conferência concluída: ${r.so_no_guarita ?? 0} só no Guarita (foram para "A vincular"), ${r.so_no_prestare ?? 0} só no Prestare (serão regravados), ${r.divergente ?? 0} com dados diferentes.`,
+          texto: `Conferência concluída: ${r.so_no_guarita ?? 0} só no Guarita (foram para "A vincular"), ${r.so_no_prestare ?? 0} só no Prestare, ${r.divergente ?? 0} com dados diferentes.`,
+          erro: false,
+          fim: true,
+        };
+      }
+      const ri = op.resumo as { total?: number; novos?: number; atualizados?: number; vinculados?: number } | null | undefined;
+      if (tipo === 'importar' && ri && ri.total != null) {
+        return {
+          texto: `Importação concluída: ${ri.total} lido(s) do Guarita, ${ri.novos ?? 0} novo(s), ${ri.atualizados ?? 0} atualizado(s), ${ri.vinculados ?? 0} vinculado(s) a veículo.`,
           erro: false,
           fim: true,
         };
@@ -95,6 +106,17 @@ function textoDoAndamento(tipo: TipoOperacaoTela, op: GuaritaOperacao): { texto:
     default:
       return { texto: `${Nome} enviada ao agente.`, erro: false, fim: false };
   }
+}
+
+/** Texto de um Blob (`blob.text()` onde houver; FileReader nos navegadores sem ele). */
+function lerTextoDoBlob(b: Blob): Promise<string> {
+  if (typeof (b as any).text === 'function') return (b as any).text();
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result ?? ''));
+    r.onerror = () => reject(r.error);
+    r.readAsText(b);
+  });
 }
 
 function portaoVazio(): GuaritaPortaoDto {
@@ -352,7 +374,24 @@ export class GuaritaConfigComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.baixandoBackup.set(null);
-        this.erroBackups.set(mensagemDaApiGuarita(err, 'Não foi possível baixar a cópia de segurança.'));
+        const padrao = 'Não foi possível baixar a cópia de segurança.';
+        const corpo = err?.error;
+        // Com responseType 'blob' o corpo do erro também é Blob: lê a mensagem dele.
+        if (corpo instanceof Blob) {
+          lerTextoDoBlob(corpo)
+            .then((t) => {
+              let msg = padrao;
+              try {
+                msg = mensagemDaApiGuarita({ error: JSON.parse(t) }, padrao);
+              } catch {
+                /* corpo que não é JSON: fica o texto padrão */
+              }
+              if (!this.destruido) this.erroBackups.set(msg);
+            })
+            .catch(() => !this.destruido && this.erroBackups.set(padrao));
+          return;
+        }
+        this.erroBackups.set(mensagemDaApiGuarita(err, padrao));
       },
     });
   }

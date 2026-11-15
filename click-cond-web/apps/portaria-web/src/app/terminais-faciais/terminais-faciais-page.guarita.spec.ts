@@ -183,6 +183,21 @@ describe('TerminaisFaciaisPageComponent — cadastro do Módulo Guarita', () => 
     tela.ngOnDestroy();
   });
 
+  it('editar diz se há palavra gravada (tem_palavra), e fechar o modal limpa a palavra digitada', async () => {
+    const { f, tela, el } = build([{ ...guarita, tem_palavra: true }]);
+    tela.openEdit({ ...guarita, tem_palavra: true });
+    f.detectChanges();
+    await f.whenStable();
+    expect(el.querySelector('[data-nota-palavra]')?.textContent).toContain('Há uma palavra gravada.');
+    tela.form.api_password = 'NovaPalavra';
+    tela.closeModal();
+    expect(tela.form.api_password).toBe('');
+    tela.openEdit({ ...guarita, tem_palavra: false });
+    f.detectChanges();
+    expect(el.querySelector('[data-nota-palavra]')?.textContent).toContain('Nenhuma palavra gravada.');
+    tela.ngOnDestroy();
+  });
+
   it('a palavra nunca vai para o log do navegador', () => {
     const espioes = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => jest.spyOn(console, m).mockImplementation(() => undefined));
     const { tela } = build();

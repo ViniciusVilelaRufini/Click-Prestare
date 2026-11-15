@@ -57,8 +57,11 @@ export interface GuaritaEstado {
   falhas?: number | null;
   a_vincular?: number | null;
   aguardando_aprovacao?: number | null;
-  /** Motivo da última falha reportada pelo agente (ex.: palavra recusada). Assumido; opcional. */
+  /** Motivo da última falha reportada pelo agente ou pela API (palavra recusada, receptores, agente desatualizado). */
   erro?: string | null;
+  /** O agente local está falando com a nuvem (false = o problema é o agente, não o Guarita). */
+  agente_online?: boolean | null;
+  aviso_relogio?: boolean | null;
 }
 
 export type GuaritaEstadoOperacao = 'pendente' | 'enviada' | 'ok' | 'falhou' | 'cancelada';
@@ -81,6 +84,11 @@ export interface GuaritaOperacao {
     so_no_guarita?: number;
     so_no_prestare?: number;
     divergente?: number;
+    /** Importação: lidos, novos, atualizados e vinculados a veículo. */
+    total?: number;
+    novos?: number;
+    atualizados?: number;
+    vinculados?: number;
   } | null;
 }
 
@@ -416,9 +424,9 @@ export class GuaritaService {
   aprovar(
     deviceId: number,
     idTag: number,
-    dto?: { tipo: 2 | 3 | 6; codigo_impresso: string },
+    dto: { tipo: 2 | 3 | 6; codigo_impresso: string },
   ): Observable<unknown> {
-    return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/aprovar`, dto ?? {});
+    return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/aprovar`, dto);
   }
 
   /** Recusar: a tag não é gravada no Guarita e fica `recusada` (o morador vê no app). */

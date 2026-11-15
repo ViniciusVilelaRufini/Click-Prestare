@@ -71,9 +71,12 @@ describe('GuaritaCapturaComponent — por aproximação', () => {
     tela.ngOnDestroy();
   });
 
-  it('nada chegou: mostra a orientação do Cadastro Rápido', () => {
+  it('nada chegou em 10 s: mostra a orientação do Cadastro Rápido (antes disso, não)', () => {
     const { f, el, tela } = build();
     jest.advanceTimersByTime(2_000);
+    f.detectChanges();
+    expect(el.querySelector('[data-guarita-orientacao]')).toBeNull();
+    jest.advanceTimersByTime(8_000);
     f.detectChanges();
     expect(el.querySelector('[data-guarita-orientacao]')?.textContent).toContain(ORIENTACAO_CAPTURA);
     expect(ORIENTACAO_CAPTURA).toBe('Peça ao porteiro para entrar em Menu > Cadastro Rápido no Guarita e acione o controle');
@@ -91,6 +94,13 @@ describe('GuaritaCapturaComponent — por aproximação', () => {
     expect(api.lerCaptura.mock.calls.length).toBe(chamadas);
     botao(el, 'Capturar de novo')!.click();
     expect(api.abrirCaptura).toHaveBeenCalledTimes(2);
+    tela.ngOnDestroy();
+  });
+
+  it('em rede lenta, a leitura não empilha pedidos', () => {
+    const { tela, api } = build({ lerCaptura: jest.fn(() => ({ subscribe: () => undefined })) });
+    jest.advanceTimersByTime(10_000);
+    expect(api.lerCaptura).toHaveBeenCalledTimes(1);
     tela.ngOnDestroy();
   });
 

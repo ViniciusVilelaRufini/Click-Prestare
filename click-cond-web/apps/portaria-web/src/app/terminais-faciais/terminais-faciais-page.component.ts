@@ -1379,6 +1379,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       controle_acesso_facial: t.controle_acesso_facial === 1,
     };
     this.areaOriginal = t.id_area_social ?? null;
+    this.temPalavraEmEdicao.set(typeof t.tem_palavra === 'boolean' ? t.tem_palavra : null);
     this.showModal.set(true);
   }
 
@@ -1386,7 +1387,12 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.showModal.set(false);
     this.editingId.set(null);
     this.limparEstadoDoModal();
+    // Segredos digitados não ficam no componente depois de fechar.
+    this.form.api_password = '';
   }
+
+  /** Guarita em edição já tem palavra gravada (`tem_palavra` da API); null = API não informa. */
+  readonly temPalavraEmEdicao = signal<boolean | null>(null);
 
   /** Zera o que pertence a UMA abertura do modal (erro, passo do webhook, foco). */
   private limparEstadoDoModal() {

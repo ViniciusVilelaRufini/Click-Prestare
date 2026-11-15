@@ -73,6 +73,7 @@ describe('conexaoDoGuarita / avisoRelogioGuarita', () => {
     expect(conexaoDoGuarita({ conectado: false, autorizado: false, erro: 'ECONNREFUSED' })).toBe('sem_resposta');
     expect(conexaoDoGuarita({ conectado: false, ultima_comunicacao: '2026-11-15T12:00:00Z' })).toBe('sem_resposta');
     expect(conexaoDoGuarita({})).toBe('aguardando');
+    expect(conexaoDoGuarita({ conectado: null, agente_online: false })).toBe('agente_offline');
     expect(conexaoDoGuarita(null)).toBeNull();
   });
 
@@ -244,6 +245,24 @@ describe('GuaritaConfigComponent — importar e conferir', () => {
     tela.ngOnDestroy();
   });
 
+  it('importação concluída mostra o resumo que a API manda', () => {
+    const { f, el, tela } = build({
+      importar: jest.fn(() => of({ id: 50, tipo: 'importar', estado: 'ok', resumo: { total: 312, novos: 40, atualizados: 270, vinculados: 25 } })),
+    });
+    tela.importar();
+    f.detectChanges();
+    expect(el.querySelector('[data-guarita-andamento]')?.textContent?.trim()).toBe(
+      'Importação concluída: 312 lido(s) do Guarita, 40 novo(s), 270 atualizado(s), 25 vinculado(s) a veículo.',
+    );
+    tela.ngOnDestroy();
+  });
+
+  it('agente desconectado aparece como tal', () => {
+    const { el, tela } = build({ estado: jest.fn(() => of({ conectado: null, agente_online: false })) });
+    expect(el.querySelector('[data-guarita-conexao]')?.textContent?.trim()).toBe('Agente desconectado');
+    tela.ngOnDestroy();
+  });
+
   it('conferência concluída mostra o resumo das diferenças', () => {
     const { f, el, tela, api } = build({
       conferir: jest.fn(() => of({ id: 51, tipo: 'conferir', estado: 'ok', resumo: { so_no_guarita: 2, so_no_prestare: 1, divergente: 4 } })),
@@ -253,7 +272,8 @@ describe('GuaritaConfigComponent — importar e conferir', () => {
     expect(api.conferir).toHaveBeenCalledWith(7);
     const texto = el.querySelector('[data-guarita-andamento]')?.textContent ?? '';
     expect(texto).toContain('2 só no Guarita');
-    expect(texto).toContain('1 só no Prestare');
+    expect(texto).toContain('1 só no Prestare,');
+    expect(texto).not.toContain('regravados');
     expect(texto).toContain('4 com dados diferentes');
     tela.ngOnDestroy();
   });
@@ -297,6 +317,17 @@ describe('GuaritaConfigComponent — cópias de segurança', () => {
     expect(tela.rotuloMotivo('conferencia')).toBe('Conferência');
     expect(tela.rotuloMotivo('remocao')).toBe('Remoção de dispositivo');
     expect(tela.rotuloMotivo('outra_coisa')).toBe('Cópia de segurança');
+    tela.ngOnDestroy();
+  });
+
+  it('erro no download: a mensagem da API (que vem num Blob) aparece como veio', async () => {
+    const corpo = new Blob([JSON.stringify({ statusCode: 404, message: 'Cópia de segurança não encontrada.' })], { type: 'application/json' });
+    const { f, el, tela } = build({ baixarBackup: jest.fn(() => throwError(() => ({ status: 404, error: corpo }))) });
+    tela.baixar(backup);
+    for (let i = 0; i < 20 && tela.erroBackups() === null; i++) await new Promise((r) => setTimeout(r, 5));
+    f.detectChanges();
+    expect(tela.erroBackups()).toBe('Cópia de segurança não encontrada.');
+    void el;
     tela.ngOnDestroy();
   });
 
