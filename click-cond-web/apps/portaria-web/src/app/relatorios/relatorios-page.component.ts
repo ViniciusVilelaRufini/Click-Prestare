@@ -502,20 +502,37 @@ export class RelatoriosPageComponent {
         console.error(err);
         this.loading.set(false);
         const padrao = 'Não foi possível gerar o relatório. Verifique os filtros e tente novamente.';
-        // O download pede blob: a mensagem da API chega dentro dele.
+        // O download pede blob: a mensagem da API (403, 400...) chega dentro dele.
         const corpo = err?.error;
-        if (corpo instanceof Blob && typeof corpo.text === 'function') {
+        if (corpo instanceof Blob) {
           this.error.set(padrao);
-          corpo.text().then((t) => {
-            try {
-              const msg = JSON.parse(t)?.message;
-              if (msg) this.error.set(Array.isArray(msg) ? msg.join(' ') : String(msg));
-            } catch { /* corpo não é JSON: fica a mensagem padrão */ }
-          }).catch(() => undefined);
+          void mensagemDoBlob(corpo).then((msg) => {
+            if (msg) this.error.set(msg);
+          });
         } else {
           this.error.set(err?.error?.message ?? padrao);
         }
       },
     });
+  }
+}
+
+/** `message` do JSON de erro da API que veio como Blob (download); null se não houver. */
+export async function mensagemDoBlob(blob: Blob): Promise<string | null> {
+  try {
+    const texto =
+      typeof blob.text === 'function'
+        ? await blob.text()
+        : await new Promise<string>((ok, falha) => {
+            const leitor = new FileReader();
+            leitor.onload = () => ok(String(leitor.result ?? ''));
+            leitor.onerror = () => falha(leitor.error);
+            leitor.readAsText(blob);
+          });
+    const msg = JSON.parse(texto)?.message;
+    if (!msg) return null;
+    return Array.isArray(msg) ? msg.join(' ') : String(msg);
+  } catch {
+    return null; // corpo não é JSON
   }
 }

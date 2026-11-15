@@ -295,6 +295,26 @@ describe('RelatoriosPageComponent — auditoria e eventos', () => {
       expect(api.downloadReport).toHaveBeenLastCalledWith('visitantes', 'pdf', undefined, undefined, false);
     });
 
+    it('erro do download chega como Blob: lê o JSON e mostra a message da API', async () => {
+      const corpo = new Blob([JSON.stringify({ statusCode: 403, message: 'Acesso negado: baixar o relatório financeiro exige síndico.' })], {
+        type: 'application/json',
+      });
+      api.downloadReport.mockReturnValueOnce(throwError(() => ({ status: 403, error: corpo })));
+      const c = montar().componentInstance;
+      c.exportar('pdf');
+      expect(c.error()).toContain('Não foi possível gerar o relatório');
+      await new Promise((r) => setTimeout(r, 20));
+      expect(c.error()).toBe('Acesso negado: baixar o relatório financeiro exige síndico.');
+    });
+
+    it('Blob que não é JSON: fica a mensagem padrão', async () => {
+      api.downloadReport.mockReturnValueOnce(throwError(() => ({ status: 502, error: new Blob(['<html>Bad Gateway</html>']) })));
+      const c = montar().componentInstance;
+      c.exportar('pdf');
+      await new Promise((r) => setTimeout(r, 20));
+      expect(c.error()).toContain('Não foi possível gerar o relatório');
+    });
+
     it('erro sem corpo JSON: mensagem padrão; com mensagem da API: mostra a da API', () => {
       api.downloadReport.mockReturnValueOnce(throwError(() => ({ status: 500 })));
       const c = montar().componentInstance;
