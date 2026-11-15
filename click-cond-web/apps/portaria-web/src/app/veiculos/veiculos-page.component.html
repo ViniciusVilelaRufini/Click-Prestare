@@ -321,6 +321,10 @@
                   <div class="flex items-center justify-end gap-2">
                     @if (tagNoGuarita(t)) {
                       <!-- Tag de Guarita: bloquear é apagar do Guarita, sem "Reativar". -->
+                      @if (podeRegravar(t.id)) {
+                        <button type="button" (click)="regravarNoGuarita(t.id)" [disabled]="guaritaEmAcao() === t.id"
+                          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Regravar</button>
+                      }
                       @if (!tagRemovendo(t)) {
                         <button type="button" (click)="removerDoGuarita(t)" [disabled]="tagEmAcao() === t.id"
                           class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Remover do Guarita</button>

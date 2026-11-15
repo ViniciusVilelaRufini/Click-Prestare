@@ -23,6 +23,9 @@ import {
 } from '../guarita/guarita.service';
 import { GuaritaCapturaComponent } from '../guarita/guarita-captura.component';
 
+/** Tag de Guarita com operação em curso ou sem confirmação: não é oferecida para outro veículo. */
+const ESTADOS_GUARITA_FORA_DA_ESCOLHA = ['removendo', 'remocao_falhou', 'incerto', 'conflito'];
+
 /** Mensagem de erro da API (texto ou lista do class-validator), ou o padrão. */
 function mensagemDaApi(e: any, padrao: string): string {
   const m = e?.error?.message;
@@ -223,7 +226,11 @@ export class VeiculosPageComponent implements OnInit {
 
   /** Tags do select: as ativas e, mesmo bloqueada, a que o veículo já usa. */
   tagsParaSelecao(): Tag[] {
-    return this.tags().filter((t) => t.ativo !== 0 || t.id === this.novoVeiculo.id_tag);
+    return this.tags().filter(
+      (t) =>
+        t.id === this.novoVeiculo.id_tag ||
+        (t.ativo !== 0 && !ESTADOS_GUARITA_FORA_DA_ESCOLHA.includes((t as Tag & CamposGuaritaDaTag).guarita_estado ?? '')),
+    );
   }
 
   async removerVeiculo(v: VeiculoComMorador) {
@@ -761,7 +768,8 @@ export class VeiculosPageComponent implements OnInit {
   }
 
   podeRegravar(idTag: number | null | undefined): boolean {
-    return this.estadoGuaritaDaTagId(idTag) === 'ausente' && !this.semRotaRegravar();
+    const e = this.estadoGuaritaDaTagId(idTag);
+    return (e === 'ausente' || e === 'falhou' || e === 'incerto') && !this.semRotaRegravar();
   }
 
   async desfazerVinculo(idTag: number | null | undefined) {
