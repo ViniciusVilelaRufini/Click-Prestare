@@ -33,7 +33,7 @@ import { PessoasService, pessoaTemVisitaForaDosAptos } from '../pessoas/pessoas.
 import { VisitasService } from '../visitas/visitas.service';
 import { CardAoVivoService, type QuemRespondeu } from '../card-ao-vivo/card-ao-vivo.service';
 import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
-import { ehAutorizacaoRemota } from '../common/janela-visita';
+import { TOLERANCIA_JANELA_MS, ehAutorizacaoRemota } from '../common/janela-visita';
 
 /**
  * Migração Visitantes → Pessoas/Visitas: as tabelas `pessoas`/`visitas` estão
@@ -59,12 +59,9 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
 
 // Prazo único do pedido/autorização — o card ao vivo usa o mesmo.
 export { AUTORIZACAO_EXPIRACAO_MS };
-/**
- * Tolerância depois do fim da janela: o terminal facial e o Validar PIN aceitam
- * até 15 min além do `data_hora_termino`. A lista usa a mesma para não dizer
- * "encerrada" de quem o portão ainda deixa passar.
- */
-export const TOLERANCIA_JANELA_MS = 15 * 60 * 1000;
+// Tolerância depois do fim da janela (15 min): constante única em common/,
+// a mesma do terminal facial; reexportada para os imports existentes.
+export { TOLERANCIA_JANELA_MS };
 /** Visitas mais recentes de cada pessoa na lista da portaria (as em aberto entram sempre). */
 const VISITAS_POR_PESSOA_NA_LISTA = 20;
 /** Janela da visita aberta por um pedido de autorização: agora → +4 h. */

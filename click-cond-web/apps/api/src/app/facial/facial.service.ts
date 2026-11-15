@@ -48,7 +48,7 @@ import { gruposCodigoTag } from '../common/tag-codigo.util';
 import { VISITA_NAO_ENCERRADA } from '../common/tag-em-uso.util';
 import { whereVagaVigente } from '../vagas/vaga-vigente.util';
 import { AUTORIZACAO_EXPIRACAO_MS } from '../common/autorizacao-expiracao';
-import { prazoAutorizacaoRemotaMs } from '../common/janela-visita';
+import { TOLERANCIA_JANELA_MS, prazoAutorizacaoRemotaMs } from '../common/janela-visita';
 import {
   contextoVisita,
   dentroDoCondominio as estaDentroDoCondominio,
@@ -2810,10 +2810,9 @@ export class FacialService {
     const terminoMs = visitante.data_hora_termino
       ? new Date(visitante.data_hora_termino).getTime()
       : null;
-    const GRACE = 15 * 60 * 1000;
     const dentroJanela =
-      (inicioMs === null || agora >= inicioMs - GRACE) &&
-      (terminoMs === null || agora <= terminoMs + GRACE);
+      (inicioMs === null || agora >= inicioMs - TOLERANCIA_JANELA_MS) &&
+      (terminoMs === null || agora <= terminoMs + TOLERANCIA_JANELA_MS);
 
     // Considera "dentro do condomínio" apenas se entrou e ainda não registrou saída,
     // e desde que a entrada tenha ocorrido há menos de 24 horas (proteção contra estado órfão).
@@ -5947,8 +5946,6 @@ export class FacialService {
           ? new Date(v.data_hora_termino)
           : null;
 
-        const GRACE_PERIOD_MS = 15 * 60 * 1000;
-
         // A entrada só é permitida a partir do horário de início exato (sem tolerância prévia)
         const inicioComTolerancia = inicio;
 
@@ -5974,7 +5971,7 @@ export class FacialService {
 
         if (termino) {
           const terminoComTolerancia = new Date(
-            termino.getTime() + GRACE_PERIOD_MS,
+            termino.getTime() + TOLERANCIA_JANELA_MS,
           );
           if (now > terminoComTolerancia) {
             // Se expirou temporalmente, revoga a flag liberado no banco para 0
