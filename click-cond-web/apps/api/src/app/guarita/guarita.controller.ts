@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { GuaritaEventosService } from './guarita-eventos.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
@@ -21,7 +22,31 @@ export class GuaritaController {
   constructor(
     private readonly importacao: GuaritaImportacaoService,
     private readonly operacoes: GuaritaOperacoesService,
+    private readonly eventos: GuaritaEventosService,
   ) {}
+
+  // ------------------------------------------- alertas (ANTES de :deviceId)
+
+  /** Alertas do Guarita para a portaria (`?pendentes=1`: só os não vistos). */
+  @Get('alertas')
+  async alertas(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Query('pendentes') pendentes: string | undefined,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'ver os alertas do Guarita');
+    return this.eventos.listarAlertas(idCondominio, pendentes === '1' || pendentes === 'true');
+  }
+
+  @Post('alertas/:idAlerta/visto')
+  async marcarVisto(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('idAlerta', ParseIntPipe) idAlerta: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'marcar alerta do Guarita como visto');
+    return this.eventos.marcarVisto(idCondominio, idAlerta, autorDoUsuario(user));
+  }
 
   // ------------------------------------------------ importação / conferência
 

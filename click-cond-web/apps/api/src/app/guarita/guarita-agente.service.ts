@@ -4,6 +4,7 @@ import { FacialService } from '../facial/facial.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { GuaritaImportacaoService } from './guarita-importacao.service';
 import { GuaritaOperacoesService } from './guarita-operacoes.service';
+import { GuaritaEventosService } from './guarita-eventos.service';
 import {
   ESTADO_OP,
   ESTADO_TTL_MS,
@@ -123,6 +124,7 @@ export class GuaritaAgenteService {
     private readonly facial: FacialService,
     @Optional() private readonly importacao?: GuaritaImportacaoService,
     @Optional() private readonly operacoes?: GuaritaOperacoesService,
+    @Optional() private readonly eventos?: GuaritaEventosService,
   ) {
     this.estado = new EstadoCompartilhado(prisma);
   }
@@ -296,11 +298,15 @@ export class GuaritaAgenteService {
 
   // ------------------------------------------------------------------ eventos
 
-  /** Lote de eventos do Guarita. Gravação e histórico: GuaritaEventosService. */
-  async registrarEventos(_device: GuaritaDoAgente, corpo: unknown): Promise<{ aceitos: number }> {
+  /**
+   * Lote de eventos do Guarita: só registra (GuaritaEventosService) — nunca
+   * passa por runWebhook/processAgentEvent nem aciona relé.
+   */
+  async registrarEventos(device: GuaritaDoAgente, corpo: unknown): Promise<{ aceitos: number; novos?: number }> {
     const b = (corpo ?? {}) as Record<string, unknown>;
     if (!Array.isArray(b.eventos)) throw new BadRequestException('Campo "eventos" inválido.');
-    return { aceitos: 0 };
+    if (!this.eventos) return { aceitos: 0 };
+    return this.eventos.registrarEventos(device, corpo);
   }
 
   // ---------------------------------------------------------- não cadastrado
