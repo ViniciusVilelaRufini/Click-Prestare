@@ -140,6 +140,13 @@ Future<Map<String, dynamic>> apiSaveManutencaoAreaSocial(dynamic obj, bool isEdi
 }
 
 apiDeleteObject(String route, int idObj) async {
+  return (await apiDeleteObjectResultado(route, idObj)).ok;
+}
+
+/// Igual a [apiDeleteObject], mas com a recusa da API ("Esta reserva já
+/// aconteceu.", "Este espaço tem 1 reserva ativa…") para a tela mostrar.
+/// Sem conexão, `mensagem` vem null e a tela usa o texto genérico dela.
+Future<ResultadoApi> apiDeleteObjectResultado(String route, int idObj) async {
   final url = _buildUri('/$route/remove');
   final body = json.encode({"id": idObj});
   try {
@@ -148,9 +155,9 @@ apiDeleteObject(String route, int idObj) async {
     // O NestJS responde 201 (Created) nas rotas móveis sem @HttpCode(200).
     // A exclusão já acontecia no servidor, mas exigir exatamente 200 fazia o
     // app mostrar erro e manter a tela antiga até ser reaberto.
-    return response.statusCode >= 200 && response.statusCode < 300;
+    return ResultadoApi.daResposta(response.statusCode, response.body);
   } catch (e) {
-    return false;
+    return const ResultadoApi.falha();
   }
 }
 
@@ -241,15 +248,18 @@ Future<String> apiUpdateStatusAgendamento(int idItem, String status, {String mot
     "motivo_recusa": motivo,
     "id_condominio": Singleton.instance.id_condominio.toString(),
   });
+  final http.Response response;
   try {
-    final response = await ApiClient.post(url, body: body)
+    response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
-    if (response.statusCode == 200) return "";
-    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
-    throw parsed["message"] ?? "Erro desconhecido";
   } catch (e) {
-    rethrow;
+    // Timeout/rede: o toString do erro ("TimeoutException after…") ia para a tela.
+    throw "Falha de comunicação com o servidor. Verifique sua conexão.";
   }
+  if (response.statusCode == 200) return "";
+  // Corpo sem JSON (HTML de proxy) virava FormatException na tela.
+  throw mensagemCurtaDaApi(response.body) ??
+      "Não foi possível atualizar a reserva. Tente novamente.";
 }
 
 apiUpdateStatusOcorrManut(String route, int idItem, String status) async {

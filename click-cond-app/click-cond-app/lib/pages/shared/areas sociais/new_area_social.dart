@@ -135,15 +135,16 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
     var choice = await showConfirmDialog(context);
     if (choice != null && choice) {
       setState(() => _isSaving = true);
-      var res = await apiDeleteObject('areas-sociais', widget.myId!);
+      final res = await apiDeleteObjectResultado('areas-sociais', widget.myId!);
       if (mounted) setState(() => _isSaving = false);
-      if (res) {
+      if (res.ok) {
         if (mounted) {
           Navigator.of(context).pop(true);
           Navigator.of(context).pop(true);
         }
       } else {
-        if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+        // 409 explicado pela API: reserva futura ou terminal facial ligado ao espaço.
+        if (mounted) displayMessage(context, getText('alert_error'), res.mensagemOu(getText('alert_generic_error')));
       }
     }
   }

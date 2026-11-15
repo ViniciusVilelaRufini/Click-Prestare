@@ -43,6 +43,98 @@ String mensagemDeErroApi(String body, {String fallback = 'Houve um erro, tente n
   return fallback;
 }
 
+/// Teto da recusa que vai para a tela. A maior `message` da API hoje (espaço
+/// com terminal facial ligado) tem ~260 caracteres; acima disso é despejo de
+/// erro, não explicação.
+const int _kMaxMensagemApi = 400;
+
+/// Rótulos HTTP em inglês que o NestJS põe em `message` quando a exceção não
+/// traz texto próprio — não explicam nada ao usuário.
+const Set<String> _kRotulosHttp = {
+  'bad request',
+  'unauthorized',
+  'forbidden',
+  'forbidden resource',
+  'not found',
+  'conflict',
+  'internal server error',
+  'too many requests',
+  'service unavailable',
+  'bad gateway',
+};
+
+final RegExp _kTextoTecnico = RegExp(
+  r'(\n\s*at\s)' // stack trace
+  r'|(^\s*[\[{])' // JSON cru
+  r'|(<\/?[a-zA-Z!][^>]*>)' // HTML
+  r'|(prisma)'
+  r'|((Type|Range|Reference|Syntax)Error)'
+  r'|(Exception)'
+  r'|(Cannot read prop)'
+  r'|(super constructor)'
+  r'|(ECONN|ETIMEDOUT)',
+  caseSensitive: false,
+);
+
+/// A `message` da API quando ela serve para a tela: texto (ou lista de
+/// textos do ValidationPipe) curto e sem cara de erro técnico. Devolve null
+/// quando não há mensagem, o corpo não é JSON (HTML de proxy) ou o texto é
+/// stack, JSON, HTML, Prisma ou rótulo HTTP em inglês — aí quem chama usa o
+/// texto genérico que já tinha.
+String? mensagemCurtaDaApi(String body) {
+  dynamic parsed;
+  try {
+    parsed = jsonDecode(body);
+  } catch (_) {
+    return null;
+  }
+  if (parsed is! Map) return null;
+  final message = parsed['message'];
+  String texto;
+  if (message is String) {
+    texto = message.trim();
+  } else if (message is List) {
+    texto = message
+        .whereType<String>()
+        .map((m) => m.trim())
+        .where((m) => m.isNotEmpty)
+        .join('\n');
+  } else {
+    return null;
+  }
+  if (texto.isEmpty || texto.length > _kMaxMensagemApi) return null;
+  if (_kRotulosHttp.contains(texto.toLowerCase())) return null;
+  if (_kTextoTecnico.hasMatch(texto)) return null;
+  return texto;
+}
+
+/// Resultado de uma escrita na API: deu certo ou não e, quando a API recusou
+/// explicando, a explicação (já filtrada por [mensagemCurtaDaApi]).
+///
+/// Existe ao lado dos métodos que devolvem só bool: eles continuam iguais para
+/// os chamadores antigos, e a tela que quer mostrar a recusa usa o irmão
+/// `...Resultado`.
+class ResultadoApi {
+  final bool ok;
+
+  /// A `message` da API, ou null (sem conexão, sem mensagem, texto técnico).
+  final String? mensagem;
+
+  const ResultadoApi.sucesso()
+      : ok = true,
+        mensagem = null;
+
+  const ResultadoApi.falha([this.mensagem]) : ok = false;
+
+  factory ResultadoApi.daResposta(int statusCode, String body) {
+    if (statusCode >= 200 && statusCode < 300) return const ResultadoApi.sucesso();
+    return ResultadoApi.falha(mensagemCurtaDaApi(body));
+  }
+
+  /// A explicação da API ou, sem ela, o texto genérico da tela.
+  String mensagemOu(String fallback) => mensagem ?? fallback;
+}
+
 class ApiClient {
   /// Flag para impedir múltiplos handles de 401 simultâneos (vários requests
   /// podem voltar 401 ao mesmo tempo após expiração — quero logout uma vez só).

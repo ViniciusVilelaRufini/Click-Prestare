@@ -54,6 +54,12 @@ apiRetirarEncomenda(int id, String retiradoPor, {String? retiradoFoto}) async {
 }
 
 apiInsertEncomenda(Map<String, dynamic> obj) async {
+  return (await apiInsertEncomendaResultado(obj)).ok;
+}
+
+/// Igual a [apiInsertEncomenda], com a recusa da API para a tela (ex.: 400
+/// "Unidade não encontrada neste condomínio.").
+Future<ResultadoApi> apiInsertEncomendaResultado(Map<String, dynamic> obj) async {
   var url = ApiConfig.buildUri('/encomendas/insert');
   try {
     var response = await ApiClient.post(
@@ -67,9 +73,9 @@ apiInsertEncomenda(Map<String, dynamic> obj) async {
         "id_condominio": Singleton.instance.id_condominio
       })
     );
-    return response.statusCode == 200;
+    return ResultadoApi.daResposta(response.statusCode, response.body);
   } catch (e) {
-    return false;
+    return const ResultadoApi.falha();
   }
 }
 
@@ -93,6 +99,12 @@ apiGetApartamentosEncomendas({int? idCondominio}) async {
 }
 
 apiUpdateEncomenda(int id, Map<String, dynamic> obj) async {
+  return (await apiUpdateEncomendaResultado(id, obj)).ok;
+}
+
+/// Igual a [apiUpdateEncomenda], com a recusa da API para a tela (ex.: 409
+/// "Só é possível corrigir a unidade de encomenda aguardando retirada.").
+Future<ResultadoApi> apiUpdateEncomendaResultado(int id, Map<String, dynamic> obj) async {
   var url = ApiConfig.buildUri('/encomendas/update');
   try {
     var response = await ApiClient.post(
@@ -106,9 +118,9 @@ apiUpdateEncomenda(int id, Map<String, dynamic> obj) async {
         "encomenda": obj,
       }),
     );
-    return response.statusCode >= 200 && response.statusCode < 300;
+    return ResultadoApi.daResposta(response.statusCode, response.body);
   } catch (e) {
-    return false;
+    return const ResultadoApi.falha();
   }
 }
 
