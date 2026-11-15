@@ -36,6 +36,7 @@ import { vagaVencida, whereOutraVagaVigenteDoVisitante, whereVagaVigente } from 
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { subirAnexosOcorrencia } from '../ocorrencias/anexos-ocorrencia.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
+import { STATUS_SOLUCIONADO } from '../common/status-ocorrencia.util';
 
 /** Senha atual errada na troca de e-mail do perfil: 10 falhas em 10 min travam a conta por 10 min. */
 const MAX_FALHAS_SENHA_PERFIL = 10;
@@ -1313,7 +1314,7 @@ export class MobileAuthService {
         const occurrencesCount = await this.prisma.ocorrencias.count({
           where: {
             id_condominio: { in: ids },
-            status: { notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] },
+            status: { notIn: [...STATUS_SOLUCIONADO] },
           },
         });
 
@@ -1418,7 +1419,7 @@ export class MobileAuthService {
           this.prisma.ocorrencias.count({
             where: {
               id_condominio: condId,
-              status: { notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] },
+              status: { notIn: [...STATUS_SOLUCIONADO] },
               ...(recorte != null && { OR: [{ publica: true }, { user: recorte }] }),
             },
           }),
@@ -5246,7 +5247,7 @@ export class MobileAuthService {
     const isPrivileged = await this.vePrivadasDoCondominio(idCondominio, typeAccess, user);
     const where: any = {
       id_condominio: Number(idCondominio),
-      status: { notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] },
+      status: { notIn: [...STATUS_SOLUCIONADO] },
     };
     if (!isPrivileged) {
       where.OR = [
