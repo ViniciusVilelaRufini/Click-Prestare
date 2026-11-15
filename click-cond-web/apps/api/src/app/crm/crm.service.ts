@@ -501,7 +501,8 @@ export class CrmService {
         .count({ where: { id_condominio: idCond } })
         .catch(() => 0),
       this.prisma.assembleias
-        .count({ where: { id_condominio: idCond, data: { gte: agora } } })
+        // Finalizada (com a ATA) não é mais apagada: não conta como agendada.
+        .count({ where: { id_condominio: idCond, data: { gte: agora }, finalizada_em: null } })
         .catch(() => 0),
     ]);
 
