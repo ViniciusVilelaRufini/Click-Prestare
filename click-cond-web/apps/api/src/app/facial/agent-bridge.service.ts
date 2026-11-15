@@ -654,7 +654,10 @@ export type AgentCommandType =
   | 'remove'
   | 'snapshot'
   | 'list_users'
-  | 'remove_users';
+  | 'remove_users'
+  // Módulo Guarita: aciona um relé pelo comando 13 (com gera_evt). Um clique =
+  // um frame; o Guarita não responde ao 13, o agente confirma a escrita.
+  | 'guarita_rele';
 
 /**
  * Fator sobre a base (AGENT_COMMAND_TIMEOUT_MS) por tipo de comando.
@@ -673,6 +676,10 @@ export type AgentCommandType =
  * 25 s fica abaixo dos 30 s de resposta da origem no CloudFront da API
  * (OriginReadTimeout conferido em 10/11/2026): acima disso a requisição que
  * espera o comando recebe 504 antes de a nuvem responder.
+ *
+ * 2/3 (10 s) — `guarita_rele`: abrir portão pelo Guarita. Abertura velha não
+ * pode sair minutos depois do clique; 10 s na fila é o mesmo teto do
+ * `open_door` no agente (core/despacho.js).
  */
 const FATOR_TIMEOUT_POR_TIPO: Record<AgentCommandType, number> = {
   ping: 1,
@@ -683,6 +690,7 @@ const FATOR_TIMEOUT_POR_TIPO: Record<AgentCommandType, number> = {
   update: 5 / 3,
   list_users: 5 / 3,
   remove_users: 5 / 3,
+  guarita_rele: 2 / 3,
 };
 
 export interface AgentCommandInput {
@@ -696,6 +704,8 @@ export interface AgentCommandInput {
   validFrom?: string;
   validTo?: string;
   userTimes?: number;
+  /** `guarita_rele`: receptor (tipo 1/2/3/6, CAN 0..7) e relé (1..4) a acionar. */
+  payload?: { tipo_receptor: number; num_receptor: number; rele: number };
 }
 
 export interface AgentCommand extends AgentCommandInput {

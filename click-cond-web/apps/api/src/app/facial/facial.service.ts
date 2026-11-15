@@ -207,7 +207,33 @@ export const TIPOS_DISPOSITIVO = [
   'tag_reader',
   'qrcode_reader',
   'lpr',
+  // Módulo Guarita (Nice/Linear): fala com o Prestare só pelo driver
+  // `linear-guarita` do agente e pelas rotas de apps/api/src/app/guarita.
+  // Nunca recebe rosto (sync é só tipo 'facial'), nunca entra em
+  // processAgentEvent/processWebhook e não é acionável pelo triggerDevice.
+  'guarita',
 ] as const;
+
+/** Módulo Guarita: tipo de dispositivo. A palavra de autorização mora em api_password (cifrada). */
+export const TIPO_GUARITA = 'guarita';
+/** Porta TCP principal do Guarita. */
+const PORTA_PADRAO_GUARITA = 9000;
+/** Palavra de autorização TCP do Guarita: até 15 caracteres ASCII imprimíveis. */
+const PALAVRA_GUARITA_MAX = 15;
+
+/**
+ * Palavra de autorização do Guarita: vazia (sem autorização) ou até 15
+ * caracteres ASCII de 0x20 a 0x7D. O valor nunca entra na mensagem de erro.
+ */
+function validarPalavraGuarita(palavra: unknown): string | null {
+  if (palavra === null || palavra === undefined || palavra === '') return null;
+  if (typeof palavra !== 'string' || palavra.length > PALAVRA_GUARITA_MAX || !/^[\x20-\x7D]+$/.test(palavra)) {
+    throw new BadRequestException(
+      `A palavra de autorização do Guarita deve ter até ${PALAVRA_GUARITA_MAX} caracteres, sem acento.`,
+    );
+  }
+  return palavra;
+}
 
 /** Intervalo mínimo entre avisos de "payload sem credencial" do mesmo dispositivo. */
 const AVISO_SEM_CREDENCIAL_MS = 10 * 60 * 1000;
@@ -1489,8 +1515,10 @@ export class FacialService {
 
   async createDevice(dto: CreateDeviceDto, operador?: JwtPayload) {
     const campos = this.validarCamposDispositivo(dto, { criando: true });
+    const ehGuarita = campos.tipo === TIPO_GUARITA;
     const ip = validarIpDispositivo(dto.ip);
-    const porta = validarPortaDispositivo(dto.porta ?? 80);
+    const porta = validarPortaDispositivo(dto.porta ?? (ehGuarita ? PORTA_PADRAO_GUARITA : 80));
+    const palavraGuarita = ehGuarita ? validarPalavraGuarita(dto.api_password) : undefined;
     await this.assertAreaDoCondominio(dto.id_area_social, dto.id_condominio);
     const mac = normalizarMac(dto.mac ?? null);
     await this.assertDispositivoNaoDuplicado({
@@ -1512,8 +1540,8 @@ export class FacialService {
         modelo: dto.modelo ?? null,
         ip,
         porta,
-        api_user: dto.api_user ?? null,
-        api_password: encryptSecret(dto.api_password ?? null),
+        api_user: ehGuarita ? null : dto.api_user ?? null,
+        api_password: encryptSecret(ehGuarita ? palavraGuarita ?? null : dto.api_password ?? null),
         id_area_social: dto.id_area_social ?? null,
         webhook_token: token,
         mac,
@@ -1586,6 +1614,15 @@ export class FacialService {
   async updateDevice(id: number, dto: UpdateDeviceDto, operador?: JwtPayload) {
     const antes = await this.getDevice(id);
     const campos = this.validarCamposDispositivo(dto, { criando: false, tipoAtual: antes.tipo });
+    // Guarita: a tela nunca reexibe a palavra de autorização, então reenviar o
+    // formulário com o campo vazio NÃO apaga a palavra gravada (só um valor
+    // novo a substitui).
+    const ehGuarita = (campos.tipo ?? antes.tipo) === TIPO_GUARITA;
+    const palavraGuarita =
+      ehGuarita && dto.api_password !== undefined && dto.api_password !== null && dto.api_password !== ''
+        ? validarPalavraGuarita(dto.api_password)
+        : undefined;
+    const trocaSenha = ehGuarita ? palavraGuarita !== undefined : dto.api_password !== undefined;
     const ip = dto.ip !== undefined ? validarIpDispositivo(dto.ip) : undefined;
     const porta = dto.porta !== undefined ? validarPortaDispositivo(dto.porta ?? 80) : undefined;
     await this.assertAreaDoCondominio(dto.id_area_social, antes.id_condominio);
@@ -1627,8 +1664,8 @@ export class FacialService {
         ...(ip !== undefined && { ip }),
         ...(porta !== undefined && { porta }),
         ...(dto.api_user !== undefined && { api_user: dto.api_user }),
-        ...(dto.api_password !== undefined && {
-          api_password: encryptSecret(dto.api_password),
+        ...(trocaSenha && {
+          api_password: encryptSecret(ehGuarita ? palavraGuarita ?? null : dto.api_password ?? null),
         }),
         ...(dto.id_area_social !== undefined && {
           id_area_social: dto.id_area_social,
@@ -1654,7 +1691,7 @@ export class FacialService {
         diff[k] = { de: (antes as any)[k], para: (atual as any)[k] };
       }
     }
-    if (dto.api_password !== undefined)
+    if (trocaSenha)
       diff['api_password'] = { de: '***', para: '***' };
     await this.auditoria.registrar({
       id_condominio: atual.id_condominio,
@@ -4880,6 +4917,13 @@ export class FacialService {
       where: { webhook_token: token, ativo: 1, condominio: { ativo: 1 } },
     });
     if (!device) throw new UnauthorizedException('Token de webhook inválido');
+    // O Guarita já decide e abre o portão sozinho: um evento dele por aqui
+    // passaria pela ponte leitor→abertura e acionaria botoeiras/catracas. O
+    // evento do Guarita entra só pela rota própria (GuaritaAgenteController),
+    // que registra e nunca aciona.
+    if (device.tipo === TIPO_GUARITA) {
+      throw new BadRequestException('O Módulo Guarita não envia eventos por webhook.');
+    }
     return this.runWebhook(device, payload);
   }
 

@@ -13,7 +13,7 @@
  */
 
 /** Protocolo falado pela marca (a mesma divisão do registro de drivers do agente). */
-export type FamiliaFabricante = 'dahua' | 'hikvision' | 'control_id' | 'generico' | 'sem_http';
+export type FamiliaFabricante = 'dahua' | 'hikvision' | 'control_id' | 'generico' | 'sem_http' | 'linear';
 
 export interface CapacidadesFabricante {
   /** Lista/remove em lote as pessoas gravadas no aparelho (varredura de fantasmas). */
@@ -160,6 +160,23 @@ export const FABRICANTES_SUPORTADOS = {
     aliases: [],
     valoresGravados: ['henry'],
     protocoloSemHttp: 'protocolo proprietário (SDK Henry)',
+  },
+  // Módulo Guarita MG3000 (Nice / Linear-HCS): protocolo binário por TCP
+  // (porta 9000), falado SÓ pelo driver `linear-guarita` do Agente Local e só
+  // para devices `tipo: 'guarita'`. Não lista nem cadastra rosto, não tem
+  // câmera; os eventos chegam por rota própria (GuaritaAgenteController),
+  // nunca por `condo/:token/event`. `protocoloSemHttp` fecha o fallback HTTP
+  // direto do console (FacialDeviceClientService): nada de requisição HTTP na
+  // porta do Guarita. NÃO validado em aparelho.
+  linear: {
+    rotulo: 'Nice / Linear-HCS (Módulo Guarita)',
+    familia: 'linear',
+    portaPadrao: 9000,
+    usuarioPadrao: null,
+    capacidades: NENHUMA,
+    aliases: ['nice', 'linear-hcs', 'linear hcs'],
+    valoresGravados: ['linear'],
+    protocoloSemHttp: 'protocolo TCP binário na porta 9000 (Módulo Guarita, pelo Agente Local)',
   },
 } as const satisfies Record<string, InfoFabricante>;
 

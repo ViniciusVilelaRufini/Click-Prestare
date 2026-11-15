@@ -49,6 +49,7 @@ import { AgendaModule } from './agenda/agenda.module';
 import { ChatIaModule } from './chat-ia/chat-ia.module';
 import { SuperlogicaModule } from './superlogica/superlogica.module';
 import { DeliveryModule } from './delivery/delivery.module';
+import { GuaritaModule } from './guarita/guarita.module';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { THROTTLERS } from './common/throttle/throttlers';
@@ -99,6 +100,7 @@ import { THROTTLERS } from './common/throttle/throttlers';
     ChatIaModule,
     SuperlogicaModule,
     DeliveryModule,
+    GuaritaModule,
   ],
   controllers: [AppController],
   providers: [
