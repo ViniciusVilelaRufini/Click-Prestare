@@ -434,10 +434,13 @@ export class GuaritaOperacoesService {
   }
 
   /**
-   * `POST …/dispositivos/:idTag/regravar`: dispositivo `ausente` (sumiu do
-   * Guarita) volta a ser cadastrado, por decisão do síndico. Com veículo, o
-   * frame é montado dos dados atuais (grupo e receptores do frame antigo);
-   * sem veículo, vai o frame antigo. RF exige o contador guardado.
+   * `POST …/dispositivos/:idTag/regravar`, por decisão do síndico, para tag
+   * `ausente` (sumiu do Guarita), `falhou` (o cadastro não deu certo) ou
+   * `incerto` (sem confirmação — aqui equivale a conferir: o agente devolve
+   * `ja_estava`, `conflito` ou grava). Com veículo, o frame é montado dos dados
+   * atuais (grupo e receptores do frame conhecido); sem veículo, vai o frame
+   * conhecido. Cadastro desta tag ainda na fila: só troca o frame dele (sem
+   * duplicar); em voo: 400. RF exige o contador guardado.
    */
   async regravar(idCondominio: number, deviceId: number, idTag: number, autor: string) {
     const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
@@ -445,18 +448,39 @@ export class GuaritaOperacoesService {
       where: { id: Number(idTag), id_device: device.id, id_condominio: device.id_condominio },
     });
     if (!tag) throw new NotFoundException('Dispositivo não encontrado neste Guarita.');
-    if (tag.guarita_estado !== ESTADO_TAG.ausente) {
-      throw new BadRequestException('Só dá para regravar um dispositivo que não está mais no Guarita.');
+    const estado = tag.guarita_estado;
+    if (estado !== ESTADO_TAG.ausente && estado !== ESTADO_TAG.falhou && estado !== ESTADO_TAG.incerto) {
+      throw new BadRequestException('Só dá para regravar um dispositivo que não está mais no Guarita, que falhou ou sem confirmação.');
     }
     if (tag.guarita_tipo === 1 && tag.guarita_contador == null) throw new BadRequestException(MSG_RF_SO_POR_CAPTURA);
     if (tag.guarita_tipo == null || !tag.guarita_serial) throw new BadRequestException('Dispositivo sem tipo ou serial.');
+    const emVoo = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: { in: TIPOS_GRAVACAO }, estado: { in: [ESTADO_OP.enviada, ESTADO_OP.processando] } },
+    });
+    if (emVoo > 0) throw new BadRequestException('Este dispositivo já tem uma gravação em andamento no Guarita.');
+    const base = estado === ESTADO_TAG.ausente ? (tag.guarita_frame ?? null) : await this.frameConhecido(tag);
     const comVeiculo = await this.prisma.veiculos.count({ where: { id_tag: tag.id, ativo: 1 } });
-    let frame: string | null = null;
-    if (comVeiculo > 0) frame = await this.montarFrame(tag, tag.guarita_frame ?? null);
-    else frame = tag.guarita_frame ?? null;
+    const frame = comVeiculo > 0 ? await this.montarFrame(tag, base) : base;
     if (!frame) throw new BadRequestException('Sem os dados do dispositivo para regravar. Cadastre de novo pela captura.');
-    const { id_operacao } = await this.criarGravacao(tag, 'cadastrar', frame, autor, ESTADO_TAG.pendente);
-    return { id_tag: tag.id, estado: ESTADO_TAG.pendente, id_operacao };
+    // incerto continua incerto até o resultado (o app já mostra "pendente").
+    const novoEstado = estado === ESTADO_TAG.incerto ? ESTADO_TAG.incerto : ESTADO_TAG.pendente;
+    const naFila = await this.prisma.guarita_Operacoes.findFirst({
+      where: { id_tag: tag.id, tipo: 'cadastrar', estado: ESTADO_OP.pendente },
+      orderBy: { id: 'desc' },
+      select: { id: true },
+    });
+    if (naFila) {
+      const r = await this.prisma.guarita_Operacoes.updateMany({
+        where: { id: naFila.id, estado: ESTADO_OP.pendente },
+        data: { frame_hex: frame },
+      });
+      if (r.count === 1) {
+        await this.prisma.tags.updateMany({ where: { id: tag.id }, data: { guarita_estado: novoEstado } });
+        return { id_tag: tag.id, estado: novoEstado, id_operacao: naFila.id };
+      }
+    }
+    const { id_operacao } = await this.criarGravacao(tag, 'cadastrar', frame, autor, novoEstado);
+    return { id_tag: tag.id, estado: novoEstado, id_operacao };
   }
 
   /**
