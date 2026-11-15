@@ -6,7 +6,7 @@ import { createHash, verify as verificarAssinatura, X509Certificate } from 'node
 import * as forge from 'node-forge';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const AdmZip = require('adm-zip');
-import { carregarImagensDoPasse, DadosDoPasse, montarPasseApple } from './apple-passe.builder';
+import { carregarImagensDoPasse, DadosDoPasse, montarPassJson, montarPasseApple } from './apple-passe.builder';
 import { APPLE_TEAM_ID, PASS_TYPE_ID } from './wallet.constantes';
 import { gerarChavesFalsas } from './testes/certificados-falsos';
 
@@ -21,7 +21,14 @@ const DADOS: DadosDoPasse = {
   morador: 'Ana Souza',
   unidade: 'Bloco A · Apto 12',
   codigo: 'P2AAAAAAIAABISHDX2Z4VLLSGTIQ',
+  // diaBrasiliaDe(AGORA): 14/11/2026 em Brasília.
+  diaDoCodigo: 20771,
 };
+
+/** Largura e altura do PNG (IHDR). */
+function tamanhoPng(png: Buffer): { largura: number; altura: number } {
+  return { largura: png.readUInt32BE(16), altura: png.readUInt32BE(20) };
+}
 const IMAGENS = ['icon.png', 'icon@2x.png', 'icon@3x.png', 'logo.png', 'logo@2x.png'];
 
 function abrir(pkpass: Buffer): Record<string, Buffer> {
@@ -77,6 +84,18 @@ describe('montarPasseApple', () => {
     for (const nome of IMAGENS) expect(imagens[nome].subarray(1, 4).toString('ascii')).toBe('PNG');
   });
 
+  it('logo recortado à largura do ícone: mesma altura (50/100), sem a sobra transparente à direita', () => {
+    const logo = tamanhoPng(imagens['logo.png']);
+    const logo2x = tamanhoPng(imagens['logo@2x.png']);
+    expect(logo.altura).toBe(50);
+    expect(logo2x.altura).toBe(100);
+    // Ícone ocupa x=0..31 (1x) e x=0..63 (2x); sobra só a margem de 2–3 px.
+    expect(logo.largura).toBeGreaterThanOrEqual(34);
+    expect(logo.largura).toBeLessThanOrEqual(35);
+    expect(logo2x.largura).toBeGreaterThanOrEqual(66);
+    expect(logo2x.largura).toBeLessThanOrEqual(67);
+  });
+
   it('o pacote contém pass.json, manifest.json, signature e as cinco imagens', () => {
     const arquivos = abrir(montarPasseApple(DADOS, CHAVES, imagens, AGORA));
     expect(Object.keys(arquivos).sort()).toEqual(['manifest.json', 'pass.json', 'signature', ...IMAGENS].sort());
@@ -111,12 +130,23 @@ describe('montarPasseApple', () => {
       sharingProhibited: true,
       backgroundColor: 'rgb(11,11,11)',
       foregroundColor: 'rgb(255,255,255)',
-      labelColor: 'rgb(163,163,163)',
+      labelColor: 'rgb(255,200,61)',
       generic: {
-        primaryFields: [{ key: 'morador', label: 'MORADOR', value: 'Ana Souza' }],
+        headerFields: [{ key: 'acesso', label: 'ACESSO', value: 'Morador' }],
+        primaryFields: [{ key: 'morador', label: 'NOME', value: 'Ana Souza' }],
         secondaryFields: [
           { key: 'condominio', label: 'CONDOMÍNIO', value: 'Residencial Teste' },
           { key: 'unidade', label: 'UNIDADE', value: 'Bloco A · Apto 12' },
+        ],
+        auxiliaryFields: [
+          {
+            key: 'codigo_de',
+            label: 'CÓDIGO DE',
+            value: '2026-11-14T12:00:00-03:00',
+            dateStyle: 'PKDateStyleShort',
+            timeStyle: 'PKDateStyleNone',
+            ignoresTimeZone: true,
+          },
         ],
         backFields: [
           {
@@ -133,8 +163,25 @@ describe('montarPasseApple', () => {
           },
         ],
       },
-      barcodes: [{ format: 'PKBarcodeFormatQR', message: DADOS.codigo, messageEncoding: 'iso-8859-1' }],
+      barcodes: [
+        {
+          format: 'PKBarcodeFormatQR',
+          message: DADOS.codigo,
+          messageEncoding: 'iso-8859-1',
+          altText: 'Mostre ao leitor do portão',
+        },
+      ],
     });
+  });
+
+  it('CÓDIGO DE: data ISO do dia do contador (meio-dia de Brasília, com fuso), formatada pelo aparelho', () => {
+    // Dia 0 do contador = 01/01/1970 em Brasília; o fim do mês vira certo.
+    const dia = (d: number) => montarPassJson({ ...DADOS, diaDoCodigo: d }, AGORA).generic as any;
+    expect(dia(0).auxiliaryFields[0].value).toBe('1970-01-01T12:00:00-03:00');
+    expect(dia(20787).auxiliaryFields[0].value).toBe('2026-11-30T12:00:00-03:00');
+    expect(dia(20788).auxiliaryFields[0].value).toBe('2026-12-01T12:00:00-03:00');
+    // O valor é o dia recebido, não o de `agora`: quem chama passa o mesmo dia do código.
+    expect(dia(20770).auxiliaryFields[0].value).toBe('2026-11-13T12:00:00-03:00');
   });
 
   it('o código vai em barcodes[0].message e em nenhum outro campo', () => {
@@ -145,14 +192,18 @@ describe('montarPasseApple', () => {
 
   it('passe inválido: voided true, expirationDate no passado, message PRESTARE-PASSE-CANCELADO', () => {
     const pass = JSON.parse(
-      abrir(montarPasseApple({ ...DADOS, codigo: null }, CHAVES, imagens, AGORA))['pass.json'].toString('utf8'),
+      abrir(montarPasseApple({ ...DADOS, codigo: null, diaDoCodigo: null }, CHAVES, imagens, AGORA))['pass.json'].toString('utf8'),
     );
     expect(pass.voided).toBe(true);
     expect(pass.expirationDate).toBe('2026-11-14T11:59:10Z');
     expect(new Date(pass.expirationDate).getTime()).toBeLessThan(AGORA.getTime());
+    // Sem altText: o passe anulado não deve ser mostrado ao leitor.
     expect(pass.barcodes).toEqual([
       { format: 'PKBarcodeFormatQR', message: 'PRESTARE-PASSE-CANCELADO', messageEncoding: 'iso-8859-1' },
     ]);
+    // Sem dia de código: "—", texto simples, sem estilo de data.
+    expect(pass.generic.auxiliaryFields).toEqual([{ key: 'codigo_de', label: 'CÓDIGO DE', value: '—' }]);
+    expect(pass.generic.headerFields).toEqual([{ key: 'acesso', label: 'ACESSO', value: 'Morador' }]);
     expect(pass.serialNumber).toBe('c7');
     expect(pass.authenticationToken).toBe(DADOS.authToken);
   });

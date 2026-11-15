@@ -199,8 +199,9 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     const segredo = this.segredoDe(cred);
     if (!segredo) throw new ServiceUnavailableException(MSG_INDISPONIVEL);
     const cond = await p.condominios.findUnique({ where: { id: idCondominio }, select: { nome: true } });
+    const dia = diaBrasiliaDe(agora);
     return montarPasseApple(
-      this.dadosDoPasse(cred.id, cond?.nome, morador, gerarCodigo('P2', cred.id, diaBrasiliaDe(agora), segredo)),
+      this.dadosDoPasse(cred.id, cond?.nome, morador, gerarCodigo('P2', cred.id, dia, segredo), dia),
       chaves,
       carregarImagensDoPasse(),
       agora,
@@ -312,10 +313,17 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     const moradorValido = morador && morador.id_condominio === cred.id_condominio ? morador : null;
     const segredo = this.segredoDe(cred);
     const valido = !cred.revogada_em && !!moradorValido && !!segredo;
-    const codigo = valido ? gerarCodigo('P2', cred.id, diaBrasiliaDe(agora), segredo as Buffer) : null;
+    const dia = diaBrasiliaDe(agora);
+    const codigo = valido ? gerarCodigo('P2', cred.id, dia, segredo as Buffer) : null;
     const pkpass = montarPasseApple(
       {
-        ...this.dadosDoPasse(cred.id, cond?.nome, moradorValido ?? { nome: 'Passe cancelado' }, codigo),
+        ...this.dadosDoPasse(
+          cred.id,
+          cond?.nome,
+          moradorValido ?? { nome: 'Passe cancelado' },
+          codigo,
+          codigo !== null ? dia : null,
+        ),
         pausado: !habilitado,
       },
       chaves,
@@ -540,6 +548,8 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     condominio: string | null | undefined,
     morador: { nome?: string | null; bloco?: string | null; apartamento?: string | null },
     codigo: string | null,
+    /** Mesmo contador usado em gerarCodigo; null no passe anulado. */
+    diaDoCodigo: number | null,
   ): DadosDoPasse {
     return {
       serial: `c${idCredencial}`,
@@ -549,6 +559,7 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
       morador: morador.nome ?? '',
       unidade: rotuloUnidade(morador.bloco, morador.apartamento),
       codigo,
+      diaDoCodigo,
     };
   }
 

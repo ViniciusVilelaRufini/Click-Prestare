@@ -33,6 +33,11 @@ export type DadosDoPasse = {
   /** null = passe anulado (revogado ou morador removido). */
   codigo: string | null;
   /**
+   * Contador diário do código P2 (diaBrasiliaDe do instante em que o código
+   * foi gerado). Vai para o campo "CÓDIGO DE". null no passe anulado.
+   */
+  diaDoCodigo: number | null;
+  /**
    * Opção do condomínio desligada: o passe segue com o código (a validação é
    * que nega, por `carteira_desligada`) e o verso avisa. Religar tira o aviso.
    */
@@ -43,11 +48,43 @@ export const TEXTO_PASSE_PAUSADO = 'Passe pausado pelo condomínio';
 
 export const MENSAGEM_PASSE_CANCELADO = 'PRESTARE-PASSE-CANCELADO';
 
+export const TEXTO_ALT_CODIGO = 'Mostre ao leitor do portão';
+
+const DIA_MS = 86_400_000;
+
 const IMAGENS = ['icon.png', 'icon@2x.png', 'icon@3x.png', 'logo.png', 'logo@2x.png'] as const;
 
 /** W3C/ISO 8601 com segundos e sem milissegundos, como a Apple pede. */
 function dataW3c(d: Date): string {
   return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/**
+ * Dia do contador (dias desde 01/01/1970 em Brasília) como data ISO 8601 com
+ * fuso, ao meio-dia de Brasília. A Apple pede fuso em todo valor de data
+ * (PassFieldContent.value); com ignoresTimeZone a data aparece no fuso do
+ * valor, e o meio-dia ainda cai no mesmo dia em qualquer fuso do Brasil caso
+ * o aparelho use o fuso dele.
+ */
+function dataDoDia(dia: number): string {
+  return `${new Date(dia * DIA_MS).toISOString().slice(0, 10)}T12:00:00-03:00`;
+}
+
+/**
+ * "CÓDIGO DE": data do dia do código, formatada pelo aparelho (dateStyle),
+ * em vez de um texto fixo como "Hoje, 14/11", que deixaria de ser verdade
+ * depois da meia-noite até o passe ser atualizado.
+ */
+function campoCodigoDe(dia: number | null) {
+  if (dia === null) return { key: 'codigo_de', label: 'CÓDIGO DE', value: '—' };
+  return {
+    key: 'codigo_de',
+    label: 'CÓDIGO DE',
+    value: dataDoDia(dia),
+    dateStyle: 'PKDateStyleShort',
+    timeStyle: 'PKDateStyleNone',
+    ignoresTimeZone: true,
+  };
 }
 
 export function montarPassJson(dados: DadosDoPasse, agora: Date = new Date()): Record<string, unknown> {
@@ -65,14 +102,16 @@ export function montarPassJson(dados: DadosDoPasse, agora: Date = new Date()): R
     sharingProhibited: true,
     backgroundColor: 'rgb(11,11,11)',
     foregroundColor: 'rgb(255,255,255)',
-    labelColor: 'rgb(163,163,163)',
+    labelColor: 'rgb(255,200,61)',
     ...(valido ? {} : { voided: true, expirationDate: dataW3c(new Date(agora.getTime() - 60_000)) }),
     generic: {
-      primaryFields: [{ key: 'morador', label: 'MORADOR', value: dados.morador }],
+      headerFields: [{ key: 'acesso', label: 'ACESSO', value: 'Morador' }],
+      primaryFields: [{ key: 'morador', label: 'NOME', value: dados.morador }],
       secondaryFields: [
         { key: 'condominio', label: 'CONDOMÍNIO', value: dados.condominio },
         { key: 'unidade', label: 'UNIDADE', value: dados.unidade },
       ],
+      auxiliaryFields: [campoCodigoDe(valido ? dados.diaDoCodigo : null)],
       backFields: [
         ...(valido && dados.pausado ? [{ key: 'pausado', label: 'Situação', value: TEXTO_PASSE_PAUSADO }] : []),
         {
@@ -93,6 +132,7 @@ export function montarPassJson(dados: DadosDoPasse, agora: Date = new Date()): R
         format: 'PKBarcodeFormatQR',
         message: valido ? dados.codigo : MENSAGEM_PASSE_CANCELADO,
         messageEncoding: 'iso-8859-1',
+        ...(valido ? { altText: TEXTO_ALT_CODIGO } : {}),
       },
     ],
   };

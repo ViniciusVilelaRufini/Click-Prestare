@@ -339,6 +339,49 @@ describe('WalletService', () => {
       expect(passJson((await svc.passeAppleDaCredencial(estado.creds[0].id, AGORA))!.pkpass).voided).toBe(true);
     });
 
+    it('CÓDIGO DE mostra o dia do contador do P2 em Brasília (o mesmo do código), também perto da meia-noite', async () => {
+      const { svc, estado, validacao } = build();
+      await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA);
+      const id = estado.creds[0].id;
+      // 23:30 de 14/11 em Brasília (02:30 de 15/11 em UTC) e 00:00 de 15/11 em Brasília.
+      for (const [instante, data] of [
+        ['2026-11-15T02:30:00.000Z', '2026-11-14T12:00:00-03:00'],
+        ['2026-11-15T03:00:00.000Z', '2026-11-15T12:00:00-03:00'],
+      ] as const) {
+        const agora = new Date(instante);
+        const pass = passJson((await svc.passeAppleDaCredencial(id, agora))!.pkpass);
+        expect(pass.generic.auxiliaryFields).toEqual([
+          {
+            key: 'codigo_de',
+            label: 'CÓDIGO DE',
+            value: data,
+            dateStyle: 'PKDateStyleShort',
+            timeStyle: 'PKDateStyleNone',
+            ignoresTimeZone: true,
+          },
+        ]);
+        const r = await validacao.validarLeitura(pass.barcodes[0].message, { id: 42, id_condominio: 1 }, agora);
+        expect(r).toMatchObject({ ok: true, contador: diaBrasiliaDe(agora) });
+      }
+    });
+
+    it('emitir: CÓDIGO DE é o dia de AGORA em Brasília e o passe válido tem altText', async () => {
+      const { svc } = build();
+      const pass = passJson(await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA));
+      expect(pass.generic.auxiliaryFields[0].value).toBe('2026-11-14T12:00:00-03:00');
+      expect(pass.barcodes[0].altText).toBe('Mostre ao leitor do portão');
+    });
+
+    it('passe anulado: CÓDIGO DE "—" e sem altText', async () => {
+      const { svc, estado } = build();
+      await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA);
+      await svc.cancelarDoUsuario(MORADOR, { id_condominio: 1 }, AGORA);
+      const pass = passJson((await svc.passeAppleDaCredencial(estado.creds[0].id, AGORA))!.pkpass);
+      expect(pass.voided).toBe(true);
+      expect(pass.generic.auxiliaryFields).toEqual([{ key: 'codigo_de', label: 'CÓDIGO DE', value: '—' }]);
+      expect(pass.barcodes[0].altText).toBeUndefined();
+    });
+
     it('sem chaves: 503, não null', async () => {
       const { svc, estado, chaves } = build();
       await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA);
