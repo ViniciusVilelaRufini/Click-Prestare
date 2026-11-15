@@ -258,8 +258,10 @@ describe('Guarita — conferência nunca apaga', () => {
   it('só no Guarita → a_vincular; só no Prestare (ativo/gravado) → cadastrar de novo; divergente → só lista; nenhum apagar', async () => {
     const original = frame(2, '000001', { placa: 'ABC1D23' });
     const m = await comImportacao([original, frame(2, '000002'), frame(3, '000003')]);
-    // A tag 000002 passou a "gravado" pelo Prestare (está no Guarita e o Prestare conhece).
-    m.db.linhas('tags').find((t: any) => t.guarita_serial === '000002').guarita_estado = 'gravado';
+    // A tag 000002 foi gravada PELO Prestare (cadastro ok).
+    const t2antes = m.db.linhas('tags').find((t: any) => t.guarita_serial === '000002');
+    t2antes.guarita_estado = 'gravado';
+    m.db.semear('guarita_Operacoes', [{ id_condominio: 7, id_device: 10, id_tag: t2antes.id, tipo: 'cadastrar', estado: 'ok', frame_hex: frame(2, '000002') }]);
 
     const id = await abrir(m.ctrl, 'conferir');
     const lidoAgora = [
@@ -272,7 +274,7 @@ describe('Guarita — conferência nunca apaga', () => {
 
     const ops = m.db.linhas('guarita_Operacoes');
     expect(ops.some((o: any) => o.tipo === 'apagar')).toBe(false);
-    const cadastrar = ops.filter((o: any) => o.tipo === 'cadastrar');
+    const cadastrar = ops.filter((o: any) => o.tipo === 'cadastrar' && o.estado === 'pendente');
     expect(cadastrar).toHaveLength(1);
     expect(cadastrar[0].frame_hex).toBe(frame(2, '000002'));
     const t2 = m.db.linhas('tags').find((t: any) => t.guarita_serial === '000002');
@@ -289,6 +291,29 @@ describe('Guarita — conferência nunca apaga', () => {
     expect(resumo.diferencas.so_no_prestare.map((d: any) => d.serial)).toEqual(['000002']);
     expect(resumo.diferencas.divergente.map((d: any) => d.serial)).toEqual(['000001']);
     expect(m.db.linhas('guarita_Backups').map((b: any) => b.motivo)).toEqual(['importacao', 'conferencia']);
+  });
+
+  it('I2: tag importada (ativo) que sumiu do Guarita vira ausente, sem operação; regravar enfileira; voltar ao Guarita tira o ausente', async () => {
+    const m = await comImportacao([frame(2, '000001', { placa: 'ABC1D23' })]);
+    expect(m.db.linhas('tags')[0].guarita_estado).toBe('ativo');
+    const id = await abrir(m.ctrl, 'conferir');
+    await m.agente.registrarResultado(m.device, id, { ok: true, parte: 1, frames_hex: [], fim: true });
+    expect(m.db.linhas('tags')[0]).toMatchObject({ guarita_estado: 'ausente', guarita_erro: 'Não está mais no Guarita.' });
+    expect(m.db.linhas('guarita_Operacoes').filter((o: any) => !['importar', 'conferir'].includes(o.tipo))).toEqual([]);
+    const resumo: any = await m.ctrl.operacao(7, 10, id, OPERADOR);
+    expect(resumo.diferencas.so_no_prestare[0]).toMatchObject({ ausente: true });
+
+    const ops = new GuaritaOperacoesService(m.db as any);
+    const r = await ops.regravar(7, 10, m.db.linhas('tags')[0].id, 'síndica');
+    expect(r.estado).toBe('pendente');
+    expect(m.db.linhas('guarita_Operacoes').filter((o: any) => o.tipo === 'cadastrar')).toHaveLength(1);
+
+    // Conferência seguinte acha o dispositivo de volta: deixa de ser ausente.
+    m.db.linhas('tags')[0].guarita_estado = 'ausente';
+    m.db.linhas('guarita_Operacoes').forEach((o: any) => (o.estado = o.estado === 'pendente' ? 'cancelada' : o.estado));
+    const id2 = await abrir(m.ctrl, 'conferir');
+    await m.agente.registrarResultado(m.device, id2, { ok: true, parte: 1, frames_hex: [frame(2, '000001', { placa: 'ABC1D23' })], fim: true });
+    expect(m.db.linhas('tags')[0].guarita_estado).toBe('ativo');
   });
 
   it('a_vincular que sumiu do Guarita não vira cadastro (o Prestare não o gravou)', async () => {

@@ -49,6 +49,8 @@ export interface ItemDiferenca {
   serial: string;
   /** só_no_prestare: true quando a tag não tinha frame guardado (não há como recadastrar sozinho). */
   sem_frame?: boolean;
+  /** só_no_prestare: veio da importação e sumiu → estado `ausente` (o síndico decide; nada é regravado sozinho). */
+  ausente?: boolean;
 }
 
 export interface DiferencasConferencia {
@@ -367,6 +369,21 @@ export class GuaritaImportacaoService {
     for (const [chave, d] of lidos) {
       const conhecida = porChave.get(chave);
       if (conhecida && (emConflito.has(conhecida.id) || conhecida.guarita_estado === ESTADO_TAG.conflito)) continue;
+      if (conhecida && conhecida.guarita_estado === ESTADO_TAG.ausente) {
+        // Voltou ao Guarita (alguém recadastrou no teclado): deixa de ser ausente.
+        const comVeiculo = await this.prisma.veiculos.count({ where: { id_tag: conhecida.id, ativo: 1 } });
+        await this.prisma.tags.update({
+          where: { id: conhecida.id },
+          data: {
+            guarita_estado: comVeiculo > 0 ? ESTADO_TAG.ativo : ESTADO_TAG.aVincular,
+            guarita_erro: null,
+            guarita_frame: d.bruto,
+            guarita_em: agora,
+          },
+        });
+        resumo.atualizados++;
+        continue;
+      }
       if (conhecida) {
         if (!conferencia) {
           await this.atualizarFrame(conhecida.id, d, agora);
@@ -386,12 +403,27 @@ export class GuaritaImportacaoService {
 
     if (!conferencia) return { resumo };
 
-    // Só no Prestare: reenvia SÓ o que o Prestare confirmou ter gravado
-    // (gravado/ativo). Nada de apagar: o que sobrar no Guarita fica lá.
+    // Só no Prestare (ativo/gravado que sumiu do Guarita). Nada de apagar: o
+    // que sobrar no Guarita fica lá.
+    //  - o PRÓPRIO Prestare gravou (cadastro ok): reenvia o cadastro;
+    //  - veio da importação (o Prestare nunca o gravou): `ausente` — pode ter
+    //    sido apagado de propósito no teclado; o síndico decide regravar ou
+    //    desfazer, nada sai sozinho.
     for (const t of conhecidas) {
       const chave = `${t.guarita_tipo}:${t.guarita_serial}`;
       if (lidos.has(chave)) continue;
       if (t.guarita_estado !== ESTADO_TAG.ativo && t.guarita_estado !== ESTADO_TAG.gravado) continue;
+      const gravadoPeloPrestare = await this.prisma.guarita_Operacoes.count({
+        where: { id_tag: t.id, tipo: 'cadastrar', estado: ESTADO_OP.ok },
+      });
+      if (gravadoPeloPrestare === 0) {
+        await this.prisma.tags.update({
+          where: { id: t.id },
+          data: { guarita_estado: ESTADO_TAG.ausente, guarita_erro: 'Não está mais no Guarita.' },
+        });
+        dif.so_no_prestare.push({ id_tag: t.id, tipo: t.guarita_tipo as number, serial: t.guarita_serial as string, ausente: true });
+        continue;
+      }
       if (!t.guarita_frame) {
         dif.so_no_prestare.push({ id_tag: t.id, tipo: t.guarita_tipo as number, serial: t.guarita_serial as string, sem_frame: true });
         continue;
@@ -414,7 +446,7 @@ export class GuaritaImportacaoService {
       dif.so_no_prestare.push({ id_tag: t.id, tipo: t.guarita_tipo as number, serial: t.guarita_serial as string });
     }
     // Recadastro também precisa do 29 (o agente só informa o 29 com esta operação na fila).
-    if (dif.so_no_prestare.some((d) => !d.sem_frame)) {
+    if (dif.so_no_prestare.some((d) => !d.sem_frame && !d.ausente)) {
       const pendente = await this.prisma.guarita_Operacoes.count({
         where: { id_device: device.id, tipo: 'atualizar_receptores', estado: ESTADO_OP.pendente },
       });

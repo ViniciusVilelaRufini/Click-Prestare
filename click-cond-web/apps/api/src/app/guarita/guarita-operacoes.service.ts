@@ -260,6 +260,32 @@ export class GuaritaOperacoesService {
   }
 
   /**
+   * `POST …/dispositivos/:idTag/regravar`: dispositivo `ausente` (sumiu do
+   * Guarita) volta a ser cadastrado, por decisão do síndico. Com veículo, o
+   * frame é montado dos dados atuais (grupo e receptores do frame antigo);
+   * sem veículo, vai o frame antigo. RF exige o contador guardado.
+   */
+  async regravar(idCondominio: number, deviceId: number, idTag: number, autor: string) {
+    const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
+    const tag = await this.prisma.tags.findFirst({
+      where: { id: Number(idTag), id_device: device.id, id_condominio: device.id_condominio },
+    });
+    if (!tag) throw new NotFoundException('Dispositivo não encontrado neste Guarita.');
+    if (tag.guarita_estado !== ESTADO_TAG.ausente) {
+      throw new BadRequestException('Só dá para regravar um dispositivo que não está mais no Guarita.');
+    }
+    if (tag.guarita_tipo === 1 && tag.guarita_contador == null) throw new BadRequestException(MSG_RF_SO_POR_CAPTURA);
+    if (tag.guarita_tipo == null || !tag.guarita_serial) throw new BadRequestException('Dispositivo sem tipo ou serial.');
+    const comVeiculo = await this.prisma.veiculos.count({ where: { id_tag: tag.id, ativo: 1 } });
+    let frame: string | null = null;
+    if (comVeiculo > 0) frame = await this.montarFrame(tag, tag.guarita_frame ?? null);
+    else frame = tag.guarita_frame ?? null;
+    if (!frame) throw new BadRequestException('Sem os dados do dispositivo para regravar. Cadastre de novo pela captura.');
+    const { id_operacao } = await this.criarGravacao(tag, 'cadastrar', frame, autor, ESTADO_TAG.pendente);
+    return { id_tag: tag.id, estado: ESTADO_TAG.pendente, id_operacao };
+  }
+
+  /**
    * `POST …/dispositivos/:idTag/desfazer`: tag em `conflito` (ou `ausente`)
    * sai do Prestare — a linha some, nenhuma operação vai para o Guarita.
    */

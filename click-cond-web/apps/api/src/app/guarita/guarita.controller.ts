@@ -245,6 +245,18 @@ export class GuaritaController {
     return this.operacoes.aprovar(idCondominio, deviceId, idTag, body, autorDoUsuario(user));
   }
 
+  /** Dispositivo que não está mais no Guarita: o síndico decide regravar (cadastro na fila). */
+  @Post(':deviceId/dispositivos/:idTag/regravar')
+  async regravar(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idTag', ParseIntPipe) idTag: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'regravar dispositivo no Guarita');
+    return this.operacoes.regravar(idCondominio, deviceId, idTag, autorDoUsuario(user));
+  }
+
   /** Dispositivo em conflito (ou que não está mais no Guarita): sai do Prestare, nada vai para o Guarita. */
   @Post(':deviceId/dispositivos/:idTag/desfazer')
   async desfazer(
