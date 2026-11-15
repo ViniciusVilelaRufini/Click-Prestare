@@ -6142,9 +6142,9 @@ export class MobileAuthService {
     // desvincula; o app reenvia o código a cada edição, e o código da tag do
     // Guarita (G<tipo>-<serial>) reenviado não mexe em nada.
     const guaritas = this.guarita ? await this.guarita.guaritasDoCondominio(idCondominio) : [];
-    const tagAtual = guaritas.length
-      ? await this.tagAtualDoVeiculo(idVeiculo)
-      : null;
+    // A tag atual é olhada mesmo com o Guarita desativado ou offline: trocar ou
+    // tirar a tag pelo app enfileira a remoção dela (fica pendente na fila).
+    const tagAtual = this.guarita ? await this.tagAtualDoVeiculo(idVeiculo) : null;
     if (tagAtual?.id_device != null && digitado && digitado.toUpperCase() === String(tagAtual.codigo).toUpperCase()) {
       return;
     }
@@ -6218,10 +6218,10 @@ export class MobileAuthService {
       data: { id_tag: tag.id },
     });
 
+    if (this.guarita && tagAtual?.id_device != null && tagAtual.id !== tag.id) {
+      await this.guarita.enfileirarRemocao(tagAtual.id, 'App do morador (trocou a tag)');
+    }
     if (guaritas.length && this.guarita) {
-      if (tagAtual?.id_device != null && tagAtual.id !== tag.id) {
-        await this.guarita.enfileirarRemocao(tagAtual.id, 'App do morador (trocou a tag)');
-      }
       // A gravação vale no portão de verdade e o app deixa digitar qualquer
       // código: a portaria aprova no console antes de ir para o Guarita.
       if ((tag as any).id_device == null) {

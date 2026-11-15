@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { GuaritaOperacoesService } from '../guarita/guarita-operacoes.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -23,6 +24,9 @@ export class ApartamentosService {
     private readonly prisma: PrismaService,
     private readonly tenant: TenantAccessService,
     private readonly auditoria: AuditoriaService,
+    // Módulo Guarita: a unidade que some tira do Guarita os dispositivos de
+    // quem morava nela. Opcional (specs antigos instanciam sem).
+    @Optional() private readonly guarita?: GuaritaOperacoesService,
   ) {}
 
   /**
@@ -344,6 +348,22 @@ export class ApartamentosService {
         })
       : [];
 
+    // Módulo Guarita: tags dos moradores desta unidade, lidas ANTES do delete
+    // (depois a unidade e o vínculo somem e o morador fica sem unidade).
+    const tagsGuarita: number[] = [];
+    if (this.guarita && vinculados.length > 0) {
+      const moradoresDaUnidade = await this.prisma.moradores.findMany({
+        where: {
+          id_condominio: atual.id_condominio,
+          id_user: { in: [...new Set(vinculados.map((v) => v.id_user))] },
+          apartamento: atual.apto,
+          bloco: atual.bloco,
+        },
+        select: { id: true },
+      });
+      for (const m of moradoresDaUnidade) tagsGuarita.push(...(await this.guarita.tagsDoMorador(m.id)));
+    }
+
     try {
       await this.prisma.apartamentos.delete({ where: { id: Number(id) } });
     } catch (err: any) {
@@ -387,7 +407,9 @@ export class ApartamentosService {
       detalhes: { apartamento: { id: Number(id), apto: atual.apto, bloco: atual.bloco }, arrastados },
     });
 
-    return { success: true, arrastados };
+    const guarita_remocoes =
+      tagsGuarita.length && this.guarita ? await this.guarita.enfileirarRemocoes(tagsGuarita, user?.nome ?? 'Sistema') : 0;
+    return tagsGuarita.length ? { success: true, arrastados, guarita_remocoes } : { success: true, arrastados };
   }
 
   /**
