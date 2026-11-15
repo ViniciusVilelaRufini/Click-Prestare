@@ -180,6 +180,31 @@ describe('ja_estava mais estrito (cadastrar)', () => {
   });
 });
 
+describe('remoção que esgota as tentativas', () => {
+  it('depois de 5 apagar falhos: remocao_falhou, alerta novo aberto, e "remover de novo" põe um apagar na fila', async () => {
+    const m = montar();
+    await m.ops.enfileirarRemocao(1, 'x');
+    for (let i = 0; i < 5; i++) {
+      for (const o of m.db.linhas('guarita_Operacoes')) if (o.estado === 'enviada' && o.tipo === 'atualizar_receptores') o.estado = 'ok';
+      const ap = (await m.agente.buscarOperacoes(DEV)).operacoes.find((o) => o.tipo === 'apagar');
+      expect(ap).toBeDefined();
+      await m.agente.registrarResultado(DEV, ap!.id, { ok: false, incerto: true });
+    }
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'remocao_falhou' });
+    expect(tag(m.db).guarita_erro).toMatch(/Remoção não confirmada depois de 5 tentativas/);
+    const alertas = m.db.linhas('guarita_Alertas').filter((a: any) => a.tipo === 'remocao_pendente');
+    expect(alertas.some((a: any) => /Remover de novo/.test(a.descricao))).toBe(true);
+    expect(ops(m.db, 'apagar').filter((o: any) => o.estado === 'pendente')).toHaveLength(0);
+    // Reconexão não tenta mais sozinha.
+    await m.agente.registrarEstado(DEV, { conectado: false, autorizado: true });
+    await m.agente.registrarEstado(DEV, { conectado: true, autorizado: true });
+    expect(ops(m.db, 'apagar').filter((o: any) => o.estado === 'pendente')).toHaveLength(0);
+    // Botão do console.
+    await expect(m.ops.removerDeNovo(7, 10, 1, 'síndica')).resolves.toMatchObject({ estado: 'removendo' });
+    expect(ops(m.db, 'apagar').filter((o: any) => o.estado === 'pendente')).toHaveLength(1);
+  });
+});
+
 describe('C1 — duas gravações da mesma tag no mesmo lote', () => {
   it('cenário A: troca de unidade e saída logo depois → o dispositivo é removido do Guarita', async () => {
     const m = montar();

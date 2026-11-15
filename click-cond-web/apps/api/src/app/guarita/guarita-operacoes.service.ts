@@ -226,7 +226,7 @@ export class GuaritaOperacoesService {
   async podeEscrever(tag: any): Promise<boolean> {
     if (!tag || tag.id_device == null || tag.guarita_tipo == null || !tag.guarita_serial) return false;
     const e = tag.guarita_estado;
-    if (e === ESTADO_TAG.gravado || e === ESTADO_TAG.ativo || e === ESTADO_TAG.removendo) return true;
+    if (e === ESTADO_TAG.gravado || e === ESTADO_TAG.ativo || e === ESTADO_TAG.removendo || e === ESTADO_TAG.remocaoFalhou) return true;
     // Cadastro talvez gravado: pode receber apagar (o agente confere a unidade antes).
     if (e === ESTADO_TAG.incerto) return true;
     if (e !== ESTADO_TAG.pendente && e !== ESTADO_TAG.falhou) return false;
@@ -393,6 +393,9 @@ export class GuaritaOperacoesService {
       return false;
     }
     if (tag.guarita_tipo == null || !tag.guarita_serial) return false;
+    // Remoção já desistida automaticamente: a intenção continua (alerta aberto);
+    // nova tentativa só pelo "remover de novo" do console.
+    if (estado === ESTADO_TAG.remocaoFalhou) return true;
     if (estado === ESTADO_TAG.removendo) {
       const aberta = await this.prisma.guarita_Operacoes.count({
         where: { id_tag: tag.id, tipo: 'apagar', estado: { in: ABERTAS } },
@@ -786,6 +789,7 @@ export class GuaritaOperacoesService {
         data: { guarita_erro: `Remoção: ${mensagem}`.slice(0, 255), guarita_estado: ESTADO_TAG.removendo },
       });
       await this.alertarRemocaoPendente(tag, String(mensagem));
+      await this.desistirSeEsgotou(tag, String(mensagem));
       return;
     }
 
@@ -872,6 +876,8 @@ export class GuaritaOperacoesService {
       await this.alertarRemocaoPendente(tag, MSG_INCERTO);
       if (tentativas < MAX_TENTATIVAS_REMOCAO && op.frame_hex) {
         await this.criarGravacao(tag, 'apagar', op.frame_hex, `Nova tentativa de remoção (${tentativas + 1}/${MAX_TENTATIVAS_REMOCAO})`, ESTADO_TAG.removendo);
+      } else {
+        await this.desistirSeEsgotou(tag, MSG_INCERTO);
       }
       return;
     }
@@ -879,6 +885,55 @@ export class GuaritaOperacoesService {
     if (tentativas < MAX_TENTATIVAS_REMOCAO && op.frame_hex) {
       await this.criarGravacao(tag, 'editar', op.frame_hex, 'Nova tentativa de edição sem confirmação', tag.guarita_estado ?? ESTADO_TAG.pendente);
     }
+  }
+
+  /**
+   * Depois de MAX_TENTATIVAS_REMOCAO apagar falhos, a tag vira
+   * `remocao_falhou` (visível, sem nova tentativa automática) e um alerta
+   * `remocao_pendente` novo é aberto, mesmo que o anterior já tenha sido visto.
+   */
+  private async desistirSeEsgotou(tag: any, motivo: string) {
+    const falhas = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: 'apagar', estado: ESTADO_OP.falhou },
+    });
+    if (falhas < MAX_TENTATIVAS_REMOCAO) return;
+    const aberta = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: 'apagar', estado: { in: ABERTAS } },
+    });
+    if (aberta > 0) return;
+    const texto = `Remoção não confirmada depois de ${falhas} tentativas: ${motivo}`.slice(0, 255);
+    await this.prisma.tags.update({ where: { id: tag.id }, data: { guarita_estado: ESTADO_TAG.remocaoFalhou, guarita_erro: texto } });
+    await this.prisma.guarita_Alertas.create({
+      data: {
+        id_condominio: tag.id_condominio,
+        id_device: tag.id_device,
+        tipo: 'remocao_pendente',
+        descricao: `Não foi possível remover do Guarita o dispositivo de ${await this.quemDaTag(tag)}: ele ainda abre o portão. As tentativas automáticas acabaram; use "Remover de novo".`.slice(0, 255),
+        dados: JSON.stringify({ id_tag: tag.id, serial: tag.guarita_serial, tipo: tag.guarita_tipo, motivo, tentativas: falhas }),
+      },
+    });
+  }
+
+  /**
+   * `POST …/dispositivos/:idTag/remover-de-novo`: nova tentativa manual de
+   * remover uma tag `remocao_falhou` (uma por clique).
+   */
+  async removerDeNovo(idCondominio: number, deviceId: number, idTag: number, autor: string) {
+    const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
+    const tag = await this.prisma.tags.findFirst({
+      where: { id: Number(idTag), id_device: device.id, id_condominio: device.id_condominio },
+    });
+    if (!tag) throw new NotFoundException('Dispositivo não encontrado neste Guarita.');
+    if (tag.guarita_estado !== ESTADO_TAG.remocaoFalhou) {
+      throw new BadRequestException('Só dá para remover de novo um dispositivo cuja remoção falhou.');
+    }
+    const conhecido = await this.frameConhecido(tag);
+    if (!conhecido && (tag.guarita_tipo == null || !tag.guarita_serial)) {
+      throw new BadRequestException('Sem os dados do dispositivo para remover. Faça a conferência.');
+    }
+    const frame = conhecido ? codificarApagarDoFrame(conhecido) : codificarApagar(tag.guarita_tipo as number, tag.guarita_serial as string);
+    const { id_operacao } = await this.criarGravacao(tag, 'apagar', frame, autor, ESTADO_TAG.removendo);
+    return { id_tag: tag.id, estado: ESTADO_TAG.removendo, id_operacao };
   }
 
   /** Alerta "ainda abre o portão" para a portaria (no máximo um a cada 12 h por tag). */

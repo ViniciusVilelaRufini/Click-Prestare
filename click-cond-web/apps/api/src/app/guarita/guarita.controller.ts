@@ -277,6 +277,18 @@ export class GuaritaController {
     return this.operacoes.aprovar(idCondominio, deviceId, idTag, body, autorDoUsuario(user));
   }
 
+  /** Remoção que desistiu depois de 5 tentativas: nova tentativa manual (uma por clique). */
+  @Post(':deviceId/dispositivos/:idTag/remover-de-novo')
+  async removerDeNovo(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Param('idTag', ParseIntPipe) idTag: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'remover dispositivo do Guarita');
+    return this.operacoes.removerDeNovo(idCondominio, deviceId, idTag, autorDoUsuario(user));
+  }
+
   /** Dispositivo que não está mais no Guarita: o síndico decide regravar (cadastro na fila). */
   @Post(':deviceId/dispositivos/:idTag/regravar')
   async regravar(

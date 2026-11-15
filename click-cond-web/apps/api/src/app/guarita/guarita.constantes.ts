@@ -70,6 +70,8 @@ export const ESTADO_TAG = {
    * unidade antes de apagar).
    */
   incerto: 'incerto',
+  /** Remoção que falhou 5 vezes: não tenta mais sozinha; o console tem "remover de novo"; o alerta segue aberto. */
+  remocaoFalhou: 'remocao_falhou',
 } as const;
 
 /** Tipos de dispositivo do Guarita aceitos pela integração (sem BM e SN). */

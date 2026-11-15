@@ -205,7 +205,8 @@ describe('I3 — remoção que falha e identidade do CT', () => {
     }
     expect(operacoes(m.db, 'apagar').filter((o: any) => o.estado === 'falhou')).toHaveLength(5);
     expect(operacoes(m.db, 'apagar').filter((o: any) => o.estado === 'pendente')).toHaveLength(0);
-    expect(tag(m.db).guarita_estado).toBe('removendo');
+    // Esgotou: não fica "Removendo" para sempre.
+    expect(tag(m.db).guarita_estado).toBe('remocao_falhou');
   });
 
   it('CT com disp_dest (nibble baixo do byte 1): apagar e editar usam o byte 1 lido; edição mantém o "VI" do visitante', async () => {
