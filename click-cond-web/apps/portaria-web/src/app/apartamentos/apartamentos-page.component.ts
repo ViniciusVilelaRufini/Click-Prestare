@@ -80,21 +80,47 @@ export class ApartamentosPageComponent implements OnInit {
 
   /**
    * Cadastrar, editar, excluir e importar unidades é do síndico e do funcionário do app (inclusive
-   * no console por QR Code): a API recusa o porteiro de login/senha (assertStaff), que via os botões
-   * e tomava 403. Mesma regra das telas de comunicados e assembleias. A API segue decidindo.
+   * no console por QR Code) que tem a permissão "apartamentos": a API recusa o porteiro de
+   * login/senha (assertStaff) e o funcionário sem a permissão (assertPermissaoFuncionario).
+   * A flag vem de GET apartamentos/acesso; a API segue decidindo em cada rota.
    */
-  readonly podeGerenciarUnidades = computed(() => {
+  private readonly papelGerencia = computed(() => {
     this.auth.porteiroInfo(); // recalcula ao entrar / trocar de condomínio
     const papel = papelDoToken(this.auth.token);
     return papel === 'sindico' || papel === 'funcionario';
   });
+  /** Resposta de GET apartamentos/acesso (null enquanto não chegou). */
+  readonly acessoGerenciar = signal<boolean | null>(null);
+  readonly podeGerenciarUnidades = computed(() => this.papelGerencia() && this.acessoGerenciar() === true);
 
   novo: CreateApartamento = { apto: '', bloco: '', fracao: '' };
   showForm = false;
   editingId: number | null = null;
   readonly saving = signal(false);
 
-  ngOnInit() { this.carregar(); }
+  ngOnInit() {
+    this.carregar();
+    this.carregarAcesso();
+  }
+
+  /** API sem a rota (tela publicada antes da API): segue o papel do token. Outro erro esconde os botões. */
+  private carregarAcesso() {
+    if (!this.papelGerencia()) {
+      this.acessoGerenciar.set(false);
+      return;
+    }
+    this.api.acesso().subscribe({
+      next: (a) => this.acessoGerenciar.set(a?.gerenciar === true),
+      error: (e) => {
+        if (e?.status === 404) {
+          this.acessoGerenciar.set(true);
+          return;
+        }
+        this.acessoGerenciar.set(false);
+        this.error.set(e?.error?.message ?? e?.message ?? 'Erro ao carregar as permissões da sessão.');
+      },
+    });
+  }
 
   carregar() {
     this.loading.set(true);

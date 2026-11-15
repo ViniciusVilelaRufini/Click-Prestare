@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -390,9 +390,27 @@ export class ApartamentosService {
     return { success: true, arrastados };
   }
 
+  /**
+   * O que a sessão pode fazer com as unidades, pela mesma regra de create/update/remove/importBulk:
+   * síndico, ou funcionário (inclusive no console por QR) com a flag `apartamentos`. A tela usa
+   * para esconder os botões; a API continua decidindo em cada rota.
+   */
+  async acesso(idCondominio: number, user?: JwtPayload): Promise<{ gerenciar: boolean }> {
+    try {
+      assertStaff(user, 'gerenciar apartamentos');
+      await this.tenant.assertPermissaoFuncionario(idCondominio, 'apartamentos', user);
+      return { gerenciar: true };
+    } catch (e) {
+      if (e instanceof ForbiddenException) return { gerenciar: false };
+      throw e;
+    }
+  }
+
   async importBulk(idCondominio: number, linhas: any[], user?: JwtPayload) {
     assertStaff(user, 'importar apartamentos em massa');
     await this.tenant.assertCondominio(idCondominio, user);
+    // Mesma flag do cadastro unitário: sem ela, o funcionário criava unidades pela importação.
+    await this.tenant.assertPermissaoFuncionario(idCondominio, 'apartamentos', user);
     const criados = [];
     const ignorados: { apto: string; bloco: string | null; motivo: string }[] = [];
     for (const item of linhas) {
