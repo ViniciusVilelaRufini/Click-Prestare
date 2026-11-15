@@ -113,7 +113,7 @@
           } @else {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               @for (v of sel.votacoes; track v.id) {
-                <div class="p-4 bg-graphite-300 border border-slate-200 flex flex-col justify-between gap-4">
+                <div class="p-4 bg-graphite-300 border border-slate-200 flex flex-col justify-between gap-4" [attr.data-votacao]="v.id">
                   <div>
                     <div class="flex items-center justify-between gap-2 mb-1.5">
                       <h4 class="text-sm font-bold text-slate-200">{{ v.titulo }}</h4>
@@ -140,7 +140,15 @@
                       <p class="text-xs text-slate-400 mb-3">{{ v.descricao }}</p>
                     }
 
-                    <!-- Contagem de Votos -->
+                    <!-- Contagem de Votos (oculta enquanto a votação está aberta) -->
+                    @if (resultadoOculto(v)) {
+                      <div class="p-3 border border-slate-200 space-y-1.5">
+                        <p class="text-xs text-slate-300 font-medium">Resultado disponível quando a votação for encerrada</p>
+                        <p class="text-[11px] text-slate-500">
+                          Opções: {{ nomesOpcoes(v.opcoes) }}
+                        </p>
+                      </div>
+                    } @else {
                     <div class="space-y-2 pt-1">
                       @for (opInfo of parseOpcoes(v.opcoes); track opInfo.id) {
                         <div class="space-y-1">
@@ -158,10 +166,18 @@
                         </div>
                       }
                     </div>
+                    }
+                    @if (textoParticipacao(v)) {
+                      <p class="text-[11px] text-slate-400 mt-2">{{ textoParticipacao(v) }}</p>
+                    }
                   </div>
 
                   <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 text-[10px] text-slate-500 font-mono">
-                    <span>Total apurado: {{ getTotalVotos(v.opcoes) }} voto(s)</span>
+                    @if (resultadoOculto(v)) {
+                      <span>Apuração ao encerrar</span>
+                    } @else {
+                      <span>Total apurado: {{ getTotalVotos(v.opcoes) }} voto(s)</span>
+                    }
                     @if (v.status === 1 && podeGerir()) {
                       <button (click)="encerrarVotacao(v.id, sel.assembleia.id)" class="ps-btn ps-btn-sec ps-btn-sm">Encerrar votação</button>
                     }
@@ -262,7 +278,7 @@
     } @else {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
         @for (e of enquetes(); track e.id) {
-          <div class="ps-panel p-5 flex flex-col justify-between gap-4">
+          <div class="ps-panel p-5 flex flex-col justify-between gap-4" [attr.data-votacao]="e.id">
             <div>
               <div class="flex items-center justify-between gap-2 mb-2">
                 <span
@@ -289,7 +305,13 @@
                 <p class="text-xs text-slate-400 mb-4 leading-relaxed">{{ e.descricao }}</p>
               }
 
-              <!-- Apuração Dinâmica em Barras -->
+              <!-- Apuração em barras (oculta enquanto a enquete está aberta) -->
+              @if (resultadoOculto(e)) {
+                <div class="p-3 border border-slate-200 space-y-1.5">
+                  <p class="text-xs text-slate-300 font-medium">Resultado disponível quando a votação for encerrada</p>
+                  <p class="text-[11px] text-slate-500">Opções: {{ nomesOpcoes(e.opcoes) }}</p>
+                </div>
+              } @else {
               <div class="space-y-2.5 pt-1">
                 @for (op of parseOpcoes(e.opcoes); track op.id) {
                   <div class="space-y-1">
@@ -306,10 +328,18 @@
                   </div>
                 }
               </div>
+              }
+              @if (textoParticipacao(e)) {
+                <p class="text-[11px] text-slate-400 mt-2">{{ textoParticipacao(e) }}</p>
+              }
             </div>
 
             <div class="flex items-center justify-between pt-3 border-t border-slate-200 text-xs text-slate-500 font-mono mt-2">
-              <span>Total apurado: {{ getTotalVotos(e.opcoes) }}</span>
+              @if (resultadoOculto(e)) {
+                <span>Apuração ao encerrar</span>
+              } @else {
+                <span>Total apurado: {{ getTotalVotos(e.opcoes) }}</span>
+              }
               @if (e.status === 1 && podeGerir()) {
                 <button (click)="encerrarVotacao(e.id)" class="ps-btn ps-btn-sec ps-btn-sm">Encerrar Imediatamente</button>
               }

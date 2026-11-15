@@ -328,6 +328,18 @@ export class AssembleiasPageComponent implements OnInit {
     });
   }
 
+  /** A API esconde a contagem enquanto a votação está aberta. Campo ausente (API antiga): mostra como antes. */
+  resultadoOculto(v: Votacao): boolean {
+    return v?.resultado_oculto === true;
+  }
+
+  /** "X de Y unidades votaram" (quórum); vazio quando a API não manda a participação. */
+  textoParticipacao(v: Votacao): string {
+    const p = v?.participacao;
+    if (!p || !Number.isFinite(Number(p.unidades_votaram)) || !Number.isFinite(Number(p.unidades_total))) return '';
+    return `${Number(p.unidades_votaram)} de ${Number(p.unidades_total)} unidades votaram`;
+  }
+
   // Parse de strings do formato "id;nome;votos"
   parseOpcoes(opcoesStrArray: string[]) {
     if (!Array.isArray(opcoesStrArray)) return [];
@@ -335,6 +347,11 @@ export class AssembleiasPageComponent implements OnInit {
       const p = str.split(';');
       return { id: p[0], nome: p[1] || 'Opção', votos: Number(p[2] || 0) };
     });
+  }
+
+  /** Só os nomes das opções ("Aprovar · Rejeitar"), sem números. */
+  nomesOpcoes(opcoesStrArray: string[]): string {
+    return this.parseOpcoes(opcoesStrArray).map((o) => o.nome).join(' · ');
   }
 
   getTotalVotos(opcoesStrArray: string[]) {

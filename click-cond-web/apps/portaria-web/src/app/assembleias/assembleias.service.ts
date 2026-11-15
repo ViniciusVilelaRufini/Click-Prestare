@@ -23,6 +23,13 @@ export interface Votacao {
   data_termino: string;
   status: number; // 0=Agendado, 1=Em andamento, 2=Finalizado
   opcoes: string[]; // "id;nome;votos"
+  /** Aberta/agendada: a API zera os votos e manda `true`. Ausente (API antiga) = falso. */
+  resultado_oculto?: boolean;
+  /** Inquilinos não votam (0/1; ausente = 0). */
+  somente_proprietarios?: number | boolean;
+  /** Quórum: unidades que votaram / apartamentos do condomínio. Ausente na API antiga. */
+  participacao?: { unidades_votaram: number; unidades_total: number } | null;
+  encerrada_em?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
