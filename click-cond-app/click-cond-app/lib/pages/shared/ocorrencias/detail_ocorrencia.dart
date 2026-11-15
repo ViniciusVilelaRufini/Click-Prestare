@@ -31,6 +31,8 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
   var _isSaving = false;
   final txtResposta = TextEditingController();
   dynamic obj;
+  /// Chat da ocorrência, carregado só para decidir o lápis do autor.
+  List<dynamic>? _mensagensChat;
   List<dynamic> list = [];
   var currentStatus = '';
 
@@ -51,23 +53,46 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
       setState(() => _isLoading = true);
       obj = await apiGetDetails("ocorrencias", widget.id);
       currentStatus = obj['status'];
-      list.clear();
-      if (obj['anexos'] != null && obj['anexos'].toString().isNotEmpty) {
-        for (var item in obj['anexos'].split(';')) {
-          if (item.toString().isNotEmpty) {
-            // fileFromImageUrl devolve null quando não há arquivo local; null
-            // na lista estourava em `f.path` no build.
-            final arquivo = await fileFromImageUrl(item);
-            if (arquivo != null) list.add(arquivo);
-          }
-        }
-      }
+      // Chat e anexos ao mesmo tempo: o chat só decide o lápis do autor.
+      await Future.wait([_conferirChat(), _carregarAnexos()]);
       if (mounted) setState(() {});
     } catch (e) {
       logDebug('[DetailOcorrencia] Erro no load: $e');
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// O lápis do autor some quando a equipe já escreveu no chat (a API recusa
+  /// editar/excluir). Enquanto o chat não responde, [_mensagensChat] fica
+  /// nulo e o lápis oculto; se a busca falhar, vale a lista vazia e o lápis
+  /// aparece (a recusa da API cobre o resto). Só busca quando o resto da
+  /// regra ainda permitiria editar.
+  Future<void> _conferirChat() async {
+    if (mounted) setState(() => _mensagensChat = null);
+    if (obj == null || getUserType() != 'morador' || !podeEditarOcorrencia(obj, getUserId())) return;
+    List<dynamic> msgs;
+    try {
+      final res = await apiGetOcorrenciaMessages(widget.id);
+      msgs = res is List ? res : [];
+    } catch (_) {
+      msgs = [];
+    }
+    if (mounted) setState(() => _mensagensChat = msgs);
+  }
+
+  Future<void> _carregarAnexos() async {
+    list.clear();
+    if (obj['anexos'] != null && obj['anexos'].toString().isNotEmpty) {
+      for (var item in obj['anexos'].split(';')) {
+        if (item.toString().isNotEmpty) {
+          // fileFromImageUrl devolve null quando não há arquivo local; null
+          // na lista estourava em `f.path` no build.
+          final arquivo = await fileFromImageUrl(item);
+          if (arquivo != null) list.add(arquivo);
+        }
+      }
     }
   }
 
@@ -437,8 +462,8 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                         if (canChat) ...[
                           AppButton(
                             label: 'Chat da Ocorrência',
-                            onPressed: () {
-                              Navigator.push(
+                            onPressed: () async {
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => OcorrenciaChatPage(
@@ -447,6 +472,9 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                   ),
                                 ),
                               );
+                              // A equipe pode ter escrito enquanto o chat
+                              // estava aberto: confere o lápis de novo.
+                              if (mounted) await _conferirChat();
                             },
                             icon: PhosphorIcons.chatText,
                             variant: AppButtonVariant.secondary,
@@ -465,7 +493,9 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                     ),
                   ),
                 ),
-      floatingActionButton: isMorador && podeEditarOcorrencia(obj, myId)
+      floatingActionButton: isMorador &&
+              _mensagensChat != null &&
+              podeEditarOcorrencia(obj, myId, mensagens: _mensagensChat)
           ? FloatingActionButton(
               backgroundColor: AppColors.brand,
               onPressed: () async {

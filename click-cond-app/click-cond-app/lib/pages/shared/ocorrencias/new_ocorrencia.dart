@@ -118,12 +118,13 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
     var choice = await showConfirmDialog(context);
     if (choice != null && choice) {
       setState(() => _isSaving = true);
-      var res = await apiDeleteObject('ocorrencias', widget.myId!);
+      final res = await apiDeleteObjectResultado('ocorrencias', widget.myId!);
       if (mounted) setState(() => _isSaving = false);
-      if (res) {
+      if (res.ok) {
         if (mounted) Navigator.of(context).pop(true);
       } else {
-        if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+        // Ex.: "Esta ocorrência já está em atendimento e não pode mais ser excluída."
+        if (mounted) displayMessage(context, getText('alert_error'), res.mensagemOu(getText('alert_generic_error')));
       }
     }
   }

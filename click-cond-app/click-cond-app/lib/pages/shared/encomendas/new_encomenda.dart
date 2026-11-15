@@ -8,6 +8,7 @@ import 'package:click/models/encomenda_model.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/api_client.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/bottom_sheet_aptos.dart';
 import 'package:click/widgets/app/app_button.dart';
@@ -198,16 +199,16 @@ class _NewEncomendaState extends State<NewEncomenda> {
         if (existingPhotoUrl != null && fotoBytes == null) 'foto_volume': existingPhotoUrl,
       };
 
-      bool success;
+      final ResultadoApi resultado;
       if (isEdit && widget.encomenda?.id != null) {
-        success = await apiUpdateEncomenda(widget.encomenda!.id!, payload);
+        resultado = await apiUpdateEncomendaResultado(widget.encomenda!.id!, payload);
       } else {
-        success = await apiInsertEncomenda(payload);
+        resultado = await apiInsertEncomendaResultado(payload);
       }
 
       if (mounted) {
         setState(() => _isSaving = false);
-        if (success) {
+        if (resultado.ok) {
           Navigator.pop(context, true);
           displayMessage(
             context,
@@ -217,13 +218,16 @@ class _NewEncomendaState extends State<NewEncomenda> {
                 : 'Encomenda registrada e moradores notificados!',
           );
         } else {
-          displayMessage(context, 'Erro', 'Falha ao salvar encomenda. Verifique a conexão.');
+          // 409 de unidade/retirada e 400 de unidade inexistente vêm explicados
+          // pela API; sem explicação (ou sem conexão), o texto de sempre.
+          displayMessage(context, 'Erro',
+              resultado.mensagemOu('Falha ao salvar encomenda. Verifique a conexão.'));
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        displayMessage(context, 'Erro', 'Ocorreu um erro ao salvar a encomenda: $e');
+        displayMessage(context, 'Erro', 'Ocorreu um erro ao salvar a encomenda. Tente novamente.');
       }
     }
   }

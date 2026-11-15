@@ -148,12 +148,13 @@ class _NewReservaPageState extends State<NewReserva> {
     var choice = await showConfirmDialog(context);
     if (choice != null && choice) {
       setState(() => _isSaving = true);
-      var res = await apiDeleteObject('areas-sociais/agendamento', widget.objEditReserva['id']);
+      final res = await apiDeleteObjectResultado('areas-sociais/agendamento', widget.objEditReserva['id']);
       if (mounted) setState(() => _isSaving = false);
-      if (res) {
+      if (res.ok) {
         if (mounted) Navigator.of(context).pop(true);
       } else {
-        if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+        // Ex.: 409 "Esta reserva já aconteceu." vem da API.
+        if (mounted) displayMessage(context, getText('alert_error'), res.mensagemOu(getText('alert_generic_error')));
       }
     }
   }

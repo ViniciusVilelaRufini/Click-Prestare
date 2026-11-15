@@ -40,13 +40,18 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
       displayMessage(context, 'Atenção', 'Este morador não possui e-mail cadastrado.');
       return;
     }
-    try {
-      await apiSendCredentialsGeral(int.parse(item['id'].toString()));
-      if (!mounted) return;
-      displayMessage(context, 'Sucesso', 'Credenciais e link de acesso enviados para $email com sucesso!');
-    } catch (e) {
-      if (!mounted) return;
+    final id = int.tryParse(item['id'].toString());
+    if (id == null) {
       displayMessage(context, 'Erro', 'Não foi possível enviar as credenciais.');
+      return;
+    }
+    final r = await apiSendCredentialsResultado(id);
+    if (!mounted) return;
+    if (r.ok) {
+      displayMessage(context, 'Sucesso', 'Credenciais e link de acesso enviados para $email com sucesso!');
+    } else {
+      // A API explica a recusa (menor de 18 anos, sem data de nascimento).
+      displayMessage(context, 'Erro', r.mensagemOu('Não foi possível enviar as credenciais.'));
     }
   }
 

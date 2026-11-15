@@ -197,16 +197,21 @@ apiGetAllMoradoresGeral(int idCondominio) async {
 // um e-mail arbitrário, o que permitia disparar "boas-vindas" para qualquer
 // endereço.
 apiSendCredentialsGeral(int idMorador) async {
+  final r = await apiSendCredentialsResultado(idMorador);
+  if (r.ok) return true;
+  throw r.mensagemOu('Houve um erro, tente novamente!');
+}
+
+/// Igual a [apiSendCredentialsGeral], com a recusa da API para a tela —
+/// ex.: 400 de morador menor de 18 anos ou sem data de nascimento.
+Future<ResultadoApi> apiSendCredentialsResultado(int idMorador) async {
   final idCondominio = Singleton.instance.id_condominio;
   final url = _buildUri('/condominios/$idCondominio/moradores/$idMorador/send-credentials');
   try {
     final response = await ApiClient.post(url)
         .timeout(_kTimeout);
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return true;
-    }
-    throw 'Erro ao enviar credenciais';
+    return ResultadoApi.daResposta(response.statusCode, response.body);
   } catch (e) {
-    throw 'Houve um erro, tente novamente!';
+    return const ResultadoApi.falha();
   }
 }
