@@ -393,7 +393,7 @@ describe('VeiculosPageComponent — conflito e "não está mais no Guarita"', ()
 describe('VeiculosPageComponent — incerto, remoção não concluída e motivo do conflito', () => {
   it('incerto: dica de que o Prestare confere sozinho; "Remover do Guarita" continua na aba Tags', () => {
     const { f, el, tela } = build({ guaritas: [guarita], tags: [tagG(1, { guarita_estado: 'incerto', id_device: 7 })] });
-    expect(el.querySelector('[data-guarita-dica]')?.textContent?.trim()).toBe('O Guarita não respondeu. O Prestare vai conferir de novo sozinho.');
+    expect(el.querySelector('[data-guarita-dica]')?.textContent?.trim()).toBe('O Guarita não respondeu. Use Regravar para conferir.');
     tela.tab.set('tags');
     f.detectChanges();
     const linha = el.querySelector('tbody tr') as HTMLElement;
@@ -442,6 +442,70 @@ describe('VeiculosPageComponent — incerto, remoção não concluída e motivo 
     });
     expect(el.querySelector('[data-guarita-estado]')?.textContent?.trim()).toBe('Conflito: código já usado em outra unidade no Guarita');
     expect(el.querySelector('[data-guarita-dica]')?.textContent?.trim()).toBe('O Guarita mostra este dispositivo em outra unidade.');
+  });
+});
+
+describe('VeiculosPageComponent — fechamento: Regravar em falhou/incerto e tags fora da escolha', () => {
+  it('incerto usa o guarita_erro da API como dica', () => {
+    const { el } = build({ guaritas: [guarita], tags: [tagG(1, { guarita_estado: 'incerto', guarita_erro: 'Sem resposta ao gravar.', id_device: 7 })] });
+    expect(el.querySelector('[data-guarita-dica]')?.textContent?.trim()).toBe('Sem resposta ao gravar.');
+  });
+
+  it.each(['falhou', 'incerto', 'ausente'])('"Regravar" em %s, na linha do veículo e na aba Tags', (estado) => {
+    const { f, el, tela, guaritaApi } = build({ guaritas: [guarita], tags: [tagG(1, { guarita_estado: estado, id_device: 7 })] });
+    expect(botoes(el, 'Regravar').length).toBe(1);
+    botoes(el, 'Regravar')[0].click();
+    expect(guaritaApi.regravar).toHaveBeenCalledWith(7, 1);
+    tela.tab.set('tags');
+    f.detectChanges();
+    expect(botoes(el.querySelector('tbody tr') as HTMLElement, 'Regravar').length).toBe(1);
+  });
+
+  it('"Regravar" não aparece em ativo; 404 esconde; erro da API aparece como veio', () => {
+    const a = build({ guaritas: [guarita], tags: [tagG(1, { guarita_estado: 'ativo', id_device: 7 })] });
+    expect(botoes(a.el, 'Regravar').length).toBe(0);
+    TestBed.resetTestingModule();
+    const tag = tagG(1, { guarita_estado: 'falhou', id_device: 7 });
+    const b = build({ guaritas: [guarita], tags: [tag], guaritaExtra: { regravar: jest.fn(() => throwError(() => ({ status: 404 }))) } });
+    b.tela.regravarNoGuarita(1);
+    b.f.detectChanges();
+    expect(botoes(b.el, 'Regravar').length).toBe(0);
+    TestBed.resetTestingModule();
+    const c = build({
+      guaritas: [guarita], tags: [tag],
+      guaritaExtra: { regravar: jest.fn(() => throwError(() => ({ status: 400, error: { message: 'Esta tag ainda tem uma operação pendente no Guarita.' } }))) },
+    });
+    c.tela.regravarNoGuarita(1);
+    c.f.detectChanges();
+    expect(c.el.querySelector('[data-erro-guarita]')?.textContent?.trim()).toBe('Esta tag ainda tem uma operação pendente no Guarita.');
+  });
+
+  it('a escolha de tag do veículo não oferece removendo, remocao_falhou, incerto nem conflito (só a que ele já usa)', () => {
+    const tags = [
+      tagG(1, { guarita_estado: 'removendo' }),
+      tagG(2, { guarita_estado: 'remocao_falhou' }),
+      tagG(3, { guarita_estado: 'incerto' }),
+      tagG(4, { guarita_estado: 'conflito' }),
+      tagG(5, { guarita_estado: 'a_vincular' }),
+      { id: 6, id_condominio: 3, codigo: '777', tipo: 'rfid', descricao: null, ativo: 1 },
+    ];
+    const { tela } = build({ guaritas: [guarita], veiculos: [carro(100, 3, 'ABC1D23')], tags });
+    tela.abrirNovoVeiculo();
+    expect(tela.tagsParaSelecao().map((t) => t.id)).toEqual([5, 6]);
+    tela.abrirEditarVeiculo(tela.veiculos()[0]);
+    expect(tela.tagsParaSelecao().map((t) => t.id)).toEqual([3, 5, 6]);
+  });
+
+  it('400 "operação pendente" ao salvar o veículo aparece como veio', () => {
+    const msg = 'Esta tag ainda tem uma operação pendente no Guarita.';
+    const { f, el, tela, api } = build({ guaritas: [guarita] });
+    api.update.mockImplementation((() => throwError(() => ({ status: 400, error: { message: msg } }))) as any);
+    tela.abrirEditarVeiculo(tela.veiculos()[1]);
+    tela.novoVeiculo.id_tag = 1;
+    tela.salvarVeiculo();
+    f.detectChanges();
+    expect(tela.erroVeiculo()).toBe(msg);
+    expect(el.querySelector('.ps-drawer [role="alert"]')?.textContent?.trim()).toBe(msg);
   });
 });
 

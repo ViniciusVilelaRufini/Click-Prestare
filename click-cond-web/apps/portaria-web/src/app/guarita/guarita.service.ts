@@ -227,7 +227,8 @@ export function rotuloEstadoGuarita(
       return {
         texto: 'Não confirmado no Guarita',
         dot: 'ps-dot-warn',
-        dica: 'O Guarita não respondeu. O Prestare vai conferir de novo sozinho.',
+        // O motivo vem da API; sem ele, o mesmo texto que ela usa.
+        dica: motivo || 'O Guarita não respondeu. Use Regravar para conferir.',
       };
     case 'remocao_falhou':
       return { texto: 'Remoção não concluída: ainda pode abrir o portão', dot: 'ps-dot-danger', ...(motivo ? { dica: motivo } : {}) };
