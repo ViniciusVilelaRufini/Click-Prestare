@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { TerminaisFaciaisPageComponent } from './terminais-faciais-page.component';
 import { TerminaisFaciaisApi } from './terminais-faciais.service';
 import { AreasSociaisApi } from '../areas-sociais/areas-sociais.service';
@@ -146,6 +146,40 @@ describe('TerminaisFaciaisPageComponent — cadastro do Módulo Guarita', () => 
     Object.assign(tela.form, { nome: 'Guarita', ip: '192.168.3.30' });
     tela.save();
     expect(api.create).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'guarita', api_password: undefined }));
+    tela.ngOnDestroy();
+  });
+
+  it.each(['Portão1', 'palavra-longa-demais', 'tab\tx', 'til~'])('palavra inválida (%s) não salva e explica', (palavra) => {
+    const { tela, api } = build();
+    tela.openCreate();
+    tela.form.tipo = 'guarita';
+    tela.onTipoChange();
+    Object.assign(tela.form, { nome: 'Guarita', ip: '192.168.3.30', api_password: palavra });
+    tela.save();
+    expect(api.create).not.toHaveBeenCalled();
+    expect(tela.modalError()).toBe('Use até 15 caracteres, sem acentos.');
+    tela.ngOnDestroy();
+  });
+
+  it('segundo Guarita recusado (400): a mensagem da API aparece no modal como veio', () => {
+    const msg = 'Este condomínio já tem um Módulo Guarita.';
+    const { tela } = build([], { create: jest.fn(() => throwError(() => ({ status: 400, error: { message: msg } }))) });
+    tela.openCreate();
+    tela.form.tipo = 'guarita';
+    tela.onTipoChange();
+    Object.assign(tela.form, { nome: 'Guarita 2', ip: '192.168.3.31' });
+    tela.save();
+    expect(tela.modalError()).toBe(msg);
+    tela.ngOnDestroy();
+  });
+
+  it('exclusão recusada (409): a mensagem da API aparece como veio', () => {
+    const msg = 'O Guarita ainda tem dispositivos gravados pelo Prestare.';
+    const conf = jest.spyOn(window, 'confirm').mockReturnValue(true);
+    const { tela } = build([guarita], { remove: jest.fn(() => throwError(() => ({ status: 409, error: { message: msg } }))) });
+    tela.remove(guarita);
+    expect(tela.errorMessage()).toBe(msg);
+    conf.mockRestore();
     tela.ngOnDestroy();
   });
 

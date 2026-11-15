@@ -212,6 +212,9 @@ function telemetriaChegouHaPouco(recebidoEm: string | null | undefined, agoraMs:
  *  não tem o que alternar, então o cadastro novo já nasce como entrada. */
 const TIPOS_LEITURA_POR_WEBHOOK = ['tag_reader', 'qrcode_reader', 'lpr'];
 
+/** Palavra de autorização do Guarita: 1 a 15 caracteres simples (ASCII 0x20–0x7D), sem acento. */
+const PALAVRA_GUARITA_VALIDA = /^[\x20-\x7D]{1,15}$/;
+
 /** Aparelhos que abrem portão e por isso aceitam o QR de entregas (mesma lista da API). */
 const TIPOS_QR_ENTREGAS = ['botoeira', 'catraca', 'facial'];
 
@@ -1416,6 +1419,11 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         return;
       }
     }
+    // Palavra do Guarita: o que a API aceita (1 a 15 caracteres ASCII 0x20–0x7D).
+    if (this.ehGuarita && this.form.api_password && !PALAVRA_GUARITA_VALIDA.test(this.form.api_password)) {
+      this.modalError.set('Use até 15 caracteres, sem acentos.');
+      return;
+    }
     // Tirar o espaço de um terminal que era de área: ele deixa de ser "de
     // reserva" e o próximo sync enrola todos os moradores nele.
     const ficaSemArea = !(this.mostrarArea && this.form.id_area_social);
@@ -1520,7 +1528,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       },
       error: (err) =>
         this.errorMessage.set(
-          err?.status === 409
+          // Guarita: o 409 da API diz o motivo (ex.: ainda há tags ou operações nele).
+          err?.status === 409 && t.tipo !== TIPO_DEVICE_GUARITA
             ? `"${t.nome}" tem acessos registrados e não pode ser excluído (o histórico precisa ser preservado). Use "Desativar" para tirá-lo de operação.`
             : (err?.error?.message ?? 'Falha ao remover.'),
         ),
