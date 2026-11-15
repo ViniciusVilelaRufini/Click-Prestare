@@ -33,11 +33,17 @@ void main() {
       );
       expect(podeEditarOcorrencia({'user': 100, 'status': 'Pendente', 'resposta': '', 'resposta_at': '2026-11-14T10:00:00Z'}, '100'),
           isFalse);
-      expect(podeEditarOcorrencia({'user': 100, 'status': 'Pendente', 'resposta': 'Ok'}, '100'), isFalse);
     });
 
-    test('resposta vazia e sem data não conta', () {
+    test('sem resposta_at não conta como resposta', () {
       expect(podeEditarOcorrencia({'user': 100, 'status': 'Pendente', 'resposta': '  ', 'resposta_at': null}, '100'), isTrue);
+      expect(podeEditarOcorrencia({'user': 100, 'status': 'Pendente', 'resposta_at': ''}, '100'), isTrue);
+    });
+
+    // Igual à API (equipeJaRespondeu olha só resposta_at): registro legado
+    // com texto e sem data continua editável.
+    test('registro legado com texto em resposta e sem data mantém o lápis', () {
+      expect(podeEditarOcorrencia({'user': 100, 'status': 'Pendente', 'resposta': 'Ok'}, '100'), isTrue);
     });
 
     test('mensagem da equipe no chat não pode', () {

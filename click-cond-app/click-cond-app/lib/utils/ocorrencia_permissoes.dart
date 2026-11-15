@@ -1,7 +1,7 @@
 /// Quem vê o lápis de editar (e, dentro dele, o Excluir) na ocorrência: só o
 /// autor (Users.id, o mesmo que a API confere em `ehAutor`), só enquanto
 /// Pendente e só enquanto a equipe não falou — sem resposta pública da
-/// administração (`resposta`/`resposta_at`) e sem mensagem da equipe no chat
+/// administração (`resposta_at`) e sem mensagem da equipe no chat
 /// ([mensagens], a lista de `ocorrencias/mensagens/get-all`). É o filtro
 /// `semRespostaDaEquipe` da API, que recusa editar/excluir nesses casos.
 /// Status nulo conta como Pendente e a caixa não importa, igual ao
@@ -19,11 +19,13 @@ bool podeEditarOcorrencia(Map? obj, String userId, {List? mensagens}) {
   return true;
 }
 
-/// A administração já respondeu publicamente: a API grava `resposta_at` ao
-/// responder (mesmo com o texto vazio) — e há registros com texto sem data.
+/// A administração já respondeu publicamente. Decide por `resposta_at`, como
+/// `equipeJaRespondeu`/`semRespostaDaEquipe` da API: ela grava a data ao
+/// responder (mesmo com o texto vazio). Registro antigo com texto em
+/// `resposta` e sem data a API deixa editar — o app também.
 bool temRespostaDaAdministracao(Map obj) {
-  if (obj['resposta_at'] != null && obj['resposta_at'].toString().trim().isNotEmpty) return true;
-  return (obj['resposta']?.toString() ?? '').trim().isNotEmpty;
+  final em = obj['resposta_at'];
+  return em != null && em.toString().trim().isNotEmpty;
 }
 
 /// Alguém além do autor escreveu no chat. Mensagem sem `id_usuario` é do
