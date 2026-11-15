@@ -94,24 +94,56 @@ describe('Rotas de síndico não aceitam o turno "Síndico" do porteiro', () => 
 
   describe('o app não grava o turno reservado', () => {
     const sindico = { sub: 9, nome: 'Síndico', typeAccess: 'Sindico', user: { id: 9 } } as any;
-    function svc() {
+    const linha = (turno: string | null) => ({ id: 12, nome: 'P', login: 'p@x.com', email: 'p@x.com', telefone: '1', turno, ativo: 1, id_condominio: 1, password: '$2b$04$h' });
+    function svc(turnoAtual: string | null = 'Diurno') {
       const prisma: any = {
         isConnected: true,
-        funcionarios_Portaria: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+        funcionarios_Portaria: {
+          findUnique: jest.fn(async () => linha(turnoAtual)),
+          findFirst: jest.fn(async () => null),
+          create: jest.fn(),
+          update: jest.fn(async ({ data }: any) => ({ ...linha(turnoAtual), ...data })),
+        },
+        // Conta do porteiro já da equipe daqui: a sincronização só atualiza.
+        users: { findFirst: jest.fn(async () => ({ id: 5, login: 'p@x.com', password: 'h' })), update: jest.fn(async () => ({})) },
+        funcionarios: { findFirst: jest.fn(async () => ({ id: 70 })), update: jest.fn(async () => ({})), count: jest.fn(async () => 0) },
+        sindicos_Condominios: { count: jest.fn(async () => 0) },
+        moradores: { count: jest.fn(async () => 0) },
+        apartamentos_Users: { count: jest.fn(async () => 0) },
       };
-      return { s: new MobileAuthService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any), prisma };
+      const tenant: any = { assertEntidade: jest.fn(async () => undefined), assertCondominio: jest.fn(async () => undefined) };
+      const storage: any = { isDataUrl: () => false, exigirArquivoDoRegistro: jest.fn(async () => undefined) };
+      return { s: new MobileAuthService(prisma, {} as any, {} as any, storage, {} as any, tenant), prisma };
     }
+    /** O payload do app 1.2.48 na edição: reenvia o turno salvo (ch) junto com nome e telefone. */
+    const edicao = (ch: string) => ({ id_condominio: 1, funcionario: { id: 12, nome: 'P 2', email: 'p@x.com', telefone: '2', ch, senha: '' } });
 
-    it.each([['Síndico'], ['  sindico '], ['SÍNDICO']])('cadastro e edição com ch %p → 400 e nada é gravado', async (ch) => {
+    it.each([['Síndico'], ['  sindico '], ['SÍNDICO']])('cadastro com ch %p → 400 e nada é gravado', async (ch) => {
       const { s, prisma } = svc();
       await expect(
         s.saveFuncionario({ id_condominio: 1, funcionario: { nome: 'P', email: 'p@x.com', senha: 'Senha#1', ch } }, false, sindico),
       ).rejects.toThrow(new BadRequestException('Este turno é reservado.'));
-      await expect(s.saveFuncionario({ id_condominio: 1, funcionario: { id: 12, ch } }, true, sindico)).rejects.toThrow(
-        'Este turno é reservado.',
-      );
       expect(prisma.funcionarios_Portaria.create).not.toHaveBeenCalled();
+    });
+
+    it.each([['Síndico'], ['  sindico ']])('edição que MUDA o turno para %p → 400 e nada é gravado', async (ch) => {
+      const { s, prisma } = svc('Diurno');
+      await expect(s.saveFuncionario(edicao(ch), true, sindico)).rejects.toThrow('Este turno é reservado.');
       expect(prisma.funcionarios_Portaria.update).not.toHaveBeenCalled();
+    });
+
+    it('edição de funcionário legado que já tem o turno "Síndico" e o mantém (o app reenvia): passa', async () => {
+      const { s, prisma } = svc('Síndico');
+      await expect(s.saveFuncionario(edicao('Síndico'), true, sindico)).resolves.toBe('');
+      expect(prisma.funcionarios_Portaria.update.mock.calls[0][0].data).toEqual(expect.objectContaining({ nome: 'P 2', telefone: '2' }));
+    });
+
+    it('gerenciar funcionários exige o typeAccess de síndico (o turno "Síndico" sozinho não basta)', async () => {
+      const { s, prisma } = svc();
+      const soTurno = { sub: 9, nome: 'X', turno: 'Síndico', user: { id: 9 } } as any;
+      await expect(s.saveFuncionario(edicao('Diurno'), true, soTurno)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.funcionarios_Portaria.findUnique).not.toHaveBeenCalled();
+      await expect(s.saveFuncionario(edicao('Diurno'), true, sindico)).resolves.toBe('');
     });
   });
 });

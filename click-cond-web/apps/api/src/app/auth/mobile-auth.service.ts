@@ -3879,7 +3879,8 @@ export class MobileAuthService {
     }
     // Gerenciar porteiro/funcionário é exclusivo de síndico — um porteiro
     // não deveria conseguir criar/editar outro porteiro (nem de si mesmo).
-    assertSindico(user, 'gerenciar funcionários');
+    // Pelo typeAccess (todo token de síndico do app carrega 'Sindico'), não pelo `turno`, que é texto livre.
+    assertSindicoEstrito(user, 'gerenciar funcionários');
     const func = body.funcionario || body.funcionarios || {};
     // E-mail/login vão direto para findFirst/findUnique: objeto vira filtro do Prisma (oráculo de logins).
     if ((func.email != null && typeof func.email !== 'string') || (func.login != null && typeof func.login !== 'string')) {
@@ -3887,12 +3888,13 @@ export class MobileAuthService {
     }
     // Domínio das lápides da revogação de portaria (common/email-reservado.util).
     assertEmailNaoReservado(func.email, func.login);
-    // Turno 'Síndico' é reservado: o assertSindico (não estrito) aceita esse turno como síndico, e o porteiro que o
-    // recebesse ganhava sessão de console com poderes de síndico. Mesma regra da aba "Equipe da portaria".
+    // Turno 'Síndico' é reservado: o assertSindico (não estrito) aceitava esse turno como síndico, e o porteiro que o
+    // recebesse ganhava sessão de console com poderes de síndico. Mesma regra da aba "Equipe da portaria". Recusado
+    // só quando o turno PASSA a ser esse (criação, ou edição que o muda): o app reenvia o turno salvo em toda edição,
+    // e editar nome/telefone de um funcionário legado com esse turno não pode dar 400.
     const turnoPedido = func.ch ?? func.turno;
-    if (typeof turnoPedido === 'string' && nomeNormalizado(turnoPedido) === 'sindico') {
-      throw new BadRequestException('Este turno é reservado.');
-    }
+    const pedeTurnoReservado = typeof turnoPedido === 'string' && nomeNormalizado(turnoPedido) === 'sindico';
+    if (pedeTurnoReservado && !isEdit) throw new BadRequestException('Este turno é reservado.');
     const idCondominio = Number(body.id_condominio);
 
     // Resolvida em cada ramo, depois da autorização: URL do bucket só passa se
@@ -4006,6 +4008,9 @@ export class MobileAuthService {
       const atual = await this.prisma.funcionarios_Portaria.findUnique({ where: { id } });
       if (!atual) throw new NotFoundException('Funcionário não encontrado.');
       await this.tenant.assertEntidade(atual.id_condominio, user, `funcionário #${id}`);
+      if (pedeTurnoReservado && nomeNormalizado(atual.turno) !== 'sindico') {
+        throw new BadRequestException('Este turno é reservado.');
+      }
       const photoUrl = await resolverFoto(async () => {
         const conta = await this.prisma.users.findFirst({
           where: { login: atual.login },
