@@ -15,6 +15,8 @@ import {
   nomeArquivoMapa,
   nomeOpcaoDoVoto,
   rotuloVinculo,
+  situacaoDoVoto,
+  MOTIVO_NAO_CONTA,
 } from './mapa-votacao';
 
 /** Mensagem do servidor quando houver; senão a do cliente; senão a padrão. */
@@ -266,7 +268,15 @@ export class AssembleiasPageComponent implements OnInit {
       },
       error: (e) => {
         this.carregandoMapa.set(false);
-        this.erroMapa.set(msgErro(e, 'Não foi possível carregar o mapa de votação.'));
+        // 404 sem mensagem da API ("Cannot GET …"): a rota ainda não existe (console publicado
+        // antes da API). O 404 com mensagem própria (ex.: "Votação não encontrada") segue como veio.
+        const m = e?.error?.message;
+        const rotaAusente = e?.status === 404 && (!m || /^Cannot /i.test(String(m)));
+        this.erroMapa.set(
+          rotaAusente
+            ? 'O mapa de votação ainda não está disponível. Tente de novo em alguns minutos.'
+            : msgErro(e, 'Não foi possível carregar o mapa de votação.'),
+        );
       },
     });
   }
@@ -278,6 +288,10 @@ export class AssembleiasPageComponent implements OnInit {
   rotuloVinculo(t: string | null | undefined): string {
     return rotuloVinculo(t) || '—';
   }
+
+  /** Vigente / Substituído em … / Não conta (tabela do mapa). */
+  readonly situacaoDoVoto = situacaoDoVoto;
+  readonly motivoNaoConta = MOTIVO_NAO_CONTA;
 
   opcaoDoVoto(m: MapaVotacao, voto: VotoDoMapa): string {
     return nomeOpcaoDoVoto(m, voto);
@@ -431,8 +445,15 @@ export class AssembleiasPageComponent implements OnInit {
   /** "X de Y unidades votaram" (quórum); vazio quando a API não manda a participação. */
   textoParticipacao(v: Votacao): string {
     const p = v?.participacao;
-    if (!p || !Number.isFinite(Number(p.unidades_votaram)) || !Number.isFinite(Number(p.unidades_total))) return '';
-    return `${Number(p.unidades_votaram)} de ${Number(p.unidades_total)} unidades votaram`;
+    if (!p || p.unidades_votaram === null || p.unidades_votaram === undefined) return '';
+    const votaram = Number(p.unidades_votaram);
+    if (!Number.isFinite(votaram)) return '';
+    const total = Number(p.unidades_total);
+    // Total 0/ausente (condomínio sem apartamentos cadastrados): nada de "X de 0".
+    if (p.unidades_total === null || p.unidades_total === undefined || !Number.isFinite(total) || total <= 0) {
+      return votaram === 1 ? '1 unidade votou' : `${votaram} unidades votaram`;
+    }
+    return `${votaram} de ${total} unidades votaram`;
   }
 
   // Parse de strings do formato "id;nome;votos"

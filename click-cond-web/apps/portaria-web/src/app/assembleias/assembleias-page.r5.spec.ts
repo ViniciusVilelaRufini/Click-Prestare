@@ -113,6 +113,16 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
     expect(c.querySelector('.bg-accent')).toBeNull();
   });
 
+  it('participação com total 0 ou ausente: sem "de 0"; só "X unidades votaram"', () => {
+    const { comp } = render();
+    expect(comp.textoParticipacao({ participacao: { unidades_votaram: 3, unidades_total: 0 } } as any)).toBe('3 unidades votaram');
+    expect(comp.textoParticipacao({ participacao: { unidades_votaram: 1, unidades_total: 0 } } as any)).toBe('1 unidade votou');
+    expect(comp.textoParticipacao({ participacao: { unidades_votaram: 2, unidades_total: null } } as any)).toBe('2 unidades votaram');
+    expect(comp.textoParticipacao({ participacao: { unidades_votaram: 2, unidades_total: 9 } } as any)).toBe('2 de 9 unidades votaram');
+    expect(comp.textoParticipacao({} as any)).toBe('');
+    expect(comp.textoParticipacao({ participacao: {} } as any)).toBe('');
+  });
+
   it('enquete da API antiga: barras e total como antes', () => {
     const { fixture, el, comp } = render({ listEnquetes: jest.fn(() => of([{ ...PAUTA_ANTIGA, id: 21, titulo: 'Pet' }])) });
     comp.tab.set('enquetes');
@@ -188,6 +198,17 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       expect(el.textContent).toContain(msg);
     });
 
+    it('finalizou: a mensagem de sucesso é a que a API mandou', () => {
+      const alerta = jest.spyOn(window, 'alert').mockImplementation(() => undefined);
+      const msg = 'Assembleia finalizada. ATA e apuração publicadas em Documentos.';
+      const { comp } = render({ finishAssembleia: jest.fn(() => of({ success: true, message: msg })) });
+      comp.abrirFinalizar(ASSEMBLEIA as any);
+      comp.ataBase64 = 'data:application/pdf;base64,JVBERi0=';
+      comp.confirmarFinalizacao();
+      expect(alerta).toHaveBeenCalledWith(msg);
+      alerta.mockRestore();
+    });
+
     it('drawer de finalizar: diz que nada é apagado', () => {
       const { fixture, el, comp } = render();
       comp.verAssembleia(2);
@@ -202,16 +223,19 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
 
   describe('Mapa de votação', () => {
     const MAPA = {
-      votacao: { id: 11, titulo: 'Obra', somente_proprietarios: 1, encerrada_em: '2026-11-05T18:00:00.000Z' },
+      // Formato real da API (datas do mapa em texto de Brasília, com segundos).
+      votacao: { id: 11, titulo: 'Obra', somente_proprietarios: 1, encerrada_em: '05/11/2026 15:00:00' },
       participacao: { unidades_votaram: 2, unidades_total: 12 },
       opcoes: [{ id: 3, nome: 'Aprovar', votos: 1 }, { id: 4, nome: 'Rejeitar', votos: 1 }],
       votos: [
         { unidade: 'Bloco A - 101', votante: 'Ana Lima', tipo_vinculo: 'inquilino', opcao: 'Rejeitar',
-          registrado_em: '2026-11-02T13:00:00.000Z', vigente: false, substituido_em: '2026-11-03T14:30:00.000Z' },
+          registrado_em: '02/11/2026 10:00:00', vigente: false, substituido_em: '03/11/2026 11:30:00' },
         { unidade: 'Bloco A - 101', votante: 'Bruno Souza', tipo_vinculo: 'proprietario', opcao: 'Aprovar',
-          registrado_em: '2026-11-03T14:30:00.000Z', vigente: true, substituido_em: null },
-        { unidade: '102', votante: 'Carla', tipo_vinculo: 'inquilino', opcao: 4,
-          registrado_em: '2026-11-04T12:00:00.000Z', vigente: true, substituido_em: null },
+          registrado_em: '03/11/2026 11:30:00', vigente: true, substituido_em: null },
+        { unidade: '102', votante: 'Carla', tipo_vinculo: 'inquilino', opcao: 'Rejeitar',
+          registrado_em: '04/11/2026 09:00:00', vigente: true, substituido_em: null },
+        { unidade: '103', votante: 'Dora', tipo_vinculo: null, opcao: 'Aprovar',
+          registrado_em: '01/11/2026 08:00:00', vigente: false, substituido_em: null },
       ],
     };
     const DET = { assembleia: ASSEMBLEIA, votacoes: [PAUTA_OCULTA, PAUTA_ENCERRADA], meusVotos: [] };
@@ -249,7 +273,7 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       expect(botoesMapa(cartao(el, 'Pet'))).toHaveLength(1);
     });
 
-    it('abre o drawer com a tabela nominal; voto não vigente aparece como substituído', () => {
+    it('abre o drawer com a tabela nominal: vigente, substituído (com data) e não conta', () => {
       const mapaVotacao = jest.fn(() => of(MAPA));
       const { fixture, el, comp } = render({ getAssembleia: jest.fn(() => of(DET)), mapaVotacao });
       comp.verAssembleia(2);
@@ -269,7 +293,25 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
         ['Bloco A - 101', 'Ana Lima', 'Inquilino', 'Rejeitar', '02/11/2026 10:00', 'Substituído em 03/11/2026 11:30'],
         ['Bloco A - 101', 'Bruno Souza', 'Proprietário', 'Aprovar', '03/11/2026 11:30', 'Vigente'],
         ['102', 'Carla', 'Inquilino', 'Rejeitar', '04/11/2026 09:00', 'Vigente'],
+        ['103', 'Dora', '—', 'Aprovar', '01/11/2026 08:00', 'Não conta'],
       ]);
+      expect(drawer.textContent).toContain('Encerrada em 05/11/2026 15:00');
+      expect(drawer.textContent).not.toContain(':00:00');
+      const naoConta = Array.from(drawer.querySelectorAll('tbody tr'))[3].querySelector('[title]') as HTMLElement;
+      expect(naoConta.getAttribute('title')).toBe('Sem vínculo com a unidade ou registro duplicado');
+    });
+
+    it('404 (console publicado antes da API): mensagem amigável no lugar do texto técnico', () => {
+      const { fixture, el, comp } = render({
+        mapaVotacao: jest.fn(() =>
+          throwError(() => ({ status: 404, error: { message: 'Cannot GET /api/assembleias/votacoes/mapa?id=11' } })),
+        ),
+      });
+      comp.abrirMapa(PAUTA_ENCERRADA as any);
+      fixture.detectChanges();
+      const texto = el.querySelector('.ps-drawer')?.textContent ?? '';
+      expect(texto).toContain('O mapa de votação ainda não está disponível. Tente de novo em alguns minutos.');
+      expect(texto).not.toContain('Cannot GET');
     });
 
     it('erro da API: aparece no drawer como veio', () => {
@@ -382,6 +424,9 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       fixture.detectChanges();
       await fixture.whenStable();
       expect(caixa(el)).toBeTruthy();
+      const texto = el.querySelector('.ps-drawer')?.textContent ?? '';
+      expect(texto).toContain('Só proprietários votam nesta enquete; inquilinos e dependentes não.');
+      expect(texto).not.toContain('despesas extraordinárias');
       comp.novaVotacao.titulo = 'Horário da piscina';
       comp.salvarVotacao();
       expect(insertVotacao).toHaveBeenCalledWith(
