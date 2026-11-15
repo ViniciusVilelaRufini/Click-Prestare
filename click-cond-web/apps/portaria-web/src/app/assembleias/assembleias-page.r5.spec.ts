@@ -113,6 +113,16 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
     expect(c.querySelector('.bg-accent')).toBeNull();
   });
 
+  it('participação com total 0 ou ausente: sem "de 0"; só "X unidades votaram"', () => {
+    const { comp } = render();
+    expect(comp.textoParticipacao({ participacao: { unidades_votaram: 3, unidades_total: 0 } } as any)).toBe('3 unidades votaram');
+    expect(comp.textoParticipacao({ participacao: { unidades_votaram: 1, unidades_total: 0 } } as any)).toBe('1 unidade votou');
+    expect(comp.textoParticipacao({ participacao: { unidades_votaram: 2, unidades_total: null } } as any)).toBe('2 unidades votaram');
+    expect(comp.textoParticipacao({ participacao: { unidades_votaram: 2, unidades_total: 9 } } as any)).toBe('2 de 9 unidades votaram');
+    expect(comp.textoParticipacao({} as any)).toBe('');
+    expect(comp.textoParticipacao({ participacao: {} } as any)).toBe('');
+  });
+
   it('enquete da API antiga: barras e total como antes', () => {
     const { fixture, el, comp } = render({ listEnquetes: jest.fn(() => of([{ ...PAUTA_ANTIGA, id: 21, titulo: 'Pet' }])) });
     comp.tab.set('enquetes');
@@ -186,6 +196,17 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       await comp.removerVotacao(10, 2);
       fixture.detectChanges();
       expect(el.textContent).toContain(msg);
+    });
+
+    it('finalizou: a mensagem de sucesso é a que a API mandou', () => {
+      const alerta = jest.spyOn(window, 'alert').mockImplementation(() => undefined);
+      const msg = 'Assembleia finalizada. ATA e apuração publicadas em Documentos.';
+      const { comp } = render({ finishAssembleia: jest.fn(() => of({ success: true, message: msg })) });
+      comp.abrirFinalizar(ASSEMBLEIA as any);
+      comp.ataBase64 = 'data:application/pdf;base64,JVBERi0=';
+      comp.confirmarFinalizacao();
+      expect(alerta).toHaveBeenCalledWith(msg);
+      alerta.mockRestore();
     });
 
     it('drawer de finalizar: diz que nada é apagado', () => {
@@ -278,6 +299,19 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       expect(drawer.textContent).not.toContain(':00:00');
       const naoConta = Array.from(drawer.querySelectorAll('tbody tr'))[3].querySelector('[title]') as HTMLElement;
       expect(naoConta.getAttribute('title')).toBe('Sem vínculo com a unidade ou registro duplicado');
+    });
+
+    it('404 (console publicado antes da API): mensagem amigável no lugar do texto técnico', () => {
+      const { fixture, el, comp } = render({
+        mapaVotacao: jest.fn(() =>
+          throwError(() => ({ status: 404, error: { message: 'Cannot GET /api/assembleias/votacoes/mapa?id=11' } })),
+        ),
+      });
+      comp.abrirMapa(PAUTA_ENCERRADA as any);
+      fixture.detectChanges();
+      const texto = el.querySelector('.ps-drawer')?.textContent ?? '';
+      expect(texto).toContain('O mapa de votação ainda não está disponível. Tente de novo em alguns minutos.');
+      expect(texto).not.toContain('Cannot GET');
     });
 
     it('erro da API: aparece no drawer como veio', () => {
@@ -390,6 +424,9 @@ describe('AssembleiasPageComponent — rodada 5 (resultado oculto e participaç�
       fixture.detectChanges();
       await fixture.whenStable();
       expect(caixa(el)).toBeTruthy();
+      const texto = el.querySelector('.ps-drawer')?.textContent ?? '';
+      expect(texto).toContain('Só proprietários votam nesta enquete; inquilinos e dependentes não.');
+      expect(texto).not.toContain('despesas extraordinárias');
       comp.novaVotacao.titulo = 'Horário da piscina';
       comp.salvarVotacao();
       expect(insertVotacao).toHaveBeenCalledWith(

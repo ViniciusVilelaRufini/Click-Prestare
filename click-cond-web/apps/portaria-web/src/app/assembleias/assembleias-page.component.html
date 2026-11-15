@@ -688,7 +688,11 @@
             <span class="space-y-0.5">
               <span class="block text-xs text-slate-200 font-medium">Somente proprietários</span>
               <span class="block text-[11px] leading-relaxed text-slate-400">
-                Inquilinos não votam {{ novaVotacao.id_assembleia ? 'nesta pauta' : 'nesta enquete' }}. Use em despesas extraordinárias, obras e alteração de convenção.
+                @if (novaVotacao.id_assembleia) {
+                  Inquilinos não votam nesta pauta. Use em despesas extraordinárias, obras e alteração de convenção.
+                } @else {
+                  Só proprietários votam nesta enquete; inquilinos e dependentes não.
+                }
               </span>
             </span>
           </label>
