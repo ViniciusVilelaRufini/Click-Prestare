@@ -107,9 +107,16 @@ describe('Dashboard — fotoDocumento só para síndico', () => {
       ]);
     });
 
-    it('síndico do console (turno "Síndico"): pede com a foto', async () => {
-      expect(await chamar({ sub: 13, nome: 'Síndico Web', id_condominio: 1, turno: 'Síndico' })).toEqual([
+    it('síndico do console (typeAccess carimbado no login): pede com a foto', async () => {
+      expect(await chamar({ sub: 13, nome: 'Síndico Web', id_condominio: 1, turno: 'Síndico', typeAccess: 'Sindico' })).toEqual([
         1, { incluirFotoDocumento: true },
+      ]);
+    });
+
+    // Rodada 4 (raia e), I1: o turno é texto da linha de portaria; um porteiro com turno 'Síndico' não é síndico.
+    it('porteiro com turno "Síndico" (sem typeAccess): pede sem a foto', async () => {
+      expect(await chamar({ sub: 13, nome: 'Ex-síndico', id_condominio: 1, turno: 'Síndico', tipo_sub: 'funcionario_portaria' } as any)).toEqual([
+        1, { incluirFotoDocumento: false },
       ]);
     });
   });

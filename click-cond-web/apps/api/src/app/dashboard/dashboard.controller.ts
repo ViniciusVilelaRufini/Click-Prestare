@@ -2,7 +2,7 @@ import { Controller, ForbiddenException, Get, Optional, Param, ParseIntPipe } fr
 import { DashboardService } from './dashboard.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertOperador, isSindico } from '../auth/tenant.util';
+import { assertOperador, isSindicoEstrito } from '../auth/tenant.util';
 import { TenantAccessService, ehFuncionarioDoApp } from '../auth/tenant-access.service';
 
 /**
@@ -25,7 +25,7 @@ export class DashboardController {
     return this.recorteOcorrencias(idCondominio, user).then((recorte) =>
       this.service.summary(idCondominio, {
         // A foto do documento (RG) dos visitantes só vai para o síndico.
-        incluirFotoDocumento: isSindico(user),
+        incluirFotoDocumento: isSindicoEstrito(user),
         ...(recorte != null ? { ocorrenciasSoPublicasOuDe: recorte } : {}),
       }),
     );
