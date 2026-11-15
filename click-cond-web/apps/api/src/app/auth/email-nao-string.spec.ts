@@ -16,6 +16,8 @@ function mobile() {
   const zero = () => jest.fn(async () => 0);
   const prisma: any = {
     isConnected: true,
+    // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
+    $queryRaw: jest.fn(async () => []),
     moradores: {
       findUnique: jest.fn(async () => ({
         id: 10, id_user: 40, id_condominio: 1, email: 'v@x.com', nome: 'V', data_nascimento: null, extra2: null,
@@ -38,7 +40,8 @@ function mobile() {
       findFirst: jest.fn(async () => null),
       update: jest.fn(async ({ data }: any) => ({ id: 50, login: 'p@x.com', email: 'p@x.com', id_condominio: 1, password: '$2b$04$h', nome: 'P', ...data })),
     },
-    $transaction: jest.fn(async (fn: any) => fn(tx)),
+    // A troca de e-mail do funcionário roda numa transação que também lê Users e grava Funcionarios_Portaria.
+    $transaction: jest.fn(async (fn: any) => fn({ ...prisma, ...tx, users: { ...prisma.users, ...tx.users } })),
   };
   const tenant: any = {
     assertEntidade: jest.fn(async () => undefined),
@@ -58,6 +61,8 @@ function web() {
   };
   const prisma: any = {
     isConnected: true,
+    // Conferência do login de portaria desativado (falha fechada no login do app e no QR): nenhuma linha.
+    $queryRaw: jest.fn(async () => []),
     moradores: {
       findUnique: jest.fn(async () => ({
         id: 10, id_user: 40, id_condominio: 1, email: 'v@x.com', nome: 'V',

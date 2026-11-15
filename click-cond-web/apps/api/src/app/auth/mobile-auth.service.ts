@@ -17,7 +17,8 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService, ehFuncionarioDoApp, type PermissaoFuncionario } from './tenant-access.service';
 import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { contaSoDaEquipeDoCondominio } from './conta-so-de-equipe.util';
-import { MSG_FUNCIONARIO_DESATIVADO, loginPortariaDesativadoNoCondominio } from './login-portaria-desativado.util';
+import { contaDoLoginNaEquipe, tirarContaDaEquipe } from './revogacao-conta-equipe.util';
+import { MSG_FUNCIONARIO_DESATIVADO, limparCacheLoginPortariaDesativado, loginPortariaDesativadoNoCondominio } from './login-portaria-desativado.util';
 import { ehLoginDoPrestador, nomeNormalizado } from '../prestadores/login-do-prestador.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { lerPermissoesSalvas } from '../prestadores/permissoes-salvas.util';
@@ -1227,7 +1228,8 @@ export class MobileAuthService {
     // conta enquanto a linha estiver inativa. Sem nenhum outro, o login é recusado.
     const vinculos: typeof user.funcionarios = [];
     for (const f of user.funcionarios) {
-      if (!(await loginPortariaDesativadoNoCondominio(this.prisma, user.id, f.id_condominio))) vinculos.push(f);
+      // Falha fechada: é autenticação — consulta com erro recusa (503) e a pessoa tenta de novo.
+      if (!(await loginPortariaDesativadoNoCondominio(this.prisma, user.id, f.id_condominio, { falhaFechada: true }))) vinculos.push(f);
     }
     if (vinculos.length === 0) throw new UnauthorizedException(MSG_FUNCIONARIO_DESATIVADO);
 
@@ -1288,7 +1290,17 @@ export class MobileAuthService {
    */
   private async condominioDoVinculoSeAtivo(idUser: number, idCondominio?: number | null): Promise<number | undefined> {
     if (!idCondominio) return undefined;
-    return (await loginPortariaDesativadoNoCondominio(this.prisma, idUser, idCondominio)) ? undefined : idCondominio;
+    if (!(await loginPortariaDesativadoNoCondominio(this.prisma, idUser, idCondominio))) return idCondominio;
+    // Quem trabalha em vários condomínios e tem este desativado cai no próximo vínculo ativo, não em nenhum.
+    const outros = await this.prisma.funcionarios.findMany({
+      where: { id_user: idUser, condominio: { ativo: 1 }, NOT: { id_condominio: idCondominio } },
+      select: { id_condominio: true },
+      orderBy: { id: 'asc' },
+    });
+    for (const o of outros ?? []) {
+      if (!(await loginPortariaDesativadoNoCondominio(this.prisma, idUser, o.id_condominio))) return o.id_condominio;
+    }
+    return undefined;
   }
 
   async listCondominiosFuncionario(idUser: number) {
@@ -1418,7 +1430,12 @@ export class MobileAuthService {
               where: { email: userObj.email, ativo: 1, condominio: { ativo: 1 } },
               select: { id_condominio: true },
             });
-            condId = port?.id_condominio;
+            // O e-mail de Users não é verificado: a linha de portaria com o mesmo e-mail só conta se a conta tem
+            // vínculo de verdade com aquele condomínio — senão as contagens dele vazariam para quem copiou o e-mail.
+            condId =
+              port?.id_condominio && (await usuarioTemVinculoNoCondominio(this.prisma as any, idUser, port.id_condominio))
+                ? port.id_condominio
+                : undefined;
           }
         }
 
@@ -3889,7 +3906,8 @@ export class MobileAuthService {
     const idSolicitante = idUsuarioDoToken(user);
 
     // Função auxiliar para sincronizar com as tabelas de Users e Funcionarios do app mobile
-    const sincronizarUsuarioMobile = async (fp: any, senhaPlana?: string, uploadedPhotoUrl?: string | null) => {
+    // `herdado`: vínculo de equipe tirado da conta antiga na troca de e-mail — a conta nova herda função e permissões.
+    const sincronizarUsuarioMobile = async (fp: any, senhaPlana?: string, uploadedPhotoUrl?: string | null, herdado?: Record<string, any> | null) => {
       try {
         let user = await this.prisma.users.findFirst({ where: { login: fp.login } });
         // Por condomínio: sem o recorte, o vínculo de equipe que a pessoa tem em
@@ -3942,23 +3960,24 @@ export class MobileAuthService {
         }
 
         if (!f) {
+          const flag = (k: string) => (herdado && herdado[k] != null ? Number(herdado[k]) : 1);
           await this.prisma.funcionarios.create({
             data: {
               nome: fp.nome,
               email: fp.email || fp.login,
               telefone: fp.telefone,
-              funcao: 'Porteiro',
+              funcao: herdado?.funcao ?? 'Porteiro',
               ch: fp.turno || '',
               id_user: user.id,
               id_condominio: fp.id_condominio,
-              areas_sociais: 1,
-              comunicados: 1,
-              ocorrencias: 1,
-              manutencoes_programadas: 1,
-              prestadores_servico: 1,
-              agendar_mudanca: 1,
-              cadastrar_visitante: 1,
-              apartamentos: 1,
+              areas_sociais: flag('areas_sociais'),
+              comunicados: flag('comunicados'),
+              ocorrencias: flag('ocorrencias'),
+              manutencoes_programadas: flag('manutencoes_programadas'),
+              prestadores_servico: flag('prestadores_servico'),
+              agendar_mudanca: flag('agendar_mudanca'),
+              cadastrar_visitante: flag('cadastrar_visitante'),
+              apartamentos: flag('apartamentos'),
             }
           });
         } else {
@@ -4019,10 +4038,40 @@ export class MobileAuthService {
       // Antes de gravar: a sincronização abaixo vincularia ao condomínio a conta com este login.
       await this.assertPosseDaContaDoLoginDePortaria(data.login ?? atual.login, atual.id_condominio, idSolicitante);
 
-      const updated = await this.prisma.funcionarios_Portaria.update({ where: { id }, data });
+      // Trocar o e-mail (= login) do funcionário troca de conta: a sincronização abaixo acha (ou cria) a conta do
+      // e-mail NOVO. A conta ANTIGA não pode ficar com o vínculo deste condomínio — seguia entrando no app com a mesma
+      // senha, fora do alcance da aba "Equipe da portaria". Mesma regra do cadastro de prestador no console: no mesmo
+      // ato (transação), a conta antiga sai da equipe daqui e perde os tokens; vira lápide só se era exclusivamente
+      // desta equipe (auth/revogacao-conta-equipe.util). Só caixa diferente não é troca. Edição sem trocar o e-mail
+      // (nome, telefone, turno) não revoga nada.
+      const loginMuda = !!data.login && data.login.trim().toLowerCase() !== (atual.login ?? '').trim().toLowerCase();
+      let updated: any;
+      let vinculoHerdado: Record<string, any> | null = null;
+      if (loginMuda) {
+        const novo = String(data.login).trim().toLowerCase();
+        // A conta do login antigo que também é a do e-mail novo (login 'joao', e-mail 'joao@x') é a mesma pessoa: fica.
+        const antiga = await contaDoLoginNaEquipe(this.prisma, atual.login, atual.id_condominio);
+        const mesmaPessoa = !!antiga && [antiga.login, antiga.email].some((v: any) => (v ?? '').trim().toLowerCase() === novo);
+        try {
+          const r = await this.prisma.$transaction(async (tx: any) => {
+            const vinculo = mesmaPessoa
+              ? null
+              : await tirarContaDaEquipe(tx, atual.login, atual.id_condominio, { logger: this.logger, pularConta: idSolicitante });
+            const linha = await tx.funcionarios_Portaria.update({ where: { id }, data });
+            return { vinculo, linha };
+          });
+          updated = r.linha;
+          vinculoHerdado = r.vinculo;
+        } catch (err: any) {
+          console.error(`[saveFuncionario] Falha ao trocar o e-mail do funcionário ${id}: ${err?.message ?? err}`);
+          throw new BadRequestException('Não foi possível trocar o e-mail do funcionário. Tente novamente.');
+        }
+      } else {
+        updated = await this.prisma.funcionarios_Portaria.update({ where: { id }, data });
+      }
       // Mesmo teste do cadastro: só espaços é "sem senha" (antes era truthy e virava a senha da conta do app).
       const senhaEdit = [func.senha, func.password].find((s) => typeof s === 'string' && s.trim() !== '') as string | undefined;
-      await sincronizarUsuarioMobile(updated, senhaEdit, photoUrl);
+      await sincronizarUsuarioMobile(updated, senhaEdit, photoUrl, vinculoHerdado);
       return '';
     }
 
@@ -4329,6 +4378,9 @@ export class MobileAuthService {
       }
       return r;
     });
+
+    // O helper do bloqueio guarda 30 s em cache: ativar/desativar vale na hora nesta instância.
+    if (data.ativo !== undefined) limparCacheLoginPortariaDesativado(idCondominio);
 
     const mudancas: string[] = [];
     if (data.ativo !== undefined && data.ativo !== fp.ativo) mudancas.push(data.ativo ? 'ativado' : 'desativado');

@@ -5,11 +5,10 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
-import { assertEmailNaoReservado, DOMINIO_CONTA_REVOGADA } from '../common/email-reservado.util';
+import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { assertOperador, assertSindicoEstrito, isOperador, isSindicoEstrito } from '../auth/tenant.util';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
-import { contaSoDaEquipeDoCondominio } from '../auth/conta-so-de-equipe.util';
+import { contaDoLoginNaEquipe, contaSoDestaEquipe, novaLapidePadrao, tirarContaDaEquipe } from '../auth/revogacao-conta-equipe.util';
 import { assertApartamentoGravavel } from '../common/apartamento-gravavel.util';
 import { ehLoginDoPrestador, nomeNormalizado } from './login-do-prestador.util';
 import { lerPermissoesSalvas, serializarPermissoesApp } from './permissoes-salvas.util';
@@ -318,64 +317,21 @@ export class PrestadoresService {
   }
 
   /**
-   * Valor-lápide de login/e-mail para uma conta revogada que era só da equipe deste condomínio. Inalcançável: o
-   * domínio `.invalid` é reservado (RFC 2606) e nenhum cadastro o aceita (common/email-reservado.util). Com sufixo
-   * aleatório: a versão só com o id era previsível (o login do app devolve o id) e o prestador ocupava a lápide de
-   * antemão pelo signup, travando a própria revogação. ~70 caracteres, dentro do VarChar(255) das duas colunas.
-   * Método (não função solta) para o spec simular uma lápide já ocupada.
+   * Valor-lápide de login/e-mail para uma conta revogada que era só da equipe deste condomínio (aleatório, domínio
+   * `.invalid`; auth/revogacao-conta-equipe.util). Método (não função solta) para o spec simular uma lápide já ocupada.
    */
   protected novaLapide(idUser: number): string {
-    return `revogado-${idUser}-${randomBytes(16).toString('hex')}@${DOMINIO_CONTA_REVOGADA}`;
+    return novaLapidePadrao(idUser);
   }
 
-  /**
-   * Hash inutilizável: não começa com `$2` (não é bcrypt) e tem caracteres fora do hexadecimal, então nunca
-   * coincide com o md5 que o verifyPassword do app compara para senhas legadas.
-   */
-  private static senhaInutilizavel(idUser: number) {
-    return `!revogado:${idUser}`;
-  }
-
-  /**
-   * A conta do app ligada a um login de portaria. Users.login e Users.email são únicos cada um, então "login OU
-   * e-mail" pode achar duas contas: vale a que é da equipe deste condomínio e, sem ela, a mais antiga — antes era
-   * a que o banco devolvesse primeiro, e a revogação podia cair na conta errada.
-   */
+  /** A conta do app ligada a um login de portaria (auth/revogacao-conta-equipe.util, contaDoLoginNaEquipe). */
   private async contaDoLogin(login: string, idCondominio: number, db: any = this.prisma) {
-    const porLogin = { OR: [{ login }, { email: login }] };
-    return (
-      (await db.users.findFirst({
-        where: { ...porLogin, funcionarios: { some: { id_condominio: Number(idCondominio) } } },
-        orderBy: { id: 'asc' },
-      })) ?? (await db.users.findFirst({ where: porLogin, orderBy: { id: 'asc' } }))
-    );
+    return contaDoLoginNaEquipe(db, login, idCondominio);
   }
 
-  /**
-   * A conta não tem papel nenhum além de equipe deste condomínio: nenhum perfil ou vínculo de síndico, nenhum
-   * cadastro de morador ou unidade e nenhuma equipe em outro prédio. O critério do app
-   * (auth/conta-so-de-equipe.util), com as flags como trava extra.
-   */
-  private async contaSoDeEquipe(
-    conta: { id: number; is_sindico?: number | null; is_morador?: number | null },
-    idCondominio: number,
-    db: any = this.prisma,
-  ): Promise<boolean> {
-    if (conta.is_sindico || conta.is_morador) return false;
-    return contaSoDaEquipeDoCondominio(db, conta.id, idCondominio);
-  }
-
-  /**
-   * A conta já é da equipe deste condomínio E exclusivamente dela: só então quem gerencia a equipe daqui
-   * administra a conta inteira (lápide na revogação, senha nova no re-credenciamento). É a regra que o app aplica
-   * ao adotar a senha da portaria (mobile-auth, loginFuncionario).
-   */
+  /** A conta já é da equipe deste condomínio E exclusivamente dela (auth/revogacao-conta-equipe.util). */
   private async contaSoDestaEquipe(conta: { id: number; is_sindico?: number | null; is_morador?: number | null }, idCondominio: number, db: any = this.prisma) {
-    const daqui = await db.funcionarios.findFirst({
-      where: { id_user: conta.id, id_condominio: Number(idCondominio) },
-      select: { id: true },
-    });
-    return { daqui: !!daqui, soDaqui: !!daqui && (await this.contaSoDeEquipe(conta, idCondominio, db)) };
+    return contaSoDestaEquipe(db, conta, idCondominio);
   }
 
   /**
@@ -392,36 +348,6 @@ export class PrestadoresService {
         ? { is_funcionario: 1, password: hash, senha_alterada_em: momentoTrocaSenha() }
         : { is_funcionario: 1 },
     });
-  }
-
-  /**
-   * Inutiliza, dentro da transação da revogação, a conta que era só desta equipe: lápide em login e e-mail, CPF
-   * liberado (coluna @unique anulável), senha inutilizável e senha_alterada_em. A lápide nunca derruba a revogação:
-   * já ocupada (de antemão ou por corrida no @unique), tenta outra; depois de 3, segue sem ela — a conta fica com
-   * o e-mail ocupado, mas sem senha que entre e sem tokens.
-   */
-  private async inutilizarConta(tx: any, idUser: number) {
-    const base = {
-      password: PrestadoresService.senhaInutilizavel(idUser),
-      senha_alterada_em: momentoTrocaSenha(),
-      cpf: null,
-    };
-    for (let tentativa = 0; tentativa < 3; tentativa++) {
-      const lapide = this.novaLapide(idUser);
-      const ocupada = await tx.users.findFirst({
-        where: { OR: [{ login: lapide }, { email: lapide }], NOT: { id: idUser } },
-        select: { id: true },
-      });
-      if (ocupada) continue;
-      try {
-        await tx.users.update({ where: { id: idUser }, data: { ...base, login: lapide, email: lapide } });
-        return;
-      } catch (err: any) {
-        if (err?.code !== 'P2002') throw err;
-      }
-    }
-    this.logger.warn(`Lápide indisponível para a conta ${idUser}: revogada sem liberar o e-mail.`);
-    await tx.users.update({ where: { id: idUser }, data: base });
   }
 
   /**
@@ -565,19 +491,12 @@ export class PrestadoresService {
   ): Promise<{ vinculoRemovido: Record<string, any> | null; resultado?: T }> {
     try {
       return await this.prisma.$transaction(async (tx: any) => {
-        const conta = await this.contaDoLogin(login.login, login.id_condominio, tx);
-        // contaDoLogin cai na conta mais antiga com aquele login/e-mail quando nenhuma é da equipe daqui: essa não
-        // é nossa, e nunca recebe lápide nem perde os tokens.
-        const { daqui, soDaqui } = conta
-          ? await this.contaSoDestaEquipe(conta, login.id_condominio, tx)
-          : { daqui: false, soDaqui: false };
-        let vinculoRemovido: Record<string, any> | null = null;
-        if (conta && daqui) {
-          vinculoRemovido = await tx.funcionarios.findFirst({ where: { id_user: conta.id, id_condominio: login.id_condominio } });
-          await tx.funcionarios.deleteMany({ where: { id_user: conta.id, id_condominio: login.id_condominio } });
-          if (soDaqui) await this.inutilizarConta(tx, conta.id);
-          else await tx.users.update({ where: { id: conta.id }, data: { senha_alterada_em: momentoTrocaSenha() } });
-        }
+        // Rotina única (auth/revogacao-conta-equipe.util): conta que não é da equipe daqui não é nossa e nunca recebe
+        // lápide nem perde os tokens; a só desta equipe vira lápide; a compartilhada perde o vínculo e os tokens.
+        const vinculoRemovido = await tirarContaDaEquipe(tx, login.login, login.id_condominio, {
+          novaLapide: (id) => this.novaLapide(id),
+          logger: this.logger,
+        });
         // manterLogin: troca de e-mail — só a conta antiga sai; o login de portaria acompanha o e-mail novo.
         if (!opcoes.manterLogin) await tx.funcionarios_Portaria.deleteMany({ where: { id: login.id } });
         const resultado = opcoes.noMesmoAto ? await opcoes.noMesmoAto(tx) : undefined;
