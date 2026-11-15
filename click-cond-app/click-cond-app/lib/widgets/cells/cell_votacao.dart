@@ -110,12 +110,20 @@ class _CellVotacaoState extends State<CellVotacao> {
     return _variasUnidades ? _unidade : null;
   }
 
+  /// Unidade cujo direito de voto vale agora: a escolhida (várias) ou a
+  /// única; nula na API antiga (sem restrição).
+  UnidadeVoto? get _unidadeAtual {
+    if (widget.unidades.length == 1) return widget.unidades.first;
+    if (!_variasUnidades) return null;
+    return widget.unidades.where((x) => x.idApto == _unidade).firstOrNull;
+  }
+
   /// "Meu voto" nesta votação: o da unidade escolhida (várias unidades) ou o
-  /// campo antigo `meusVotos`.
+  /// campo antigo `meusVotos`. Voto de outro morador da unidade não conta.
   List<dynamic> get _meusVotos {
     if (!_variasUnidades) return widget.meusVotos;
-    final u = widget.unidades.where((x) => x.idApto == _unidade).firstOrNull;
-    return u?.opcao == null ? const [] : [u!.opcao];
+    final meu = _unidadeAtual?.meuVoto;
+    return meu == null ? const [] : [meu];
   }
 
   dynamic get _item => widget.item;
@@ -130,7 +138,10 @@ class _CellVotacaoState extends State<CellVotacao> {
 
   bool get _jaVotou => _opcoes.any((o) => votouNaOpcao(o.id, _meusVotos));
 
-  bool get _escolhendo => !widget.isRegister && _status == 1 && (!_jaVotou || _alterando);
+  SituacaoVoto get _situacao =>
+      situacaoVoto(status: _status, jaVotou: _jaVotou, alterando: _alterando, unidade: _unidadeAtual);
+
+  bool get _escolhendo => !widget.isRegister && podeEscolher(_situacao);
 
   void _votar() {
     final id = int.tryParse(_escolhida ?? '');
@@ -180,6 +191,8 @@ class _CellVotacaoState extends State<CellVotacao> {
               VotacaoStatusBadge(status: _item['status']),
               if (prazo.isNotEmpty)
                 _ChipPrazo(texto: prazo, cor: urgente ? statusVotacaoInfo(0).corTexto(context) : null),
+              if (somenteProprietarios(_item))
+                const _ChipPrazo(texto: 'Somente proprietários', icone: PhosphorIcons.userCircle),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -218,7 +231,7 @@ class _CellVotacaoState extends State<CellVotacao> {
 
           // ── Estado + opções ──
           if (!widget.isRegister) ...[
-            _aviso(status, inicio),
+            _aviso(inicio),
             const SizedBox(height: AppSpacing.md),
           ],
           if (!widget.isRegister && _variasUnidades) ...[
@@ -248,7 +261,7 @@ class _CellVotacaoState extends State<CellVotacao> {
             ..._listaOpcoes(opcoes),
 
           // ── Ações ──
-          if (!widget.isRegister && status == 1) ...[
+          if (!widget.isRegister && status == 1 && _situacao != SituacaoVoto.semDireito) ...[
             const SizedBox(height: AppSpacing.xs),
             _acoes(),
           ],
@@ -327,36 +340,45 @@ class _CellVotacaoState extends State<CellVotacao> {
   }
 
   /// Linha curta que explica o que dá para fazer nesta votação agora.
-  Widget _aviso(int? status, String inicio) {
+  Widget _aviso(String inicio) {
     final IconData icone;
     final Color cor;
     final String texto;
-    if (status == 1 && _alterando) {
-      icone = PhosphorIcons.arrowsClockwise;
-      cor = statusVotacaoInfo(1).corTexto(context);
-      texto = 'Escolha a nova opção e confirme. Seu voto anterior será substituído.';
-    } else if (status == 1 && _jaVotou) {
-      icone = PhosphorIcons.checkCircle;
-      cor = statusVotacaoInfo(1).corTexto(context);
-      texto = _variasUnidades
-          ? '${getText('votacao_unidade_ja_votou')}. ${getText('votacao_unidade_ja_votou_detalhe')}'
-          : 'Você já votou. Seu voto está destacado.';
-    } else if (status == 1) {
-      icone = PhosphorIcons.handPointing;
-      cor = statusVotacaoInfo(1).corTexto(context);
-      texto = 'Escolha uma opção e toque em Votar.';
-    } else if (status == 0) {
-      icone = PhosphorIcons.hourglassMedium;
-      cor = statusVotacaoInfo(0).corTexto(context);
-      texto = inicio.isEmpty ? 'A votação ainda não foi aberta.' : 'A votação abre em $inicio.';
-    } else if (status == 2) {
-      icone = PhosphorIcons.lockSimple;
-      cor = AppColors.textSecondary(context);
-      texto = _jaVotou ? 'Votação encerrada. Seu voto está destacado.' : 'Votação encerrada. Este é o resultado final.';
-    } else {
-      icone = PhosphorIcons.info;
-      cor = AppColors.textSecondary(context);
-      texto = getText('votacao_fora_periodo');
+    switch (_situacao) {
+      case SituacaoVoto.alterando:
+        icone = PhosphorIcons.arrowsClockwise;
+        cor = statusVotacaoInfo(1).corTexto(context);
+        texto = 'Escolha a nova opção e confirme. Seu voto anterior será substituído.';
+      case SituacaoVoto.jaVotou:
+        icone = PhosphorIcons.checkCircle;
+        cor = statusVotacaoInfo(1).corTexto(context);
+        texto = _variasUnidades
+            ? '${getText('votacao_unidade_ja_votou')}. ${getText('votacao_unidade_ja_votou_detalhe')}'
+            : 'Você já votou. Seu voto está destacado.';
+      case SituacaoVoto.votadoPorOutro:
+        icone = PhosphorIcons.users;
+        cor = statusVotacaoInfo(1).corTexto(context);
+        texto = textoVotadoPorOutro(_unidadeAtual!, _opcoes);
+      case SituacaoVoto.semDireito:
+        icone = PhosphorIcons.prohibit;
+        cor = AppColors.textSecondary(context);
+        texto = textoSemDireito(_unidadeAtual!);
+      case SituacaoVoto.aberta:
+        icone = PhosphorIcons.handPointing;
+        cor = statusVotacaoInfo(1).corTexto(context);
+        texto = 'Escolha uma opção e toque em Votar.';
+      case SituacaoVoto.agendada:
+        icone = PhosphorIcons.hourglassMedium;
+        cor = statusVotacaoInfo(0).corTexto(context);
+        texto = inicio.isEmpty ? 'A votação ainda não foi aberta.' : 'A votação abre em $inicio.';
+      case SituacaoVoto.encerrada:
+        icone = PhosphorIcons.lockSimple;
+        cor = AppColors.textSecondary(context);
+        texto = _jaVotou ? 'Votação encerrada. Seu voto está destacado.' : 'Votação encerrada. Este é o resultado final.';
+      case SituacaoVoto.desconhecida:
+        icone = PhosphorIcons.info;
+        cor = AppColors.textSecondary(context);
+        texto = getText('votacao_fora_periodo');
     }
     return Semantics(
       liveRegion: true,
@@ -453,11 +475,13 @@ class _CellVotacaoState extends State<CellVotacao> {
       );
 }
 
-/// Chip de prazo ao lado do selo de status (mesmo do detalhe da enquete).
+/// Chip de prazo ao lado do selo de status (mesmo do detalhe da enquete);
+/// também o selo "Somente proprietários".
 class _ChipPrazo extends StatelessWidget {
   final String texto;
   final Color? cor;
-  const _ChipPrazo({required this.texto, this.cor});
+  final IconData icone;
+  const _ChipPrazo({required this.texto, this.cor, this.icone = PhosphorIcons.clock});
 
   @override
   Widget build(BuildContext context) {
@@ -472,7 +496,7 @@ class _ChipPrazo extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(PhosphorIcons.clock, size: 14, color: fg),
+          Icon(icone, size: 14, color: fg),
           const SizedBox(width: AppSpacing.xs),
           Flexible(
             child: Text(

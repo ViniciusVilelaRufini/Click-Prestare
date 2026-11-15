@@ -36,11 +36,7 @@ class SeletorUnidadeVoto extends StatelessWidget {
   /// Linha de uma unidade (a votação entra na chave: a assembleia tem várias).
   static Key chaveUnidade(dynamic idVotacao, int idApto) => ValueKey('votacao-$idVotacao-unidade-$idApto');
 
-  String _subtitulo(UnidadeVoto u) {
-    if (!u.votou) return getText('votacao_unidade_sem_voto');
-    final nome = opcoes.where((o) => o.id == u.opcao).map((o) => o.nome).firstOrNull;
-    return '${getText('votacao_unidade_voto_atual')}: ${nome ?? u.opcao}';
-  }
+  String _subtitulo(UnidadeVoto u) => subtituloUnidade(u, opcoes);
 
   @override
   Widget build(BuildContext context) {

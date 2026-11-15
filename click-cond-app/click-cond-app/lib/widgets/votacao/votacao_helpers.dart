@@ -165,9 +165,20 @@ bool votouNaOpcao(dynamic opcaoId, List<dynamic>? meusVotos) {
   return meusVotos.any((v) => v.toString() == id);
 }
 
+/// Nível do vínculo com a unidade (`tipo_vinculo`/`votado_por` da API):
+/// `'proprietario'`, `'inquilino'` ou `'membro'`; aceita acento e caixa.
+/// Outro valor, vazio ou ausente → nulo.
+String? normalizarNivel(dynamic v) {
+  final s = textoLimpo(v).toLowerCase().replaceAll('á', 'a');
+  return const {'proprietario', 'inquilino', 'membro'}.contains(s) ? s : null;
+}
+
 /// Uma unidade do usuário numa votação, com o voto que vale nela hoje.
 /// Vem de `votosPorUnidade` da API (detalhe da enquete e da assembleia):
-/// `[{ id_votacao, id_apto, rotulo, opcao }]`, `opcao` nulo = ainda não votou.
+/// `[{ id_votacao, id_apto, rotulo, opcao, tipo_vinculo?, pode_votar?,
+/// motivo?, votado_por? }]`, `opcao` nulo = ainda não votou (ou o voto é de
+/// alguém de nível acima, que a API não revela). Os quatro últimos são da
+/// rodada 5; ausentes (API antiga) = pode votar, sem autor conhecido.
 class UnidadeVoto {
   final int idApto;
   final String rotulo;
@@ -175,9 +186,39 @@ class UnidadeVoto {
   /// Id (texto) da opção votada pela unidade, ou nulo.
   final String? opcao;
 
-  const UnidadeVoto({required this.idApto, required this.rotulo, this.opcao});
+  /// Vínculo do usuário com a unidade (ver [normalizarNivel]).
+  final String? tipoVinculo;
 
-  bool get votou => opcao != null;
+  /// Se o usuário pode votar por esta unidade agora.
+  final bool podeVotar;
+
+  /// Texto pronto da API para quando não pode votar.
+  final String? motivo;
+
+  /// Nível de quem deu o voto vigente da unidade, ou nulo.
+  final String? votadoPor;
+
+  const UnidadeVoto({
+    required this.idApto,
+    required this.rotulo,
+    this.opcao,
+    this.tipoVinculo,
+    this.podeVotar = true,
+    this.motivo,
+    this.votadoPor,
+  });
+
+  /// A unidade tem voto vigente (mesmo que a opção não venha).
+  bool get votou => opcao != null || votadoPor != null;
+
+  /// O voto vigente é de outro morador: a opção não veio (autor de nível
+  /// acima) ou o autor tem outro nível. Mesmo nível conta como da própria
+  /// conta (a API não diz quem foi).
+  bool get votoDeOutro =>
+      votadoPor != null && (opcao == null || (tipoVinculo != null && tipoVinculo != votadoPor));
+
+  /// A opção que a tela marca como "Seu voto" nesta unidade.
+  String? get meuVoto => votoDeOutro ? null : opcao;
 }
 
 /// Unidades do usuário na votação [idVotacao], na ordem da API. API antiga
@@ -192,20 +233,138 @@ List<UnidadeVoto> unidadesDaVotacao(dynamic votosPorUnidade, dynamic idVotacao) 
     final id = int.tryParse('${v['id_apto'] ?? ''}'.trim());
     if (id == null) continue;
     final opcao = textoLimpo(v['opcao']);
-    out.add(UnidadeVoto(idApto: id, rotulo: textoLimpo(v['rotulo']), opcao: opcao.isEmpty ? null : opcao));
+    final motivo = textoLimpo(v['motivo']);
+    out.add(UnidadeVoto(
+      idApto: id,
+      rotulo: textoLimpo(v['rotulo']),
+      opcao: opcao.isEmpty ? null : opcao,
+      tipoVinculo: normalizarNivel(v['tipo_vinculo']),
+      // Só um "não" explícito tira o direito: ausente/nulo = API antiga.
+      podeVotar: v['pode_votar'] == null || _verdadeiro(v['pode_votar']),
+      motivo: motivo.isEmpty ? null : motivo,
+      votadoPor: normalizarNivel(v['votado_por']),
+    ));
   }
   return out;
 }
 
 /// Unidade que a tela mostra escolhida: [atual] se ainda está na lista; senão
-/// a primeira que não votou; senão a primeira. Lista vazia → nulo.
+/// a primeira que pode votar e não votou; senão a primeira que não votou;
+/// senão a primeira. Lista vazia → nulo.
 int? unidadePadrao(List<UnidadeVoto> unidades, {int? atual}) {
   if (unidades.isEmpty) return null;
   if (atual != null && unidades.any((u) => u.idApto == atual)) return atual;
   for (final u in unidades) {
+    if (!u.votou && u.podeVotar) return u.idApto;
+  }
+  for (final u in unidades) {
     if (!u.votou) return u.idApto;
   }
   return unidades.first.idApto;
+}
+
+/// "Votado pelo proprietário" etc. para o nível de quem votou; nulo sem nível.
+String? rotuloVotadoPor(String? nivel) {
+  switch (nivel) {
+    case 'proprietario':
+      return 'Votado pelo proprietário';
+    case 'inquilino':
+      return 'Votado pelo inquilino';
+    case 'membro':
+      return 'Votado por morador da unidade';
+  }
+  return null;
+}
+
+String? _nomeOpcao(String? id, List<OpcaoVotacao> opcoes) {
+  if (id == null) return null;
+  return opcoes.where((o) => o.id == id).map((o) => o.nome).firstOrNull ?? id;
+}
+
+/// O que a tela de votação mostra agora.
+enum SituacaoVoto {
+  /// Ainda não abriu (status 0).
+  agendada,
+
+  /// Aberta e a unidade ainda sem voto: escolher e votar.
+  aberta,
+
+  /// Trocando o próprio voto.
+  alterando,
+
+  /// O voto vigente é da própria conta.
+  jaVotou,
+
+  /// O voto vigente é de outro morador e o usuário pode votar por cima.
+  votadoPorOutro,
+
+  /// Aberta, mas o usuário não pode votar por esta unidade (`pode_votar`).
+  semDireito,
+
+  /// Encerrada (status 2).
+  encerrada,
+
+  /// Status desconhecido.
+  desconhecida,
+}
+
+/// Decide a [SituacaoVoto] a partir do status (0/1/2), de o usuário já ter
+/// votado com a própria conta ([jaVotou]), de estar alterando o voto e da
+/// [unidade] escolhida (nula na API antiga: sem restrição). Fora do período
+/// o status manda; aberta, a falta de direito vem antes de tudo.
+SituacaoVoto situacaoVoto({
+  required dynamic status,
+  required bool jaVotou,
+  bool alterando = false,
+  UnidadeVoto? unidade,
+}) {
+  switch (_status(status)) {
+    case 0:
+      return SituacaoVoto.agendada;
+    case 2:
+      return SituacaoVoto.encerrada;
+    case 1:
+      if (unidade != null && !unidade.podeVotar) return SituacaoVoto.semDireito;
+      if (jaVotou) return alterando ? SituacaoVoto.alterando : SituacaoVoto.jaVotou;
+      if (unidade != null && unidade.votadoPor != null) return SituacaoVoto.votadoPorOutro;
+      return SituacaoVoto.aberta;
+  }
+  return SituacaoVoto.desconhecida;
+}
+
+/// Se na [situacao] a tela mostra as opções para escolher e o botão "Votar".
+bool podeEscolher(SituacaoVoto situacao) =>
+    situacao == SituacaoVoto.aberta || situacao == SituacaoVoto.alterando || situacao == SituacaoVoto.votadoPorOutro;
+
+/// Aviso quando o voto vigente da unidade é de outro morador:
+/// `'Votado pelo inquilino: Aprovo. Se votar, o seu voto substitui este.'`
+/// (opção visível) ou `'Votado pelo proprietário.'`.
+String textoVotadoPorOutro(UnidadeVoto u, List<OpcaoVotacao> opcoes) {
+  final rotulo = rotuloVotadoPor(u.votadoPor) ?? getText('votacao_unidade_ja_votou');
+  final nome = _nomeOpcao(u.opcao, opcoes);
+  if (nome == null) return '$rotulo.';
+  return '$rotulo: $nome. Se votar, o seu voto substitui este.';
+}
+
+/// Aviso quando o usuário não pode votar pela unidade: o `motivo` da API,
+/// precedido de quem votou quando a API diz; sem motivo, um texto genérico.
+String textoSemDireito(UnidadeVoto u) {
+  final motivo = u.motivo ?? 'Esta unidade não pode votar nesta votação.';
+  final quem = rotuloVotadoPor(u.votadoPor);
+  return quem == null ? motivo : '$quem. $motivo';
+}
+
+/// Linha de uma unidade no seletor: quem votou (outro morador), o voto
+/// atual, o motivo de não poder votar ou "Ainda não votou".
+String subtituloUnidade(UnidadeVoto u, List<OpcaoVotacao> opcoes) {
+  if (u.votoDeOutro) {
+    final rotulo = rotuloVotadoPor(u.votadoPor)!;
+    final nome = _nomeOpcao(u.opcao, opcoes);
+    return nome == null ? rotulo : '$rotulo: $nome';
+  }
+  if (u.opcao != null) return '${getText('votacao_unidade_voto_atual')}: ${_nomeOpcao(u.opcao, opcoes)}';
+  if (!u.podeVotar) return u.motivo ?? 'Sem direito a voto';
+  return getText('votacao_unidade_sem_voto');
 }
 
 /// `'1 voto'`, `'12 votos'`, `'0 votos'`.
