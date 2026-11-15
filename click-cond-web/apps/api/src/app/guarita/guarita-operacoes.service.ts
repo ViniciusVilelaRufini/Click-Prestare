@@ -50,6 +50,11 @@ export interface ResultadoGravacao {
 
 /** Texto do desfecho desconhecido (também marca a operação: é por ele que as tentativas são contadas). */
 export const MSG_INCERTO = 'Não foi possível confirmar no Guarita.';
+/** Marca do cadastro reenfileirado depois de um incerto: o frame é recalculado na entrega (R5). */
+export const CRIADO_POR_RECADASTRO_INCERTO = 'Conferir cadastro sem confirmação';
+
+/** Depois do segundo cadastro incerto (sem mais tentativa automática). */
+export const MSG_INCERTO_CONFERIR = 'Não foi possível confirmar no Guarita. Use Conferir agora.';
 
 /** Código de tag criado pelos fluxos do Guarita (importação, captura, digitado): G<tipo>-<serial>[-D<id>]. */
 const CODIGO_DO_GUARITA = /^G[1236]-[0-9A-F]+(-D\d+)?$/;
@@ -83,6 +88,18 @@ export function nomeCurto(nome: string | null | undefined): string {
  *
  * NÃO validado em aparelho.
  */
+/** Estados em que a tag nunca recebe `editar` (o veículo é salvo só no Prestare). */
+const ESTADOS_SEM_EDICAO: string[] = [
+  'removendo',
+  'remocao_falhou',
+  'conflito',
+  'incerto',
+  'ausente',
+  'recusada',
+  'aguardando_aprovacao',
+  'a_vincular',
+];
+
 /** Remoção que falha volta à fila até isto (uma vez por conexão/conferência). */
 export const MAX_TENTATIVAS_REMOCAO = 5;
 
@@ -163,6 +180,10 @@ export class GuaritaOperacoesService {
    */
   async enfileirarEdicao(idTag: number, autor: string): Promise<{ id_operacao: number } | null> {
     const tag = await this.tagDoGuarita(idTag);
+    // Tag saindo, em conflito, sem confirmação, fora do Guarita ou ainda não
+    // aprovada: o dado do veículo é salvo no Prestare, nada vai ao Guarita (e
+    // o estado de remoção nunca é trocado por uma edição — N1).
+    if (ESTADOS_SEM_EDICAO.includes(tag.guarita_estado ?? '')) return null;
     const cadastroPendente = await this.prisma.guarita_Operacoes.findFirst({
       where: { id_tag: tag.id, tipo: 'cadastrar', estado: ESTADO_OP.pendente },
       orderBy: { id: 'desc' },
@@ -193,10 +214,11 @@ export class GuaritaOperacoesService {
     }
     // Cadastro entregue e ainda sem resultado: a edição entra atrás dele (a fila
     // só a entrega depois do resultado, e a cancela se o cadastro não der ok).
-    const cadastroEmVoo = await this.prisma.guarita_Operacoes.count({
-      where: { id_tag: tag.id, tipo: 'cadastrar', estado: { in: [ESTADO_OP.enviada, ESTADO_OP.processando] } },
+    // Idem com uma edição em voo: a nova sai depois, com o frame que a anterior confirmar.
+    const gravacaoEmVoo = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: { in: ['cadastrar', 'editar'] }, estado: { in: [ESTADO_OP.enviada, ESTADO_OP.processando] } },
     });
-    if (cadastroEmVoo === 0 && !(await this.podeEscrever(tag))) return null;
+    if (gravacaoEmVoo === 0 && !this.podeEditar(tag)) return null;
     const base = (await this.frameConhecido(tag)) ?? null;
     const frame = await this.montarFrameOuRegistrar(tag, base);
     return this.criarGravacao(tag, 'editar', frame, autor, ESTADO_TAG.pendente);
@@ -224,6 +246,22 @@ export class GuaritaOperacoesService {
    * `recusada`, nulo) nunca escreve.
    */
   async podeEscrever(tag: any): Promise<boolean> {
+    return this.podeApagar(tag);
+  }
+
+  /**
+   * Pode receber `editar`? Só `gravado` e `ativo` (o dispositivo está no
+   * Guarita com os dados do Prestare). Tag em remoção, incerta, em conflito,
+   * ausente, recusada ou aguardando NUNCA é editada (a edição a tiraria da
+   * remoção — N1).
+   */
+  podeEditar(tag: any): boolean {
+    if (!tag || tag.id_device == null || tag.guarita_tipo == null || !tag.guarita_serial) return false;
+    return tag.guarita_estado === ESTADO_TAG.gravado || tag.guarita_estado === ESTADO_TAG.ativo;
+  }
+
+  /** Pode receber `apagar`? A lista branca (inclui `incerto`, `removendo`, `remocao_falhou`). */
+  async podeApagar(tag: any): Promise<boolean> {
     if (!tag || tag.id_device == null || tag.guarita_tipo == null || !tag.guarita_serial) return false;
     const e = tag.guarita_estado;
     if (e === ESTADO_TAG.gravado || e === ESTADO_TAG.ativo || e === ESTADO_TAG.removendo || e === ESTADO_TAG.remocaoFalhou) return true;
@@ -237,6 +275,26 @@ export class GuaritaOperacoesService {
       },
     });
     return confirmacoes > 0;
+  }
+
+  /**
+   * R5: o cadastro reenfileirado depois de um incerto sai com o frame ATUAL da
+   * tag (dados de hoje do veículo/morador), não com o de quando foi pedido.
+   * Não monta (unidade inválida, sem veículo...): fica o frame guardado.
+   */
+  async atualizarFrameDoRecadastro(op: { id: number; id_tag: number | null; frame_hex: string | null }): Promise<string | null> {
+    if (op.id_tag == null) return op.frame_hex;
+    const tag = await this.prisma.tags.findUnique({ where: { id: op.id_tag } });
+    if (!tag) return op.frame_hex;
+    try {
+      const frame = await this.montarFrame(tag, null);
+      if (frame !== op.frame_hex) {
+        await this.prisma.guarita_Operacoes.updateMany({ where: { id: op.id, estado: ESTADO_OP.pendente }, data: { frame_hex: frame } });
+      }
+      return frame;
+    } catch {
+      return op.frame_hex;
+    }
   }
 
   /** O frame que o Prestare acredita estar no Guarita: o lido/confirmado, ou o do último cadastro. */
@@ -370,6 +428,16 @@ export class GuaritaOperacoesService {
     // Em conflito quando o morador sai: não apaga (o dispositivo lá é de
     // outra unidade), mas a intenção de remover não some — alerta e texto na tag.
     if (estado === ESTADO_TAG.conflito) {
+      // R6: conflito de CADASTRO (o serial é de outra unidade e o Prestare
+      // nunca gravou este dispositivo): sai só do Prestare, sem alerta. O
+      // alerta é para o dispositivo que o Prestare tinha gravado/confirmado.
+      const confirmou = await this.prisma.guarita_Operacoes.count({
+        where: { id_tag: tag.id, tipo: { in: ['cadastrar', 'editar'] }, estado: ESTADO_OP.ok },
+      });
+      if (confirmou === 0 && !tag.guarita_frame) {
+        await this.desfazerNoPrestare(tag);
+        return false;
+      }
       await this.alertarRemocaoNaoConfirmada(tag);
       return false;
     }
@@ -454,7 +522,16 @@ export class GuaritaOperacoesService {
         criado_por: String(autor ?? 'Portaria').slice(0, 120),
       },
     });
-    await this.prisma.tags.update({ where: { id: tag.id }, data: { guarita_estado: estado, guarita_erro: null } });
+    // Estado de remoção nunca é trocado por outro: de `removendo`/`remocao_falhou`
+    // só se sai por remoção confirmada ou por "desfazer".
+    const removendo = [ESTADO_TAG.removendo, ESTADO_TAG.remocaoFalhou];
+    await this.prisma.tags.updateMany({
+      where:
+        tipo === 'apagar'
+          ? { id: tag.id }
+          : { id: tag.id, OR: [{ guarita_estado: null }, { guarita_estado: { notIn: removendo } }] },
+      data: { guarita_estado: estado, guarita_erro: null },
+    });
     await this.garantirAtualizarReceptores(tag.id_condominio, tag.id_device);
     return { id_operacao: op.id };
   }
@@ -680,9 +757,20 @@ export class GuaritaOperacoesService {
    * Se a tag já tem outra gravação aberta depois desta, o estado dela não é
    * sobrescrito (vale o da operação mais nova quando o resultado dela chegar).
    */
-  async aplicarResultado(idOperacao: number, r: ResultadoGravacao): Promise<void> {
+  async aplicarResultado(idOperacao: number, resultado: ResultadoGravacao): Promise<void> {
     const op = await this.prisma.guarita_Operacoes.findUnique({ where: { id: Number(idOperacao) } });
     if (!op) return;
+    let r = resultado;
+    // R3: `editar` incerto ou em "conflito" cujo frame LIDO é o que foi enviado
+    // (fora o byte 30, só de leitura): a edição valeu — ok, e guarda o lido.
+    let frameLidoDaEdicao: string | null = null;
+    if (op.tipo === 'editar' && (r.incerto === true || r.conflito === true) && r.lido?.frame_hex && op.frame_hex) {
+      const semFlags = (h: string) => h.toUpperCase().slice(0, 58) + h.toUpperCase().slice(60);
+      if (semFlags(r.lido.frame_hex) === semFlags(op.frame_hex)) {
+        frameLidoDaEdicao = r.lido.frame_hex.toUpperCase();
+        r = { ok: true, codigo: 0 };
+      }
+    }
     // Conflito: o agente leu o dispositivo em outra unidade e não escreveu; ou
     // o cadastro voltou 0x02 sem ser "já estava" (o serial é de outra pessoa).
     const conflito =
@@ -691,9 +779,9 @@ export class GuaritaOperacoesService {
       await this.marcarConflito(op, r);
       return;
     }
-    // Desfecho desconhecido: o agente avisa (`incerto`); um cadastro que falha
-    // sem código do 67 também pode ter sido gravado (a resposta se perdeu).
-    const incerto = r.incerto === true || (op.tipo === 'cadastrar' && !r.ok && r.codigo === undefined);
+    // Desfecho desconhecido: só quando o agente diz (`incerto`). "Não foi
+    // gravado" que o agente conferiu (ok:false sem incerto) é falha (R4).
+    const incerto = r.incerto === true;
     if (incerto && TIPOS_GRAVACAO.includes(op.tipo)) {
       await this.marcarIncerto(op);
       return;
@@ -725,6 +813,7 @@ export class GuaritaOperacoesService {
       }
       frameConfirmado = lido;
     }
+    if (frameLidoDaEdicao) frameConfirmado = frameLidoDaEdicao;
     const apagouJa = op.tipo === 'apagar' && !r.ok && r.codigo === 0x03;
     const ok = r.ok || apagouJa;
     const mensagem = ok ? null : (r.erro ?? (r.codigo !== undefined ? MENSAGENS_67[r.codigo] : undefined) ?? 'O Guarita não respondeu.');
@@ -848,9 +937,11 @@ export class GuaritaOperacoesService {
     });
     if (op.tipo === 'cadastrar') {
       const saindo = tag.guarita_estado === ESTADO_TAG.removendo;
+      // Segundo incerto do mesmo cadastro: não há nova tentativa sozinha; a tela diz o que fazer.
+      const texto = tentativas >= 2 ? MSG_INCERTO_CONFERIR : MSG_INCERTO;
       await this.prisma.tags.update({
         where: { id: tag.id },
-        data: { guarita_erro: MSG_INCERTO, ...(!saindo && { guarita_estado: ESTADO_TAG.incerto }) },
+        data: { guarita_erro: texto, ...(!saindo && { guarita_estado: ESTADO_TAG.incerto }) },
       });
       if (!saindo && tentativas === 1 && op.frame_hex) {
         await this.prisma.guarita_Operacoes.create({
@@ -861,7 +952,7 @@ export class GuaritaOperacoesService {
             tipo: 'cadastrar',
             frame_hex: op.frame_hex,
             estado: ESTADO_OP.pendente,
-            criado_por: 'Conferir cadastro sem confirmação',
+            criado_por: CRIADO_POR_RECADASTRO_INCERTO,
           },
         });
         await this.garantirAtualizarReceptores(tag.id_condominio, op.id_device);

@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FacialService } from '../facial/facial.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { GuaritaImportacaoService } from './guarita-importacao.service';
-import { GuaritaOperacoesService } from './guarita-operacoes.service';
+import { CRIADO_POR_RECADASTRO_INCERTO, GuaritaOperacoesService } from './guarita-operacoes.service';
 import { GuaritaEventosService } from './guarita-eventos.service';
 import { blocoParaByte, decodificarDispositivo } from './guarita-frame.util';
 import {
@@ -193,7 +193,7 @@ export class GuaritaAgenteService {
       },
       orderBy: { id: 'asc' },
       take: MAX_OPERACOES_POR_PEDIDO * 4,
-      select: { id: true, tipo: true, frame_hex: true, estado: true, enviada_em: true, id_tag: true },
+      select: { id: true, tipo: true, frame_hex: true, estado: true, enviada_em: true, id_tag: true, criado_por: true },
     });
 
     // Importação que ficou "processando" (instância caiu no meio) além do
@@ -233,6 +233,9 @@ export class GuaritaAgenteService {
       // editar/apagar levam o que o Prestare acredita estar no Guarita; sem
       // isso não há como o agente conferir, e a operação não sai.
       let esperado: { unidade: number; bloco: number } | undefined;
+      if (op.tipo === 'cadastrar' && op.criado_por === CRIADO_POR_RECADASTRO_INCERTO && this.operacoes) {
+        op.frame_hex = await this.operacoes.atualizarFrameDoRecadastro(op);
+      }
       if ((op.tipo === 'editar' || op.tipo === 'apagar') && this.operacoes) {
         const conferencia = await this.esperadoDaOperacao(op);
         if (!conferencia) continue;
@@ -356,8 +359,11 @@ export class GuaritaAgenteService {
     let lido: { unidade?: number; bloco?: number; frame_hex?: string } | null = null;
     if (b.lido && typeof b.lido === 'object') {
       const l = b.lido as Record<string, unknown>;
-      const unidade = inteiroOuNulo(l.unidade, 'lido.unidade', 0, 9999);
-      const bloco = inteiroOuNulo(l.bloco, 'lido.bloco', 0, 255);
+      // R7: `lido` é informativo — fora de faixa é ignorado, sem derrubar o resultado.
+      const dentro = (v: unknown, max: number): number | null =>
+        typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= max ? v : null;
+      const unidade = dentro(l.unidade, 9999);
+      const bloco = dentro(l.bloco, 255);
       const frameLido = typeof l.frame_hex === 'string' && /^[0-9a-fA-F]{78}$/.test(l.frame_hex.trim()) ? l.frame_hex.trim().toUpperCase() : null;
       const montado = {
         ...(unidade !== null && bloco !== null && { unidade, bloco }),

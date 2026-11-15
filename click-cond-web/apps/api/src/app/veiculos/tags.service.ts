@@ -153,12 +153,13 @@ export class TagsService {
         });
         return { ok: true, guarita_remocoes: 1 };
       }
+      // deleteMany: a fila pode já ter desfeito a tag no Prestare.
       await this.prisma.$transaction([
         this.prisma.veiculos.updateMany({
           where: { id_tag: tag.id, id_condominio: idCondominio },
           data: { id_tag: null },
         }),
-        this.prisma.tags.delete({ where: { id: tag.id } }),
+        this.prisma.tags.deleteMany({ where: { id: tag.id } }),
       ]);
       return { ok: true, guarita_remocoes: 0 };
     }
