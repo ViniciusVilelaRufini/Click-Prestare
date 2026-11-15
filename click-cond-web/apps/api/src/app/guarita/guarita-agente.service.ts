@@ -60,7 +60,7 @@ export interface ResultadoOperacaoDto {
   /** editar/apagar/cadastrar: o dispositivo está no Guarita em outra unidade; nada foi escrito. */
   conflito?: boolean;
   /** Com `conflito`: unidade e byte do bloco lidos no Guarita. */
-  lido?: { unidade: number; bloco: number } | null;
+  lido?: { unidade?: number; bloco?: number; frame_hex?: string } | null;
   /** cadastrar 0x02 na mesma unidade / apagar 0x03: já estava como pedido (ok normal). */
   ja_estava?: boolean;
   /** A pergunta foi escrita e a resposta não chegou (o agente não conseguiu conferir). */
@@ -353,12 +353,17 @@ export class GuaritaAgenteService {
     const conflito = b.conflito === true;
     const jaEstava = b.ja_estava === true;
     const incerto = b.incerto === true;
-    let lido: { unidade: number; bloco: number } | null = null;
+    let lido: { unidade?: number; bloco?: number; frame_hex?: string } | null = null;
     if (b.lido && typeof b.lido === 'object') {
       const l = b.lido as Record<string, unknown>;
       const unidade = inteiroOuNulo(l.unidade, 'lido.unidade', 0, 9999);
       const bloco = inteiroOuNulo(l.bloco, 'lido.bloco', 0, 255);
-      lido = unidade !== null && bloco !== null ? { unidade, bloco } : null;
+      const frameLido = typeof l.frame_hex === 'string' && /^[0-9a-fA-F]{78}$/.test(l.frame_hex.trim()) ? l.frame_hex.trim().toUpperCase() : null;
+      const montado = {
+        ...(unidade !== null && bloco !== null && { unidade, bloco }),
+        ...(frameLido && { frame_hex: frameLido }),
+      };
+      lido = Object.keys(montado).length ? montado : null;
     }
     return {
       ok,
@@ -367,7 +372,8 @@ export class GuaritaAgenteService {
       ...(frames !== undefined && { frames_hex: frames }),
       ...(parte !== null && { parte }),
       ...(fim !== undefined && { fim }),
-      ...(conflito && { conflito, lido }),
+      ...(lido && { lido }),
+      ...(conflito && { conflito }),
       ...(jaEstava && { ja_estava: true }),
       ...(incerto && { incerto: true }),
     };

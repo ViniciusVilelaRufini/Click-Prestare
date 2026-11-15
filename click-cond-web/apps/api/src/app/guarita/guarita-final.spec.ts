@@ -148,6 +148,38 @@ describe('I2 — gravação sem resposta é incerta', () => {
   });
 });
 
+describe('ja_estava mais estrito (cadastrar)', () => {
+  async function cadastroEntregue() {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'a_vincular', guarita_frame: null });
+    const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
+    await m.agente.buscarOperacoes(DEV);
+    const pedido = ops(m.db, 'cadastrar')[0].frame_hex as string;
+    return { m, id_operacao, pedido };
+  }
+
+  it('com o frame lido do mesmo dispositivo e unidade: ok, e o frame confirmado é o LIDO', async () => {
+    const { m, id_operacao, pedido } = await cadastroEntregue();
+    const lido = pedido.slice(0, 18) + '05' + pedido.slice(20); // grupo diferente no Guarita
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: true, codigo: 2, ja_estava: true, lido: { unidade: 308, bloco: 1, frame_hex: lido } });
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'gravado', guarita_frame: lido });
+  });
+
+  it('sem o frame lido: incerto', async () => {
+    const { m, id_operacao } = await cadastroEntregue();
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: true, codigo: 2, ja_estava: true });
+    expect(tag(m.db).guarita_estado).toBe('incerto');
+  });
+
+  it('frame lido em outra unidade: conflito', async () => {
+    const { m, id_operacao, pedido } = await cadastroEntregue();
+    const lido = pedido.slice(0, 12) + '020201' + pedido.slice(18);
+    await m.agente.registrarResultado(DEV, id_operacao, { ok: true, codigo: 2, ja_estava: true, lido: { frame_hex: lido } });
+    expect(tag(m.db).guarita_estado).toBe('conflito');
+    expect(tag(m.db).guarita_erro).toMatch(/unidade 202 bloco B/);
+  });
+});
+
 describe('C1 — duas gravações da mesma tag no mesmo lote', () => {
   it('cenário A: troca de unidade e saída logo depois → o dispositivo é removido do Guarita', async () => {
     const m = montar();

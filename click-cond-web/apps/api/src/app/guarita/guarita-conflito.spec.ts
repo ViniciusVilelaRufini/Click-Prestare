@@ -71,10 +71,11 @@ describe('C1 — cadastro que volta "já cadastrado em outra unidade"', () => {
     expect(operacoes(m.db, 'apagar')).toHaveLength(0);
   });
 
-  it('cadastrar com 0x02 e ja_estava (mesma unidade) é ok normal', async () => {
+  it('cadastrar com 0x02 e ja_estava (mesma unidade, com o frame lido) é ok normal', async () => {
     const m = montar();
     const id = await cadastroEntregue(m);
-    await m.agente.registrarResultado(DEV, id, { ok: true, codigo: 2, ja_estava: true });
+    const pedido = operacoes(m.db, 'cadastrar')[0].frame_hex;
+    await m.agente.registrarResultado(DEV, id, { ok: true, codigo: 2, ja_estava: true, lido: { unidade: 308, bloco: 1, frame_hex: pedido } });
     expect(tag(m.db).guarita_estado).toBe('gravado');
   });
 });

@@ -41,7 +41,7 @@ export interface ResultadoGravacao {
   /** O dispositivo lido no Guarita está em outra unidade/bloco: o agente NÃO escreveu. */
   conflito?: boolean;
   /** Unidade e byte do bloco que o agente leu no Guarita (com `conflito`). */
-  lido?: { unidade: number; bloco: number } | null;
+  lido?: { unidade?: number; bloco?: number; frame_hex?: string } | null;
   /** Cadastrar (0x02 na mesma unidade) ou apagar (0x03): já estava como pedido. */
   ja_estava?: boolean;
   /** A pergunta foi escrita e a resposta não chegou: o desfecho é desconhecido. */
@@ -695,6 +695,33 @@ export class GuaritaOperacoesService {
       await this.marcarIncerto(op);
       return;
     }
+    // "Já estava" num cadastro só vale com o frame LIDO do Guarita e o mesmo
+    // dispositivo (tipo + serial, + contador no RF) na MESMA unidade/bloco; o
+    // frame confirmado passa a ser o lido. Sem o frame lido: incerto.
+    let frameConfirmado: string | null = op.frame_hex ?? null;
+    if (op.tipo === 'cadastrar' && r.ok && r.ja_estava === true) {
+      const lido = r.lido?.frame_hex ?? null;
+      const pedido = String(op.frame_hex ?? '').toUpperCase();
+      if (!lido || pedido.length !== 78) {
+        await this.marcarIncerto(op);
+        return;
+      }
+      const ehRf = pedido.startsWith('1');
+      const mesmoDispositivo = lido.slice(0, 8) === pedido.slice(0, 8) && (!ehRf || lido.slice(8, 12) === pedido.slice(8, 12));
+      const mesmaUnidade = lido.slice(12, 18) === pedido.slice(12, 18);
+      if (!mesmaUnidade) {
+        await this.marcarConflito(op, {
+          ...r,
+          lido: { unidade: parseInt(lido.slice(12, 14), 16) * 100 + parseInt(lido.slice(14, 16), 16), bloco: parseInt(lido.slice(16, 18), 16) },
+        });
+        return;
+      }
+      if (!mesmoDispositivo) {
+        await this.marcarIncerto(op);
+        return;
+      }
+      frameConfirmado = lido;
+    }
     const apagouJa = op.tipo === 'apagar' && !r.ok && r.codigo === 0x03;
     const ok = r.ok || apagouJa;
     const mensagem = ok ? null : (r.erro ?? (r.codigo !== undefined ? MENSAGENS_67[r.codigo] : undefined) ?? 'O Guarita não respondeu.');
@@ -766,7 +793,7 @@ export class GuaritaOperacoesService {
       await this.prisma.tags.update({
         where: { id: tag.id },
         data: {
-          guarita_frame: op.frame_hex,
+          guarita_frame: frameConfirmado,
           guarita_em: agora,
           guarita_erro: null,
           ...(maisNova === 0 && { guarita_estado: ESTADO_TAG.gravado }),
@@ -913,7 +940,7 @@ export class GuaritaOperacoesService {
     const agora = new Date();
     const lido =
       r.lido && Number.isInteger(r.lido.unidade) && Number.isInteger(r.lido.bloco)
-        ? ` (lá está na unidade ${r.lido.unidade} bloco ${byteParaBloco(r.lido.bloco)})`
+        ? ` (lá está na unidade ${r.lido.unidade} bloco ${byteParaBloco(r.lido.bloco as number)})`
         : '';
     const mensagem = `Este dispositivo já está no Guarita em outra unidade${lido}. Nada foi gravado.`;
     const reivindicou = await this.prisma.guarita_Operacoes.updateMany({
