@@ -526,6 +526,15 @@ class SessaoGuarita extends EventEmitter {
     if (PROGRESSIVOS.has(numero)) throw new Error('use lerProgressivo para os comandos 17 e 70');
     const frame = montar(numero, params); // lança para comando proibido, antes de qualquer espera
     const liberar = await this._adquirir({ prazoNaFilaMs, prioritario });
+    try {
+      return await this._comandoNaVez(numero, frame, { timeoutMs, semResposta });
+    } finally {
+      liberar();
+    }
+  }
+
+  /** Executa um frame já montado por quem JÁ está com a vez. */
+  async _comandoNaVez(numero, frame, { timeoutMs = TIMEOUT_COMANDO_MS, semResposta = false } = {}) {
     this._emExecucao = numero;
     this._ocupadaPor++;
     let espera = null;
@@ -543,6 +552,30 @@ class SessaoGuarita extends EventEmitter {
     } finally {
       if (espera) this._fecharEspera(espera);
       this._ocupadaPor--;
+    }
+  }
+
+  /**
+   * Vários comandos SEM outro comando no meio (nem o relé prioritário): a vez
+   * é tomada uma vez e só é solta no fim de `fn(seq)`. Usado em "ler e só
+   * então escrever" (editar/apagar conferindo a unidade). `seq.comando` tem a
+   * mesma lista branca e as mesmas travas de `comando`.
+   */
+  async sequencia(fn, { prazoNaFilaMs } = {}) {
+    const liberar = await this._adquirir({ prazoNaFilaMs });
+    let ativa = true;
+    const seq = {
+      comando: async (numero, params, opts = {}) => {
+        if (!ativa) throw new Error('sequência já encerrada');
+        if (PROGRESSIVOS.has(numero)) throw new Error('leitura progressiva não entra em sequência');
+        const frame = montar(numero, params);
+        return this._comandoNaVez(numero, frame, opts);
+      },
+    };
+    try {
+      return await fn(seq);
+    } finally {
+      ativa = false;
       liberar();
     }
   }

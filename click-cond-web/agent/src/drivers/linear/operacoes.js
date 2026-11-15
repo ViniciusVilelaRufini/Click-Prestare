@@ -158,61 +158,6 @@ function mensagemDeErro(e) {
 }
 
 /**
- * Comando 67. Cadastro e edição mandam o frame de 39 bytes inteiro; apagar
- * manda só tipo + serial (bytes 1-4), o resto zerado aqui mesmo.
- * `ok` só com a resposta 0x00.
- */
-async function gravar(sessao, { tipo, frameHex } = {}) {
-  if (!Object.prototype.hasOwnProperty.call(OPCAO_POR_TIPO, tipo)) {
-    return { ok: false, codigo: null, mensagem: `Operação de gravação desconhecida: ${tipo}.` };
-  }
-  if (typeof frameHex !== 'string' || !/^[0-9a-fA-F]{78}$/.test(frameHex)) {
-    return { ok: false, codigo: null, mensagem: 'Frame do dispositivo inválido (esperado: 39 bytes em hex).' };
-  }
-  const frame = Buffer.from(frameHex, 'hex');
-  if (!TIPOS_DISPOSITIVO.includes(frame[0] >> 4)) {
-    return { ok: false, codigo: null, mensagem: 'Tipo de dispositivo não suportado (só RF, TA, CT e TP).' };
-  }
-  if (tipo === 'apagar') {
-    // Só a chave: byte 1 inteiro (CT mantém o disp_dest; TA/TP zera o nibble) + bytes 2-4.
-    chaveDoFrame(frame).copy(frame);
-  }
-  let dados;
-  try {
-    dados = await sessao.comando(67, Buffer.concat([Buffer.from([OPCAO_POR_TIPO[tipo]]), frame]), {
-      timeoutMs: TIMEOUT_67_MS,
-    });
-  } catch (e) {
-    const falha = { ok: false, codigo: null, mensagem: mensagemDeErro(e) };
-    // Recusado antes de escrever (sessão já fechada): o Guarita nem viu.
-    if (e && e.codigo === 'desconectado') falha.naoEnviado = true;
-    return falha;
-  }
-  const codigo = dados[1];
-  const base = { ok: codigo === 0x00, codigo, mensagem: mensagemDoCodigo(codigo) };
-  // Operação repetida (agente reiniciou, resposta perdida, nuvem reentregou):
-  // o objetivo pode já estar atendido.
-  if (tipo === 'apagar' && codigo === 0x03) {
-    return { ok: true, codigo, ja_estava: true, mensagem: 'O dispositivo já não estava no Guarita.' };
-  }
-  if (tipo === 'cadastrar' && codigo === 0x02) {
-    const lido = await lerDispositivo(sessao, frame);
-    if (!lido) return base;
-    // Mesmo tipo + serial (a chave) e mesma unidade/bloco (bytes 7, 8 e 9).
-    if (lido[6] === frame[6] && lido[7] === frame[7] && lido[8] === frame[8]) {
-      return { ok: true, codigo, ja_estava: true, mensagem: 'Este dispositivo já estava cadastrado no Guarita.' };
-    }
-    return { ok: false, codigo, mensagem: 'Este dispositivo já está cadastrado no Guarita em outra unidade.' };
-  }
-  return base;
-}
-
-/**
- * Comando 67 opção 3 (Ler) pela chave (tipo + serial, bytes 1-4; resto
- * 0x00). Devolve o frame de 39 bytes lido, ou null (não existe / sem
- * resposta — sem resposta derruba a sessão, ver SessaoGuarita).
- */
-/**
  * Chave do dispositivo (identidade): byte 1 INTEIRO + bytes 2-4, como veio no
  * frame — no CT o nibble baixo é o <disp_dest> e faz parte dela. TA/TP: o
  * nibble baixo é sempre 0 (zerado aqui, como no demo da Nice).
@@ -225,17 +170,138 @@ function chaveDoFrame(frame) {
   return chave;
 }
 
-async function lerDispositivo(sessao, frame) {
+/**
+ * 67 opção 3 (Ler) pela chave, usando `exec(numero, params, opts)` (o
+ * comando da sessão ou de uma sequência). → { existe, frame? }. Erro (sem
+ * resposta derruba a sessão) propaga.
+ */
+async function lerPelaChave(exec, frame) {
   const chave = chaveDoFrame(frame);
-  let dados;
+  const dados = await exec(67, Buffer.concat([Buffer.from([0x03]), chave]), { timeoutMs: TIMEOUT_67_MS });
+  if (dados.length === 41 && dados[1] === 0x00 && dados.subarray(2, 6).equals(chave.subarray(0, 4))) {
+    return { existe: true, frame: Buffer.from(dados.subarray(2, 41)) };
+  }
+  if (dados[1] === 0x03) return { existe: false };
+  throw new Error(mensagemDoCodigo(dados[1]));
+}
+
+/** Frame de 39 bytes lido, ou null (não existe / sem resposta). */
+async function lerDispositivo(sessao, frame) {
   try {
-    dados = await sessao.comando(67, Buffer.concat([Buffer.from([0x03]), chave]), { timeoutMs: TIMEOUT_67_MS });
+    const r = await lerPelaChave((n, p, o) => sessao.comando(n, p, o), frame);
+    return r.existe ? r.frame : null;
   } catch {
     return null;
   }
-  if (dados.length !== 41 || dados[1] !== 0x00) return null;
-  const lido = dados.subarray(2, 41);
-  return lido.subarray(0, 4).equals(chave.subarray(0, 4)) ? Buffer.from(lido) : null;
+}
+
+const unidadeDe = (f) => f[6] * 100 + f[7];
+
+function esperadoValido(e) {
+  return (
+    !!e &&
+    typeof e === 'object' &&
+    Number.isInteger(e.unidade) && e.unidade >= 0 && e.unidade <= 9999 &&
+    Number.isInteger(e.bloco) && e.bloco >= 0 && e.bloco <= 255
+  );
+}
+
+function falhaDeComando(e) {
+  const falha = { ok: false, codigo: null, mensagem: mensagemDeErro(e) };
+  // Recusado antes de escrever (sessão já fechada): o Guarita nem viu.
+  if (e && e.codigo === 'desconectado') falha.naoEnviado = true;
+  return falha;
+}
+
+/**
+ * Comando 67. Cadastro e edição mandam o frame de 39 bytes inteiro; apagar
+ * manda só a chave (byte 1 + bytes 2-4), o resto zerado aqui mesmo.
+ * `ok` só com a resposta 0x00 (ou objetivo comprovadamente já atendido).
+ *
+ * Editar e apagar exigem `esperado: { unidade, bloco }` e LEEM antes de
+ * escrever, na mesma vez da sessão (nenhum comando no meio): dispositivo em
+ * outra unidade nunca é tocado (`conflito`), e sem `esperado` nada é
+ * escrito.
+ */
+async function gravar(sessao, { tipo, frameHex, esperado } = {}) {
+  if (!Object.prototype.hasOwnProperty.call(OPCAO_POR_TIPO, tipo)) {
+    return { ok: false, codigo: null, mensagem: `Operação de gravação desconhecida: ${tipo}.` };
+  }
+  if (typeof frameHex !== 'string' || !/^[0-9a-fA-F]{78}$/.test(frameHex)) {
+    return { ok: false, codigo: null, mensagem: 'Frame do dispositivo inválido (esperado: 39 bytes em hex).' };
+  }
+  const frame = Buffer.from(frameHex, 'hex');
+  if (!TIPOS_DISPOSITIVO.includes(frame[0] >> 4)) {
+    return { ok: false, codigo: null, mensagem: 'Tipo de dispositivo não suportado (só RF, TA, CT e TP).' };
+  }
+  if (tipo === 'cadastrar') return cadastrar(sessao, frame);
+  if (!esperadoValido(esperado)) {
+    return { ok: false, codigo: null, mensagem: 'Operação sem unidade esperada.' };
+  }
+  if (tipo === 'apagar') {
+    // Só a chave: byte 1 inteiro (CT mantém o disp_dest; TA/TP zera o nibble) + bytes 2-4.
+    chaveDoFrame(frame).copy(frame);
+  }
+  try {
+    return await sessao.sequencia(async (seq) => {
+      const exec = (n, p, o) => seq.comando(n, p, o);
+      const lido = await lerPelaChave(exec, frame);
+      if (!lido.existe) {
+        if (tipo === 'apagar') {
+          return { ok: true, codigo: null, ja_estava: true, mensagem: 'O dispositivo já não estava no Guarita.' };
+        }
+        return { ok: false, codigo: 0x03, mensagem: mensagemDoCodigo(0x03) };
+      }
+      const atual = { unidade: unidadeDe(lido.frame), bloco: lido.frame[8] };
+      if (atual.unidade !== esperado.unidade || atual.bloco !== esperado.bloco) {
+        return {
+          ok: false,
+          codigo: null,
+          conflito: true,
+          lido: atual,
+          mensagem: 'Este dispositivo está cadastrado no Guarita em outra unidade.',
+        };
+      }
+      const dados = await exec(67, Buffer.concat([Buffer.from([OPCAO_POR_TIPO[tipo]]), frame]), { timeoutMs: TIMEOUT_67_MS });
+      const codigo = dados[1];
+      if (tipo === 'apagar' && codigo === 0x03) {
+        return { ok: true, codigo, ja_estava: true, mensagem: 'O dispositivo já não estava no Guarita.' };
+      }
+      return { ok: codigo === 0x00, codigo, mensagem: mensagemDoCodigo(codigo) };
+    });
+  } catch (e) {
+    // Sem resposta no Ler: a sessão caiu e NADA foi escrito.
+    return falhaDeComando(e);
+  }
+}
+
+async function cadastrar(sessao, frame) {
+  let dados;
+  try {
+    dados = await sessao.comando(67, Buffer.concat([Buffer.from([OPCAO_POR_TIPO.cadastrar]), frame]), {
+      timeoutMs: TIMEOUT_67_MS,
+    });
+  } catch (e) {
+    return falhaDeComando(e);
+  }
+  const codigo = dados[1];
+  const base = { ok: codigo === 0x00, codigo, mensagem: mensagemDoCodigo(codigo) };
+  if (codigo !== 0x02) return base;
+  // Já aprendido (agente reiniciou, resposta perdida, nuvem reentregou):
+  // confere pelo Ler se o objetivo já está atendido.
+  const lido = await lerDispositivo(sessao, frame);
+  if (!lido) return base;
+  const atual = { unidade: unidadeDe(lido), bloco: lido[8] };
+  if (atual.unidade === unidadeDe(frame) && atual.bloco === frame[8]) {
+    return { ok: true, codigo, ja_estava: true, mensagem: 'Este dispositivo já estava cadastrado no Guarita.' };
+  }
+  return {
+    ok: false,
+    codigo,
+    conflito: true,
+    lido: atual,
+    mensagem: 'Este dispositivo já está cadastrado no Guarita em outra unidade.',
+  };
 }
 
 /** Comando 29 (atualizar receptores): a resposta só chega no fim, até 180 s. */

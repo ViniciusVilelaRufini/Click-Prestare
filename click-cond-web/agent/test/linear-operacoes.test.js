@@ -154,10 +154,10 @@ test('gravar: cadastrar, editar e apagar reais; ok só com 0x00; apagar manda s�
     assert.equal(sim.memoria.dispositivos.length, 1);
     const editado = Buffer.from(d);
     Buffer.from('NOVO ROTULO'.padEnd(18, ' ')).copy(editado, 11);
-    r = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(editado) });
+    r = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(editado), esperado: { unidade: 7, bloco: 0 } });
     assert.equal(r.ok, true);
     assert.equal(hex(sim.memoria.dispositivos[0]), hex(editado));
-    r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(editado) });
+    r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(editado), esperado: { unidade: 7, bloco: 0 } });
     assert.equal(r.ok, true);
     assert.equal(sim.memoria.dispositivos.length, 0);
     const ultimo67 = sim.comandosRecebidos(67).at(-1);
@@ -189,7 +189,13 @@ test('I1: cadastrar com 0x02 mas o Guarita tem o dispositivo em OUTRA unidade �
     const outraUnidade = Buffer.from(d);
     outraUnidade[7] = (outraUnidade[7] + 1) % 100;
     const r = await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(outraUnidade) });
-    assert.deepEqual(r, { ok: false, codigo: 2, mensagem: 'Este dispositivo já está cadastrado no Guarita em outra unidade.' });
+    assert.deepEqual(r, {
+      ok: false,
+      codigo: 2,
+      conflito: true,
+      lido: { unidade: 7, bloco: 0 },
+      mensagem: 'Este dispositivo já está cadastrado no Guarita em outra unidade.',
+    });
     const outroBloco = Buffer.from(d);
     outroBloco[8] = 0x05;
     assert.equal((await ops.gravar(sessao, { tipo: 'cadastrar', frameHex: hex(outroBloco) })).ok, false);
@@ -198,8 +204,8 @@ test('I1: cadastrar com 0x02 mas o Guarita tem o dispositivo em OUTRA unidade �
 
 test('I1: apagar o que já não está no Guarita (0x03) → ok com ja_estava (o objetivo está atendido)', async () => {
   await cenario({}, async ({ sessao }) => {
-    const r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(dispositivo(9)) });
-    assert.deepEqual(r, { ok: true, codigo: 3, ja_estava: true, mensagem: 'O dispositivo já não estava no Guarita.' });
+    const r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(dispositivo(9)), esperado: { unidade: 9, bloco: 0 } });
+    assert.deepEqual(r, { ok: true, codigo: null, ja_estava: true, mensagem: 'O dispositivo já não estava no Guarita.' });
   });
 });
 
@@ -400,14 +406,14 @@ test('Menor 6: apagar TA/TP zera o nibble baixo do byte 1 (um 6F… da nuvem ain
   await cenario({ dispositivos: [tp] }, async ({ sim, sessao }) => {
     const sujo = Buffer.from(tp);
     sujo[0] = 0x6f;
-    const r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(sujo) });
+    const r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(sujo), esperado: { unidade: 5, bloco: 0 } });
     assert.equal(r.ok, true);
     assert.equal(r.ja_estava, undefined, 'apagou de verdade');
     assert.equal(sim.memoria.dispositivos.length, 0);
     assert.equal(sim.comandosRecebidos(67).at(-1)[3], 0x60);
     const ctDestino = Buffer.from(ct);
     ctDestino[0] = 0x34; // CT para a Catraca 2010
-    await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(ctDestino) });
+    await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(ctDestino), esperado: { unidade: 6, bloco: 0 } });
     assert.equal(sim.comandosRecebidos(67).at(-1)[3], 0x34);
   });
 });
@@ -426,4 +432,101 @@ test('item 2: CT com disp_dest = 4 — o Ler e o apagar usam o byte 1 inteiro; o
     assert.equal(sim.comandosRecebidos(67).at(-1)[3], 0x20);
     assert.equal(sim.memoria.dispositivos.length, 2);
   });
+});
+
+test('item 1: editar/apagar sem `esperado` (API antiga) ou com esperado inválido → recusa sem escrever nada', async () => {
+  await cenario({ dispositivos: [dispositivo(5)] }, async ({ sim, sessao }) => {
+    for (const tipo of ['editar', 'apagar']) {
+      for (const esperado of [undefined, null, {}, { unidade: 5 }, { unidade: '5', bloco: 0 }, { unidade: 5, bloco: 300 }, { unidade: 10000, bloco: 0 }]) {
+        const r = await ops.gravar(sessao, { tipo, frameHex: hex(dispositivo(5)), esperado });
+        assert.deepEqual(r, { ok: false, codigo: null, mensagem: 'Operação sem unidade esperada.' }, `${tipo} ${JSON.stringify(esperado)}`);
+      }
+    }
+    assert.equal(sim.recebidos.length, 0, 'nada foi escrito');
+  });
+});
+
+test('item 1: apagar — não existe (só lê, ja_estava), outra unidade (conflito, não escreve), bate (apaga)', async () => {
+  const meu = dispositivo(5);
+  const outro = dispositivo(6); // unidade 6
+  await cenario({ dispositivos: [meu, outro] }, async ({ sim, sessao }) => {
+    let r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(dispositivo(99)), esperado: { unidade: 99, bloco: 0 } });
+    assert.deepEqual(r, { ok: true, codigo: null, ja_estava: true, mensagem: 'O dispositivo já não estava no Guarita.' });
+    assert.deepEqual(sim.comandosRecebidos(67).map((f) => f[2]), [3], 'só leu');
+    r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(outro), esperado: { unidade: 5, bloco: 0 } });
+    assert.deepEqual(r, {
+      ok: false,
+      codigo: null,
+      conflito: true,
+      lido: { unidade: 6, bloco: 0 },
+      mensagem: 'Este dispositivo está cadastrado no Guarita em outra unidade.',
+    });
+    assert.deepEqual(sim.comandosRecebidos(67).map((f) => f[2]), [3, 3], 'conflito: não escreveu');
+    assert.equal(sim.memoria.dispositivos.length, 2);
+    r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(meu), esperado: { unidade: 5, bloco: 0 } });
+    assert.deepEqual(r, { ok: true, codigo: 0, mensagem: 'ok' });
+    assert.deepEqual(sim.comandosRecebidos(67).map((f) => f[2]), [3, 3, 3, 4]);
+    assert.equal(sim.memoria.dispositivos.length, 1);
+    assert.equal(hex(sim.memoria.dispositivos[0]), hex(outro), 'o da outra unidade continua lá');
+  });
+});
+
+test('item 1: editar — não existe (falha 0x03, não escreve), outra unidade (conflito), bate (edita)', async () => {
+  const meu = dispositivo(5);
+  const bloco7 = dispositivo(8);
+  bloco7[8] = 0x07; // unidade 8, bloco H
+  await cenario({ dispositivos: [meu, bloco7] }, async ({ sim, sessao }) => {
+    let r = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(dispositivo(99)), esperado: { unidade: 99, bloco: 0 } });
+    assert.deepEqual(r, { ok: false, codigo: 3, mensagem: 'Dispositivo não encontrado no Guarita.' });
+    const editado8 = Buffer.from(bloco7);
+    editado8[8] = 0x00;
+    r = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(editado8), esperado: { unidade: 8, bloco: 0 } });
+    assert.equal(r.conflito, true);
+    assert.deepEqual(r.lido, { unidade: 8, bloco: 7 });
+    assert.equal(r.ok, false);
+    assert.deepEqual(sim.comandosRecebidos(67).map((f) => f[2]), [3, 3], 'nenhuma edição saiu');
+    const novo = Buffer.from(meu);
+    Buffer.from('NOVO NOME'.padEnd(18, ' ')).copy(novo, 11);
+    r = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(novo), esperado: { unidade: 5, bloco: 0 } });
+    assert.deepEqual(r, { ok: true, codigo: 0, mensagem: 'ok' });
+    assert.equal(hex(sim.memoria.dispositivos[0]), hex(novo));
+  });
+});
+
+test('item 1: ler e escrever saem sem outro comando no meio (nem o relé prioritário, nem um comando já na fila)', async () => {
+  const meu = dispositivo(5);
+  await cenario({ dispositivos: [meu] }, async ({ sim, sessao }) => {
+    const novo = Buffer.from(meu);
+    Buffer.from('OUTRO NOME'.padEnd(18, ' ')).copy(novo, 11);
+    const pEditar = ops.gravar(sessao, { tipo: 'editar', frameHex: hex(novo), esperado: { unidade: 5, bloco: 0 } });
+    const p7 = sessao.comando(7);
+    const pRele = ops.acionarRele(sessao, { tipoReceptor: 1, numReceptor: 1, rele: 1 }, { prazoNaFilaMs: 10000 });
+    assert.equal((await pEditar).ok, true);
+    await pRele;
+    await p7;
+    await esperarAte(() => sim.recebidos.length === 4, { rotulo: '4 frames' });
+    assert.deepEqual(
+      sim.recebidos.map((f) => (f[1] === 67 ? `67/${f[2]}` : String(f[1]))),
+      ['67/3', '67/1', '13', '7'],
+    );
+  });
+});
+
+test('item 1: Ler sem resposta → a sessão cai e NADA é escrito', async () => {
+  const relogio = criarRelogioFalso();
+  await cenario(
+    { dispositivos: [dispositivo(5)] },
+    async ({ sim, sessao }) => {
+      sim.falhas.silencio(1);
+      const p = ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(dispositivo(5)), esperado: { unidade: 5, bloco: 0 } });
+      await esperarAte(() => sim.comandosRecebidos(67).length === 1, { rotulo: 'o Ler' });
+      await relogio.avancar(5000);
+      assert.deepEqual(await p, { ok: false, codigo: null, mensagem: 'O Guarita não respondeu.' });
+      assert.equal(sessao.conectado, false);
+      await new Promise((r) => setTimeout(r, 30));
+      assert.deepEqual(sim.comandosRecebidos(67).map((f) => f[2]), [3], 'o apagar não saiu');
+      assert.equal(sim.memoria.dispositivos.length, 1);
+    },
+    { relogio },
+  );
 });

@@ -623,15 +623,19 @@ class ServicoGuarita {
       case 'editar':
       case 'apagar': {
         this._lembrar(op.id, { estado: 'executando' });
-        const r = await operacoes.gravar(sessao, { tipo: op.tipo, frameHex: op.frame_hex });
+        const r = await operacoes.gravar(sessao, { tipo: op.tipo, frameHex: op.frame_hex, esperado: op.esperado });
         if (r.naoEnviado) {
           // Nem chegou ao Guarita (sessão caiu antes): fica para a reentrega.
           this.executadas.delete(op.id);
           return;
         }
-        const corpo = r.ok ? { ok: true, codigo: r.codigo } : { ok: false, erro: r.mensagem };
-        if (!r.ok && Number.isInteger(r.codigo)) corpo.codigo = r.codigo;
+        const corpo = r.ok ? { ok: true } : { ok: false, erro: r.mensagem };
+        if (Number.isInteger(r.codigo)) corpo.codigo = r.codigo;
         if (r.ja_estava) corpo.ja_estava = true;
+        if (r.conflito) {
+          corpo.conflito = true;
+          corpo.lido = r.lido;
+        }
         if (r.ok && !r.ja_estava) this._marcarGravacao();
         this.log.log(`${this.rotulo}: operação ${op.id} (${op.tipo}) → ${r.ok ? 'OK' : `FALHA (${r.mensagem})`}${r.ja_estava ? ' (já estava assim no Guarita)' : ''}`);
         await this._concluir(op.id, [corpo], { persistir: true });

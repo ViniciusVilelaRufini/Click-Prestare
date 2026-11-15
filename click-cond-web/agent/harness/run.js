@@ -364,7 +364,9 @@ async function prepararCopiaDoAgente() {
   const destino = path.join(__dirname, '.tmp-agent');
   fs.mkdirSync(destino, { recursive: true });
   fs.copyFileSync(bundlePath, path.join(destino, 'index.js'));
-  for (const f of ['device-baselines.json', 'events-queue.jsonl']) {
+  // guarita-operacoes.json: operações do Guarita já concluídas (I1) — de uma
+  // rodada anterior, faria o cenário achar que a operação 1 já foi feita.
+  for (const f of ['device-baselines.json', 'events-queue.jsonl', 'guarita-operacoes.json']) {
     const alvo = path.join(destino, f);
     if (fs.existsSync(alvo)) fs.unlinkSync(alvo);
   }

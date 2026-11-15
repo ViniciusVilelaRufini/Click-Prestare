@@ -343,17 +343,19 @@ test('mesma operação devolvida várias vezes pela nuvem (mesmo id) executa uma
 test('operações executam na ordem devolvida, uma de cada vez', async () => {
   await cenario({}, async (c) => {
     c.nuvem.ops.push({ id: 3, tipo: 'cadastrar', frame_hex: hex(dispositivo(5)) });
-    c.nuvem.ops.push({ id: 4, tipo: 'editar', frame_hex: hex(dispositivo(5)) });
-    c.nuvem.ops.push({ id: 5, tipo: 'apagar', frame_hex: hex(dispositivo(5)) });
-    c.nuvem.ops.push({ id: 6, tipo: 'apagar', frame_hex: hex(dispositivo(5)) });
+    const esperado = { unidade: 5, bloco: 0 };
+    c.nuvem.ops.push({ id: 4, tipo: 'editar', frame_hex: hex(dispositivo(5)), esperado });
+    c.nuvem.ops.push({ id: 5, tipo: 'apagar', frame_hex: hex(dispositivo(5)), esperado });
+    c.nuvem.ops.push({ id: 6, tipo: 'apagar', frame_hex: hex(dispositivo(5)), esperado });
     c.escutar();
     await c.pronto();
     await c.relogio.avancar(0);
     await esperarAte(() => c.nuvem.resultados.length === 4, { rotulo: '4 resultados' });
     assert.deepEqual(c.nuvem.resultados.map((r) => [r.id, r.ok]), [[3, true], [4, true], [5, true], [6, true]]);
     // Apagar de novo: já não está no Guarita → objetivo atendido (I1).
-    assert.deepEqual(c.nuvem.resultados[3], { id: 6, ok: true, codigo: 3, ja_estava: true });
-    assert.deepEqual(c.sim.comandosRecebidos(67).map((f) => f[2]), [0, 1, 4, 4]);
+    assert.deepEqual(c.nuvem.resultados[3], { id: 6, ok: true, ja_estava: true });
+    // editar e apagar leem (opção 3) antes de escrever; o 2º apagar só lê.
+    assert.deepEqual(c.sim.comandosRecebidos(67).map((f) => f[2]), [0, 3, 1, 3, 4, 3]);
   });
 });
 
@@ -735,14 +737,14 @@ test('I1: sem o registro (armazém perdido), o cadastrar repetido responde 0x02 
   const d = dispositivo(4);
   await cenario({ sim: { dispositivos: [d] } }, async (c) => {
     c.nuvem.ops.push({ id: 11, tipo: 'cadastrar', frame_hex: hex(d) });
-    c.nuvem.ops.push({ id: 12, tipo: 'apagar', frame_hex: hex(dispositivo(77)) });
+    c.nuvem.ops.push({ id: 12, tipo: 'apagar', frame_hex: hex(dispositivo(77)), esperado: { unidade: 77, bloco: 0 } });
     c.escutar();
     await c.pronto();
     await c.relogio.avancar(0);
     await esperarAte(() => c.nuvem.resultados.length === 2, { rotulo: 'resultados' });
     assert.deepEqual(c.nuvem.resultados, [
       { id: 11, ok: true, codigo: 2, ja_estava: true },
-      { id: 12, ok: true, codigo: 3, ja_estava: true },
+      { id: 12, ok: true, ja_estava: true },
     ]);
     assert.equal(c.sim.memoria.dispositivos.length, 1);
   });
@@ -952,4 +954,22 @@ test('item 7: device tipo guarita nunca cai no REST genérico/ping HTTP — qual
   assert.match(legado, /não é suportado no modo legado/);
   const iGuarita = legado.indexOf('body.device.tipo === TIPO_GUARITA');
   assert.ok(iGuarita < legado.indexOf('despachante.despachar('), 'o aviso vem antes de despachar');
+});
+
+test('item 1 (driver): resultado de conflito e de operação sem esperado no formato do contrato', async () => {
+  const outro = dispositivo(6);
+  await cenario({ sim: { dispositivos: [outro] } }, async (c) => {
+    c.nuvem.ops.push({ id: 60, tipo: 'apagar', frame_hex: hex(outro), esperado: { unidade: 5, bloco: 0 } });
+    c.nuvem.ops.push({ id: 61, tipo: 'editar', frame_hex: hex(outro) });
+    c.escutar();
+    await c.pronto();
+    await c.relogio.avancar(0);
+    await esperarAte(() => c.nuvem.resultados.length === 2, { rotulo: 'resultados' });
+    assert.deepEqual(c.nuvem.resultados, [
+      { id: 60, ok: false, erro: 'Este dispositivo está cadastrado no Guarita em outra unidade.', conflito: true, lido: { unidade: 6, bloco: 0 } },
+      { id: 61, ok: false, erro: 'Operação sem unidade esperada.' },
+    ]);
+    assert.equal(c.sim.memoria.dispositivos.length, 1);
+    assert.deepEqual(c.sim.comandosRecebidos(67).map((f) => f[2]), [3], 'só o Ler do 60');
+  });
 });
