@@ -14,7 +14,7 @@
         </svg>
         Novo Veículo
       </button>
-    } @else {
+    } @else if (tab() === 'tags') {
       <button (click)="abrirNovaTag()" class="ps-btn">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/>
@@ -35,6 +35,12 @@
       Tags RFID
       <span class="ml-1.5">{{ tags().length }}</span>
     </button>
+    @if (temGuarita()) {
+      <button (click)="tab.set('a_vincular')" [class.on]="tab() === 'a_vincular'" data-aba-a-vincular>
+        A vincular
+        <span class="ml-1.5">{{ aVincular().length }}</span>
+      </button>
+    }
   </div>
 
   @if (loading()) {
@@ -58,6 +64,9 @@
 
     @if (erroAcaoVeiculo()) {
       <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroAcaoVeiculo() }}</div>
+    }
+    @if (temGuarita() && erroGuarita()) {
+      <div role="alert" data-erro-guarita class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroGuarita() }}</div>
     }
 
     @if (veiculosFiltrados().length === 0) {
@@ -99,12 +108,24 @@
                     @if (tagBloqueada(v)) {
                       <span class="ps-tag ml-1" title="Tag bloqueada: não abre no leitor"><span class="ps-dot ps-dot-danger"></span>Bloqueada</span>
                     }
+                    @if (seloGuarita(v); as selo) {
+                      <span class="ps-tag ml-1" data-guarita-estado [title]="selo.texto"><span class="ps-dot" [ngClass]="selo.dot"></span>{{ selo.texto }}</span>
+                    }
                   } @else {
                     <span class="text-slate-500 text-xs">Sem tag</span>
                   }
                 </td>
                 <td class="text-right">
                   <div class="flex items-center justify-end gap-2">
+                    @if (temGuarita()) {
+                      @if (aguardandoAprovacao(v)) {
+                        <button type="button" (click)="aprovarTag(v)" [disabled]="guaritaEmAcao() === v.id_tag"
+                          class="ps-btn ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Aprovar</button>
+                        <button type="button" (click)="recusarTag(v)" [disabled]="guaritaEmAcao() === v.id_tag"
+                          class="ps-btn ps-btn-danger ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Recusar</button>
+                      }
+                      <button type="button" (click)="abrirCapturaGuarita(v)" class="ps-btn ps-btn-sec ps-btn-sm">Cadastrar controle/tag</button>
+                    }
                     <button
                       (click)="abrirEditarVeiculo(v)"
                       aria-label="Editar veículo"
@@ -126,6 +147,64 @@
                       </svg>
                     </button>
                   </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+  } @else if (tab() === 'a_vincular' && temGuarita()) {
+
+    <!-- A vincular: dispositivos que estão no Guarita e o Prestare ainda não ligou a um veículo -->
+    @if (erroGuarita()) {
+      <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ erroGuarita() }}</div>
+    }
+    @if (aVincular().length === 0) {
+      <div class="ps-panel ps-empty">
+        <p class="text-sm text-slate-300 font-medium">Nada a vincular</p>
+        <p class="text-xs text-slate-500 mt-1">Dispositivos importados do Guarita sem veículo aparecem aqui</p>
+      </div>
+    } @else {
+      <div class="ps-tablewrap">
+        <table class="w-full text-sm !min-w-[720px]">
+          <thead>
+            <tr>
+              <th>Dispositivo</th>
+              <th>No Guarita</th>
+              <th>Veículo</th>
+              <th class="!text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (d of aVincular(); track d.id_device + '-' + d.id) {
+              <tr data-a-vincular>
+                <td>
+                  <span class="font-mono font-semibold tracking-wider">{{ d.guarita_serial || d.codigo }}</span>
+                  <span class="block text-xs text-slate-500 mt-0.5">{{ rotuloTipoGuarita[d.guarita_tipo ?? 0] ?? 'Dispositivo' }}</span>
+                </td>
+                <td>
+                  {{ unidadeDoDispositivo(d) }}
+                  @if (d.rotulo || d.placa) {
+                    <span class="block text-xs text-slate-500 mt-0.5">{{ d.rotulo }}{{ d.rotulo && d.placa ? ' · ' : '' }}{{ d.placa }}</span>
+                  }
+                </td>
+                <td>
+                  <select
+                    [(ngModel)]="vinculoEscolhido[d.id]"
+                    [attr.aria-label]="'Veículo para ' + (d.guarita_serial || d.codigo)"
+                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition"
+                  >
+                    <option [ngValue]="null">Escolha o veículo</option>
+                    @for (v of veiculos(); track v.id) {
+                      <option [ngValue]="v.id">{{ v.placa }}{{ v.morador?.nome ? ' · ' + v.morador?.nome : '' }}{{ v.morador?.apartamento ? ' · Apto ' + v.morador?.apartamento : '' }}</option>
+                    }
+                  </select>
+                </td>
+                <td class="text-right">
+                  <button type="button" (click)="vincularDispositivo(d)" [disabled]="guaritaEmAcao() === d.id"
+                    class="ps-btn ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Vincular</button>
                 </td>
               </tr>
             }
@@ -351,6 +430,15 @@
           </button>
         </div>
     </div>
+  }
+
+  <!-- CADASTRO DE CONTROLE/TAG NO GUARITA -->
+  @if (capturaVeiculo(); as cv) {
+    <app-guarita-captura
+      [veiculo]="cv"
+      [guaritas]="guaritas()"
+      (fechar)="fecharCapturaGuarita()"
+      (cadastrado)="onGuaritaCadastrado()" />
   }
 
   <!-- MODAL DE TAG -->

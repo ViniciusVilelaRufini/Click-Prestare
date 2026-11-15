@@ -5,6 +5,7 @@ import { VeiculosApi } from '../moradores/veiculos.service';
 import { MoradoresApi } from '../moradores/moradores.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { AuthService } from '../auth/auth.service';
+import { GuaritaService } from '../guarita/guarita.service';
 
 /** Remover veículo que a API recusa: antes nada acontecia na tela; agora o erro aparece. */
 const carro = {
@@ -25,6 +26,8 @@ function build(remove: () => any) {
       { provide: MoradoresApi, useValue: { list: jest.fn(() => of([])) } },
       { provide: ConfirmService, useValue: { ask: jest.fn(() => Promise.resolve(true)) } },
       { provide: AuthService, useValue: { porteiroInfo: () => ({ id_condominio: 3 }) } },
+      // Condomínio sem Módulo Guarita: a tela é a de sempre.
+      { provide: GuaritaService, useValue: { listarGuaritas: () => of([]) } },
     ],
   });
   const f = TestBed.createComponent(VeiculosPageComponent);

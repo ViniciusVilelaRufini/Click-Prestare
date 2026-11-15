@@ -73,6 +73,55 @@ describe('GuaritaService — rotas do console', () => {
     req.flush(new Blob(['[]']));
   });
 
+  it('dispositivos: filtro por estado e id da tag normalizado (id ou id_tag)', () => {
+    let lista: any[] | undefined;
+    api.dispositivos(7, 'a_vincular').subscribe((l) => (lista = l));
+    const req = http.expectOne((r) => r.url === `${base}/7/dispositivos`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('estado')).toBe('a_vincular');
+    req.flush([{ id: 30, guarita_estado: 'a_vincular' }, { id_tag: 31, guarita_estado: 'a_vincular' }]);
+    expect(lista?.map((d) => [d.id, d.id_device])).toEqual([[30, 7], [31, 7]]);
+    api.dispositivos(7).subscribe();
+    expect(http.expectOne((r) => r.url === `${base}/7/dispositivos`).request.params.has('estado')).toBe(false);
+  });
+
+  it.each([
+    ['vincular', () => api.vincular(7, 30, 101), `${base}/7/dispositivos/30/vincular`, { id_veiculo: 101 }],
+    ['aprovar', () => api.aprovar(7, 30), `${base}/7/dispositivos/30/aprovar`, {}],
+    ['recusar', () => api.recusar(7, 30), `${base}/7/dispositivos/30/recusar`, {}],
+    ['abrirCaptura', () => api.abrirCaptura(7, 101), `${base}/7/captura`, { id_veiculo: 101 }],
+    [
+      'confirmarCaptura',
+      () => api.confirmarCaptura(7, { tipo: 1, serial_hex: '1A2B3C4', id_veiculo: 101 }),
+      `${base}/7/captura/confirmar`,
+      { tipo: 1, serial_hex: '1A2B3C4', id_veiculo: 101 },
+    ],
+    [
+      'cadastrarPorCodigo',
+      () => api.cadastrarPorCodigo(7, { id_veiculo: 101, tipo: 3, codigo_impresso: '015 02158' }),
+      `${base}/7/dispositivos`,
+      { id_veiculo: 101, tipo: 3, codigo_impresso: '015 02158' },
+    ],
+  ] as const)('%s → POST %s', (_nome, chamar, url, corpo) => {
+    (chamar as () => any)().subscribe();
+    const req = http.expectOne(url);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(corpo);
+    req.flush({});
+  });
+
+  it('lerCaptura aceita a lista pura ou { recebidos }', () => {
+    const item = { tipo: 2, serial_hex: '0F086E', tem_contador: false, recebido_em: '2026-11-15T12:00:00Z' };
+    let a: any[] | undefined;
+    let b: any[] | undefined;
+    api.lerCaptura(7).subscribe((l) => (a = l));
+    http.expectOne(`${base}/7/captura`).flush([item]);
+    api.lerCaptura(7).subscribe((l) => (b = l));
+    http.expectOne(`${base}/7/captura`).flush({ recebidos: [item, { lixo: true }] });
+    expect(a).toEqual([item]);
+    expect(b).toEqual([item]);
+  });
+
   it('criarPortao e atualizarPortao mandam o portão inteiro', () => {
     const dto = { nome: 'Garagem entrada', tipo_receptor: 1, num_receptor: 2, botao: 1, rele: 3, sentido: 'entrada' };
     api.criarPortao(7, dto).subscribe();

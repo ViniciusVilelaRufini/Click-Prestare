@@ -1,12 +1,22 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Observable, catchError, forkJoin, of } from 'rxjs';
 import { VeiculosApi, Tag, VeiculoComMorador } from '../moradores/veiculos.service';
 import { Morador, MoradoresApi } from '../moradores/moradores.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 import { EnrollCaptureComponent } from '../shared/enroll-capture.component';
 import { AuthService } from '../auth/auth.service';
+import {
+  CamposGuaritaDaTag,
+  GuaritaDevice,
+  GuaritaDispositivo,
+  GuaritaService,
+  ROTULO_TIPO_GUARITA,
+  rotuloEstadoGuarita,
+} from '../guarita/guarita.service';
+import { GuaritaCapturaComponent } from '../guarita/guarita-captura.component';
 
 /** Mensagem de erro da API (texto ou lista do class-validator), ou o padrão. */
 function mensagemDaApi(e: any, padrao: string): string {
@@ -18,7 +28,7 @@ function mensagemDaApi(e: any, padrao: string): string {
 @Component({
   selector: 'app-veiculos-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, SlideIndicatorDirective, EnrollCaptureComponent],
+  imports: [CommonModule, FormsModule, SlideIndicatorDirective, EnrollCaptureComponent, GuaritaCapturaComponent],
   templateUrl: './veiculos-page.component.html',
 })
 export class VeiculosPageComponent implements OnInit {
@@ -26,11 +36,12 @@ export class VeiculosPageComponent implements OnInit {
   private moradoresApi = inject(MoradoresApi);
   private confirm = inject(ConfirmService);
   private auth = inject(AuthService);
+  private guaritaApi = inject(GuaritaService);
 
   /** Condomínio do operador — o leitor de captura é escolhido entre os dele. */
   idCondominioAtual = () => this.auth.porteiroInfo()?.id_condominio ?? null;
 
-  readonly tab = signal<'veiculos' | 'tags'>('veiculos');
+  readonly tab = signal<'veiculos' | 'tags' | 'a_vincular'>('veiculos');
   readonly loading = signal(true);
   readonly veiculos = signal<VeiculoComMorador[]>([]);
   /** Todas as tags do condomínio, inclusive as bloqueadas. */
@@ -53,6 +64,7 @@ export class VeiculosPageComponent implements OnInit {
 
   ngOnInit() {
     this.carregar();
+    this.carregarGuarita();
   }
 
   carregar() {
@@ -328,5 +340,167 @@ export class VeiculosPageComponent implements OnInit {
 
   tagBloqueada(v: VeiculoComMorador): boolean {
     return this.tagDoVeiculo(v)?.ativo === 0;
+  }
+
+  // ===================== Módulo Guarita (só com aparelho do tipo guarita) =====================
+
+  /** Guaritas ativos do condomínio. Vazio = a tela é exatamente a de sempre. */
+  readonly guaritas = signal<GuaritaDevice[]>([]);
+  readonly temGuarita = computed(() => this.guaritas().length > 0);
+  /** Dispositivos do Guarita conhecidos pelo Prestare (de todos os Guaritas). */
+  readonly dispositivosGuarita = signal<GuaritaDispositivo[]>([]);
+  readonly aVincular = computed(() => this.dispositivosGuarita().filter((d) => d.guarita_estado === 'a_vincular'));
+  readonly rotuloTipoGuarita = ROTULO_TIPO_GUARITA;
+  /** Tag com aprovar/recusar/vincular em andamento (um clique = uma chamada). */
+  readonly guaritaEmAcao = signal<number | null>(null);
+  readonly erroGuarita = signal<string | null>(null);
+  /** Veículo escolhido para cada item "a vincular" (id da tag → id do veículo). */
+  vinculoEscolhido: Record<number, number | null> = {};
+  /** Veículo com o cadastro de controle/tag aberto. */
+  readonly capturaVeiculo = signal<VeiculoComMorador | null>(null);
+
+  carregarGuarita() {
+    this.guaritaApi.listarGuaritas().subscribe((lista) => {
+      this.guaritas.set(lista);
+      this.carregarDispositivosGuarita();
+    });
+  }
+
+  private carregarDispositivosGuarita() {
+    const lista = this.guaritas();
+    if (!lista.length) {
+      this.dispositivosGuarita.set([]);
+      return;
+    }
+    // Rota ausente (API antiga) ou falha num Guarita = lista vazia daquele Guarita, sem erro na tela.
+    forkJoin(
+      lista.map((g) => this.guaritaApi.dispositivos(g.id).pipe(catchError(() => of([] as GuaritaDispositivo[])))),
+    ).subscribe((partes) => this.dispositivosGuarita.set(partes.flat()));
+  }
+
+  private recarregarTudo() {
+    this.carregar();
+    this.carregarDispositivosGuarita();
+  }
+
+  private dispositivoDaTag(idTag: number | null | undefined): GuaritaDispositivo | undefined {
+    if (!idTag) return undefined;
+    return this.dispositivosGuarita().find((d) => d.id === idTag);
+  }
+
+  /** Estado do veículo no Guarita: da lista do Guarita ou, na falta dela, da própria tag. */
+  private estadoGuaritaDoVeiculo(v: VeiculoComMorador): { estado: string; erro: string | null } | null {
+    if (!this.temGuarita() || !v.id_tag) return null;
+    const d = this.dispositivoDaTag(v.id_tag);
+    const t = this.tagDoVeiculo(v) as (Tag & CamposGuaritaDaTag) | null;
+    const estado = d?.guarita_estado ?? t?.guarita_estado ?? null;
+    if (!estado) return null;
+    return { estado, erro: d?.guarita_erro ?? t?.guarita_erro ?? null };
+  }
+
+  seloGuarita(v: VeiculoComMorador): { texto: string; dot: string } | null {
+    const e = this.estadoGuaritaDoVeiculo(v);
+    return e ? rotuloEstadoGuarita(e.estado, e.erro) : null;
+  }
+
+  aguardandoAprovacao(v: VeiculoComMorador): boolean {
+    return this.estadoGuaritaDoVeiculo(v)?.estado === 'aguardando_aprovacao';
+  }
+
+  /** De qual Guarita é a tag: da lista do Guarita, da coluna da tag ou o único do condomínio. */
+  private guaritaDaTag(idTag: number): number | null {
+    const d = this.dispositivoDaTag(idTag);
+    if (d) return d.id_device;
+    const t = this.tags().find((x) => x.id === idTag) as (Tag & CamposGuaritaDaTag) | undefined;
+    if (t?.id_device) return t.id_device;
+    const lista = this.guaritas();
+    return lista.length === 1 ? lista[0].id : null;
+  }
+
+  async aprovarTag(v: VeiculoComMorador) {
+    const idTag = v.id_tag;
+    if (!idTag || this.guaritaEmAcao() !== null) return;
+    const deviceId = this.guaritaDaTag(idTag);
+    if (deviceId == null) {
+      this.erroGuarita.set('Não foi possível saber de qual Guarita é esta tag.');
+      return;
+    }
+    const ok = await this.confirm.ask({
+      title: 'Aprovar tag',
+      message: `A tag do veículo ${v.placa} será gravada no Guarita e passará a abrir os portões.`,
+      confirmLabel: 'Aprovar',
+      variant: 'primary',
+    });
+    if (!ok || this.guaritaEmAcao() !== null) return;
+    this.executarNoGuarita(idTag, this.guaritaApi.aprovar(deviceId, idTag), 'Não foi possível aprovar a tag.');
+  }
+
+  async recusarTag(v: VeiculoComMorador) {
+    const idTag = v.id_tag;
+    if (!idTag || this.guaritaEmAcao() !== null) return;
+    const deviceId = this.guaritaDaTag(idTag);
+    if (deviceId == null) {
+      this.erroGuarita.set('Não foi possível saber de qual Guarita é esta tag.');
+      return;
+    }
+    const ok = await this.confirm.ask({
+      title: 'Recusar tag',
+      message: `O vínculo da tag com o veículo ${v.placa} será desfeito. Nada é gravado no Guarita.`,
+      confirmLabel: 'Recusar',
+      variant: 'danger',
+    });
+    if (!ok || this.guaritaEmAcao() !== null) return;
+    this.executarNoGuarita(idTag, this.guaritaApi.recusar(deviceId, idTag), 'Não foi possível recusar a tag.');
+  }
+
+  vincularDispositivo(d: GuaritaDispositivo) {
+    if (this.guaritaEmAcao() !== null) return;
+    const idVeiculo = this.vinculoEscolhido[d.id];
+    if (!idVeiculo) {
+      this.erroGuarita.set('Escolha o veículo para vincular.');
+      return;
+    }
+    this.executarNoGuarita(
+      d.id,
+      this.guaritaApi.vincular(d.id_device, d.id, Number(idVeiculo)),
+      'Não foi possível vincular o dispositivo.',
+    );
+  }
+
+  private executarNoGuarita(idTag: number, req: Observable<unknown>, padrao: string) {
+    this.guaritaEmAcao.set(idTag);
+    this.erroGuarita.set(null);
+    req.subscribe({
+      next: () => {
+        this.guaritaEmAcao.set(null);
+        this.recarregarTudo();
+      },
+      error: (e) => {
+        this.guaritaEmAcao.set(null);
+        this.erroGuarita.set(mensagemDaApi(e, padrao));
+      },
+    });
+  }
+
+  abrirCapturaGuarita(v: VeiculoComMorador) {
+    this.erroGuarita.set(null);
+    this.capturaVeiculo.set(v);
+  }
+
+  fecharCapturaGuarita() {
+    this.capturaVeiculo.set(null);
+  }
+
+  onGuaritaCadastrado() {
+    this.capturaVeiculo.set(null);
+    this.recarregarTudo();
+  }
+
+  /** "Unidade 101 · Bloco A" do item a vincular (o que o Guarita tem gravado). */
+  unidadeDoDispositivo(d: GuaritaDispositivo): string {
+    const partes: string[] = [];
+    if (d.unidade != null && d.unidade !== '') partes.push(`Unidade ${d.unidade}`);
+    if (d.bloco) partes.push(`Bloco ${d.bloco}`);
+    return partes.join(' · ') || 'Sem unidade';
   }
 }

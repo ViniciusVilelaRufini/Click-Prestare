@@ -1,0 +1,116 @@
+<div class="ps-scrim on"></div>
+<div class="ps-drawer on" data-guarita-captura>
+  <div class="ps-drawer-head">
+    <h3 class="ps-h2">Cadastrar controle/tag</h3>
+    <button type="button" (click)="fechar.emit()" aria-label="Fechar cadastro de controle ou tag" class="ps-ibtn">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="ps-drawer-body">
+    <p class="text-sm">
+      Veículo <span class="font-mono font-semibold tracking-wider">{{ veiculo.placa }}</span>
+      @if (veiculo.morador?.nome) {
+        <span class="text-slate-500"> · {{ veiculo.morador?.nome }}</span>
+      }
+    </p>
+
+    @if (guaritas.length > 1) {
+      <div>
+        <label class="ps-label block mb-1.5" for="guarita-captura-device">Módulo Guarita</label>
+        <select id="guarita-captura-device"
+          [ngModel]="deviceId"
+          (ngModelChange)="trocarGuarita($event)"
+          [disabled]="janelaAberta()"
+          class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition"
+        >
+          @for (g of guaritas; track g.id) {
+            <option [ngValue]="g.id">{{ g.nome }}</option>
+          }
+        </select>
+      </div>
+    }
+
+    <div class="ps-seg" [psSlideIndicator]="'x'">
+      <span class="ps-seg-pill ps-slide-ind"></span>
+      <button type="button" (click)="trocarModo('aproximacao')" [class.on]="modo() === 'aproximacao'">Por aproximação</button>
+      <button type="button" (click)="trocarModo('codigo')" [class.on]="modo() === 'codigo'">Código impresso</button>
+    </div>
+
+    @if (modo() === 'aproximacao') {
+      <div class="space-y-3">
+        @if (janelaAberta()) {
+          <p data-guarita-contagem role="status" class="text-sm">
+            <span class="ps-tag"><span class="ps-dot ps-dot-ok ps-dot-pulse"></span>Ouvindo o Guarita · {{ segundos() }} s</span>
+          </p>
+        } @else if (abrindo()) {
+          <p class="text-xs text-slate-500">Abrindo a captura…</p>
+        } @else {
+          <button type="button" (click)="iniciarCaptura()" [disabled]="deviceId == null" class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">
+            {{ janelaUsada() ? 'Capturar de novo' : 'Começar captura' }}
+          </button>
+        }
+
+        @for (c of recebidos(); track c.tipo + '-' + c.serial_hex) {
+          <div data-guarita-capturado class="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-white/10">
+            <div class="min-w-0">
+              <p class="text-sm"><span class="font-semibold">{{ rotuloTipo[c.tipo] ?? 'Tipo ' + c.tipo }}</span> · <span class="font-mono">{{ c.serial_hex }}</span></p>
+              <p class="text-xs text-slate-500">{{ c.recebido_em | date: 'HH:mm:ss' }}</p>
+              @if (bloqueado(c)) {
+                <p class="text-xs text-[var(--signal-warn)] mt-0.5">Controle remoto sem contador: acione o controle de novo com o Guarita em Cadastro Rápido.</p>
+              }
+            </div>
+            <button type="button" (click)="usar(c)" [disabled]="bloqueado(c) || enviando()" class="ps-btn ps-btn-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">Usar este</button>
+          </div>
+        } @empty {
+          @if (janelaUsada()) {
+            <p data-guarita-orientacao class="text-xs text-slate-500">{{ orientacao }}.</p>
+          }
+        }
+        @if (recebidos().length > 1) {
+          <p class="text-xs text-slate-500">Chegou mais de um dispositivo: escolha o deste veículo.</p>
+        }
+      </div>
+    } @else {
+      <div class="space-y-3">
+        <div>
+          <label class="ps-label block mb-1.5" for="guarita-codigo-tipo">Tipo</label>
+          <select id="guarita-codigo-tipo" name="codigo_tipo"
+            [(ngModel)]="codigoTipo"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition"
+          >
+            @for (t of tiposPorCodigo; track t) {
+              <option [ngValue]="t">{{ rotuloTipo[t] }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="ps-label block mb-1.5" for="guarita-codigo-impresso">Código impresso</label>
+          <input id="guarita-codigo-impresso" name="codigo_impresso"
+            [(ngModel)]="codigoImpresso"
+            type="text"
+            autocomplete="off"
+            placeholder="015 02158"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:outline-none focus:border-accent transition placeholder:text-slate-600"
+          />
+          <p class="text-xs text-slate-500 mt-1.5">Como está impresso na TAG ou no cartão (ex.: W: 015 02158). Controle remoto só por aproximação.</p>
+        </div>
+      </div>
+    }
+
+    @if (erro(); as e) {
+      <div role="alert" class="p-3 border border-[var(--line-200)] text-xs text-[var(--signal-danger)]">{{ e }}</div>
+    }
+  </div>
+
+  <div class="ps-drawer-foot">
+    <button type="button" (click)="fechar.emit()" class="ps-btn ps-btn-sec">Cancelar</button>
+    @if (modo() === 'codigo') {
+      <button type="button" (click)="cadastrarPorCodigo()" [disabled]="enviando()" class="ps-btn disabled:opacity-50 disabled:cursor-not-allowed">
+        {{ enviando() ? 'Enviando...' : 'Cadastrar no Guarita' }}
+      </button>
+    }
+  </div>
+</div>

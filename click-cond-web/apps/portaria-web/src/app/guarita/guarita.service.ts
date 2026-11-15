@@ -25,14 +25,14 @@ export const LIMITE_DELTA_RELOGIO_S = 120;
 
 /** Tipos de dispositivo do Guarita: 1 RF (controle), 2 TA, 3 CT (cartão), 6 TP. */
 export type GuaritaTipo = 1 | 2 | 3 | 6;
-export const ROTULO_TIPO_GUARITA: Record<number, string> = {
+export const ROTULO_TIPO_GUARITA: { readonly [tipo: number]: string | undefined } = {
   1: 'Controle remoto',
   2: 'TAG ativo',
   3: 'Cartão',
   6: 'TAG passivo',
 };
 /** Sigla curta usada no visor do Guarita e no histórico. */
-export const SIGLA_TIPO_GUARITA: Record<number, string> = { 1: 'RF', 2: 'TA', 3: 'CT', 6: 'TP' };
+export const SIGLA_TIPO_GUARITA: { readonly [tipo: number]: string | undefined } = { 1: 'RF', 2: 'TA', 3: 'CT', 6: 'TP' };
 
 /** O aparelho do tipo `guarita`, como vem de `GET /facial/devices`. */
 export interface GuaritaDevice {
@@ -110,6 +110,90 @@ export interface GuaritaPortao {
 
 export type GuaritaPortaoDto = Omit<GuaritaPortao, 'id'>;
 
+/** Estados da tag de Guarita (`Tags.guarita_estado`). */
+export type GuaritaEstadoTag =
+  | 'aguardando_aprovacao'
+  | 'pendente'
+  | 'gravado'
+  | 'ativo'
+  | 'falhou'
+  | 'a_vincular'
+  | 'removendo';
+
+/**
+ * Campos de Guarita que a tag pode trazer em `GET condominios/:id/tags` e no
+ * `tag` de `GET condominios/:id/veiculos` (colunas novas de `Tags`, Task B1).
+ * Todos opcionais: API antiga não manda nada e a tela fica como sempre.
+ */
+export interface CamposGuaritaDaTag {
+  id_device?: number | null;
+  guarita_tipo?: number | null;
+  guarita_serial?: string | null;
+  guarita_estado?: string | null;
+  guarita_erro?: string | null;
+}
+
+/** Item de `GET …/:deviceId/dispositivos?estado=` (Task B3). */
+export interface GuaritaDispositivo {
+  /** Id da `Tags` (a API pode chamá-lo `id` ou `id_tag`; o serviço normaliza para `id`). */
+  id: number;
+  /** Device de onde a lista veio (preenchido pelo serviço). */
+  id_device: number;
+  codigo?: string | null;
+  guarita_tipo: number | null;
+  guarita_serial: string | null;
+  guarita_estado: string | null;
+  guarita_erro?: string | null;
+  unidade?: number | string | null;
+  bloco?: string | null;
+  id_apto?: number | null;
+  apartamento?: string | null;
+  id_veiculo?: number | null;
+  placa?: string | null;
+  rotulo?: string | null;
+  morador_nome?: string | null;
+}
+
+/** Item de `GET …/:deviceId/captura` (Task B6). */
+export interface GuaritaCapturado {
+  tipo: number;
+  serial_hex: string;
+  tem_contador: boolean;
+  recebido_em: string;
+}
+
+/** Selo do estado no Guarita; null = sem selo (estado ausente ou desconhecido). */
+export function rotuloEstadoGuarita(
+  estado: string | null | undefined,
+  erro?: string | null,
+): { texto: string; dot: string } | null {
+  switch (estado) {
+    case 'aguardando_aprovacao':
+      return { texto: 'Aguardando aprovação', dot: 'ps-dot-warn' };
+    case 'pendente':
+      return { texto: 'Pendente', dot: 'ps-dot-warn' };
+    case 'gravado':
+      return { texto: 'Gravado no Guarita', dot: 'ps-dot-ink' };
+    case 'ativo':
+      return { texto: 'Ativo nos portões', dot: 'ps-dot-ok' };
+    case 'falhou': {
+      const motivo = (erro ?? '').trim();
+      return { texto: motivo ? `Falhou: ${motivo}` : 'Falhou', dot: 'ps-dot-danger' };
+    }
+    case 'removendo':
+      return { texto: 'Removendo', dot: 'ps-dot-warn' };
+    case 'a_vincular':
+      return { texto: 'A vincular', dot: 'ps-dot-warn' };
+    default:
+      return null;
+  }
+}
+
+/** Controle remoto (RF) sem contador não pode ser gravado: o Guarita exige o contador. */
+export function capturadoBloqueado(c: Pick<GuaritaCapturado, 'tipo' | 'tem_contador'>): boolean {
+  return Number(c.tipo) === 1 && c.tem_contador !== true;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GuaritaService {
   private http = inject(HttpClient);
@@ -184,6 +268,70 @@ export class GuaritaService {
 
   removerPortao(deviceId: number, idPortao: number): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.dev(deviceId)}/portoes/${idPortao}`);
+  }
+
+  // ===================== Veículos (Task C2) =====================
+
+  /** Dispositivos do Guarita conhecidos pelo Prestare; `estado` filtra (ex.: 'a_vincular'). */
+  dispositivos(deviceId: number, estado?: string): Observable<GuaritaDispositivo[]> {
+    let params = new HttpParams();
+    if (estado) params = params.set('estado', estado);
+    return this.http.get<any[]>(`${this.dev(deviceId)}/dispositivos`, { params }).pipe(
+      map((lista) =>
+        (Array.isArray(lista) ? lista : [])
+          .map((d) => ({ ...d, id: Number(d?.id_tag ?? d?.id), id_device: deviceId }) as GuaritaDispositivo)
+          .filter((d) => Number.isFinite(d.id)),
+      ),
+    );
+  }
+
+  vincular(deviceId: number, idTag: number, idVeiculo: number): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/vincular`, { id_veiculo: idVeiculo });
+  }
+
+  /** Tag vinculada pelo morador no app: aprovar enfileira a gravação no Guarita. */
+  aprovar(deviceId: number, idTag: number): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/aprovar`, {});
+  }
+
+  /** Recusar desfaz o vínculo; nada é gravado no Guarita. */
+  recusar(deviceId: number, idTag: number): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/recusar`, {});
+  }
+
+  /** Abre a janela de 60 s de captura ("dispositivo não cadastrado") para um veículo. */
+  abrirCaptura(deviceId: number, idVeiculo: number): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/captura`, { id_veiculo: idVeiculo });
+  }
+
+  /** O que chegou na janela de captura (aceita a lista pura ou `{ recebidos: [...] }`). */
+  lerCaptura(deviceId: number): Observable<GuaritaCapturado[]> {
+    return this.http.get<unknown>(`${this.dev(deviceId)}/captura`).pipe(
+      map((r: any) => {
+        const lista = Array.isArray(r) ? r : Array.isArray(r?.recebidos) ? r.recebidos : [];
+        return lista.filter((c: any) => c && typeof c.serial_hex === 'string') as GuaritaCapturado[];
+      }),
+    );
+  }
+
+  /**
+   * Confirma um serial capturado: a API cria a tag e enfileira o cadastro.
+   * `id_veiculo` vai junto por segurança (a janela já o conhece; campo a mais
+   * é descartado pelo whitelist da API).
+   */
+  confirmarCaptura(
+    deviceId: number,
+    dto: { tipo: number; serial_hex: string; id_veiculo: number },
+  ): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/captura/confirmar`, dto);
+  }
+
+  /** TAG ativo (2), cartão (3) ou TAG passivo (6) pelo código impresso (ex.: "015 02158"). */
+  cadastrarPorCodigo(
+    deviceId: number,
+    dto: { id_veiculo: number; tipo: 2 | 3 | 6; codigo_impresso: string },
+  ): Observable<unknown> {
+    return this.http.post(`${this.dev(deviceId)}/dispositivos`, dto);
   }
 }
 
