@@ -1,4 +1,11 @@
-import { AUTORIZACAO_EXPIRACAO_MS, TOLERANCIA_JANELA_MS } from '../visitantes/visitantes.service';
+import { AUTORIZACAO_EXPIRACAO_MS } from '../visitantes/visitantes.service';
+
+/**
+ * Tolerância após o fim da janela — a mesma do terminal facial e do Validar
+ * PIN (API: `TOLERANCIA_JANELA_MS` em common/janela-visita.ts). Única cópia no
+ * front: a tela e o painel leem a regra daqui (`janelaEncerrada`).
+ */
+export const TOLERANCIA_JANELA_MS = 15 * 60 * 1000;
 
 /**
  * Status de uma visita/pessoa, em funções puras: a tela de Visitantes
