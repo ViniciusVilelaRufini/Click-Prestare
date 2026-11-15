@@ -50,8 +50,9 @@ export function ajusteMenorDeIdade(
 }
 
 /**
- * Confirmação do "Enviar Acesso". A API gera uma senha nova e a grava na conta: para quem já usa o
- * app, a senha atual deixa de valer e todas as sessões caem. O operador precisa saber disso antes.
+ * Confirmação do "Enviar Acesso". Para quem já usa o app, a API não troca a senha: manda o link do
+ * "Esqueci a senha" para o e-mail de acesso da conta (a senha atual e as sessões continuam valendo).
+ * Sem conta, segue a senha inicial.
  */
 export function confirmacaoEnviarAcesso(m: { email: string | null; tem_conta_app?: boolean }): {
   title: string;
@@ -61,10 +62,10 @@ export function confirmacaoEnviarAcesso(m: { email: string | null; tem_conta_app
 } {
   if (m.tem_conta_app) {
     return {
-      title: 'Gerar nova senha do app',
-      message: `Este morador já tem acesso ao app. Uma senha nova será gerada e enviada para ${m.email}: a senha atual deixa de funcionar e ele sai do app em todos os aparelhos. Se ele só esqueceu a senha, peça que use "Esqueci a senha" no app.`,
-      confirmLabel: 'Gerar e enviar',
-      variant: 'danger',
+      title: 'Enviar link para nova senha',
+      message: 'Este morador já tem acesso ao app: enviaremos um link para o morador definir uma nova senha, no e-mail que ele usa para entrar. A senha atual continua valendo até ele trocar. O link vale por 30 minutos.',
+      confirmLabel: 'Enviar link',
+      variant: 'primary',
     };
   }
   return {

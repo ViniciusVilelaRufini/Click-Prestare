@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
 import { VeiculosApi, Veiculo, Tag, CreateVeiculo } from './veiculos.service';
 import { OriginalEdicaoMorador, ajusteMenorDeIdade, confirmacaoEnviarAcesso, payloadCadastroMorador, payloadEdicaoMorador } from './edicao-morador';
+import { dataNascimentoDaPlanilha, temDataNascimento } from './importacao-morador';
 import { ActivatedRoute } from '@angular/router';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
@@ -20,6 +21,9 @@ import { MaskDocPipe } from '../shared/mask-doc.pipe';
 import { SlideIndicatorDirective } from '../shared/slide-indicator.directive';
 
 declare var require: any;
+
+/** Chave do filtro "Sem data de nascimento" (fica no mesmo seletor dos tipos). */
+const FILTRO_SEM_NASCIMENTO = 'sem_nascimento';
 
 @Component({
   selector: 'app-moradores-page',
@@ -183,6 +187,8 @@ export class MoradoresPageComponent implements OnInit {
   readonly moradoresPorTipo = computed(() => {
     const t = this.filtroTipo();
     if (!t) return this.moradores();
+    // Implantação: quem ainda não tem a data não recebe o acesso ao app (nem rosto nos terminais).
+    if (t === FILTRO_SEM_NASCIMENTO) return this.moradores().filter((m) => !m.data_nascimento);
     return this.moradores().filter((m) => this.normalizeTipo(m.tipo) === t);
   });
 
@@ -209,8 +215,11 @@ export class MoradoresPageComponent implements OnInit {
       proprietarios: list.filter((m) => this.normalizeTipo(m.tipo) === 'proprietario').length,
       inquilinos: list.filter((m) => this.normalizeTipo(m.tipo) === 'inquilino').length,
       dependentes: list.filter((m) => this.normalizeTipo(m.tipo) === 'dependente').length,
+      semNascimento: list.filter((m) => !m.data_nascimento).length,
     };
   });
+
+  readonly filtroSemNascimento = FILTRO_SEM_NASCIMENTO;
 
   novo: CreateMorador = this.estadoInicial();
   dataNascimentoMasked = '';
@@ -695,7 +704,11 @@ export class MoradoresPageComponent implements OnInit {
       this.toast.warning('Este morador não possui e-mail cadastrado.');
       return;
     }
-    // Mesma recusa da API (Cláusula 8.3): menor não recebe acesso ao app.
+    // Mesmas recusas da API (Cláusula 8.3): sem a data não há como saber a idade; menor não recebe acesso ao app.
+    if (!m.data_nascimento) {
+      this.toast.warning('Informe a data de nascimento do morador antes de enviar o acesso.');
+      return;
+    }
     if (this.isMenorDeIdade(m.data_nascimento)) {
       this.toast.warning('Este morador é menor de 18 anos e não recebe acesso ao app. O acesso do menor é pelo responsável.');
       return;
@@ -703,7 +716,8 @@ export class MoradoresPageComponent implements OnInit {
     const ok = await this.confirm.ask(confirmacaoEnviarAcesso(m));
     if (!ok) return;
     this.api.sendCredentials(m.id).subscribe({
-      next: () => this.toast.success('Credenciais enviadas com sucesso!'),
+      // A API diz o que fez: link para nova senha (conta que já tem senha) ou senha inicial.
+      next: (r) => this.toast.success(r?.message ?? 'Acesso enviado.'),
       error: (e) => this.toast.error(e?.error?.message ?? e?.message ?? 'Houve um erro ao enviar as credenciais.'),
     });
   }
@@ -886,7 +900,8 @@ export class MoradoresPageComponent implements OnInit {
   showBulkModal = false;
   bulkLinhas = signal<any[]>([]);
   bulkStatus = signal<'idle' | 'reading' | 'ready' | 'uploading' | 'done'>('idle');
-  bulkResult = signal<{ total?: number; criados?: any[]; erros?: { nome: string; erro: string }[] }>({});
+  bulkResult = signal<{ total?: number; criados?: any[]; erros?: { nome: string; erro: string }[]; sem_acesso?: { nome: string; motivo: string }[] }>({});
+  readonly temDataNascimento = temDataNascimento;
 
   downloadTemplate() {
     try {
@@ -990,9 +1005,9 @@ export class MoradoresPageComponent implements OnInit {
                   quadra: cols[4] || '',
                   lote: cols[5] || '',
                   tipo: cols[6] || 'proprietario',
-                  data_nascimento: cols[7] || '',
-                  // Sem e-mail não há conta a criar nem credencial a enviar.
-                  sendCredentials: !!(cols[2] || '').trim(),
+                  data_nascimento: dataNascimentoDaPlanilha(cols[7]),
+                  // Sem e-mail não há conta a criar; sem a data, o morador entra sem acesso ao app.
+                  sendCredentials: !!(cols[2] || '').trim() && temDataNascimento(dataNascimentoDaPlanilha(cols[7])),
                 });
               }
             }
@@ -1014,6 +1029,8 @@ export class MoradoresPageComponent implements OnInit {
                   row['Data Nasc'] ||
                   row['data_nascimento'] ||
                   '';
+                // Célula de data do Excel chega como número de série: vira AAAA-MM-DD aqui.
+                const dataIso = dataNascimentoDaPlanilha(dataNasc);
                 linhas.push({
                   nome,
                   documento: row['Documento'] || row['CPF'] || '',
@@ -1022,8 +1039,8 @@ export class MoradoresPageComponent implements OnInit {
                   quadra: row['Quadra/Bloco'] || row['Quadra'] || row['Bloco'] || '',
                   lote: row['Lote/Apto'] || row['Lote'] || row['Apto'] || '',
                   tipo: row['Vínculo'] || row['Tipo'] || 'proprietario',
-                  data_nascimento: dataNasc ? String(dataNasc).trim() : '',
-                  sendCredentials: !!String(row['E-mail'] || row['Email'] || row['email'] || '').trim(),
+                  data_nascimento: dataIso,
+                  sendCredentials: !!String(row['E-mail'] || row['Email'] || row['email'] || '').trim() && temDataNascimento(dataIso),
                 });
               }
             });
@@ -1053,8 +1070,8 @@ export class MoradoresPageComponent implements OnInit {
         this.bulkResult.set(res);
         this.carregar();
       },
-      error: () => {
-        this.toast.error('Erro ao importar em lote');
+      error: (e) => {
+        this.toast.error(e?.error?.message ?? e?.message ?? 'Erro ao importar em lote');
         this.bulkStatus.set('ready');
       },
     });

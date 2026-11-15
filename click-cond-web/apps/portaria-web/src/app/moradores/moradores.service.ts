@@ -97,8 +97,9 @@ export class MoradoresApi {
     return this.http.delete<{ ok: boolean }>(`${this.base}/${id}`);
   }
 
-  sendCredentials(id: number): Observable<{ ok: boolean }> {
-    return this.http.post<{ ok: boolean }>(`${this.base}/${id}/send-credentials`, {});
+  /** `modo`: 'link' (conta que já tem senha recebe o link para definir outra) ou 'senha' (senha inicial). */
+  sendCredentials(id: number): Observable<{ ok: boolean; modo?: 'link' | 'senha'; message?: string }> {
+    return this.http.post<{ ok: boolean; modo?: 'link' | 'senha'; message?: string }>(`${this.base}/${id}/send-credentials`, {});
   }
 
   // A rota mora em consentimentos (consentimentos.controller.ts), não em moradores.
@@ -133,8 +134,9 @@ export class MoradoresApi {
     return this.http.get<{ base64: string; filename: string }>(`${this.base}/export-excel`, { params });
   }
 
-  importBulk(linhas: any[]): Observable<{ ok: boolean; total: number; criados: any[]; erros?: { nome: string; erro: string }[] }> {
-    return this.http.post<{ ok: boolean; total: number; criados: any[]; erros?: { nome: string; erro: string }[] }>(`${this.base}/import-bulk`, { linhas });
+  /** `sem_acesso`: linhas importadas sem acesso ao app (com e-mail e sem data de nascimento). */
+  importBulk(linhas: any[]): Observable<ResultadoImportacao> {
+    return this.http.post<ResultadoImportacao>(`${this.base}/import-bulk`, { linhas });
   }
 
   // Síndicos do condomínio (para vincular um deles como morador).
@@ -146,6 +148,14 @@ export class MoradoresApi {
   linkUser(dto: { id_user: number; id_apartamento: number; tipo?: string }): Observable<any> {
     return this.http.post(`${this.base}/link-user`, dto);
   }
+}
+
+export interface ResultadoImportacao {
+  ok: boolean;
+  total: number;
+  criados: any[];
+  erros?: { nome: string; erro: string }[];
+  sem_acesso?: { nome: string; motivo: string }[];
 }
 
 export interface SindicoOption {

@@ -119,12 +119,13 @@ describe('ajusteMenorDeIdade (B4)', () => {
   });
 });
 
-describe('confirmacaoEnviarAcesso (M5)', () => {
-  it('quem já tem conta no app é avisado de que a senha atual cai e as sessões saem', () => {
+describe('confirmacaoEnviarAcesso (M5, rodada 4)', () => {
+  it('quem já tem conta no app recebe o link para definir uma nova senha; a senha atual não cai', () => {
     const c = confirmacaoEnviarAcesso({ email: 'a@x.com', tem_conta_app: true });
-    expect(c.message).toContain('senha atual deixa de funcionar');
-    expect(c.message).toContain('todos os aparelhos');
-    expect(c.variant).toBe('danger');
+    expect(c.message).toContain('enviaremos um link para o morador definir uma nova senha');
+    expect(c.message).not.toContain('deixa de funcionar');
+    expect(c.confirmLabel).toBe('Enviar link');
+    expect(c.variant).toBe('primary');
   });
 
   it('sem conta, segue o texto da senha inicial', () => {
