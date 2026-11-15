@@ -61,6 +61,8 @@ const CODIGO_DO_GUARITA = /^G[1236]-[0-9A-F]+(-D\d+)?$/;
 const TIPOS_GRAVACAO: string[] = [...OPERACOES_DE_GRAVACAO];
 const TIPOS_LEITURA: string[] = [...OPERACOES_DE_LEITURA];
 const ABERTAS = [ESTADO_OP.pendente, ESTADO_OP.enviada];
+/** Estados de remoção: só se sai deles por remoção confirmada ou por "desfazer" (F1). */
+const EM_REMOCAO: string[] = [ESTADO_TAG.removendo, ESTADO_TAG.remocaoFalhou];
 
 /**
  * F2: `apagar` cujo frame guardado é o frame INTEIRO da unidade a conferir
@@ -953,25 +955,31 @@ export class GuaritaOperacoesService {
       return;
     }
 
+    // F1: tag em remoção não muda de estado (nem o texto da remoção) com o
+    // resultado de uma gravação; o ok só guarda o frame confirmado, para o
+    // próximo apagar conferir a unidade certa.
+    const emRemocao = EM_REMOCAO.includes(tag.guarita_estado ?? '');
     if (ok) {
       await this.prisma.tags.update({
         where: { id: tag.id },
         data: {
           guarita_frame: frameConfirmado,
           guarita_em: agora,
-          guarita_erro: null,
-          ...(maisNova === 0 && { guarita_estado: ESTADO_TAG.gravado }),
+          ...(!emRemocao && { guarita_erro: null }),
+          ...(maisNova === 0 && !emRemocao && { guarita_estado: ESTADO_TAG.gravado }),
         },
       });
       return;
     }
-    await this.prisma.tags.update({
-      where: { id: tag.id },
-      data: {
-        guarita_erro: String(mensagem).slice(0, 255),
-        ...(maisNova === 0 && { guarita_estado: ESTADO_TAG.falhou }),
-      },
-    });
+    if (!emRemocao) {
+      await this.prisma.tags.update({
+        where: { id: tag.id },
+        data: {
+          guarita_erro: String(mensagem).slice(0, 255),
+          ...(maisNova === 0 && { guarita_estado: ESTADO_TAG.falhou }),
+        },
+      });
+    }
     // Cadastro que não deu ok: a edição seguinte desta tag ainda na fila não
     // tem o que editar e é cancelada. O `apagar` fica (F2: o cadastro foi
     // entregue, o Prestare pode ter escrito; o agente só apaga se bater a unidade).
@@ -1004,14 +1012,16 @@ export class GuaritaOperacoesService {
       where: { id_tag: tag.id, tipo: op.tipo, estado: ESTADO_OP.falhou, ...(op.tipo === 'apagar' ? {} : { erro: MSG_INCERTO }) },
     });
     if (op.tipo === 'cadastrar') {
-      const saindo = tag.guarita_estado === ESTADO_TAG.removendo;
+      const saindo = EM_REMOCAO.includes(tag.guarita_estado ?? '');
       // Segundo incerto do mesmo cadastro: não há nova tentativa sozinha; a tela diz o que fazer.
       const texto = tentativas >= 2 ? MSG_INCERTO_CONFERIR : MSG_INCERTO;
+      // Saindo: estado e texto da remoção ficam; o apagar já na fila confere a unidade (F1/F2).
+      if (saindo) return;
       await this.prisma.tags.update({
         where: { id: tag.id },
-        data: { guarita_erro: texto, ...(!saindo && { guarita_estado: ESTADO_TAG.incerto }) },
+        data: { guarita_erro: texto, guarita_estado: ESTADO_TAG.incerto },
       });
-      if (!saindo && tentativas === 1 && op.frame_hex) {
+      if (tentativas === 1 && op.frame_hex) {
         await this.prisma.guarita_Operacoes.create({
           data: {
             id_condominio: tag.id_condominio,
@@ -1040,6 +1050,8 @@ export class GuaritaOperacoesService {
       }
       return;
     }
+    // editar: tag em remoção (ou fora da edição) não recebe a edição de novo (F1).
+    if (ESTADOS_SEM_EDICAO.includes(tag.guarita_estado ?? '')) return;
     await this.prisma.tags.update({ where: { id: tag.id }, data: { guarita_erro: MSG_INCERTO } });
     if (tentativas < MAX_TENTATIVAS_REMOCAO && op.frame_hex) {
       await this.criarGravacao(tag, 'editar', op.frame_hex, 'Nova tentativa de edição sem confirmação', tag.guarita_estado ?? ESTADO_TAG.pendente);
