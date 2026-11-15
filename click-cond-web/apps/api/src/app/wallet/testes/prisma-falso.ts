@@ -33,7 +33,7 @@ function casaValor(valor: any, cond: any): boolean {
 export function casa(linha: any, where: any): boolean {
   return Object.entries(where ?? {}).every(([k, v]) => {
     if (k === 'OR') return (v as any[]).some((w) => casa(linha, w));
-    if (k === 'credencial') return true; // filtro por relação: tratado por quem chama
+    if (k === 'credencial' || k === 'condominio') return true; // filtro por relação: tratado por quem chama
     if (v && typeof v === 'object' && !(v instanceof Date) && !('in' in v) && !('startsWith' in v) && !('gt' in v) && !('lt' in v) && !('not' in v)) {
       // chave composta (device_id_id_credencial)
       return casa(linha, v);

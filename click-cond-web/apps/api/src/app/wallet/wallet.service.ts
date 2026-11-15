@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleDestroy,
+  OnModuleInit,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -17,7 +18,8 @@ import { idUsuarioApp } from '../auth/usuario-app.guard';
 import { assertOperador } from '../auth/tenant.util';
 import { autorDoToken } from '../auth/usuario-do-token.util';
 import { decryptSecret, encryptSecret } from '../facial/device-secret.util';
-import { comLock } from '../common/lock-distribuido';
+import { comLock, executarComLock } from '../common/lock-distribuido';
+import { hojeBrasilia, horaBrasilia } from '../common/hora-brasilia.util';
 import { rotuloBloco } from '../common/rotulo-bloco.util';
 import { CredenciaisValidacaoService } from '../credenciais/credenciais-validacao.service';
 import { diaBrasiliaDe, gerarCodigo } from '../credenciais/codigo-dinamico.util';
@@ -35,6 +37,17 @@ export interface AvisoApple {
 }
 /** Avisos simultâneos ao APNs (uma sessão HTTP/2 multiplexa). */
 const AVISOS_EM_PARALELO = 20;
+/** Lote do UPDATE da troca diária. */
+const LOTE_MARCAR = 1000;
+
+/**
+ * Porta de calendário da troca diária: só na hora 0 de Brasília, uma vez por
+ * data (AAAA-MM-DD de Brasília). Fora dela, null (o job nem roda).
+ */
+export function cicloDoTickWallet(agora: Date = new Date()): string | null {
+  if (horaBrasilia(agora) !== 0) return null;
+  return hojeBrasilia(agora).toISOString().slice(0, 10);
+}
 
 const SEGREDO_HEX = /^[0-9a-f]{64}$/i;
 const ESPERA_LOCK_S = 5;
@@ -73,7 +86,7 @@ function rotuloUnidade(bloco: string | null | undefined, apartamento: string | n
  * JSON: só dentro do .pkpass entregue ao dono.
  */
 @Injectable()
-export class WalletService implements OnModuleDestroy {
+export class WalletService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WalletService.name);
   private readonly push: AvisoApple;
   private readonly avisosPendentes = new Set<Promise<unknown>>();
@@ -87,6 +100,27 @@ export class WalletService implements OnModuleDestroy {
     @Optional() @Inject(WALLET_APPLE_PUSH) push?: AvisoApple,
   ) {
     this.push = push ?? new ApplePassPushClient(() => this.chaves.apple());
+  }
+
+  /**
+   * Troca diária do código: tentativa 5 min depois do boot e de hora em hora,
+   * no padrão dos jobs do facial (GET_LOCK + cicloDeNegocio). Roda uma vez por
+   * dia no cluster, em algum minuto entre 00:00 e 00:59 de Brasília; a
+   * tolerância de um dia na validação cobre o atraso.
+   */
+  onModuleInit() {
+    if (process.env.NODE_ENV === 'test') return;
+    const tick = () =>
+      void executarComLock(
+        this.prisma as any,
+        'wallet:tickDiario',
+        async () => {
+          await this.tickDiario();
+        },
+        { cicloDeNegocio: () => cicloDoTickWallet() },
+      );
+    setTimeout(tick, 5 * 60 * 1000).unref?.();
+    setInterval(tick, 60 * 60 * 1000).unref?.();
   }
 
   onModuleDestroy() {
@@ -301,6 +335,43 @@ export class WalletService implements OnModuleDestroy {
     const aviso = this.avisarApple(ids);
     this.avisosPendentes.add(aviso);
     void aviso.finally(() => this.avisosPendentes.delete(aviso));
+  }
+
+  /**
+   * Marca os passes de carteira ativos dos condomínios com as duas opções
+   * ligadas e avisa os aparelhos da Apple; cada aparelho busca o passe com o
+   * código do dia. Sem chaves da Apple, só marca (o aviso sairia sem efeito).
+   * Lança só se o banco falhar ao ler ou marcar (o ciclo não é dado como
+   * feito e a hora seguinte tenta de novo); falha de aparelho não interrompe.
+   */
+  async tickDiario(agora: Date = new Date()): Promise<{ apple: number; google: number }> {
+    const p = this.prisma as any;
+    const creds: Array<{ id: number; origem: string }> = await p.credenciais_Acesso.findMany({
+      where: {
+        origem: { in: [...ORIGENS_WALLET] },
+        revogada_em: null,
+        condominio: { qr_app_habilitado: true, wallet_habilitado: true },
+      },
+      select: { id: true, origem: true },
+    });
+    const ids = creds.map((c) => c.id);
+    for (let i = 0; i < ids.length; i += LOTE_MARCAR) {
+      await p.credenciais_Acesso.updateMany({
+        where: { id: { in: ids.slice(i, i + LOTE_MARCAR) } },
+        data: { wallet_atualizado_em: agora },
+      });
+    }
+
+    const apple = creds.filter((c) => c.origem === 'wallet_apple').map((c) => c.id);
+    let avisadas = 0;
+    if (apple.length && (await this.chaves.apple())) {
+      const r = await this.avisarApple(apple);
+      avisadas = apple.length;
+      this.logger.log(
+        `Troca diária da carteira: ${apple.length} passe(s) da Apple, ${r.avisados} aviso(s), ${r.mortos} token(s) morto(s), ${r.falhas} falha(s)`,
+      );
+    }
+    return { apple: avisadas, google: 0 };
   }
 
   /** Espera os avisos em segundo plano (testes e desligamento). */
