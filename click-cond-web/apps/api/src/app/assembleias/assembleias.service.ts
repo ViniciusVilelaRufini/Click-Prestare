@@ -551,7 +551,12 @@ export class AssembleiasService {
     // Enquete aberta à comunidade avisa na criação. Pauta de assembleia não:
     // a convocação já avisou.
     if (isEnquete || !idAssembleia) {
-      this.avisarMoradores(Number(idCondominio), 'Nova enquete', `${titulo} — vote até ${dataDbBr(dFim)}`, {
+      // Início futuro: ainda não dá para votar, o texto não pode dizer "vote até".
+      const abreDepois = dIni.getTime() > hojeBrasilia().getTime();
+      const corpo = abreDepois
+        ? `Nova enquete publicada: ${titulo}. Abre em ${dataDbBr(dIni).slice(0, 5)}.`
+        : `${titulo} — vote até ${dataDbBr(dFim)}`;
+      this.avisarMoradores(Number(idCondominio), 'Nova enquete', corpo, {
         type: 'enquete',
         id: String(idVotacao ?? ''),
       });

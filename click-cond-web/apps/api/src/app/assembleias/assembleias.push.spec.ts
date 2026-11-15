@@ -134,6 +134,25 @@ describe('push ao abrir enquete', () => {
     );
   });
 
+  it('início futuro: texto neutro, sem "vote até"', async () => {
+    const { svc, push } = assembleias();
+    await svc.insertVotacao({ ...enquete, data_inicio: '10/01/2099', data_termino: '20/01/2099' }, 1, sindico);
+    await esvaziar();
+    expect(push.sendPushNotification).toHaveBeenCalledWith(
+      'tok-a', 'Nova enquete', 'Nova enquete publicada: Pintura da fachada. Abre em 10/01.', { type: 'enquete', id: '9' },
+    );
+  });
+
+  it('começa hoje: já pode votar', async () => {
+    const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
+    const { svc, push } = assembleias();
+    await svc.insertVotacao({ ...enquete, data_inicio: hoje, data_termino: '31/12/2099' }, 1, sindico);
+    await esvaziar();
+    expect(push.sendPushNotification).toHaveBeenCalledWith(
+      'tok-a', 'Nova enquete', 'Pintura da fachada — vote até 31/12/2099', expect.any(Object),
+    );
+  });
+
   it('pauta de assembleia não avisa (a convocação já avisou)', async () => {
     const { svc, push } = assembleias();
     await svc.insertVotacao({ ...enquete, is_enquete: false, id_assembleia: 5 }, 1, sindico);
@@ -151,7 +170,10 @@ describe('push ao abrir enquete', () => {
 
 describe('push ao publicar ATA', () => {
   it('finalizar assembleia publica a ATA e avisa uma vez (a apuração não gera outro push)', async () => {
+    // ATA e apuração com ids diferentes: o push leva o da ATA.
+    let proximoId = 62;
     const prisma = prismaBase({
+      documentos: { create: jest.fn(async ({ data }: any) => ({ id: proximoId++, ...data })) },
       votacoes: {
         findMany: jest.fn(async () => [{
           id: 10, id_condominio: 1, titulo: 'Contas', descricao: '',
@@ -171,6 +193,12 @@ describe('push ao publicar ATA', () => {
     expect(push.sendPushNotification).toHaveBeenCalledWith(
       'tok-a', 'ATA publicada', 'ATA AGO 2026 - 20/11/2026', { type: 'ata', id: '62' },
     );
+    const criados = await Promise.all(prisma.documentos.create.mock.results.map((r: any) => r.value));
+    expect(criados.map((d: any) => [d.id, d.nome])).toEqual([
+      [62, 'ATA AGO 2026 - 20/11/2026'],
+      [63, 'Apuração das pautas - ATA AGO 2026 - 20/11/2026'],
+    ]);
+    expect(push.sendPushNotification.mock.calls.every((c: any[]) => c[3].id === '62')).toBe(true);
   });
 
   it('finalização que falha não avisa', async () => {

@@ -399,10 +399,10 @@
           <button (click)="modalAssembleia.set(false)" class="ps-btn ps-btn-sec">Cancelar</button>
           <button
             (click)="salvarAssembleia()"
-            [disabled]="!novaAssembleia.titulo || !novaAssembleia.data"
+            [disabled]="!novaAssembleia.titulo || !novaAssembleia.data || salvandoAssembleia()"
             class="ps-btn disabled:opacity-50"
           >
-            Concluir Agendamento
+            {{ salvandoAssembleia() ? 'Salvando...' : 'Concluir Agendamento' }}
           </button>
         </div>
     </div>
@@ -544,10 +544,10 @@
           <button (click)="modalEnquete.set(false)" class="ps-btn ps-btn-sec">Cancelar</button>
           <button
             (click)="salvarVotacao()"
-            [disabled]="!novaVotacao.titulo || novaVotacao.opcoes[0] === ''"
+            [disabled]="!novaVotacao.titulo || novaVotacao.opcoes[0] === '' || salvandoVotacao()"
             class="ps-btn disabled:opacity-50"
           >
-            Confirmar Cadastro
+            {{ salvandoVotacao() ? 'Salvando...' : 'Confirmar Cadastro' }}
           </button>
         </div>
     </div>

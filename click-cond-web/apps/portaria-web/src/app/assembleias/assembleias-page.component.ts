@@ -63,6 +63,9 @@ export class AssembleiasPageComponent implements OnInit {
   // Finalizar: a ATA em PDF é obrigatória (a API recusa sem ela).
   readonly modalFinalizar = signal(false);
   readonly finalizando = signal(false);
+  /** Convocar / Nova enquete em andamento: trava o botão (duplo clique criava dois e avisava duas vezes). */
+  readonly salvandoAssembleia = signal(false);
+  readonly salvandoVotacao = signal(false);
   readonly erroAta = signal<string | null>(null);
   readonly ataNomeArquivo = signal('');
   ataBase64 = '';
@@ -225,13 +228,19 @@ export class AssembleiasPageComponent implements OnInit {
   }
 
   salvarAssembleia() {
+    if (this.salvandoAssembleia()) return;
+    this.salvandoAssembleia.set(true);
     this.erroAssembleia.set(null);
     this.api.insertAssembleia(this.novaAssembleia).subscribe({
       next: () => {
+        this.salvandoAssembleia.set(false);
         this.modalAssembleia.set(false);
         this.carregarGeral();
       },
-      error: (e) => this.erroAssembleia.set(msgErro(e, 'Não foi possível agendar. Confira os dados e tente novamente.')),
+      error: (e) => {
+        this.salvandoAssembleia.set(false);
+        this.erroAssembleia.set(msgErro(e, 'Não foi possível agendar. Confira os dados e tente novamente.'));
+      },
     });
   }
 
@@ -264,13 +273,16 @@ export class AssembleiasPageComponent implements OnInit {
   }
 
   salvarVotacao() {
+    if (this.salvandoVotacao()) return;
     // Filtra opções vazias
     const filtradas = this.novaVotacao.opcoes.filter((o: string) => o.trim() !== '');
     const payload = { ...this.novaVotacao, opcoes: filtradas };
 
     this.erroModal.set(null);
+    this.salvandoVotacao.set(true);
     this.api.insertVotacao(payload).subscribe({
       next: () => {
+        this.salvandoVotacao.set(false);
         this.modalEnquete.set(false);
         if (this.novaVotacao.id_assembleia) {
           this.verAssembleia(this.novaVotacao.id_assembleia);
@@ -278,7 +290,10 @@ export class AssembleiasPageComponent implements OnInit {
           this.carregarGeral();
         }
       },
-      error: (e) => this.erroModal.set(msgErro(e, 'Não foi possível salvar. Confira os dados e tente novamente.')),
+      error: (e) => {
+        this.salvandoVotacao.set(false);
+        this.erroModal.set(msgErro(e, 'Não foi possível salvar. Confira os dados e tente novamente.'));
+      },
     });
   }
 
