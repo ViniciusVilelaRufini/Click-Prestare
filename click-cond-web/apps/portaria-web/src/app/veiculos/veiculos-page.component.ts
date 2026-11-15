@@ -306,11 +306,14 @@ export class VeiculosPageComponent implements OnInit {
 
   async excluirTag(t: Tag) {
     const v = this.veiculoDaTag(t);
+    const doGuarita = this.tagNoGuarita(t)
+      ? ' O dispositivo também será apagado do Guarita e deixa de abrir o portão.'
+      : '';
     const ok = await this.confirm.ask({
       title: 'Excluir tag',
-      message: v
+      message: (v
         ? `A tag ${t.codigo} será excluída e o veículo de placa ${v.placa} ficará sem tag.`
-        : `A tag ${t.codigo} será excluída.`,
+        : `A tag ${t.codigo} será excluída.`) + doGuarita,
       confirmLabel: 'Excluir',
       variant: 'danger',
     });
@@ -398,6 +401,64 @@ export class VeiculosPageComponent implements OnInit {
     const estado = d?.guarita_estado ?? t?.guarita_estado ?? null;
     if (!estado) return null;
     return { estado, erro: d?.guarita_erro ?? t?.guarita_erro ?? null };
+  }
+
+  /** Estado no Guarita de uma tag da aba "Tags RFID" (null sem Guarita ou sem estado). */
+  private estadoGuaritaDaTag(t: Tag): { estado: string; erro: string | null } | null {
+    if (!this.temGuarita()) return null;
+    const d = this.dispositivoDaTag(t.id);
+    const g = t as Tag & CamposGuaritaDaTag;
+    const estado = d?.guarita_estado ?? g.guarita_estado ?? null;
+    return estado ? { estado, erro: d?.guarita_erro ?? g.guarita_erro ?? null } : null;
+  }
+
+  /**
+   * A tag está (ou vai estar) gravada no Guarita: bloquear nela é apagar do
+   * Guarita, sem volta pela tela. `aguardando_aprovacao`/`recusada` ainda não
+   * estão no Guarita e seguem como tag comum.
+   */
+  tagNoGuarita(t: Tag): boolean {
+    const e = this.estadoGuaritaDaTag(t)?.estado;
+    return !!e && ['pendente', 'gravado', 'ativo', 'falhou', 'a_vincular', 'removendo'].includes(e);
+  }
+
+  seloGuaritaDaTag(t: Tag): { texto: string; dot: string; dica?: string } | null {
+    const e = this.estadoGuaritaDaTag(t);
+    return e ? rotuloEstadoGuarita(e.estado, e.erro) : null;
+  }
+
+  tagRemovendo(t: Tag): boolean {
+    return this.estadoGuaritaDaTag(t)?.estado === 'removendo';
+  }
+
+  /** "Remover do Guarita": a API apaga o dispositivo do Guarita (o mesmo pedido do bloquear). */
+  async removerDoGuarita(t: Tag) {
+    if (this.tagEmAcao() !== null) return;
+    const ok = await this.confirm.ask({
+      title: 'Remover do Guarita',
+      message: `O dispositivo ${t.codigo} será apagado do Guarita e deixa de abrir o portão. Para voltar, cadastre de novo pela captura.`,
+      confirmLabel: 'Remover do Guarita',
+      variant: 'danger',
+    });
+    if (!ok || this.tagEmAcao() !== null) return;
+    this.tagEmAcao.set(t.id);
+    this.erroAcaoTag.set(null);
+    this.api.setTagAtivo(t.id, false).subscribe({
+      next: (atualizada) => {
+        this.tagEmAcao.set(null);
+        // Pedimos a remoção: até o próximo recarregar, a tela diz "Removendo".
+        const estado = 'removendo';
+        this.tags.update((lista) =>
+          lista.map((x) => (x.id === t.id ? { ...x, ...atualizada, guarita_estado: estado } as Tag : x)),
+        );
+        // A lista do Guarita (se carregada) também passa a dizer "Removendo".
+        this.dispositivosGuarita.update((l) => l.map((d) => (d.id === t.id ? { ...d, guarita_estado: estado } : d)));
+      },
+      error: (e) => {
+        this.tagEmAcao.set(null);
+        this.erroAcaoTag.set(mensagemDaApi(e, 'Falha ao remover do Guarita.'));
+      },
+    });
   }
 
   seloGuarita(v: VeiculoComMorador): { texto: string; dot: string; dica?: string } | null {

@@ -264,6 +264,64 @@ describe('VeiculosPageComponent — aprovar ou recusar a tag vinculada pelo mora
   });
 });
 
+describe('VeiculosPageComponent — tag de Guarita na aba "Tags RFID"', () => {
+  const comum = { id: 5, id_condominio: 3, codigo: '777', tipo: 'rfid', descricao: null, ativo: 1 };
+  const doGuarita = tagG(1, { guarita_estado: 'ativo', id_device: 7 });
+
+  function abaTags(opts: Parameters<typeof build>[0]) {
+    const r = build(opts);
+    r.tela.tab.set('tags');
+    r.f.detectChanges();
+    return r;
+  }
+
+  it('tag de Guarita mostra o selo do Guarita e "Remover do Guarita" no lugar de Bloquear/Reativar; tag comum fica igual', () => {
+    const { el } = abaTags({ guaritas: [guarita], tags: [doGuarita, comum] });
+    const linhas = Array.from(el.querySelectorAll('tbody tr')) as HTMLElement[];
+    expect(linhas[0].querySelector('[data-guarita-estado-tag]')?.textContent?.trim()).toBe('Ativo nos portões');
+    expect(botoes(linhas[0], 'Remover do Guarita').length).toBe(1);
+    expect(botoes(linhas[0], 'Bloquear').length).toBe(0);
+    expect(botoes(linhas[0], 'Reativar').length).toBe(0);
+    expect(linhas[1].textContent).toContain('Ativa');
+    expect(botoes(linhas[1], 'Bloquear').length).toBe(1);
+    expect(botoes(linhas[1], 'Remover do Guarita').length).toBe(0);
+  });
+
+  it('remover pede confirmação dizendo que deixa de abrir o portão; depois fica "Removendo" sem "Reativar"', async () => {
+    const { f, el, tela, api, confirm } = abaTags({ guaritas: [guarita], tags: [doGuarita] });
+    api.setTagAtivo.mockImplementation((() => of({ ...doGuarita, ativo: 0 })) as any);
+    await tela.removerDoGuarita(tela.tags()[0]);
+    expect(confirm.ask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Remover do Guarita' }));
+    expect((confirm.ask.mock.calls[0] as any)[0].message).toContain('deixa de abrir o portão');
+    expect(api.setTagAtivo).toHaveBeenCalledWith(1, false);
+    f.detectChanges();
+    const linha = el.querySelector('tbody tr') as HTMLElement;
+    expect(linha.querySelector('[data-guarita-estado-tag]')?.textContent?.trim()).toBe('Removendo');
+    expect(botoes(linha, 'Remover do Guarita').length).toBe(0);
+    expect(botoes(linha, 'Reativar').length).toBe(0);
+  });
+
+  it('cancelar não chama a API', async () => {
+    const { tela, api } = abaTags({ guaritas: [guarita], tags: [doGuarita], confirma: false });
+    await tela.removerDoGuarita(tela.tags()[0]);
+    expect(api.setTagAtivo).not.toHaveBeenCalled();
+  });
+
+  it('tag aguardando aprovação ainda não está no Guarita: segue como tag comum', () => {
+    const { el } = abaTags({ guaritas: [guarita], tags: [tagG(1, { guarita_estado: 'aguardando_aprovacao', id_device: 7 })] });
+    const linha = el.querySelector('tbody tr') as HTMLElement;
+    expect(botoes(linha, 'Bloquear').length).toBe(1);
+    expect(botoes(linha, 'Remover do Guarita').length).toBe(0);
+  });
+
+  it('sem Guarita: mesmo com estado na tag, Bloquear/Reativar como hoje', () => {
+    const { el } = abaTags({ tags: [doGuarita] });
+    const linha = el.querySelector('tbody tr') as HTMLElement;
+    expect(botoes(linha, 'Bloquear').length).toBe(1);
+    expect(linha.querySelector('[data-guarita-estado-tag]')).toBeNull();
+  });
+});
+
 describe('VeiculosPageComponent — lista "A vincular"', () => {
   const opts = {
     guaritas: [guarita],

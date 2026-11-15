@@ -262,7 +262,9 @@
                   }
                 </td>
                 <td>
-                  @if (t.ativo === 0) {
+                  @if (tagNoGuarita(t) && seloGuaritaDaTag(t); as selo) {
+                    <span class="ps-tag" data-guarita-estado-tag [title]="selo.texto"><span class="ps-dot" [ngClass]="selo.dot"></span>{{ selo.texto }}</span>
+                  } @else if (t.ativo === 0) {
                     <span class="ps-tag"><span class="ps-dot ps-dot-danger"></span>Bloqueada</span>
                   } @else {
                     <span class="ps-tag"><span class="ps-dot ps-dot-ok"></span>Ativa</span>
@@ -270,7 +272,13 @@
                 </td>
                 <td class="text-right">
                   <div class="flex items-center justify-end gap-2">
-                    @if (t.ativo === 0) {
+                    @if (tagNoGuarita(t)) {
+                      <!-- Tag de Guarita: bloquear é apagar do Guarita, sem "Reativar". -->
+                      @if (!tagRemovendo(t)) {
+                        <button type="button" (click)="removerDoGuarita(t)" [disabled]="tagEmAcao() === t.id"
+                          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Remover do Guarita</button>
+                      }
+                    } @else if (t.ativo === 0) {
                       <button type="button" (click)="definirTagAtiva(t, true)" [disabled]="tagEmAcao() === t.id"
                         class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Reativar</button>
                     } @else {
