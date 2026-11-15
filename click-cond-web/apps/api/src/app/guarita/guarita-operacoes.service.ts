@@ -722,9 +722,20 @@ export class GuaritaOperacoesService {
    * Se a tag já tem outra gravação aberta depois desta, o estado dela não é
    * sobrescrito (vale o da operação mais nova quando o resultado dela chegar).
    */
-  async aplicarResultado(idOperacao: number, r: ResultadoGravacao): Promise<void> {
+  async aplicarResultado(idOperacao: number, resultado: ResultadoGravacao): Promise<void> {
     const op = await this.prisma.guarita_Operacoes.findUnique({ where: { id: Number(idOperacao) } });
     if (!op) return;
+    let r = resultado;
+    // R3: `editar` incerto ou em "conflito" cujo frame LIDO é o que foi enviado
+    // (fora o byte 30, só de leitura): a edição valeu — ok, e guarda o lido.
+    let frameLidoDaEdicao: string | null = null;
+    if (op.tipo === 'editar' && (r.incerto === true || r.conflito === true) && r.lido?.frame_hex && op.frame_hex) {
+      const semFlags = (h: string) => h.toUpperCase().slice(0, 58) + h.toUpperCase().slice(60);
+      if (semFlags(r.lido.frame_hex) === semFlags(op.frame_hex)) {
+        frameLidoDaEdicao = r.lido.frame_hex.toUpperCase();
+        r = { ok: true, codigo: 0 };
+      }
+    }
     // Conflito: o agente leu o dispositivo em outra unidade e não escreveu; ou
     // o cadastro voltou 0x02 sem ser "já estava" (o serial é de outra pessoa).
     const conflito =
@@ -767,6 +778,7 @@ export class GuaritaOperacoesService {
       }
       frameConfirmado = lido;
     }
+    if (frameLidoDaEdicao) frameConfirmado = frameLidoDaEdicao;
     const apagouJa = op.tipo === 'apagar' && !r.ok && r.codigo === 0x03;
     const ok = r.ok || apagouJa;
     const mensagem = ok ? null : (r.erro ?? (r.codigo !== undefined ? MENSAGENS_67[r.codigo] : undefined) ?? 'O Guarita não respondeu.');

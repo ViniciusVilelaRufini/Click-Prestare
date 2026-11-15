@@ -205,6 +205,24 @@ describe('remoção que esgota as tentativas', () => {
   });
 });
 
+describe('R3 — editar que valeu, mesmo voltando incerto/conflito', () => {
+  it.each([['incerto'], ['conflito']])('%s com lido.frame_hex = o enviado (fora o byte 30) → ok, frame guardado', async (como) => {
+    const m = montar();
+    m.db.linhas('moradores')[0].apartamento = '202';
+    const ed = (await m.ops.enfileirarEdicao(1, 'x'))!;
+    await m.agente.buscarOperacoes(DEV);
+    const enviado = ops(m.db, 'editar')[0].frame_hex as string;
+    const lido = enviado.slice(0, 58) + '8F' + enviado.slice(60); // byte 30 diferente (bateria/último acionamento)
+    await m.agente.registrarResultado(DEV, ed.id_operacao, {
+      ok: false,
+      ...(como === 'incerto' ? { incerto: true } : { conflito: true }),
+      lido: { unidade: 202, bloco: 1, frame_hex: lido },
+    });
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'gravado', guarita_frame: lido });
+    expect(ops(m.db, 'editar').filter((o: any) => o.estado === 'pendente')).toHaveLength(0);
+  });
+});
+
 describe('N1 — tag em remoção nunca volta a ativo', () => {
   it('bloquear → remoção falha → editar placa: continua em remoção, alerta aberto, e a nova tentativa acontece', async () => {
     const { TagsService } = require('../veiculos/tags.service');
