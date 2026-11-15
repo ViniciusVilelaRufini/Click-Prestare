@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { RelatoriosController, CondominiosExportController } from '../relatorios/relatorios.controller';
 import { FinanceiroController } from '../financeiro/financeiro.controller';
 import { MobileAuthService } from './mobile-auth.service';
+import { ChatIaService } from '../chat-ia/chat-ia.service';
 import type { JwtPayload } from './jwt-payload.interface';
 
 /**
@@ -80,6 +81,15 @@ describe('Rotas de síndico não aceitam o turno "Síndico" do porteiro', () => 
     for (const f of chamadas(ctrl, porteiroTurnoSindico)) expect(f).toThrow(ForbiddenException);
     expect(service.getAllInadimplentes).not.toHaveBeenCalled();
     for (const [, u] of legitimos) for (const f of chamadas(ctrl, u)) expect(f).not.toThrow();
+  });
+
+  it('reindexar o assistente (chat-ia): porteiro com turno "Síndico" → 403 sem tocar no índice; síndico passa', async () => {
+    const prisma: any = { isConnected: true, documentos: { findMany: jest.fn(async () => []) }, rag_Embeddings: { deleteMany: jest.fn(async () => ({ count: 0 })) } };
+    const tenant: any = { assertCondominio: jest.fn(async () => undefined) };
+    const svc = new (ChatIaService as any)(prisma, tenant, {}) as ChatIaService;
+    await expect(svc.reindexCondominio(1, porteiroTurnoSindico)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.documentos.findMany).not.toHaveBeenCalled();
+    await expect(svc.reindexCondominio(1, sindicoSenha)).resolves.toBeDefined();
   });
 
   describe('o app não grava o turno reservado', () => {
