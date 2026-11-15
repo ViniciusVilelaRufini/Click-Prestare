@@ -15,6 +15,12 @@ export class ComunicadosController {
     return this.service.findAll(idCondominio, user);
   }
 
+  // Antes de ':id' — senão 'acesso' cairia no ParseIntPipe do get.
+  @Get('acesso')
+  acesso(@Param('idCondominio', ParseIntPipe) idCondominio: number, @ReqUser() user: JwtPayload) {
+    return this.service.acesso(idCondominio, user);
+  }
+
   @Get(':id')
   get(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
     return this.service.findOne(id, user);

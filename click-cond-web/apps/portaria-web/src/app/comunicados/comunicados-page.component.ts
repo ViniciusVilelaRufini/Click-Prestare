@@ -29,16 +29,27 @@ export class ComunicadosPageComponent implements OnInit {
   form: CreateComunicado = { titulo: '', descricao: '' };
 
   /**
-   * Publicar, editar e excluir é do síndico e do funcionário do app (inclusive
-   * no console por QR Code): a API recusa o porteiro de login/senha
-   * (assertStaff), que via os botões e tomava 403. Decide pelo papel do token
-   * — o `turno` é texto livre do cadastro do porteiro. A API segue decidindo.
+   * Resposta de `comunicados/acesso` (null: ainda não respondeu). O funcionário
+   * do app sem a flag `comunicados` passa pelo papel, mas a API o recusa.
+   */
+  readonly gerenciar = signal<boolean | null>(null);
+
+  /**
+   * Publicar, editar e excluir é do síndico e do funcionário do app com a
+   * permissão `comunicados` (inclusive no console por QR Code): a API recusa o
+   * porteiro de login/senha (assertStaff) e o funcionário sem a flag, que viam
+   * os botões e tomavam 403. O papel vem do token — o `turno` é texto livre do
+   * cadastro do porteiro — e a flag, da API. A API segue decidindo.
    */
   readonly podePublicar = computed(() => {
     this.auth.porteiroInfo(); // recalcula ao entrar / trocar de condomínio
+    return this.ehEquipe() && this.gerenciar() === true;
+  });
+
+  private ehEquipe(): boolean {
     const papel = papelDoToken(this.auth.token);
     return papel === 'sindico' || papel === 'funcionario';
-  });
+  }
 
   readonly ultimo = computed(() => this.comunicados()[0] ?? null);
   readonly recentes = computed(
@@ -46,11 +57,27 @@ export class ComunicadosPageComponent implements OnInit {
   );
 
   ngOnInit() {
+    this.carregarAcesso();
     this.carregar();
     this.route.queryParams.subscribe((params) => {
       if (params['novo'] === 'true') {
         this.abrirNovo();
       }
+    });
+  }
+
+  /** Porteiro nem pergunta (só leitura). Falha na consulta: vale o papel, e a API decide no salvar. */
+  carregarAcesso() {
+    if (!this.ehEquipe()) {
+      this.gerenciar.set(false);
+      return;
+    }
+    this.api.acesso().subscribe({
+      next: (r) => this.gerenciar.set(r?.gerenciar === true),
+      error: (e) => {
+        console.warn('Permissão de comunicados não consultada:', e?.error?.message ?? e?.message);
+        this.gerenciar.set(true);
+      },
     });
   }
 

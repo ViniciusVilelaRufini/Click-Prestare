@@ -24,7 +24,7 @@ describe('ComunicadosPageComponent — erro ao salvar dentro do drawer', () => {
       imports: [ComunicadosPageComponent],
       providers: [
         provideRouter([]),
-        { provide: ComunicadosApi, useValue: { list: () => of([]), create, update: create } },
+        { provide: ComunicadosApi, useValue: { list: () => of([]), acesso: () => of({ gerenciar: true }), create, update: create } },
         {
           provide: AuthService,
           useValue: {

@@ -33,6 +33,7 @@ describe('ComunicadosPageComponent — botões Novo/Editar/Excluir', () => {
           provide: ComunicadosApi,
           useValue: {
             list: () => of([{ id: 1, titulo: 'Aviso', descricao: 'Texto', created_at: '2026-10-05T14:30:00' }]),
+            acesso: () => of({ gerenciar: true }),
           },
         },
         { provide: AuthService, useValue: { porteiroInfo: signal({ nome: 'X', turno, id_condominio: 1 }), token } },
