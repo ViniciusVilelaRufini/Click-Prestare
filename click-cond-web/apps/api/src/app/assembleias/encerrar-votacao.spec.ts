@@ -21,6 +21,8 @@ describe('finishVotacao — encerrada_em', () => {
           id_condominio: 1, encerrada_em: null, data_termino: new Date('2026-11-30T00:00:00Z'), ...atual,
         })),
         update: jest.fn(async () => ({})),
+        // Mapa da votação, lido para congelar os votos antigos (sem votos aqui).
+        findMany: jest.fn(async () => []),
       },
     };
     prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));

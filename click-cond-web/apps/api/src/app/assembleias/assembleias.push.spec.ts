@@ -47,7 +47,6 @@ function prismaBase(extra: Record<string, any> = {}) {
     },
     votacoes_Opcoes: { createMany: jest.fn(async () => ({ count: 2 })) },
     apartamentos_Users: { findMany: jest.fn(async () => []) },
-    votacoes_Usuarios: { count: jest.fn(async () => 0) },
     documentos: { create: jest.fn(async ({ data }: any) => ({ id: 62, ...data })) },
     ...extra,
   };

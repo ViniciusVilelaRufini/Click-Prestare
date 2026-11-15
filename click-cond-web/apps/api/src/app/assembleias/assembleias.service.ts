@@ -200,22 +200,36 @@ export type MapaVotacao = {
  *
  *   mapa-de-votacao v1
  *   votacao [id, titulo, somente_proprietarios]
- *   opcao [id, nome, votos]                         (uma por opção, na ordem)
+ *   opcao [id, nome, votos]                         (uma por opção, por id)
  *   voto [unidade, votante, tipo_vinculo, opcao, registrado_em, vigente, substituido_em]
+ *                                                   (por unidade, data/hora e linha, em code unit)
  *
  * Ficam FORA a participação (o total de unidades do condomínio muda depois) e
  * a hora de encerramento: o texto é refeito igual a partir do JSON do mapa a
  * qualquer tempo.
  */
 export function textoCanonicoMapa(mapa: MapaVotacao): string {
+  // Ordem estável, só dos próprios dados e por code unit (nada de colação da
+  // tela/ICU, que muda com a versão do Node): opções por id; votos por
+  // unidade, depois data/hora (dd/MM/aaaa vira aaaa-MM-dd), depois a linha.
+  const porCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  const ordenavel = (d: string) => d.replace(/^(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1');
+  const votos = mapa.votos
+    .map((v) => ({
+      v,
+      linha: JSON.stringify([v.unidade, v.votante, v.tipo_vinculo, v.opcao, v.registrado_em, v.vigente, v.substituido_em]),
+    }))
+    .sort(
+      (a, b) =>
+        porCodeUnit(a.v.unidade, b.v.unidade) ||
+        porCodeUnit(ordenavel(a.v.registrado_em), ordenavel(b.v.registrado_em)) ||
+        porCodeUnit(a.linha, b.linha),
+    );
   const linhas = [
     'mapa-de-votacao v1',
     `votacao ${JSON.stringify([mapa.votacao.id, mapa.votacao.titulo, mapa.votacao.somente_proprietarios])}`,
-    ...mapa.opcoes.map((o) => `opcao ${JSON.stringify([o.id, o.nome, o.votos])}`),
-    ...mapa.votos.map(
-      (v) =>
-        `voto ${JSON.stringify([v.unidade, v.votante, v.tipo_vinculo, v.opcao, v.registrado_em, v.vigente, v.substituido_em])}`,
-    ),
+    ...[...mapa.opcoes].sort((a, b) => a.id - b.id).map((o) => `opcao ${JSON.stringify([o.id, o.nome, o.votos])}`),
+    ...votos.map(({ linha }) => `voto ${linha}`),
   ];
   return `${linhas.join('\n')}\n`;
 }
@@ -232,6 +246,16 @@ export function hashMapas(mapas: MapaVotacao[]): string {
 /** Mapa de uma votação mais o que a ATA e as checagens precisam dela. */
 type MapaCalculado = {
   mapa: MapaVotacao;
+  /** Votos ANTIGOS (sem retrato) como o mapa os mostra — o que congelarVotosAntigos grava. */
+  antigos: Array<{
+    id: number;
+    idUnidade: number | null;
+    unidade: string;
+    votante: string;
+    tipo: TipoVinculo | null;
+    conta: boolean;
+    substituido: boolean;
+  }>;
   status: number;
   id_condominio: number;
   descricao: string;
@@ -688,7 +712,9 @@ export class AssembleiasService {
               data: { encerrada_em: agora },
             });
           }
-          const pautas = abertas.length > 0 ? await this.mapasDasVotacoes(doBanco, tx) : antes;
+          await this.congelarVotosAntigos(tx, antes, agora);
+          const pautas =
+            abertas.length > 0 || antes.some((p) => p.antigos.length > 0) ? await this.mapasDasVotacoes(doBanco, tx) : antes;
           const hash = pautas.length > 0 ? hashMapas(pautas.map((p) => p.mapa)) : null;
 
           let linkApuracao: string | null = null;
@@ -930,11 +956,13 @@ export class AssembleiasService {
       if (!linha) throw new NotFoundException('Votação não encontrada');
       if (linha.encerrada_em) return; // encerrar de novo: sucesso sem regravar
 
+      const agora = new Date();
+      await this.congelarVotosAntigos(tx, await this.mapasDasVotacoes({ id: Number(id) }, tx), agora);
       const hoje = hojeBrasilia();
       await tx.votacoes.update({
         where: { id: Number(id) },
         data: {
-          encerrada_em: new Date(),
+          encerrada_em: agora,
           ...(linha.data_termino && diaUtc(linha.data_termino) > hoje ? { data_termino: hoje } : {}),
         },
       });
@@ -1088,9 +1116,10 @@ export class AssembleiasService {
 
   /**
    * Nome do votante para o retrato do voto: o do cadastro de morador da conta
-   * NESTE condomínio, senão `Users.name`; nenhum: null.
+   * NESTE condomínio, senão `Users.name`, senão "Conta <id>" — o mesmo que o
+   * mapa mostraria, gravado já no voto (nunca nulo: o mapa não volta ao cadastro).
    */
-  private async nomeDoVotante(idCondominio: number, userId: number): Promise<string | null> {
+  private async nomeDoVotante(idCondominio: number, userId: number): Promise<string> {
     const morador = await this.prisma.moradores.findFirst({
       where: { id_user: userId, id_condominio: idCondominio },
       select: { nome: true },
@@ -1099,7 +1128,7 @@ export class AssembleiasService {
     const nome = (morador?.nome ?? '').trim();
     if (nome) return nome.slice(0, 255);
     const user = await this.prisma.users.findUnique({ where: { id: userId }, select: { name: true } });
-    return (user?.name ?? '').trim().slice(0, 255) || null;
+    return (user?.name ?? '').trim().slice(0, 255) || `Conta ${userId}`;
   }
 
   /** Quantas vezes uma transação é refeita depois de um deadlock (P2034). */
@@ -1162,6 +1191,30 @@ export class AssembleiasService {
         ? await tx.$queryRaw<LinhaVotacaoTravada[]>`SELECT id, id_assembleia, encerrada_em, data_inicio, data_termino FROM Votacoes WHERE id = ${id} FOR UPDATE`
         : await tx.$queryRaw<LinhaVotacaoTravada[]>`SELECT id, id_assembleia, encerrada_em, data_inicio, data_termino FROM Votacoes WHERE id = ${id} FOR SHARE`;
     return linhas?.[0] ?? null;
+  }
+
+  /**
+   * Congela os votos ANTIGOS (sem retrato) das votações ao encerrar/finalizar
+   * (revisão I-3): o retrato passa a ser o que o mapa mostra hoje (unidade,
+   * votante, tipo, id_apto), e o voto antigo que não conta recebe
+   * `substituido_em`. Depois disso a apuração e o hash dependem só dos dados
+   * do próprio voto — sair da unidade, excluir ou renomear a conta não muda
+   * mais o resultado. Os substituídos também recebem o retrato (o mapa os
+   * mostra). Rode sob a trava da votação, com `calcs` lido na transação.
+   */
+  private async congelarVotosAntigos(tx: Prisma.TransactionClient, calcs: MapaCalculado[], agora: Date): Promise<void> {
+    for (const a of calcs.flatMap((c) => c.antigos)) {
+      await tx.votacoes_Usuarios.updateMany({
+        where: { id: a.id, tipo_vinculo: null, rotulo_unidade: null },
+        data: {
+          nome_votante: a.votante.slice(0, 255),
+          rotulo_unidade: a.unidade.slice(0, 120),
+          ...(a.idUnidade != null ? { id_apto: a.idUnidade } : {}),
+          ...(a.tipo && (a.conta || a.substituido) ? { tipo_vinculo: a.tipo } : {}),
+          ...(!a.conta && !a.substituido ? { substituido_em: agora } : {}),
+        },
+      });
+    }
   }
 
   /** As pautas da assembleia travadas (FOR UPDATE), em ordem de id. */
@@ -1299,10 +1352,18 @@ export class AssembleiasService {
         const votante =
           (x.nome_votante ?? '').trim() ||
           (x.id_user != null ? nomes.get(x.id_user) ?? `Conta ${x.id_user}` : 'Conta excluída');
+        // Linha com retrato (voto novo, ou antigo congelado ao encerrar) não
+        // consulta o cadastro: o mapa e o hash não mudam depois.
         const tipo = x.tipo_vinculo
           ? normalizarTipoVinculo(x.tipo_vinculo)
-          : (idUnidade != null && x.id_user != null ? vinculosDe!.get(x.id_user)?.get(idUnidade) : undefined) ?? null;
+          : x.rotulo_unidade
+            ? null
+            : (idUnidade != null && x.id_user != null ? vinculosDe!.get(x.id_user)?.get(idUnidade) : undefined) ?? null;
         return {
+          antigo:
+            !x.tipo_vinculo && !x.rotulo_unidade
+              ? { id: x.id, idUnidade, unidade, votante, tipo, conta: contados.has(x.id), substituido: !!x.substituido_em }
+              : null,
           linha: {
             unidade,
             votante,
@@ -1336,6 +1397,7 @@ export class AssembleiasService {
           opcoes: v.opcoes.map((op) => ({ id: op.id, nome: op.nome, votos: votosPorOpcao.get(op.id) ?? 0 })),
           votos: linhas.map((l) => l.linha),
         },
+        antigos: linhas.flatMap((l) => (l.antigo ? [l.antigo] : [])),
         status: this.calcStatusInt(v.data_inicio, v.data_termino, v.encerrada_em ?? v.assembleia?.finalizada_em),
         id_condominio: v.id_condominio,
         descricao: v.descricao ?? '',

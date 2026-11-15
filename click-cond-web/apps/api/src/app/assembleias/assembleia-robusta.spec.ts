@@ -1169,3 +1169,81 @@ describe('2.5 — corridas: as recusas são refeitas sob a trava (revisão I-1, 
   });
 });
 
+
+describe('I-3 — o resultado e o hash não mudam depois de finalizar/encerrar', () => {
+  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const t = (hhmm: string) => new Date(`2026-11-14T${hhmm}:00Z`);
+  // Votos ANTIGOS (sem retrato): o 1 conta (proprietária 10, unidade atribuída 100);
+  // o 2 não conta (conta 99 sem vínculo).
+  const ANTIGOS = () => [
+    { id: 1, id_opcao: 51, id_user: 10, id_apto: null, created_at: t('09:00') },
+    { id: 2, id_opcao: 52, id_user: 99, id_apto: 300, created_at: t('09:10') },
+  ];
+
+  it('finish congela os votos antigos: o que conta ganha o retrato; o que não conta fica como substituído', async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-15T13:00:00Z'), doNotFake: ['nextTick', 'setImmediate'] });
+    try {
+      const { svc, votos } = build({ votos: ANTIGOS() });
+      await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+      expect(votos.find((v) => v.id === 1)).toMatchObject({
+        id_apto: 100, tipo_vinculo: 'proprietario', nome_votante: 'Paula Proprietária', rotulo_unidade: 'Apto 11 Bloco A', substituido_em: null,
+      });
+      expect(votos.find((v) => v.id === 2)).toMatchObject({ tipo_vinculo: null, substituido_em: new Date('2026-11-15T13:00:00Z') });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('depois de finalizar, a saída da unidade não muda a contagem nem o hash', async () => {
+    const vinculos = VINCULOS_PADRAO.map((v) => ({ ...v }));
+    const { svc, assembleias } = build({ votos: ANTIGOS(), vinculos });
+    await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+    const antes = await svc.mapaVotacao(5, sindico);
+    expect(hashMapas([antes])).toBe(assembleias[0].apuracao_hash);
+    vinculos.splice(0, vinculos.length); // todo mundo saiu das unidades
+    const depois = await svc.mapaVotacao(5, sindico);
+    expect(depois.opcoes).toEqual(antes.opcoes);
+    expect(depois.opcoes.map((o) => o.votos)).toEqual([1, 0]);
+    expect(hashMapas([depois])).toBe(assembleias[0].apuracao_hash);
+  });
+
+  it('encerrar a pauta também congela os votos antigos dela', async () => {
+    const vinculos = VINCULOS_PADRAO.map((v) => ({ ...v }));
+    const { svc, votos } = build({ votos: ANTIGOS(), vinculos });
+    await svc.finishVotacao(5, sindico);
+    expect(votos.find((v) => v.id === 1)).toMatchObject({ id_apto: 100, tipo_vinculo: 'proprietario' });
+    expect(votos.find((v) => v.id === 2)?.substituido_em).toBeInstanceOf(Date);
+    const antes = await svc.mapaVotacao(5, sindico);
+    vinculos.splice(0, vinculos.length);
+    expect(await svc.mapaVotacao(5, sindico)).toEqual(antes);
+  });
+
+  it('nome_votante nunca fica nulo: sem morador e sem Users.name, grava "Conta <id>"', async () => {
+    const { svc, votos } = build({ vinculos: [{ id_user: 55, id_apto: 100, tipo: 'proprietario' }] });
+    await votar(svc, 55, 5, 51);
+    expect(votos[0].nome_votante).toBe('Conta 55');
+  });
+
+  it('texto canônico: ordem estável por code unit, independente da ordem recebida e da colação da tela', () => {
+    const voto = (unidade: string, registrado_em: string, votante = 'X') => ({
+      unidade, votante, tipo_vinculo: 'proprietario' as const, opcao: 'Sim', registrado_em,
+      vigente: true, substituido_em: null, situacao: 'vigente' as const,
+    });
+    const mapa = {
+      votacao: { id: 5, titulo: 'T', somente_proprietarios: 0 as const, encerrada_em: null },
+      participacao: { unidades_votaram: 3, unidades_total: 3 },
+      opcoes: [{ id: 2, nome: 'Não', votos: 0 }, { id: 1, nome: 'Sim', votos: 3 }],
+      // Ordem da tela (localeCompare numérico): Apto 9 antes de Apto 10.
+      votos: [voto('Apto 9', '14/11/2026 10:00:00'), voto('Apto 10', '15/11/2026 09:00:00'), voto('Apto 10', '14/11/2026 23:00:00')],
+    };
+    const texto = textoCanonicoMapa(mapa);
+    const linhasVoto = texto.split('\n').filter((l) => l.startsWith('voto '));
+    expect(linhasVoto.map((l) => JSON.parse(l.slice(5)).slice(0, 1).concat(JSON.parse(l.slice(5))[4]))).toEqual([
+      ['Apto 10', '14/11/2026 23:00:00'],
+      ['Apto 10', '15/11/2026 09:00:00'],
+      ['Apto 9', '14/11/2026 10:00:00'],
+    ]);
+    expect(texto.split('\n').filter((l) => l.startsWith('opcao ')).map((l) => JSON.parse(l.slice(6))[0])).toEqual([1, 2]);
+    expect(textoCanonicoMapa({ ...mapa, votos: [...mapa.votos].reverse(), opcoes: [...mapa.opcoes].reverse() })).toBe(texto);
+  });
+});

@@ -23,6 +23,7 @@ describe('AssembleiasService — rodada 3', () => {
       votacoes: {
         findUnique: jest.fn(async () => ({ id_condominio: 1 })),
         update: jest.fn(async () => ({})),
+        findMany: jest.fn(async () => []),
       },
       users: { findUnique: jest.fn(async () => ({ id: 1 })) },
     };

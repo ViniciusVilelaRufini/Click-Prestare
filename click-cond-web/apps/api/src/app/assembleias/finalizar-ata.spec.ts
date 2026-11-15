@@ -64,12 +64,8 @@ describe('AssembleiasService.finish — ATA obrigatória e apuração preservada
           { id_user: 6, id_apto: 101 },
         ]),
       },
-      // Conferência de que nenhum voto chegou durante a finalização.
-      votacoes_Usuarios: {
-        count: jest.fn(async () =>
-          (opts.pautas ?? [pauta]).reduce((n: number, p: any) => n + p.opcoes.reduce((m: number, o: any) => m + o.votos.length, 0), 0),
-        ),
-      },
+      // Congelamento dos votos antigos ao finalizar (revisão I-3).
+      votacoes_Usuarios: { updateMany: jest.fn(async () => ({ count: 1 })) },
       // Mapa nominal (base do código de integridade) dos votos antigos.
       apartamentos: { findMany: jest.fn(async () => [{ id: 100, bloco: 'A', apto: '1' }, { id: 101, bloco: 'A', apto: '2' }]) },
       users: { findMany: jest.fn(async () => [{ id: 5, name: 'Cinco' }, { id: 6, name: 'Seis' }]) },
