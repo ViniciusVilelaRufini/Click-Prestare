@@ -92,14 +92,16 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     try {
       setState(() => _isLoading = true);
       var voto = VotoModel(opcao_id: opcao_id, votacao_id: votacao_id, id_apto: id_apto);
-      var res = await apiSaveObject("assembleias/votacoes/voto", "voto", voto, false);
-      if (res.toString().isEmpty) {
+      final res = await apiSaveObjectResultado("assembleias/votacoes/voto", "voto", voto);
+      if (res.ok) {
         // Votou: com várias unidades, o seletor avança para a próxima que
         // ainda não votou (unidadePadrao sem a escolha atual).
         _avancarUnidade = _variasUnidades;
         await load();
       } else {
-        if (mounted) displayMessage(context, getText('alert_error'), res.toString());
+        // Recusa da API (ex.: 409 "O proprietário da unidade já votou…")
+        // como veio; texto técnico vira o genérico.
+        if (mounted) displayMessage(context, getText('alert_error'), res.mensagemOu(getText('alert_generic_error')));
       }
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -132,10 +134,19 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     return _variasUnidades ? _unidade : null;
   }
 
+  /// Unidade cujo direito de voto vale agora: a escolhida (várias) ou a
+  /// única; nula na API antiga (sem restrição).
+  UnidadeVoto? get _unidadeAtual {
+    final unidades = _unidades;
+    if (unidades.length == 1) return unidades.first;
+    if (unidades.length < 2) return null;
+    return unidades.where((x) => x.idApto == _unidade).firstOrNull;
+  }
+
   List<dynamic> get _meuVoto {
     if (_variasUnidades) {
-      final u = _unidades.where((x) => x.idApto == _unidade).firstOrNull;
-      return u?.opcao == null ? const [] : [u!.opcao];
+      final meu = _unidadeAtual?.meuVoto;
+      return meu == null ? const [] : [meu];
     }
     final m = obj?['meuVoto'];
     return m is List ? m : const [];
@@ -143,9 +154,12 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
 
   bool get _jaVotou => _meuVoto.isNotEmpty;
 
-  /// Mostra as opções para escolher: enquete em andamento e ainda sem voto
-  /// (ou trocando o voto).
-  bool get _escolhendo => _status == 1 && (!_jaVotou || _alterando);
+  SituacaoVoto get _situacao =>
+      situacaoVoto(status: _status, jaVotou: _jaVotou, alterando: _alterando, unidade: _unidadeAtual);
+
+  /// Mostra as opções para escolher: enquete em andamento, com direito a
+  /// voto e ainda sem voto próprio (ou trocando o voto).
+  bool get _escolhendo => podeEscolher(_situacao);
 
   /// Mesma regra de antes: síndico, com a enquete em andamento.
   bool get _podeFinalizar => getUserType() == 'sindico' && _status == 1;
@@ -227,7 +241,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
               ),
             ),
           ),
-          if (_status == 1) _rodape(),
+          if (_status == 1 && _situacao != SituacaoVoto.semDireito) _rodape(),
         ],
       );
     }
@@ -252,7 +266,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
         : termino.isNotEmpty
             ? 'Até $termino'
             : inicio;
-    final total = totalVotos(votacao['opcoes']);
+    final resumo = resumoVotosLabel(votacao);
     final urgente = prazoUrgente(termino, votacao['status']);
 
     return Container(
@@ -277,6 +291,8 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
                   texto: prazo,
                   cor: urgente ? statusVotacaoInfo(0).corTexto(context) : null,
                 ),
+              if (somenteProprietarios(votacao))
+                const _ChipMeta(icone: PhosphorIcons.userCircle, texto: 'Somente proprietários'),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -316,7 +332,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
             runSpacing: AppSpacing.sm,
             children: [
               if (periodo.isNotEmpty) _meta(PhosphorIcons.calendarBlank, periodo),
-              _meta(PhosphorIcons.users, votosLabel(total)),
+              if (resumo != null) _meta(PhosphorIcons.users, resumo),
             ],
           ),
         ],
@@ -344,47 +360,57 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
 
   /// Faixa que explica, em uma frase, o que dá para fazer agora.
   Widget _avisoEstado() {
-    final status = _status;
     final inicio = textoLimpo(_votacao['data_inicio']);
     final IconData icone;
     final Color cor;
     final String titulo;
     final String texto;
 
-    if (status == 1 && _alterando) {
-      icone = PhosphorIcons.arrowsClockwise;
-      cor = statusVotacaoInfo(1).cor;
-      titulo = 'Alterando seu voto';
-      texto = 'Escolha a nova opção e confirme. Seu voto anterior será substituído.';
-    } else if (status == 1 && _jaVotou) {
-      icone = PhosphorIcons.checkCircle;
-      cor = statusVotacaoInfo(1).cor;
-      titulo = _variasUnidades ? getText('votacao_unidade_ja_votou') : 'Você já votou';
-      texto = _variasUnidades
-          ? getText('votacao_unidade_ja_votou_detalhe')
-          : 'Seu voto está destacado abaixo. Você pode alterá-lo até o encerramento.';
-    } else if (status == 1) {
-      icone = PhosphorIcons.handPointing;
-      cor = statusVotacaoInfo(1).cor;
-      titulo = 'Votação aberta';
-      texto = 'Escolha uma opção e toque em Votar.';
-    } else if (status == 0) {
-      icone = PhosphorIcons.hourglassMedium;
-      cor = statusVotacaoInfo(0).cor;
-      titulo = 'Enquete ainda não começou';
-      texto = inicio.isEmpty
-          ? 'A votação ainda não foi aberta.'
-          : 'A votação abre em $inicio.';
-    } else if (status == 2) {
-      icone = PhosphorIcons.lockSimple;
-      cor = statusVotacaoInfo(2).cor;
-      titulo = 'Enquete encerrada';
-      texto = _jaVotou ? 'Este é o resultado final. Seu voto está destacado.' : 'Este é o resultado final.';
-    } else {
-      icone = PhosphorIcons.info;
-      cor = statusVotacaoInfo(null).cor;
-      titulo = getText('votacao_fora_periodo');
-      texto = '';
+    switch (_situacao) {
+      case SituacaoVoto.alterando:
+        icone = PhosphorIcons.arrowsClockwise;
+        cor = statusVotacaoInfo(1).cor;
+        titulo = 'Alterando seu voto';
+        texto = 'Escolha a nova opção e confirme. Seu voto anterior será substituído.';
+      case SituacaoVoto.jaVotou:
+        icone = PhosphorIcons.checkCircle;
+        cor = statusVotacaoInfo(1).cor;
+        titulo = _variasUnidades ? getText('votacao_unidade_ja_votou') : 'Você já votou';
+        texto = _variasUnidades
+            ? getText('votacao_unidade_ja_votou_detalhe')
+            : 'Seu voto está destacado abaixo. Você pode alterá-lo até o encerramento.';
+      case SituacaoVoto.votadoPorOutro:
+        icone = PhosphorIcons.users;
+        cor = statusVotacaoInfo(1).cor;
+        titulo = getText('votacao_unidade_ja_votou');
+        texto = textoVotadoPorOutro(_unidadeAtual!, parseOpcoes(_votacao['opcoes']));
+      case SituacaoVoto.semDireito:
+        icone = PhosphorIcons.prohibit;
+        cor = statusVotacaoInfo(2).cor;
+        titulo = 'Sem direito a voto';
+        texto = textoSemDireito(_unidadeAtual!);
+      case SituacaoVoto.aberta:
+        icone = PhosphorIcons.handPointing;
+        cor = statusVotacaoInfo(1).cor;
+        titulo = 'Votação aberta';
+        texto = 'Escolha uma opção e toque em Votar.';
+      case SituacaoVoto.agendada:
+        icone = PhosphorIcons.hourglassMedium;
+        cor = statusVotacaoInfo(0).cor;
+        titulo = 'Enquete ainda não começou';
+        texto = inicio.isEmpty
+            ? 'A votação ainda não foi aberta.'
+            : 'A votação abre em $inicio.';
+      case SituacaoVoto.encerrada:
+        icone = PhosphorIcons.lockSimple;
+        cor = statusVotacaoInfo(2).cor;
+        titulo = 'Enquete encerrada';
+        texto = _jaVotou ? 'Este é o resultado final. Seu voto está destacado.' : 'Este é o resultado final.';
+      case SituacaoVoto.desconhecida:
+        icone = PhosphorIcons.info;
+        cor = statusVotacaoInfo(null).cor;
+        titulo = getText('votacao_fora_periodo');
+        texto = '';
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -437,18 +463,29 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     final opcoes = parseOpcoes(_votacao['opcoes']);
     final escolhendo = _escolhendo;
     final pcts = percentuais([for (final o in opcoes) o.votos]);
+    final oculto = resultadoOculto(_votacao);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          (escolhendo ? getText('escolha_opcao_desejada') : 'Resultado').toUpperCase(),
+          (escolhendo
+                  ? getText('escolha_opcao_desejada')
+                  : oculto
+                      ? 'Opções'
+                      : 'Resultado')
+              .toUpperCase(),
           style: AppTypography.title(context).copyWith(
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary(context),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
+        if (oculto && !escolhendo && opcoes.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _meta(PhosphorIcons.eyeSlash, textoResultadoOculto),
+          ),
         if (opcoes.isEmpty)
           Text(
             getText('alert_list_empty_generic'),
@@ -470,6 +507,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
                       votos: opcoes[i].votos,
                       percentual: pcts[i],
                       meuVoto: votouNaOpcao(opcoes[i].id, _meuVoto),
+                      ocultarResultado: oculto,
                     ),
             ),
       ],
