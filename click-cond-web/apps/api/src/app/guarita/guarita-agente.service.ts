@@ -3,9 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FacialService } from '../facial/facial.service';
 import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import { GuaritaImportacaoService } from './guarita-importacao.service';
-import { CRIADO_POR_RECADASTRO_INCERTO, GuaritaOperacoesService } from './guarita-operacoes.service';
+import { CRIADO_POR_RECADASTRO_INCERTO, GuaritaOperacoesService, apagarComUnidade } from './guarita-operacoes.service';
 import { GuaritaEventosService } from './guarita-eventos.service';
-import { blocoParaByte, decodificarDispositivo } from './guarita-frame.util';
+import { blocoParaByte, codificarApagarDoFrame, decodificarDispositivo } from './guarita-frame.util';
 import {
   ESTADO_OP,
   ESTADO_TTL_MS,
@@ -252,10 +252,12 @@ export class GuaritaAgenteService {
         data: { estado: ESTADO_OP.enviada, enviada_em: agora },
       });
       if (r.count !== 1) break;
+      // apagar com o frame da unidade a conferir: para o agente, só tipo + serial.
+      const frameEntregue = op.tipo === 'apagar' && apagarComUnidade(op.frame_hex) ? codificarApagarDoFrame(op.frame_hex as string) : op.frame_hex;
       lote.push({
         id: op.id,
         tipo: op.tipo,
-        ...(op.frame_hex ? { frame_hex: op.frame_hex } : {}),
+        ...(frameEntregue ? { frame_hex: frameEntregue } : {}),
         ...(esperado ? { esperado } : {}),
       });
       if (TIPOS_LEITURA.includes(op.tipo)) break;
@@ -269,10 +271,12 @@ export class GuaritaAgenteService {
    * última gravação). Sem frame conhecido, ou tag fora da lista branca: a
    * operação é cancelada (nunca sai às cegas) e o motivo fica na tag.
    */
-  private async esperadoDaOperacao(op: { id: number; id_tag: number | null }): Promise<{ unidade: number; bloco: number } | null> {
+  private async esperadoDaOperacao(op: { id: number; id_tag: number | null; tipo?: string; frame_hex?: string | null }): Promise<{ unidade: number; bloco: number } | null> {
     const ops = this.operacoes as GuaritaOperacoesService;
     const tag = op.id_tag != null ? await this.prisma.tags.findUnique({ where: { id: op.id_tag } }) : null;
-    const frame = tag && (await ops.podeEscrever(tag)) ? await ops.frameConhecido(tag) : null;
+    // apagar de uma remoção F2: a unidade a conferir é a do próprio frame da operação.
+    const proprio = op.tipo === 'apagar' && apagarComUnidade(op.frame_hex) ? (op.frame_hex as string) : null;
+    const frame = tag && (await ops.podeEscrever(tag)) ? (proprio ?? (await ops.frameConhecido(tag))) : null;
     let esperado: { unidade: number; bloco: number } | null = null;
     if (frame) {
       try {

@@ -41,7 +41,7 @@ async function cadastroEntregue(m: ReturnType<typeof montar>) {
 }
 
 describe('C1 — cadastro que volta "já cadastrado em outra unidade"', () => {
-  it('vira conflito; excluir a tag, o veículo ou editar a placa não gera apagar nem editar', async () => {
+  it('vira conflito; editar a placa não gera editar; excluir a tag gera apagar conferido pela unidade pedida (F2)', async () => {
     const m = montar();
     const id = await cadastroEntregue(m);
     await m.agente.registrarResultado(DEV, id, { ok: false, codigo: 2, erro: 'Este dispositivo já está cadastrado no Guarita em outra unidade.' });
@@ -52,9 +52,12 @@ describe('C1 — cadastro que volta "já cadastrado em outra unidade"', () => {
     const update = m.db.veiculos.update;
     m.db.veiculos.update = async (a: any) => ({ ...(await update(a)), tag: tag(m.db) });
     await veiculos.update(7, 70, { placa: 'XYZ9A87', id_tag: 1 });
-    await expect(new TagsService(m.db as any, m.ops).remove(7, 1)).resolves.toEqual({ ok: true, guarita_remocoes: 0 });
-    expect(operacoes(m.db, 'apagar')).toHaveLength(0);
+    await expect(new TagsService(m.db as any, m.ops).remove(7, 1)).resolves.toEqual({ ok: true, guarita_remocoes: 1 });
+    expect(operacoes(m.db, 'apagar')).toHaveLength(1);
     expect(operacoes(m.db, 'editar')).toHaveLength(0);
+    for (const o of m.db.linhas('guarita_Operacoes')) if (o.estado === 'enviada') o.estado = 'ok';
+    const lote = await m.agente.buscarOperacoes(DEV);
+    expect(lote.operacoes.find((o) => o.tipo === 'apagar')).toMatchObject({ esperado: { unidade: 308, bloco: 1 } });
   });
 
   it('conflito informado pelo agente (editar com unidade lida diferente) → conflito com a unidade lida; pendentes canceladas', async () => {
@@ -67,8 +70,9 @@ describe('C1 — cadastro que volta "já cadastrado em outra unidade"', () => {
     await m.agente.registrarResultado(DEV, ed.id_operacao, { ok: false, conflito: true, lido: { unidade: 202, bloco: 1 }, erro: 'outra unidade' });
     expect(tag(m.db).guarita_estado).toBe('conflito');
     expect(tag(m.db).guarita_erro).toMatch(/unidade 202 bloco B/);
-    expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(false);
-    expect(operacoes(m.db, 'apagar')).toHaveLength(0);
+    // F2: a edição foi entregue — sai apagar conferido (o agente só apaga se a unidade bater).
+    expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(true);
+    expect(operacoes(m.db, 'apagar')).toHaveLength(1);
   });
 
   it('cadastrar com 0x02 e ja_estava (mesma unidade, com o frame lido) é ok normal', async () => {
@@ -90,19 +94,20 @@ describe('C1 (d) — remoção com cadastro na fila', () => {
     expect(tag(m.db)).toBeUndefined();
   });
 
-  it('cadastro já entregue: o apagar só sai depois do resultado; cadastro em conflito → apagar cancelado', async () => {
+  it('cadastro já entregue: o apagar só sai depois do resultado; cadastro em conflito → o apagar continua (F2)', async () => {
     const m = montar();
     const id = await cadastroEntregue(m);
     expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(true);
     expect((await m.agente.buscarOperacoes(DEV)).operacoes).toEqual([]); // lote em voo
     await m.agente.registrarResultado(DEV, id, { ok: false, codigo: 2, erro: 'outra unidade' });
-    expect(operacoes(m.db, 'apagar')[0].estado).toBe('cancelada');
-    expect(tag(m.db).guarita_estado).toBe('conflito');
+    expect(operacoes(m.db, 'apagar')[0].estado).toBe('pendente');
+    expect(tag(m.db).guarita_estado).toBe('removendo');
+    for (const o of m.db.linhas('guarita_Operacoes')) if (o.estado === 'enviada') o.estado = 'ok';
     const depois = await m.agente.buscarOperacoes(DEV);
-    expect(depois.operacoes.some((o) => o.tipo === 'apagar')).toBe(false);
+    expect(depois.operacoes.find((o) => o.tipo === 'apagar')).toMatchObject({ esperado: { unidade: 308, bloco: 1 } });
   });
 
-  it('cadastro já entregue e ok: o apagar sai com a unidade esperada; cadastro que falha por outro motivo: sai só do Prestare', async () => {
+  it('cadastro já entregue e ok: o apagar sai com a unidade esperada; cadastro que falha por outro motivo: o apagar continua (F2)', async () => {
     const m = montar();
     const id = await cadastroEntregue(m);
     await m.ops.enfileirarRemocao(1, 'x');
@@ -116,8 +121,8 @@ describe('C1 (d) — remoção com cadastro na fila', () => {
     const id2 = await cadastroEntregue(m2);
     await m2.ops.enfileirarRemocao(1, 'x');
     await m2.agente.registrarResultado(DEV, id2, { ok: false, codigo: 1 });
-    expect(operacoes(m2.db, 'apagar')[0].estado).toBe('cancelada');
-    expect(tag(m2.db)).toBeUndefined();
+    expect(operacoes(m2.db, 'apagar')[0].estado).toBe('pendente');
+    expect(tag(m2.db).guarita_estado).toBe('removendo');
   });
 });
 
@@ -217,6 +222,7 @@ describe('I3 — remoção que falha e identidade do CT', () => {
     expect(ed.frame_hex.slice(0, 12)).toBe('340F086E5649');
     m.db.linhas('guarita_Operacoes').forEach((o: any) => (o.estado = 'cancelada'));
     await m.ops.enfileirarRemocao(1, 'x');
-    expect(operacoes(m.db, 'apagar')[0].frame_hex).toBe('340F086E' + '00'.repeat(35));
+    const lote = await m.agente.buscarOperacoes(DEV);
+    expect(lote.operacoes.find((o) => o.tipo === 'apagar')!.frame_hex).toBe('340F086E' + '00'.repeat(35));
   });
 });

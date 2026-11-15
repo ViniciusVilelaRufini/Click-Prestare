@@ -68,6 +68,21 @@ describe('cadastro de tag — código normalizado em todos os pontos', () => {
       expect(prisma.veiculos.update).not.toHaveBeenCalled();
     });
 
+    it.each(['remocao_falhou', 'removendo', 'incerto', 'conflito'])(
+      'tag do Guarita %s não é vinculada a outro veículo pelo app',
+      async (estado) => {
+        const { svc, prisma } = build({ tagExistente: { id: 70, ativo: 1, id_device: 10, guarita_estado: estado } });
+        await expect(svc.vincularTagAoVeiculo(1, 5, 'BC614E')).rejects.toThrow('Esta tag ainda tem uma operação pendente no Guarita.');
+        expect(prisma.veiculos.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('tag do Guarita em remoção que já é deste veículo: a edição segue', async () => {
+      const { svc, prisma } = build({ tagExistente: { id: 70, ativo: 1, id_device: 10, guarita_estado: 'removendo' }, veiculoAtualComATag: true });
+      await svc.vincularTagAoVeiculo(1, 5, 'BC614E');
+      expect(prisma.veiculos.update).toHaveBeenCalled();
+    });
+
     it('tag em outro veículo ativo continua recusada', async () => {
       const { svc } = build({ veiculoEmOutro: { id: 9 } });
 

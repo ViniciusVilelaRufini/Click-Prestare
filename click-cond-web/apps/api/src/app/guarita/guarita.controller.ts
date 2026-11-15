@@ -289,7 +289,7 @@ export class GuaritaController {
     return this.operacoes.removerDeNovo(idCondominio, deviceId, idTag, autorDoUsuario(user));
   }
 
-  /** Dispositivo que não está mais no Guarita: o síndico decide regravar (cadastro na fila). */
+  /** Dispositivo ausente, falhou ou incerto: o síndico decide regravar/conferir (cadastro na fila). */
   @Post(':deviceId/dispositivos/:idTag/regravar')
   async regravar(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,

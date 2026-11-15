@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { validarCodigoTag } from '../common/tag-codigo.util';
 import { assertTagNaoEmUso } from '../common/tag-em-uso.util';
 import { GuaritaOperacoesService } from '../guarita/guarita-operacoes.service';
+import { ESTADOS_TAG_COM_OPERACAO_PENDENTE, ESTADO_TAG } from '../guarita/guarita.constantes';
 
 export interface TagDto {
   codigo: string;
@@ -38,10 +39,12 @@ export class TagsService {
         id_condominio: idCondominio,
         ...(incluirInativas ? {} : { ativo: 1 }),
         ...(livres ? { veiculos: { none: { ativo: 1 } } } : {}),
-        // Módulo Guarita: tag saindo do Guarita, em conflito ou ausente não é
-        // "livre" para outro veículo (a confirmação da remoção a desvincularia).
+        // Módulo Guarita: tag com operação pendente lá (remoção, sem confirmação,
+        // conflito) ou ausente não é "livre" para outro veículo.
         // (OR com nulo: tag comum tem guarita_estado NULL, e NOT IN com NULL a esconderia.)
-        ...(livres ? { OR: [{ guarita_estado: null }, { guarita_estado: { notIn: ['removendo', 'conflito', 'ausente'] } }] } : {}),
+        ...(livres
+          ? { OR: [{ guarita_estado: null }, { guarita_estado: { notIn: [...ESTADOS_TAG_COM_OPERACAO_PENDENTE, ESTADO_TAG.ausente] } }] }
+          : {}),
       },
       orderBy: { created_at: 'desc' },
     });

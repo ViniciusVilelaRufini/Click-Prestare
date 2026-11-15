@@ -2,6 +2,12 @@ import { BadRequestException, Injectable, Logger, NotFoundException, Optional } 
 import { PrismaService } from '../prisma/prisma.service';
 import { validarPlaca } from '../common/placa.util';
 import { GuaritaOperacoesService } from '../guarita/guarita-operacoes.service';
+import {
+  ESTADOS_TAG_COM_OPERACAO_PENDENTE,
+  ESTADO_TAG,
+  MSG_TAG_AUSENTE_DO_GUARITA,
+  MSG_TAG_COM_OPERACAO_PENDENTE,
+} from '../guarita/guarita.constantes';
 
 export interface VeiculoDto {
   placa: string;
@@ -74,13 +80,13 @@ export class VeiculosService {
     if (!tag) throw new BadRequestException('Tag inválida para este condomínio.');
   }
 
-  /** Módulo Guarita: tag em remoção, em conflito ou fora do Guarita não ganha veículo NOVO. */
+  /** Módulo Guarita: tag com operação pendente no Guarita (ou fora dele) não ganha veículo NOVO. */
   private async assertTagDoGuaritaVinculavel(idTag: number | null): Promise<void> {
     if (idTag == null) return;
     const tag = await this.prisma.tags.findFirst({ where: { id: Number(idTag) }, select: { guarita_estado: true } });
-    if (['removendo', 'conflito', 'ausente'].includes((tag as any)?.guarita_estado ?? '')) {
-      throw new BadRequestException('Esta tag do Guarita não pode ser vinculada agora (em remoção, em conflito ou fora do Guarita).');
-    }
+    const estado = (tag as any)?.guarita_estado ?? '';
+    if (ESTADOS_TAG_COM_OPERACAO_PENDENTE.includes(estado)) throw new BadRequestException(MSG_TAG_COM_OPERACAO_PENDENTE);
+    if (estado === ESTADO_TAG.ausente) throw new BadRequestException(MSG_TAG_AUSENTE_DO_GUARITA);
   }
 
   /**

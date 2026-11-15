@@ -90,14 +90,14 @@ describe('GuaritaAgente — GET operacoes', () => {
     comCopia(db);
     semearOp(db, [
       { tipo: 'cadastrar', frame_hex: '1'.repeat(78) },
-      { tipo: 'apagar', frame_hex: '2'.repeat(78) },
+      { tipo: 'apagar', frame_hex: '22222222' + '00'.repeat(35) },
     ]);
     const dev = { id: 10, id_condominio: 7, nome: 'G' };
 
     const a = await service.buscarOperacoes(dev, T0);
     expect(a.operacoes).toEqual([
       { id: 1, tipo: 'cadastrar', frame_hex: '1'.repeat(78) },
-      { id: 2, tipo: 'apagar', frame_hex: '2'.repeat(78) },
+      { id: 2, tipo: 'apagar', frame_hex: '22222222' + '00'.repeat(35) },
     ]);
     expect(db.linhas('guarita_Operacoes').map((o: any) => o.estado)).toEqual(['enviada', 'enviada']);
 

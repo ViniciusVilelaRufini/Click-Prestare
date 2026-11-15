@@ -74,6 +74,20 @@ export const ESTADO_TAG = {
   remocaoFalhou: 'remocao_falhou',
 } as const;
 
+/**
+ * Tag do Guarita com operação ainda pendente lá (remoção, sem confirmação ou
+ * em conflito): não é "livre" nem pode ganhar outro veículo.
+ */
+export const ESTADOS_TAG_COM_OPERACAO_PENDENTE: string[] = [
+  ESTADO_TAG.removendo,
+  ESTADO_TAG.remocaoFalhou,
+  ESTADO_TAG.incerto,
+  ESTADO_TAG.conflito,
+];
+export const MSG_TAG_COM_OPERACAO_PENDENTE = 'Esta tag ainda tem uma operação pendente no Guarita.';
+/** Tag do Guarita que sumiu de lá: também não é livre (o síndico regrava ou desfaz). */
+export const MSG_TAG_AUSENTE_DO_GUARITA = 'Esta tag não está mais no Guarita. Use Regravar antes de vincular.';
+
 /** Tipos de dispositivo do Guarita aceitos pela integração (sem BM e SN). */
 export const TIPOS_DISPOSITIVO_GUARITA = [1, 2, 3, 6] as const;
 export type TipoDispositivoGuarita = (typeof TIPOS_DISPOSITIVO_GUARITA)[number];
