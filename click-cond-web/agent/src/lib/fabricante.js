@@ -23,6 +23,15 @@ const FAMILIA_POR_FABRICANTE = {
   controlid: 'control_id',
   'control id': 'control_id',
   'control-id': 'control_id',
+  // Nice / Linear-HCS (Módulo Guarita). A família só normaliza a grafia: o
+  // driver linear-guarita é escolhido pelo TIPO 'guarita' (registro.js);
+  // um device de outro tipo com essa marca continua sem driver, como antes.
+  linear: 'linear',
+  'linear-hcs': 'linear',
+  'linear hcs': 'linear',
+  linear_hcs: 'linear',
+  nice: 'linear',
+  'nice linear': 'linear',
 };
 
 /** trim + minúsculas + sem acentos + espaços internos colapsados. Não-string vira ''. */

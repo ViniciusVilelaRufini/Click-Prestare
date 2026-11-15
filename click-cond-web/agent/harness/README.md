@@ -16,7 +16,8 @@ Saída: uma lista `PASS`/`FALHA` e o total. Sai com código 1 se algo falhar.
 | `mock-device.js` → `servidorHik` | Hikvision ISAPI. **Valida o Digest de verdade**: header mal montado, senha errada ou `uri` que não bate com a rota são recusados. Também recusa multipart incompleto no cadastro de rosto e cadastro duplicado (forçando o caminho de `Modify`). |
 | `mock-device.js` → `servidorControlId` | Control iD `.fcgi`. Toda rota exige sessão válida — prova que o cliente faz login antes de operar. |
 | `mock-device.js` → `servidorDahua` | Intelbras/Dahua: login RPC2 em 2 etapas (desafio + hash MD5 maiúsculo), cgi `AccessUser`/`AccessFace`, `RPC2`, `recordFinder` (log em INI) e a stream `eventManager`. |
-| `run.js` → nuvem falsa | Os endpoints que o agente consome: `poll`, `result`, `event`, `device-status`. |
+| `guarita-simulado.js` | Módulo Guarita (Nice / Linear-HCS, MG3000) por TCP, implementado a partir da documentação do protocolo (autorização, leituras progressivas, gravação, relé, envios automáticos, falhas injetáveis). É o único oráculo do driver `linear-guarita`: **não validado em aparelho**. Registra qualquer comando fora da lista branca do driver. |
+| `run.js` → nuvem falsa | Os endpoints que o agente consome: `poll`, `result`, `event`, `device-status` e as rotas do Guarita (`guarita/:id/operacoes`, `eventos`, `estado`, `nao-cadastrado`). |
 
 O agente roda a partir de uma **cópia** em `.tmp-agent/` (gerada a cada
 execução): ele grava marca d'água e fila offline ao lado do `index.js`, e um

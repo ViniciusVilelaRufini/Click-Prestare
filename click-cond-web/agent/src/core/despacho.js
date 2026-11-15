@@ -49,9 +49,13 @@ const PRAZO_POR_TIPO = {
   update: PRAZO_LONGO_MS,
   list_users: PRAZO_LONGO_MS,
   remove_users: PRAZO_LONGO_MS,
+  // Relé do Módulo Guarita: validade de 10 s, igual a abrir porta.
+  guarita_rele: PRAZO_CURTO_MS,
 };
 // Abrir porta fora de hora é o pior caso: nem a nuvem consegue esticar isto.
 const TETO_OPEN_DOOR_MS = PRAZO_CURTO_MS;
+// O relé do Módulo Guarita abre portão do mesmo jeito: mesmo teto.
+const TIPOS_COM_TETO = new Set(['open_door', 'guarita_rele']);
 const ERRO_EXPIRADO = 'expirado na fila do agente';
 const ERRO_FORA_DA_LISTA = 'aparelho não está mais na lista da nuvem';
 
@@ -59,7 +63,7 @@ const ERRO_FORA_DA_LISTA = 'aparelho não está mais na lista da nuvem';
  * Prazo (ms) que o comando pode esperar na fila do agente. `cmd.ttl_ms`
  * (quanto falta para a nuvem desistir, já com folga de trajeto) manda quando
  * vem como número válido; senão vale o padrão do tipo (10 s para tipo
- * desconhecido). `open_door` nunca passa de 10 s, venha o que vier.
+ * desconhecido). `open_door` e `guarita_rele` nunca passam de 10 s, venha o que vier.
  */
 function prazoDoComando(cmd) {
   const tipo = cmd && cmd.type;
@@ -68,7 +72,7 @@ function prazoDoComando(cmd) {
     : PRAZO_CURTO_MS;
   const ttl = cmd && cmd.ttl_ms;
   const prazo = typeof ttl === 'number' && Number.isFinite(ttl) && ttl >= 0 ? ttl : padrao;
-  return tipo === 'open_door' ? Math.min(prazo, TETO_OPEN_DOOR_MS) : prazo;
+  return TIPOS_COM_TETO.has(tipo) ? Math.min(prazo, TETO_OPEN_DOOR_MS) : prazo;
 }
 
 function criarDespachante({ executar, postarResultado, log = console, agora = () => performance.now() }) {

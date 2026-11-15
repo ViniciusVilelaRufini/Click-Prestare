@@ -72,10 +72,16 @@ const { criarVerificacaoForcada } = require('./core/verificacao-forcada');
 const { descobrir } = require('./descoberta');
 const { criarAgendador } = require('./descoberta/agendador');
 const { lerTabelaArp } = require('./descoberta/arp');
-const { resolverDriver, resolverDriverDeEventos, replayEmTodaReconexao } = require('./drivers/registro');
+const {
+  resolverDriver,
+  resolverDriverDeEventos,
+  resolverOuvinte,
+  replayEmTodaReconexao,
+} = require('./drivers/registro');
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
 const controlidFacial = require('./drivers/controlid-facial');
+const linearGuarita = require('./drivers/linear-guarita');
 const { avaliarAcessoLiveView, origensLiveView } = require('./core/liveview-acesso');
 
 /**
@@ -378,10 +384,18 @@ async function runCondoLoop(token) {
   // "Dedup de backlog" ±5 s + guardas de eco). Demais marcas: como antes, só
   // quando o heartbeat tinha marcado offline (ver `replayEmTodaReconexao`).
   // `agendarReplayOffline` garante um replay por vez por aparelho.
-  // Ouvinte de eventos: só tipo 'facial' (`resolverDriverDeEventos`) — uma
-  // câmera LPR ou catraca da mesma marca não assina o stream de rostos.
+  // Ouvinte de eventos: tipo 'facial' (`resolverDriverDeEventos`) — uma
+  // câmera LPR ou catraca da mesma marca não assina o stream de rostos — e o
+  // laço de serviço do Módulo Guarita, tipo 'guarita' (`resolverOuvinte`).
+  // O Guarita fala com a nuvem pelas rotas próprias, sob este token; o
+  // evento dele NÃO passa por forwardAccessEvent (só registra, nunca abre).
+  linearGuarita.configurar({
+    requisitarNuvem: (metodo, caminho, corpo) =>
+      cloudRequest(metodo, `/api/facial/agent/condo/${token}${caminho}`, corpo),
+    agora: () => agoraDaNuvem().getTime(),
+  });
   const supervisor = new Supervisor({
-    resolverDriver: resolverDriverDeEventos,
+    resolverDriver: resolverOuvinte,
     aoEvento: (device, data) => forwardAccessEvent(token, device, data),
     aoRecuperarOffline: (device) => {
       const estavaOffline = lastDeviceOnline.get(device.id) === false;

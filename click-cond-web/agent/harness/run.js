@@ -23,6 +23,7 @@ const {
   USER,
   PASS,
 } = require('./mock-device');
+const { criarGuaritaSimulado } = require('./guarita-simulado');
 
 const PORTA_NUVEM = 9100;
 const PORTA_HIK = 9101;
@@ -30,6 +31,8 @@ const PORTA_CID = 9102;
 const PORTA_DAHUA = 9103;
 const PORTA_LPR = 9104;
 const PORTA_DHIP = 47810; // responder UDP simulado (descoberta, etapa 3)
+const PORTA_GUARITA = 9105; // Módulo Guarita (Nice/Linear) simulado, TCP
+const PALAVRA_GUARITA = 'harness123';
 const TOKEN = 'token-de-teste';
 
 const DEVICES = {
@@ -95,14 +98,30 @@ const DEVICES = {
     api_user: USER,
     api_password: PASS,
   },
+  // Módulo Guarita (Nice / Linear-HCS) por TCP contra o simulador
+  // (harness/guarita-simulado.js) — NÃO validado em aparelho. Tipo próprio
+  // 'guarita': driver linear-guarita, rotas próprias na nuvem, e o evento
+  // dele nunca passa pela rota /event (facial) nem abre porta.
+  60: {
+    id: 60,
+    nome: 'Módulo Guarita',
+    tipo: 'guarita',
+    fabricante: 'linear',
+    ip: '127.0.0.1',
+    porta: PORTA_GUARITA,
+    api_user: null,
+    api_password: PALAVRA_GUARITA,
+  },
 };
 
-const filaComandos = new Map([[10, []], [20, []], [30, []], [40, []], [50, []]]);
+const filaComandos = new Map([[10, []], [20, []], [30, []], [40, []], [50, []], [60, []]]);
 const resultados = new Map(); // commandId -> result
 const eventos = [];
 const statusRecebidos = [];
 const telemetrias = []; // payloads recebidos em POST condo/:token/telemetria
 const descobertos = []; // payloads recebidos em POST condo/:token/descobertos
+// Rotas do Guarita (contrato do plano; a API real é de outra raia).
+const guaritaNuvem = { ops: [], resultados: [], eventos: [], estados: [], naoCadastrados: [], pedidosEventFacial: 0 };
 // "Procurar na rede" do portal: true até o próximo /poll responder (zera
 // sozinho — como o campo `descobrir` de verdade, que é um pedido único).
 let pedirDescoberta = false;
@@ -147,7 +166,33 @@ function criarNuvem() {
         descobertos.push(body);
         return json({ ok: true });
       }
+      const mg = p.match(new RegExp(`^/api/facial/agent/condo/${TOKEN}/guarita/(\\d+)/(.+)$`));
+      if (mg && Number(mg[1]) === 60) {
+        const rota = mg[2];
+        if (req.method === 'GET' && rota === 'operacoes') {
+          const operacoes = guaritaNuvem.ops.splice(0);
+          return json({ operacoes });
+        }
+        const mr = rota.match(/^operacoes\/(\d+)\/resultado$/);
+        if (mr) {
+          guaritaNuvem.resultados.push({ id: Number(mr[1]), ...body });
+          return json({});
+        }
+        if (rota === 'eventos') {
+          guaritaNuvem.eventos.push(...(body.eventos || []));
+          return json({ aceitos: (body.eventos || []).length });
+        }
+        if (rota === 'estado') {
+          guaritaNuvem.estados.push(body);
+          return json({});
+        }
+        if (rota === 'nao-cadastrado') {
+          guaritaNuvem.naoCadastrados.push(body);
+          return json({});
+        }
+      }
       if (p === `/api/facial/agent/condo/${TOKEN}/event`) {
+        if (body && body.deviceId === 60) guaritaNuvem.pedidosEventFacial++;
         eventos.push(body);
         return json({ ok: true });
       }
@@ -205,6 +250,29 @@ const lprMock = comFechamentoForcado(
     })
     .listen(PORTA_LPR, '127.0.0.1'),
 );
+
+// Módulo Guarita simulado: 2 dispositivos e 1 evento na memória.
+function dispositivoGuarita(i, tipo) {
+  const d = Buffer.alloc(39, 0x20);
+  d[0] = tipo << 4;
+  d[1] = 0;
+  d[2] = (i >> 8) & 0xff;
+  d[3] = i & 0xff;
+  d.fill(0, 4, 11);
+  d[7] = i % 100;
+  d[10] = 0xff;
+  d[29] = 0;
+  d[30] = 0x16;
+  d[31] = 0;
+  return d;
+}
+const guaritaSim = criarGuaritaSimulado({
+  palavra: PALAVRA_GUARITA,
+  dispositivos: [dispositivoGuarita(1, 2), dispositivoGuarita(2, 3)],
+  eventos: [Buffer.from('000F086E080000010125210005004000', 'hex')],
+  tempos: { atraso29Ms: 50 },
+});
+const guaritaPronto = guaritaSim.escutar(PORTA_GUARITA);
 
 /** Simula o aparelho caindo da rede e voltando (queda de energia/switch). */
 async function piscarAparelhoDahua(msFora) {
@@ -304,6 +372,7 @@ async function prepararCopiaDoAgente() {
 
 async function main() {
   const agentePath = await prepararCopiaDoAgente();
+  await guaritaPronto;
 
   const agente = spawn(process.execPath, [agentePath], {
     env: {
@@ -820,6 +889,67 @@ async function main() {
     await sleep(6000);
     checar('descoberta: "Procurar na rede" do portal gera nova descoberta', descobertos.length > antesPedido, String(descobertos.length));
 
+    // ===== Módulo Guarita (Nice / Linear) — contra o SIMULADOR =====
+    const esperarAte = async (cond, ms = 8000) => {
+      const limite = Date.now() + ms;
+      while (Date.now() < limite) {
+        if (cond()) return true;
+        await sleep(100);
+      }
+      return false;
+    };
+    checar(
+      'guarita: conectou com a palavra de autorização e mandou o estado',
+      await esperarAte(() => guaritaNuvem.estados.some((e) => e.conectado === true && e.autorizado === true && e.total_dispositivos === 2)),
+      JSON.stringify(guaritaNuvem.estados.slice(-2)),
+    );
+    checar('guarita: palavra nunca vai na rota de estado', !JSON.stringify(guaritaNuvem.estados).includes(PALAVRA_GUARITA));
+    checar(
+      'guarita: evento da memória recuperado ao conectar',
+      await esperarAte(() => guaritaNuvem.eventos.some((e) => e.origem === 'recuperacao' && e.frame_hex === '000F086E080000010125210005004000')),
+      JSON.stringify(guaritaNuvem.eventos.slice(0, 3)),
+    );
+    guaritaNuvem.ops.push({ id: 1, tipo: 'cadastrar', frame_hex: dispositivoGuarita(3, 6).toString('hex').toUpperCase() });
+    guaritaNuvem.ops.push({ id: 2, tipo: 'importar' });
+    checar(
+      'guarita: cadastro gravado com resposta 0x00',
+      (await esperarAte(() => guaritaNuvem.resultados.some((r) => r.id === 1 && r.ok === true && r.codigo === 0))) &&
+        guaritaSim.memoria.dispositivos.length === 3,
+      JSON.stringify(guaritaNuvem.resultados),
+    );
+    checar(
+      'guarita: importação devolve os 3 dispositivos e fecha com fim',
+      await esperarAte(() => guaritaNuvem.resultados.some((r) => r.id === 2 && r.ok === true && r.fim === true && r.frames_hex.length === 3)),
+      JSON.stringify(guaritaNuvem.resultados.filter((r) => r.id === 2).map((r) => ({ ...r, frames_hex: r.frames_hex && r.frames_hex.length }))),
+    );
+    const cRele = enfileirar(60, { type: 'guarita_rele', payload: { tipo_receptor: 1, num_receptor: 1, rele: 1 } });
+    const rRele = await esperarResultado(cRele);
+    checar('guarita: guarita_rele pela ponte → OK', rRele?.ok === true, JSON.stringify(rRele));
+    checar('guarita: um clique = um frame do comando 13', guaritaSim.comandosRecebidos(13).length === 1, String(guaritaSim.comandosRecebidos(13).length));
+    checar(
+      'guarita: o evento tipo 6 da abertura chega pela rota do Guarita (ao vivo)',
+      await esperarAte(() => guaritaNuvem.eventos.some((e) => e.origem === 'ao_vivo' && e.frame_hex.startsWith('60'))),
+      JSON.stringify(guaritaNuvem.eventos.slice(-2)),
+    );
+    guaritaSim.injetarNaoCadastrado({ comando: 42, tipo: 1, serialHex: '1A2B3C4', contador: 0x1234 });
+    checar(
+      'guarita: controle não cadastrado (42) chega com serial e contador',
+      await esperarAte(() => guaritaNuvem.naoCadastrados.some((n) => n.serial_hex === '1A2B3C4' && n.contador === 0x1234)),
+      JSON.stringify(guaritaNuvem.naoCadastrados),
+    );
+    checar('guarita: evento do Guarita nunca vai pela rota /event (facial)', guaritaNuvem.pedidosEventFacial === 0);
+    checar(
+      'guarita: o simulador não recebeu nenhum comando proibido',
+      guaritaSim.comandosProibidosRecebidos().length === 0,
+      guaritaSim.comandosProibidosRecebidos().map((b) => b.toString('hex')).join(','),
+    );
+    checar('guarita: uma conexão só (o ping não abre outra)', guaritaSim.conexoesAceitas === 1, String(guaritaSim.conexoesAceitas));
+    checar(
+      'guarita: heartbeat reporta o Guarita online',
+      statusRecebidos.some((s) => s.deviceId === 60 && s.online),
+      JSON.stringify(statusRecebidos.filter((s) => s.deviceId === 60).slice(-2)),
+    );
+
     // ===== Telemetria (tarefa 7) =====
     // TELEMETRIA_INTERVAL_MS=1000 no spawn do agente — não precisa esperar o
     // 1min de produção para o cenário confirmar que a telemetria chegou.
@@ -844,6 +974,11 @@ async function main() {
       JSON.stringify(ultimaTelemetria?.dispositivos?.find((d) => d.id === 50)),
     );
     checar(
+      'telemetria: Guarita com driver linear-guarita, ouvinte ativo e online',
+      ultimaTelemetria?.dispositivos?.some((d) => d.id === 60 && d.driver === 'linear-guarita' && d.ouvinte_ativo === true && d.online === true),
+      JSON.stringify(ultimaTelemetria?.dispositivos?.find((d) => d.id === 60)),
+    );
+    checar(
       'telemetria: número (não string) de eventos_pendentes',
       typeof ultimaTelemetria?.eventos_pendentes === 'number',
       String(ultimaTelemetria?.eventos_pendentes),
@@ -855,6 +990,7 @@ async function main() {
     void dahua.fecharAgora();
     void cid.fecharAgora();
     void lprMock.fecharAgora();
+    void guaritaSim.fechar();
     respondedorDhip.close();
     try {
       if (streamRes) streamRes.end();
