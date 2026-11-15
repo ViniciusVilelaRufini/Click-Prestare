@@ -194,6 +194,25 @@ export function capturadoBloqueado(c: Pick<GuaritaCapturado, 'tipo' | 'tem_conta
   return Number(c.tipo) === 1 && c.tem_contador !== true;
 }
 
+/** Item de `GET condominios/:id/guarita/alertas?pendentes=1` (Task B5). */
+export interface GuaritaAlerta {
+  id: number;
+  id_device: number;
+  /** Ex.: 'panico', 'clonagem', 'receptores_desatualizados', 'porta_violada', 'bateria_fraca'… (texto livre da API). */
+  tipo: string;
+  descricao: string;
+  dados?: string | null;
+  created_at: string;
+  visto_em?: string | null;
+}
+
+/** Pânico vai em destaque. A API não fixou o nome do tipo: aceita 'panico' ou a palavra na descrição. */
+export function alertaEhPanico(a: Pick<GuaritaAlerta, 'tipo' | 'descricao'>): boolean {
+  const semAcento = (s: string | null | undefined) =>
+    String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return semAcento(a.tipo).includes('panico') || semAcento(a.descricao).includes('panico');
+}
+
 @Injectable({ providedIn: 'root' })
 export class GuaritaService {
   private http = inject(HttpClient);
@@ -324,6 +343,26 @@ export class GuaritaService {
     dto: { tipo: number; serial_hex: string; id_veiculo: number },
   ): Observable<unknown> {
     return this.http.post(`${this.dev(deviceId)}/captura/confirmar`, dto);
+  }
+
+  // ===================== Portaria (Task C3) =====================
+
+  /** Aciona o relé do portão pela ponte do agente (um pedido = um comando). */
+  abrirPortao(deviceId: number, idPortao: number): Observable<{ enviado?: boolean }> {
+    return this.http.post<{ enviado?: boolean }>(`${this.dev(deviceId)}/portoes/${idPortao}/abrir`, {});
+  }
+
+  /** Alertas do Guarita para a portaria (de todos os Guaritas do condomínio). */
+  alertas(pendentes = true): Observable<GuaritaAlerta[]> {
+    let params = new HttpParams();
+    if (pendentes) params = params.set('pendentes', '1');
+    return this.http
+      .get<GuaritaAlerta[]>(`${this.base}/alertas`, { params })
+      .pipe(map((l) => (Array.isArray(l) ? l : [])));
+  }
+
+  marcarAlertaVisto(idAlerta: number): Observable<unknown> {
+    return this.http.post(`${this.base}/alertas/${idAlerta}/visto`, {});
   }
 
   /** TAG ativo (2), cartão (3) ou TAG passivo (6) pelo código impresso (ex.: "015 02158"). */

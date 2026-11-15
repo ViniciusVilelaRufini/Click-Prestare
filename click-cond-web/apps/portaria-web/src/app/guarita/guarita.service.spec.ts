@@ -122,6 +122,25 @@ describe('GuaritaService — rotas do console', () => {
     expect(b).toEqual([item]);
   });
 
+  it('abrirPortao → POST …/portoes/:id/abrir', () => {
+    api.abrirPortao(7, 1).subscribe();
+    const req = http.expectOne(`${base}/7/portoes/1/abrir`);
+    expect(req.request.method).toBe('POST');
+    req.flush({ enviado: true });
+  });
+
+  it('alertas pendentes (de todos os Guaritas) e marcar como visto', () => {
+    api.alertas(true).subscribe();
+    const a = http.expectOne((r) => r.url === `${base}/alertas`);
+    expect(a.request.method).toBe('GET');
+    expect(a.request.params.get('pendentes')).toBe('1');
+    a.flush([]);
+    api.marcarAlertaVisto(90).subscribe();
+    const v = http.expectOne(`${base}/alertas/90/visto`);
+    expect(v.request.method).toBe('POST');
+    v.flush({});
+  });
+
   it('criarPortao e atualizarPortao mandam o portão inteiro', () => {
     const dto = { nome: 'Garagem entrada', tipo_receptor: 1, num_receptor: 2, botao: 1, rele: 3, sentido: 'entrada' };
     api.criarPortao(7, dto).subscribe();
