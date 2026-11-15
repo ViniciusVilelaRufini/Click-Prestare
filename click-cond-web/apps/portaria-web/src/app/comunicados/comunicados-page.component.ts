@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -29,16 +29,41 @@ export class ComunicadosPageComponent implements OnInit {
   form: CreateComunicado = { titulo: '', descricao: '' };
 
   /**
-   * Publicar, editar e excluir é do síndico e do funcionário do app (inclusive
-   * no console por QR Code): a API recusa o porteiro de login/senha
-   * (assertStaff), que via os botões e tomava 403. Decide pelo papel do token
-   * — o `turno` é texto livre do cadastro do porteiro. A API segue decidindo.
+   * Resposta de `comunicados/acesso` (null: ainda não respondeu). O funcionário
+   * do app sem a flag `comunicados` passa pelo papel, mas a API o recusa.
+   */
+  readonly gerenciar = signal<boolean | null>(null);
+
+  /**
+   * Publicar, editar e excluir é do síndico e do funcionário do app com a
+   * permissão `comunicados` (inclusive no console por QR Code): a API recusa o
+   * porteiro de login/senha (assertStaff) e o funcionário sem a flag, que viam
+   * os botões e tomavam 403. O papel vem do token — o `turno` é texto livre do
+   * cadastro do porteiro — e a flag, da API. A API segue decidindo.
    */
   readonly podePublicar = computed(() => {
     this.auth.porteiroInfo(); // recalcula ao entrar / trocar de condomínio
+    return this.ehEquipe() && this.gerenciar() === true;
+  });
+
+  private ehEquipe(): boolean {
     const papel = papelDoToken(this.auth.token);
     return papel === 'sindico' || papel === 'funcionario';
-  });
+  }
+
+  /** Condomínio da sessão: trocar de condomínio reconsulta a permissão. */
+  private readonly idCondominio = computed(() => this.auth.porteiroInfo()?.id_condominio ?? null);
+  /** Só a resposta da consulta mais recente vale (troca de condomínio no meio). */
+  private consultaAcesso = 0;
+  /** `?novo=true` chegou antes da resposta de `acesso`: decide quando ela chegar. */
+  private novoPendente = false;
+
+  constructor() {
+    effect(() => {
+      this.idCondominio();
+      untracked(() => this.carregarAcesso());
+    });
+  }
 
   readonly ultimo = computed(() => this.comunicados()[0] ?? null);
   readonly recentes = computed(
@@ -49,9 +74,38 @@ export class ComunicadosPageComponent implements OnInit {
     this.carregar();
     this.route.queryParams.subscribe((params) => {
       if (params['novo'] === 'true') {
-        this.abrirNovo();
+        if (this.gerenciar() === null) this.novoPendente = true;
+        else this.abrirNovo();
       }
     });
+  }
+
+  /** Porteiro nem pergunta (só leitura). Falha na consulta: vale o papel, e a API decide no salvar. */
+  carregarAcesso() {
+    const n = ++this.consultaAcesso;
+    if (!this.ehEquipe()) {
+      this.aplicarAcesso(false);
+      return;
+    }
+    this.gerenciar.set(null);
+    this.api.acesso().subscribe({
+      next: (r) => n === this.consultaAcesso && this.aplicarAcesso(r?.gerenciar === true),
+      error: (e) => {
+        if (n !== this.consultaAcesso) return;
+        console.warn('Permissão de comunicados não consultada:', e?.error?.message ?? e?.message);
+        this.aplicarAcesso(true);
+      },
+    });
+  }
+
+  private aplicarAcesso(gerenciar: boolean) {
+    this.gerenciar.set(gerenciar);
+    // Drawer aberto no condomínio anterior, sem permissão neste: fecha.
+    if (!this.podePublicar() && this.showForm) this.cancelar();
+    if (this.novoPendente) {
+      this.novoPendente = false;
+      this.abrirNovo();
+    }
   }
 
   carregar() {

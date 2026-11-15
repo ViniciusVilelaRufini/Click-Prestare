@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../prisma/generated';
 import { type Gravados, StorageService, umaVez } from '../common/storage/storage.service';
@@ -7,6 +7,8 @@ import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { formatarDataHoraBrasilia, hojeBrasilia } from '../common/hora-brasilia.util';
 import { rotuloBloco } from '../common/rotulo-bloco.util';
+import { NotificationsService } from '../notifications/notifications.service';
+import { avisarMoradoresDoCondominio } from '../comunicados/avisar-moradores.util';
 
 /** Título da assembleia sem espaços nas pontas; vazio é erro (não grava sem nome). */
 function tituloObrigatorio(valor: unknown): string {
@@ -92,11 +94,27 @@ type VotoApurado = { id: number; id_opcao: number; t: number };
 
 @Injectable()
 export class AssembleiasService {
+  private readonly logger = new Logger(AssembleiasService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly tenant: TenantAccessService,
+    // Global (NotificationsModule). Opcional só porque vários specs instanciam o service sem ele.
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
+
+  /**
+   * Push aos moradores (mesmo envio e preferência do "Novo comunicado"). Sem
+   * esperar e sem lançar: falha no push não desfaz o que já foi gravado.
+   */
+  private avisarMoradores(idCondominio: number, titulo: string, corpo: string, data: Record<string, string>) {
+    void avisarMoradoresDoCondominio(
+      { prisma: this.prisma, notifications: this.notifications, logger: this.logger },
+      idCondominio,
+      { titulo, corpo, data },
+    );
+  }
 
   /**
    * `gravados`: anexos que a assembleia já tem. URL do bucket que não é um
@@ -180,7 +198,7 @@ export class AssembleiasService {
       }
     }
 
-    await this.prisma.assembleias.create({
+    const criada = await this.prisma.assembleias.create({
       data: {
         titulo: assembleia.titulo,
         descricao: assembleia.descricao,
@@ -193,6 +211,16 @@ export class AssembleiasService {
         anexos: listDocs.join(';'),
       },
     });
+
+    // Convocação: avisa só na criação (edição não).
+    const hora = String(assembleia.hora ?? '').match(/(\d{2}):(\d{2})/);
+    const quando = [dataDbBr(dataObj), hora ? `às ${hora[1]}:${hora[2]}` : ''].filter(Boolean).join(' ');
+    this.avisarMoradores(
+      Number(idCondominio),
+      'Assembleia convocada',
+      quando ? `${assembleia.titulo} — ${quando}` : assembleia.titulo,
+      { type: 'assembleia', id: String(criada?.id ?? '') },
+    );
 
     return { success: true };
   }
@@ -408,8 +436,9 @@ export class AssembleiasService {
       }
 
       // ATA, apuração e a remoção juntas: se algo falha, a assembleia fica.
+      let idAta: number | undefined;
       await this.prisma.$transaction(async (tx) => {
-        await tx.documentos.create({
+        const ata = await tx.documentos.create({
           data: {
             id_condominio: idCond,
             is_ata: 1,
@@ -417,6 +446,7 @@ export class AssembleiasService {
             link_doc: linkDoc,
           },
         });
+        idAta = ata?.id;
         if (linkApuracao) {
           await tx.documentos.create({
             data: {
@@ -431,6 +461,8 @@ export class AssembleiasService {
           where: { id: Number(assembleia.id) },
         });
       });
+      // Um aviso pela ATA (a apuração vai junto, sem push próprio).
+      this.avisarMoradores(idCond, 'ATA publicada', nomeAta, { type: 'ata', id: String(idAta ?? '') });
     } catch (e) {
       // Best-effort: deleteUrl não lança e só apaga dentro de `atas/`.
       for (const url of enviados) await this.storage.deleteUrl(url, ['atas/']);
@@ -497,6 +529,7 @@ export class AssembleiasService {
     }
 
     // Votação e opções juntas: sem votação órfã sem opções.
+    let idVotacao: number | undefined;
     await this.prisma.$transaction(async (tx) => {
       const created = await tx.votacoes.create({
         data: {
@@ -512,7 +545,22 @@ export class AssembleiasService {
       await tx.votacoes_Opcoes.createMany({
         data: opcoes.map((nome) => ({ id_votacao: created.id, nome })),
       });
+      idVotacao = created.id;
     });
+
+    // Enquete aberta à comunidade avisa na criação. Pauta de assembleia não:
+    // a convocação já avisou.
+    if (isEnquete || !idAssembleia) {
+      // Início futuro: ainda não dá para votar, o texto não pode dizer "vote até".
+      const abreDepois = dIni.getTime() > hojeBrasilia().getTime();
+      const corpo = abreDepois
+        ? `Nova enquete publicada: ${titulo}. Abre em ${dataDbBr(dIni).slice(0, 5)}.`
+        : `${titulo} — vote até ${dataDbBr(dFim)}`;
+      this.avisarMoradores(Number(idCondominio), 'Nova enquete', corpo, {
+        type: 'enquete',
+        id: String(idVotacao ?? ''),
+      });
+    }
 
     return { success: true };
   }

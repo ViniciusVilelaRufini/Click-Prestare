@@ -33,6 +33,13 @@ import { SuperlogicaService } from '../superlogica/superlogica.service';
 import { csvCelula } from '../common/csv.util';
 
 import { rotuloBloco } from '../common/rotulo-bloco.util';
+import {
+  ehDespesaNoLivroCaixa,
+  ehTaxaCondominialDeApto,
+  lancamentoPago,
+  nomeFaturaDeApto,
+  valorNoLivroCaixa,
+} from './livro-caixa-criterio.util';
 @Injectable()
 export class FinanceiroService implements OnModuleInit {
   private readonly logger = new Logger(FinanceiroService.name);
@@ -234,45 +241,9 @@ export class FinanceiroService implements OnModuleInit {
     };
   }
 
+  /** Critério compartilhado com o relatório financeiro: ver livro-caixa-criterio.util. */
   private nomeFaturaDeApto(nome: string | null | undefined, apto: string | null | undefined, bloco: string | null | undefined): boolean {
-    if (!nome || !apto) return false;
-    // Escapa caracteres regex no apto/bloco (defensivo — apto pode ter
-    // hífen ou outros símbolos em alguns condomínios).
-    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const aptoEsc = escape(apto.trim());
-
-    // Apartamento precisa estar entre "Apto " e o PRÓXIMO CAMPO do nome. `\b`
-    // sozinho não basta: ele barra dígito colado ("101" não casa com apto
-    // "10"), mas deixa passar pontuação colada — "10.1", "10-A" e "10/2"
-    // também têm `\b` logo depois do "10", e o boleto do vizinho vazava.
-    //
-    // Exigir só `(?=\s|$)` também não basta, porque o espaço é separador dos
-    // campos mas não é proibido DENTRO do valor: `assertAptoValido` aceita
-    // "10 A" e `normalizarUnidade` devolve identificação não numérica
-    // verbatim, então "Apto 10 A - Ref..." existe de verdade — e casava com o
-    // apto "10", que é o mesmo vazamento por outro caminho.
-    //
-    // Os três produtores de nome ("Apto X [Bloco Y] - Ref. MM/AAAA",
-    // "... - Rateio: ...", "... - Acordo Parc. i/n") só encerram o token do
-    // apto de dois jeitos: seguido de " Bloco " ou do " - " que abre o
-    // sufixo. Ancorar nisso é o que distingue o valor do separador.
-    const aptoRegex = new RegExp(`\\bApto\\s+${aptoEsc}(?=\\s+Bloco\\s|\\s*-\\s|$)`, 'i');
-    if (!aptoRegex.test(nome)) return false;
-
-    // Se bloco informado, valida também. Se vazio/null, aceita lançamento
-    // sem bloco (apartamento sem bloco em condomínios pequenos). Mesmo
-    // raciocínio do apto, e o bloco tem o mesmo defeito: "Bloco A B" casava
-    // com o bloco "A". O bloco é sempre o último campo antes do " - ", então
-    // é só nele (ou no fim da string) que o token pode terminar.
-    const blocoNorm = bloco?.trim() ?? '';
-    if (blocoNorm) {
-      const blocoEsc = escape(blocoNorm);
-      const blocoRegex = new RegExp(`\\bBloco\\s+${blocoEsc}(?=\\s*-\\s|$)`, 'i');
-      return blocoRegex.test(nome);
-    }
-    // Sem bloco no perfil: aceita só se o nome também não tiver bloco
-    // ("Apto 5 - Ref. 03/2026" sem "Bloco").
-    return !/\bBloco\s+\S/i.test(nome);
+    return nomeFaturaDeApto(nome, apto, bloco);
   }
 
   /**
@@ -1018,13 +989,7 @@ export class FinanceiroService implements OnModuleInit {
     // assembleia, já que sem as taxas o saldo sai artificialmente negativo.
     const list = incluirTaxasCondominiais
       ? listBruta
-      : listBruta.filter(
-        (l) =>
-          !(
-            l.tipo === 'C' &&
-            aptosDoCondominio.some((a) => this.nomeFaturaDeApto(l.nome, a.apto, a.bloco))
-          ),
-      );
+      : listBruta.filter((l) => !ehTaxaCondominialDeApto(l, aptosDoCondominio));
 
     const lancamentosMap: Record<string, any[]> = {};
     let saldo = 0;
@@ -1035,17 +1000,13 @@ export class FinanceiroService implements OnModuleInit {
     const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
     for (const item of list) {
-      let v = item.valor ? Number(item.valor) : 0;
-      if (item.tipo === 'D') {
-        v = -Math.abs(v);
-      } else {
-        v = Math.abs(v);
-      }
+      // Sinal e classificação do util compartilhado com o relatório financeiro.
+      const v = valorNoLivroCaixa(item);
 
-      if (item.pago === 1) {
+      if (lancamentoPago(item)) {
         saldo += v;
-        if (item.tipo === 'C') totalReceita += Math.abs(v);
-        else totalDespesa += Math.abs(v);
+        if (ehDespesaNoLivroCaixa(item)) totalDespesa += Math.abs(v);
+        else totalReceita += Math.abs(v);
       }
 
       const refDate = item.data || item.data_vencimento || item.created_at;
@@ -3084,13 +3045,7 @@ export class FinanceiroService implements OnModuleInit {
       });
     const list = incluirTaxasCondominiais
       ? listBruta
-      : listBruta.filter(
-        (l) =>
-          !(
-            l.tipo === 'C' &&
-            aptosDoCondominio.some((a) => this.nomeFaturaDeApto(l.nome, a.apto, a.bloco))
-          ),
-      );
+      : listBruta.filter((l) => !ehTaxaCondominialDeApto(l, aptosDoCondominio));
 
     // Calcula saldo corrente igual o getAll faz na tela — operador espera
     // ver o mesmo número que aparece no painel.

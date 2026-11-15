@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
+import { avisarMoradoresDoCondominio } from './avisar-moradores.util';
 
 /** Texto sem espaços nas pontas; vazio/só espaços → 400 com a mensagem dada. */
 function textoObrigatorio(valor: unknown, mensagem: string): string {
@@ -35,20 +36,15 @@ export class ComunicadosService {
    * preferência ligada. Fire-and-forget: falha no FCM não desfaz a publicação.
    */
   private async notificarMoradores(idCondominio: number, titulo: string, id: number) {
-    try {
-      const users = await this.prisma.users.findMany({
-        where: { notif_comunicados: 1, fcm_token: { not: null }, moradores: { some: { id_condominio: idCondominio } } },
-        select: { fcm_token: true },
-      });
-      for (const u of users) {
-        await this.notifications.sendPushNotification(u.fcm_token!, 'Novo comunicado', titulo, {
-          type: 'comunicado',
-          id: String(id),
-        });
-      }
-    } catch (e: any) {
-      this.logger.error(`[comunicados.push] ${e?.message ?? e}`);
-    }
+    await avisarMoradoresDoCondominio(
+      { prisma: this.prisma, notifications: this.notifications, logger: this.logger },
+      idCondominio,
+      {
+        titulo: 'Novo comunicado',
+        corpo: titulo,
+        data: { type: 'comunicado', id: String(id) },
+      },
+    );
   }
 
   /**
@@ -81,6 +77,24 @@ export class ComunicadosService {
         atualizadoEm: fmtDate(c.updated_at as any),
       },
     };
+  }
+
+  /**
+   * O que o console pode oferecer a quem está logado — a mesma regra das rotas
+   * de escrita (assertStaff + flag `comunicados` do funcionário do app), para a
+   * tela não mostrar Novo/Editar/Excluir que vão dar 403. Porteiro de
+   * login/senha: só leitura.
+   */
+  async acesso(idCondominio: number, user?: JwtPayload): Promise<{ gerenciar: boolean }> {
+    await this.tenant.assertCondominio(idCondominio, user);
+    try {
+      assertStaff(user, 'gerenciar comunicados');
+      await this.tenant.assertPermissaoFuncionario(idCondominio, 'comunicados', user);
+      return { gerenciar: true };
+    } catch (e) {
+      if (e instanceof ForbiddenException) return { gerenciar: false };
+      throw e;
+    }
   }
 
   async findAll(idCondominio: number, user?: JwtPayload) {

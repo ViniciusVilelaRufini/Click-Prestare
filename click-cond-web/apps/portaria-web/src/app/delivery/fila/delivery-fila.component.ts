@@ -5,7 +5,7 @@ import { DeliveryAtendimento, DeliveryStatus } from '../delivery.model';
 import { DeliveryStore } from '../delivery.store';
 import { STATUS_CARDS, STATUS_FILTRO, classesStatus, ehTerminal, rotuloStatus } from '../shared/delivery-status';
 import { DeliveryStatusBadgeComponent } from '../shared/delivery-status-badge.component';
-import { emAtencao, inicioEspera, minutosDesde, textoEspera } from '../shared/tempo';
+import { emAtencao, inicioEspera, minutosDesde, parado, textoEspera } from '../shared/tempo';
 import { DeliveryDetalheComponent } from './delivery-detalhe.component';
 
 @Component({
@@ -37,6 +37,11 @@ export class DeliveryFilaComponent {
 
   atencao(a: DeliveryAtendimento): boolean {
     return emAtencao(a, this.store.agora());
+  }
+
+  /** Parado há mais de 24 h na etapa atual: destaque, a portaria decide o desfecho. */
+  parado(a: DeliveryAtendimento): boolean {
+    return parado(a, this.store.agora());
   }
 
   modo(a: DeliveryAtendimento): string {

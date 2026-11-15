@@ -2,6 +2,7 @@ import { MobileAuthService } from './mobile-auth.service';
 import { DashboardMobileController } from './mobile-auth.controller';
 import { TenantAccessService } from './tenant-access.service';
 import type { JwtPayload } from './jwt-payload.interface';
+import { STATUS_SOLUCIONADO } from '../common/status-ocorrencia.util';
 
 /**
  * O painel do app (GET /dashboard/summary) contava TODAS as ocorrências abertas do condomínio para o
@@ -11,7 +12,9 @@ import type { JwtPayload } from './jwt-payload.interface';
 describe('getSummary — ocorrências privadas no resumo do funcionário', () => {
   const FUNCIONARIO: JwtPayload = { sub: 5, nome: 'Func', typeAccess: 'Funcionario', user: { id: 5 } as any };
   const SINDICO: JwtPayload = { sub: 9, nome: 'Síndico', typeAccess: 'Sindico', user: { id: 9 } as any };
-  const ABERTAS = { notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] };
+  // Rodada 4: a lista única de "solucionado" (common/status-ocorrencia.util),
+  // que também reconhece as grafias legadas 'Solucionada' e 'Resolvido'.
+  const ABERTAS = { notIn: [...STATUS_SOLUCIONADO] };
 
   function build(flagOcorrencias: number) {
     const prisma: any = {
@@ -89,5 +92,17 @@ describe('getSummary — ocorrências privadas no resumo do funcionário', () =>
     const service: any = { getSummary: jest.fn(async () => ({})) };
     new DashboardMobileController(service).summary(FUNCIONARIO);
     expect(service.getSummary).toHaveBeenCalledWith(5, 'Funcionario', FUNCIONARIO);
+  });
+  it('rodada 4: "Solucionada" e "Resolvido" legados contam como fechadas no resumo e nas pendentes', async () => {
+    const { svc, prisma } = build(1);
+    prisma.ocorrencias.findMany = jest.fn(async () => []);
+    prisma.sindicos_Condominios.findFirst = jest.fn(async () => ({ id: 1 }));
+    await svc.getSummary(9, 'Sindico', SINDICO);
+    await svc.listOcorrenciasPendentes(1, 9, 'Sindico', SINDICO);
+    const notIns = [
+      prisma.ocorrencias.count.mock.calls[0][0].where.status.notIn,
+      prisma.ocorrencias.findMany.mock.calls[0][0].where.status.notIn,
+    ];
+    for (const lista of notIns) expect(lista).toEqual(expect.arrayContaining(['Solucionada', 'Resolvido', 'Solucionado', 'Resolvida']));
   });
 });

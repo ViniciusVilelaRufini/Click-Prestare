@@ -239,4 +239,16 @@ describe('DeliveryFilaComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Nenhuma entrega na fila');
   });
+  it('rodada 4: em andamento parado há mais de 24 h ganha destaque; agendada não', () => {
+    const fixture = montar();
+    store.agora.set(new Date('2026-09-28T13:00:00.000Z')); // 25 h depois da chegada da Pizzaria
+    fixture.detectChanges();
+    const tags = Array.from(fixture.nativeElement.querySelectorAll('[data-testid="delivery-parado"]')) as HTMLElement[];
+    expect(tags).toHaveLength(1);
+    expect(tags[0].closest('button')?.textContent).toContain('Pizzaria Central');
+
+    store.agora.set(new Date('2026-09-27T20:00:00.000Z'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('[data-testid="delivery-parado"]')).toHaveLength(0);
+  });
 });

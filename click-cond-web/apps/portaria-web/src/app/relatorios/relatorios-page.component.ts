@@ -61,6 +61,8 @@ export class RelatoriosPageComponent {
   readonly tipo = signal<'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro'>('visitantes');
   readonly dataInicio = signal<string>('');
   readonly dataFim = signal<string>('');
+  /** Só no financeiro: reinclui as taxas apto a apto, como o interruptor do Livro Caixa. */
+  readonly incluirTaxasCondominiais = signal<boolean>(false);
   readonly loading = signal<boolean>(false);
   readonly error = signal<string | null>(null);
 
@@ -481,6 +483,7 @@ export class RelatoriosPageComponent {
       formato,
       this.dataInicio() || undefined,
       this.dataFim() || undefined,
+      this.tipo() === 'financeiro' && this.incluirTaxasCondominiais(),
     ).subscribe({
       next: (blob) => {
         const url = window.URL.createObjectURL(blob);
@@ -497,9 +500,39 @@ export class RelatoriosPageComponent {
       },
       error: (err) => {
         console.error(err);
-        this.error.set('Não foi possível gerar o relatório. Verifique os filtros e tente novamente.');
         this.loading.set(false);
+        const padrao = 'Não foi possível gerar o relatório. Verifique os filtros e tente novamente.';
+        // O download pede blob: a mensagem da API (403, 400...) chega dentro dele.
+        const corpo = err?.error;
+        if (corpo instanceof Blob) {
+          this.error.set(padrao);
+          void mensagemDoBlob(corpo).then((msg) => {
+            if (msg) this.error.set(msg);
+          });
+        } else {
+          this.error.set(err?.error?.message ?? padrao);
+        }
       },
     });
+  }
+}
+
+/** `message` do JSON de erro da API que veio como Blob (download); null se não houver. */
+export async function mensagemDoBlob(blob: Blob): Promise<string | null> {
+  try {
+    const texto =
+      typeof blob.text === 'function'
+        ? await blob.text()
+        : await new Promise<string>((ok, falha) => {
+            const leitor = new FileReader();
+            leitor.onload = () => ok(String(leitor.result ?? ''));
+            leitor.onerror = () => falha(leitor.error);
+            leitor.readAsText(blob);
+          });
+    const msg = JSON.parse(texto)?.message;
+    if (!msg) return null;
+    return Array.isArray(msg) ? msg.join(' ') : String(msg);
+  } catch {
+    return null; // corpo não é JSON
   }
 }

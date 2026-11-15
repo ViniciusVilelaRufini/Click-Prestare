@@ -263,4 +263,66 @@ describe('RelatoriosPageComponent — auditoria e eventos', () => {
       expect(c.errorAudit()).toBeNull();
     });
   });
+  describe('relatório financeiro: taxas condominiais por unidade', () => {
+    const checkbox = (f: any) => f.nativeElement.querySelector('[data-testid="relatorio-incluir-taxas"]');
+
+    it('o interruptor só aparece no financeiro e vem desligado', () => {
+      const f = montar();
+      expect(checkbox(f)).toBeNull();
+      f.componentInstance.setTipo('financeiro');
+      f.detectChanges();
+      expect(checkbox(f)).not.toBeNull();
+      expect(f.componentInstance.incluirTaxasCondominiais()).toBe(false);
+    });
+
+    it('desligado: não pede as taxas; ligado: pede', () => {
+      api.downloadReport.mockReturnValue(new Subject());
+      const c = montar().componentInstance;
+      c.setTipo('financeiro');
+      c.exportar('pdf');
+      expect(api.downloadReport).toHaveBeenLastCalledWith('financeiro', 'pdf', undefined, undefined, false);
+      c.incluirTaxasCondominiais.set(true);
+      c.exportar('xlsx');
+      expect(api.downloadReport).toHaveBeenLastCalledWith('financeiro', 'xlsx', undefined, undefined, true);
+    });
+
+    it('nos outros relatórios o interruptor não vale', () => {
+      api.downloadReport.mockReturnValue(new Subject());
+      const c = montar().componentInstance;
+      c.incluirTaxasCondominiais.set(true);
+      c.setTipo('visitantes');
+      c.exportar('pdf');
+      expect(api.downloadReport).toHaveBeenLastCalledWith('visitantes', 'pdf', undefined, undefined, false);
+    });
+
+    it('erro do download chega como Blob: lê o JSON e mostra a message da API', async () => {
+      const corpo = new Blob([JSON.stringify({ statusCode: 403, message: 'Acesso negado: baixar o relatório financeiro exige síndico.' })], {
+        type: 'application/json',
+      });
+      api.downloadReport.mockReturnValueOnce(throwError(() => ({ status: 403, error: corpo })));
+      const c = montar().componentInstance;
+      c.exportar('pdf');
+      expect(c.error()).toContain('Não foi possível gerar o relatório');
+      await new Promise((r) => setTimeout(r, 20));
+      expect(c.error()).toBe('Acesso negado: baixar o relatório financeiro exige síndico.');
+    });
+
+    it('Blob que não é JSON: fica a mensagem padrão', async () => {
+      api.downloadReport.mockReturnValueOnce(throwError(() => ({ status: 502, error: new Blob(['<html>Bad Gateway</html>']) })));
+      const c = montar().componentInstance;
+      c.exportar('pdf');
+      await new Promise((r) => setTimeout(r, 20));
+      expect(c.error()).toContain('Não foi possível gerar o relatório');
+    });
+
+    it('erro sem corpo JSON: mensagem padrão; com mensagem da API: mostra a da API', () => {
+      api.downloadReport.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+      const c = montar().componentInstance;
+      c.exportar('pdf');
+      expect(c.error()).toContain('Não foi possível gerar o relatório');
+      api.downloadReport.mockReturnValueOnce(throwError(() => ({ status: 403, error: { message: 'Acesso negado.' } })));
+      c.exportar('pdf');
+      expect(c.error()).toBe('Acesso negado.');
+    });
+  });
 });

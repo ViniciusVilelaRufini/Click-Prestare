@@ -7,6 +7,7 @@ import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial
 import { csvCelula } from '../common/csv.util';
 import { autorOcorrencia } from '../ocorrencias/autor-ocorrencia.util';
 import { formatarApto } from '../common/formatar-apto.util';
+import { normalizarBloco } from '../common/rotulo-bloco.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { ocorrenciaSolucionada as solucionada } from '../common/status-ocorrencia.util';
 import {
@@ -18,6 +19,20 @@ import {
   resolverPeriodoEventos,
 } from './eventos-espinha';
 import { cabecalhoMarca, fileteMarca, PDF_COR, temaPdf, travarAcessosPdf } from './pdf-tema';
+import {
+  ehDespesaNoLivroCaixa,
+  ehTaxaCondominialDeApto,
+  lancamentoPago,
+  nomeFaturaDeApto,
+  lancamentoRenegociado,
+  valorNoLivroCaixa,
+} from '../financeiro/livro-caixa-criterio.util';
+
+/** Opções do relatório financeiro. Todas opcionais: o app publicado não manda nenhuma. */
+export interface OpcoesRelatorioFinanceiro {
+  /** Reinclui as taxas condominiais apto a apto (padrão: fora, como no Livro Caixa). */
+  incluirTaxasCondominiais?: boolean;
+}
 
 /**
  * Módulos do log que só o síndico lê: os detalhes trazem valores, nomes e
@@ -118,6 +133,7 @@ export class RelatoriosService {
     dataFim?: string,
     bloco?: string,
     apto?: string,
+    opcoes: OpcoesRelatorioFinanceiro = {},
   ): Promise<{ buffer: Buffer; mime: string; filename: string }> {
     const condominio = await this.prisma.condominios.findUnique({
       where: { id: idCondominio },
@@ -431,10 +447,30 @@ export class RelatoriosService {
       ];
     }
 
-    let list = await this.prisma.financeiro.findMany({
+    const listBruta = await this.prisma.financeiro.findMany({
       where,
       orderBy: { created_at: 'desc' },
     });
+
+    // Mesmo recorte do Livro Caixa (financeiro/livro-caixa-criterio.util), para
+    // o Balanço daqui fechar com o Saldo de lá no mesmo mês:
+    //  - a dívida renegociada num acordo sai (a Inadimplência também a tira);
+    //    as parcelas do acordo ficam;
+    //  - as taxas condominiais apto a apto ficam fora, salvo com o interruptor.
+    //    Com unidade escolhida no filtro (apto, ou só o bloco) elas entram: o
+    //    relatório de uma unidade existe justamente para mostrar as cobranças dela.
+    const soBloco = !!cleanBloco && !cleanApto;
+    const incluirTaxas = opcoes.incluirTaxasCondominiais === true || !!cleanApto || soBloco;
+    const aptosDoCondominio =
+      incluirTaxas && !soBloco
+        ? []
+        : await this.prisma.apartamentos.findMany({
+            where: { id_condominio: idCondominio },
+            select: { apto: true, bloco: true },
+          });
+    let list = listBruta.filter(
+      (f) => !lancamentoRenegociado(f) && (incluirTaxas || !ehTaxaCondominialDeApto(f, aptosDoCondominio)),
+    );
 
     if (cleanApto) {
       list = list.filter((f) => {
@@ -446,15 +482,61 @@ export class RelatoriosService {
         }
         return true;
       });
+    } else if (soBloco) {
+      // Só o bloco (o app manda `bloco` sem `apto`): lançamentos das unidades
+      // DESTE condomínio naquele bloco, reconhecidos pelo nome da cobrança
+      // como na Inadimplência ("Apto X Bloco Y - ..."). Lançamento geral do
+      // condomínio não pertence a bloco nenhum e fica de fora (dito no PDF).
+      const chave = normalizarBloco(cleanBloco);
+      const aptosDoBloco = aptosDoCondominio.filter((a) => normalizarBloco(a.bloco) === chave);
+      list = list.filter((f) => aptosDoBloco.some((a) => nomeFaturaDeApto(f.nome, a.apto, a.bloco)));
     }
 
+    // Totais como no Livro Caixa: só o que está pago entra em receitas,
+    // despesas e balanço. O que não foi pago no período aparece à parte.
+    let totalReceitas = 0;
+    let totalDespesas = 0;
+    let aReceber = 0;
+    let aPagar = 0;
+    for (const f of list) {
+      const v = Math.abs(valorNoLivroCaixa(f));
+      const despesa = ehDespesaNoLivroCaixa(f);
+      if (lancamentoPago(f)) {
+        if (despesa) totalDespesas += v;
+        else totalReceitas += v;
+      } else if (despesa) aPagar += v;
+      else aReceber += v;
+    }
+    const balanco = totalReceitas - totalDespesas;
+    const EM_ABERTO = 'em aberto com vencimento no período';
+    const resumo = [
+      { label: 'Receitas pagas', valor: totalReceitas },
+      { label: 'Despesas pagas', valor: totalDespesas },
+      { label: 'Balanço Geral', valor: balanco, legenda: 'receitas pagas - despesas pagas' },
+      { label: 'A receber', valor: aReceber, legenda: EM_ABERTO },
+      { label: 'A pagar', valor: aPagar, legenda: EM_ABERTO },
+    ];
+    // O documento diz o que conta: quem baixa pelo app (sem o interruptor) vê
+    // a arrecadação sumir e o balanço negativo, e precisa saber por quê.
+    const notas = [
+      'Totais consideram apenas lançamentos pagos, como no Livro Caixa.',
+      ...(incluirTaxas
+        ? []
+        : [
+            "Não inclui as taxas condominiais por unidade. Para incluí-las, gere o relatório pelo console com a opção 'Incluir taxas condominiais por unidade'.",
+          ]),
+      ...(soBloco
+        ? ['Filtro por bloco: só os lançamentos das unidades do bloco; lançamentos gerais do condomínio não entram.']
+        : []),
+    ];
+    const arred = (n: number) => Math.round(n * 100) / 100;
+
     const excelData = list.map((f) => {
-      const isRevenue = f.tipo?.toUpperCase() === 'C';
-      const rawVal = Math.abs(f.valor ? Number(f.valor) : 0);
+      const v = valorNoLivroCaixa(f);
       return {
         Nome: f.nome || '-',
-        Tipo: isRevenue ? 'Receita' : 'Despesa',
-        Valor: isRevenue ? rawVal : -rawVal,
+        Tipo: ehDespesaNoLivroCaixa(f) ? 'Despesa' : 'Receita',
+        Valor: v,
         Vencimento: formatDiaDb(f.data_vencimento),
         // O período é pela data do pagamento (competência): ela precisa aparecer.
         // Só no lançamento pago: `data` também vem preenchida no que não foi pago.
@@ -466,29 +548,27 @@ export class RelatoriosService {
     });
 
     if (formato === 'xlsx') {
-      const buffer = this.generateExcel(excelData, 'Financeiro');
+      const buffer = this.generateExcel(excelData, 'Financeiro', [
+        {
+          nome: 'Resumo',
+          dados: [
+            ...resumo.map((m) => ({ Indicador: m.legenda ? `${m.label} (${m.legenda})` : m.label, Valor: arred(m.valor) })),
+            ...notas.map((n) => ({ Indicador: n, Valor: null })),
+          ],
+        },
+      ]);
       return {
         buffer,
         mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         filename: `relatorio_financeiro${fileSuffix}_${getTimestamp()}.xlsx`,
       };
     } else {
-      const totalReceitas = list
-        .filter((f) => f.tipo?.toUpperCase() === 'C')
-        .reduce((sum, f) => sum + Math.abs(f.valor ? Number(f.valor) : 0), 0);
-      const totalDespesas = list
-        .filter((f) => f.tipo?.toUpperCase() === 'D')
-        .reduce((sum, f) => sum + Math.abs(f.valor ? Number(f.valor) : 0), 0);
-
       const buffer = await this.generatePdf({
         headerText: `Relatório Financeiro - ${nomeCondo}`,
         unidade: unidadeDesc,
         periodo: this.formatPeriod(dataInicio, dataFim),
-        metrics: [
-          { label: 'Total Receitas', value: `R$ ${totalReceitas.toFixed(2)}` },
-          { label: 'Total Despesas', value: `R$ ${totalDespesas.toFixed(2)}` },
-          { label: 'Balanço Geral', value: `R$ ${(totalReceitas - totalDespesas).toFixed(2)}` },
-        ],
+        metrics: resumo.map((m) => ({ label: m.label, value: `R$ ${m.valor.toFixed(2)}`, legenda: m.legenda })),
+        notas,
         table: {
           widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
           body: [
@@ -497,12 +577,11 @@ export class RelatoriosService {
               style: 'tableHeader',
             })),
             ...list.map((f) => {
-              const isRevenue = f.tipo?.toUpperCase() === 'C';
-              const rawVal = Math.abs(f.valor ? Number(f.valor) : 0);
-              const valStr = isRevenue ? `R$ ${rawVal.toFixed(2)}` : `-R$ ${rawVal.toFixed(2)}`;
+              const v = valorNoLivroCaixa(f);
+              const valStr = v < 0 ? `-R$ ${(-v).toFixed(2)}` : `R$ ${v.toFixed(2)}`;
               return [
                 f.nome || '-',
-                isRevenue ? 'Receita' : 'Despesa',
+                ehDespesaNoLivroCaixa(f) ? 'Despesa' : 'Receita',
                 valStr,
                 formatDiaDb(f.data_vencimento),
                 f.pago === 1 ? formatDiaDb(f.data) : '-',
@@ -521,10 +600,13 @@ export class RelatoriosService {
     }
   }
 
-  private generateExcel(data: any[], sheetName: string): Buffer {
+  private generateExcel(data: any[], sheetName: string, abasExtras: { nome: string; dados: any[] }[] = []): Buffer {
     const ws = xlsx.utils.json_to_sheet(data);
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, sheetName);
+    for (const aba of abasExtras) {
+      xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(aba.dados), aba.nome);
+    }
     return xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
   }
 
@@ -532,7 +614,9 @@ export class RelatoriosService {
     headerText: string;
     periodo: string;
     unidade?: string | null;
-    metrics: { label: string; value: string }[];
+    metrics: { label: string; value: string; legenda?: string }[];
+    /** Linhas de explicação logo abaixo do cabeçalho (o que os totais contam). */
+    notas?: string[];
     table: { widths: any[]; body: any[][] };
   }): Promise<Buffer> {
     // Visual Prestare Dark na versão para papel (ver pdf-tema.ts).
@@ -553,6 +637,12 @@ export class RelatoriosService {
           : []),
         { text: [{ text: 'PERÍODO  ', ...rotulo }, { text: params.periodo }], style: 'subheader' },
         { text: [{ text: 'GERADO EM  ', ...rotulo }, { text: getGeradoEmStr() }], style: 'meta' },
+        ...(params.notas ?? []).map((n, i, todas) => ({
+          text: n,
+          fontSize: 9,
+          color: PDF_COR.muted,
+          margin: [0, 0, 0, i === todas.length - 1 ? 12 : 3] as [number, number, number, number],
+        })),
 
         // Cards de métricas
         {
@@ -563,7 +653,16 @@ export class RelatoriosService {
                 fillColor: PDF_COR.painel,
                 stack: [
                   { text: m.label.toUpperCase(), ...rotulo },
-                  { text: m.value, font: tema.displayLeve, fontSize: 26, lineHeight: 0.95, color: PDF_COR.tinta, margin: [0, 4, 0, 0] },
+                  {
+                    text: m.value,
+                    font: tema.displayLeve,
+                    // Cinco cartões não comportam o valor em 26 pt.
+                    fontSize: params.metrics.length > 3 ? 16 : 26,
+                    lineHeight: 0.95,
+                    color: PDF_COR.tinta,
+                    margin: [0, 4, 0, 0],
+                  },
+                  ...(m.legenda ? [{ text: m.legenda, fontSize: 7, color: PDF_COR.subtle, margin: [0, 3, 0, 0] }] : []),
                 ],
                 margin: [12, 10, 12, 8],
               })),

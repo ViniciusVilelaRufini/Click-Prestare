@@ -66,6 +66,8 @@ export class RelatoriosController {
     @Query('dataFim') dataFim?: string,
     @Query('bloco') bloco?: string,
     @Query('apto') apto?: string,
+    // Opcional: o app publicado não manda; ausente = taxas fora, como no Livro Caixa.
+    @Query('incluirTaxasCondominiais') incluirTaxasCondominiais?: string,
   ) {
     if (tipo === 'financeiro') {
       assertSindico(payload, 'baixar o relatório financeiro do condomínio');
@@ -86,6 +88,7 @@ export class RelatoriosController {
       dataFim,
       bloco,
       apto,
+      { incluirTaxasCondominiais: incluirTaxasCondominiais === 'true' },
     );
 
     res.setHeader('Content-Type', mime);

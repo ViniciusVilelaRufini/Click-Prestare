@@ -26,6 +26,11 @@ export class ComunicadosApi {
     return `${API_BASE}/condominios/${cid}/comunicados`;
   }
 
+  /** Mesma regra das rotas de escrita: o funcionário do app sem a flag `comunicados` não gerencia. */
+  acesso(): Observable<{ gerenciar: boolean }> {
+    return this.http.get<{ gerenciar: boolean }>(`${this.base}/acesso`);
+  }
+
   list(): Observable<Comunicado[]> {
     return this.http.get<Comunicado[]>(this.base);
   }

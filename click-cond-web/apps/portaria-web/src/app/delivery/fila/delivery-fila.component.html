@@ -45,7 +45,7 @@
 
       @for (a of store.fila(); track a.id) {
         <button type="button" (click)="store.selecionar(a)"
-          [class]="'flex w-full items-stretch gap-3 border-b border-slate-200 px-4 py-3 text-left transition last:border-b-0 hover:bg-graphite-300 ' + (store.selecionado()?.id === a.id ? 'bg-graphite-300 ' : '') + (terminal(a) ? 'opacity-70' : '')">
+          [class]="'flex w-full items-stretch gap-3 border-b border-slate-200 px-4 py-3 text-left transition last:border-b-0 hover:bg-graphite-300 ' + (store.selecionado()?.id === a.id ? 'bg-graphite-300 ' : '') + (terminal(a) ? 'opacity-70' : '') + (parado(a) ? ' bg-red-500/5' : '')">
           <span [class]="'w-0.5 shrink-0 ' + cls(a.status).ponto"></span>
           @if (a.pedido_portao?.foto; as foto) {
             <img [src]="foto" alt="" class="h-10 w-10 shrink-0 border border-slate-200 object-cover" />
@@ -58,6 +58,9 @@
             <span class="mt-1 block truncate text-sm text-slate-300">{{ store.unidade(a) }} · {{ store.nomeEntregador(a) }}</span>
             @if (store.veioDoPortao(a)) {
               <span class="ps-tag mt-1 inline-block">Autoatendimento</span>
+            }
+            @if (parado(a)) {
+              <span class="ps-tag mt-1 inline-block border-red-500/40 text-red-600 dark:text-red-300" data-testid="delivery-parado">Parado há mais de 24 h</span>
             }
             @if (terminal(a) && a.motivo) {
               <span class="mt-1 block truncate text-xs text-slate-400">Motivo: {{ a.motivo }}</span>
