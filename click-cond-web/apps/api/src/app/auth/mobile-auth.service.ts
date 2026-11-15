@@ -17,7 +17,8 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService, ehFuncionarioDoApp, type PermissaoFuncionario } from './tenant-access.service';
 import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { contaSoDaEquipeDoCondominio } from './conta-so-de-equipe.util';
-import { ehLoginDoPrestador } from '../prestadores/login-do-prestador.util';
+import { ehLoginDoPrestador, nomeNormalizado } from '../prestadores/login-do-prestador.util';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 import { lerPermissoesSalvas } from '../prestadores/permissoes-salvas.util';
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
@@ -113,6 +114,8 @@ export class MobileAuthService {
     @Optional() private readonly cardAoVivo?: CardAoVivoService,
     // Passe da carteira: excluir o morador ou a conta revoga os passes.
     @Optional() private readonly wallet?: WalletService,
+    // Registro das mudanças na equipe da portaria (ativar/desativar, turno) feitas pelo console.
+    @Optional() private readonly auditoria?: AuditoriaService,
   ) {}
 
   /** Estado entre instâncias (trava da senha do perfil); criado sob demanda. */
@@ -4142,6 +4145,184 @@ export class MobileAuthService {
       );
     }
     return true;
+  }
+
+  // ==========================================
+  // EQUIPE DA PORTARIA (aba do console, só síndico)
+  // ==========================================
+
+  /**
+   * Todos os logins de portaria (Funcionarios_Portaria) do condomínio, ativos e inativos: os cadastrados pelo app
+   * (saveFuncionario) e os dados pelo cadastro de prestador. O getAllFuncionarios do app devolve só os ativos e é
+   * lido também por funcionário; esta lista é da gestão da equipe, então só o síndico (pelo typeAccess, como em toda
+   * gestão de login de portaria) e sem senha.
+   *
+   * `origem`: 'prestador' quando o login é de um prestador deste condomínio pelo critério do cadastro
+   * (ehLoginDoPrestador); senão 'app'. `email_de_prestador`: o e-mail é de um prestador, mas o critério não reconhece
+   * mais o login como dele (o síndico mudou turno e nome pelo app) — é por aqui que o síndico o acha.
+   * `ultimo_acesso`: último LOGIN no console por senha (audit_logs); null se não há ou a consulta falhou.
+   */
+  async listarEquipePortaria(idCond: number, user?: JwtPayload) {
+    assertSindicoEstrito(user, 'ver a equipe da portaria');
+    await this.tenant.assertCondominio(idCond, user);
+    if (!this.prisma.isConnected) throw new ServiceUnavailableException('Banco indisponível.');
+    const idCondominio = Number(idCond);
+
+    const linhas = await this.prisma.funcionarios_Portaria.findMany({
+      where: { id_condominio: idCondominio },
+      select: { id: true, nome: true, login: true, email: true, telefone: true, turno: true, ativo: true, created_at: true },
+      orderBy: [{ ativo: 'desc' }, { nome: 'asc' }],
+    });
+    if (linhas.length === 0) return [];
+    const logins = linhas.map((f) => f.login);
+    const chave = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+
+    const prestadores = await this.prisma.prestadores_servico.findMany({
+      where: { id_condominio: idCondominio, email: { in: logins } },
+      select: { id: true, nome: true, email: true },
+    });
+    const sindicos = await this.prisma.users.findMany({
+      where: { login: { in: logins }, sindicos: { some: {} }, sindicosCondominios: { some: { id_condominio: idCondominio } } },
+      select: { login: true },
+    });
+    const loginsDeSindico = new Set(sindicos.map((u) => chave(u.login)));
+    const meuLogin = await this.loginsDaContaDoToken(user);
+    const ultimos = await this.ultimosLoginsNoConsole(idCondominio, linhas.map((f) => f.id));
+
+    return linhas.map((f) => {
+      const comMesmoEmail = prestadores.filter((p) => chave(p.email) === chave(f.login));
+      const dono = comMesmoEmail.find((p) => ehLoginDoPrestador(f, p)) ?? null;
+      return {
+        id: f.id,
+        nome: f.nome ?? '',
+        login: f.login,
+        email: f.email ?? f.login,
+        telefone: f.telefone ?? '',
+        turno: f.turno ?? '',
+        ativo: f.ativo === 1,
+        ultimo_acesso: ultimos.get(f.id) ?? null,
+        criado_em: f.created_at ?? null,
+        origem: dono ? ('prestador' as const) : ('app' as const),
+        prestador: dono ? { id: dono.id, nome: dono.nome } : null,
+        email_de_prestador: !dono && comMesmoEmail.length > 0,
+        sindico: loginsDeSindico.has(chave(f.login)),
+        voce: meuLogin.has(chave(f.login)),
+      };
+    });
+  }
+
+  /**
+   * Ativa/desativa e muda o turno de um login de portaria deste condomínio. Só o síndico (assertSindicoEstrito).
+   * Criar e excluir seguem pelos caminhos de sempre (app do síndico, cadastro de prestador).
+   *
+   * - Desativar grava `ativo = 0`: o loginPortaria não acha mais a linha e o JwtStrategy.porteiroAtivo derruba a
+   *   sessão aberta do console em até 30 s (cache). O vínculo de equipe do app (Funcionarios) não muda — a linha
+   *   não tem "ativo" e muitos pontos conferem só a existência dela.
+   * - O síndico não desativa a própria linha de portaria.
+   * - Turno: texto curto (VarChar(20)). 'Síndico' é recusado (o assertSindico, não estrito, aceita esse turno como
+   *   síndico); 'Geral' só no login que é de um prestador (é a marca da concessão pelo cadastro). O turno do vínculo
+   *   de equipe deste condomínio (Funcionarios.ch) acompanha, como no saveFuncionario. Nenhuma senha, e-mail ou
+   *   conta Users é tocada.
+   */
+  async alterarLoginPortaria(idCond: number, id: number, body: any, user?: JwtPayload) {
+    assertSindicoEstrito(user, 'alterar a equipe da portaria');
+    await this.tenant.assertCondominio(idCond, user);
+    if (!this.prisma.isConnected) throw new ServiceUnavailableException('Banco indisponível.');
+    const idCondominio = Number(idCond);
+
+    const ativo = body?.ativo;
+    const turnoBruto = body?.turno;
+    if (ativo === undefined && turnoBruto === undefined) throw new BadRequestException('Nada para alterar.');
+    if (ativo !== undefined && typeof ativo !== 'boolean') throw new BadRequestException('Valor inválido para ativo.');
+    let turno: string | undefined;
+    if (turnoBruto !== undefined) {
+      if (typeof turnoBruto !== 'string' || !turnoBruto.trim()) throw new BadRequestException('Informe o turno.');
+      turno = turnoBruto.replace(/\s+/g, ' ').trim();
+      if (turno.length > 20) throw new BadRequestException('O turno deve ter no máximo 20 caracteres.');
+    }
+
+    // Por id E condomínio: id de outro prédio responde como inexistente.
+    const fp = await this.prisma.funcionarios_Portaria.findFirst({
+      where: { id: Number(id), id_condominio: idCondominio },
+      select: { id: true, nome: true, login: true, turno: true, ativo: true },
+    });
+    if (!fp) throw new NotFoundException('Funcionário não encontrado.');
+
+    if (turno !== undefined) {
+      const t = nomeNormalizado(turno);
+      if (t === 'sindico') throw new BadRequestException('Este turno é reservado.');
+      if (t === 'geral') {
+        const prestadores = await this.prisma.prestadores_servico.findMany({
+          where: { id_condominio: idCondominio, email: fp.login },
+          select: { id: true, nome: true, email: true },
+        });
+        if (!prestadores.some((p) => ehLoginDoPrestador(fp, p))) throw new BadRequestException('Este turno é reservado.');
+        turno = 'Geral';
+      }
+    }
+    if (ativo === false && (await this.loginsDaContaDoToken(user)).has(fp.login.trim().toLowerCase())) {
+      throw new BadRequestException('Você não pode desativar o seu próprio acesso.');
+    }
+
+    const data: { ativo?: number; turno?: string } = {};
+    if (ativo !== undefined) data.ativo = ativo ? 1 : 0;
+    if (turno !== undefined) data.turno = turno;
+
+    const atualizado = await this.prisma.$transaction(async (tx) => {
+      const r = await tx.funcionarios_Portaria.update({ where: { id: fp.id }, data, select: { id: true, ativo: true, turno: true } });
+      if (turno !== undefined) {
+        // A conta do app deste login (o mesmo elo do saveFuncionario: Users.login) e só o vínculo DESTE condomínio.
+        const conta = await tx.users.findFirst({ where: { login: fp.login }, select: { id: true } });
+        if (conta) await tx.funcionarios.updateMany({ where: { id_user: conta.id, id_condominio: idCondominio }, data: { ch: turno } });
+      }
+      return r;
+    });
+
+    const mudancas: string[] = [];
+    if (data.ativo !== undefined && data.ativo !== fp.ativo) mudancas.push(data.ativo ? 'ativado' : 'desativado');
+    if (data.turno !== undefined && data.turno !== fp.turno) mudancas.push(`turno ${fp.turno ?? '—'} → ${data.turno}`);
+    if (mudancas.length && this.auditoria) {
+      void this.auditoria
+        .registrar({
+          id_condominio: idCondominio,
+          usuario_nome: (user?.nome ?? user?.user?.nome ?? 'Síndico').toString(),
+          autor_id: idUsuarioDoToken(user),
+          autor_tipo: 'user',
+          acao: 'UPDATE',
+          modulo: 'portaria-equipe',
+          entidade_id: fp.id,
+          descricao: `Login de portaria de ${fp.nome}: ${mudancas.join(', ')}`,
+          detalhes: { id_funcionario_portaria: fp.id, ...data },
+        })
+        .catch(() => undefined);
+    }
+
+    return { id: atualizado.id, ativo: atualizado.ativo === 1, turno: atualizado.turno ?? '' };
+  }
+
+  /** Login e e-mail (minúsculos) da conta Users do token; vazio para token sem Users.id (porteiro do console). */
+  private async loginsDaContaDoToken(user?: JwtPayload): Promise<Set<string>> {
+    const idUser = idUsuarioDoToken(user);
+    if (!idUser) return new Set();
+    const conta = await this.prisma.users.findUnique({ where: { id: idUser }, select: { login: true, email: true } });
+    return new Set([conta?.login, conta?.email].filter((s): s is string => !!s).map((s) => s.trim().toLowerCase()));
+  }
+
+  /** Último LOGIN no console por senha de cada login de portaria (audit_logs). Falha → mapa vazio. */
+  private async ultimosLoginsNoConsole(idCondominio: number, ids: number[]): Promise<Map<number, Date>> {
+    try {
+      const grupos = await this.prisma.auditLog.groupBy({
+        by: ['autor_id'],
+        where: { id_condominio: idCondominio, acao: 'LOGIN', autor_tipo: 'funcionario_portaria', autor_id: { in: ids } },
+        _max: { created_at: true },
+      });
+      const out = new Map<number, Date>();
+      for (const g of grupos as any[]) if (g.autor_id != null && g._max?.created_at) out.set(g.autor_id, g._max.created_at);
+      return out;
+    } catch (e: any) {
+      this.logger.warn(`Último acesso da equipe da portaria indisponível: ${e?.message ?? e}`);
+      return new Map();
+    }
   }
 
   /**
