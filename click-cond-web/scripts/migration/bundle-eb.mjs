@@ -91,6 +91,7 @@ async function bundle() {
       "class-validator": "^0.15.1",
       "firebase-admin": "^13.9.0",
       "helmet": "^8.1.0",
+      "node-forge": "^1.4.0",
       "nodemailer": "^8.0.7",
       "passport": "^0.7.0",
       "passport-jwt": "^4.0.1",
