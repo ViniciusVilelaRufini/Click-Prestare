@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:click/pages/shared/meu_acesso/botao_carteira_apple.dart';
 import 'package:click/pages/shared/meu_acesso/passe_carteira_secao.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -97,6 +98,8 @@ void main() {
     await abrir(tester);
     expect(situacoesPedidas, [10]);
     expect(botaoAdicionar(), findsOneWidget);
+    // O botão de adicionar é o da Apple (nativo no iPhone; no teste, o substituto).
+    expect(find.byType(BotaoCarteiraApple), findsOneWidget);
     expect(find.textContaining('Google'), findsNothing);
     expect(find.text('Passe ativo na carteira.'), findsNothing);
   });
@@ -132,6 +135,8 @@ void main() {
     situacoes.add(situacao(ativo: true));
     await abrir(tester);
     expect(find.text('Passe ativo na carteira.'), findsOneWidget);
+    // Com o passe já na carteira, "Adicionar novamente" é botão de texto, não o da Apple.
+    expect(find.byType(BotaoCarteiraApple), findsNothing);
     expect(find.bySemanticsLabel('Adicionar novamente'), findsOneWidget);
     expect(find.bySemanticsLabel('Cancelar passe'), findsOneWidget);
 

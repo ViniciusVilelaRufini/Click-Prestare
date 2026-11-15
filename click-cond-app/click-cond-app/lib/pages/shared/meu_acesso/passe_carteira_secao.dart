@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:click/controllers/controller_wallet.dart';
+import 'package:click/pages/shared/meu_acesso/botao_carteira_apple.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -41,7 +42,7 @@ class PasseCarteiraSecao extends StatefulWidget {
   /// Chave do conteúdo visível (o teste confere quando a seção não desenha nada).
   static const chaveConteudo = ValueKey('passe-carteira-conteudo');
 
-  static const textoAdicionar = 'Adicionar à Carteira da Apple';
+  static const textoAdicionar = BotaoCarteiraApple.rotulo;
   static const confirmacaoCancelar =
       'Cancelar o passe da carteira? Ele deixa de abrir na hora, em todos os aparelhos. O QR desta tela continua funcionando.';
   static const erroPadrao = 'Não foi possível concluir. Tente de novo.';
@@ -210,7 +211,10 @@ class _PasseCarteiraSecaoState extends State<PasseCarteiraSecao> with WidgetsBin
           if (_ativo)
             ..._ativoNaCarteira(context)
           else
-            _botao(PasseCarteiraSecao.textoAdicionar, PhosphorIcons.wallet, _adicionar, AppButtonVariant.secondary),
+            // Botão nativo da Apple (PKAddPassButton). "Adicionar novamente",
+            // com o passe já na carteira, segue como botão de texto: o botão da
+            // Apple diz "Adicionar à Carteira", e o passe já está lá.
+            BotaoCarteiraApple(aoTocar: _adicionar, ocupado: _ocupado),
         ],
       ),
     );

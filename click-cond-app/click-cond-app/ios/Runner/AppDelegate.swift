@@ -15,6 +15,10 @@ import Flutter
     } else {
       CardAoVivoBridge.shared.iniciarObservacao()
     }
+    // Botão nativo "Adicionar à Carteira Apple" (PKAddPassButton) da tela Meu acesso.
+    if let registrar = self.registrar(forPlugin: "BotaoCarteiraApple") {
+      BotaoCarteiraAppleFabrica.registrar(com: registrar)
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 }

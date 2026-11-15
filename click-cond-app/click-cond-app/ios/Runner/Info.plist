@@ -6,6 +6,17 @@
 		<true/>
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
+		<!--
+	  Idiomas do app para o iOS. Sem esta lista o iOS só conhece o "en" do
+	  projeto e desenha em inglês o que é do sistema — o botão nativo
+	  "Adicionar à Carteira Apple" (PKAddPassButton) da tela Meu acesso saía
+	  "Add to Apple Wallet" num iPhone em português.
+	-->
+		<key>CFBundleLocalizations</key>
+		<array>
+			<string>pt-BR</string>
+			<string>en</string>
+		</array>
 		<key>CFBundleDisplayName</key>
 		<string>Prestare</string>
 		<key>CFBundleExecutable</key>
