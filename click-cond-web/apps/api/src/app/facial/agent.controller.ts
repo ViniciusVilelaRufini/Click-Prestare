@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
 import {
@@ -38,6 +38,11 @@ export class AgentController {
   @Get(':token/poll')
   async poll(@Param('token') token: string) {
     const device = await this.service.findDeviceByToken(token);
+    // Módulo Guarita nunca vai pelo modo legado (sem declaração de capacidade):
+    // um agente antigo falaria HTTP na porta única do Guarita.
+    if (device.tipo === 'guarita') {
+      throw new NotFoundException('O Módulo Guarita só é atendido pelo agente no modo condomínio.');
+    }
     // Detecta a (re)conexão do agente: se estava offline e agora fez poll,
     // dispara o back-fill dos rostos pendentes desse condomínio em background.
     // É o que torna plug-and-play: ligou o agente → as fotos já cadastradas

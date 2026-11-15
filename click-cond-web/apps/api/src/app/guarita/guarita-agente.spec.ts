@@ -482,3 +482,16 @@ describe('I1 — o Guarita só vai para o agente que declara falar com ele', () 
     expect(r2.devices).toHaveLength(2);
   });
 });
+
+describe('Poll legado (token de dispositivo) nunca entrega o Guarita', () => {
+  it('token do próprio Guarita no modo legado → 404, sem comandos nem a palavra', async () => {
+    const { AgentController } = require('../facial/agent.controller');
+    const service: any = {
+      findDeviceByToken: jest.fn(async () => ({ id: 10, id_condominio: 7, tipo: 'guarita', fabricante: 'linear', api_password: 'pw' })),
+    };
+    const bridge: any = { isOnline: jest.fn(() => true), poll: jest.fn(async () => []) };
+    const ctrl = new AgentController(service, bridge, {} as any, {} as any);
+    await expect(ctrl.poll('tok-10')).rejects.toBeInstanceOf(NotFoundException);
+    expect(bridge.poll).not.toHaveBeenCalled();
+  });
+});
