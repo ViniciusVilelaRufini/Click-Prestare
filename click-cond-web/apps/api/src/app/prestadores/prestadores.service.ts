@@ -29,6 +29,15 @@ export interface CreatePrestadorDto {
 }
 
 /**
+ * As permissões guardadas (permissoes_app_salvas) são estado interno da revogação: nunca saem nas respostas.
+ */
+function semPermissoesSalvas<T>(linha: T): T {
+  if (!linha || typeof linha !== 'object') return linha;
+  const { permissoes_app_salvas: _ps, ...resto } = linha as any;
+  return resto as T;
+}
+
+/**
  * Unidade do prestador. Sem unidade (null) = funcionário/prestador do
  * condomínio, visível para todos os moradores. O console manda 0 quando
  * nenhuma unidade é escolhida; `undefined` = campo não enviado (update não mexe).
@@ -242,7 +251,8 @@ export class PrestadoresService {
     // Morador (resposta recortada): sem foto do documento nem biometria, que
     // são da portaria. Quem recebe `{}` de escopo é staff e vê tudo.
     const recortar = !!user && !isOperador(user);
-    return prestadores.map((p) => {
+    return prestadores.map((linha) => {
+      const p = semPermissoesSalvas(linha);
       const {
         foto_documento: _fd,
         face_id: _fi,
@@ -281,8 +291,9 @@ export class PrestadoresService {
     // Só o login deste prestador (loginPortariaDoPrestador): o de um colega com o mesmo e-mail não é acesso dele.
     const hasPortariaAccess = (await this.loginPortariaDoPrestador(p))?.ativo === 1;
 
-    const { foto_documento: _fd, face_id: _fi, face_enrolled_at: _fe, face_sync_status: _fs, face_sync_error: _fx, ...publico } = p;
-    return { ...(user && !isOperador(user) ? publico : p), hasPortariaAccess };
+    const { foto_documento: _fd, face_id: _fi, face_enrolled_at: _fe, face_sync_status: _fs, face_sync_error: _fx, ...publico } =
+      semPermissoesSalvas(p);
+    return { ...(user && !isOperador(user) ? publico : semPermissoesSalvas(p)), hasPortariaAccess };
   }
 
   /**
@@ -820,7 +831,7 @@ export class PrestadoresService {
     }
 
     this.fireFacialSync(criado.id);
-    return criado;
+    return semPermissoesSalvas(criado);
   }
 
   async update(id: number, dto: Partial<CreatePrestadorDto>, idCondominio?: number, user?: JwtPayload) {
@@ -966,6 +977,15 @@ export class PrestadoresService {
       if (!atualizado) {
         atualizado = await this.prisma.prestadores_servico.update({ where: { id: Number(id) }, data: dadosPrestador });
       }
+      // Renomear quem tem login próprio que só é "dele" pelo nome (turno mudado no app ou na aba): o nome do login
+      // acompanha, senão o elo some e remover/desligar o prestador deixa de alcançá-lo. Com a chave no pedido, o
+      // bloco abaixo já grava o nome.
+      if (!(dto.hasPortariaAccess && emailParaLogin) && !revoga && !trocaEmailDeAcesso && dto.nome !== undefined) {
+        const doNome = await this.loginPortariaDoPrestador(atual);
+        if (doNome && doNome.turno !== 'Geral' && doNome.nome !== dto.nome) {
+          await this.prisma.funcionarios_Portaria.update({ where: { id: doNome.id }, data: { nome: dto.nome } });
+        }
+      }
 
       if (dto.hasPortariaAccess && emailParaLogin) {
         if (atualPortaria && trocaEmailDeAcesso) {
@@ -1057,10 +1077,33 @@ export class PrestadoresService {
       // e-mail antigo, fora do alcance de re-credenciar, revogar e remover.
 
       this.fireFacialSync(atualizado.id);
-      return atualizado;
+      return semPermissoesSalvas(atualizado);
     } catch (e) {
       throw e instanceof BadRequestException ? e : new NotFoundException(`Prestador ${id} não encontrado`);
     }
+  }
+
+  /**
+   * Revogar de vez o login de portaria do prestador (o mesmo revogarLoginDoPrestador de desligar a chave). É o
+   * caminho explícito para o login DESATIVADO na aba "Equipe da portaria": para ele, a chave já aparece desligada e
+   * salvar com ela como está não revoga (update). Só o síndico.
+   */
+  async revogarAcessoPortaria(id: number, idCondominio?: number, user?: JwtPayload) {
+    if (!this.prisma.isConnected) return { success: true };
+    const atual = await this.prisma.prestadores_servico.findUnique({
+      where: { id: Number(id) },
+      select: { id: true, id_condominio: true, id_apartamento: true, email: true, nome: true },
+    });
+    if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
+    await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
+    if (idCondominio != null && Number(idCondominio) !== atual.id_condominio) {
+      throw new NotFoundException(`Prestador ${id} não encontrado`);
+    }
+    assertSindicoEstrito(user, 'revogar o acesso à portaria de um prestador');
+    const loginProprio = await this.loginPortariaDoPrestador(atual);
+    if (!loginProprio) throw new BadRequestException('Este prestador não tem login de portaria.');
+    await this.revogarLoginDoPrestador(loginProprio, Number(id));
+    return { success: true };
   }
 
   async clearFoto(id: number, campo: 'pessoa' | 'documento', idCondominio?: number, user?: JwtPayload) {
@@ -1073,11 +1116,13 @@ export class PrestadoresService {
     await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
     await this.assertPodeGerenciarPrestador(atual, user);
     await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'prestadores_servico', user);
-    return this.prisma.prestadores_servico.update({
-      where: { id: Number(id) },
-      data: campo === 'pessoa' ? { foto_pessoa: null } : { foto_documento: null },
-      include: { apartamento: { select: { bloco: true, apto: true } } },
-    });
+    return semPermissoesSalvas(
+      await this.prisma.prestadores_servico.update({
+        where: { id: Number(id) },
+        data: campo === 'pessoa' ? { foto_pessoa: null } : { foto_documento: null },
+        include: { apartamento: { select: { bloco: true, apto: true } } },
+      }),
+    );
   }
 
   async remove(id: number, idCondominio?: number, user?: JwtPayload) {

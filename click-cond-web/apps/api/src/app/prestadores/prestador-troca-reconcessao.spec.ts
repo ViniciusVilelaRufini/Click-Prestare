@@ -615,6 +615,54 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
     });
   });
 
+  describe('Rodada 4 (raia e), correção — revogar de vez o login desativado (I3)', () => {
+    it('síndico: revoga o login desativado pelo caminho explícito (login, vínculo e conta)', async () => {
+      const { svc, db } = banco();
+      db.fp[0].ativo = 0;
+      await expect(svc.revogarAcessoPortaria(1, 1, sindico)).resolves.toEqual({ success: true });
+      expect(db.fp).toHaveLength(0);
+      expect(equipeAqui(db)).toHaveLength(0);
+      contaInutilizada(conta(db, 5));
+      expect(db.users).toHaveLength(1);
+    });
+
+    it('porteiro → 403 e nada muda; sem login → 400; condomínio da rota diferente → 404', async () => {
+      const { svc, db } = banco();
+      db.fp[0].ativo = 0;
+      await expect(svc.revogarAcessoPortaria(1, 1, porteiro)).rejects.toThrow('exige síndico');
+      expect(db.fp).toHaveLength(1);
+      await expect(svc.revogarAcessoPortaria(1, 2, sindico)).rejects.toThrow('não encontrado');
+      expect(db.fp).toHaveLength(1);
+      db.fp.splice(0, 1);
+      await expect(svc.revogarAcessoPortaria(1, 1, sindico)).rejects.toThrow('Este prestador não tem login de portaria.');
+    });
+  });
+
+  describe('Rodada 4 (raia e), correção — elo pelo nome ao renomear e permissões fora das respostas', () => {
+    it('renomear quem tem login próprio só pelo nome (turno mudado): o nome do login acompanha e o elo fica', async () => {
+      const { svc, db } = banco();
+      db.fp[0].turno = 'Noturno'; // é do prestador pelo nome
+      await svc.update(1, { nome: 'Eletricista Silva' }, 1, porteiro);
+      expect(db.fp[0].nome).toBe('Eletricista Silva');
+      const [p] = await svc.findAll(1, undefined, sindico);
+      expect(p.loginPortariaProprio).toBe(true);
+      // E o login 'Geral' não é tocado (o elo não depende do nome).
+      const b = banco();
+      await b.svc.update(1, { nome: 'Outro Nome' }, 1, porteiro);
+      expect(b.db.fp[0].nome).toBe('Eletricista');
+    });
+
+    it('permissoes_app_salvas nunca sai nas respostas (lista, detalhe, edição)', async () => {
+      const { svc, db } = banco();
+      db.prestadores[0].permissoes_app_salvas = JSON.stringify({ comunicados: 0 });
+      const [lista] = await svc.findAll(1, undefined, sindico);
+      expect(lista).not.toHaveProperty('permissoes_app_salvas');
+      expect(await svc.findOne(1, 1, sindico)).not.toHaveProperty('permissoes_app_salvas');
+      expect(await svc.update(1, { telefone: '(11) 1' }, 1, sindico)).not.toHaveProperty('permissoes_app_salvas');
+      expect(db.prestadores[0].permissoes_app_salvas).toBeTruthy(); // segue guardado no banco
+    });
+  });
+
   describe('Rodada 4 (raia e) — permissões guardadas ao desligar o acesso', () => {
     const flags = { areas_sociais: 1, comunicados: 0, ocorrencias: 1, manutencoes_programadas: 0, prestadores_servico: 1, agendar_mudanca: 0, cadastrar_visitante: 1, apartamentos: 0 };
     const todas = { areas_sociais: 1, comunicados: 1, ocorrencias: 1, manutencoes_programadas: 1, prestadores_servico: 1, agendar_mudanca: 1, cadastrar_visitante: 1, apartamentos: 1 };
