@@ -11,6 +11,24 @@ import { papelDoToken } from '../auth/papel';
 /** Intervalo da recarga silenciosa da lista de reservas. */
 const RECARGA_RESERVAS_MS = 30_000;
 
+/** Dias da grade, na ordem que o app grava (índice 0 = segunda). */
+const DIAS_DA_GRADE = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+
+export interface BlocoGrade { horarioDe: string; horarioAte: string }
+export interface DiaGrade { nome: string; horarios: BlocoGrade[] }
+
+/** "HH:MM" em minutos; "24:00" = 1440 (fim do dia). Fora do formato → null. */
+function minutosDaGrade(hhmm: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec((hhmm ?? '').trim());
+  if (!m) return null;
+  const total = Number(m[1]) * 60 + Number(m[2]);
+  return Number(m[2]) < 60 && total <= 1440 ? total : null;
+}
+
+function hhmmDaGrade(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
 @Component({
   selector: 'app-areas-sociais-page',
   standalone: true,
@@ -51,6 +69,11 @@ export class AreasSociaisPageComponent implements OnInit {
   readonly modalAberto = signal(false);
   novaArea: any = { nome: '', capacidade: null, limite_mensal_apto: null, imagem: '', agendar: true, autorizacao: true, regras: '' };
   readonly areaEditando = signal<AreaSocial | null>(null);
+
+  /** Grade semanal editada no drawer (mesmo formato do app). */
+  grade: DiaGrade[] = [];
+  /** Na edição, a grade só vai no payload se veio da API ou se foi mexida. */
+  private gradeVaiNoPayload = true;
 
   // Upload da foto do espaço
   readonly fotoPreview = signal<string | null>(null);
@@ -293,8 +316,94 @@ export class AreasSociaisPageComponent implements OnInit {
     });
   }
 
+  // ---- Grade de horários (igual ao editor do app, new_area_social.dart) ----
+  private gradePadrao(): DiaGrade[] {
+    return DIAS_DA_GRADE.map((nome) => ({ nome, horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }] }));
+  }
+
+  /** Grade vinda da API em 7 dias, cópia (editar não mexe no objeto da lista). */
+  private gradeDe(horarios: unknown): DiaGrade[] {
+    const dias = Array.isArray(horarios) ? horarios : [];
+    return DIAS_DA_GRADE.map((padrao, i) => {
+      const dia: any = dias[i];
+      const nome = typeof dia?.nome === 'string' && dia.nome.trim().length >= 3 ? dia.nome.trim() : padrao;
+      const blocos = Array.isArray(dia?.horarios) ? dia.horarios : [];
+      return {
+        nome,
+        horarios: blocos
+          .filter((b: any) => b && typeof b.horarioDe === 'string' && typeof b.horarioAte === 'string')
+          .map((b: any) => ({ horarioDe: b.horarioDe, horarioAte: b.horarioAte })),
+      };
+    });
+  }
+
+  /** O campo de hora não mostra 24:00: aparece como 00:00. */
+  horaNoCampo(hhmm: string): string {
+    return hhmm === '24:00' ? '00:00' : hhmm;
+  }
+
+  /** 00:00 no fim é o fim do dia e é gravado como 24:00, como o app faz. */
+  definirHora(dia: number, i: number, campo: 'horarioDe' | 'horarioAte', valor: string) {
+    const bloco = this.grade[dia]?.horarios[i];
+    if (!bloco) return;
+    bloco[campo] = campo === 'horarioAte' && valor === '00:00' ? '24:00' : (valor ?? '');
+    this.gradeVaiNoPayload = true;
+  }
+
+  /** Novo bloco começa no fim do último, com a mesma duração (até 6 h), sem passar da meia-noite. */
+  adicionarBloco(dia: number) {
+    const d = this.grade[dia];
+    if (!d) return;
+    this.gradeVaiNoPayload = true;
+    const ultimo = d.horarios[d.horarios.length - 1];
+    if (!ultimo) {
+      d.horarios.push({ horarioDe: '08:00', horarioAte: '09:00' });
+      return;
+    }
+    const ini = minutosDaGrade(ultimo.horarioDe);
+    const fim = minutosDaGrade(ultimo.horarioAte);
+    const duracao = ini !== null && fim !== null && fim - ini > 0 && fim - ini <= 360 ? fim - ini : 60;
+    let novoIni = fim ?? 8 * 60;
+    if (novoIni >= 1440) novoIni = 0;
+    const novoFim = Math.min(novoIni + duracao, 1440);
+    d.horarios.push({ horarioDe: hhmmDaGrade(novoIni), horarioAte: hhmmDaGrade(novoFim) });
+  }
+
+  removerBloco(dia: number, i: number) {
+    this.grade[dia]?.horarios.splice(i, 1);
+    this.gradeVaiNoPayload = true;
+  }
+
+  /** Primeiro problema da grade do dia, ou null. */
+  erroDoDia(dia: number): string | null {
+    const blocos = this.grade[dia]?.horarios ?? [];
+    const lidos: { de: number; ate: number; txt: string }[] = [];
+    for (const b of blocos) {
+      const de = minutosDaGrade(b.horarioDe);
+      const ate = minutosDaGrade(b.horarioAte);
+      if (de === null || ate === null || de >= 1440) return 'Preencha o início e o fim de todos os horários.';
+      const txt = `${this.horaNoCampo(b.horarioDe)}–${this.horaNoCampo(b.horarioAte)}`;
+      if (ate < de) {
+        return `${txt}: o fim precisa ser depois do início. Um horário não atravessa a meia-noite (use 00:00 como fim do dia).`;
+      }
+      if (ate === de) return `${txt}: o fim precisa ser depois do início.`;
+      lidos.push({ de, ate, txt });
+    }
+    lidos.sort((a, b) => a.de - b.de);
+    for (let i = 1; i < lidos.length; i++) {
+      if (lidos[i].de < lidos[i - 1].ate) return `${lidos[i - 1].txt} e ${lidos[i].txt} se sobrepõem.`;
+    }
+    return null;
+  }
+
+  gradeValida(): boolean {
+    return this.grade.every((_, i) => this.erroDoDia(i) === null);
+  }
+
   abrirModalArea() {
     this.areaEditando.set(null);
+    this.grade = this.gradePadrao();
+    this.gradeVaiNoPayload = true;
     this.novaArea = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true, exige_confirmacao: false, regras: '' };
     this.fotoPreview.set(null);
     this.fotoNome.set(null);
@@ -306,6 +415,10 @@ export class AreasSociaisPageComponent implements OnInit {
 
   abrirModalEditarArea(area: AreaSocial) {
     this.areaEditando.set(area);
+    this.grade = this.gradeDe(area.horarios);
+    // Sem `horarios` na listagem, a chave fica fora do payload (a API preserva
+    // a coluna) até alguém mexer na grade.
+    this.gradeVaiNoPayload = Array.isArray(area.horarios);
     this.novaArea = {
       id: area.id,
       nome: area.nome,
@@ -375,7 +488,7 @@ export class AreasSociaisPageComponent implements OnInit {
   }
 
   salvarArea() {
-    if (this.salvando()) return;
+    if (this.salvando() || !this.gradeValida()) return;
     this.salvando.set(true);
 
     const payload = {
@@ -388,18 +501,18 @@ export class AreasSociaisPageComponent implements OnInit {
       autorizacao: this.novaArea.autorizacao ? 1 : 0,
       exige_confirmacao: this.novaArea.exige_confirmacao ? 1 : 0,
       regras: this.novaArea.regras || '',
-      // Edição: devolve a grade que veio do backend (o get-all agora manda
-      // `horarios`). Se por algum motivo ela não vier, a chave é OMITIDA — a
-      // API preserva a coluna quando o campo está ausente. Nunca mandar o
-      // default de 08:00–22:00 numa edição: isso apagava a grade real da área.
-      // Criação: aí sim o default faz sentido, a área ainda não tem grade.
-      ...(this.areaEditando()
-        ? (this.areaEditando()?.horarios ? { horarios: this.areaEditando()?.horarios } : {})
-        : {
-            horarios: Array.from({ length: 7 }).map(() => ({
-              horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }],
+      // Grade do editor, no formato do app. Edição de espaço cuja listagem não
+      // trouxe `horarios`: sem mexer, a chave é OMITIDA — a API preserva a
+      // coluna quando o campo está ausente (mandar um default apagava a grade
+      // real da área).
+      ...(this.gradeVaiNoPayload
+        ? {
+            horarios: this.grade.map((d) => ({
+              nome: d.nome,
+              horarios: d.horarios.map((b) => ({ horarioDe: b.horarioDe, horarioAte: b.horarioAte })),
             })),
-          }),
+          }
+        : {}),
       // `precisa_pagamento` não é editável nesta tela: a chave fica de fora
       // para a API manter o valor já configurado (antes ela era gravada como
       // 0 a cada salvamento, desligando a cobrança sem ninguém pedir).
