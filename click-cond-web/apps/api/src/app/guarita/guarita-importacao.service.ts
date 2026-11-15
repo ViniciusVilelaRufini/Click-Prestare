@@ -65,6 +65,7 @@ interface ResumoGuardado {
 }
 
 const TIPOS_LEITURA: string[] = [...OPERACOES_DE_LEITURA];
+const MSG_OUTRA_UNIDADE_NO_GUARITA = 'O Guarita mostra este dispositivo em outra unidade.';
 const ESTADOS_ABERTOS = [ESTADO_OP.pendente, ESTADO_OP.enviada, ESTADO_OP.processando];
 const RESUMO_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const chaveResumo = (idOperacao: number) => `guarita:resumo:${idOperacao}`;
@@ -369,6 +370,33 @@ export class GuaritaImportacaoService {
     for (const [chave, d] of lidos) {
       const conhecida = porChave.get(chave);
       if (conhecida && (emConflito.has(conhecida.id) || conhecida.guarita_estado === ESTADO_TAG.conflito)) continue;
+      // I1: tag que o Prestare controla e que o Guarita mostra em OUTRA
+      // unidade/bloco: nunca adota a unidade lida (a saída do morador apagaria
+      // o dispositivo de outra pessoa) — conflito + alerta.
+      if (conhecida && (conhecida.guarita_estado === ESTADO_TAG.ausente || (await this.ops.podeEscrever(conhecida)))) {
+        const confirmado = await this.ops.frameConhecido(conhecida);
+        let outra = false;
+        try {
+          const c = confirmado ? decodificarDispositivo(confirmado) : null;
+          outra = !!c && (c.unidade !== d.unidade || blocoParaByte(c.bloco) !== blocoParaByte(d.bloco));
+        } catch {
+          outra = false;
+        }
+        if (outra) {
+          await this.ops.marcarTagEmConflito(conhecida.id, MSG_OUTRA_UNIDADE_NO_GUARITA);
+          await this.prisma.guarita_Alertas.create({
+            data: {
+              id_condominio: device.id_condominio,
+              id_device: device.id,
+              tipo: 'dispositivo_em_outra_unidade',
+              descricao: `${MSG_OUTRA_UNIDADE_NO_GUARITA} (${d.tipo === 1 ? 'RF' : 'serial'} ${d.serialHex}: lá está na unidade ${d.unidade} bloco ${d.bloco})`.slice(0, 255),
+              dados: JSON.stringify({ id_tag: conhecida.id, serial: d.serialHex, lido: { unidade: d.unidade, bloco: d.bloco } }),
+            },
+          });
+          if (conferencia) dif.divergente.push({ id_tag: conhecida.id, tipo: d.tipo, serial: d.serialHex });
+          continue;
+        }
+      }
       if (conhecida && conhecida.guarita_estado === ESTADO_TAG.ausente) {
         // Voltou ao Guarita (alguém recadastrou no teclado): deixa de ser ausente.
         const comVeiculo = await this.prisma.veiculos.count({ where: { id_tag: conhecida.id, ativo: 1 } });

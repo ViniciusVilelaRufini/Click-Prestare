@@ -61,6 +61,38 @@ async function rodarAgente(m: ReturnType<typeof montar>) {
   return rodou;
 }
 
+describe('I1 — reimportação não adota a unidade nova de uma tag controlada', () => {
+  async function importar(m: ReturnType<typeof montar>, frames: string[], tipo: 'importar' | 'conferir' = 'importar') {
+    const op = await m.db.guarita_Operacoes.create({ data: { id_condominio: 7, id_device: 10, tipo, estado: 'enviada', enviada_em: new Date() } });
+    await m.imp.receberResultado(DEV as any, op, { ok: true, frames_hex: frames, parte: 1, fim: true });
+  }
+
+  it('Ana/Bruno: o teclado passou o cartão para o 202; a importação marca conflito e o cartão do Bruno não recebe apagar', async () => {
+    const m = montar();
+    m.guarita.set('0F086E', fr(202, 'B', 'BRUNO'));
+    await importar(m, [fr(202, 'B', 'BRUNO')]);
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'conflito', guarita_erro: 'O Guarita mostra este dispositivo em outra unidade.' });
+    expect(tag(m.db).guarita_frame).toBe(fr(308, 'B')); // o frame do Prestare ficou
+    expect(m.db.linhas('guarita_Alertas').map((a: any) => a.tipo)).toEqual(['dispositivo_em_outra_unidade']);
+    // A Ana sai.
+    expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(false);
+    await rodarAgente(m);
+    expect(ops(m.db, 'apagar')).toHaveLength(0);
+    expect(m.guarita.has('0F086E')).toBe(true);
+  });
+
+  it('ausente que volta em outra unidade também é conflito; na mesma unidade volta a ativo', async () => {
+    const m = montar();
+    tag(m.db).guarita_estado = 'ausente';
+    await importar(m, [fr(202, 'B', 'BRUNO')], 'conferir');
+    expect(tag(m.db).guarita_estado).toBe('conflito');
+    const m2 = montar();
+    tag(m2.db).guarita_estado = 'ausente';
+    await importar(m2, [fr(308, 'B', 'ANA')], 'conferir');
+    expect(tag(m2.db).guarita_estado).toBe('ativo');
+  });
+});
+
 describe('C1 — duas gravações da mesma tag no mesmo lote', () => {
   it('cenário A: troca de unidade e saída logo depois → o dispositivo é removido do Guarita', async () => {
     const m = montar();
