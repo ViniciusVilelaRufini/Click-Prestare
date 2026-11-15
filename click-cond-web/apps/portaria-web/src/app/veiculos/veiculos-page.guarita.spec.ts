@@ -105,6 +105,7 @@ describe('VeiculosPageComponent — selo do estado no Guarita', () => {
     ['ativo', null, 'Ativo nos portões'],
     ['falhou', 'Memória do Guarita cheia.', 'Falhou: Memória do Guarita cheia.'],
     ['removendo', null, 'Removendo'],
+    ['recusada', null, 'Recusada pela portaria'],
   ])('%s → "%s"', (estado, erro, texto) => {
     const { el } = build({
       guaritas: [guarita],
@@ -250,9 +251,12 @@ describe('VeiculosPageComponent — aprovar ou recusar a tag vinculada pelo mora
     expect(guaritaApi.recusar).not.toHaveBeenCalled();
   });
 
-  it('recusar chama a API', async () => {
-    const { tela, guaritaApi } = build(opts);
+  it('recusar diz o que acontece e chama a API', async () => {
+    const { tela, guaritaApi, confirm } = build(opts);
     await tela.recusarTag(tela.veiculos()[0]);
+    expect(confirm.ask).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'A tag não será gravada no Guarita. O morador verá que foi recusada pela portaria.',
+    }));
     expect(guaritaApi.recusar).toHaveBeenCalledWith(7, 1);
   });
 });

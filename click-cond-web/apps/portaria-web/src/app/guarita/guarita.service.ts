@@ -118,7 +118,9 @@ export type GuaritaEstadoTag =
   | 'ativo'
   | 'falhou'
   | 'a_vincular'
-  | 'removendo';
+  | 'removendo'
+  /** A portaria recusou a tag do app: não vale para o portão e não volta sozinha para a fila. */
+  | 'recusada';
 
 /**
  * Campos de Guarita que a tag pode trazer em `GET condominios/:id/tags` e no
@@ -184,6 +186,8 @@ export function rotuloEstadoGuarita(
       return { texto: 'Removendo', dot: 'ps-dot-warn' };
     case 'a_vincular':
       return { texto: 'A vincular', dot: 'ps-dot-warn' };
+    case 'recusada':
+      return { texto: 'Recusada pela portaria', dot: 'ps-dot-danger' };
     default:
       return null;
   }
@@ -331,7 +335,7 @@ export class GuaritaService {
     return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/aprovar`, dto ?? {});
   }
 
-  /** Recusar desfaz o vínculo; nada é gravado no Guarita. */
+  /** Recusar: a tag não é gravada no Guarita e fica `recusada` (o morador vê no app). */
   recusar(deviceId: number, idTag: number): Observable<unknown> {
     return this.http.post(`${this.dev(deviceId)}/dispositivos/${idTag}/recusar`, {});
   }

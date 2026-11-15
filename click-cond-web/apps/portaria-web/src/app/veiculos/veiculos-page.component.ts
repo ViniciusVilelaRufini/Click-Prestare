@@ -506,7 +506,7 @@ export class VeiculosPageComponent implements OnInit {
     }
     const ok = await this.confirm.ask({
       title: 'Recusar tag',
-      message: `O vínculo da tag com o veículo ${v.placa} será desfeito. Nada é gravado no Guarita.`,
+      message: 'A tag não será gravada no Guarita. O morador verá que foi recusada pela portaria.',
       confirmLabel: 'Recusar',
       variant: 'danger',
     });
