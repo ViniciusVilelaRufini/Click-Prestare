@@ -3453,8 +3453,16 @@ export class FacialService {
         // usos ilimitados (-1); os demais têm o contador do aparelho (UseTime).
         // Autorização remota (uma entrada) conta como avulso, mesmo para
         // prestador: offline, o aparelho não pode deixar entrar várias vezes.
+        // Só para sair (dentro, sem liberação de entrada agora) num leitor que
+        // NÃO é só de saída (o `auto`): SEMPRE 1 uso, para qualquer categoria
+        // e com ou sem vaga — a única passagem que resta é a saída. Com usos
+        // ilimitados, o prestador que saiu sem passar pelo leitor reentrava
+        // à vontade, offline, até 24 h depois da entrada. A vaga vigente com a
+        // janela valendo não cai aqui (libera a entrada) e segue ilimitada.
         let userTimes = -1;
-        if ((!ehPrestador || remotaNaEscolhida) && !temVagaAtiva) {
+        if (soParaSair && device.sentido !== 'saida') {
+          userTimes = 1;
+        } else if ((!ehPrestador || remotaNaEscolhida) && !temVagaAtiva) {
           if (dentroDoCondominio) userTimes = 1;
           else userTimes = device.sentido === 'auto' ? 2 : 1;
         }

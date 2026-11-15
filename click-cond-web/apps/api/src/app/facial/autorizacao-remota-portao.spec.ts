@@ -391,4 +391,85 @@ describe('FacialService — autorização remota vale 10 min no portão', () => 
       expect(client.updatePerson.mock.calls[0][2]).toEqual(expect.objectContaining({ userTimes: 1 }));
     });
   });
+
+  // Revisão final, I1: dentro e "só para sair" num leitor que não é só de
+  // saída (o `auto`) → SEMPRE 1 uso, qualquer categoria. Com -1, o prestador
+  // que saiu sem passar pelo leitor reentrava à vontade, offline, por 24 h.
+  describe('dentro, só para sair, no auto: sempre 1 uso', () => {
+    const DEVICE_AUTO = {
+      id: 8, id_condominio: 1, tipo: 'facial', sentido: 'auto', ativo: 1,
+      confianca_minima: 0, nome: 'Facial portaria', webhook_token: 'tok-auto2',
+    };
+    /** Prestador comum (sem pedido), janela 8–10 h já encerrada, entrou às 9 h e não saiu. */
+    function prestadorDentroForaDaJanela(extra: Record<string, unknown> = {}) {
+      const agora = Date.now();
+      return visitaRemota(0, {
+        is_prestador: 1, is_visitante: 0,
+        auth_status: null, auth_solicitado_em: null, auth_respondido_em: null, auth_respondido_por: null,
+        data_hora_inicio: new Date(agora - 4 * 60 * MIN), data_hora_termino: new Date(agora - 2 * 60 * MIN),
+        data_entrada: new Date(agora - 3 * 60 * MIN),
+        ...extra,
+      });
+    }
+    function devicesAutoESaida(m: any) {
+      m.prisma.facial_Devices.findMany.mockResolvedValue([
+        { ...DEVICE_FACIAL, id: 920, sentido: 'auto' },
+        { ...DEVICE_FACIAL, id: 921, sentido: 'saida' },
+      ]);
+    }
+    const doAparelho = (m: any, id: number) => m.client.updatePerson.mock.calls.find((c: any[]) => c[0].id === id)?.[2];
+
+    it('prestador dentro fora da janela → auto com 1 uso e ValidTo = entrada + 24 h', async () => {
+      const visita = prestadorDentroForaDaJanela();
+      const m = montar(visita);
+      devicesAutoESaida(m);
+      await m.svc.syncPessoa(visita.id_pessoa);
+      expect(doAparelho(m, 920)).toEqual(
+        expect.objectContaining({
+          userTimes: 1,
+          validTo: (m.svc as any).formatDahuaTime(new Date(visita.data_entrada.getTime() + 24 * 60 * MIN)),
+        }),
+      );
+      // Leitor só de saída: como em produção (sem ValidTo).
+      expect(doAparelho(m, 921)).toEqual(expect.objectContaining({ validTo: undefined }));
+    });
+
+    it('a leitura seguinte no auto vira saída e, depois dela, o rosto sai de todos', async () => {
+      const visita = prestadorDentroForaDaJanela();
+      const { svc, prisma } = montar(visita, { device: DEVICE_AUTO });
+      prisma.acessos_Facial.findFirst.mockResolvedValue({ evento: 'entrada' });
+      await svc.processWebhook('tok-auto2', {
+        event: 'reconhecimento', external_id: 'pessoa_2000100', timestamp: new Date().toISOString(),
+      });
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ data_saida: expect.any(Date) }) }),
+      );
+
+      const saiu = prestadorDentroForaDaJanela({ data_saida: new Date() });
+      const m = montar(saiu);
+      const unsync = jest.spyOn(m.svc as any, 'unsyncPessoa').mockResolvedValue(true);
+      await m.svc.syncPessoa(saiu.id_pessoa);
+      expect(unsync).toHaveBeenCalled();
+    });
+
+    it('prestador dentro COM vaga vigente e a janela encerrada: também 1 uso no auto (a vaga não vira ilimitado fora da vigência da visita)', async () => {
+      const visita = prestadorDentroForaDaJanela();
+      const m = montar(visita, { vagaVigente: true });
+      devicesAutoESaida(m);
+      await m.svc.syncPessoa(visita.id_pessoa);
+      expect(doAparelho(m, 920)).toEqual(expect.objectContaining({ userTimes: 1 }));
+    });
+
+    it('vaga vigente com a janela valendo (pode reentrar): segue ilimitado, como em produção', async () => {
+      const agora = Date.now();
+      const visita = prestadorDentroForaDaJanela({
+        is_prestador: 0, is_visitante: 1,
+        data_hora_termino: new Date(agora + 2 * 60 * MIN),
+      });
+      const m = montar(visita, { vagaVigente: true });
+      devicesAutoESaida(m);
+      await m.svc.syncPessoa(visita.id_pessoa);
+      expect(doAparelho(m, 920)).toEqual(expect.objectContaining({ userTimes: -1 }));
+    });
+  });
 });
