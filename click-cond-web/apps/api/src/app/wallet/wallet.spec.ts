@@ -258,6 +258,46 @@ describe('WalletService', () => {
       expect(await svc.cancelarPeloOperador(11, SINDICO, AGORA)).toEqual({ ok: true, cancelados: 0 });
     });
 
+    it('pelo operador na ficha de outra unidade do mesmo usuário: cancela o passe preso à primeira linha e o P2 passa a ser negado', async () => {
+      const { svc, estado, validacao } = build();
+      // Ana (usuário 7) mora nos aptos 1 e 2 do mesmo condomínio: linhas 11 e 12.
+      estado.moradores = estado.moradores.map((m) =>
+        m.id === 12 ? { ...m, id_condominio: 1, bloco: null, apartamento: '2' } : m,
+      );
+      const pass = passJson(await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA));
+      const cred = estado.creds.find((c) => c.origem === 'wallet_apple');
+      expect(cred.id_pessoa).toBe(11);
+      expect(await validacao.validarLeitura(pass.barcodes[0].message, { id: 42, id_condominio: 1 }, AGORA)).toMatchObject({ ok: true });
+
+      const r = await svc.cancelarPeloOperador(12, PORTEIRO, AGORA);
+      expect(r.cancelados).toBeGreaterThanOrEqual(1);
+      expect(cred.revogada_em).toEqual(AGORA);
+      expect(await validacao.validarLeitura(pass.barcodes[0].message, { id: 42, id_condominio: 1 }, AGORA)).toMatchObject({
+        ok: false,
+        motivo: 'revogada',
+      });
+    });
+
+    it('pelo operador: não toca nos passes de outro usuário nem nos do mesmo usuário em outro condomínio; linha sem id_user só a dela', async () => {
+      const { svc, estado } = build();
+      estado.moradores.push({ id: 15, id_user: null, id_condominio: 1, nome: 'Sem conta', bloco: null, apartamento: '9' });
+      const ativa = (id: number, idPessoa: number, idCondominio = 1) => ({
+        id, id_condominio: idCondominio, tipo_pessoa: 'morador', id_pessoa: idPessoa, origem: 'wallet_apple', segredo: 'x', revogada_em: null,
+      });
+      estado.creds.push(ativa(90, 11), ativa(91, 12, 2), ativa(92, 13), ativa(93, 15));
+
+      expect(await svc.cancelarPeloOperador(11, PORTEIRO, AGORA)).toEqual({ ok: true, cancelados: 1 });
+      const porId = (id: number) => estado.creds.find((c) => c.id === id);
+      expect(porId(90).revogada_em).toEqual(AGORA);
+      expect(porId(91).revogada_em).toBeNull(); // condomínio 2
+      expect(porId(92).revogada_em).toBeNull(); // outro usuário
+      expect(porId(93).revogada_em).toBeNull(); // linha sem id_user
+
+      expect(await svc.cancelarPeloOperador(15, PORTEIRO, AGORA)).toEqual({ ok: true, cancelados: 1 });
+      expect(porId(93).revogada_em).toEqual(AGORA);
+      expect(porId(92).revogada_em).toBeNull();
+    });
+
     it('depois de cancelar, passeAppleDaCredencial devolve passe com voided true', async () => {
       const { svc, estado } = build();
       await svc.emitirApple(MORADOR, { id_condominio: 1 }, AGORA);

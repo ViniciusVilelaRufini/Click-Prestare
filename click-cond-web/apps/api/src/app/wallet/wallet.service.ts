@@ -227,14 +227,29 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
   ): Promise<{ ok: true; cancelados: number }> {
     assertOperador(operador, 'cancelar o passe da carteira');
     const idMorador = exigirIdPositivo(idMoradorBruto, 'Morador inválido.');
-    const morador = await (this.prisma as any).moradores.findUnique({
+    const p = this.prisma as any;
+    const morador = await p.moradores.findUnique({
       where: { id: idMorador },
-      select: { id: true, nome: true, id_condominio: true },
+      select: { id: true, nome: true, id_condominio: true, id_user: true },
     });
     if (!morador) throw new NotFoundException('Morador não encontrado.');
     await this.tenant.assertCondominio(morador.id_condominio, operador);
 
-    const cancelados = await this.revogar(morador.id_condominio, morador.id, agora);
+    // A emissão prende o passe à primeira linha de Moradores do usuário no
+    // condomínio (linhaDeMorador), e a ficha aberta pode ser a de outra
+    // unidade dele: revoga em todas as linhas do mesmo usuário ali. Linha sem
+    // usuário só tem a si mesma.
+    const linhas: number[] = morador.id_user
+      ? (
+          await p.moradores.findMany({
+            where: { id_user: morador.id_user, id_condominio: morador.id_condominio },
+            select: { id: true },
+          })
+        ).map((m: { id: number }) => m.id)
+      : [];
+    if (!linhas.includes(morador.id)) linhas.push(morador.id);
+    let cancelados = 0;
+    for (const id of linhas) cancelados += await this.revogar(morador.id_condominio, id, agora);
     await this.auditoria.registrar({
       id_condominio: morador.id_condominio,
       usuario_nome: operador?.nome ?? 'Portaria',

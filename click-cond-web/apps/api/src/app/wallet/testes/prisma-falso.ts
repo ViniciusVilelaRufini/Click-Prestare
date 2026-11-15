@@ -120,6 +120,9 @@ export function criarPrismaFalso(inicial: Partial<EstadoFalso> = {}, opcoes: { l
       findUnique: jest.fn(async ({ where, select }: any) =>
         selecionar(estado.moradores.find((m) => m.id === where.id) ?? null, select),
       ),
+      findMany: jest.fn(async ({ where, orderBy, select }: any) =>
+        ordenar(estado.moradores.filter((m) => casa(m, where)), orderBy ?? { id: 'asc' }).map((m) => selecionar(m, select)),
+      ),
     },
     credenciais_Acesso: {
       findFirst: jest.fn(async ({ where, orderBy }: any) => {
