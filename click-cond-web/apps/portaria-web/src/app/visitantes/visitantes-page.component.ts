@@ -1542,7 +1542,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   /** "YYYY-MM-DDTHH:mm" em hora local (formato do input datetime-local). */
   private localDateTime(horas = 0): string {
-    const d = new Date(Date.now() + horas * 3600_000);
+    // Hora do SERVIDOR: com o relógio do computador da portaria adiantado, a
+    // janela começava no futuro e o PIN/rosto não abriam até o servidor alcançar.
+    const d = new Date(this.agoraMs() + horas * 3600_000);
     const p = (n: number) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   }
