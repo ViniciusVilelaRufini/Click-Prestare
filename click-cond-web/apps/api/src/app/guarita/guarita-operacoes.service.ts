@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizarPlaca } from '../facial/placa.util';
+import { EstadoCompartilhado } from '../common/estado-compartilhado';
 import {
   ESTADO_OP,
   ESTADO_TAG,
@@ -13,6 +14,7 @@ import {
   blocoParaByte,
   byteParaBloco,
   codificarApagar,
+  codificarApagarDoFrame,
   codificarDispositivo,
   corParaByte,
   decodificarDispositivo,
@@ -76,11 +78,17 @@ export function nomeCurto(nome: string | null | undefined): string {
  *
  * NÃO validado em aparelho.
  */
+/** Remoção que falha volta à fila até isto (uma vez por conexão/conferência). */
+export const MAX_TENTATIVAS_REMOCAO = 5;
+
 @Injectable()
 export class GuaritaOperacoesService {
   private readonly logger = new Logger(GuaritaOperacoesService.name);
+  private readonly estado: EstadoCompartilhado;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {
+    this.estado = new EstadoCompartilhado(prisma);
+  }
 
   // ------------------------------------------------------------ consultas
 
@@ -314,7 +322,8 @@ export class GuaritaOperacoesService {
       });
       if (aberta > 0) return true;
     }
-    const frame = codificarApagar(tag.guarita_tipo, tag.guarita_serial);
+    const conhecido = await this.frameConhecido(tag);
+    const frame = conhecido ? codificarApagarDoFrame(conhecido) : codificarApagar(tag.guarita_tipo, tag.guarita_serial);
     await this.criarGravacao(tag, 'apagar', frame, autor, ESTADO_TAG.removendo);
     // Os dados para recadastrar ficam guardados (a linha da tag some quando o Guarita confirmar).
     if (tag.guarita_frame) {
@@ -647,13 +656,15 @@ export class GuaritaOperacoesService {
         ]);
         return;
       }
+      // A remoção NÃO aconteceu: o dispositivo ainda abre o portão. A tag
+      // continua `removendo` (a linha só some com a confirmação do agente), a
+      // portaria recebe alerta e a remoção volta para a fila na próxima
+      // conexão/conferência (até MAX_TENTATIVAS_REMOCAO, nunca em laço).
       await this.prisma.tags.update({
         where: { id: tag.id },
-        data: {
-          guarita_erro: `Remoção: ${mensagem}`.slice(0, 255),
-          ...(maisNova === 0 && { guarita_estado: ESTADO_TAG.falhou }),
-        },
+        data: { guarita_erro: `Remoção: ${mensagem}`.slice(0, 255), guarita_estado: ESTADO_TAG.removendo },
       });
+      await this.alertarRemocaoPendente(tag, String(mensagem));
       return;
     }
 
@@ -688,6 +699,56 @@ export class GuaritaOperacoesService {
         await this.desfazerNoPrestare(tag);
       }
     }
+  }
+
+  /** Alerta "ainda abre o portão" para a portaria (no máximo um a cada 12 h por tag). */
+  private async alertarRemocaoPendente(tag: any, motivo: string) {
+    if (!(await this.estado.criarSeAusente(`guarita:alerta-remocao:${tag.id}`, true, 12 * 60 * 60 * 1000))) return;
+    let quem = `serial ${tag.guarita_serial ?? '?'}`;
+    try {
+      const d = tag.guarita_frame ? decodificarDispositivo(tag.guarita_frame) : null;
+      if (d) quem = `${d.rotulo ? `${d.rotulo}, ` : ''}unidade ${d.unidade} bloco ${d.bloco}`;
+    } catch {
+      /* mantém o serial */
+    }
+    await this.prisma.guarita_Alertas.create({
+      data: {
+        id_condominio: tag.id_condominio,
+        id_device: tag.id_device,
+        tipo: 'remocao_pendente',
+        descricao: `Não foi possível remover do Guarita o dispositivo de ${quem}: ele ainda abre o portão.`.slice(0, 255),
+        dados: JSON.stringify({ id_tag: tag.id, serial: tag.guarita_serial, tipo: tag.guarita_tipo, motivo }),
+      },
+    });
+  }
+
+  /**
+   * Remoções que falharam voltam para a fila — chamado a cada (re)conexão do
+   * agente com o Guarita e depois de cada conferência, nunca em laço. Até
+   * MAX_TENTATIVAS_REMOCAO apagar por tag; depois disso só o alerta fica.
+   */
+  async reenfileirarRemocoes(idDevice: number): Promise<number> {
+    const tags = await this.prisma.tags.findMany({
+      where: { id_device: idDevice, guarita_estado: ESTADO_TAG.removendo },
+    });
+    let n = 0;
+    for (const tag of tags) {
+      const aberta = await this.prisma.guarita_Operacoes.count({
+        where: { id_tag: tag.id, tipo: 'apagar', estado: { in: [...ABERTAS, ESTADO_OP.processando] } },
+      });
+      if (aberta > 0) continue;
+      const falhas = await this.prisma.guarita_Operacoes.count({
+        where: { id_tag: tag.id, tipo: 'apagar', estado: ESTADO_OP.falhou },
+      });
+      if (falhas === 0 || falhas >= MAX_TENTATIVAS_REMOCAO) continue;
+      if (!(await this.podeEscrever(tag))) continue;
+      const conhecido = await this.frameConhecido(tag);
+      if (!conhecido && (tag.guarita_tipo == null || !tag.guarita_serial)) continue;
+      const frame = conhecido ? codificarApagarDoFrame(conhecido) : codificarApagar(tag.guarita_tipo as number, tag.guarita_serial as string);
+      await this.criarGravacao(tag, 'apagar', frame, `Nova tentativa de remoção (${falhas + 1}/${MAX_TENTATIVAS_REMOCAO})`, ESTADO_TAG.removendo);
+      n++;
+    }
+    return n;
   }
 
   /**

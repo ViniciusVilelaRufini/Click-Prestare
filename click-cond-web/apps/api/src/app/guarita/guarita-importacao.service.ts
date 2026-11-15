@@ -270,6 +270,8 @@ export class GuaritaImportacaoService {
         data: { estado: ESTADO_OP.ok, erro: null, concluida_em: new Date() },
       });
       await this.prisma.guarita_Importacoes.deleteMany({ where: { id_operacao: op.id } });
+      // Depois de uma conferência, as remoções que falharam ganham mais uma tentativa.
+      if (op.tipo === 'conferir') await this.ops.reenfileirarRemocoes(device.id);
     } catch (err: any) {
       this.logger.error(`Guarita ${device.id}: falha ao processar a leitura ${op.id}: ${err?.message ?? err}`);
       await this.prisma.guarita_Operacoes.updateMany({

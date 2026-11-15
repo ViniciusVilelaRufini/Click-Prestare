@@ -170,3 +170,51 @@ describe('I11 — importação acha o serial de uma tag ainda não confirmada em
     expect(tag(m.db).guarita_estado).toBe('pendente');
   });
 });
+
+describe('I3 — remoção que falha e identidade do CT', () => {
+  const framePlano = (b0: string, vi = '0000') =>
+    '340F086E'.replace('34', b0) + vi + '03080100FF' + '20'.repeat(18) + '00060A' + Buffer.from('ABC1D23').toString('hex').toUpperCase();
+
+  it('apagar que falha: tag continua removendo, alerta remocao_pendente; nova tentativa só na reconexão, até 5', async () => {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'ativo', guarita_frame: framePlano('30') });
+    await m.ops.enfileirarRemocao(1, 'x');
+    const lote = await m.agente.buscarOperacoes(DEV);
+    const apagar = lote.operacoes.find((o) => o.tipo === 'apagar')!;
+    await m.agente.registrarResultado(DEV, apagar.id, { ok: false, erro: 'O Guarita não respondeu.' });
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'removendo' });
+    expect(tag(m.db).guarita_erro).toMatch(/Remoção: O Guarita não respondeu/);
+    const alertas = m.db.linhas('guarita_Alertas');
+    expect(alertas.map((a: any) => a.tipo)).toEqual(['remocao_pendente']);
+    expect(alertas[0].descricao).toMatch(/ainda abre o portão/);
+
+    // Estado repetido (já conectado) não reenfileira; reconexão sim.
+    await m.agente.registrarEstado(DEV, { conectado: true, autorizado: true });
+    expect(operacoes(m.db, 'apagar').filter((o: any) => o.estado === 'pendente')).toHaveLength(1);
+    await m.agente.registrarEstado(DEV, { conectado: true, autorizado: true });
+    expect(operacoes(m.db, 'apagar').filter((o: any) => o.estado === 'pendente')).toHaveLength(1);
+
+    // Mais 4 falhas (com reconexões no meio): depois da 5ª, para de tentar.
+    for (let i = 0; i < 4; i++) {
+      const p = operacoes(m.db, 'apagar').find((o: any) => o.estado === 'pendente');
+      p.estado = 'enviada';
+      await m.agente.registrarResultado(DEV, p.id, { ok: false, erro: 'O Guarita não respondeu.' });
+      await m.agente.registrarEstado(DEV, { conectado: false, autorizado: true });
+      await m.agente.registrarEstado(DEV, { conectado: true, autorizado: true });
+    }
+    expect(operacoes(m.db, 'apagar').filter((o: any) => o.estado === 'falhou')).toHaveLength(5);
+    expect(operacoes(m.db, 'apagar').filter((o: any) => o.estado === 'pendente')).toHaveLength(0);
+    expect(tag(m.db).guarita_estado).toBe('removendo');
+  });
+
+  it('CT com disp_dest (nibble baixo do byte 1): apagar e editar usam o byte 1 lido; edição mantém o "VI" do visitante', async () => {
+    const m = montar();
+    Object.assign(tag(m.db), { guarita_estado: 'ativo', guarita_frame: framePlano('34', '5649') });
+    await m.ops.enfileirarEdicao(1, 'x');
+    const ed = operacoes(m.db, 'editar')[0];
+    expect(ed.frame_hex.slice(0, 12)).toBe('340F086E5649');
+    m.db.linhas('guarita_Operacoes').forEach((o: any) => (o.estado = 'cancelada'));
+    await m.ops.enfileirarRemocao(1, 'x');
+    expect(operacoes(m.db, 'apagar')[0].frame_hex).toBe('340F086E' + '00'.repeat(35));
+  });
+});

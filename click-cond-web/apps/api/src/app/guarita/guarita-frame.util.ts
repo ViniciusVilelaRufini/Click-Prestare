@@ -285,7 +285,27 @@ export function codificarDispositivo(d: DadosDispositivo, base?: string | null):
     b[9] = lido[9];
     b[10] = lido[10];
     b[29] = lido[29];
+    // Fora do RF, a identidade é o byte 1 INTEIRO (o nibble baixo do CT é o
+    // disp_dest) e os bytes 5–6 guardam o "VI" do CT Visitante: ficam como lidos.
+    if (d.tipo !== 1 && lido[0] >> 4 === d.tipo && lido[1] === b[1] && lido[2] === b[2] && lido[3] === b[3]) {
+      b[0] = lido[0];
+      b[4] = lido[4];
+      b[5] = lido[5];
+    }
   }
+  return paraHex(b);
+}
+
+/**
+ * Apagar a partir do frame conhecido (lido/confirmado): bytes 1–4 como estão
+ * no Guarita (inclusive o nibble baixo do byte 1 do CT), o resto 0x00.
+ */
+export function codificarApagarDoFrame(frame: string): string {
+  const lido = paraBytes(frame, 39, 'frame conhecido');
+  const tipo = lido[0] >> 4;
+  if (!TIPOS_ACEITOS.includes(tipo)) throw new Error('Tipo de dispositivo não suportado (RF, TA, CT ou TP)');
+  const b = new Array<number>(39).fill(0);
+  for (let i = 0; i < 4; i++) b[i] = lido[i];
   return paraHex(b);
 }
 

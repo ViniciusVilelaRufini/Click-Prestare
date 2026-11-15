@@ -432,6 +432,7 @@ export class GuaritaAgenteService {
     const b = (corpo ?? {}) as Record<string, unknown>;
     const conectado = booleano(b.conectado, 'conectado');
     const autorizado = booleano(b.autorizado, 'autorizado');
+    const anterior = await this.lerEstado(device.id);
     const valor: EstadoGuaritaGuardado = {
       conectado,
       autorizado,
@@ -450,6 +451,8 @@ export class GuaritaAgenteService {
     await this.estado.definir(chaveEstadoGuarita(device.id), valor, ESTADO_TTL_MS);
     if (conectado) {
       await this.prisma.facial_Devices.update({ where: { id: device.id }, data: { ultima_sincr: new Date() } });
+      // (Re)conexão: as remoções que falharam ganham mais uma tentativa.
+      if (!anterior?.conectado && this.operacoes) await this.operacoes.reenfileirarRemocoes(device.id);
     }
     return { ok: true };
   }
