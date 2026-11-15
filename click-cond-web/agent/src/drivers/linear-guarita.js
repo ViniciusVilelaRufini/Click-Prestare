@@ -225,7 +225,9 @@ class ServicoGuarita {
       this.ultimoErroConexao = e;
       this.erro = e.message;
       let espera;
-      if (e.codigo === 'negado') {
+      if (e.codigo === 'negado' || e.codigo === 'palavra_invalida') {
+        // Palavra recusada pelo Guarita, ou inválida no cadastro (nem conecta):
+        // tentar de novo rápido não adianta.
         this.autorizado = false;
         espera = Math.max(this.iv.esperaNegadoMs, Number(e.esperaMinimaMs) || 0);
       } else {

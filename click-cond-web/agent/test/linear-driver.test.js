@@ -671,3 +671,21 @@ test('C1 (driver): A calado → falhou e a sessão cai; B só roda numa sessão 
     assert.equal(rB[0].erro, 'Memória do Guarita cheia.');
   });
 });
+
+test('C2 (driver): palavra do cadastro que formaria o comando 77 → não conecta, nenhum byte sai e o estado diz o motivo sem repetir a palavra', async () => {
+  await cenario({ device: { api_password: '\u0000MU\u00AAL' } }, async (c) => {
+    c.escutar();
+    await esperarAte(() => c.nuvem.estados.length >= 1, { rotulo: 'estado' });
+    const estado = c.nuvem.estados.at(-1);
+    assert.equal(estado.conectado, false);
+    assert.equal(estado.autorizado, false);
+    assert.equal(estado.erro, 'Palavra de autorização inválida no cadastro');
+    assert.ok(!JSON.stringify(c.nuvem.estados).includes('MU'));
+    assert.equal(c.sim.conexoesAceitas, 0, 'nem abriu a conexão');
+    assert.equal(c.sim.recebidos.length + c.sim.lixoRecebido.length, 0);
+    assert.equal(classificarFalha(await c.driver.testar(c.dev)), 'credencial');
+    await c.relogio.avancar(59999);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(c.sim.conexoesAceitas, 0);
+  });
+});

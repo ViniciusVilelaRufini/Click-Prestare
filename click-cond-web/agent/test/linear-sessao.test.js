@@ -315,3 +315,80 @@ test('fechar(): não emite queda e rejeita o que estava esperando', async () => 
   await girar();
   assert.equal(quedas.length, 0);
 });
+
+test('C2: palavra que forma frame (77, 19, 8, 18, 24) ou fora de 1..15 imprimíveis → não conecta e nenhum byte é escrito', async () => {
+  const ruins = [
+    '\x00MU\xAAL', // 00 4D 55 AA 4C = comando 77 (formatar)
+    '\x00\x13\x00\x01\x00\x02\x16', // 19: apagar todos da unidade
+    '\x00\x08\x08', // 8: apagar eventos
+    '\x00\x12\x12', // 18: reiniciar
+    '\x00\x18\x18', // 24: reset
+    'abc\x7Fdef', // DEL
+    'tab\there',
+    'acentuação',
+    'x'.repeat(16),
+    42,
+  ];
+  for (const palavra of ruins) {
+    const relogio = criarRelogioFalso();
+    let aberto = 0;
+    const sessao = new SessaoGuarita({
+      ip: '10.0.0.5',
+      palavra,
+      abrirSocket: () => {
+        aberto++;
+        return new SocketFalso();
+      },
+      temporizador: relogio,
+      logger: logMudo,
+    });
+    await assert.rejects(sessao.conectar(), (e) => {
+      assert.equal(e.message, 'Palavra de autorização inválida no cadastro');
+      assert.equal(e.codigo, 'palavra_invalida');
+      assert.ok(typeof palavra !== 'string' || !e.message.includes(palavra));
+      return true;
+    }, JSON.stringify(palavra));
+    assert.equal(aberto, 0, `não abre o socket: ${JSON.stringify(palavra)}`);
+  }
+});
+
+test('C2: palavras válidas (1 a 15 caracteres 0x20..0x7E) continuam aceitas', async () => {
+  for (const palavra of ['a', 'Senha 123~', 'x'.repeat(15), ' !"#$%&()*+,-./']) {
+    const { sock, sessao } = montarSessao({ palavra });
+    const p = sessao.conectar();
+    sock.emit('connect');
+    await girar();
+    assert.deepEqual(sock.escritos.map((b) => b.toString('latin1')), [palavra]);
+    sock.receber(Buffer.from('Autorizado\0', 'latin1'));
+    await p;
+  }
+});
+
+test('C2: varredura — o único ponto que escreve no socket é _enviarAoSocket, e ele só deixa passar frame da lista branca, o 0x00 de continuação ou a palavra validada', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const dir = path.join(__dirname, '..', 'src', 'drivers');
+  const arquivos = [
+    ...fs.readdirSync(path.join(dir, 'linear')).map((f) => path.join(dir, 'linear', f)),
+    path.join(dir, 'linear-guarita.js'),
+  ];
+  const escritas = [];
+  for (const arq of arquivos) {
+    const fonte = fs.readFileSync(arq, 'utf8');
+    for (const m of fonte.matchAll(/\.write\(/g)) escritas.push(`${path.basename(arq)}@${m.index}`);
+  }
+  assert.equal(escritas.length, 1, escritas.join(', '));
+  const fonte = fs.readFileSync(path.join(dir, 'linear', 'sessao.js'), 'utf8');
+  const corpo = fonte.slice(fonte.indexOf('  _enviarAoSocket('), fonte.indexOf('\n  }\n', fonte.indexOf('  _enviarAoSocket(')));
+  assert.match(corpo, /s\.write\(/);
+  assert.match(corpo, /ehFramePermitido\(buf\)/);
+  assert.match(corpo, /palavraValida\(/);
+  assert.ok(!/_escreverBruto/.test(fonte), 'sobrou caminho de escrita crua');
+});
+
+test('C2: escrita de palavra fora da fase de autorização é bloqueada', async () => {
+  const { sock, sessao } = await conectada();
+  await assert.rejects(sessao._enviarAoSocket(Buffer.from('abc', 'latin1'), 'palavra'), /bloqueada/);
+  await assert.rejects(sessao._enviarAoSocket(Buffer.from('000C0C', 'hex'), 'outra'), /bloqueada/);
+  assert.equal(sock.escritos.length, 0);
+});

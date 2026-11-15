@@ -14,8 +14,13 @@
  *   - Frame que chega sem ter sido pedido (evento automático, dispositivo
  *     não cadastrado...) sai no evento 'espontaneo' e não atrapalha a
  *     resposta que estava sendo esperada.
- *   - Toda escrita passa pela lista branca do codec (`ehFramePermitido`):
- *     além de `montar`, é a segunda trava contra mandar comando proibido.
+ *   - UM ponto só escreve no socket (`_enviarAoSocket`), e ele só deixa
+ *     passar: frame da lista branca (`ehFramePermitido`, a segunda trava
+ *     além de `montar`), o byte 0x00 de continuação dentro de leitura
+ *     progressiva, ou a palavra de autorização VALIDADA (1 a 15 caracteres
+ *     0x20..0x7E, uma vez, na fase de autorização). Palavra fora disso não
+ *     conecta: com bytes de controle ela poderia formar um frame (ex.:
+ *     "\x00MU\xAAL" (bytes 00 4D 55 AA 4C) = comando 77, formatar) num Guarita sem autorização.
  *   - O protocolo não tem identificador de transação: uma resposta só é
  *     aceita se chegou DEPOIS da escrita da pergunta dela (um "crédito" por
  *     pergunta / byte de continuação escrito). Qualquer anomalia — pergunta
@@ -45,6 +50,24 @@ const CONTINUAR = Buffer.from([0x00]);
 const PROGRESSIVOS = new Set([17, 70]);
 
 const MSG_NEGADO = 'Palavra de autorização recusada pelo Guarita';
+const MSG_PALAVRA_INVALIDA = 'Palavra de autorização inválida no cadastro';
+
+/** 1 a 15 caracteres, todos ASCII imprimível 0x20..0x7E. */
+function palavraValida(p) {
+  if (typeof p !== 'string' || p.length < 1 || p.length > 15) return false;
+  for (let i = 0; i < p.length; i++) {
+    const c = p.charCodeAt(i);
+    if (c < 0x20 || c > 0x7e) return false;
+  }
+  return true;
+}
+
+/** Mesma regra sobre os bytes que vão ao socket. */
+function bytesDePalavraValidos(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 1 || buf.length > 15) return false;
+  for (const b of buf) if (b < 0x20 || b > 0x7e) return false;
+  return true;
+}
 const MSG_SEM_RESPOSTA = 'O Guarita não respondeu.';
 const MSG_QUEDA = 'A conexão com o Guarita caiu.';
 
@@ -67,7 +90,11 @@ class SessaoGuarita extends EventEmitter {
     if (!ip) throw new Error('SessaoGuarita requer ip');
     this.ip = ip;
     this.porta = Number(porta) > 0 ? Number(porta) : PORTA_PADRAO;
-    this._palavra = typeof palavra === 'string' && palavra.length > 0 ? palavra : null;
+    // Sem palavra (null/undefined/''): autorização desligada. Qualquer outra
+    // coisa tem de passar em palavraValida, senão conectar() recusa.
+    this._semPalavra = palavra === null || palavra === undefined || palavra === '';
+    this._palavra = this._semPalavra ? null : palavra;
+    this._palavraEnviada = false;
     this._abrirSocket = abrirSocket || ((o) => net.connect({ host: o.host, port: o.port }));
     this._t = temporizador || temporizadorReal;
     this._agora = agora || this._t.agora || (() => Date.now());
@@ -97,6 +124,10 @@ class SessaoGuarita extends EventEmitter {
 
   conectar() {
     if (this._socket) return Promise.reject(new Error('sessão já aberta'));
+    if (!this._semPalavra && !palavraValida(this._palavra)) {
+      // Nunca repete a palavra na mensagem.
+      return Promise.reject(erro(MSG_PALAVRA_INVALIDA, 'palavra_invalida', { statusCode: 401 }));
+    }
     this._fechadoPorNos = false;
     this._fase = 'conectando';
     return new Promise((resolve, reject) => {
@@ -170,7 +201,7 @@ class SessaoGuarita extends EventEmitter {
         }
         return reject(erro('Resposta inesperada do Guarita na autorização.', 'protocolo_inesperado'));
       };
-      this._escreverBruto(Buffer.from(this._palavra, 'latin1')).catch((e) => {
+      this._enviarAoSocket(Buffer.from(this._palavra, 'latin1'), 'palavra').catch((e) => {
         if (this._aoAutorizar) this._aoAutorizar(null, e);
       });
     });
@@ -367,22 +398,39 @@ class SessaoGuarita extends EventEmitter {
 
   // ---------- escrita ----------
 
-  _escreverBruto(buf) {
+  /**
+   * ÚNICO ponto que escreve no socket. `natureza`:
+   *   'frame'        — só frame da lista branca (ehFramePermitido);
+   *   'continuacao'  — só o byte 0x00, dentro de leitura progressiva;
+   *   'palavra'      — só na fase de autorização, uma vez, 1..15 bytes 0x20..0x7E.
+   * Qualquer outra coisa é recusada sem escrever.
+   */
+  _enviarAoSocket(buf, natureza) {
+    let permitido = false;
+    if (natureza === 'frame') {
+      permitido = ehFramePermitido(buf) && this.conectado;
+    } else if (natureza === 'continuacao') {
+      permitido = Buffer.isBuffer(buf) && buf.length === 1 && buf[0] === 0x00 && this._emProgressivo && this.conectado;
+    } else if (natureza === 'palavra') {
+      permitido =
+        this._fase === 'autorizacao' && !this._palavraEnviada && palavraValida(this._palavra) && bytesDePalavraValidos(buf);
+    }
+    if (!permitido) {
+      return Promise.reject(new Error('Guarita: escrita bloqueada (fora da lista branca do driver)'));
+    }
     const s = this._socket;
     if (!s || s.destroyed) return Promise.reject(erro(MSG_QUEDA, 'queda'));
+    if (natureza === 'palavra') this._palavraEnviada = true;
     return new Promise((resolve, reject) => {
       s.write(buf, (e) => (e ? reject(e) : resolve()));
     });
   }
 
-  /** Única saída de bytes depois da autorização: lista branca ou o 0x00 de continuação. */
+  /** Frame da lista branca ou o 0x00 de continuação (depois da autorização). */
   _escrever(buf) {
-    const continuacao = buf.length === 1 && buf[0] === 0x00 && this._emProgressivo;
-    if (!continuacao && !ehFramePermitido(buf)) {
-      return Promise.reject(new Error('Guarita: escrita bloqueada (frame fora da lista branca do driver)'));
-    }
     if (!this.conectado) return Promise.reject(erro('Guarita não conectado.', 'desconectado'));
-    return this._escreverBruto(buf);
+    const continuacao = Buffer.isBuffer(buf) && buf.length === 1 && buf[0] === 0x00;
+    return this._enviarAoSocket(buf, continuacao ? 'continuacao' : 'frame');
   }
 
   /** Escreve e, logo depois da chamada ao socket, libera UMA resposta para a espera. */
@@ -516,6 +564,8 @@ module.exports = {
   TIMEOUT_AUTORIZACAO_MS,
   ESPERA_APOS_NEGADO_MS,
   MSG_NEGADO,
+  MSG_PALAVRA_INVALIDA,
+  palavraValida,
   MSG_SEM_RESPOSTA,
   MSG_QUEDA,
 };
