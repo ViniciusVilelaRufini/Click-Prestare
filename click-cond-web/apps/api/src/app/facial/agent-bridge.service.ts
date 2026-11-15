@@ -729,7 +729,12 @@ export interface AgentCommandInput {
   validFrom?: string;
   validTo?: string;
   userTimes?: number;
-  /** `guarita_rele`: receptor (tipo 1/2/3/6, CAN 0..7) e relé (1..4) a acionar. */
+  /**
+   * `guarita_rele`: receptor (tipo 1/2/3/6, endereço CAN **1..8**, como aparece
+   * no Guarita e em Guarita_Portoes.num_receptor) e relé (1..4). Quem subtrai 1
+   * para o byte do protocolo (0..7) é o AGENTE; converter aqui abriria o
+   * receptor vizinho.
+   */
   payload?: { tipo_receptor: number; num_receptor: number; rele: number };
 }
 

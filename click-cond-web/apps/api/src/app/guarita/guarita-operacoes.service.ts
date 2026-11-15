@@ -41,10 +41,15 @@ export interface ResultadoGravacao {
   /** O dispositivo lido no Guarita está em outra unidade/bloco: o agente NÃO escreveu. */
   conflito?: boolean;
   /** Unidade e byte do bloco que o agente leu no Guarita (com `conflito`). */
-  lido?: { unidade: number; bloco: number } | null;
+  lido?: { unidade?: number; bloco?: number; frame_hex?: string } | null;
   /** Cadastrar (0x02 na mesma unidade) ou apagar (0x03): já estava como pedido. */
   ja_estava?: boolean;
+  /** A pergunta foi escrita e a resposta não chegou: o desfecho é desconhecido. */
+  incerto?: boolean;
 }
+
+/** Texto do desfecho desconhecido (também marca a operação: é por ele que as tentativas são contadas). */
+export const MSG_INCERTO = 'Não foi possível confirmar no Guarita.';
 
 /** Código de tag criado pelos fluxos do Guarita (importação, captura, digitado): G<tipo>-<serial>[-D<id>]. */
 const CODIGO_DO_GUARITA = /^G[1236]-[0-9A-F]+(-D\d+)?$/;
@@ -171,6 +176,21 @@ export class GuaritaOperacoesService {
       });
       if (r.count === 1) return { id_operacao: cadastroPendente.id };
     }
+    // Edição ainda não entregue: só troca o frame dela (nunca duas edições da
+    // mesma tag na fila, cada uma com um `esperado`).
+    const edicaoPendente = await this.prisma.guarita_Operacoes.findFirst({
+      where: { id_tag: tag.id, tipo: 'editar', estado: ESTADO_OP.pendente },
+      orderBy: { id: 'desc' },
+      select: { id: true },
+    });
+    if (edicaoPendente) {
+      const frame = await this.montarFrameOuRegistrar(tag, (await this.frameConhecido(tag)) ?? null);
+      const r = await this.prisma.guarita_Operacoes.updateMany({
+        where: { id: edicaoPendente.id, estado: ESTADO_OP.pendente },
+        data: { frame_hex: frame },
+      });
+      if (r.count === 1) return { id_operacao: edicaoPendente.id };
+    }
     // Cadastro entregue e ainda sem resultado: a edição entra atrás dele (a fila
     // só a entrega depois do resultado, e a cancela se o cadastro não der ok).
     const cadastroEmVoo = await this.prisma.guarita_Operacoes.count({
@@ -206,7 +226,9 @@ export class GuaritaOperacoesService {
   async podeEscrever(tag: any): Promise<boolean> {
     if (!tag || tag.id_device == null || tag.guarita_tipo == null || !tag.guarita_serial) return false;
     const e = tag.guarita_estado;
-    if (e === ESTADO_TAG.gravado || e === ESTADO_TAG.ativo || e === ESTADO_TAG.removendo) return true;
+    if (e === ESTADO_TAG.gravado || e === ESTADO_TAG.ativo || e === ESTADO_TAG.removendo || e === ESTADO_TAG.remocaoFalhou) return true;
+    // Cadastro talvez gravado: pode receber apagar (o agente confere a unidade antes).
+    if (e === ESTADO_TAG.incerto) return true;
     if (e !== ESTADO_TAG.pendente && e !== ESTADO_TAG.falhou) return false;
     const confirmacoes = await this.prisma.guarita_Operacoes.count({
       where: {
@@ -345,9 +367,16 @@ export class GuaritaOperacoesService {
       await this.desfazerNoPrestare(tag);
       return false;
     }
-    // Cadastro desta tag ainda não entregue: cancela (nada chegou ao Guarita).
+    // Em conflito quando o morador sai: não apaga (o dispositivo lá é de
+    // outra unidade), mas a intenção de remover não some — alerta e texto na tag.
+    if (estado === ESTADO_TAG.conflito) {
+      await this.alertarRemocaoNaoConfirmada(tag);
+      return false;
+    }
+    // Cadastro e edição desta tag ainda não entregues: cancela (o apagar usa o
+    // frame confirmado atual).
     await this.prisma.guarita_Operacoes.updateMany({
-      where: { id_tag: tag.id, tipo: 'cadastrar', estado: ESTADO_OP.pendente },
+      where: { id_tag: tag.id, tipo: { in: ['cadastrar', 'editar'] }, estado: ESTADO_OP.pendente },
       data: { estado: ESTADO_OP.cancelada, concluida_em: new Date() },
     });
     // Cadastro já entregue e sem resultado: o apagar entra na fila e só sai
@@ -364,6 +393,9 @@ export class GuaritaOperacoesService {
       return false;
     }
     if (tag.guarita_tipo == null || !tag.guarita_serial) return false;
+    // Remoção já desistida automaticamente: a intenção continua (alerta aberto);
+    // nova tentativa só pelo "remover de novo" do console.
+    if (estado === ESTADO_TAG.remocaoFalhou) return true;
     if (estado === ESTADO_TAG.removendo) {
       const aberta = await this.prisma.guarita_Operacoes.count({
         where: { id_tag: tag.id, tipo: 'apagar', estado: { in: ABERTAS } },
@@ -659,6 +691,40 @@ export class GuaritaOperacoesService {
       await this.marcarConflito(op, r);
       return;
     }
+    // Desfecho desconhecido: o agente avisa (`incerto`); um cadastro que falha
+    // sem código do 67 também pode ter sido gravado (a resposta se perdeu).
+    const incerto = r.incerto === true || (op.tipo === 'cadastrar' && !r.ok && r.codigo === undefined);
+    if (incerto && TIPOS_GRAVACAO.includes(op.tipo)) {
+      await this.marcarIncerto(op);
+      return;
+    }
+    // "Já estava" num cadastro só vale com o frame LIDO do Guarita e o mesmo
+    // dispositivo (tipo + serial, + contador no RF) na MESMA unidade/bloco; o
+    // frame confirmado passa a ser o lido. Sem o frame lido: incerto.
+    let frameConfirmado: string | null = op.frame_hex ?? null;
+    if (op.tipo === 'cadastrar' && r.ok && r.ja_estava === true) {
+      const lido = r.lido?.frame_hex ?? null;
+      const pedido = String(op.frame_hex ?? '').toUpperCase();
+      if (!lido || pedido.length !== 78) {
+        await this.marcarIncerto(op);
+        return;
+      }
+      const ehRf = pedido.startsWith('1');
+      const mesmoDispositivo = lido.slice(0, 8) === pedido.slice(0, 8) && (!ehRf || lido.slice(8, 12) === pedido.slice(8, 12));
+      const mesmaUnidade = lido.slice(12, 18) === pedido.slice(12, 18);
+      if (!mesmaUnidade) {
+        await this.marcarConflito(op, {
+          ...r,
+          lido: { unidade: parseInt(lido.slice(12, 14), 16) * 100 + parseInt(lido.slice(14, 16), 16), bloco: parseInt(lido.slice(16, 18), 16) },
+        });
+        return;
+      }
+      if (!mesmoDispositivo) {
+        await this.marcarIncerto(op);
+        return;
+      }
+      frameConfirmado = lido;
+    }
     const apagouJa = op.tipo === 'apagar' && !r.ok && r.codigo === 0x03;
     const ok = r.ok || apagouJa;
     const mensagem = ok ? null : (r.erro ?? (r.codigo !== undefined ? MENSAGENS_67[r.codigo] : undefined) ?? 'O Guarita não respondeu.');
@@ -723,6 +789,7 @@ export class GuaritaOperacoesService {
         data: { guarita_erro: `Remoção: ${mensagem}`.slice(0, 255), guarita_estado: ESTADO_TAG.removendo },
       });
       await this.alertarRemocaoPendente(tag, String(mensagem));
+      await this.desistirSeEsgotou(tag, String(mensagem));
       return;
     }
 
@@ -730,7 +797,7 @@ export class GuaritaOperacoesService {
       await this.prisma.tags.update({
         where: { id: tag.id },
         data: {
-          guarita_frame: op.frame_hex,
+          guarita_frame: frameConfirmado,
           guarita_em: agora,
           guarita_erro: null,
           ...(maisNova === 0 && { guarita_estado: ESTADO_TAG.gravado }),
@@ -757,6 +824,116 @@ export class GuaritaOperacoesService {
         await this.desfazerNoPrestare(tag);
       }
     }
+  }
+
+  /**
+   * Gravação escrita sem resposta. Nada é dado como feito nem como não feito:
+   *  - cadastrar → tag `incerto` e o PRÓPRIO cadastro volta uma vez à fila (o
+   *    agente responde `ja_estava` se ele já estiver lá); morador que sai com a
+   *    tag `incerto` recebe `apagar` com a unidade pedida;
+   *  - apagar → continua `removendo`, alerta, e volta à fila (conta nas tentativas);
+   *  - editar → volta à fila (conta nas tentativas).
+   */
+  private async marcarIncerto(op: any) {
+    const agora = new Date();
+    const reivindicou = await this.prisma.guarita_Operacoes.updateMany({
+      where: { id: op.id, estado: { in: ABERTAS } },
+      data: { estado: ESTADO_OP.falhou, codigo: null, erro: MSG_INCERTO, concluida_em: agora },
+    });
+    if (reivindicou.count !== 1 || op.id_tag == null) return;
+    const tag = await this.prisma.tags.findUnique({ where: { id: op.id_tag } });
+    if (!tag) return;
+    const tentativas = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: op.tipo, estado: ESTADO_OP.falhou, ...(op.tipo === 'apagar' ? {} : { erro: MSG_INCERTO }) },
+    });
+    if (op.tipo === 'cadastrar') {
+      const saindo = tag.guarita_estado === ESTADO_TAG.removendo;
+      await this.prisma.tags.update({
+        where: { id: tag.id },
+        data: { guarita_erro: MSG_INCERTO, ...(!saindo && { guarita_estado: ESTADO_TAG.incerto }) },
+      });
+      if (!saindo && tentativas === 1 && op.frame_hex) {
+        await this.prisma.guarita_Operacoes.create({
+          data: {
+            id_condominio: tag.id_condominio,
+            id_device: op.id_device,
+            id_tag: tag.id,
+            tipo: 'cadastrar',
+            frame_hex: op.frame_hex,
+            estado: ESTADO_OP.pendente,
+            criado_por: 'Conferir cadastro sem confirmação',
+          },
+        });
+        await this.garantirAtualizarReceptores(tag.id_condominio, op.id_device);
+      }
+      return;
+    }
+    if (op.tipo === 'apagar') {
+      await this.prisma.tags.update({
+        where: { id: tag.id },
+        data: { guarita_erro: `Remoção: ${MSG_INCERTO}`, guarita_estado: ESTADO_TAG.removendo },
+      });
+      await this.alertarRemocaoPendente(tag, MSG_INCERTO);
+      if (tentativas < MAX_TENTATIVAS_REMOCAO && op.frame_hex) {
+        await this.criarGravacao(tag, 'apagar', op.frame_hex, `Nova tentativa de remoção (${tentativas + 1}/${MAX_TENTATIVAS_REMOCAO})`, ESTADO_TAG.removendo);
+      } else {
+        await this.desistirSeEsgotou(tag, MSG_INCERTO);
+      }
+      return;
+    }
+    await this.prisma.tags.update({ where: { id: tag.id }, data: { guarita_erro: MSG_INCERTO } });
+    if (tentativas < MAX_TENTATIVAS_REMOCAO && op.frame_hex) {
+      await this.criarGravacao(tag, 'editar', op.frame_hex, 'Nova tentativa de edição sem confirmação', tag.guarita_estado ?? ESTADO_TAG.pendente);
+    }
+  }
+
+  /**
+   * Depois de MAX_TENTATIVAS_REMOCAO apagar falhos, a tag vira
+   * `remocao_falhou` (visível, sem nova tentativa automática) e um alerta
+   * `remocao_pendente` novo é aberto, mesmo que o anterior já tenha sido visto.
+   */
+  private async desistirSeEsgotou(tag: any, motivo: string) {
+    const falhas = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: 'apagar', estado: ESTADO_OP.falhou },
+    });
+    if (falhas < MAX_TENTATIVAS_REMOCAO) return;
+    const aberta = await this.prisma.guarita_Operacoes.count({
+      where: { id_tag: tag.id, tipo: 'apagar', estado: { in: ABERTAS } },
+    });
+    if (aberta > 0) return;
+    const texto = `Remoção não confirmada depois de ${falhas} tentativas: ${motivo}`.slice(0, 255);
+    await this.prisma.tags.update({ where: { id: tag.id }, data: { guarita_estado: ESTADO_TAG.remocaoFalhou, guarita_erro: texto } });
+    await this.prisma.guarita_Alertas.create({
+      data: {
+        id_condominio: tag.id_condominio,
+        id_device: tag.id_device,
+        tipo: 'remocao_pendente',
+        descricao: `Não foi possível remover do Guarita o dispositivo de ${await this.quemDaTag(tag)}: ele ainda abre o portão. As tentativas automáticas acabaram; use "Remover de novo".`.slice(0, 255),
+        dados: JSON.stringify({ id_tag: tag.id, serial: tag.guarita_serial, tipo: tag.guarita_tipo, motivo, tentativas: falhas }),
+      },
+    });
+  }
+
+  /**
+   * `POST …/dispositivos/:idTag/remover-de-novo`: nova tentativa manual de
+   * remover uma tag `remocao_falhou` (uma por clique).
+   */
+  async removerDeNovo(idCondominio: number, deviceId: number, idTag: number, autor: string) {
+    const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
+    const tag = await this.prisma.tags.findFirst({
+      where: { id: Number(idTag), id_device: device.id, id_condominio: device.id_condominio },
+    });
+    if (!tag) throw new NotFoundException('Dispositivo não encontrado neste Guarita.');
+    if (tag.guarita_estado !== ESTADO_TAG.remocaoFalhou) {
+      throw new BadRequestException('Só dá para remover de novo um dispositivo cuja remoção falhou.');
+    }
+    const conhecido = await this.frameConhecido(tag);
+    if (!conhecido && (tag.guarita_tipo == null || !tag.guarita_serial)) {
+      throw new BadRequestException('Sem os dados do dispositivo para remover. Faça a conferência.');
+    }
+    const frame = conhecido ? codificarApagarDoFrame(conhecido) : codificarApagar(tag.guarita_tipo as number, tag.guarita_serial as string);
+    const { id_operacao } = await this.criarGravacao(tag, 'apagar', frame, autor, ESTADO_TAG.removendo);
+    return { id_tag: tag.id, estado: ESTADO_TAG.removendo, id_operacao };
   }
 
   /** Alerta "ainda abre o portão" para a portaria (no máximo um a cada 12 h por tag). */
@@ -818,7 +995,7 @@ export class GuaritaOperacoesService {
     const agora = new Date();
     const lido =
       r.lido && Number.isInteger(r.lido.unidade) && Number.isInteger(r.lido.bloco)
-        ? ` (lá está na unidade ${r.lido.unidade} bloco ${byteParaBloco(r.lido.bloco)})`
+        ? ` (lá está na unidade ${r.lido.unidade} bloco ${byteParaBloco(r.lido.bloco as number)})`
         : '';
     const mensagem = `Este dispositivo já está no Guarita em outra unidade${lido}. Nada foi gravado.`;
     const reivindicou = await this.prisma.guarita_Operacoes.updateMany({
@@ -827,6 +1004,49 @@ export class GuaritaOperacoesService {
     });
     if (reivindicou.count !== 1 || op.id_tag == null) return;
     await this.marcarTagEmConflito(op.id_tag, mensagem);
+    // Conflito numa REMOÇÃO: a intenção era tirar alguém — não pode sumir em silêncio.
+    if (op.tipo === 'apagar') {
+      const tag = await this.prisma.tags.findUnique({ where: { id: op.id_tag } });
+      if (tag) await this.alertarRemocaoNaoConfirmada(tag);
+    }
+  }
+
+  /** Quem é o dono do dispositivo, para os textos: o morador do veículo, ou o rótulo/unidade do frame. */
+  private async quemDaTag(tag: any): Promise<string> {
+    const v = await this.prisma.veiculos.findFirst({ where: { id_tag: tag.id }, select: { id_morador: true } });
+    const m = v ? await this.prisma.moradores.findUnique({ where: { id: v.id_morador }, select: { nome: true, bloco: true, apartamento: true } }) : null;
+    if (m) return `${m.nome}${m.apartamento ? ` (unidade ${m.apartamento}${m.bloco ? ` bloco ${m.bloco}` : ''})` : ''}`;
+    try {
+      const frame = await this.frameConhecido(tag);
+      const d = frame ? decodificarDispositivo(frame) : null;
+      if (d) return `${d.rotulo ? `${d.rotulo}, ` : ''}unidade ${d.unidade} bloco ${d.bloco}`;
+    } catch {
+      /* cai no serial */
+    }
+    return `serial ${tag.guarita_serial ?? '?'}`;
+  }
+
+  /**
+   * A remoção não pôde ser confirmada porque o Guarita mostra o dispositivo em
+   * outra unidade: tag `conflito` com o texto e alerta `remocao_pendente` (no
+   * máximo um a cada 12 h por tag).
+   */
+  async alertarRemocaoNaoConfirmada(tag: any) {
+    const texto = `Não foi possível confirmar a remoção do dispositivo de ${await this.quemDaTag(tag)} no Guarita. Confira no aparelho.`.slice(0, 255);
+    await this.prisma.tags.updateMany({
+      where: { id: tag.id },
+      data: { guarita_estado: ESTADO_TAG.conflito, guarita_erro: texto },
+    });
+    if (!(await this.estado.criarSeAusente(`guarita:alerta-remocao-conflito:${tag.id}`, true, 12 * 60 * 60 * 1000))) return;
+    await this.prisma.guarita_Alertas.create({
+      data: {
+        id_condominio: tag.id_condominio,
+        id_device: tag.id_device,
+        tipo: 'remocao_pendente',
+        descricao: texto,
+        dados: JSON.stringify({ id_tag: tag.id, serial: tag.guarita_serial, tipo: tag.guarita_tipo, motivo: 'conflito' }),
+      },
+    });
   }
 
   /** Tag → `conflito` e operações pendentes dela canceladas (usado também pela importação/conferência). */

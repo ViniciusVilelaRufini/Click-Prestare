@@ -81,7 +81,7 @@ export function byteParaBloco(n: number): string {
  */
 export function wiegandParaSerial(impresso: string): string | null {
   if (typeof impresso !== 'string') return null;
-  const m = /^\s*(?:W\s*:?\s*)?(\d{3})\s*[\s,.-]\s*(\d{5})\s*$/i.exec(impresso);
+  const m = /^\s*(?:W\s*:?\s*)?(\d{1,3})\s*[\s,.-]\s*(\d{1,5})\s*$/i.exec(impresso);
   if (!m) return null;
   const alto = Number(m[1]);
   const baixo = Number(m[2]);

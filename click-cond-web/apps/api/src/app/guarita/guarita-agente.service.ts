@@ -60,9 +60,11 @@ export interface ResultadoOperacaoDto {
   /** editar/apagar/cadastrar: o dispositivo está no Guarita em outra unidade; nada foi escrito. */
   conflito?: boolean;
   /** Com `conflito`: unidade e byte do bloco lidos no Guarita. */
-  lido?: { unidade: number; bloco: number } | null;
+  lido?: { unidade?: number; bloco?: number; frame_hex?: string } | null;
   /** cadastrar 0x02 na mesma unidade / apagar 0x03: já estava como pedido (ok normal). */
   ja_estava?: boolean;
+  /** A pergunta foi escrita e a resposta não chegou (o agente não conseguiu conferir). */
+  incerto?: boolean;
 }
 
 /** Corpo de `POST estado`. */
@@ -215,11 +217,18 @@ export class GuaritaAgenteService {
 
     let temCopia: boolean | null = null;
     const lote: OperacaoEntregue[] = [];
+    // Uma gravação por tag por lote: a seguinte da mesma tag só sai depois do
+    // resultado da anterior, com o `esperado` do que ela deixou confirmado.
+    const tagsNoLote = new Set<number>();
     for (const op of fila) {
       if (lote.length >= MAX_OPERACOES_POR_PEDIDO) break;
       if (TIPOS_GRAVACAO.includes(op.tipo)) {
         if (temCopia === null) temCopia = await this.temCopiaDeSeguranca(device.id);
         if (!temCopia) break;
+      }
+      if (TIPOS_GRAVACAO.includes(op.tipo) && op.id_tag != null) {
+        if (tagsNoLote.has(op.id_tag)) continue;
+        tagsNoLote.add(op.id_tag);
       }
       // editar/apagar levam o que o Prestare acredita estar no Guarita; sem
       // isso não há como o agente conferir, e a operação não sai.
@@ -343,12 +352,18 @@ export class GuaritaAgenteService {
     const fim = booleanoOpcional(b.fim);
     const conflito = b.conflito === true;
     const jaEstava = b.ja_estava === true;
-    let lido: { unidade: number; bloco: number } | null = null;
+    const incerto = b.incerto === true;
+    let lido: { unidade?: number; bloco?: number; frame_hex?: string } | null = null;
     if (b.lido && typeof b.lido === 'object') {
       const l = b.lido as Record<string, unknown>;
       const unidade = inteiroOuNulo(l.unidade, 'lido.unidade', 0, 9999);
       const bloco = inteiroOuNulo(l.bloco, 'lido.bloco', 0, 255);
-      lido = unidade !== null && bloco !== null ? { unidade, bloco } : null;
+      const frameLido = typeof l.frame_hex === 'string' && /^[0-9a-fA-F]{78}$/.test(l.frame_hex.trim()) ? l.frame_hex.trim().toUpperCase() : null;
+      const montado = {
+        ...(unidade !== null && bloco !== null && { unidade, bloco }),
+        ...(frameLido && { frame_hex: frameLido }),
+      };
+      lido = Object.keys(montado).length ? montado : null;
     }
     return {
       ok,
@@ -357,8 +372,10 @@ export class GuaritaAgenteService {
       ...(frames !== undefined && { frames_hex: frames }),
       ...(parte !== null && { parte }),
       ...(fim !== undefined && { fim }),
-      ...(conflito && { conflito, lido }),
+      ...(lido && { lido }),
+      ...(conflito && { conflito }),
       ...(jaEstava && { ja_estava: true }),
+      ...(incerto && { incerto: true }),
     };
   }
 

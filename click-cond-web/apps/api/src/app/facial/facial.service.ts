@@ -1397,7 +1397,7 @@ export class FacialService {
       where: { id_device: idDevice, tipo: { not: 'captura' }, estado: { in: ['pendente', 'enviada', 'processando'] } },
     });
     const emCurso = await this.prisma.tags.count({
-      where: { id_device: idDevice, guarita_estado: { in: ['removendo', 'pendente'] } },
+      where: { id_device: idDevice, guarita_estado: { in: ['removendo', 'pendente', 'remocao_falhou', 'incerto'] } },
     });
     if (abertas > 0 || emCurso > 0) {
       throw new ConflictException(

@@ -64,6 +64,14 @@ export const ESTADO_TAG = {
   ausente: 'ausente',
   /** Tag do app recusada pela portaria: o mesmo código não volta para a fila. */
   recusada: 'recusada',
+  /**
+   * Cadastro escrito sem resposta (o agente não conseguiu conferir): PODE estar
+   * no Guarita. Entra na lista de quem recebe `apagar` (seguro: o agente lê a
+   * unidade antes de apagar).
+   */
+  incerto: 'incerto',
+  /** Remoção que falhou 5 vezes: não tenta mais sozinha; o console tem "remover de novo"; o alerta segue aberto. */
+  remocaoFalhou: 'remocao_falhou',
 } as const;
 
 /** Tipos de dispositivo do Guarita aceitos pela integração (sem BM e SN). */

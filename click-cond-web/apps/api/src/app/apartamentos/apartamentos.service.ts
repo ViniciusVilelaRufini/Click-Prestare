@@ -352,12 +352,14 @@ export class ApartamentosService {
     // (depois a unidade e o vínculo somem e o morador fica sem unidade).
     const tagsGuarita: number[] = [];
     if (this.guarita && vinculados.length > 0) {
+      // Bloco vazio no Prestare aparece como null OU '' (os dois valem aqui).
+      const semBloco = !String(atual.bloco ?? '').trim();
       const moradoresDaUnidade = await this.prisma.moradores.findMany({
         where: {
           id_condominio: atual.id_condominio,
           id_user: { in: [...new Set(vinculados.map((v) => v.id_user))] },
           apartamento: atual.apto,
-          bloco: atual.bloco,
+          ...(semBloco ? { OR: [{ bloco: null }, { bloco: '' }] } : { bloco: atual.bloco }),
         },
         select: { id: true },
       });

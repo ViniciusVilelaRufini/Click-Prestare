@@ -81,7 +81,10 @@ describe('código Wiegand impresso → serial', () => {
   it.each([['W: 015 02158'], ['015 02158'], ['015,02158'], ['015-02158'], ['015.02158'], ['  015  02158 ']])('%p → 0F086E', (s) => {
     expect(wiegandParaSerial(s)).toBe('0F086E');
   });
-  it.each([['15 2158'], ['256 00001'], ['015 65536'], ['abc'], [''], ['01502158']])('%p inválido → null', (s) => {
+  it('aceita os zeros à esquerda omitidos (15 2158), como o console', () => {
+    expect(wiegandParaSerial('15 2158')).toBe('0F086E');
+  });
+  it.each([['256 00001'], ['015 65536'], ['abc'], [''], ['01502158'], ['0150 02158'], ['015 021580']])('%p inválido → null', (s) => {
     expect(wiegandParaSerial(s)).toBeNull();
   });
 });
