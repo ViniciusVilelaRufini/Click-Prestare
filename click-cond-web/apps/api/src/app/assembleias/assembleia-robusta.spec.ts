@@ -474,3 +474,76 @@ describe('2.1 — quem vota e quem pode trocar o voto', () => {
     expect(votos.map((v) => [v.id_user, v.id_apto])).toEqual([[10, 100], [20, 200]]);
   });
 });
+
+describe('2.2 — apuração', () => {
+  const ENCERRADA = { encerrada_em: new Date('2026-11-14T20:00:00Z') };
+  const votacoesEncerradas = () => [
+    { id: 5, id_assembleia: 3, is_enquete: 0, titulo: 'Contas 2025', opcoes: [{ id: 51, nome: 'Aprovar' }, { id: 52, nome: 'Rejeitar' }], ...ENCERRADA },
+  ];
+  const apurar = async (svc: AssembleiasService) =>
+    (await (svc as any).getVotacoesFormatadas(undefined, false, undefined, 5))[0].opcoes;
+  const t = (hhmm: string) => new Date(`2026-11-14T${hhmm}:00Z`);
+  const novo = (v: Partial<Voto>) => ({ tipo_vinculo: 'proprietario', nome_votante: 'X', rotulo_unidade: 'Apto 11 Bloco A', ...v });
+
+  it('conta só os vigentes (o substituído fica fora)', async () => {
+    const { svc } = build({
+      votacoes: votacoesEncerradas(),
+      votos: [
+        // Mesmo mais recente (relógio torto), o substituído não conta.
+        novo({ id: 1, id_opcao: 52, id_user: 11, id_apto: 100, tipo_vinculo: 'inquilino', created_at: t('11:30'), substituido_em: t('11:30') }),
+        novo({ id: 2, id_opcao: 51, id_user: 10, id_apto: 100, created_at: t('11:00') }),
+      ] as any,
+    });
+    expect(await apurar(svc)).toEqual(['51;Aprovar;1', '52;Rejeitar;0']);
+  });
+
+  it('voto novo conta pela unidade gravada SEM reconsultar o vínculo: quem saiu da unidade ou excluiu a conta continua contando', async () => {
+    const { svc } = build({
+      votacoes: votacoesEncerradas(),
+      vinculos: [], // ninguém mais tem vínculo
+      votos: [
+        novo({ id: 1, id_opcao: 51, id_user: 10, id_apto: 100, created_at: t('10:00') }),
+        novo({ id: 2, id_opcao: 51, id_user: null, id_apto: 200, rotulo_unidade: 'Apto 21 Bloco A', created_at: t('10:00') }),
+      ] as any,
+    });
+    expect(await apurar(svc)).toEqual(['51;Aprovar;2', '52;Rejeitar;0']);
+  });
+
+  it('apartamento apagado (id_apto nulo): conta como unidade própria pelo rótulo gravado', async () => {
+    const { svc } = build({
+      votacoes: votacoesEncerradas(),
+      votos: [
+        // Contas sem vínculo nenhum hoje (a regra antiga descartaria os três).
+        novo({ id: 1, id_opcao: 51, id_user: 97, id_apto: null, rotulo_unidade: 'Apto 99', created_at: t('10:00') }),
+        novo({ id: 2, id_opcao: 52, id_user: 98, id_apto: null, rotulo_unidade: 'Apto 99', created_at: t('10:05') }),
+        novo({ id: 3, id_opcao: 52, id_user: null, id_apto: null, rotulo_unidade: 'Apto 98', created_at: t('10:00') }),
+      ] as any,
+    });
+    // Apto 99: vale o mais recente (Rejeitar); Apto 98: Rejeitar.
+    expect(await apurar(svc)).toEqual(['51;Aprovar;0', '52;Rejeitar;2']);
+  });
+
+  it('voto antigo (sem tipo_vinculo) segue a regra antiga: exige vínculo com a unidade', async () => {
+    const { svc } = build({
+      votacoes: votacoesEncerradas(),
+      votos: [
+        { id: 1, id_opcao: 51, id_user: 10, id_apto: 100, created_at: t('10:00') }, // conta
+        { id: 2, id_opcao: 51, id_user: 99, id_apto: 200, created_at: t('10:00') }, // sem vínculo: não conta
+        { id: 3, id_opcao: 52, id_user: 20, id_apto: null, created_at: t('10:00') }, // unidade atribuída 200
+      ],
+    });
+    expect(await apurar(svc)).toEqual(['51;Aprovar;1', '52;Rejeitar;1']);
+  });
+
+  it('rede de segurança: dois vigentes da mesma unidade (novo e antigo) contam 1, o mais recente', async () => {
+    const { svc } = build({
+      votacoes: votacoesEncerradas(),
+      votos: [
+        { id: 1, id_opcao: 52, id_user: 10, id_apto: 100, created_at: t('10:00') },
+        novo({ id: 2, id_opcao: 51, id_user: 13, id_apto: 100, created_at: t('10:01') }),
+        novo({ id: 3, id_opcao: 51, id_user: 13, id_apto: 100, created_at: t('10:01') }),
+      ] as any,
+    });
+    expect(await apurar(svc)).toEqual(['51;Aprovar;1', '52;Rejeitar;0']);
+  });
+});

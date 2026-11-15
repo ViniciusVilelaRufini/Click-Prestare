@@ -147,8 +147,17 @@ function mensagemVotoProtegido(autor: TipoVinculo, quem: TipoVinculo): string {
 /** Voto que vale hoje numa unidade do usuário (`opcao` nulo: a unidade não votou). */
 export type VotoDaUnidade = { id_votacao: number; id_apto: number; rotulo: string; opcao: string | null };
 
-/** Voto apurado de uma unidade: o mais recente dela. */
-type VotoApurado = { id: number; id_opcao: number; t: number };
+/**
+ * Voto apurado de uma unidade: o vigente mais recente dela, com o autor e o
+ * nível dele (do retrato; no voto antigo, do vínculo atual com a unidade).
+ */
+type VotoApurado = { id: number; id_opcao: number; t: number; id_user: number | null; tipo: TipoVinculo };
+
+/**
+ * Chave da unidade na apuração: o `id_apto`; voto novo cujo apartamento foi
+ * apagado (id_apto nulo) conta como unidade própria, pelo rótulo gravado.
+ */
+type ChaveUnidade = number | string;
 
 @Injectable()
 export class AssembleiasService {
@@ -929,7 +938,14 @@ export class AssembleiasService {
       include: {
         opcoes: {
           include: {
-            votos: { select: { id: true, id_user: true, id_apto: true, created_at: true } },
+            // Só os vigentes: o substituído fica na tabela como trilha.
+            votos: {
+              where: { substituido_em: null },
+              select: {
+                id: true, id_user: true, id_apto: true, created_at: true,
+                tipo_vinculo: true, rotulo_unidade: true, substituido_em: true,
+              },
+            },
           },
           orderBy: { id: 'asc' },
         },
@@ -937,36 +953,20 @@ export class AssembleiasService {
       orderBy: { created_at: 'desc' },
     });
 
-    // Vínculos de cada votante, por condomínio (uma consulta cada).
-    const vinculosPorCond = new Map<number, Map<number, number[]>>();
+    // Vínculos dos autores de voto ANTIGO (sem retrato), por condomínio (uma
+    // consulta cada). O voto novo não reconsulta vínculo.
+    const vinculosPorCond = new Map<number, Map<number, Map<number, TipoVinculo>>>();
     for (const idCond of new Set(votacoesDb.map((v) => v.id_condominio))) {
       const votantes = votacoesDb
         .filter((v) => v.id_condominio === idCond)
-        .flatMap((v) => v.opcoes.flatMap((op) => op.votos.map((voto) => voto.id_user)))
+        .flatMap((v) => v.opcoes.flatMap((op) => op.votos.filter((voto) => !voto.tipo_vinculo).map((voto) => voto.id_user)))
         .filter((id): id is number => id != null);
       vinculosPorCond.set(idCond, await this.vinculosNoCondominio(idCond, [...new Set(votantes)]));
     }
 
-    const apuracao = new Map<number, Map<number, VotoApurado>>();
+    const apuracao = new Map<number, Map<ChaveUnidade, VotoApurado>>();
     const formatadas = votacoesDb.map(v => {
-      // Um voto por UNIDADE (ver registerVoto): vale o mais recente. A unidade
-      // é a gravada no voto (`id_apto`) ou, no voto antigo sem ela, a
-      // atribuída da conta (menor id_apto). Sem índice único, dois votos
-      // simultâneos da unidade podem gravar duas linhas; aqui contam uma.
-      // Votante sem vínculo com a unidade (ou sem unidade no condomínio) não conta.
-      const vinculosDe = vinculosPorCond.get(v.id_condominio) ?? new Map<number, number[]>();
-      const ultimoVoto = new Map<number, VotoApurado>();
-      for (const op of v.opcoes) {
-        for (const voto of op.votos) {
-          const unidade = this.unidadeDoVoto(voto.id_apto, voto.id_user == null ? undefined : vinculosDe.get(voto.id_user));
-          if (unidade == null) continue;
-          const t = new Date(voto.created_at).getTime();
-          const atual = ultimoVoto.get(unidade);
-          if (!atual || t > atual.t || (t === atual.t && voto.id > atual.id)) {
-            ultimoVoto.set(unidade, { id: voto.id, id_opcao: op.id, t });
-          }
-        }
-      }
+      const ultimoVoto = this.apurar(v.opcoes, vinculosPorCond.get(v.id_condominio) ?? new Map());
       apuracao.set(v.id, ultimoVoto);
       const votosPorOpcao = new Map<number, number>();
       for (const { id_opcao } of ultimoVoto.values()) {
@@ -1004,21 +1004,72 @@ export class AssembleiasService {
   }
 
   /**
-   * Unidade em que um voto conta: a gravada (`id_apto`), se o votante ainda
-   * tem vínculo com ela; no voto antigo (nulo), a menor unidade do votante.
-   * `vinculos` vem ordenado (ver vinculosNoCondominio).
+   * Um voto por UNIDADE (ver registerVoto): de cada unidade vale o voto
+   * vigente (`substituido_em` nulo) mais recente.
+   *  - Voto novo (`tipo_vinculo` preenchido): conta pela unidade gravada
+   *    (`id_apto`; apartamento apagado: pelo `rotulo_unidade`), SEM
+   *    reconsultar o vínculo — o resultado não muda depois porque alguém saiu
+   *    da unidade ou excluiu a conta.
+   *  - Voto antigo: a unidade gravada se o votante ainda tem vínculo com ela;
+   *    sem `id_apto`, a atribuída da conta (menor id_apto); votante sem
+   *    vínculo não conta.
+   * Sem índice único, dois votos simultâneos da unidade podem ter gravado duas
+   * linhas vigentes; aqui contam uma (rede de segurança).
    */
-  private unidadeDoVoto(idApto: number | null | undefined, vinculos: number[] | undefined): number | undefined {
-    if (!vinculos || vinculos.length === 0) return undefined;
-    if (idApto != null) return vinculos.includes(idApto) ? idApto : undefined;
-    return vinculos[0];
+  private apurar(
+    opcoes: Array<{
+      id: number;
+      votos: Array<{
+        id: number; id_user: number | null; id_apto: number | null; created_at: Date;
+        tipo_vinculo?: string | null; rotulo_unidade?: string | null; substituido_em?: Date | null;
+      }>;
+    }>,
+    vinculosDe: Map<number, Map<number, TipoVinculo>>,
+  ): Map<ChaveUnidade, VotoApurado> {
+    const ultimoVoto = new Map<ChaveUnidade, VotoApurado>();
+    for (const op of opcoes) {
+      for (const voto of op.votos) {
+        if (voto.substituido_em) continue;
+        let chave: ChaveUnidade;
+        let tipo: TipoVinculo;
+        if (voto.tipo_vinculo) {
+          chave = voto.id_apto ?? (voto.rotulo_unidade ? `rotulo:${voto.rotulo_unidade}` : `voto:${voto.id}`);
+          tipo = normalizarTipoVinculo(voto.tipo_vinculo);
+        } else {
+          const vinculos = voto.id_user == null ? undefined : vinculosDe.get(voto.id_user);
+          const unidade = this.unidadeDoVotoAntigo(voto.id_apto, vinculos);
+          if (unidade == null || !vinculos) continue;
+          chave = unidade;
+          tipo = vinculos.get(unidade) ?? 'membro';
+        }
+        const t = new Date(voto.created_at).getTime();
+        const atual = ultimoVoto.get(chave);
+        if (!atual || t > atual.t || (t === atual.t && voto.id > atual.id)) {
+          ultimoVoto.set(chave, { id: voto.id, id_opcao: op.id, t, id_user: voto.id_user, tipo });
+        }
+      }
+    }
+    return ultimoVoto;
+  }
+
+  /**
+   * Unidade em que um voto ANTIGO conta: a gravada (`id_apto`), se o votante
+   * ainda tem vínculo com ela; sem `id_apto`, a menor unidade do votante.
+   */
+  private unidadeDoVotoAntigo(
+    idApto: number | null | undefined,
+    vinculos: Map<number, TipoVinculo> | undefined,
+  ): number | undefined {
+    if (!vinculos || vinculos.size === 0) return undefined;
+    if (idApto != null) return vinculos.has(idApto) ? idApto : undefined;
+    return Math.min(...vinculos.keys());
   }
 
   /** Para cada votação × unidade do usuário, a opção que vale nela (ou nulo). */
   private votosPorUnidade(
     idsVotacoes: number[],
     unidades: UnidadeVoto[],
-    apuracao: Map<number, Map<number, VotoApurado>>,
+    apuracao: Map<number, Map<ChaveUnidade, VotoApurado>>,
   ): VotoDaUnidade[] {
     return idsVotacoes.flatMap((idVotacao) =>
       unidades.map((u) => {
@@ -1051,22 +1102,27 @@ export class AssembleiasService {
   }
 
   /**
-   * Unidades de cada conta no condomínio (`Apartamentos_Users`), em ordem de
-   * `id_apto`. Conta sem vínculo no condomínio fica fora do mapa.
+   * Unidades de cada conta no condomínio (`Apartamentos_Users`), com o
+   * vínculo mais alto da conta em cada uma. Conta sem vínculo no condomínio
+   * fica fora do mapa.
    */
-  private async vinculosNoCondominio(idCondominio: number, idsUsuarios: number[]): Promise<Map<number, number[]>> {
-    const porUsuario = new Map<number, number[]>();
+  private async vinculosNoCondominio(
+    idCondominio: number,
+    idsUsuarios: number[],
+  ): Promise<Map<number, Map<number, TipoVinculo>>> {
+    const porUsuario = new Map<number, Map<number, TipoVinculo>>();
     if (idsUsuarios.length === 0) return porUsuario;
     const vinculos = await this.prisma.apartamentos_Users.findMany({
       where: { id_user: { in: idsUsuarios }, apartamento: { id_condominio: Number(idCondominio) } },
-      select: { id_user: true, id_apto: true },
+      select: { id_user: true, id_apto: true, tipo: true },
     });
-    for (const { id_user, id_apto } of vinculos) {
-      const lista = porUsuario.get(id_user) ?? [];
-      if (!lista.includes(id_apto)) lista.push(id_apto);
-      porUsuario.set(id_user, lista);
+    for (const { id_user, id_apto, tipo } of vinculos) {
+      const aptos = porUsuario.get(id_user) ?? new Map<number, TipoVinculo>();
+      const anterior = aptos.get(id_apto);
+      if (anterior === undefined) aptos.set(id_apto, normalizarTipoVinculo(tipo));
+      else aptos.set(id_apto, maiorVinculo([anterior, tipo]) ?? anterior);
+      porUsuario.set(id_user, aptos);
     }
-    for (const lista of porUsuario.values()) lista.sort((a, b) => a - b);
     return porUsuario;
   }
 
@@ -1078,7 +1134,7 @@ export class AssembleiasService {
   private async unidadesAtribuidas(idCondominio: number, idsUsuarios: number[]): Promise<Map<number, number>> {
     const unidade = new Map<number, number>();
     for (const [idUser, aptos] of await this.vinculosNoCondominio(idCondominio, idsUsuarios)) {
-      unidade.set(idUser, aptos[0]);
+      unidade.set(idUser, Math.min(...aptos.keys()));
     }
     return unidade;
   }
