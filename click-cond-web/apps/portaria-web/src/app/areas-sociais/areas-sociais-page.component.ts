@@ -109,6 +109,16 @@ export class AreasSociaisPageComponent implements OnInit {
     return /^bloco\s/i.test(b) ? b : `Bloco ${b}`;
   }
 
+  /**
+   * Quem aprovou a reserva aprovada. Usa `aprovado_por_nome` (só quem decidiu;
+   * null quando ela nasceu aprovada) e, se a API ainda não manda o campo, o
+   * `aprovado_por` de antes.
+   */
+  aprovadaPor(ag: AgendamentoArea): string | null {
+    if (ag.status !== 'aprovado') return null;
+    return (ag.aprovado_por_nome !== undefined ? ag.aprovado_por_nome : ag.aprovado_por) || null;
+  }
+
   readonly pendentesCount = computed(() =>
     this.agendamentos().filter(a => a.status === 'pendente').length
   );

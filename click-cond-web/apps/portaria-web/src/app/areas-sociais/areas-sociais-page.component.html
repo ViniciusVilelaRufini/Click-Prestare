@@ -218,7 +218,7 @@
     } @else {
       <div class="space-y-3">
         @for (ag of agendamentosVisiveis(); track ag.id) {
-          <div class="ps-panel p-5 border-l-2 flex items-center justify-between gap-6 flex-wrap"
+          <div class="ps-panel p-5 border-l-2 flex items-center justify-between gap-6 flex-wrap" data-reserva
                [class.!border-l-amber-500]="ag.status === 'pendente'"
                [class.!border-l-emerald-500]="ag.status === 'aprovado'"
                [class.!border-l-red-500]="ag.status === 'recusado'"
@@ -313,8 +313,11 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                   Solicitado em {{ ag.data_criacao }}
-                  @if (ag.status === 'aprovado' && ag.aprovado_por) {
-                    · Aprovada por {{ ag.aprovado_por }}
+                  @if (ag.criado_por) {
+                    · Agendada por {{ ag.criado_por }}
+                  }
+                  @if (aprovadaPor(ag); as aprovador) {
+                    · Aprovada por {{ aprovador }}
                   }
                 </p>
               </div>

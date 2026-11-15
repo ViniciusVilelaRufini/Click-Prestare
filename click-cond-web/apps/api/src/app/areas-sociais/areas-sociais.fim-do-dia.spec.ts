@@ -9,7 +9,8 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
  *    antes do início: a criação recusava e uma linha antiga não bloqueava nada;
  *  - virada de ano no fim da reserva (31/12 20:00–00:00);
  *  - reserva com término antes do início era gravada;
- *  - reserva feita pela portaria não dizia quem agendou (aprovado_por_nome).
+ *  - reserva feita pela portaria não dizia quem agendou (rodada 4: vai em
+ *    criado_por_nome; aprovado_por_nome fica só para quem aprovou).
  * O processo roda em UTC (jest.config.cts); as horas abaixo são de Brasília.
  */
 const area = {
@@ -160,16 +161,52 @@ describe('insertAgendamento — término e autoria', () => {
     expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
   });
 
-  it('reserva agendada pela portaria grava quem agendou como aprovador', async () => {
+  const dadosGravados = (prisma: any) => prisma.areas_Sociais_Agendamentos.create.mock.calls[0][0].data;
+
+  it('reserva agendada pela portaria grava "Portaria · <nome>" em quem agendou, não em quem aprovou', async () => {
     agoraBr(2026, 6, 1, 9);
     const { svc, prisma } = build();
     await svc.insertAgendamento(
       { ...pedido, horaDe: '18:00', horaAte: '22:00', agendarPeloSindico: true },
       null, 'Operador', porteiro,
     );
-    expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ status: 'aprovado', aprovado_por_nome: 'Carlos', aprovado_em: expect.any(Date) }),
-    });
+    const data = dadosGravados(prisma);
+    expect(data).toMatchObject({ status: 'aprovado', criado_por_nome: 'Portaria · Carlos' });
+    expect(data.aprovado_por_nome).toBeUndefined();
+    expect(data.aprovado_em).toBeUndefined();
+  });
+
+  it('síndico logado no console agenda em nome do morador: grava o nome do síndico', async () => {
+    agoraBr(2026, 6, 1, 9);
+    const { svc, prisma } = build();
+    const sindicoConsole = { sub: 1, nome: 'Ana Souza', id_condominio: 2, turno: 'Síndico', typeAccess: 'Sindico' } as JwtPayload;
+    await svc.insertAgendamento(
+      { ...pedido, horaDe: '18:00', horaAte: '22:00', agendarPeloSindico: true },
+      1, 'Sindico', sindicoConsole,
+    );
+    expect(dadosGravados(prisma)).toMatchObject({ criado_por_nome: 'Ana Souza' });
+    expect(dadosGravados(prisma).aprovado_por_nome).toBeUndefined();
+  });
+
+  it('morador reservando pelo app: grava o nome dele em quem agendou', async () => {
+    agoraBr(2026, 6, 1, 9);
+    const { svc, prisma } = build();
+    prisma.apartamentos_Users.findMany.mockResolvedValue([{ id_apto: 100 }]);
+    const morador = { sub: 5, nome: 'Bruno Lima', typeAccess: 'Morador', user: { id: 5, name: 'Bruno Lima' } } as JwtPayload;
+    await svc.insertAgendamento({ ...pedido, horaDe: '18:00', horaAte: '22:00' }, 5, 'Morador', morador);
+    expect(dadosGravados(prisma)).toMatchObject({ id_user: 5, criado_por_nome: 'Bruno Lima' });
+    expect(dadosGravados(prisma).aprovado_por_nome).toBeUndefined();
+  });
+
+  it('nome comprido é cortado em 120 caracteres (tamanho da coluna)', async () => {
+    agoraBr(2026, 6, 1, 9);
+    const { svc, prisma } = build();
+    const longo = { ...porteiro, nome: 'X'.repeat(300) } as JwtPayload;
+    await svc.insertAgendamento(
+      { ...pedido, horaDe: '18:00', horaAte: '22:00', agendarPeloSindico: true },
+      null, 'Operador', longo,
+    );
+    expect(dadosGravados(prisma).criado_por_nome).toHaveLength(120);
   });
 });
 

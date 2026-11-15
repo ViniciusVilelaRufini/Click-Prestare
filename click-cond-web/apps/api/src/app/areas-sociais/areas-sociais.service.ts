@@ -96,6 +96,18 @@ function dataHoraBr(d: Date): string {
   return `${dia} às ${hora}`;
 }
 
+/**
+ * Quem agendou, para `criado_por_nome` (VARCHAR 120): o nome do token. O
+ * porteiro do console (token sem typeAccess) sai como "Portaria · <nome>";
+ * síndico, funcionário e morador, pelo nome. Sem nome nenhum, null.
+ */
+export function nomeDeQuemAgendou(user?: JwtPayload): string | null {
+  const nome = String(user?.nome ?? user?.user?.name ?? '').trim();
+  const tipo = user?.typeAccess ?? user?.user?.typeAccess;
+  const rotulo = !tipo && isOperador(user) ? (nome ? `Portaria · ${nome}` : 'Portaria') : nome;
+  return rotulo ? rotulo.slice(0, 120) : null;
+}
+
 /** De quais status cada mudança pedida em updateStatusAgendamento pode partir. */
 const ORIGENS_TRANSICAO_RESERVA: Record<string, string[]> = {
   aprovado: ['pendente'],
@@ -1042,15 +1054,10 @@ export class AreasSociaisService {
         hora_ate: horaAteObj,
         status: statusInicial,
         convidados,
-        // Agendada pela administração já nasce aprovada por quem agendou: a fila
-        // do console e o app mostram o nome em "aprovado por".
-        ...(peloSindico
-          ? {
-              aprovado_por_nome:
-                (user as any)?.name ?? user?.nome ?? (user as any)?.user?.name ?? 'Administração',
-              aprovado_em: new Date(),
-            }
-          : {}),
+        // Quem agendou fica em criado_por_nome; aprovado_por_nome é só de quem
+        // aprovou (updateStatusAgendamento). A reserva da administração nasce
+        // aprovada sem "aprovador".
+        criado_por_nome: nomeDeQuemAgendou(user),
       },
     });
 
@@ -1373,8 +1380,12 @@ export class AreasSociaisService {
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
       convidados: ag.convidados ?? null,
       confirmada_em: ag.confirmada_em ?? null,
+      // `aprovado_por` segue como o app publicado lê (com o "Síndico" genérico).
       aprovado_por: ag.aprovado_por_nome ?? (ag.status === 'aprovado' ? 'Síndico' : null),
       aprovado_em: ag.aprovado_em ? dataHoraBr(ag.aprovado_em) : null,
+      // Campos novos (o app ignora): quem agendou e quem de fato decidiu.
+      criado_por: ag.criado_por_nome ?? null,
+      aprovado_por_nome: ag.aprovado_por_nome ?? null,
       motivo_recusa: ag.motivo_recusa ?? null,
       // A fila do console oferece "Confirmar presença" só onde a área exige.
       exige_confirmacao: ag.area?.exige_confirmacao === 1,
@@ -1432,8 +1443,12 @@ export class AreasSociaisService {
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
       convidados: ag.convidados ?? null,
       confirmada_em: ag.confirmada_em ?? null,
+      // `aprovado_por` segue como o app publicado lê (com o "Síndico" genérico).
       aprovado_por: ag.aprovado_por_nome ?? (ag.status === 'aprovado' ? 'Síndico' : null),
       aprovado_em: ag.aprovado_em ? dataHoraBr(ag.aprovado_em) : null,
+      // Campos novos (o app ignora): quem agendou e quem de fato decidiu.
+      criado_por: ag.criado_por_nome ?? null,
+      aprovado_por_nome: ag.aprovado_por_nome ?? null,
       motivo_recusa: ag.motivo_recusa ?? null,
     }));
   }
