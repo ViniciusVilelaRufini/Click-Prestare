@@ -387,3 +387,15 @@ test('item 2: CT com disp_dest = 4 é aceito, e 0x34… e 0x30… com o mesmo se
     c.sock.destroy();
   });
 });
+
+test('item 4: 67 opção 3 (Ler) de dispositivo que não existe responde 00 43 03 03 cs (5 bytes); existente responde os 44 bytes', async () => {
+  await comSimulador({ dispositivos: [h(D_CT)] }, async (sim, porta) => {
+    const c = await conectarCru(porta);
+    c.enviar(comCs(`00 43 03 ${'20000001' + '00'.repeat(35)}`));
+    assert.equal(hex(await c.esperarBytes(5)), '0043030349'); // 43+03+03 = 0x49
+    c.enviar(comCs(`00 43 03 ${'300F086E' + '00'.repeat(35)}`));
+    assert.equal(hex(await c.esperarBytes(44)), hex(comCs(`00 43 03 00 ${D_CT}`)));
+    assert.equal(await c.nadaEm(30), true);
+    c.sock.destroy();
+  });
+});
