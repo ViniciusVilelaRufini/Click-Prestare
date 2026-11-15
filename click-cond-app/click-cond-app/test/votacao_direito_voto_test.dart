@@ -21,8 +21,11 @@ import 'package:http/testing.dart';
 // e não deixa votar; voto vigente de outro morador aparece como "Votado pelo
 // proprietário/inquilino". API antiga (sem os campos) = como antes.
 
-const _motivoProprietario = 'O proprietário da unidade já votou; o voto dele não pode ser alterado por inquilino.';
-const _motivoMembro = 'Membro da unidade não vota em pauta de assembleia.';
+// Textos REAIS de `motivo` (r5-a-relatorio.md, votosPorUnidade[]).
+const _motivoProprietario = 'O proprietário já votou por esta unidade.';
+const _motivoMembro =
+    'Membros da unidade não votam em pauta de assembleia: vota o proprietário (ou o inquilino, quando a pauta permite).';
+const _motivoSomenteProprietariosEnquete = 'Somente proprietários votam nesta enquete.';
 
 Map<String, dynamic> linha({
   int idVotacao = 7,
@@ -33,6 +36,7 @@ Map<String, dynamic> linha({
   bool? pode,
   String? motivo,
   String? votadoPor,
+  bool? proprio,
 }) =>
     {
       'id_votacao': idVotacao,
@@ -43,6 +47,7 @@ Map<String, dynamic> linha({
       if (pode != null) 'pode_votar': pode,
       if (motivo != null) 'motivo': motivo,
       if (votadoPor != null) 'votado_por': votadoPor,
+      if (proprio != null) 'voto_proprio': proprio,
     };
 
 Map<String, dynamic> pauta({int status = 1, int somenteProp = 0}) => {
@@ -112,6 +117,53 @@ void main() {
       expect(rotuloVotadoPor('inquilino'), 'Votado pelo inquilino');
       expect(rotuloVotadoPor('membro'), 'Votado por morador da unidade');
       expect(rotuloVotadoPor(null), isNull);
+      // Outra conta do mesmo nível.
+      expect(rotuloVotadoPor('proprietario', meuNivel: 'proprietario'), 'Votado por outro proprietário da unidade');
+      expect(rotuloVotadoPor('inquilino', meuNivel: 'inquilino'), 'Votado por outro inquilino da unidade');
+      expect(rotuloVotadoPor('inquilino', meuNivel: 'proprietario'), 'Votado pelo inquilino');
+    });
+
+    test('voto_proprio decide quando vem; ausente mantém a heurística', () {
+      final u = unidadesDaVotacao([
+        linha(opcao: '12', tipo: 'proprietario', votadoPor: 'proprietario', proprio: false),
+        linha(idApto: 300, opcao: '13', tipo: 'proprietario', votadoPor: 'inquilino', proprio: true),
+        linha(idApto: 400, opcao: '12', tipo: 'proprietario', votadoPor: 'proprietario'),
+      ], 7);
+      // Coproprietário: mesmo nível, mas não é dela.
+      expect(u[0].votoProprio, isFalse);
+      expect(u[0].votoDeOutro, isTrue);
+      expect(u[0].meuVoto, isNull);
+      // Votou como inquilino e virou proprietário: é dele.
+      expect(u[1].votoDeOutro, isFalse);
+      expect(u[1].meuVoto, '13');
+      // Sem o campo: heurística de antes (mesmo nível = próprio).
+      expect(u[2].votoProprio, isNull);
+      expect(u[2].meuVoto, '12');
+    });
+
+    test('meusVotosNaTela', () {
+      const deOutro = UnidadeVoto(
+          idApto: 1, rotulo: '', opcao: '12', tipoVinculo: 'proprietario', votadoPor: 'proprietario', votoProprio: false);
+      const proprio = UnidadeVoto(idApto: 1, rotulo: '', opcao: '13', votadoPor: 'inquilino', votoProprio: true);
+      const antiga = UnidadeVoto(idApto: 1, rotulo: '', opcao: '12');
+      // Uma unidade com voto_proprio: decide pela unidade, não por meusVotos.
+      expect(meusVotosNaTela(unidade: deOutro, variasUnidades: false, meusVotosDaConta: ['12']), isEmpty);
+      expect(meusVotosNaTela(unidade: proprio, variasUnidades: false, meusVotosDaConta: const []), ['13']);
+      // Uma unidade, API antiga: campo da conta.
+      expect(meusVotosNaTela(unidade: antiga, variasUnidades: false, meusVotosDaConta: ['99']), ['99']);
+      expect(meusVotosNaTela(unidade: null, variasUnidades: false, meusVotosDaConta: ['99']), ['99']);
+      // Várias unidades: sempre a da unidade.
+      expect(meusVotosNaTela(unidade: antiga, variasUnidades: true, meusVotosDaConta: ['99']), ['12']);
+      expect(meusVotosNaTela(unidade: null, variasUnidades: true, meusVotosDaConta: ['99']), isEmpty);
+    });
+
+    test('tituloSemDireito: hierarquia x falta de direito', () {
+      expect(
+          tituloSemDireito(const UnidadeVoto(
+              idApto: 1, rotulo: '', podeVotar: false, motivo: _motivoProprietario, votadoPor: 'proprietario')),
+          'Voto da unidade já registrado');
+      expect(tituloSemDireito(const UnidadeVoto(idApto: 1, rotulo: '', podeVotar: false, motivo: _motivoMembro)),
+          'Sem direito a voto');
     });
 
     test('situacaoVoto: status manda; sem direito antes de tudo; voto de outro', () {
@@ -154,9 +206,18 @@ void main() {
       expect(
           textoSemDireito(const UnidadeVoto(
               idApto: 1, rotulo: '', podeVotar: false, motivo: _motivoProprietario, votadoPor: 'proprietario')),
-          'Votado pelo proprietário. $_motivoProprietario');
+          _motivoProprietario,
+          reason: 'o motivo já diz quem votou: sem prefixo repetido');
+      expect(textoSemDireito(const UnidadeVoto(idApto: 1, rotulo: '', podeVotar: false, votadoPor: 'proprietario')),
+          'Votado pelo proprietário.');
       expect(textoSemDireito(const UnidadeVoto(idApto: 1, rotulo: '', podeVotar: false)),
           'Esta unidade não pode votar nesta votação.');
+      expect(
+          textoVotadoPorOutro(
+              const UnidadeVoto(
+                  idApto: 1, rotulo: '', opcao: '12', votadoPor: 'proprietario', tipoVinculo: 'proprietario'),
+              ops),
+          'Votado por outro proprietário da unidade: Aprovo. Se votar, o seu voto substitui este.');
     });
 
     test('subtituloUnidade do seletor', () {
@@ -259,7 +320,8 @@ void main() {
           [linha(tipo: 'inquilino', pode: false, motivo: _motivoProprietario, votadoPor: 'proprietario')]);
       await abrir(tester, const DetailAssembleia(id: 5));
 
-      expect(find.text('Votado pelo proprietário. $_motivoProprietario'), findsOneWidget);
+      expect(find.text(_motivoProprietario), findsOneWidget);
+      expect(find.textContaining('Votado pelo proprietário.'), findsNothing);
       expect(find.byType(OpcaoSelecionavel), findsNothing);
       expect(find.byKey(CellVotacao.chaveVotar(7)), findsNothing);
       expect(tester.widgetList<OpcaoResultadoBar>(find.byType(OpcaoResultadoBar)).map((b) => b.meuVoto),
@@ -300,10 +362,11 @@ void main() {
     });
 
     testWidgets('enquete: sem direito mostra o motivo e esconde o rodapé de votar', (tester) async {
-      servirEnquete([linha(tipo: 'membro', pode: false, motivo: 'Só proprietários votam nesta enquete.')]);
+      servirEnquete([linha(tipo: 'inquilino', pode: false, motivo: _motivoSomenteProprietariosEnquete)]);
       await abrir(tester, const DetailEnquete(id: 7));
 
-      expect(find.text('Só proprietários votam nesta enquete.'), findsOneWidget);
+      expect(find.text(_motivoSomenteProprietariosEnquete), findsOneWidget);
+      expect(find.text('Sem direito a voto'), findsOneWidget);
       expect(find.byType(OpcaoSelecionavel), findsNothing);
       expect(find.byKey(DetailEnquete.chaveBotaoVotar), findsNothing);
     });
@@ -329,6 +392,61 @@ void main() {
       // Abre na unidade que pode votar.
       expect(tester.widget<SeletorUnidadeVoto>(find.byType(SeletorUnidadeVoto)).selecionada, 300);
       expect(find.byType(OpcaoSelecionavel), findsNWidgets(2));
+    });
+
+    testWidgets('enquete: inquilino com voto do proprietário — "Voto da unidade já registrado" e só o motivo',
+        (tester) async {
+      servirEnquete([linha(tipo: 'inquilino', pode: false, motivo: _motivoProprietario, votadoPor: 'proprietario')]);
+      await abrir(tester, const DetailEnquete(id: 7));
+      expect(find.text('Voto da unidade já registrado'), findsOneWidget);
+      expect(find.text('Sem direito a voto'), findsNothing);
+      expect(find.text(_motivoProprietario), findsOneWidget);
+    });
+
+    testWidgets('coproprietária com duas unidades vê o voto do outro proprietário sem "Seu voto"', (tester) async {
+      servirAssembleia([
+        linha(rotulo: 'Apto 11', opcao: '13', tipo: 'proprietario', pode: true, votadoPor: 'proprietario', proprio: true),
+        linha(
+            idApto: 300, rotulo: 'Apto 12', opcao: '12', tipo: 'proprietario', pode: true, votadoPor: 'proprietario',
+            proprio: false),
+      ], meusVotos: ['13']);
+      await abrir(tester, const DetailAssembleia(id: 5));
+
+      // Seletor: a própria unidade com o voto dela; a outra com o voto do outro proprietário.
+      expect(find.text('Voto atual: Reprovo'), findsOneWidget);
+      expect(find.text('Votado por outro proprietário da unidade: Aprovo'), findsOneWidget);
+
+      await tester.ensureVisible(find.byKey(SeletorUnidadeVoto.chaveUnidade(7, 300)));
+      await tester.tap(find.byKey(SeletorUnidadeVoto.chaveUnidade(7, 300)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Seu voto'), findsNothing);
+      expect(find.text('Votado por outro proprietário da unidade: Aprovo. Se votar, o seu voto substitui este.'),
+          findsOneWidget);
+      expect(find.byType(OpcaoSelecionavel), findsNWidgets(2));
+      expect(tester.widget<AppButton>(find.byKey(CellVotacao.chaveVotar(7))).label, 'Votar');
+    });
+
+    testWidgets('votou como inquilino e virou proprietário: vê o próprio voto como seu', (tester) async {
+      servirAssembleia(
+          [linha(opcao: '12', tipo: 'proprietario', pode: true, votadoPor: 'inquilino', proprio: true)],
+          meusVotos: ['12']);
+      await abrir(tester, const DetailAssembleia(id: 5));
+
+      expect(find.textContaining('Votado pelo inquilino'), findsNothing);
+      expect(find.text('Você já votou. Seu voto está destacado.'), findsOneWidget);
+      expect(tester.widgetList<OpcaoResultadoBar>(find.byType(OpcaoResultadoBar)).map((b) => b.meuVoto),
+          [true, false]);
+      expect(tester.widget<AppButton>(find.byKey(CellVotacao.chaveVotar(7))).label, 'Alterar voto');
+    });
+
+    testWidgets('uma unidade, voto_proprio falso de mesmo nível: não marca "Seu voto" mesmo com meusVotos', (tester) async {
+      servirAssembleia(
+          [linha(opcao: '12', tipo: 'proprietario', pode: true, votadoPor: 'proprietario', proprio: false)],
+          meusVotos: ['12']);
+      await abrir(tester, const DetailAssembleia(id: 5));
+      expect(find.text('Seu voto'), findsNothing);
+      expect(find.textContaining('Votado por outro proprietário da unidade: Aprovo'), findsOneWidget);
     });
   });
 }

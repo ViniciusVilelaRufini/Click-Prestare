@@ -125,9 +125,8 @@ class _CellVotacaoState extends State<CellVotacao> {
   /// "Meu voto" nesta votação: o da unidade escolhida (várias unidades) ou o
   /// campo antigo `meusVotos`. Voto de outro morador da unidade não conta.
   List<dynamic> get _meusVotos {
-    if (!_variasUnidades) return widget.meusVotos;
-    final meu = _unidadeAtual?.meuVoto;
-    return meu == null ? const [] : [meu];
+    return meusVotosNaTela(
+        unidade: _unidadeAtual, variasUnidades: _variasUnidades, meusVotosDaConta: widget.meusVotos);
   }
 
   dynamic get _item => widget.item;

@@ -144,12 +144,9 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
   }
 
   List<dynamic> get _meuVoto {
-    if (_variasUnidades) {
-      final meu = _unidadeAtual?.meuVoto;
-      return meu == null ? const [] : [meu];
-    }
     final m = obj?['meuVoto'];
-    return m is List ? m : const [];
+    return meusVotosNaTela(
+        unidade: _unidadeAtual, variasUnidades: _variasUnidades, meusVotosDaConta: m is List ? m : const []);
   }
 
   bool get _jaVotou => _meuVoto.isNotEmpty;
@@ -387,7 +384,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
       case SituacaoVoto.semDireito:
         icone = PhosphorIcons.prohibit;
         cor = statusVotacaoInfo(2).cor;
-        titulo = 'Sem direito a voto';
+        titulo = tituloSemDireito(_unidadeAtual!);
         texto = textoSemDireito(_unidadeAtual!);
       case SituacaoVoto.aberta:
         icone = PhosphorIcons.handPointing;
