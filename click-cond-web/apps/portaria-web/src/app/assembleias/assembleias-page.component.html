@@ -32,7 +32,7 @@
       class="flex items-center gap-2"
     >
       Assembleias Oficiais
-      <span class="text-xs">{{ assembleias().length }}</span>
+      <span class="text-xs">{{ assembleiasAtivas().length }}</span>
     </button>
 
     <button
@@ -69,9 +69,22 @@
               Data: <span class="text-slate-200 font-medium">{{ sel.assembleia.data }} às {{ sel.assembleia.hora }}</span> ·
               Local: <span class="text-slate-200 font-medium">{{ sel.assembleia.local || 'Não definido' }}</span>
             </p>
+            @if (ehFinalizada(sel.assembleia)) {
+              <div class="flex items-center gap-2 flex-wrap mt-2">
+                <span class="ps-tag">
+                  <span class="ps-dot"></span>
+                  Finalizada{{ sel.assembleia.finalizada_em ? ' em ' + dataHora(sel.assembleia.finalizada_em) : '' }}
+                </span>
+                <span class="text-xs text-slate-500">Somente leitura: guardada no histórico com as votações.</span>
+              </div>
+            }
           </div>
 
-          @if (podeGerir()) {
+          @if (ehFinalizada(sel.assembleia)) {
+            @if (sel.assembleia.link_ata) {
+              <a [href]="sel.assembleia.link_ata" target="_blank" rel="noopener" class="ps-btn ps-btn-sec ps-btn-sm">Abrir ATA</a>
+            }
+          } @else if (podeGerir()) {
             <div class="flex items-center gap-2">
               <button
                 (click)="abrirModalPauta(sel.assembleia.id)"
@@ -113,11 +126,11 @@
           } @else {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               @for (v of sel.votacoes; track v.id) {
-                <div class="p-4 bg-graphite-300 border border-slate-200 flex flex-col justify-between gap-4">
+                <div class="p-4 bg-graphite-300 border border-slate-200 flex flex-col justify-between gap-4" [attr.data-votacao]="v.id">
                   <div>
                     <div class="flex items-center justify-between gap-2 mb-1.5">
                       <h4 class="text-sm font-bold text-slate-200">{{ v.titulo }}</h4>
-                      @if (podeGerir()) {
+                      @if (podeGerir() && !ehFinalizada(sel.assembleia)) {
                         <button (click)="removerVotacao(v.id, sel.assembleia.id)" class="ps-btn ps-btn-ghost ps-btn-sm hover:!text-red-400">Excluir</button>
                       }
                     </div>
@@ -132,6 +145,9 @@
                               [class.ps-dot-warn]="v.status === 0"></span>
                         {{ v.status === 1 ? 'Em votação' : v.status === 0 ? 'Agendada' : 'Encerrada' }}
                       </span>
+                      @if (somenteProprietarios(v)) {
+                        <span class="ps-tag" title="Inquilinos não votam nesta pauta">Somente proprietários</span>
+                      }
                       @if (v.data_inicio || v.data_termino) {
                         <span class="text-xs text-slate-500 font-mono">{{ v.data_inicio }} a {{ v.data_termino }}</span>
                       }
@@ -140,7 +156,15 @@
                       <p class="text-xs text-slate-400 mb-3">{{ v.descricao }}</p>
                     }
 
-                    <!-- Contagem de Votos -->
+                    <!-- Contagem de Votos (oculta enquanto a votação está aberta) -->
+                    @if (resultadoOculto(v)) {
+                      <div class="p-3 border border-slate-200 space-y-1.5">
+                        <p class="text-xs text-slate-300 font-medium">Resultado disponível quando a votação for encerrada</p>
+                        <p class="text-[11px] text-slate-500">
+                          Opções: {{ nomesOpcoes(v.opcoes) }}
+                        </p>
+                      </div>
+                    } @else {
                     <div class="space-y-2 pt-1">
                       @for (opInfo of parseOpcoes(v.opcoes); track opInfo.id) {
                         <div class="space-y-1">
@@ -158,12 +182,23 @@
                         </div>
                       }
                     </div>
+                    }
+                    @if (textoParticipacao(v)) {
+                      <p class="text-[11px] text-slate-400 mt-2">{{ textoParticipacao(v) }}</p>
+                    }
                   </div>
 
                   <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 text-[10px] text-slate-500 font-mono">
-                    <span>Total apurado: {{ getTotalVotos(v.opcoes) }} voto(s)</span>
-                    @if (v.status === 1 && podeGerir()) {
+                    @if (resultadoOculto(v)) {
+                      <span>Apuração ao encerrar</span>
+                    } @else {
+                      <span>Total apurado: {{ getTotalVotos(v.opcoes) }} voto(s)</span>
+                    }
+                    @if (v.status === 1 && podeGerir() && !ehFinalizada(sel.assembleia)) {
                       <button (click)="encerrarVotacao(v.id, sel.assembleia.id)" class="ps-btn ps-btn-sec ps-btn-sm">Encerrar votação</button>
+                    }
+                    @if (v.status === 2 && podeGerir()) {
+                      <button (click)="abrirMapa(v)" class="ps-btn ps-btn-sec ps-btn-sm" title="Quem votou em quê, com a trilha dos votos substituídos">Mapa de votação</button>
                     }
                   </div>
                 </div>
@@ -200,12 +235,21 @@
           </div>
         }
 
+        @if (assembleiasFinalizadas().length > 0) {
+          <h3 class="ps-label pt-2">Finalizadas</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            @for (a of assembleiasFinalizadas(); track a.id) {
+              <ng-container *ngTemplateOutlet="cartaoAssembleia; context: { $implicit: a, passada: true }"></ng-container>
+            }
+          </div>
+        }
+
         <ng-template #cartaoAssembleia let-a let-passada="passada">
-            <div class="ps-panel p-5 flex flex-col justify-between gap-4" [class.opacity-70]="passada">
+            <div class="ps-panel p-5 flex flex-col justify-between gap-4" [class.opacity-70]="passada" [attr.data-assembleia]="a.id">
               <div class="space-y-2">
                 <div class="flex items-start justify-between gap-2">
                   <span class="ps-tag">
-                    {{ passada ? 'Realizada' : 'Assembleia' }}
+                    {{ ehFinalizada(a) ? 'Finalizada' : passada ? 'Realizada' : 'Assembleia' }}
                   </span>
                   <span class="text-xs text-slate-400 font-mono">{{ a.data }}</span>
                 </div>
@@ -216,6 +260,9 @@
 
                 @if (a.descricao) {
                   <p class="text-xs text-slate-400 line-clamp-3 leading-relaxed">{{ a.descricao }}</p>
+                }
+                @if (ehFinalizada(a) && a.finalizada_em) {
+                  <p class="text-[11px] text-slate-500">Finalizada em {{ dataHora(a.finalizada_em) }}</p>
                 }
               </div>
 
@@ -228,7 +275,7 @@
                 </span>
 
                 <div class="flex items-center gap-1.5">
-                  @if (podeGerir()) {
+                  @if (podeGerir() && !ehFinalizada(a)) {
                     <button
                       (click)="excluirAssembleia(a.id)"
                       class="ps-ibtn hover:!text-red-400"
@@ -262,7 +309,7 @@
     } @else {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
         @for (e of enquetes(); track e.id) {
-          <div class="ps-panel p-5 flex flex-col justify-between gap-4">
+          <div class="ps-panel p-5 flex flex-col justify-between gap-4" [attr.data-votacao]="e.id">
             <div>
               <div class="flex items-center justify-between gap-2 mb-2">
                 <span
@@ -284,12 +331,21 @@
                 </div>
               </div>
 
+              @if (somenteProprietarios(e)) {
+                <span class="ps-tag mb-2" title="Inquilinos não votam nesta enquete">Somente proprietários</span>
+              }
               <h3 class="text-base font-bold text-white mb-1">{{ e.titulo }}</h3>
               @if (e.descricao) {
                 <p class="text-xs text-slate-400 mb-4 leading-relaxed">{{ e.descricao }}</p>
               }
 
-              <!-- Apuração Dinâmica em Barras -->
+              <!-- Apuração em barras (oculta enquanto a enquete está aberta) -->
+              @if (resultadoOculto(e)) {
+                <div class="p-3 border border-slate-200 space-y-1.5">
+                  <p class="text-xs text-slate-300 font-medium">Resultado disponível quando a votação for encerrada</p>
+                  <p class="text-[11px] text-slate-500">Opções: {{ nomesOpcoes(e.opcoes) }}</p>
+                </div>
+              } @else {
               <div class="space-y-2.5 pt-1">
                 @for (op of parseOpcoes(e.opcoes); track op.id) {
                   <div class="space-y-1">
@@ -306,12 +362,23 @@
                   </div>
                 }
               </div>
+              }
+              @if (textoParticipacao(e)) {
+                <p class="text-[11px] text-slate-400 mt-2">{{ textoParticipacao(e) }}</p>
+              }
             </div>
 
             <div class="flex items-center justify-between pt-3 border-t border-slate-200 text-xs text-slate-500 font-mono mt-2">
-              <span>Total apurado: {{ getTotalVotos(e.opcoes) }}</span>
+              @if (resultadoOculto(e)) {
+                <span>Apuração ao encerrar</span>
+              } @else {
+                <span>Total apurado: {{ getTotalVotos(e.opcoes) }}</span>
+              }
               @if (e.status === 1 && podeGerir()) {
                 <button (click)="encerrarVotacao(e.id)" class="ps-btn ps-btn-sec ps-btn-sm">Encerrar Imediatamente</button>
+              }
+              @if (e.status === 2 && podeGerir()) {
+                <button (click)="abrirMapa(e)" class="ps-btn ps-btn-sec ps-btn-sm" title="Quem votou em quê, com a trilha dos votos substituídos">Mapa de votação</button>
               }
             </div>
           </div>
@@ -419,8 +486,9 @@
 
         <div class="ps-drawer-body">
           <p class="text-sm text-slate-300">
-            Anexe o PDF da ATA. A assembleia sai da lista; a ATA e a apuração das pautas ficam em
-            Documentos, na aba Atas de Assembleia.
+            Anexe o PDF da ATA. A assembleia fica guardada no histórico com as votações; nada é apagado.
+            As pautas ainda abertas são encerradas, e a ATA e a apuração ficam em Documentos, na aba
+            Atas de Assembleia.
           </p>
 
           <div>
@@ -453,6 +521,96 @@
           >
             {{ finalizando() ? 'Finalizando…' : 'Finalizar e publicar ATA' }}
           </button>
+        </div>
+    </div>
+  }
+
+  <!-- MAPA DE VOTAÇÃO (nominal, só de votação encerrada) -->
+  @if (modalMapa()) {
+    <div class="ps-scrim on" (click)="fecharMapa()"></div>
+    <div class="ps-drawer on !w-[min(960px,100%)]">
+        <div class="ps-drawer-head gap-3">
+          <div class="min-w-0">
+            <h3 class="ps-h2">Mapa de votação</h3>
+            <p class="text-xs text-slate-400 mt-0.5 truncate">{{ mapa()?.votacao?.titulo || tituloMapa() }}</p>
+          </div>
+          <button (click)="fecharMapa()" class="ps-ibtn" aria-label="Fechar" title="Fechar">×</button>
+        </div>
+
+        <div class="ps-drawer-body">
+          @if (carregandoMapa()) {
+            <div class="p-8 text-center">
+              <div class="inline-block w-6 h-6 border-2 border-slate-300 border-t-[var(--ink)] rounded-full animate-spin"></div>
+            </div>
+          } @else if (mapa(); as m) {
+            <div class="flex items-center gap-2 flex-wrap text-xs text-slate-400">
+              @if (textoParticipacao($any(m))) {
+                <span>{{ textoParticipacao($any(m)) }}</span>
+              }
+              @if (m.votacao.encerrada_em) {
+                <span>· Encerrada em {{ dataHora(m.votacao.encerrada_em) }}</span>
+              }
+              @if (somenteProprietarios($any(m.votacao))) {
+                <span class="ps-tag">Somente proprietários</span>
+              }
+            </div>
+
+            @if (m.opcoes.length) {
+              <div class="flex flex-wrap gap-2">
+                @for (o of m.opcoes; track o.id) {
+                  <span class="ps-tag">{{ o.nome }}: {{ o.votos }}</span>
+                }
+              </div>
+            }
+
+            @if (m.votos.length === 0) {
+              <p class="text-xs text-slate-500 italic">Nenhum voto registrado nesta votação.</p>
+            } @else {
+              <div class="ps-tablewrap">
+                <table class="w-full text-xs !min-w-[760px]">
+                  <thead>
+                    <tr class="ps-label">
+                      <th>Unidade</th>
+                      <th>Votante</th>
+                      <th>Vínculo</th>
+                      <th>Opção</th>
+                      <th>Data/hora</th>
+                      <th>Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (voto of m.votos; track $index) {
+                      <tr [class.opacity-60]="voto.vigente === false">
+                        <td class="text-slate-200">{{ voto.unidade }}</td>
+                        <td class="text-slate-200">{{ voto.votante || '—' }}</td>
+                        <td class="text-slate-400">{{ rotuloVinculo(voto.tipo_vinculo) }}</td>
+                        <td class="text-slate-200">{{ opcaoDoVoto(m, voto) }}</td>
+                        <td class="text-slate-400 font-mono">{{ dataHora(voto.registrado_em) }}</td>
+                        <td>
+                          @if (voto.vigente === false) {
+                            <span class="ps-tag text-amber-400">Substituído{{ voto.substituido_em ? ' em ' + dataHora(voto.substituido_em) : '' }}</span>
+                          } @else {
+                            <span class="ps-tag text-emerald-400">Vigente</span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="text-[11px] text-slate-500">
+                Voto substituído não conta na apuração; fica no mapa como trilha.
+              </p>
+            }
+          }
+        </div>
+
+        @if (erroMapa()) {
+          <p class="mx-6 mb-3 px-3 py-2 border border-slate-300 text-xs text-red-400" role="alert">{{ erroMapa() }}</p>
+        }
+        <div class="ps-drawer-foot">
+          <button (click)="fecharMapa()" class="ps-btn ps-btn-sec">Fechar</button>
+          <button (click)="exportarMapaCsv()" [disabled]="!mapa()" class="ps-btn disabled:opacity-50">Exportar CSV</button>
         </div>
     </div>
   }
@@ -510,6 +668,22 @@
               />
             </div>
           </div>
+
+          <label class="flex items-start gap-3 p-3 border border-slate-300 cursor-pointer">
+            <input
+              type="checkbox"
+              name="somente_proprietarios"
+              [(ngModel)]="novaVotacao.somente_proprietarios"
+              class="mt-0.5 w-4 h-4 shrink-0"
+              style="accent-color: var(--brand)"
+            />
+            <span class="space-y-0.5">
+              <span class="block text-xs text-slate-200 font-medium">Somente proprietários</span>
+              <span class="block text-[11px] leading-relaxed text-slate-400">
+                Inquilinos não votam {{ novaVotacao.id_assembleia ? 'nesta pauta' : 'nesta enquete' }}. Use em despesas extraordinárias, obras e alteração de convenção.
+              </span>
+            </span>
+          </label>
 
           <div class="space-y-2 pt-2 border-t border-slate-200">
             <span class="ps-label block">Opções de Voto</span>

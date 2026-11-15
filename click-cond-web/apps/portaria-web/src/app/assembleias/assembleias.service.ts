@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
+import type { MapaVotacao } from './mapa-votacao';
 
 export interface Assembleia {
   id: number;
@@ -13,6 +14,11 @@ export interface Assembleia {
   local?: string;
   link?: string;
   anexos?: string;
+  /** Finalizada com a ATA (fica no histórico, somente leitura). Ausente (API antiga) = falso. */
+  finalizada?: boolean;
+  finalizada_em?: string | null;
+  /** Só no `get` de uma finalizada: link do PDF da ATA. */
+  link_ata?: string | null;
 }
 
 export interface Votacao {
@@ -23,6 +29,13 @@ export interface Votacao {
   data_termino: string;
   status: number; // 0=Agendado, 1=Em andamento, 2=Finalizado
   opcoes: string[]; // "id;nome;votos"
+  /** Aberta/agendada: a API zera os votos e manda `true`. Ausente (API antiga) = falso. */
+  resultado_oculto?: boolean;
+  /** Inquilinos não votam (0/1; ausente = 0). */
+  somente_proprietarios?: number | boolean;
+  /** Quórum: unidades que votaram / apartamentos do condomínio. Ausente na API antiga. */
+  participacao?: { unidades_votaram: number; unidades_total: number } | null;
+  encerrada_em?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -38,7 +51,8 @@ export class AssembleiasApi {
   // ASSEMBLEIAS
   // ==========================================
   listAssembleias(): Observable<Assembleia[]> {
-    const url = `${API_BASE}/assembleias/get-all?id_condominio=${this.cid}`;
+    // Finalizadas vêm junto (seção "Finalizadas"); a API antiga ignora o parâmetro.
+    const url = `${API_BASE}/assembleias/get-all?id_condominio=${this.cid}&incluir_finalizadas=1`;
     return this.http.get<Assembleia[]>(url);
   }
 
@@ -83,6 +97,12 @@ export class AssembleiasApi {
   finishVotacao(id: number): Observable<any> {
     const url = `${API_BASE}/assembleias/votacoes/finish`;
     return this.http.post(url, { id });
+  }
+
+  /** Mapa nominal de votação encerrada (só síndico/equipe; a API recusa o porteiro). */
+  mapaVotacao(id: number): Observable<MapaVotacao> {
+    const url = `${API_BASE}/assembleias/votacoes/mapa?id=${id}`;
+    return this.http.get<MapaVotacao>(url);
   }
 
   listEnquetes(): Observable<Votacao[]> {
