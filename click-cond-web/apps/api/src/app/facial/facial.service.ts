@@ -1027,12 +1027,28 @@ export class FacialService {
    * (que cita o nome e o tipo) + Pendente/Ciente. Usado ao renomear ou excluir
    * o aparelho: a descrição antiga não casa mais com nada, e o chamado ficaria
    * aberto para sempre. Best-effort: falha aqui não desfaz a edição/exclusão.
+   *
+   * Outro aparelho ATIVO com o mesmo nome e tipo no condomínio gera a mesma
+   * descrição: o chamado pode ser dele. Aí não fecha — o monitor resolve
+   * quando o aparelho voltar.
    */
   private async fecharChamadosOffline(
-    device: { nome: string; tipo?: string | null; id_condominio: number },
+    device: { id: number; nome: string; tipo?: string | null; id_condominio: number },
     resposta: string,
   ) {
     try {
+      // A descrição escreve tipo vazio como "facial".
+      const tipo = device.tipo || 'facial';
+      const homonimos = await this.prisma.facial_Devices.count({
+        where: {
+          id_condominio: device.id_condominio,
+          nome: device.nome,
+          ativo: 1,
+          id: { not: device.id },
+          ...(tipo === 'facial' ? { OR: [{ tipo: 'facial' }, { tipo: '' }] } : { tipo }),
+        },
+      });
+      if (homonimos > 0) return;
       await this.prisma.ocorrencias.updateMany({
         where: {
           id_condominio: device.id_condominio,
