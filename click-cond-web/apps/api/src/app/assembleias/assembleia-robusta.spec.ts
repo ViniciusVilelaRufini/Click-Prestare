@@ -1247,3 +1247,49 @@ describe('I-3 — o resultado e o hash não mudam depois de finalizar/encerrar',
     expect(textoCanonicoMapa({ ...mapa, votos: [...mapa.votos].reverse(), opcoes: [...mapa.opcoes].reverse() })).toBe(texto);
   });
 });
+
+describe('N-2 — dentro da transação, só o cliente da transação', () => {
+  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const t = (hhmm: string) => new Date(`2026-11-14T${hhmm}:00Z`);
+  // Um voto antigo (exige vínculos, nomes e rótulo de apartamento) e um novo sem nome.
+  const VOTOS = () => [
+    { id: 1, id_opcao: 51, id_user: 10, id_apto: null, created_at: t('09:00') },
+    { id: 2, id_opcao: 52, id_user: 20, id_apto: 200, created_at: t('09:10') },
+  ];
+  /** Cliente "global" que falha em qualquer uso. */
+  const proibido = new Proxy({}, {
+    get: (_t, k) => {
+      if (k === 'then') return undefined;
+      throw new Error(`cliente global usado dentro da transação: ${String(k)}`);
+    },
+  });
+  /** Troca o cliente global do serviço pelo proibido enquanto a transação roda. */
+  function vigiarTransacao(svc: any, prisma: any) {
+    const real = prisma.$transaction;
+    prisma.$transaction = jest.fn(async (fn: any, o: any) => {
+      const global = svc.prisma;
+      svc.prisma = proibido;
+      try {
+        return await real(fn, o);
+      } finally {
+        svc.prisma = global;
+      }
+    });
+  }
+
+  it('mapasDasVotacoes(where, tx) não toca o cliente global', async () => {
+    const { svc, prisma } = build({ votos: VOTOS() });
+    (svc as any).prisma = proibido;
+    const [calc] = await (svc as any).mapasDasVotacoes({ id: 5 }, prisma);
+    expect(calc.mapa.votos.map((v: any) => v.votante)).toEqual(['Paula Proprietária', 'Vinte']);
+  });
+
+  it('finish e encerrar rodam a transação inteira sem o cliente global', async () => {
+    const a = build({ votos: VOTOS() });
+    vigiarTransacao(a.svc, a.prisma);
+    await expect(a.svc.finish(COND, { id: 3, doc: PDF }, sindico)).resolves.toEqual(expect.objectContaining({ message: expect.any(String) }));
+    const b = build({ votos: VOTOS() });
+    vigiarTransacao(b.svc, b.prisma);
+    await expect(b.svc.finishVotacao(5, sindico)).resolves.toEqual({ success: true });
+  });
+});

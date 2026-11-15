@@ -1268,6 +1268,8 @@ export class AssembleiasService {
    */
   private async mapasDasVotacoes(
     where: Prisma.VotacoesWhereInput,
+    // Dentro da transação do finish/encerrar, TODAS as leituras usam `db`: com
+    // a trava presa, nenhuma consulta vai buscar outra conexão do pool.
     db: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<MapaCalculado[]> {
     const votacoesDb = await db.votacoes.findMany({
@@ -1302,7 +1304,7 @@ export class AssembleiasService {
           .filter((x) => x.id_condominio === v.id_condominio)
           .flatMap((x) => x.opcoes.flatMap((op) => op.votos.filter((voto) => !voto.tipo_vinculo).map((voto) => voto.id_user)))
           .filter((id): id is number => id != null);
-        vinculosDe = await this.vinculosNoCondominio(v.id_condominio, [...new Set(autores)]);
+        vinculosDe = await this.vinculosNoCondominio(v.id_condominio, [...new Set(autores)], db);
         vinculosPorCond.set(v.id_condominio, vinculosDe);
       }
 
@@ -1321,16 +1323,16 @@ export class AssembleiasService {
         ),
       ];
       const aptos = idsAptos.length
-        ? await this.prisma.apartamentos.findMany({ where: { id: { in: idsAptos } }, select: { id: true, bloco: true, apto: true } })
+        ? await db.apartamentos.findMany({ where: { id: { in: idsAptos } }, select: { id: true, bloco: true, apto: true } })
         : [];
       const aptoPorId = new Map(aptos.map((a) => [a.id, a]));
 
       const semNome = [...new Set(todos.filter((x) => !x.nome_votante && x.id_user != null).map((x) => x.id_user as number))];
       const nomes = new Map<number, string>();
       if (semNome.length) {
-        const usuarios = await this.prisma.users.findMany({ where: { id: { in: semNome } }, select: { id: true, name: true } });
+        const usuarios = await db.users.findMany({ where: { id: { in: semNome } }, select: { id: true, name: true } });
         for (const u of usuarios) if ((u.name ?? '').trim()) nomes.set(u.id, (u.name ?? '').trim());
-        const moradores = await this.prisma.moradores.findMany({
+        const moradores = await db.moradores.findMany({
           where: { id_user: { in: semNome }, id_condominio: v.id_condominio },
           select: { id_user: true, nome: true },
           orderBy: { id: 'desc' },
@@ -1729,10 +1731,11 @@ export class AssembleiasService {
   private async vinculosNoCondominio(
     idCondominio: number,
     idsUsuarios: number[],
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<Map<number, Map<number, TipoVinculo>>> {
     const porUsuario = new Map<number, Map<number, TipoVinculo>>();
     if (idsUsuarios.length === 0) return porUsuario;
-    const vinculos = await this.prisma.apartamentos_Users.findMany({
+    const vinculos = await db.apartamentos_Users.findMany({
       where: { id_user: { in: idsUsuarios }, apartamento: { id_condominio: Number(idCondominio) } },
       select: { id_user: true, id_apto: true, tipo: true },
     });
