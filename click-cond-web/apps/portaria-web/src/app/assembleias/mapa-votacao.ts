@@ -79,12 +79,18 @@ export function rotuloVinculo(t: string | null | undefined): string {
   }
 }
 
-/** Nome da opção do voto: se vier o id, troca pelo nome da lista de opções. */
+/**
+ * Nome da opção do voto. A API manda o NOME (`opcao: x.op.nome`): vale como veio, mesmo
+ * numérico ("1", "2"). Só se nenhuma opção tiver esse nome é que tenta casar com o id.
+ */
 export function nomeOpcaoDoVoto(m: MapaVotacao, voto: VotoDoMapa): string {
   const bruto = voto?.opcao;
   if (bruto === null || bruto === undefined) return '';
-  const porId = (m?.opcoes ?? []).find((o) => String(o.id) === String(bruto));
-  return porId ? porId.nome : String(bruto);
+  const texto = String(bruto);
+  const opcoes = m?.opcoes ?? [];
+  if (opcoes.some((o) => o.nome === texto)) return texto;
+  const porId = opcoes.find((o) => String(o.id) === texto);
+  return porId ? porId.nome : texto;
 }
 
 /** Campo do CSV entre aspas, com aspas dobradas e fórmula neutralizada (=, +, -, @ no início). */
@@ -112,7 +118,10 @@ export function csvMapaVotacao(m: MapaVotacao): string {
       sit.tipo === 'substituido' ? dataHoraBrasilia(v.substituido_em, true) : '',
     ];
   });
-  return BOM + [cab, ...linhas].map((l) => l.map(campoCsv).join(';')).join('\r\n');
+  // Linha de contexto: quem recebe o arquivo solto sabe de que votação ele é.
+  const contexto = [`Mapa de votação #${m?.votacao?.id ?? ''}: ${m?.votacao?.titulo ?? ''}`];
+  if (m?.votacao?.encerrada_em) contexto.push(`Encerrada em ${dataHoraBrasilia(m.votacao.encerrada_em, true)}`);
+  return BOM + [contexto, cab, ...linhas].map((l) => l.map(campoCsv).join(';')).join('\r\n');
 }
 
 /** Nome do arquivo: "mapa-votacao-<id>-<titulo-sem-acento>.csv". */

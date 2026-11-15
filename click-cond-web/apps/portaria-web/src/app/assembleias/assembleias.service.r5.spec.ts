@@ -83,6 +83,46 @@ describe('csvMapaVotacao', () => {
   });
 });
 
+describe('CSV: contexto, nome do arquivo e opção pelo nome', () => {
+  const MAPA = {
+    votacao: { id: 11, titulo: 'Obra "da" fachada; já', somente_proprietarios: 0, encerrada_em: '05/11/2026 15:00:00' },
+    participacao: { unidades_votaram: 1, unidades_total: 12 },
+    // Opções de nome numérico: o nome de uma é o id da outra.
+    opcoes: [{ id: 1, nome: '2', votos: 1 }, { id: 2, nome: '1', votos: 0 }],
+    votos: [
+      { unidade: '101', votante: 'Ana', tipo_vinculo: 'proprietario', opcao: '2',
+        registrado_em: '02/11/2026 10:00:00', vigente: true, substituido_em: null },
+    ],
+  };
+
+  it('primeira linha: título e encerramento; depois o cabeçalho', async () => {
+    const { csvMapaVotacao } = await import('./mapa-votacao');
+    const linhas = csvMapaVotacao(MAPA as any).slice(1).split('\r\n');
+    expect(linhas[0]).toBe('"Mapa de votação #11: Obra ""da"" fachada; já";"Encerrada em 05/11/2026 15:00:00"');
+    expect(linhas[1]).toBe('"Unidade";"Votante";"Vínculo";"Opção";"Registrado em";"Situação";"Substituído em"');
+  });
+
+  it('sem encerrada_em: a linha de contexto leva só o título', async () => {
+    const { csvMapaVotacao } = await import('./mapa-votacao');
+    const linhas = csvMapaVotacao({ ...MAPA, votacao: { ...MAPA.votacao, encerrada_em: null } } as any).slice(1).split('\r\n');
+    expect(linhas[0]).toBe('"Mapa de votação #11: Obra ""da"" fachada; já"');
+  });
+
+  it('opção: vale o nome exato que a API manda, mesmo numérico (não troca pelo id)', async () => {
+    const { nomeOpcaoDoVoto, csvMapaVotacao } = await import('./mapa-votacao');
+    expect(nomeOpcaoDoVoto(MAPA as any, MAPA.votos[0] as any)).toBe('2');
+    expect(csvMapaVotacao(MAPA as any)).toContain('"101";"Ana";"Proprietário";"2";');
+    // Só quando nenhum nome bate é que tenta o id.
+    expect(nomeOpcaoDoVoto({ ...MAPA, opcoes: [{ id: 7, nome: 'Aprovar', votos: 0 }] } as any, { opcao: 7 } as any)).toBe('Aprovar');
+  });
+
+  it('nome do arquivo: id + título saneado (sem acento, sem aspas, sem ponto e vírgula)', async () => {
+    const { nomeArquivoMapa } = await import('./mapa-votacao');
+    expect(nomeArquivoMapa(MAPA as any)).toBe('mapa-votacao-11-obra-da-fachada-ja.csv');
+    expect(nomeArquivoMapa({ ...MAPA, votacao: { id: 5, titulo: '' } } as any)).toBe('mapa-votacao-5.csv');
+  });
+});
+
 describe('situacaoDoVoto', () => {
   it('usa `situacao` quando vem; senão deduz; nunca "Substituído" sem data', async () => {
     const { situacaoDoVoto } = await import('./mapa-votacao');
