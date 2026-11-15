@@ -5210,10 +5210,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // Moradores alcançados por card, push ou WhatsApp (devolvido à portaria).
     let avisados = 0;
     try {
+      // Sem o filtro de `notif_visitantes`: o pedido é transacional — há alguém
+      // no portão esperando a resposta. A preferência vale para os avisos
+      // informativos (chegou, saiu), não para o pedido.
       const moradores = await this.prisma.users.findMany({
         where: {
           apartamentosUsers: { some: { id_apto: v.id_apartamento } },
-          notif_visitantes: 1,
           fcm_token: { not: null },
         },
         select: { id: true, fcm_token: true, name: true, phone: true },
