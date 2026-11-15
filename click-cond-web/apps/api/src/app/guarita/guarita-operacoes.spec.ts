@@ -422,23 +422,41 @@ describe('Guarita — tag vinculada pelo morador no app (payloads do app 1.2.49)
     expect(apagares(db)).toHaveLength(1);
   });
 
-  it('aprovar no console → cadastro na fila; recusar → a tag continua do veículo, sem Guarita', async () => {
+  it('I10: aprovar exige tipo e código impresso (sem padrão); RF → captura; repetido em qualquer tipo → 400', async () => {
     const { db, ops } = montar();
     const svc = app(db, ops);
     await svc.criarVeiculoMorador(500, 7, { placa: 'ABC1D23', tag_codigo: '015 02158' });
-    await svc.criarVeiculoMorador(501, 7, { placa: 'XYZ9A87', tag_codigo: 'ABCDEF12' });
-    const ctrl = new GuaritaController(new GuaritaImportacaoService(db as any), ops);
-    const [t1, t2] = db.linhas('tags');
-
-    await expect(ctrl.aprovar(7, 10, t1.id, {}, OPERADOR)).resolves.toMatchObject({ id_tag: t1.id, estado: 'pendente' });
+    const ctrl = new GuaritaController(new GuaritaImportacaoService(db as any), ops, {} as any, {} as any, {} as any);
+    const [t1] = db.linhas('tags');
+    await expect(ctrl.aprovar(7, 10, t1.id, {}, OPERADOR)).rejects.toThrow(/Informe o tipo/);
+    await expect(ctrl.aprovar(7, 10, t1.id, { tipo: 6 }, OPERADOR)).rejects.toThrow('Código inválido. Use o formato impresso no cartão: 015 02158.');
+    await expect(ctrl.aprovar(7, 10, t1.id, { tipo: 1, codigo_impresso: '015 02158' }, OPERADOR)).rejects.toThrow(
+      'Controle remoto só pode ser cadastrado por captura no Guarita.',
+    );
+    db.semear('tags', [{ id_condominio: 7, codigo: 'G3-0F086E', id_device: 10, guarita_tipo: 3, guarita_serial: '0F086E', guarita_estado: 'a_vincular' }]);
+    await expect(ctrl.aprovar(7, 10, t1.id, { tipo: 6, codigo_impresso: '015 02158' }, OPERADOR)).rejects.toThrow(/já está cadastrado/);
+    db.linhas('tags').pop();
+    await expect(ctrl.aprovar(7, 10, t1.id, { tipo: 3, codigo_impresso: 'W: 015 02158' }, OPERADOR)).resolves.toMatchObject({ estado: 'pendente' });
     const cad = db.linhas('guarita_Operacoes').find((o: any) => o.tipo === 'cadastrar');
-    expect(cad.frame_hex.slice(0, 8)).toBe('600F086E'); // TAG passivo por padrão
-    // Código não impresso e sem código informado: pede o código.
-    await expect(ctrl.aprovar(7, 10, t2.id, {}, OPERADOR)).rejects.toThrow(/código impresso/);
-    await expect(ctrl.aprovar(7, 10, t2.id, { tipo: 1 }, OPERADOR)).rejects.toThrow('Controle remoto só pode ser cadastrado por captura no Guarita.');
-    await expect(ctrl.recusar(7, 10, t2.id, OPERADOR)).resolves.toEqual({ id_tag: t2.id, estado: null });
-    expect(db.linhas('tags').find((t: any) => t.id === t2.id)).toMatchObject({ id_device: null, guarita_estado: null });
-    expect(db.linhas('veiculos').find((v: any) => v.id_tag === t2.id)).toBeTruthy();
+    expect(cad.frame_hex.slice(0, 8)).toBe('300F086E');
+  });
+
+  it('I10: recusar grava recusada (persistente): o MESMO código salvo de novo pelo app não volta; outro código volta a aguardar', async () => {
+    const { db, ops } = montar();
+    const svc = app(db, ops);
+    const v = await svc.criarVeiculoMorador(501, 7, { placa: 'XYZ9A87', tag_codigo: 'ABCDEF12' });
+    const ctrl = new GuaritaController(new GuaritaImportacaoService(db as any), ops, {} as any, {} as any, {} as any);
+    const t2 = db.linhas('tags')[0];
+    await expect(ctrl.recusar(7, 10, t2.id, OPERADOR)).resolves.toEqual({ id_tag: t2.id, estado: 'recusada' });
+    // O morador corrige a cor no app (o app reenvia o código).
+    await svc.atualizarVeiculoMorador(501, 7, { id: v.id, placa: 'XYZ9A87', cor: 'Azul', tag_codigo: 'ABCDEF12' });
+    expect(db.linhas('tags').find((t: any) => t.id === t2.id).guarita_estado).toBe('recusada');
+    expect(db.linhas('veiculos').find((x: any) => x.id === v.id).id_tag).toBe(t2.id);
+    // Código diferente: outra tag, de novo aguardando aprovação.
+    await svc.atualizarVeiculoMorador(501, 7, { id: v.id, placa: 'XYZ9A87', tag_codigo: '015 02158' });
+    const nova = db.linhas('veiculos').find((x: any) => x.id === v.id).id_tag;
+    expect(db.linhas('tags').find((t: any) => t.id === nova).guarita_estado).toBe('aguardando_aprovacao');
+    expect(db.linhas('guarita_Operacoes')).toHaveLength(0);
   });
 });
 

@@ -535,11 +535,10 @@ export class GuaritaOperacoesService {
   // ------------------------------------------------- aprovação (app → console)
 
   /**
-   * `POST …/dispositivos/:idTag/aprovar { tipo?, codigo_impresso? }`: a tag que o
-   * morador vinculou no app vai para este Guarita. Tipo padrão: TAG passivo (6)
-   * — o app fala em "tag/adesivo"; o console pode mandar 2 (TAG ativo) ou 3
-   * (cartão). RF nunca (o contador só vem na captura). O serial sai do código
-   * impresso (W: 015 02158), informado agora ou digitado pelo morador.
+   * `POST …/dispositivos/:idTag/aprovar { tipo: 2|3|6, codigo_impresso }`: a tag
+   * que o morador vinculou no app vai para este Guarita. Tipo e código impresso
+   * são obrigatórios (sem padrão: gravar o tipo errado deixa um fantasma no
+   * Guarita e o cartão real não abre). RF nunca: o contador só vem na captura.
    */
   async aprovar(
     idCondominio: number,
@@ -553,19 +552,16 @@ export class GuaritaOperacoesService {
       where: { id: Number(idTag), id_condominio: device.id_condominio, guarita_estado: ESTADO_TAG.aguardandoAprovacao },
     });
     if (!tag) throw new NotFoundException('Não há tag aguardando aprovação com este id.');
-    const tipo = corpo?.tipo === undefined || corpo?.tipo === null ? tag.guarita_tipo ?? 6 : Number(corpo.tipo);
+    const tipo = Number(corpo?.tipo);
     if (tipo === 1) throw new BadRequestException(MSG_RF_SO_POR_CAPTURA);
-    if (![2, 3, 6].includes(tipo)) throw new BadRequestException('Tipo inválido: use 2 (TAG ativo), 3 (cartão) ou 6 (TAG passivo).');
-    let serial = tag.guarita_serial ?? null;
-    if (corpo?.codigo_impresso !== undefined && corpo?.codigo_impresso !== null && corpo?.codigo_impresso !== '') {
-      serial = wiegandParaSerial(String(corpo.codigo_impresso));
-      if (!serial) throw new BadRequestException(MSG_CODIGO_IMPRESSO_INVALIDO);
+    if (![2, 3, 6].includes(tipo)) {
+      throw new BadRequestException('Informe o tipo do dispositivo: 2 (TAG ativo), 3 (cartão) ou 6 (TAG passivo).');
     }
-    if (!serial) {
-      throw new BadRequestException('Informe o código impresso na tag (ex.: 015 02158) para gravar no Guarita.');
-    }
+    const serial = wiegandParaSerial(String(corpo?.codigo_impresso ?? ''));
+    if (!serial) throw new BadRequestException(MSG_CODIGO_IMPRESSO_INVALIDO);
+    // O mesmo serial em QUALQUER tipo neste Guarita: não grava por cima.
     const repetida = await this.prisma.tags.findFirst({
-      where: { id_device: device.id, guarita_tipo: tipo, guarita_serial: serial, id: { not: tag.id } },
+      where: { id_device: device.id, guarita_serial: serial, id: { not: tag.id }, guarita_tipo: { not: null } },
       select: { id: true },
     });
     if (repetida) throw new BadRequestException('Este dispositivo já está cadastrado neste Guarita.');
@@ -578,9 +574,10 @@ export class GuaritaOperacoesService {
   }
 
   /**
-   * `POST …/dispositivos/:idTag/recusar`: a tag não vai para o Guarita. Ela
-   * continua ligada ao veículo como tag comum (a antena/leitor de sempre segue
-   * como no condomínio sem Guarita); só perde o vínculo com o Guarita.
+   * `POST …/dispositivos/:idTag/recusar`: a tag não vai para o Guarita e fica
+   * `recusada` (persistente): o app reenviar o MESMO código não a põe de novo
+   * na fila; um código diferente é outra tag e volta a aguardar aprovação. A
+   * tag continua ligada ao veículo como tag comum (antena/leitor como hoje).
    */
   async recusar(idCondominio: number, deviceId: number, idTag: number) {
     const device = await buscarGuaritaDoCondominio(this.prisma, idCondominio, deviceId);
@@ -591,9 +588,13 @@ export class GuaritaOperacoesService {
     if (!tag) throw new NotFoundException('Não há tag aguardando aprovação com este id.');
     await this.prisma.tags.update({
       where: { id: tag.id },
-      data: { id_device: null, guarita_estado: null, guarita_erro: null, guarita_tipo: null, guarita_serial: null },
+      data: {
+        id_device: device.id,
+        guarita_estado: ESTADO_TAG.recusada,
+        guarita_erro: 'A portaria não aprovou esta tag para o Guarita.',
+      },
     });
-    return { id_tag: tag.id, estado: null };
+    return { id_tag: tag.id, estado: ESTADO_TAG.recusada };
   }
 
   /**
