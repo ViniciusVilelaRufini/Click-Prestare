@@ -91,6 +91,7 @@ describe('MoradoresService — login de portaria de outra pessoa', () => {
       prisma.moradores.findUnique = jest.fn(async () => ({
         id: 20, nome: 'L', email: LOGIN_PORTEIRO, telefone: null, documento: null,
         id_condominio: 1, id_user: null, foto_pessoa: null, foto_documento: null, user: null,
+        data_nascimento: new Date('1980-01-01'),
       }));
       return prisma;
     }

@@ -7,6 +7,7 @@ import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { WalletService } from '../wallet/wallet.service';
+import { MobileAuthService } from '../auth/mobile-auth.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import { momentoTrocaSenha } from '../auth/senha-alterada.util';
@@ -101,6 +102,8 @@ export class MoradoresService {
     private readonly auditoria: AuditoriaService,
     private readonly superlogicaWrite: SuperlogicaWriteService,
     @Optional() private readonly wallet?: WalletService,
+    // "Enviar Acesso" para conta que já tem senha: o mesmo link do "Esqueci a senha" do morador.
+    @Optional() private readonly mobileAuth?: MobileAuthService,
   ) {}
 
   private gerarSenhaAleatoria(): string {
@@ -1559,14 +1562,23 @@ export class MoradoresService {
     }
   }
 
+  /**
+   * "Enviar Acesso" (console e tela do síndico no app).
+   * - Conta que já tem senha (login e senha gravados): não gera senha nova nem derruba as sessões;
+   *   manda o link de redefinição do "Esqueci a senha" (MobileAuthService, papel morador).
+   * - Conta sem senha: cria/define a credencial inicial e manda o e-mail de boas-vindas, como antes.
+   * A resposta continua `{ ok: true }` (o app só confere o 2xx); `modo` e `message` são campos novos.
+   */
   async sendCredentials(id: number, operador?: JwtPayload) {
     const m = (await this.findOne(id)) as any;
     if (!m.email) {
       throw new NotFoundException('Morador não possui e-mail cadastrado');
     }
-    // Cláusula 8.3: menor não tem conta de app. Só o caso inequívoco (data no cadastro e de menor);
-    // sem data, segue como antes.
-    if (m.data_nascimento && calcularIdade(m.data_nascimento) < 18) {
+    // Cláusula 8.3: menor não tem conta de app. Sem a data não há como saber — mesma regra do cadastro com e-mail.
+    if (!m.data_nascimento) {
+      throw new BadRequestException('Informe a data de nascimento do morador antes de enviar o acesso.');
+    }
+    if (calcularIdade(m.data_nascimento) < 18) {
       throw new BadRequestException(
         'Este morador é menor de 18 anos e não recebe acesso ao app (Cláusula 8.3). O acesso do menor é pelo responsável.',
       );
@@ -1581,16 +1593,25 @@ export class MoradoresService {
     let emailDestino: string = m.email;
     if (this.prisma.isConnected) {
       let userId = m.id_user;
+      let conta: { email?: string | null; login?: string | null; password?: string | null } | null = null;
+      // Conta sem login: a credencial inicial nasce com o e-mail (cadastro importado sem acesso ao app).
+      let loginNovo: string | null = null;
       if (userId) {
-        const conta = await this.prisma.users.findUnique({
+        conta = await this.prisma.users.findUnique({
           where: { id: userId },
-          select: { email: true, login: true },
+          select: { email: true, login: true, password: true },
         });
-        const candidato = [conta?.email, conta?.login].find((v) => !!v && String(v).includes('@'));
-        if (!candidato) {
-          throw new BadRequestException('Esta conta não tem e-mail de acesso cadastrado. Peça que a pessoa use "Esqueci a senha" no app.');
+        if (!this.contaComSenha(conta)) {
+          const candidato = [conta?.email, conta?.login].find((v) => !!v && String(v).includes('@'));
+          if (candidato) {
+            emailDestino = String(candidato);
+            if (!conta?.login) loginNovo = emailDestino;
+          } else if (!conta?.login) {
+            loginNovo = m.email;
+          } else {
+            throw new BadRequestException('Esta conta não tem e-mail de acesso cadastrado. Peça que a pessoa use "Esqueci a senha" no app.');
+          }
         }
-        emailDestino = String(candidato);
       }
       if (!userId) {
         const existingUser = await this.prisma.users.findFirst({
@@ -1606,6 +1627,7 @@ export class MoradoresService {
             throw new BadRequestException('Esta pessoa também tem conta em outro condomínio. Peça que use "Esqueci a senha" no app.');
           }
           userId = existingUser.id;
+          conta = existingUser;
         } else {
           const newUser = await this.prisma.users.create({
             data: {
@@ -1628,15 +1650,47 @@ export class MoradoresService {
         });
       }
 
+      if (this.contaComSenha(conta)) {
+        // Quem já tem senha recebe o link: a senha atual e as sessões continuam valendo até ele trocar.
+        const login = String(conta!.login).trim().toLowerCase();
+        await this.enviarLinkRedefinicao(userId, login);
+        const ctxLink = await this.carregarContextoMorador(id);
+        await this.auditoria.registrar({
+          id_condominio: m.id_condominio ?? -1,
+          usuario_nome: operador?.nome ?? 'Portaria',
+          acao: 'STATUS',
+          modulo: 'moradores',
+          entidade_id: id,
+          descricao: `Enviou link de redefinição de senha para "${m.nome}" (${login})`,
+          detalhes: ctxLink ?? undefined,
+        });
+        return {
+          ok: true,
+          modo: 'link' as const,
+          message: `Enviamos para ${login} um link para o morador definir uma nova senha. O link vale por 30 minutos.`,
+        };
+      }
+
       if (m.id_condominio != null && (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, userId, m.id_condominio))) {
         throw new BadRequestException('Esta pessoa também tem conta em outro condomínio. Peça que use "Esqueci a senha" no app.');
+      }
+      if (loginNovo) {
+        // Users.email e Users.login são únicos: o e-mail não pode ser de outra conta nem de um porteiro.
+        const conflito = await this.prisma.users.findFirst({
+          where: { OR: [{ email: loginNovo }, { login: loginNovo }], NOT: { id: userId } },
+          select: { id: true },
+        });
+        if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
+        await this.assertLoginLivreDaPortaria(loginNovo);
+        emailDestino = loginNovo;
       }
       const senhaHash = await bcrypt.hash(senhaInicial, 10);
       await this.prisma.users.update({
         where: { id: userId },
         data: {
-          // Conta existente mantém o login; só a conta nova nasce com o e-mail do cadastro.
+          // Conta existente mantém o login; só a conta nova (ou a que não tinha login) recebe o e-mail.
           ...(!m.id_user && { login: m.email }),
+          ...(loginNovo && { login: loginNovo, ...(!conta?.email && { email: loginNovo }) }),
           password: senhaHash,
           // Senha nova: derruba os tokens emitidos antes (JwtStrategy).
           senha_alterada_em: momentoTrocaSenha(),
@@ -1656,7 +1710,46 @@ export class MoradoresService {
       detalhes: ctx ?? undefined,
     });
 
-    return { ok: true };
+    return {
+      ok: true,
+      modo: 'senha' as const,
+      message: `Enviamos para ${emailDestino} o acesso ao app com uma senha inicial.`,
+    };
+  }
+
+  /** Conta que já tem credencial: login e senha gravados. A ela não se manda senha nova, e sim o link. */
+  private contaComSenha(conta: { login?: string | null; password?: string | null } | null | undefined): boolean {
+    return !!conta?.login && !!conta?.password;
+  }
+
+  /**
+   * Link de redefinição pelo mecanismo do "Esqueci a senha" (token de 30 min, um uso, e-mail próprio).
+   * Aquele fluxo responde "ok" mesmo quando não envia (contra enumeração de contas); aqui o operador
+   * precisa saber, então as duas situações em que ele não enviaria são conferidas antes.
+   */
+  private async enviarLinkRedefinicao(idConta: number, login: string): Promise<void> {
+    if (!login.includes('@')) {
+      throw new BadRequestException('Esta conta não tem e-mail de acesso cadastrado. Peça que a pessoa use "Esqueci a senha" no app.');
+    }
+    if (!this.mobileAuth) {
+      throw new BadRequestException('Não foi possível enviar o link agora. Tente de novo em instantes.');
+    }
+    // O fluxo do morador só acha a conta quando algum cadastro de morador usa o e-mail do login.
+    const cadastros = await this.prisma.moradores.count({ where: { email: login } });
+    if (!cadastros) {
+      throw new BadRequestException(
+        `O e-mail de acesso deste morador ao app é ${login}, diferente do e-mail do cadastro. Corrija o e-mail do cadastro para ${login} e envie de novo.`,
+      );
+    }
+    // Mesmo teto do "Esqueci a senha": 3 links por hora por conta.
+    const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000);
+    const recentes = await this.prisma.redefinicoes_Senha.count({
+      where: { id_conta: idConta, papel: 'morador', criado_em: { gte: umaHoraAtras } },
+    });
+    if (recentes >= 3) {
+      throw new BadRequestException('Já enviamos 3 links para este morador na última hora. Aguarde um pouco antes de enviar de novo.');
+    }
+    await this.mobileAuth.solicitarRedefinicaoSenha(login, 'morador');
   }
 
   async exportExcel(

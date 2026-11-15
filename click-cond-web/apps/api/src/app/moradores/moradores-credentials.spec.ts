@@ -75,6 +75,7 @@ describe('MoradoresService - Envio de Credenciais Aleatórias', () => {
       email: emailMorador,
       telefone: '11999998888',
       id_condominio: 1,
+      data_nascimento: new Date('1980-01-01'),
       id_user: 99,
       user: {
         photo: null,
@@ -83,7 +84,7 @@ describe('MoradoresService - Envio de Credenciais Aleatórias', () => {
     });
 
     const res = await service.sendCredentials(10);
-    expect(res).toEqual({ ok: true });
+    expect(res).toMatchObject({ ok: true });
 
     // Verifica que o e-mail de boas-vindas foi disparado
     expect(mailMock.sendWelcomeMorador).toHaveBeenCalledTimes(1);
@@ -126,6 +127,7 @@ describe('MoradoresService - Envio de Credenciais Aleatórias', () => {
       email: 'maria@semuser.com',
       telefone: '11988887777',
       id_condominio: 1,
+      data_nascimento: new Date('1980-01-01'),
       id_user: null,
       user: null,
     });
@@ -134,7 +136,7 @@ describe('MoradoresService - Envio de Credenciais Aleatórias', () => {
     prismaMock.users.create.mockResolvedValue({ id: 50 });
 
     const res = await service.sendCredentials(20);
-    expect(res).toEqual({ ok: true });
+    expect(res).toMatchObject({ ok: true });
 
     expect(prismaMock.users.create).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -60,7 +60,7 @@ describe('MoradoresService.update — credenciais da conta', () => {
         isConnected: true,
         moradores: {
           findUnique: jest.fn(async () => ({
-            id: 10, id_user: 40, id_condominio: 1, nome: 'V', email: 'atacante@x.com',
+            id: 10, id_user: 40, id_condominio: 1, nome: 'V', email: 'atacante@x.com', data_nascimento: new Date('1980-01-01'),
             user: { id: 40 },
           })),
           update: jest.fn(),

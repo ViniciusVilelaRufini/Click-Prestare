@@ -135,7 +135,7 @@ describe('outras redefinições de senha de Users também gravam senha_alterada_
       isConnected: true,
       moradores: {
         findUnique: jest.fn(async () => ({
-          id: 10, nome: 'M', documento: '1', email: 'm@t', telefone: '1', id_condominio: 1, id_user: 99,
+          id: 10, nome: 'M', documento: '1', email: 'm@t', telefone: '1', id_condominio: 1, id_user: 99, data_nascimento: new Date('1980-01-01'),
           user: { photo: null, apartamentosUsers: [{ id_apto: 1 }] },
         })),
         update: jest.fn(async () => ({})),

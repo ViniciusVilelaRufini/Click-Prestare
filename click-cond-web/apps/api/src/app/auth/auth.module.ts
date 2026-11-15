@@ -73,6 +73,7 @@ import { WalletModule } from '../wallet/wallet.module';
     NotificacoesMobileController,
   ],
   providers: [AuthService, MobileAuthService, MfaService, JwtStrategy, QrSessionStore],
-  exports: [AuthService, MfaService, QrSessionStore],
+  // MobileAuthService: o "Enviar Acesso" do console manda o mesmo link do "Esqueci a senha" do morador.
+  exports: [AuthService, MfaService, QrSessionStore, MobileAuthService],
 })
 export class AuthModule {}

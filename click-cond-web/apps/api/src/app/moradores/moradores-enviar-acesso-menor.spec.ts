@@ -4,7 +4,7 @@ import { MoradoresService } from './moradores.service';
 /**
  * Revisão da rodada 3: "Enviar Acesso" gravava senha e criava conta sem conferir a idade. Quando o
  * cadastro TEM data de nascimento e ela é de menor de 18, a credencial de app não sai (Cláusula 8.3):
- * o acesso do menor é pelo responsável. Sem data, segue como antes (decisão do dono pendente).
+ * o acesso do menor é pelo responsável. Sem data, também não sai: a data é exigida (rodada 4).
  */
 describe('MoradoresService.sendCredentials — menor de 18 com data no cadastro', () => {
   function harness(dataNascimento: Date | null) {
@@ -52,13 +52,14 @@ describe('MoradoresService.sendCredentials — menor de 18 com data no cadastro'
 
   it('adulto pela data: envia como antes', async () => {
     const { service, prisma } = harness(new Date('1980-04-19'));
-    await expect(service.sendCredentials(5)).resolves.toEqual({ ok: true });
+    await expect(service.sendCredentials(5)).resolves.toMatchObject({ ok: true });
     expect(prisma.users.update).toHaveBeenCalled();
   });
 
-  it('sem data de nascimento: envia como antes (bloquear é decisão do dono)', async () => {
-    const { service, prisma } = harness(null);
-    await expect(service.sendCredentials(5)).resolves.toEqual({ ok: true });
-    expect(prisma.users.update).toHaveBeenCalled();
+  it('sem data de nascimento: recusa pedindo a data (rodada 4, decisão do dono)', async () => {
+    const { service, prisma, mail } = harness(null);
+    await expect(service.sendCredentials(5)).rejects.toThrow('Informe a data de nascimento do morador antes de enviar o acesso.');
+    expect(prisma.users.update).not.toHaveBeenCalled();
+    expect(mail.sendWelcomeMorador).not.toHaveBeenCalled();
   });
 });
