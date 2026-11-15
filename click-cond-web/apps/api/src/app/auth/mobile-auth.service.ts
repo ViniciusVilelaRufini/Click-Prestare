@@ -22,6 +22,7 @@ import { momentoTrocaSenha } from './senha-alterada.util';
 import { assertEmailNaoReservado } from '../common/email-reservado.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CardAoVivoService } from '../card-ao-vivo/card-ao-vivo.service';
+import { WalletService } from '../wallet/wallet.service';
 import { temaValido } from '../card-ao-vivo/conteudo';
 import { assertStaff, assertSindico, assertSindicoEstrito, assertOperador, isOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
@@ -108,6 +109,8 @@ export class MobileAuthService {
     @Optional() private readonly mfa?: MfaService,
     // Card ao vivo da portaria remota: logout encerra os cards abertos.
     @Optional() private readonly cardAoVivo?: CardAoVivoService,
+    // Passe da carteira: excluir o morador ou a conta revoga os passes.
+    @Optional() private readonly wallet?: WalletService,
   ) {}
 
   /** Estado entre instâncias (trava da senha do perfil); criado sob demanda. */
@@ -2307,12 +2310,14 @@ export class MobileAuthService {
     // O rosto do morador também está gravado nos terminais. A cascata apaga as linhas de Moradores,
     // que são o único lugar com o face_id, e o template biométrico ficava no aparelho. Mesmo caminho
     // do remove do morador (best-effort): falha de terminal não impede a exclusão da conta.
+    // As mesmas linhas, lidas antes do DELETE, dizem de quem revogar os passes da carteira depois.
+    let linhasMorador: Array<{ id: number; face_id: string | null; id_condominio: number | null }> = [];
     try {
-      const comRosto = await this.prisma.moradores.findMany({
-        where: { id_user: idUser, face_id: { not: null } },
+      linhasMorador = await this.prisma.moradores.findMany({
+        where: { id_user: idUser },
         select: { id: true, face_id: true, id_condominio: true },
       });
-      for (const m of comRosto) {
+      for (const m of linhasMorador.filter((l) => l.face_id)) {
         this.facial
           .unsyncMorador(m.id, m.face_id, m.id_condominio)
           .catch((err: any) =>
@@ -2334,6 +2339,13 @@ export class MobileAuthService {
       }),
       this.prisma.$executeRaw`DELETE FROM Users WHERE id = ${idUser}`,
     ]);
+    // Passe da carteira: a validação já nega (morador_removido); revogar e avisar faz o passe
+    // aparecer inválido no celular. Em segundo plano (revogarDoMorador nunca lança).
+    if (this.wallet) {
+      for (const m of linhasMorador) {
+        if (m.id_condominio) void this.wallet.revogarDoMorador(m.id, m.id_condominio);
+      }
+    }
     return { success: true };
   }
 
@@ -4898,6 +4910,11 @@ export class MobileAuthService {
       throw new BadRequestException(
         `Não foi possível remover o morador. (${err?.code ?? err?.name ?? 'erro'})`,
       );
+    }
+    // Passe da carteira: mesmo caminho do remove do painel (MoradoresService.remove). Não
+    // bloqueia a exclusão; revogarDoMorador nunca lança.
+    if (atual.id_condominio && this.wallet) {
+      void this.wallet.revogarDoMorador(Number(id), atual.id_condominio);
     }
     if (atual.face_id) {
       this.facial

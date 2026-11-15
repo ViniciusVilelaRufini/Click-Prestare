@@ -31,6 +31,7 @@ import { ApartamentosModule } from '../apartamentos/apartamentos.module';
 import { EncomendasModule } from '../encomendas/encomendas.module';
 import { SuperlogicaModule } from '../superlogica/superlogica.module';
 import { CardAoVivoModule } from '../card-ao-vivo/card-ao-vivo.module';
+import { WalletModule } from '../wallet/wallet.module';
 
 @Module({
   imports: [
@@ -52,6 +53,8 @@ import { CardAoVivoModule } from '../card-ao-vivo/card-ao-vivo.module';
     // Mão dupla com a Superlógica: o cadastro de morador feito PELO APP entra
     // por saveMorador aqui, não pelo MoradoresService do painel web.
     SuperlogicaModule,
+    // Excluir morador (removeMorador) ou a conta revoga os passes da carteira.
+    WalletModule,
   ],
   controllers: [
     AuthController,
