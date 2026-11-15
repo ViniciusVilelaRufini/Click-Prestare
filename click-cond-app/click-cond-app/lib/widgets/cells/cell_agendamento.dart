@@ -1,6 +1,7 @@
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/utils/localizable/localizable.dart';
+import 'package:click/utils/rotulo_reserva.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -158,6 +159,7 @@ class CellAgendamento extends StatelessWidget {
     final aprovadoPor = item['aprovado_por']?.toString() ?? (isAprovado ? 'Síndico' : null);
     final aprovadoEm = item['aprovado_em']?.toString();
     final motivoRecusa = item['motivo_recusa']?.toString();
+    final agendadoPor = rotuloAgendadoPor(item);
 
     return Container(
       margin: const EdgeInsets.symmetric(
@@ -320,6 +322,31 @@ class CellAgendamento extends StatelessWidget {
                           ),
                         ),
                       ],
+
+                      // Quem agendou (API nova manda `criado_por`; sem ele, nada).
+                      if (agendadoPor != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            children: [
+                              Icon(PhosphorIcons.user,
+                                  size: 14, color: AppColors.textTertiary(context)),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  agendadoPor,
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary(context),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
                       // Rodapé: Unidade e Data da Solicitação
                       Row(
