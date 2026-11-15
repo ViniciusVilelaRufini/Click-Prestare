@@ -106,14 +106,26 @@ const MSG_SIGNUP_GENERICA =
  * ignora). `conflito` sai como `falhou` com explicação; `ausente` e
  * `a_vincular` (coisas do console) não são enviados; tag sem Guarita, nada.
  */
-export function camposGuaritaParaApp(tag: any): Record<string, string | null> {
+export function camposGuaritaParaApp(tag: any): Record<string, string | boolean | null> {
   if (!tag || tag.id_device == null || !tag.guarita_estado) return {};
   const estado: string = tag.guarita_estado;
-  if (estado === 'ausente' || estado === 'a_vincular') return {};
+  // Coisas só do console: o app não as conhece.
+  if (estado === 'ausente' || estado === 'a_vincular' || estado === 'remocao_falhou') return {};
   if (estado === 'conflito') {
-    return { guarita_estado: 'falhou', guarita_erro: 'Este código já está em uso em outra unidade. Procure a portaria.' };
+    return {
+      guarita_estado: 'falhou',
+      guarita_erro: 'Este código já está em uso em outra unidade. Procure a portaria.',
+      guarita_vale_no_portao: false,
+    };
   }
-  return { guarita_estado: estado, guarita_erro: tag.guarita_erro ?? null };
+  // Sem confirmação do Guarita: para o morador, ainda está a caminho.
+  if (estado === 'incerto') return { guarita_estado: 'pendente', guarita_erro: null, guarita_vale_no_portao: false };
+  return {
+    guarita_estado: estado,
+    guarita_erro: tag.guarita_erro ?? null,
+    // "gravado" ainda não vale no portão (falta o 29): só "ativo" vale.
+    guarita_vale_no_portao: estado === 'ativo',
+  };
 }
 
 @Injectable()
@@ -6256,7 +6268,7 @@ export class MobileAuthService {
   }
 
   /** `guarita_estado`/`guarita_erro` da tag do veículo para o app, ou null (campos opcionais). */
-  private async estadoGuaritaDoVeiculo(idVeiculo: number): Promise<Record<string, string | null> | null> {
+  private async estadoGuaritaDoVeiculo(idVeiculo: number): Promise<Record<string, string | boolean | null> | null> {
     if (!this.guarita) return null;
     const campos = camposGuaritaParaApp(await this.tagAtualDoVeiculo(idVeiculo));
     return Object.keys(campos).length ? campos : null;

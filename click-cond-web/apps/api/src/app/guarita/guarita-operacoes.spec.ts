@@ -416,6 +416,16 @@ describe('Guarita — tag vinculada pelo morador no app (payloads do app 1.2.49)
       expect(v).not.toHaveProperty('guarita_estado');
       expect(v).not.toHaveProperty('guarita_erro');
     }
+    for (const e of ['remocao_falhou']) {
+      db.linhas('tags')[0].guarita_estado = e;
+      expect((await svc.listVeiculosByUser(500, 7))[0]).not.toHaveProperty('guarita_estado');
+    }
+    db.linhas('tags')[0].guarita_estado = 'incerto';
+    expect((await svc.listVeiculosByUser(500, 7))[0]).toMatchObject({ guarita_estado: 'pendente', guarita_vale_no_portao: false });
+    db.linhas('tags')[0].guarita_estado = 'gravado';
+    expect((await svc.listVeiculosByUser(500, 7))[0]).toMatchObject({ guarita_estado: 'gravado', guarita_vale_no_portao: false });
+    db.linhas('tags')[0].guarita_estado = 'ativo';
+    expect((await svc.listVeiculosByUser(500, 7))[0]).toMatchObject({ guarita_estado: 'ativo', guarita_vale_no_portao: true });
     Object.assign(db.linhas('tags')[0], { guarita_estado: 'falhou', guarita_erro: 'Memória do Guarita cheia.' });
     expect((await svc.listVeiculosByUser(500, 7))[0]).toMatchObject({ guarita_estado: 'falhou', guarita_erro: 'Memória do Guarita cheia.' });
   });
@@ -428,6 +438,7 @@ describe('Guarita — tag vinculada pelo morador no app (payloads do app 1.2.49)
       ok: true,
       guarita_estado: 'ativo',
       guarita_erro: null,
+      guarita_vale_no_portao: true,
     });
     expect(db.linhas('tags')).toHaveLength(1);
     expect(db.linhas('veiculos')[0].id_tag).toBe(1);
