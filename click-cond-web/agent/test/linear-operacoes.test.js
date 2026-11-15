@@ -470,7 +470,7 @@ test('item 1: apagar — não existe (só lê, ja_estava), outra unidade (confli
     assert.deepEqual(sim.comandosRecebidos(67).map((f) => f[2]), [3, 3], 'conflito: não escreveu');
     assert.equal(sim.memoria.dispositivos.length, 2);
     r = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(meu), esperado: { unidade: 5, bloco: 0 } });
-    assert.deepEqual(r, { ok: true, codigo: 0, mensagem: 'ok' });
+    assert.deepEqual(r, { ok: true, codigo: 0, lido: { unidade: 5, bloco: 0, frame_hex: hex(meu) }, mensagem: 'ok' });
     assert.deepEqual(sim.comandosRecebidos(67).map((f) => f[2]), [3, 3, 3, 4]);
     assert.equal(sim.memoria.dispositivos.length, 1);
     assert.equal(hex(sim.memoria.dispositivos[0]), hex(outro), 'o da outra unidade continua lá');
@@ -494,7 +494,7 @@ test('item 1: editar — não existe (falha 0x03, não escreve), outra unidade (
     const novo = Buffer.from(meu);
     Buffer.from('NOVO NOME'.padEnd(18, ' ')).copy(novo, 11);
     r = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(novo), esperado: { unidade: 5, bloco: 0 } });
-    assert.deepEqual(r, { ok: true, codigo: 0, mensagem: 'ok' });
+    assert.deepEqual(r, { ok: true, codigo: 0, lido: { unidade: 5, bloco: 0, frame_hex: hex(meu) }, mensagem: 'ok' });
     assert.equal(hex(sim.memoria.dispositivos[0]), hex(novo));
   });
 });
@@ -671,4 +671,54 @@ test('final Menor 7: Ler que responde 0x00 com OUTRA chave não vira a mensagem 
   assert.equal(r.mensagem, 'O Guarita devolveu outro dispositivo na leitura.');
   const c = await ops.conferirGravacao(sessaoFalsa, { tipo: 'cadastrar', frameHex: hex(dispositivo(5)) });
   assert.equal(c.incerto, true);
+});
+
+
+test('re-revisão R3: editar cujo pedido JÁ está no Guarita (ex.: a 1ª tentativa valeu e mudou a unidade) → ok + ja_estava + lido, sem escrever e sem conflito falso', async () => {
+  const depois = dispositivo(5);
+  depois[7] = 6; // unidade 6: o editar anterior já valeu
+  depois[29] = 0x25; // só leitura (último acionamento/bateria) não conta
+  await cenario({ dispositivos: [depois] }, async ({ sim, sessao }) => {
+    const pedido = Buffer.from(depois);
+    pedido[29] = 0x00;
+    const r = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(pedido), esperado: { unidade: 5, bloco: 0 } });
+    assert.deepEqual(r, {
+      ok: true,
+      codigo: null,
+      ja_estava: true,
+      lido: { unidade: 6, bloco: 0, frame_hex: hex(depois) },
+      mensagem: 'O Guarita já tinha estes dados.',
+    });
+    assert.deepEqual(sim.comandosRecebidos(67).map((f) => f[2]), [3], 'só leu');
+    // dados diferentes em outra unidade: continua conflito, com lido
+    const outro = Buffer.from(pedido);
+    Buffer.from('OUTRO NOME'.padEnd(18, ' ')).copy(outro, 11);
+    const c = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(outro), esperado: { unidade: 5, bloco: 0 } });
+    assert.equal(c.conflito, true);
+    assert.equal(c.lido.frame_hex, hex(depois));
+  });
+});
+
+test('re-revisão: todo resultado de editar/apagar que LEU o dispositivo traz lido.frame_hex (ok, falha do 67 na escrita, conflito)', async () => {
+  const d = dispositivo(5);
+  let simRef = null;
+  // A escrita (67 opção 1 ou 4) responde FE; o Ler responde normal.
+  const aoReceber = (frame) => {
+    if (frame[1] === 67 && (frame[2] === 1 || frame[2] === 4) && simRef.falharEscrita) simRef.falhas.respostaDo67(0xfe);
+  };
+  await cenario({ dispositivos: [d], aoReceber }, async ({ sim, sessao }) => {
+    simRef = sim;
+    const lido = { unidade: 5, bloco: 0, frame_hex: hex(d) };
+    const editado = Buffer.from(d);
+    Buffer.from('X'.padEnd(18, ' ')).copy(editado, 11);
+    sim.falharEscrita = true;
+    const r1 = await ops.gravar(sessao, { tipo: 'editar', frameHex: hex(editado), esperado: { unidade: 5, bloco: 0 } });
+    assert.deepEqual(r1, { ok: false, codigo: 0xfe, lido, mensagem: 'O Guarita recusou os dados do dispositivo.' });
+    const r2 = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(d), esperado: { unidade: 5, bloco: 0 } });
+    assert.deepEqual(r2, { ok: false, codigo: 0xfe, lido, mensagem: 'O Guarita recusou os dados do dispositivo.' });
+    sim.falharEscrita = false;
+    const r3 = await ops.gravar(sessao, { tipo: 'apagar', frameHex: hex(d), esperado: { unidade: 9, bloco: 0 } });
+    assert.equal(r3.conflito, true);
+    assert.deepEqual(r3.lido, lido);
+  });
 });

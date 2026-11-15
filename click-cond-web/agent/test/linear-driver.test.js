@@ -344,7 +344,9 @@ test('operações executam na ordem devolvida, uma de cada vez', async () => {
   await cenario({}, async (c) => {
     c.nuvem.ops.push({ id: 3, tipo: 'cadastrar', frame_hex: hex(dispositivo(5)) });
     const esperado = { unidade: 5, bloco: 0 };
-    c.nuvem.ops.push({ id: 4, tipo: 'editar', frame_hex: hex(dispositivo(5)), esperado });
+    const editado = dispositivo(5);
+    Buffer.from('EDITADO'.padEnd(18, ' ')).copy(editado, 11);
+    c.nuvem.ops.push({ id: 4, tipo: 'editar', frame_hex: hex(editado), esperado });
     c.nuvem.ops.push({ id: 5, tipo: 'apagar', frame_hex: hex(dispositivo(5)), esperado });
     c.nuvem.ops.push({ id: 6, tipo: 'apagar', frame_hex: hex(dispositivo(5)), esperado });
     c.escutar();
