@@ -92,14 +92,16 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     try {
       setState(() => _isLoading = true);
       var voto = VotoModel(opcao_id: opcao_id, votacao_id: votacao_id, id_apto: id_apto);
-      var res = await apiSaveObject("assembleias/votacoes/voto", "voto", voto, false);
-      if (res.toString().isEmpty) {
+      final res = await apiSaveObjectResultado("assembleias/votacoes/voto", "voto", voto);
+      if (res.ok) {
         // Votou: com várias unidades, o seletor avança para a próxima que
         // ainda não votou (unidadePadrao sem a escolha atual).
         _avancarUnidade = _variasUnidades;
         await load();
       } else {
-        if (mounted) displayMessage(context, getText('alert_error'), res.toString());
+        // Recusa da API (ex.: 409 "O proprietário da unidade já votou…")
+        // como veio; texto técnico vira o genérico.
+        if (mounted) displayMessage(context, getText('alert_error'), res.mensagemOu(getText('alert_generic_error')));
       }
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));

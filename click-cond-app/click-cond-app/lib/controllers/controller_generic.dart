@@ -46,6 +46,31 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
   return mensagemErroSalvar(response.statusCode, response.body);
 }
 
+/// Igual a [apiSaveObject] (mesma rota e mesmo corpo), mas devolve
+/// [ResultadoApi]: a recusa da API passa por `mensagemCurtaDaApi` (texto
+/// técnico vira null e a tela usa o genérico dela). Sem conexão, a falha traz
+/// o texto de comunicação de [apiSaveObject].
+Future<ResultadoApi> apiSaveObjectResultado(String route, String nameObj, dynamic obj, {bool isEdit = false}) async {
+  final http.Response response;
+  try {
+    final url = _buildUri('/$route/${isEdit ? 'update' : 'insert'}');
+    final Map<String, dynamic> payload = {};
+    payload['id_condominio'] = Singleton.instance.id_condominio.toString();
+    try {
+      payload[nameObj] = obj is Map ? obj : obj.toJson();
+    } catch (_) {
+      payload[nameObj] = obj;
+    }
+    response = await ApiClient.post(url, body: json.encode(payload), encoding: utf8).timeout(_kTimeout);
+  } catch (e) {
+    return const ResultadoApi.falha('Falha de comunicação com o servidor. Verifique sua conexão.');
+  }
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    logDebug('[apiSaveObjectResultado] HTTP ${response.statusCode}');
+  }
+  return ResultadoApi.daResposta(response.statusCode, response.body);
+}
+
 /// Mensagem de erro de um POST de salvar que não deu 2xx. Um 404 é rota que o
 /// servidor ainda não tem (API mais antiga que o app): vira texto amigável em
 /// vez de `Erro HTTP 404: {json cru}`. Os demais usam a `message` da API.
