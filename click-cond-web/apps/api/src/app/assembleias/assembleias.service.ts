@@ -1295,15 +1295,14 @@ export class AssembleiasService {
    * síndico, porteiro, console) — o formato "id;nome;votos" fica (o app
    * 1.2.48 faz parse dele) e `resultado_oculto` diz que está oculto. A
    * participação (unidades que votaram / total de unidades do condomínio)
-   * aparece sempre: é o quórum. `revelar` (só para a apuração da ATA, dentro
-   * do finish) devolve a contagem real.
+   * aparece sempre: é o quórum. Não há como pedir a contagem real de votação
+   * aberta: a ATA usa mapasDasVotacoes, depois de encerrar as pautas.
    */
   private async consultarVotacoes(
     idAssembleia?: number,
     isEnquete: boolean = false,
     idCondominio?: number,
     idVotacaoEspecifica?: number,
-    revelar = false,
   ) {
     const whereClause: any = {};
     if (idAssembleia !== undefined) whereClause.id_assembleia = idAssembleia;
@@ -1368,7 +1367,7 @@ export class AssembleiasService {
       // 0 = agendada, 1 = em andamento, 2 = encerrada (pela data, pelo
       // Encerrar ou pela assembleia finalizada).
       const statusInt = this.calcStatusInt(v.data_inicio, v.data_termino, v.encerrada_em ?? v.assembleia?.finalizada_em);
-      const oculto = statusInt !== 2 && !revelar;
+      const oculto = statusInt !== 2;
       const somenteProprietarios = v.somente_proprietarios ? 1 : 0;
       dados.set(v.id, { status: statusInt, id_assembleia: v.id_assembleia ?? null, somente_proprietarios: somenteProprietarios });
 
