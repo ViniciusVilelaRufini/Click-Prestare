@@ -1911,6 +1911,10 @@ export class FacialService {
     mensagem: string;
   }> {
     const device = await this.getDevice(id);
+    // Módulo Guarita: a conexão é UMA sessão TCP mantida pelo agente; testar
+    // abrindo outra (ou por HTTP direto) derrubaria/ocuparia a porta. A
+    // resposta sai do último estado que o agente reportou (POST .../estado).
+    if (device.tipo === TIPO_GUARITA) return this.testarGuaritaPeloEstado(device);
     const diagnostico = await this.client.diagnosticar(this.toConfig(device));
     const online = diagnostico.ok === true;
     const motivo = online ? null : (diagnostico.motivo ?? 'sem_resposta');
@@ -1922,6 +1926,48 @@ export class FacialService {
       motivo,
       ...(diagnostico.detalhe ? { detalhe: diagnostico.detalhe } : {}),
       mensagem: motivo === null ? MENSAGEM_DIAGNOSTICO_OK : MENSAGENS_DIAGNOSTICO[motivo],
+    };
+  }
+
+  /** "Testar conexão" do Guarita: só lê o estado guardado (chave guarita:estado:<id>, GuaritaAgenteService). */
+  private async testarGuaritaPeloEstado(device: { id: number }): Promise<{
+    online: boolean;
+    motivo: MotivoDiagnostico | null;
+    detalhe?: string;
+    mensagem: string;
+  }> {
+    const estado = (
+      await this.estado.obter<{ conectado: boolean; autorizado: boolean; erro: string | null; recebido_em: string }>(
+        `guarita:estado:${device.id}`,
+      )
+    )?.valor;
+    if (!estado) {
+      const agenteOnline = !!this.agent?.isOnline?.(device.id);
+      return agenteOnline
+        ? {
+            online: false,
+            motivo: 'sem_resposta',
+            detalhe: 'O agente ainda não informou o estado do Guarita.',
+            mensagem: 'O Agente Local ainda não informou o estado da conexão com o Guarita. Aguarde um minuto e teste de novo.',
+          }
+        : { online: false, motivo: 'agente_offline', mensagem: MENSAGENS_DIAGNOSTICO.agente_offline };
+    }
+    if (estado.conectado && estado.autorizado) {
+      return { online: true, motivo: null, mensagem: 'O Guarita está conectado ao Agente Local.' };
+    }
+    if (estado.conectado === false && estado.autorizado === false && /recusad|negad/i.test(estado.erro ?? '')) {
+      return {
+        online: false,
+        motivo: 'credencial_invalida',
+        ...(estado.erro ? { detalhe: estado.erro } : {}),
+        mensagem: 'O Guarita recusou a palavra de autorização. Confira a palavra cadastrada.',
+      };
+    }
+    return {
+      online: false,
+      motivo: 'sem_resposta',
+      ...(estado.erro ? { detalhe: estado.erro } : {}),
+      mensagem: 'O Agente Local não está conectado ao Guarita. Confira o IP, a porta e se outro programa está usando a conexão.',
     };
   }
 

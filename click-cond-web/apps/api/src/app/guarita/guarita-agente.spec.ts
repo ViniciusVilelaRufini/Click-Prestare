@@ -6,6 +6,8 @@ import { FacialService, TIPOS_DISPOSITIVO } from '../facial/facial.service';
 import { FacialController, semPalavraDoGuarita } from '../facial/facial.controller';
 import { normalizarFabricante, protocoloSemHttp, temCapacidade } from '../facial/fabricantes';
 import { AgentBridgeService } from '../facial/agent-bridge.service';
+import { RegrasAcessoService } from '../regras-acesso/regras-acesso.service';
+import { CaminhosAcessoService } from '../caminhos-acesso/caminhos-acesso.service';
 
 /**
  * Rotas do agente para o Módulo Guarita: autenticação pelo token do agente,
@@ -278,7 +280,8 @@ describe('GuaritaAgente — a palavra de autorização nunca sai em resposta nem
       await ctrl.update(10, {} as any, sindico),
     ];
     expect(JSON.stringify(respostas)).not.toContain(PALAVRA);
-    expect((respostas[2] as any).palavra_configurada).toBe(true);
+    expect((respostas[2] as any).tem_palavra).toBe(true);
+    expect(respostas[2]).not.toHaveProperty('api_password');
     // Outros tipos: igual a antes (o síndico continua vendo a senha do facial).
     expect((respostas[0] as any[])[1].api_password).toBe('senha-do-facial');
     expect(semPalavraDoGuarita(facial)).toBe(facial);
@@ -353,5 +356,66 @@ describe('Guarita no núcleo do facial', () => {
     await expect(svc.syncMorador(3)).resolves.toEqual({ skipped: true, reason: 'no_facial_devices' });
     for (const [args] of prisma.facial_Devices.findMany.mock.calls) expect(args.where.tipo).toBe('facial');
     expect(svc.client.enrollPerson).not.toHaveBeenCalled();
+  });
+});
+
+describe('Guarita fora das telas genéricas de aparelho', () => {
+  function bancoComGuarita() {
+    const db = criarBancoFalso();
+    db.semear('facial_Devices', [
+      { id: 10, id_condominio: 7, nome: 'Guarita', tipo: 'guarita', ativo: 1 },
+      { id: 11, id_condominio: 7, nome: 'Facial', tipo: 'facial', ativo: 1 },
+      { id: 12, id_condominio: 7, nome: 'Catraca', tipo: 'catraca', ativo: 1 },
+    ]);
+    return db;
+  }
+
+  it('regra de acesso com um Guarita → 400; sem Guarita continua aceita', async () => {
+    const db = bancoComGuarita();
+    const svc = new RegrasAcessoService(db as any, {} as any, {} as any);
+    await expect((svc as any).assertDispositivosDoCondominio([11, 10], 7)).rejects.toThrow(/Módulo Guarita não entra em regras/);
+    await expect((svc as any).assertDispositivosDoCondominio([11, 12], 7)).resolves.toBeUndefined();
+  });
+
+  it('caminho dos leitores: Guarita não é leitor nem abertura', async () => {
+    const db = bancoComGuarita();
+    const svc = new CaminhosAcessoService(db as any, {} as any);
+    await expect((svc as any).validarEtapas(7, [{ id_leitor: 10 }])).rejects.toThrow(/não identifica ninguém/);
+    await expect((svc as any).validarEtapas(7, [{ id_leitor: 11, id_abertura: 10 }])).rejects.toThrow(/não abre passagem/);
+    await expect((svc as any).validarEtapas(7, [{ id_leitor: 11, id_abertura: 12 }])).resolves.toBeUndefined();
+  });
+});
+
+describe('"Testar conexão" do Guarita responde pelo último estado do agente (sem HTTP direto)', () => {
+  function montarTeste() {
+    const m = montar();
+    const facial = Object.create(FacialService.prototype);
+    facial.prisma = m.db;
+    facial.logger = new Logger('teste');
+    facial.agent = { isOnline: jest.fn(() => true) };
+    facial.client = { diagnosticar: jest.fn() };
+    facial.handleDeviceStatusTransition = jest.fn();
+    facial.getDevice = jest.fn(async () => ({ id: 10, id_condominio: 7, tipo: 'guarita', nome: 'G', api_password: PALAVRA }));
+    return { ...m, facialSvc: facial };
+  }
+
+  it('conectado e autorizado → online, sem chamar o cliente HTTP', async () => {
+    const { ctrl, facialSvc } = montarTeste();
+    await ctrl.estado('agente-7', '10', { conectado: true, autorizado: true });
+    const r = await facialSvc.testDevice(10);
+    expect(r).toMatchObject({ online: true, motivo: null });
+    expect(facialSvc.client.diagnosticar).not.toHaveBeenCalled();
+    expect(JSON.stringify(r)).not.toContain(PALAVRA);
+  });
+
+  it('palavra recusada → credencial_invalida; sem estado e agente offline → agente_offline', async () => {
+    const { ctrl, facialSvc } = montarTeste();
+    await ctrl.estado('agente-7', '10', { conectado: false, autorizado: false, erro: 'Palavra de autorização recusada pelo Guarita' });
+    await expect(facialSvc.testDevice(10)).resolves.toMatchObject({ online: false, motivo: 'credencial_invalida' });
+
+    const outro = montarTeste();
+    outro.facialSvc.agent.isOnline = () => false;
+    await expect(outro.facialSvc.testDevice(10)).resolves.toMatchObject({ online: false, motivo: 'agente_offline' });
+    expect(outro.facialSvc.client.diagnosticar).not.toHaveBeenCalled();
   });
 });

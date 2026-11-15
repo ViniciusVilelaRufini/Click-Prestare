@@ -72,13 +72,13 @@ function semSegredosSeNaoSindico<T extends Record<string, any>>(d: T, user: JwtP
 /**
  * Módulo Guarita: a palavra de autorização (api_password) não sai em resposta
  * de rota do console NEM para o síndico — a tela só precisa saber se há uma
- * gravada (`palavra_configurada`). Só o agente a recebe, decifrada, no poll.
+ * gravada (`tem_palavra`). Só o agente a recebe, decifrada, no poll.
  * Outros tipos de dispositivo: resposta inalterada.
  */
 export function semPalavraDoGuarita<T extends Record<string, any>>(d: T): T {
   if (!d || d['tipo'] !== 'guarita') return d;
   const { api_password: palavra, ...resto } = d;
-  return { ...resto, palavra_configurada: !!palavra } as unknown as T;
+  return { ...resto, tem_palavra: !!palavra } as unknown as T;
 }
 
 @Controller('facial')
