@@ -5,6 +5,9 @@ class VeiculoModel {
   String? marcaModelo;
   int? idTag;
   String? tagCodigo; // código da tag vinculada (somente leitura no app)
+  // Estado da tag no Módulo Guarita (somente leitura; ausente sem Guarita).
+  String? guaritaEstado;
+  String? guaritaErro;
 
   VeiculoModel({
     this.id,
@@ -13,6 +16,8 @@ class VeiculoModel {
     this.marcaModelo,
     this.idTag,
     this.tagCodigo,
+    this.guaritaEstado,
+    this.guaritaErro,
   });
 
   factory VeiculoModel.fromJson(Map<String, dynamic> json) {
@@ -23,6 +28,8 @@ class VeiculoModel {
       marcaModelo: json['marca_modelo'],
       idTag: json['id_tag'],
       tagCodigo: json['tag_codigo'],
+      guaritaEstado: json['guarita_estado']?.toString(),
+      guaritaErro: json['guarita_erro']?.toString(),
     );
   }
 
