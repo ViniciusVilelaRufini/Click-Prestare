@@ -1215,6 +1215,12 @@ export class MoradoresService {
     // Foto reenviada igual à do cadastro não é edição: sem isto, corrigir o telefone exigia a data de
     // nascimento, rodava o sync facial de novo e regravava a foto de perfil do app (Users.photo).
     if (fotoPessoaUrl !== undefined && fotoPessoaUrl === (atual.foto_pessoa ?? null)) fotoPessoaUrl = undefined;
+    // "Remover foto" quando o cadastro não tem foto e a tela mostrava a de perfil do app (Users.photo):
+    // sem isto nada mudava e a foto continuava na lista. Sai só a de perfil; o facial lê Moradores.foto_pessoa,
+    // que já está vazio. Conta também de outro condomínio fica intocada (abaixo, contaDeOutroCondominio).
+    const removeFotoDoPerfil =
+      dto.foto_pessoa !== undefined && fotoPessoaUrl === undefined && !atual.foto_pessoa &&
+      !(dto.foto_pessoa ?? '').toString().trim() && !!(atual.user?.photo || atual.user?.profile_image);
     const fotoDocumentoUrl =
       dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento, fotosDoCadastro) : undefined;
 
@@ -1277,7 +1283,7 @@ export class MoradoresService {
 
     // O console nunca é o titular: com a conta também em outro condomínio, nome/telefone/foto ficam só
     // em Moradores. Só consulta quando há o que propagar (as demais edições não tocam Users).
-    const tocaPerfilDaConta = dto.nome !== undefined || dto.telefone !== undefined || fotoPessoaUrl !== undefined;
+    const tocaPerfilDaConta = dto.nome !== undefined || dto.telefone !== undefined || fotoPessoaUrl !== undefined || removeFotoDoPerfil;
     const contaDeOutroCondominio =
       tocaPerfilDaConta && !!atual.id_user && atual.id_condominio != null &&
       (await usuarioTemVinculoEmOutroCondominio(this.prisma as any, atual.id_user, atual.id_condominio));
@@ -1440,6 +1446,9 @@ export class MoradoresService {
         if (fotoPessoaUrl !== undefined) {
           userPatch.photo = fotoPessoaUrl;
           userPatch.profile_image = fotoPessoaUrl;
+        } else if (removeFotoDoPerfil) {
+          userPatch.photo = null;
+          userPatch.profile_image = null;
         }
         // O console edita o cadastro do condomínio (Moradores). Login/e-mail/CPF da
         // conta (Users) só mudam pelo próprio titular, no app, com a senha atual:
@@ -1488,6 +1497,9 @@ export class MoradoresService {
     }
     if (fotoPessoaUrl !== undefined && fotoPessoaUrl !== atual.foto_pessoa) {
       changes['foto_pessoa'] = { de: '(anterior)', para: '(nova)' };
+    }
+    if (removeFotoDoPerfil && !contaDeOutroCondominio) {
+      changes['foto_perfil_app'] = { de: '(anterior)', para: null };
     }
     const ctx = await this.carregarContextoMorador(result.id);
     await this.auditoria.registrar({
