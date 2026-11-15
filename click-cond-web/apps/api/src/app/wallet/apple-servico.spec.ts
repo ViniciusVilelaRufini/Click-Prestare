@@ -80,7 +80,9 @@ describe('AppleServicoController', () => {
     });
     const tenant: any = { assertCondominio: jest.fn(async () => undefined) };
     const chaves: any = { apple: jest.fn(async () => CHAVES) };
-    const svc = new WalletService(prisma, new CredenciaisValidacaoService(prisma), chaves, tenant, { registrar: jest.fn() } as any);
+    // Push falso: nenhum teste fala com o APNs de verdade.
+    const push = { avisar: jest.fn(async () => ({ status: 200 })) };
+    const svc = new WalletService(prisma, new CredenciaisValidacaoService(prisma), chaves, tenant, { registrar: jest.fn() } as any, push);
     const ctrl = new AppleServicoController(svc, prisma);
     const pass = passJson(await svc.emitirApple(MORADOR, { id_condominio: 1 }, agora));
     const id = estado.creds[0].id;
@@ -306,12 +308,18 @@ describe('AppleServicoController', () => {
     expect((await entregar(ctx)).codigo).toBe(503);
   });
 
-  it('erro do banco vira 503, nunca 500', async () => {
+  it('erro do banco vira 503, nunca 500, e o log não repete a mensagem do erro', async () => {
     const ctx = await build();
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     ctx.prisma.wallet_Registros.findMany.mockRejectedValueOnce(new Error('banco fora'));
     expect((await listar(ctx)).codigo).toBe(503);
-    ctx.prisma.wallet_Registros.findUnique.mockRejectedValueOnce(new Error('banco fora'));
+    ctx.prisma.wallet_Registros.findUnique.mockRejectedValueOnce(
+      Object.assign(new Error(`Invalid invocation: push_token: "${PUSH}"`), { code: 'P2000' }),
+    );
     expect((await registrar(ctx)).codigo).toBe(503);
+    const tudo = warn.mock.calls.flat().map(String).join(' | ');
+    expect(tudo).toContain('P2000');
+    expect(tudo).not.toContain(PUSH);
   });
 
   it('log: responde 200, loga a quantidade, e não loga token', async () => {

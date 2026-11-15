@@ -62,7 +62,9 @@ describe('WalletService', () => {
     const auditoria: any = { registrar: jest.fn(async () => undefined) };
     const chaves: any = { apple: jest.fn(async () => (opts.semChaves ? null : CHAVES)) };
     const validacao = new CredenciaisValidacaoService(prisma);
-    const svc = new WalletService(prisma, validacao, chaves, tenant, auditoria);
+    // Push falso: nenhum teste fala com o APNs de verdade.
+    const push = { avisar: jest.fn(async () => ({ status: 200 })) };
+    const svc = new WalletService(prisma, validacao, chaves, tenant, auditoria, push);
     const credenciais = new CredenciaisService(prisma, tenant, {} as any, svc);
     return { svc, prisma, estado, tenant, auditoria, chaves, validacao, credenciais };
   }

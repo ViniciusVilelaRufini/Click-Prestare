@@ -264,7 +264,9 @@ export class AppleServicoController {
         return;
       }
       if (!(e instanceof HttpException)) {
-        this.logger.warn(`Serviço da Carteira (Apple) falhou: ${e?.name ?? 'erro'}: ${String(e?.message ?? '').slice(0, 200)}`);
+        // Só nome e código: a mensagem de erro do Prisma pode repetir os
+        // argumentos da consulta (o push token, por exemplo).
+        this.logger.warn(`Serviço da Carteira (Apple) falhou: ${e?.name ?? 'erro'}${e?.code ? ` (${e.code})` : ''}`);
       }
       res.status(503).end();
     }
