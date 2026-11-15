@@ -377,6 +377,7 @@ test('C2: palavra que forma frame (77, 19, 8, 18, 24) ou fora de 1..15 imprimív
     '\x00\x12\x12', // 18: reiniciar
     '\x00\x18\x18', // 24: reset
     'abc\x7Fdef', // DEL
+    'senha~', // 0x7E: fora da faixa do documento (p10 vai até 0x7D)
     'tab\there',
     'acentuação',
     'x'.repeat(16),
@@ -405,8 +406,8 @@ test('C2: palavra que forma frame (77, 19, 8, 18, 24) ou fora de 1..15 imprimív
   }
 });
 
-test('C2: palavras válidas (1 a 15 caracteres 0x20..0x7E) continuam aceitas', async () => {
-  for (const palavra of ['a', 'Senha 123~', 'x'.repeat(15), ' !"#$%&()*+,-./']) {
+test('C2: palavras válidas (1 a 15 caracteres 0x20..0x7D) continuam aceitas', async () => {
+  for (const palavra of ['a', 'Senha 123}', 'x'.repeat(15), ' !"#$%&()*+,-./', '{|}']) {
     const { sock, sessao } = montarSessao({ palavra });
     const p = sessao.conectar();
     sock.emit('connect');

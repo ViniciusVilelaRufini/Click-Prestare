@@ -18,7 +18,7 @@
  *     passar: frame da lista branca (`ehFramePermitido`, a segunda trava
  *     além de `montar`), o byte 0x00 de continuação dentro de leitura
  *     progressiva, ou a palavra de autorização VALIDADA (1 a 15 caracteres
- *     0x20..0x7E, uma vez, na fase de autorização). Palavra fora disso não
+ *     0x20..0x7D, uma vez, na fase de autorização). Palavra fora disso não
  *     conecta: com bytes de controle ela poderia formar um frame (ex.:
  *     "\x00MU\xAAL" (bytes 00 4D 55 AA 4C) = comando 77, formatar) num Guarita sem autorização.
  *   - O protocolo não tem identificador de transação: uma resposta só é
@@ -58,12 +58,12 @@ const MSG_OCUPADO_29 = 'O Guarita está atualizando os receptores. Tente de novo
 const MSG_NEGADO = 'Palavra de autorização recusada pelo Guarita';
 const MSG_PALAVRA_INVALIDA = 'Palavra de autorização inválida no cadastro';
 
-/** 1 a 15 caracteres, todos ASCII imprimível 0x20..0x7E. */
+/** 1 a 15 caracteres, todos ASCII 0x20..0x7D (p10 do documento). */
 function palavraValida(p) {
   if (typeof p !== 'string' || p.length < 1 || p.length > 15) return false;
   for (let i = 0; i < p.length; i++) {
     const c = p.charCodeAt(i);
-    if (c < 0x20 || c > 0x7e) return false;
+    if (c < 0x20 || c > 0x7d) return false;
   }
   return true;
 }
@@ -71,7 +71,7 @@ function palavraValida(p) {
 /** Mesma regra sobre os bytes que vão ao socket. */
 function bytesDePalavraValidos(buf) {
   if (!Buffer.isBuffer(buf) || buf.length < 1 || buf.length > 15) return false;
-  for (const b of buf) if (b < 0x20 || b > 0x7e) return false;
+  for (const b of buf) if (b < 0x20 || b > 0x7d) return false;
   return true;
 }
 const MSG_SEM_RESPOSTA = 'O Guarita não respondeu.';
@@ -413,7 +413,7 @@ class SessaoGuarita extends EventEmitter {
    * ÚNICO ponto que escreve no socket. `natureza`:
    *   'frame'        — só frame da lista branca (ehFramePermitido);
    *   'continuacao'  — só o byte 0x00, dentro de leitura progressiva;
-   *   'palavra'      — só na fase de autorização, uma vez, 1..15 bytes 0x20..0x7E.
+   *   'palavra'      — só na fase de autorização, uma vez, 1..15 bytes 0x20..0x7D.
    * Qualquer outra coisa é recusada sem escrever.
    */
   _enviarAoSocket(buf, natureza) {
