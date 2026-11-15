@@ -16,7 +16,8 @@ const PROFUNDIDADE_MAX = 12;
  * Chaves cujo valor é arquivo do bucket e sai assinado. São as colunas de
  * arquivo do schema (Areas_Sociais.imagem, Assembleias.anexos,
  * Condominios.photo, Convites_Visita.foto_url, DeliveryEntregadores.foto,
- * Documentos.link_doc, Encomendas.foto_volume/retirado_foto/
+ * Documentos.link_doc (e `link_ata`, o link_doc da ATA no detalhe da
+ * assembleia finalizada), Encomendas.foto_volume/retirado_foto/
  * retirado_assinatura, Financeiro.photo/url_boleto/url_comprovante,
  * Moradores/Pessoas/Prestadores_servico/Visitantes.foto_pessoa/
  * foto_documento, Ocorrencias.anexos, Users.photo/profile_image) e os nomes
@@ -42,6 +43,7 @@ const CHAVES_DE_ARQUIVO: ReadonlySet<string> = new Set([
   'retirado_foto',
   'retirado_assinatura',
   'link_doc',
+  'link_ata',
   'url_boleto',
   'url_comprovante',
   'url',

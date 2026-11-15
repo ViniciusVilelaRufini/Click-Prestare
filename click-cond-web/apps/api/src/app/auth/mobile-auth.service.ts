@@ -2403,8 +2403,11 @@ export class MobileAuthService {
     }
     // Cobrança do condomínio (tudo que não é conta pessoal 'D') guarda o morador em id_usuario e
     // fk_fin_user é ON DELETE CASCADE: a exclusão apagava a taxa condominial da unidade. Desvincula antes,
-    // na mesma transação do DELETE. Votos (Votacoes_Usuarios.id_user) e mensagens de ocorrência
-    // (OcorrenciaMensagens.id_usuario) são NOT NULL e seguem em cascata até aplicar
+    // na mesma transação do DELETE. Votos de assembleia/enquete FICAM: desde
+    // prisma/sql/2026-11-15-assembleia-robusta.sql a FK fk_vu_user é ON DELETE SET NULL (id_user vira
+    // nulo) e o voto guarda o retrato (tipo do vínculo, nome do votante, rótulo da unidade), então a
+    // apuração e o mapa de votação não mudam. Mensagens de ocorrência (OcorrenciaMensagens.id_usuario)
+    // ainda são NOT NULL e seguem em cascata até aplicar a parte 2 de
     // prisma/sql/2026-11-12-PROPOSTA-exclusao-conta-preserva-votos-mensagens.sql (não aplicado).
     await this.prisma.$transaction([
       this.prisma.financeiro.updateMany({

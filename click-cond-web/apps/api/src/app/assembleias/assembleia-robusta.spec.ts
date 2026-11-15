@@ -238,6 +238,7 @@ function build(
         return d;
       }),
       findUnique: jest.fn(async ({ where }: any) => documentos.find((d) => d.id === where.id) ?? null),
+      findFirst: jest.fn(async ({ where }: any) => documentos.find((d) => casa(d, where)) ?? null),
     },
   };
   prisma.$queryRaw = jest.fn(async () => {
@@ -737,6 +738,233 @@ describe('2.6 — mapa de votação (nominal, só síndico/staff)', () => {
       expect(textoCanonicoMapa(alterado)).not.toBe(texto);
       expect(hashMapas([mapa])).toMatch(/^[0-9a-f]{64}$/);
       expect(hashMapas([mapa])).toBe(hashMapas([JSON.parse(JSON.stringify(mapa))]));
+    });
+  });
+});
+
+describe('2.5 — nada some', () => {
+  const t = (hhmm: string) => new Date(`2026-11-14T${hhmm}:00Z`);
+  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const VOTOS = [
+    { id: 1, id_opcao: 52, id_user: 11, id_apto: 100, tipo_vinculo: 'inquilino', nome_votante: 'Igor Inquilino', rotulo_unidade: 'Apto 11 Bloco A', created_at: t('12:00'), substituido_em: t('13:00') },
+    { id: 2, id_opcao: 51, id_user: 10, id_apto: 100, tipo_vinculo: 'proprietario', nome_votante: 'Paula Proprietária', rotulo_unidade: 'Apto 11 Bloco A', created_at: t('13:00') },
+    { id: 3, id_opcao: 52, id_user: 21, id_apto: 200, tipo_vinculo: 'inquilino', nome_votante: 'Vinte e Um', rotulo_unidade: 'Apto 21 Bloco A', created_at: t('13:30') },
+  ] as any;
+  // Assembleia 3 com duas pautas: 5 (aberta) e 8 (já encerrada pela data).
+  const comDuasPautas = () =>
+    build({
+      votos: VOTOS,
+      votacoes: [
+        { id: 5, id_assembleia: 3, is_enquete: 0, titulo: 'Contas 2025', somente_proprietarios: 1, opcoes: [{ id: 51, nome: 'Aprovar' }, { id: 52, nome: 'Rejeitar' }] },
+        { id: 8, id_assembleia: 3, is_enquete: 0, titulo: 'Obra', data_termino: new Date('2026-11-01T00:00:00Z'), opcoes: [{ id: 81, nome: 'Sim' }, { id: 82, nome: 'Não' }] },
+        { id: 6, id_assembleia: null, is_enquete: 1, titulo: 'Cor da fachada', opcoes: [{ id: 61, nome: 'Azul' }, { id: 62, nome: 'Verde' }] },
+      ],
+    });
+  const textoDoUpload = (storage: any, n: number) =>
+    Buffer.from(storage.uploadDataUrl.mock.calls[n][0].split('base64,')[1], 'base64').toString('utf8');
+
+  describe('finish (finalizar com a ATA)', () => {
+    it('NÃO apaga: marca finalizada (quem, quando, ATA, hash), encerra as pautas abertas e mantém os votos', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-15T13:00:00Z'), doNotFake: ['nextTick', 'setImmediate'] });
+      try {
+        const { svc, prisma, assembleias, votacoes, votos, documentos } = comDuasPautas();
+        const res: any = await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+        expect(res.message).toContain('ATA');
+        expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+        expect(prisma.votacoes.delete).not.toHaveBeenCalled();
+        expect(votos).toHaveLength(3);
+        const ata = documentos.find((d) => d.nome.startsWith('ATA '));
+        expect(assembleias[0]).toMatchObject({
+          finalizada_em: new Date('2026-11-15T13:00:00Z'), finalizada_por: 7, id_documento_ata: ata.id,
+        });
+        expect(assembleias[0].apuracao_hash).toMatch(/^[0-9a-f]{64}$/);
+        // A pauta aberta foi encerrada agora (e o término futuro virou hoje); a já encerrada pela data não.
+        expect(votacoes[0].encerrada_em).toEqual(new Date('2026-11-15T13:00:00Z'));
+        expect(votacoes[0].data_termino.toISOString().slice(0, 10)).toBe('2026-11-15');
+        expect(votacoes[1].encerrada_em).toBeNull();
+        expect(votacoes[2].encerrada_em).toBeNull(); // enquete avulsa não é da assembleia
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('apuração publicada: totais, participação, "somente proprietários", a regra e o código de integridade — sem nomes', async () => {
+      const { svc, storage, documentos, assembleias } = comDuasPautas();
+      await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+      const texto = textoDoUpload(storage, 1);
+      expect(texto).toContain('1. Contas 2025');
+      expect(texto).toContain('Somente proprietários votam nesta pauta.');
+      expect(texto).toContain('- Aprovar: 1 voto(s)');
+      expect(texto).toContain('- Rejeitar: 1 voto(s)');
+      expect(texto).toContain('Participação: 2 de 3 unidades');
+      expect(texto).toContain('2. Obra');
+      expect(texto).toContain('Participação: 0 de 3 unidades');
+      expect(texto).toMatch(/Regra: um voto por unidade/);
+      expect(texto).toContain('Código de integridade do mapa de votação: ' + assembleias[0].apuracao_hash);
+      for (const nome of ['Paula', 'Igor', 'Vinte e Um']) expect(texto).not.toContain(nome);
+      expect(documentos.map((d) => d.nome)).toEqual(['ATA AGO 2026 - 20/11/2026', 'Apuração das pautas - ATA AGO 2026 - 20/11/2026']);
+    });
+
+    it('o hash confere com o mapa de votação que o síndico baixa depois', async () => {
+      const { svc, assembleias } = comDuasPautas();
+      await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+      const mapas = [await svc.mapaVotacao(5, sindico), await svc.mapaVotacao(8, sindico)];
+      expect(hashMapas(mapas)).toBe(assembleias[0].apuracao_hash);
+    });
+
+    it('finalizar de novo: 400 "Assembleia já finalizada." e nada é publicado', async () => {
+      const { svc, prisma, storage } = comDuasPautas();
+      await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+      prisma.documentos.create.mockClear();
+      storage.uploadDataUrl.mockClear();
+      await expect(svc.finish(COND, { id: 3, doc: PDF }, sindico)).rejects.toThrow(new BadRequestException('Assembleia já finalizada.'));
+      expect(prisma.documentos.create).not.toHaveBeenCalled();
+      expect(storage.uploadDataUrl).not.toHaveBeenCalled();
+    });
+
+    it('corrida: outra finalização confirmou antes — a transação desfaz (400) e o PDF enviado sai do bucket', async () => {
+      const { svc, prisma, storage } = comDuasPautas();
+      prisma.assembleias.updateMany.mockResolvedValueOnce({ count: 0 });
+      await expect(svc.finish(COND, { id: 3, doc: PDF }, sindico)).rejects.toThrow('Assembleia já finalizada.');
+      expect(storage.deleteUrl).toHaveBeenCalled();
+    });
+
+    it('payload exato do app 1.2.48 (modal_finalizar_assembleia: id, titulo, data, doc) continua 200', async () => {
+      const { svc } = comDuasPautas();
+      const ctrl = new AssembleiasController(svc);
+      const body = { id_condominio: '1', assembleia: { id: 3, titulo: 'AGO 2026', data: '20/11/2026', doc: PDF } };
+      await expect(ctrl.finish(body, sindico)).resolves.toEqual(expect.objectContaining({ message: expect.any(String) }));
+    });
+  });
+
+  describe('assembleia finalizada é imutável', () => {
+    const finalizada = () => {
+      const b = comDuasPautas();
+      b.assembleias[0].finalizada_em = new Date('2026-11-15T13:00:00Z');
+      return b;
+    };
+
+    it('update: 400 e nada é gravado', async () => {
+      const { svc, prisma } = finalizada();
+      await expect(svc.update(COND, { id: 3, titulo: 'Outro' }, 7, sindico)).rejects.toThrow(
+        new BadRequestException('Assembleia finalizada não pode ser editada.'),
+      );
+      expect(prisma.assembleias.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('remove: 400', async () => {
+      const { svc, prisma } = finalizada();
+      await expect(svc.remove(3, sindico)).rejects.toThrow(new BadRequestException('Assembleia finalizada não pode ser excluída.'));
+      expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+    });
+
+    it('nova pauta: 400', async () => {
+      const { svc, prisma } = finalizada();
+      await expect(
+        svc.insertVotacao({ titulo: 'Nova', data_inicio: '01/12/2026', data_termino: '10/12/2026', opcoes: ['Sim', 'Não'], id_assembleia: 3 }, COND, sindico),
+      ).rejects.toThrow(new BadRequestException('Assembleia finalizada não aceita novas pautas.'));
+      expect(prisma.votacoes.create).not.toHaveBeenCalled();
+    });
+
+    it('excluir pauta dela: 400 (mesmo sem voto)', async () => {
+      const { svc, prisma } = finalizada();
+      await expect(svc.removeVotacao(8, sindico)).rejects.toThrow(
+        new BadRequestException('Pauta de assembleia finalizada não pode ser excluída.'),
+      );
+      expect(prisma.votacoes.delete).not.toHaveBeenCalled();
+    });
+
+    it('votar: 400', async () => {
+      const { svc } = finalizada();
+      await expect(votar(svc, 10, 5, 51)).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('excluir com voto', () => {
+    it('assembleia NÃO finalizada com voto (vigente ou não) em qualquer pauta: 400', async () => {
+      const { svc, prisma } = comDuasPautas();
+      await expect(svc.remove(3, sindico)).rejects.toThrow(
+        new BadRequestException('Esta assembleia já tem votos e não pode ser excluída. Finalize-a com a ATA.'),
+      );
+      expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+      // Só um voto substituído também conta.
+      const b = build({ votos: [{ ...VOTOS[0] }] });
+      await expect(b.svc.remove(3, sindico)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('assembleia sem voto: exclui', async () => {
+      const { svc, prisma } = build();
+      await expect(svc.remove(3, sindico)).resolves.toEqual({ success: true });
+      expect(prisma.assembleias.delete).toHaveBeenCalledWith({ where: { id: 3 } });
+    });
+
+    it('pauta de assembleia com voto: 400; sem voto: exclui', async () => {
+      const { svc, prisma } = comDuasPautas();
+      await expect(svc.removeVotacao(5, sindico)).rejects.toThrow(
+        new BadRequestException('Esta pauta já tem votos e não pode ser excluída. Encerre a votação.'),
+      );
+      await expect(svc.removeVotacao(8, sindico)).resolves.toEqual({ success: true });
+      expect(prisma.votacoes.delete.mock.calls.map((c: any) => c[0].where.id)).toEqual([8]);
+    });
+
+    it('enquete avulsa continua podendo ser excluída, mesmo com voto', async () => {
+      const { svc, prisma } = build({ votos: [{ id: 1, id_opcao: 61, id_user: 10, id_apto: 100, tipo_vinculo: 'proprietario' }] });
+      await expect(svc.removeVotacao(6, sindico)).resolves.toEqual({ success: true });
+      expect(prisma.votacoes.delete).toHaveBeenCalledWith({ where: { id: 6 } });
+    });
+  });
+
+  describe('getAll e get', () => {
+    const tres = () =>
+      build({
+        assembleias: [
+          { id: 3, titulo: 'AGO', data: new Date('2026-11-20T00:00:00Z'), finalizada_em: new Date('2026-11-21T15:00:00Z'), id_documento_ata: 900 },
+          { id: 4, titulo: 'AGE', data: new Date('2026-12-01T00:00:00Z') },
+          { id: 2, titulo: 'Antiga', data: new Date('2026-10-01T00:00:00Z') },
+        ],
+      });
+
+    it('padrão (app 1.2.48): só as NÃO finalizadas', async () => {
+      const { svc } = tres();
+      const lista: any[] = await svc.getAll(COND, sindico);
+      expect(lista.map((a) => a.id).sort()).toEqual([2, 4]);
+      expect(lista.every((a) => a.finalizada === false && a.finalizada_em === null)).toBe(true);
+    });
+
+    it('incluir_finalizadas: todas, com finalizada/finalizada_em, finalizadas por último', async () => {
+      const { svc, prisma } = tres();
+      prisma.assembleias.findMany.mockImplementation(async ({ where }: any) =>
+        [
+          { id: 2, id_condominio: 1, titulo: 'Antiga', data: new Date('2026-10-01T00:00:00Z'), hora: null, finalizada_em: null },
+          { id: 3, id_condominio: 1, titulo: 'AGO', data: new Date('2026-11-20T00:00:00Z'), hora: null, finalizada_em: new Date('2026-11-21T15:00:00Z') },
+          { id: 4, id_condominio: 1, titulo: 'AGE', data: new Date('2026-12-01T00:00:00Z'), hora: null, finalizada_em: null },
+        ].filter((a) => casa(a, where)),
+      );
+      const lista: any[] = await svc.getAll(COND, sindico, true);
+      expect(lista.map((a) => [a.id, a.finalizada, a.finalizada_em])).toEqual([
+        [2, false, null],
+        [4, false, null],
+        [3, true, '2026-11-21T15:00:00.000Z'],
+      ]);
+    });
+
+    it('controller: ?incluir_finalizadas=1 liga; ausente não', () => {
+      const service: any = { getAll: jest.fn(async () => []) };
+      const ctrl = new AssembleiasController(service);
+      ctrl.getAll('1', sindico);
+      ctrl.getAll('1', sindico, '1');
+      ctrl.getAll('1', sindico, 'true');
+      ctrl.getAll('1', sindico, '0');
+      expect(service.getAll.mock.calls.map((c: any) => c[2])).toEqual([false, true, true, false]);
+    });
+
+    it('get de uma finalizada: finalizada, finalizada_em e link_ata (do Documento da ATA)', async () => {
+      const { svc, documentos } = tres();
+      documentos.push({ id: 900, id_condominio: 1, nome: 'ATA AGO', link_doc: 'https://bucket.s3.amazonaws.com/atas/ata.pdf' });
+      const r: any = await svc.get(COND, 3, 10, morador(10));
+      expect(r.assembleia).toMatchObject({ id: 3, finalizada: true, finalizada_em: '2026-11-21T15:00:00.000Z', link_ata: 'https://bucket.s3.amazonaws.com/atas/ata.pdf' });
+      const aberta: any = await svc.get(COND, 4, 10, morador(10));
+      expect(aberta.assembleia).toMatchObject({ finalizada: false, finalizada_em: null, link_ata: null });
     });
   });
 });

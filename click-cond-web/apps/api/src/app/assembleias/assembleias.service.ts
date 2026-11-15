@@ -4,6 +4,7 @@ import { Prisma } from '../prisma/generated';
 import { type Gravados, StorageService, umaVez } from '../common/storage/storage.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { createHash } from 'crypto';
 import { formatarDataHoraBrasilia, formatarDataHoraSegundosBrasilia, hojeBrasilia } from '../common/hora-brasilia.util';
@@ -66,33 +67,39 @@ function dataDbBr(d: Date | null | undefined): string {
 }
 
 /**
- * Apuração das pautas em texto, gravada junto da ATA ao finalizar (a
- * assembleia é apagada e leva as votações). `opcoes` vem no formato da API,
- * "id;nome;votos" — o nome pode ter ';'.
+ * Apuração das pautas em texto, publicada junto da ATA ao finalizar (visível
+ * a todos em Documentos > Atas): totais por opção, participação, "somente
+ * proprietários" quando marcado e a regra — SEM lista nominal (o mapa nominal
+ * é só do síndico). No fim, o código de integridade: SHA-256 do texto
+ * canônico dos mapas de votação (ver textoCanonicoMapa / hashMapas).
  */
 function textoApuracao(
   titulo: string,
   data: string,
-  pautas: Array<{ titulo: string; descricao?: string; data_inicio: string; data_termino: string; opcoes: string[] }>,
+  pautas: Array<{ mapa: MapaVotacao; descricao: string; periodo: string }>,
+  hash: string | null,
+  quando: Date,
 ): string {
   const linhas = [
     `Apuração das pautas - ${titulo}${data ? ` (${data})` : ''}`,
-    `Registrada ao finalizar a assembleia, em ${formatarDataHoraBrasilia(new Date())} (horário de Brasília).`,
-    'Conta um voto por unidade: o mais recente de cada unidade.',
+    `Registrada ao finalizar a assembleia, em ${formatarDataHoraBrasilia(quando)} (horário de Brasília).`,
+    'Regra: um voto por unidade; conta o voto vigente de cada unidade. O voto do proprietário só é substituído por ' +
+      'outro proprietário; o do inquilino, por proprietário ou inquilino. Membros da unidade não votam em pauta de assembleia.',
   ];
-  pautas.forEach((p, i) => {
-    linhas.push('', `${i + 1}. ${p.titulo}`);
-    if (p.descricao) linhas.push(`   ${p.descricao}`);
-    if (p.data_inicio || p.data_termino) linhas.push(`   Período: ${p.data_inicio} a ${p.data_termino}`);
+  pautas.forEach(({ mapa, descricao, periodo }, i) => {
+    linhas.push('', `${i + 1}. ${mapa.votacao.titulo}`);
+    if (descricao) linhas.push(`   ${descricao}`);
+    if (periodo) linhas.push(`   Período: ${periodo}`);
+    if (mapa.votacao.somente_proprietarios) linhas.push('   Somente proprietários votam nesta pauta.');
     let total = 0;
-    for (const op of p.opcoes) {
-      const partes = op.split(';');
-      const votos = Number(partes[partes.length - 1]) || 0;
-      total += votos;
-      linhas.push(`   - ${partes.slice(1, -1).join(';')}: ${votos} voto(s)`);
+    for (const op of mapa.opcoes) {
+      total += op.votos;
+      linhas.push(`   - ${op.nome}: ${op.votos} voto(s)`);
     }
     linhas.push(`   Total: ${total} voto(s)`);
+    linhas.push(`   Participação: ${mapa.participacao.unidades_votaram} de ${mapa.participacao.unidades_total} unidades`);
   });
+  if (hash) linhas.push('', `Código de integridade do mapa de votação: ${hash}`);
   return `${linhas.join('\n')}\n`;
 }
 
@@ -113,6 +120,7 @@ function rotuloDaUnidade(
 }
 
 const MSG_ASSEMBLEIA_FINALIZADA_VOTO = 'Esta assembleia já foi finalizada; a votação está encerrada.';
+const MSG_JA_FINALIZADA = 'Assembleia já finalizada.';
 
 const NOME_DO_VINCULO: Record<TipoVinculo, string> = {
   proprietario: 'proprietário',
@@ -382,6 +390,13 @@ export class AssembleiasService {
     const dataObj = dataDaAssembleia(assembleia.data);
     if (!this.prisma.isConnected) return { success: true };
 
+    // Finalizada é imutável (antes do upload: nada sobe para o bucket).
+    const situacao = await this.prisma.assembleias.findFirst({
+      where: { id: Number(assembleia.id), id_condominio: Number(idCondominio) },
+      select: { finalizada_em: true },
+    });
+    if (situacao?.finalizada_em) throw new BadRequestException('Assembleia finalizada não pode ser editada.');
+
     const listDocs = await this.uploadDocs(assembleia.docs, 'assembleias', () =>
       this.anexosGravados(Number(assembleia.id), Number(idCondominio)),
     );
@@ -428,33 +443,57 @@ export class AssembleiasService {
   async remove(id: number, requester?: JwtPayload) {
     assertStaff(requester, 'remover assembleia');
     if (!this.prisma.isConnected) return { success: true };
-    const atual = await this.prisma.assembleias.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    const atual = await this.prisma.assembleias.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true, finalizada_em: true },
+    });
     if (!atual) throw new NotFoundException('Assembleia não encontrada');
     await this.tenant.assertEntidade(atual.id_condominio, requester, `assembleia #${id}`);
+    if (atual.finalizada_em) throw new BadRequestException('Assembleia finalizada não pode ser excluída.');
+    // O delete leva pautas, opções e votos (cascata): com qualquer voto, vigente
+    // ou substituído, a assembleia só sai do ar sendo finalizada com a ATA.
+    const votos = await this.prisma.votacoes_Usuarios.count({
+      where: { opcao: { votacao: { id_assembleia: Number(id) } } },
+    });
+    if (votos > 0) {
+      throw new BadRequestException('Esta assembleia já tem votos e não pode ser excluída. Finalize-a com a ATA.');
+    }
     await this.prisma.assembleias.delete({ where: { id: Number(id) } });
     return { success: true };
   }
 
-  async getAll(idCondominio: number, requester?: JwtPayload) {
+  /**
+   * Lista das assembleias. Padrão: só as NÃO finalizadas (o app 1.2.48 espera
+   * isso — antes a finalizada era apagada). `incluirFinalizadas`: todas, com
+   * as finalizadas por último.
+   */
+  async getAll(idCondominio: number, requester?: JwtPayload, incluirFinalizadas = false) {
     await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) {
       return [
-        { id: 1, titulo: 'Assembleia Geral Ordinária', descricao: 'Aprovação de contas e eleição de síndico', data: '20/05/2026', hora: '19:30' },
+        {
+          id: 1, titulo: 'Assembleia Geral Ordinária', descricao: 'Aprovação de contas e eleição de síndico',
+          data: '20/05/2026', hora: '19:30', finalizada: false, finalizada_em: null,
+        },
       ];
     }
 
     const list = await this.prisma.assembleias.findMany({
-      where: { id_condominio: Number(idCondominio) },
+      where: { id_condominio: Number(idCondominio), ...(incluirFinalizadas ? {} : { finalizada_em: null }) },
       orderBy: { data: 'asc' },
     });
 
-    return list.map(item => ({
+    const formatadas = list.map(item => ({
       id: item.id,
       titulo: item.titulo,
       descricao: item.descricao,
       data: item.data ? item.data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '',
       hora: item.hora ? item.hora.toTimeString().substring(0, 5) : '',
+      finalizada: !!item.finalizada_em,
+      finalizada_em: item.finalizada_em ? new Date(item.finalizada_em).toISOString() : null,
     }));
+    // sort estável: dentro de cada grupo fica a ordem por data.
+    return formatadas.sort((a, b) => Number(a.finalizada) - Number(b.finalizada));
   }
 
   /** `userId` nulo: operador do console sem Users.id — sem voto próprio. */
@@ -488,6 +527,11 @@ export class AssembleiasService {
       link: item.link ?? '',
       local: item.local ?? '',
       anexos: item.anexos ?? '',
+      finalizada: !!item.finalizada_em,
+      finalizada_em: item.finalizada_em ? new Date(item.finalizada_em).toISOString() : null,
+      // Link da ATA publicada ao finalizar (assinado na saída pelo
+      // ArquivosPrivadosInterceptor, chave `link_ata`).
+      link_ata: await this.linkDaAta(item.id_documento_ata, Number(idCondominio)),
     };
 
     // Buscar votações da assembleia
@@ -508,21 +552,31 @@ export class AssembleiasService {
     };
   }
 
+  /** `link_doc` do Documento da ATA (do mesmo condomínio); sem ATA: null. */
+  private async linkDaAta(idDocumento: number | null | undefined, idCondominio: number): Promise<string | null> {
+    if (!idDocumento) return null;
+    const doc = await this.prisma.documentos.findFirst({
+      where: { id: Number(idDocumento), id_condominio: idCondominio },
+      select: { link_doc: true },
+    });
+    return doc?.link_doc || null;
+  }
+
   async finish(idCondominio: number, assembleia: any, requester?: JwtPayload) {
     assertStaff(requester, 'finalizar assembleia');
     await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) return { success: true };
 
-    // Confirma que a assembleia a ser apagada pertence mesmo a este
-    // condomínio — sem isso, um síndico de outro condomínio (que já passou
-    // no assertCondominio acima para o SEU idCondominio) conseguia apagar
-    // a assembleia de qualquer outro só chutando o id.
+    // Confirma que a assembleia pertence mesmo a este condomínio — sem isso,
+    // um síndico de outro condomínio (que já passou no assertCondominio acima
+    // para o SEU idCondominio) finalizava a de qualquer outro chutando o id.
     const alvo = await this.prisma.assembleias.findUnique({
       where: { id: Number(assembleia.id) },
-      select: { id_condominio: true, titulo: true, data: true },
+      select: { id_condominio: true, titulo: true, data: true, finalizada_em: true },
     });
     if (!alvo) throw new NotFoundException('Assembleia não encontrada');
     await this.tenant.assertEntidade(alvo.id_condominio, requester, `assembleia #${assembleia.id}`);
+    if (alvo.finalizada_em) throw new BadRequestException(MSG_JA_FINALIZADA);
 
     // Sem o arquivo, a ATA era gravada com link vazio e a assembleia apagada
     // mesmo assim (o console não mandava `doc`). Data URL tem de ser
@@ -543,7 +597,7 @@ export class AssembleiasService {
 
     // Condomínio da ASSEMBLEIA, não o do corpo: um síndico com vínculo em A e
     // B finalizando a de B com id_condominio = A não achava as pautas (nenhuma
-    // apuração), gravava a ATA em A e apagava a de B com os votos.
+    // apuração) e gravava a ATA em A.
     const idCond = alvo.id_condominio;
 
     // A ATA pode ser um dos anexos da própria assembleia; outra URL do bucket, não.
@@ -567,13 +621,31 @@ export class AssembleiasService {
 
       const nomeAta = `ATA ${tituloAta}${dataAta ? ` - ${dataAta}` : ''}`.slice(0, 255);
 
-      // O delete leva as pautas, as opções e os votos (cascade). A apuração de
-      // cada pauta fica num arquivo de texto publicado junto da ATA (sem coluna
-      // nova: Documentos só tem nome VarChar(255) e link_doc VarChar(500)).
-      const { formatadas: pautas } = await this.consultarVotacoes(Number(assembleia.id), false, idCond);
+      // NADA é apagado (rodada 5): a assembleia fica, imutável, com as pautas e
+      // os votos; a apuração (totais, sem nomes) vai num arquivo de texto
+      // publicado junto da ATA, com o código de integridade do mapa nominal.
+      // Contagem real (as pautas ainda abertas são encerradas agora, na mesma
+      // transação que marca a finalização).
+      const agora = new Date();
+      const hoje = hojeBrasilia();
+      const pautas = await this.mapasDasVotacoes({ id_assembleia: Number(assembleia.id), id_condominio: idCond });
+      const abertas = pautas.filter((p) => p.status !== 2).map((p) => p.mapa.votacao.id);
+      const hash = pautas.length > 0 ? hashMapas(pautas.map((p) => p.mapa)) : null;
       let linkApuracao: string | null = null;
       if (pautas.length > 0) {
-        const texto = textoApuracao(tituloAta, dataAta, pautas);
+        const texto = textoApuracao(
+          tituloAta,
+          dataAta,
+          pautas.map((p) => {
+            // Término como fica depois de encerrar: o futuro vira hoje.
+            const fim = p.status !== 2 && p.data_termino && diaUtc(p.data_termino) > hoje ? hoje : p.data_termino;
+            const fimExibido = fim && p.data_inicio && fim.getTime() < p.data_inicio.getTime() ? p.data_inicio : fim;
+            const periodo = p.data_inicio || fimExibido ? `${dataDbBr(p.data_inicio)} a ${dataDbBr(fimExibido)}` : '';
+            return { mapa: p.mapa, descricao: p.descricao, periodo };
+          }),
+          hash,
+          agora,
+        );
         // BOM: o navegador abre o .txt como UTF-8 (acentos).
         const dataUrl = `data:text/plain;base64,${Buffer.from(`\uFEFF${texto}`, 'utf8').toString('base64')}`;
         linkApuracao = (await this.storage.uploadDataUrl(dataUrl, 'atas')) ?? '';
@@ -585,7 +657,8 @@ export class AssembleiasService {
         enviados.push(linkApuracao);
       }
 
-      // ATA, apuração e a remoção juntas: se algo falha, a assembleia fica.
+      // ATA, apuração, a marca de finalizada e o encerramento das pautas
+      // juntos: se algo falha, nada muda.
       let idAta: number | undefined;
       await this.prisma.$transaction(async (tx) => {
         const ata = await tx.documentos.create({
@@ -607,9 +680,28 @@ export class AssembleiasService {
             },
           });
         }
-        await tx.assembleias.delete({
-          where: { id: Number(assembleia.id) },
+        // Condicional: duas finalizações simultâneas não publicam duas ATAs —
+        // a segunda não acha a linha "não finalizada" e desfaz a transação.
+        const marcada = await tx.assembleias.updateMany({
+          where: { id: Number(assembleia.id), finalizada_em: null },
+          data: {
+            finalizada_em: agora,
+            finalizada_por: idUsuarioDoToken(requester),
+            id_documento_ata: idAta ?? null,
+            apuracao_hash: hash,
+          },
         });
+        if (marcada.count === 0) throw new BadRequestException(MSG_JA_FINALIZADA);
+        if (abertas.length > 0) {
+          await tx.votacoes.updateMany({
+            where: { id: { in: abertas }, data_termino: { gt: hoje } },
+            data: { data_termino: hoje },
+          });
+          await tx.votacoes.updateMany({
+            where: { id: { in: abertas }, encerrada_em: null },
+            data: { encerrada_em: agora },
+          });
+        }
       });
       // Um aviso pela ATA (a apuração vai junto, sem push próprio).
       this.avisarMoradores(idCond, 'ATA publicada', nomeAta, { type: 'ata', id: String(idAta ?? '') });
@@ -676,9 +768,10 @@ export class AssembleiasService {
     if (idAssembleia) {
       const assembleia = await this.prisma.assembleias.findFirst({
         where: { id: idAssembleia, id_condominio: Number(idCondominio) },
-        select: { id: true },
+        select: { id: true, finalizada_em: true },
       });
       if (!assembleia) throw new BadRequestException('Assembleia não encontrada neste condomínio.');
+      if (assembleia.finalizada_em) throw new BadRequestException('Assembleia finalizada não aceita novas pautas.');
     }
 
     // Votação e opções juntas: sem votação órfã sem opções.
@@ -722,9 +815,23 @@ export class AssembleiasService {
   async removeVotacao(id: number, requester?: JwtPayload) {
     assertStaff(requester, 'remover votação/enquete');
     if (!this.prisma.isConnected) return { success: true };
-    const atual = await this.prisma.votacoes.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    const atual = await this.prisma.votacoes.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true, id_assembleia: true, assembleia: { select: { finalizada_em: true } } },
+    });
     if (!atual) throw new NotFoundException('Votação não encontrada');
     await this.tenant.assertEntidade(atual.id_condominio, requester, `votação #${id}`);
+    // Pauta de assembleia: o delete levaria os votos (cascata). Enquete avulsa
+    // (consultiva) continua podendo ser excluída.
+    if (atual.id_assembleia != null) {
+      if (atual.assembleia?.finalizada_em) {
+        throw new BadRequestException('Pauta de assembleia finalizada não pode ser excluída.');
+      }
+      const votos = await this.prisma.votacoes_Usuarios.count({ where: { opcao: { id_votacao: Number(id) } } });
+      if (votos > 0) {
+        throw new BadRequestException('Esta pauta já tem votos e não pode ser excluída. Encerre a votação.');
+      }
+    }
     await this.prisma.votacoes.delete({ where: { id: Number(id) } });
     return { success: true };
   }
