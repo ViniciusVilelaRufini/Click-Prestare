@@ -127,6 +127,10 @@
                         <button type="button" (click)="recusarTag(v)" [disabled]="guaritaEmAcao() === v.id_tag"
                           class="ps-btn ps-btn-danger ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Recusar</button>
                       }
+                      @if (podeRemoverDeNovo(v.id_tag)) {
+                        <button type="button" (click)="removerDeNovo(v.id_tag)" [disabled]="guaritaEmAcao() === v.id_tag"
+                          class="ps-btn ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Tentar remover de novo</button>
+                      }
                       @if (podeRegravar(v.id_tag)) {
                         <button type="button" (click)="regravarNoGuarita(v.id_tag)" [disabled]="guaritaEmAcao() === v.id_tag"
                           class="ps-btn ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Regravar</button>
@@ -302,8 +306,11 @@
                   }
                 </td>
                 <td>
-                  @if ((tagNoGuarita(t) || tagConflitoOuAusente(t)) && seloGuaritaDaTag(t); as selo) {
+                  @if ((tagNoGuarita(t) || tagConflitoOuAusente(t) || tagRemocaoFalhou(t)) && seloGuaritaDaTag(t); as selo) {
                     <span class="ps-tag" data-guarita-estado-tag [title]="selo.texto"><span class="ps-dot" [ngClass]="selo.dot"></span>{{ selo.texto }}</span>
+                    @if (selo.dica) {
+                      <span class="block text-xs text-slate-500 mt-0.5" data-guarita-dica>{{ selo.dica }}</span>
+                    }
                   } @else if (t.ativo === 0) {
                     <span class="ps-tag"><span class="ps-dot ps-dot-danger"></span>Bloqueada</span>
                   } @else {
@@ -317,6 +324,11 @@
                       @if (!tagRemovendo(t)) {
                         <button type="button" (click)="removerDoGuarita(t)" [disabled]="tagEmAcao() === t.id"
                           class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Remover do Guarita</button>
+                      }
+                    } @else if (tagRemocaoFalhou(t)) {
+                      @if (podeRemoverDeNovo(t.id)) {
+                        <button type="button" (click)="removerDeNovo(t.id)" [disabled]="guaritaEmAcao() === t.id"
+                          class="ps-btn ps-btn-sec ps-btn-sm disabled:opacity-50 disabled:cursor-not-allowed">Tentar remover de novo</button>
                       }
                     } @else if (tagConflitoOuAusente(t)) {
                       <!-- Conflito / não está mais no Guarita: sem bloquear nem remover do Guarita. -->

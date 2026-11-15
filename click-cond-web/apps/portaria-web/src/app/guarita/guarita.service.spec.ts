@@ -114,6 +114,7 @@ describe('GuaritaService — rotas do console', () => {
     ['recusar', () => api.recusar(7, 30), `${base}/7/dispositivos/30/recusar`, {}],
     ['desfazer', () => api.desfazer(7, 30), `${base}/7/dispositivos/30/desfazer`, {}],
     ['regravar', () => api.regravar(7, 30), `${base}/7/dispositivos/30/regravar`, {}],
+    ['removerDeNovo', () => api.removerDeNovo(7, 30), `${base}/7/dispositivos/30/remover-de-novo`, {}],
     ['abrirCaptura', () => api.abrirCaptura(7, 101), `${base}/7/captura`, { id_veiculo: 101 }],
     [
       'confirmarCaptura',
@@ -182,10 +183,10 @@ describe('GuaritaService — rotas do console', () => {
 });
 
 describe('codigoImpressoValido', () => {
-  it.each(['015 02158', 'W: 015 02158', '015,02158', '015-02158', '255 65535', '0 0'])('aceita %s', (c) => {
+  it.each(['015 02158', 'W: 015 02158', '015,02158', '015-02158', '255 65535', '000 00000'])('aceita %s', (c) => {
     expect(codigoImpressoValido(c)).toBe(true);
   });
-  it.each(['', '12345678', 'E2000017221101441890', '256 00001', '015 65536', 'abc def', '015'])('recusa %s', (c) => {
+  it.each(['', '12345678', 'E2000017221101441890', '256 00001', '015 65536', 'abc def', '015', '15 2158', '0 0'])('recusa %s', (c) => {
     expect(codigoImpressoValido(c)).toBe(false);
   });
 });

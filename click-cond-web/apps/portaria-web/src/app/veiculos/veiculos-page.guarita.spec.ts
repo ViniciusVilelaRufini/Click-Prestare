@@ -50,6 +50,7 @@ function build(opts: {
     veiculosParaVincular: jest.fn(() => of([] as any[])),
     desfazer: jest.fn(() => of({ ok: true })),
     regravar: jest.fn(() => of({ ok: true })),
+    removerDeNovo: jest.fn(() => of({ ok: true })),
     aprovar: jest.fn(() => of({ ok: true })),
     recusar: jest.fn(() => of({ ok: true })),
     vincular: jest.fn(() => of({ ok: true })),
@@ -112,6 +113,9 @@ describe('VeiculosPageComponent — selo do estado no Guarita', () => {
     ['recusada', null, 'Recusada pela portaria'],
     ['conflito', null, 'Conflito: código já usado em outra unidade no Guarita'],
     ['ausente', null, 'Não está mais no Guarita'],
+    ['incerto', null, 'Não confirmado no Guarita'],
+    ['remocao_falhou', 'O Guarita não respondeu.', 'Remoção não concluída: ainda pode abrir o portão'],
+    ['falhou', 'ok', 'Falhou'],
   ])('%s → "%s"', (estado, erro, texto) => {
     const { el } = build({
       guaritas: [guarita],
@@ -383,6 +387,61 @@ describe('VeiculosPageComponent — conflito e "não está mais no Guarita"', ()
     expect(botoes(l1, 'Bloquear').length).toBe(0);
     expect(botoes(l1, 'Desfazer vínculo').length).toBe(1);
     expect(botoes(l2, 'Regravar').length).toBe(1);
+  });
+});
+
+describe('VeiculosPageComponent — incerto, remoção não concluída e motivo do conflito', () => {
+  it('incerto: dica de que o Prestare confere sozinho; "Remover do Guarita" continua na aba Tags', () => {
+    const { f, el, tela } = build({ guaritas: [guarita], tags: [tagG(1, { guarita_estado: 'incerto', id_device: 7 })] });
+    expect(el.querySelector('[data-guarita-dica]')?.textContent?.trim()).toBe('O Guarita não respondeu. O Prestare vai conferir de novo sozinho.');
+    tela.tab.set('tags');
+    f.detectChanges();
+    const linha = el.querySelector('tbody tr') as HTMLElement;
+    expect(linha.querySelector('[data-guarita-estado-tag]')?.textContent?.trim()).toBe('Não confirmado no Guarita');
+    expect(botoes(linha, 'Remover do Guarita').length).toBe(1);
+    expect(botoes(linha, 'Bloquear').length).toBe(0);
+  });
+
+  it('remoção não concluída: "Tentar remover de novo" chama a API; sem "Remover do Guarita"', () => {
+    const { f, el, tela, guaritaApi } = build({
+      guaritas: [guarita],
+      tags: [tagG(1, { guarita_estado: 'remocao_falhou', guarita_erro: 'O Guarita não respondeu.', id_device: 7 })],
+    });
+    expect(el.querySelector('[data-guarita-dica]')?.textContent?.trim()).toBe('O Guarita não respondeu.');
+    botoes(el, 'Tentar remover de novo')[0].click();
+    expect(guaritaApi.removerDeNovo).toHaveBeenCalledWith(7, 1);
+    tela.tab.set('tags');
+    f.detectChanges();
+    const linha = el.querySelector('tbody tr') as HTMLElement;
+    expect(botoes(linha, 'Tentar remover de novo').length).toBe(1);
+    expect(botoes(linha, 'Remover do Guarita').length).toBe(0);
+    expect(botoes(linha, 'Bloquear').length).toBe(0);
+  });
+
+  it('"Tentar remover de novo": 404 esconde o botão; outro erro aparece como veio', () => {
+    const tag = tagG(1, { guarita_estado: 'remocao_falhou', id_device: 7 });
+    const a = build({ guaritas: [guarita], tags: [tag], guaritaExtra: { removerDeNovo: jest.fn(() => throwError(() => ({ status: 404 }))) } });
+    a.tela.removerDeNovo(1);
+    a.f.detectChanges();
+    expect(botoes(a.el, 'Tentar remover de novo').length).toBe(0);
+    expect(a.el.querySelector('[role="alert"]')).toBeNull();
+    TestBed.resetTestingModule();
+    const b = build({
+      guaritas: [guarita], tags: [tag],
+      guaritaExtra: { removerDeNovo: jest.fn(() => throwError(() => ({ status: 503, error: { message: 'O agente está desconectado.' } }))) },
+    });
+    b.tela.removerDeNovo(1);
+    b.f.detectChanges();
+    expect(b.el.querySelector('[data-erro-guarita]')?.textContent?.trim()).toBe('O agente está desconectado.');
+  });
+
+  it('conflito mostra o motivo que veio da API abaixo do selo', () => {
+    const { el } = build({
+      guaritas: [guarita],
+      tags: [tagG(1, { guarita_estado: 'conflito', guarita_erro: 'O Guarita mostra este dispositivo em outra unidade.', id_device: 7 })],
+    });
+    expect(el.querySelector('[data-guarita-estado]')?.textContent?.trim()).toBe('Conflito: código já usado em outra unidade no Guarita');
+    expect(el.querySelector('[data-guarita-dica]')?.textContent?.trim()).toBe('O Guarita mostra este dispositivo em outra unidade.');
   });
 });
 
