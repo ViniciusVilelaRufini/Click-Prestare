@@ -92,6 +92,25 @@ class CompartilharPasse {
     );
   }
 
+  /// Item do convite a partir da resposta do cadastro (POST /visitantes/insert),
+  /// que traz o id da visita mas não bloco, apartamento nem o nome do morador:
+  /// esses vêm da tela de cadastro.
+  static Map<String, dynamic> itemDoCadastro(
+    Map resposta, {
+    required String bloco,
+    required String apartamento,
+    required String morador,
+    required String condominio,
+  }) {
+    return {
+      ...Map<String, dynamic>.from(resposta),
+      'apto_bloco': bloco,
+      'apto': apartamento,
+      'morador_nome': morador,
+      'condominio_nome': condominio,
+    };
+  }
+
   static int? _idDaVisita(dynamic item) {
     final v = item is Map ? item['id'] : null;
     if (v is int) return v;

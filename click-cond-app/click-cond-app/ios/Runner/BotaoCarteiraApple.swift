@@ -25,6 +25,7 @@ final class BotaoCarteiraAppleFabrica: NSObject, FlutterPlatformViewFactory {
 
   static func registrar(com registrar: FlutterPluginRegistrar) {
     registrar.register(BotaoCarteiraAppleFabrica(messenger: registrar.messenger()), withId: tipo)
+    AdicionarPasseApple.shared.registrar(messenger: registrar.messenger())
   }
 
   func create(
@@ -71,5 +72,84 @@ final class BotaoCarteiraAppleView: NSObject, FlutterPlatformView {
 
   @objc private func tocou() {
     canal.invokeMethod("tocou", arguments: nil)
+  }
+}
+
+// Folha da Apple de adicionar passe (PKAddPassesViewController).
+//
+// Abrir o .pkpass como arquivo (Quick Look) mostra só um ícone de "Tíquete"
+// e obriga o morador a compartilhar para a Carteira. O caminho certo é
+// montar o PKPass com os bytes e apresentar a folha da Carteira.
+//
+// Canal "prestare/carteira_apple":
+//   app → adicionarPasse(bytes: FlutterStandardTypedData)
+//     sucesso: "fechado" (a folha foi fechada; o app relê a situação)
+//     erro "carteira_indisponivel": o aparelho não aceita passes
+//     erro "passe_invalido": o PKPass não abriu (mensagem do sistema em message)
+//     erro "sem_tela": não havia tela para apresentar a folha
+final class AdicionarPasseApple: NSObject, PKAddPassesViewControllerDelegate {
+  static let shared = AdicionarPasseApple()
+  static let nomeDoCanal = "prestare/carteira_apple"
+
+  private var canal: FlutterMethodChannel?
+  private var pendente: FlutterResult?
+
+  func registrar(messenger: FlutterBinaryMessenger) {
+    let canal = FlutterMethodChannel(name: AdicionarPasseApple.nomeDoCanal, binaryMessenger: messenger)
+    canal.setMethodCallHandler { [weak self] chamada, resultado in
+      guard chamada.method == "adicionarPasse" else {
+        resultado(FlutterMethodNotImplemented)
+        return
+      }
+      guard let dados = chamada.arguments as? FlutterStandardTypedData else {
+        resultado(FlutterError(code: "passe_invalido", message: "Arquivo do passe ausente.", details: nil))
+        return
+      }
+      self?.apresentar(dados.data, resultado: resultado)
+    }
+    self.canal = canal
+  }
+
+  private func apresentar(_ dados: Data, resultado: @escaping FlutterResult) {
+    guard PKAddPassesViewController.canAddPasses() else {
+      resultado(FlutterError(code: "carteira_indisponivel", message: "Este aparelho não aceita passes da Carteira.", details: nil))
+      return
+    }
+    let passe: PKPass
+    do {
+      passe = try PKPass(data: dados)
+    } catch {
+      resultado(FlutterError(code: "passe_invalido", message: error.localizedDescription, details: nil))
+      return
+    }
+    guard let folha = PKAddPassesViewController(pass: passe) else {
+      resultado(FlutterError(code: "passe_invalido", message: "A Carteira recusou o passe.", details: nil))
+      return
+    }
+    guard let tela = AdicionarPasseApple.telaDoTopo() else {
+      resultado(FlutterError(code: "sem_tela", message: "Não foi possível abrir a Carteira.", details: nil))
+      return
+    }
+    pendente?("fechado")
+    pendente = resultado
+    folha.delegate = self
+    tela.present(folha, animated: true)
+  }
+
+  func addPassesViewControllerDidFinish(_ controller: PKAddPassesViewController) {
+    controller.dismiss(animated: true) { [weak self] in
+      self?.pendente?("fechado")
+      self?.pendente = nil
+    }
+  }
+
+  private static func telaDoTopo() -> UIViewController? {
+    let cenas = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let janela = cenas.flatMap { $0.windows }.first { $0.isKeyWindow } ?? cenas.first?.windows.first
+    var tela = janela?.rootViewController
+    while let acima = tela?.presentedViewController {
+      tela = acima
+    }
+    return tela
   }
 }

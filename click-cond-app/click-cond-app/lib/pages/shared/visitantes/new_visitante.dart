@@ -1,3 +1,4 @@
+import 'package:click/pages/shared/visitantes/compartilhar_passe.dart';
 import 'dart:convert';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -8,7 +9,6 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
-import 'package:click/utils/access_invite_message.dart';
 import 'package:click/utils/visitantes_presenca.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/bottom_sheet_aptos.dart';
@@ -21,7 +21,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../singleton.dart';
 import 'package:click/utils/hora_brasilia.dart';
 
@@ -280,7 +279,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
       if (result is Map) {
         final code = result['codigo_acesso']?.toString();
         if (!widget.isEdit && code != null) {
-          if (mounted) _showSuccessDialog(code);
+          if (mounted) _showSuccessDialog(code, result);
         } else {
           if (mounted) Navigator.pop(context);
         }
@@ -296,21 +295,20 @@ class _NewVisitantePageState extends State<NewVisitante> {
     }
   }
 
-  void _showSuccessDialog(String code) {
-    final moradorName = getUsername();
-    final blocoText = txtBloco.text;
-    final aptoText = txtApto.text;
-
+  void _showSuccessDialog(String code, Map resposta) {
     final formattedCode = code.length == 6
         ? "${code.substring(0, 3)}-${code.substring(3, 6)}"
         : code;
 
-    final inviteText = buildVisitorAccessInvite(
-      condominioNome: Singleton.instance.condominio_nome.toString(),
-      bloco: blocoText,
-      apartamento: aptoText,
-      autorizadoPor: moradorName,
-      codigo: formattedCode,
+    // O convite leva o link do passe (QR que muda a cada 30 s), como o
+    // "Compartilhar passe" do detalhe. Sem link (erro ou opção desligada),
+    // sai só com o PIN.
+    final itemConvite = CompartilharPasse.itemDoCadastro(
+      resposta,
+      bloco: txtBloco.text,
+      apartamento: txtApto.text,
+      morador: getUsername(),
+      condominio: Singleton.instance.condominio_nome.toString(),
     );
 
     showDialog(
@@ -396,14 +394,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
                 AppButton(
                   label: "Enviar via WhatsApp",
                   icon: PhosphorIcons.whatsappLogo,
-                  onPressed: () async {
-                    final url = Uri.parse(
-                        "https://wa.me/?text=${Uri.encodeComponent(inviteText)}");
-                    if (await canLaunchUrl(url)) {
-                      await launchUrl(url,
-                          mode: LaunchMode.externalApplication);
-                    }
-                  },
+                  onPressed: () =>
+                      CompartilharPasse.compartilhar(context, itemConvite),
                 ),
                 const SizedBox(height: AppSpacing.md),
 

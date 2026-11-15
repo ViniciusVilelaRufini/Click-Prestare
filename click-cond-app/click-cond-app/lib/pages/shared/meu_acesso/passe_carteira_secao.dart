@@ -10,6 +10,7 @@ import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -143,6 +144,8 @@ class _PasseCarteiraSecaoState extends State<PasseCarteiraSecao> with WidgetsBin
     }
     try {
       await (widget.abrirArquivo ?? _abrirPkpass)(caminho);
+    } on PlatformException catch (e) {
+      if (mounted) _avisar(e.message);
     } catch (_) {
       if (mounted) _avisar(null);
     }
@@ -151,7 +154,19 @@ class _PasseCarteiraSecaoState extends State<PasseCarteiraSecao> with WidgetsBin
     if (mounted) await _carregar();
   }
 
+  /// Canal nativo da folha "Adicionar à Carteira" (ios/Runner/BotaoCarteiraApple.swift).
+  static const canalCarteira = MethodChannel('prestare/carteira_apple');
+
+  /// Abre a folha da Carteira com o passe. Quick Look (OpenFilex) mostrava só um
+  /// ícone de "Tíquete"; ele fica apenas como reserva para um app sem o canal.
   static Future<void> _abrirPkpass(String caminho) async {
+    final bytes = File(caminho).readAsBytesSync();
+    try {
+      await canalCarteira.invokeMethod<String>('adicionarPasse', Uint8List.fromList(bytes));
+      return;
+    } on MissingPluginException {
+      // App sem o canal nativo: cai no Quick Look.
+    }
     final r = await OpenFilex.open(caminho, type: 'application/vnd.apple.pkpass', uti: 'com.apple.pkpass');
     if (r.type != ResultType.done) throw Exception('Não abriu o passe.');
   }
