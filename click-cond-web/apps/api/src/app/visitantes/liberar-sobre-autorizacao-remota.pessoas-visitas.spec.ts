@@ -1,4 +1,5 @@
 import { VisitantesService } from './visitantes.service';
+import { VisitantesGlobalController } from './visitantes.controller';
 import { prazoAutorizacaoRemotaMs } from '../common/janela-visita';
 import { mantemLiberadoNaSaida } from './visitantes.service';
 
@@ -126,6 +127,67 @@ describe('Liberar (Pessoas/Visitas) sobre autorização remota do morador', () =
       const { svc, prisma } = montarEdicao();
       await svc.update({ id: 1000004, id_apartamento: 106, categorias: 'Amigo' } as any, morador);
       expect(prisma.visitas.update.mock.calls[0][0].data).not.toHaveProperty('auth_status');
+    });
+  });
+
+  // Rodada 2, Importante 2: o payload EXATO do app ao salvar a edição
+  // (new_visitante.dart → apiSaveVisitante: POST /visitantes/update com
+  // `{ id_condominio, visitante }`; as datas são `DateTime.toString()` de um
+  // valor lido em "dd/MM/yyyy HH:mm" — sem segundos). O pedido gravou a janela
+  // com segundos: comparar ao segundo convertia toda edição.
+  describe('edição pelo app — payload exato', () => {
+    const morador = { sub: 77, nome: 'Maria do 106', typeAccess: 'Morador', user: { id: 77 } } as any;
+    // Janela do pedido com segundos: 14:00:37–18:00:37 BRT.
+    const janelaDoPedido = {
+      data_hora_inicio: new Date('2026-11-16T17:00:37Z'),
+      data_hora_termino: new Date('2026-11-16T21:00:37Z'),
+      auth_respondido_em: new Date('2026-11-16T17:01:10Z'),
+    };
+    function montarApp() {
+      const m = montar(janelaDoPedido);
+      const s = m.svc as any;
+      m.prisma.visitas.count = jest.fn(async () => 0);
+      m.prisma.pessoas = { update: jest.fn(async ({ data }: any) => ({ id: 2000001, nome: 'QA_Remota', ...data })) };
+      jest.spyOn(s, 'assertFlagCadastrarVisitante').mockResolvedValue(undefined);
+      jest.spyOn(s, 'assertPodeUsarApartamento').mockResolvedValue(undefined);
+      jest.spyOn(s, 'aptosDoMoradorMobile').mockResolvedValue([106]);
+      jest.spyOn(s, 'resolveFoto').mockImplementation(async (v: any) => (v ? 'https://arquivos/nova.jpg' : null));
+      jest.spyOn(s, 'mapVisitaParaRespostaLegada').mockReturnValue({});
+      const controller = new VisitantesGlobalController(m.svc);
+      return { ...m, controller };
+    }
+    const corpo = (visitante: Record<string, unknown>) => ({
+      id_condominio: '1',
+      visitante: {
+        id: 1000004, id_anterior: null, nome_anterior: null, nome: 'QA_Remota', doc_identificacao: '',
+        avisar: true, observacoes: '', id_apartamento: 106, is_visitante: true, is_prestador: false,
+        dias_semana: '', photo: null,
+        data_inicio: '2026-11-16 14:00:00.000', data_termino: '2026-11-16 18:00:00.000',
+        ...visitante,
+      },
+    });
+    const conversoes = (m: any) =>
+      m.svc.auditoria.registrar.mock.calls.filter((c: any[]) => /converteu a autorização remota/.test(c[0].descricao));
+
+    it('reenviar as mesmas datas sem segundos e trocar só a foto NÃO converte', async () => {
+      const m = montarApp();
+      await m.controller.update(corpo({ photo: 'data:image/jpeg;base64,/9j/AAAA' }) as any, morador);
+      expect(m.prisma.visitas.update.mock.calls[0][0].data).not.toHaveProperty('auth_status');
+      expect(m.visita.auth_status).toBe('autorizado');
+      expect(conversoes(m)).toHaveLength(0);
+    });
+
+    it('mudar o término converte e audita em nome do morador, com a janela', async () => {
+      const m = montarApp();
+      await m.controller.update(corpo({ data_termino: '2026-11-16 20:00:00.000' }) as any, morador);
+      expect(m.prisma.visitas.update.mock.calls[0][0].data).toEqual(expect.objectContaining({ auth_status: null }));
+      const [aud] = conversoes(m);
+      expect(aud?.[0]).toEqual(
+        expect.objectContaining({
+          usuario_nome: 'Maria do 106',
+          descricao: expect.stringContaining('converteu a autorização remota em liberação própria, janela 16/11 14:00–20:00'),
+        }),
+      );
     });
   });
 });

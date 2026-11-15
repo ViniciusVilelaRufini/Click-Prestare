@@ -3163,13 +3163,20 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // O morador muda a janela de uma visita que ele autorizou remotamente e
     // que ainda não foi usada: é uma liberação nova DELE, com janela própria —
     // deixa de ser a autorização de 10 min/uma entrada do pedido. O app manda o
-    // formulário inteiro em toda edição: só conta se a janela mudou de fato.
+    // formulário inteiro em toda edição, e com a hora em MINUTOS (a API devolve
+    // "dd/MM/yyyy HH:mm"; o pedido gravou segundos): a comparação é por minuto,
+    // e só conta se o início ou o término mudou de fato. A conversão é auditada
+    // em nome do morador.
+    let conversaoRemotaPeloMorador = false;
     if (ehAutorizacaoRemota(ref) && !ref.data_entrada && (await this.aptosDoMoradorMobile(payload)) !== undefined) {
-      const t = (d: any) => (d ? new Date(d).getTime() : null);
+      const minuto = (d: any) => (d ? Math.floor(new Date(d).getTime() / 60_000) : null);
       const mudouJanela =
-        ('data_hora_inicio' in visitaData && t(visitaData.data_hora_inicio) !== t(ref.data_hora_inicio)) ||
-        ('data_hora_termino' in visitaData && t(visitaData.data_hora_termino) !== t(ref.data_hora_termino));
-      if (mudouJanela) visitaData.auth_status = null;
+        ('data_hora_inicio' in visitaData && minuto(visitaData.data_hora_inicio) !== minuto(ref.data_hora_inicio)) ||
+        ('data_hora_termino' in visitaData && minuto(visitaData.data_hora_termino) !== minuto(ref.data_hora_termino));
+      if (mudouJanela) {
+        visitaData.auth_status = null;
+        conversaoRemotaPeloMorador = true;
+      }
     }
 
     const pessoaData: any = {};
@@ -3241,6 +3248,31 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
 
     const label = updatedVisita.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    if (conversaoRemotaPeloMorador) {
+      const fmt = (d: any, comDia: boolean) =>
+        d
+          ? new Date(d).toLocaleString('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+              ...(comDia ? { day: '2-digit', month: '2-digit' } : {}),
+              hour: '2-digit',
+              minute: '2-digit',
+            }).replace(',', '')
+          : '—';
+      await this.auditoria.registrar({
+        id_condominio: updatedVisita.id_condominio,
+        usuario_nome: payload?.nome ?? (payload as any)?.user?.nome ?? (payload as any)?.user?.name ?? 'Morador',
+        acao: 'UPDATE',
+        modulo: 'visitas',
+        entidade_id: updatedVisita.id,
+        descricao:
+          `${label} "${updatedVisita.pessoa?.nome ?? ref.pessoa?.nome ?? ''}": o morador converteu a autorização remota em liberação própria, ` +
+          `janela ${fmt(updatedVisita.data_hora_inicio, true)}–${fmt(
+            updatedVisita.data_hora_termino,
+            // Término em outro dia: mostra o dia também.
+            fmt(updatedVisita.data_hora_inicio, true).slice(0, 5) !== fmt(updatedVisita.data_hora_termino, true).slice(0, 5),
+          )}`,
+      });
+    }
     await this.auditoria.registrar({
       id_condominio: updatedVisita.id_condominio,
       usuario_nome: 'Sistema / Portaria',
