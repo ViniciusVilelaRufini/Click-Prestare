@@ -539,4 +539,83 @@ describe('Prestador × login de portaria — troca de e-mail, upsert por nome e 
       expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...flags, funcao: 'Zelador', ch: 'Noite' })]);
     });
   });
+
+  describe('Rodada 4 (raia e) — permissões guardadas ao desligar o acesso', () => {
+    const flags = { areas_sociais: 1, comunicados: 0, ocorrencias: 1, manutencoes_programadas: 0, prestadores_servico: 1, agendar_mudanca: 0, cadastrar_visitante: 1, apartamentos: 0 };
+    const todas = { areas_sociais: 1, comunicados: 1, ocorrencias: 1, manutencoes_programadas: 1, prestadores_servico: 1, agendar_mudanca: 1, cadastrar_visitante: 1, apartamentos: 1 };
+
+    it('desligar a chave guarda as permissões no prestador; religar cria a conta nova com elas', async () => {
+      const { svc, db } = banco();
+      Object.assign(db.func[0], flags);
+      await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
+      expect(equipeAqui(db)).toHaveLength(0);
+      expect(JSON.parse(db.prestadores[0].permissoes_app_salvas)).toEqual(flags);
+
+      await svc.update(1, { hasPortariaAccess: true, senha: 'Volta#123' }, 1, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'a@x.com')!;
+      expect(nova.id).not.toBe(5); // conta nova (a antiga virou lápide)
+      expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...flags })]);
+    });
+
+    it('"Novo" com o mesmo nome depois de revogar (upsert) também restaura as permissões guardadas', async () => {
+      const { svc, db } = banco();
+      Object.assign(db.func[0], flags);
+      await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
+      await svc.create({ id_condominio: 1, nome: 'Eletricista', email: 'a@x.com', senha: 'Volta#123', hasPortariaAccess: true } as any, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'a@x.com')!;
+      expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...flags })]);
+    });
+
+    it('trocar o e-mail sem a chave também guarda (a conta nova nasce depois, no app)', async () => {
+      const { svc, db } = banco();
+      Object.assign(db.func[0], flags);
+      await svc.update(1, { email: 'b@x.com', senha: 'Nova#123' }, 1, sindico);
+      expect(JSON.parse(db.prestadores[0].permissoes_app_salvas)).toEqual(flags);
+      // Ligar a chave depois (com senha): a conta do e-mail novo nasce com as permissões guardadas.
+      await svc.update(1, { hasPortariaAccess: true, senha: 'Outra#123' }, 1, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'b@x.com')!;
+      expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...flags })]);
+    });
+
+    it('sem nada guardado, a primeira concessão continua com todas ligadas', async () => {
+      const { svc, db } = banco();
+      db.prestadores.push({ id: 2, nome: 'Jardineiro', email: null, telefone: null, categorias: null, id_condominio: 1, id_apartamento: null,
+        face_id: null, foto_pessoa: null, foto_documento: null, dias_semana: null });
+      await svc.update(2, { email: 'j@x.com', hasPortariaAccess: true, senha: 'Jard#123' }, 1, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'j@x.com')!;
+      expect(equipeAqui(db)).toEqual(expect.arrayContaining([expect.objectContaining({ id_user: nova.id, ...todas })]));
+    });
+
+    it('JSON guardado inválido é ignorado: volta ao padrão, sem erro', async () => {
+      const { svc, db } = banco();
+      await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
+      db.prestadores[0].permissoes_app_salvas = '{"comunicados": "sim"';
+      await svc.update(1, { hasPortariaAccess: true, senha: 'Volta#123' }, 1, sindico);
+      const nova = db.users.find((u: Linha) => u.login === 'a@x.com')!;
+      expect(equipeAqui(db)).toEqual([expect.objectContaining({ id_user: nova.id, ...todas })]);
+    });
+
+    it('revogar um login sem vínculo de equipe aqui não apaga o que estava guardado', async () => {
+      const { svc, db } = banco();
+      db.prestadores[0].permissoes_app_salvas = JSON.stringify(flags);
+      db.func.splice(0, db.func.length); // a conta não é (mais) da equipe daqui
+      await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
+      expect(db.fp).toHaveLength(0);
+      expect(JSON.parse(db.prestadores[0].permissoes_app_salvas)).toEqual(flags);
+    });
+
+    it('falha ao guardar as permissões não derruba a revogação', async () => {
+      const { svc, db, prisma } = banco();
+      Object.assign(db.func[0], flags);
+      const original = prisma.prestadores_servico.update.getMockImplementation();
+      prisma.prestadores_servico.update.mockImplementation(async (args: any) => {
+        if (args?.data && 'permissoes_app_salvas' in args.data) throw new Error('Unknown column');
+        return original!(args);
+      });
+      await svc.update(1, { hasPortariaAccess: false }, 1, sindico);
+      expect(db.fp).toHaveLength(0);
+      expect(equipeAqui(db)).toHaveLength(0);
+      contaInutilizada(conta(db, 5));
+    });
+  });
 });

@@ -849,6 +849,10 @@ model Prestadores_servico {
   face_enrolled_at DateTime?     @db.DateTime(0)
   face_sync_status String?       @db.VarChar(20)
   face_sync_error  String?       @db.VarChar(500)
+  /// JSON com as 8 permissões do vínculo de equipe (Funcionarios) no momento em que o acesso à portaria deste
+  /// prestador foi tirado ou mudou de conta. Restauradas quando o acesso volta (prestadores.service e o fallback
+  /// do loginFuncionario do app). NULL = nada guardado: a concessão usa o padrão (todas ligadas).
+  permissoes_app_salvas String?  @db.Text
   created_at       DateTime      @default(now()) @db.DateTime(0)
   updated_at       DateTime      @default(now()) @updatedAt @db.DateTime(0)
   condominio     Condominios   @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_prest_cond")

@@ -17,6 +17,8 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService, ehFuncionarioDoApp, type PermissaoFuncionario } from './tenant-access.service';
 import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { contaSoDaEquipeDoCondominio } from './conta-so-de-equipe.util';
+import { ehLoginDoPrestador } from '../prestadores/login-do-prestador.util';
+import { lerPermissoesSalvas } from '../prestadores/permissoes-salvas.util';
 import { idUsuarioDoToken } from './usuario-do-token.util';
 import { momentoTrocaSenha } from './senha-alterada.util';
 import { assertEmailNaoReservado } from '../common/email-reservado.util';
@@ -1147,6 +1149,9 @@ export class MobileAuthService {
             agendar_mudanca: 1,
             cadastrar_visitante: 1,
             apartamentos: 1,
+            // Login de um prestador cujo acesso foi tirado (ou trocado de e-mail) com permissões restringidas pelo
+            // síndico: voltam as guardadas na revogação, em vez de todas ligadas.
+            ...(await this.permissoesSalvasDoLoginDePortaria(portaria)),
           },
         });
       }
@@ -1229,6 +1234,36 @@ export class MobileAuthService {
     const payload = { sub: user.id, nome: func.nome, typeAccess: 'Funcionario', user: userObj };
 
     return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
+  }
+
+  /**
+   * Permissões guardadas (Prestadores_servico.permissoes_app_salvas) do prestador DESTE condomínio dono deste login
+   * de portaria, pelo critério do cadastro (ehLoginDoPrestador: e-mail + turno 'Geral' ou mesmo nome). Nada guardado,
+   * login de outra pessoa ou qualquer falha na leitura → null, e o vínculo nasce com o padrão. Nunca derruba o login.
+   */
+  private async permissoesSalvasDoLoginDePortaria(portaria: {
+    login: string;
+    turno: string | null;
+    nome: string | null;
+    id_condominio: number | null;
+  }) {
+    if (portaria.id_condominio == null || !portaria.login) return null;
+    try {
+      // `as any`: coluna nova (2026-11-14-prestador-permissoes-salvas.sql); o cliente Prisma é gerado no deploy.
+      const candidatos: any[] = await (this.prisma.prestadores_servico as any).findMany({
+        where: { id_condominio: Number(portaria.id_condominio), email: portaria.login, permissoes_app_salvas: { not: null } },
+        select: { id: true, nome: true, email: true, permissoes_app_salvas: true },
+        orderBy: { id: 'asc' },
+      });
+      for (const p of candidatos ?? []) {
+        if (!ehLoginDoPrestador(portaria, p)) continue;
+        const salvas = lerPermissoesSalvas(p.permissoes_app_salvas);
+        if (salvas) return salvas;
+      }
+    } catch (e: any) {
+      this.logger.warn(`Permissões guardadas do login de portaria indisponíveis: ${e?.message ?? e}`);
+    }
+    return null;
   }
 
   async listCondominiosFuncionario(idUser: number) {
