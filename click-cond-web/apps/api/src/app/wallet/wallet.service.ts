@@ -50,6 +50,8 @@ export function cicloDoTickWallet(agora: Date = new Date()): string | null {
 }
 
 const SEGREDO_HEX = /^[0-9a-f]{64}$/i;
+/** Rótulo da subchave do token do passe (ver chaveDoToken). */
+const ROTULO_CHAVE_TOKEN = 'prestare/wallet/apple-token/v1';
 const ESPERA_LOCK_S = 5;
 const MSG_SEM_MORADOR = 'Seu usuário não tem unidade vinculada neste condomínio.';
 const MSG_DESLIGADO = 'Passe na carteira não está ativo neste condomínio.';
@@ -325,8 +327,8 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * `authenticationToken` do passe: base64url dos primeiros 24 bytes de
-   * HMAC-SHA256(sha256(FACIAL_CRED_KEY || JWT_SECRET), "wallet-auth|<id>").
-   * Derivado, não guardado. Sem segredo no servidor: 503.
+   * HMAC-SHA256(chaveDoToken, "wallet-auth|<id>"). Derivado, não guardado.
+   * Sem segredo no servidor: 503.
    */
   tokenDoPasse(idCredencial: number): string {
     const chave = this.chaveDoToken(true) as Buffer;
@@ -555,12 +557,20 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     return hex && SEGREDO_HEX.test(hex) ? Buffer.from(hex, 'hex') : null;
   }
 
+  /**
+   * Chave do token = HMAC-SHA256(sha256(FACIAL_CRED_KEY || JWT_SECRET),
+   * "prestare/wallet/apple-token/v1"), como a chave do link do visitante
+   * (credenciais.service.ts, chaveDoLink). A base sozinha é a chave do
+   * encryptSecret; o rótulo próprio separa as duas: nada calculado com uma
+   * serve para a outra.
+   */
   private chaveDoToken(exigir: boolean): Buffer | null {
     const segredo = process.env.FACIAL_CRED_KEY || process.env.JWT_SECRET;
     if (!segredo) {
       if (exigir) throw new ServiceUnavailableException(MSG_INDISPONIVEL);
       return null;
     }
-    return createHash('sha256').update(segredo).digest();
+    const base = createHash('sha256').update(segredo).digest();
+    return createHmac('sha256', base).update(ROTULO_CHAVE_TOKEN).digest();
   }
 }

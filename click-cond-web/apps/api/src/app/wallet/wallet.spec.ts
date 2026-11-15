@@ -99,12 +99,16 @@ describe('WalletService', () => {
       expect(r).toMatchObject({ ok: true, idCredencial: cred.id, contador: diaBrasiliaDe(AGORA) });
     });
 
-    it('tokenDoPasse é o HMAC do plano: base64url dos 24 primeiros bytes', () => {
+    it('tokenDoPasse usa subchave com rótulo próprio: base64url dos 24 primeiros bytes', () => {
       const { svc } = build();
       const base = createHash('sha256').update('segredo-de-teste').digest();
-      const esperado = createHmac('sha256', base).update('wallet-auth|123').digest().subarray(0, 24).toString('base64url');
+      const chave = createHmac('sha256', base).update('prestare/wallet/apple-token/v1').digest();
+      const esperado = createHmac('sha256', chave).update('wallet-auth|123').digest().subarray(0, 24).toString('base64url');
       expect(svc.tokenDoPasse(123)).toBe(esperado);
       expect(esperado).toHaveLength(32);
+      // A base sozinha (a mesma do encryptSecret) não gera o token.
+      const semRotulo = createHmac('sha256', base).update('wallet-auth|123').digest().subarray(0, 24).toString('base64url');
+      expect(svc.tokenDoPasse(123)).not.toBe(semRotulo);
     });
 
     it('adicionar de novo devolve o mesmo número de série e o mesmo id de credencial', async () => {
