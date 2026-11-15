@@ -142,6 +142,21 @@ describe('GuaritaPortariaComponent — alertas', () => {
     expect(outros[0].textContent).toContain('Porta violada');
   });
 
+  it('remoção pendente em destaque logo abaixo do pânico, fora da lista comum', () => {
+    const remocao = { id: 92, id_device: 7, tipo: 'remocao_pendente', descricao: 'Controle da unidade 204 B (ex-morador) ainda não foi apagado do Guarita', created_at: '2026-11-15T12:02:00Z', visto_em: null };
+    const { f, el } = build({ extra: { alertas: jest.fn(() => of([porta, remocao, panico])) } });
+    f.detectChanges();
+    const ordem = Array.from(el.querySelectorAll('[data-guarita-panico], [data-guarita-remocao-pendente], [data-guarita-portaria]')).map((x) =>
+      x.hasAttribute('data-guarita-panico') ? 'panico' : x.hasAttribute('data-guarita-remocao-pendente') ? 'remocao' : 'painel',
+    );
+    expect(ordem).toEqual(['panico', 'remocao', 'painel']);
+    const r = el.querySelector('[data-guarita-remocao-pendente]');
+    expect(r?.getAttribute('role')).toBe('alert');
+    expect(r?.textContent).toContain('Ex-morador ainda abre o portão');
+    expect(r?.textContent).toContain('unidade 204 B');
+    expect(el.querySelectorAll('[data-guarita-alerta]').length).toBe(1);
+  });
+
   it('"Marcar como visto" chama a API e tira o alerta da tela', () => {
     const { f, el, tela, api } = build({ extra: { alertas: jest.fn(() => of([porta, panico])) } });
     tela.marcarVisto(panico as any);

@@ -253,6 +253,11 @@ export interface GuaritaAlerta {
   visto_em?: string | null;
 }
 
+/** Ex-morador cujo dispositivo ainda abre o portão (a remoção no Guarita não terminou). */
+export function alertaEhRemocaoPendente(a: Pick<GuaritaAlerta, 'tipo'>): boolean {
+  return a.tipo === 'remocao_pendente';
+}
+
 /** Pânico vai em destaque. A API não fixou o nome do tipo: aceita 'panico' ou a palavra na descrição. */
 export function alertaEhPanico(a: Pick<GuaritaAlerta, 'tipo' | 'descricao'>): boolean {
   const semAcento = (s: string | null | undefined) =>

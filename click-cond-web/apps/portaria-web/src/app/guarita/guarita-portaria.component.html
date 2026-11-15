@@ -15,6 +15,21 @@
     </div>
   }
 
+  <!-- Logo abaixo do pânico: ex-morador cujo dispositivo ainda abre o portão -->
+  @for (a of remocoesPendentes(); track a.id) {
+    <div data-guarita-remocao-pendente role="alert" class="ps-panel border-[var(--signal-warn)]">
+      <div class="flex items-center gap-3.5 px-5 py-4">
+        <span class="ps-dot ps-dot-warn shrink-0"></span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold">Ex-morador ainda abre o portão · {{ nomeDoGuarita(a.id_device) }}</p>
+          <p class="ps-cap">{{ a.descricao }} · {{ a.created_at | date: 'dd/MM HH:mm' }}</p>
+        </div>
+        <button type="button" (click)="marcarVisto(a)" [disabled]="alertaEmAcao() === a.id"
+          class="ps-btn ps-btn-sec ps-btn-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">Marcar como visto</button>
+      </div>
+    </div>
+  }
+
   <div class="ps-panel" data-guarita-portaria>
     <div class="ps-panel-head">
       <h2 class="ps-h2">Garagem</h2>

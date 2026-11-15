@@ -10,6 +10,7 @@ import {
   GuaritaPortao,
   GuaritaService,
   alertaEhPanico,
+  alertaEhRemocaoPendente,
   mensagemDaApiGuarita,
 } from './guarita.service';
 
@@ -47,7 +48,13 @@ export class GuaritaPortariaComponent implements OnInit, OnDestroy {
   readonly portoes = signal<PortaoDaPortaria[]>([]);
   readonly alertas = signal<GuaritaAlerta[]>([]);
   readonly panicos = computed(() => this.alertas().filter((a) => alertaEhPanico(a)));
-  readonly outrosAlertas = computed(() => this.alertas().filter((a) => !alertaEhPanico(a)));
+  /** Logo abaixo do pânico: dispositivo de ex-morador que ainda abre o portão. */
+  readonly remocoesPendentes = computed(() =>
+    this.alertas().filter((a) => !alertaEhPanico(a) && alertaEhRemocaoPendente(a)),
+  );
+  readonly outrosAlertas = computed(() =>
+    this.alertas().filter((a) => !alertaEhPanico(a) && !alertaEhRemocaoPendente(a)),
+  );
 
   /** Portão com abertura em andamento (chave `device-portao`). Um clique = uma chamada. */
   readonly abrindo = signal<string | null>(null);
