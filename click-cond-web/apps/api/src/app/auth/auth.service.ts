@@ -10,6 +10,7 @@ import { autorDoToken, idUsuarioDoToken } from './usuario-do-token.util';
 import { TenantAccessService } from './tenant-access.service';
 import { MfaService } from './mfa/mfa.service';
 import { momentoTrocaSenha } from './senha-alterada.util';
+import { MSG_FUNCIONARIO_DESATIVADO, loginPortariaDesativadoNoCondominio } from './login-portaria-desativado.util';
 import { carimboCredencialPortaria } from './credencial-portaria.util';
 import { contaSoDaEquipeDoCondominio } from './conta-so-de-equipe.util';
 import { AuditoriaService, type AuditoriaAutorTipo } from '../auditoria/auditoria.service';
@@ -821,6 +822,10 @@ export class AuthService {
       where: { id_user: userId, id_condominio: idCondominio, condominio: { ativo: 1 } },
       select: { id: true },
     });
+    // Login de portaria desativado na aba "Equipe da portaria": o QR não abre o console para ele.
+    if (func && (await loginPortariaDesativadoNoCondominio(this.prisma, userId, idCondominio))) {
+      throw new UnauthorizedException(MSG_FUNCIONARIO_DESATIVADO);
+    }
     if (func) return 'Funcionario';
 
     throw new UnauthorizedException('Você não tem vínculo com este condomínio.');

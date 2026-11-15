@@ -45,8 +45,8 @@ describe('Equipe da portaria (console) — listar, ativar/desativar e turno', ()
         { id: 71, id_user: 5, id_condominio: 2, ch: 'Diurno' },
       ] as Linha[],
       logins: [
-        { autor_id: 12, created_at: new Date('2026-11-10T10:00:00Z') },
-        { autor_id: 12, created_at: new Date('2026-11-12T08:30:00Z') },
+        { autor_tipo: 'funcionario_portaria', autor_id: 12, created_at: new Date('2026-11-10T10:00:00Z') },
+        { autor_tipo: 'funcionario_portaria', autor_id: 12, created_at: new Date('2026-11-12T08:30:00Z') },
       ] as Linha[],
     };
     const em = (v: any, x: any) => (v && typeof v === 'object' && 'in' in v ? v.in.includes(x) : v === x);
@@ -92,10 +92,13 @@ describe('Equipe da portaria (console) — listar, ativar/desativar e turno', ()
       },
       auditLog: {
         groupBy: jest.fn(async ({ where }: any) => {
-          const ids = [...new Set(db.logins.map((l) => l.autor_id))].filter((id) => where.autor_id.in.includes(id));
+          const linhas = db.logins.filter(
+            (l) => l.autor_tipo === where.autor_tipo && where.autor_id.in.includes(l.autor_id) && l.created_at >= where.created_at.gte,
+          );
+          const ids = [...new Set(linhas.map((l) => l.autor_id))];
           return ids.map((id) => ({
             autor_id: id,
-            _max: { created_at: new Date(Math.max(...db.logins.filter((l) => l.autor_id === id).map((l) => +l.created_at))) },
+            _max: { created_at: new Date(Math.max(...linhas.filter((l) => l.autor_id === id).map((l) => +l.created_at))) },
           }));
         }),
       },
@@ -160,6 +163,23 @@ describe('Equipe da portaria (console) — listar, ativar/desativar e turno', ()
       // O login que o cadastro do prestador não reconhece mais (turno e nome mudados pelo app) aparece aqui.
       expect(porId[15]).toEqual(expect.objectContaining({ origem: 'app', prestador: null, email_de_prestador: true }));
       expect(lista[0]).not.toHaveProperty('password');
+    });
+
+    it('último acesso: vale o login por QR (conta do app) quando é o mais recente; fora de 90 dias não conta', async () => {
+      const { svc, db, prisma } = banco();
+      const agora = Date.now();
+      db.logins.splice(0, db.logins.length,
+        { autor_tipo: 'funcionario_portaria', autor_id: 12, created_at: new Date(agora - 5 * 86400000) },
+        { autor_tipo: 'user', autor_id: 5, created_at: new Date(agora - 86400000) }, // QR da Ana (Users 5)
+        { autor_tipo: 'funcionario_portaria', autor_id: 15, created_at: new Date(agora - 120 * 86400000) },
+      );
+      const porId = Object.fromEntries((await svc.listarEquipePortaria(1, sindico)).map((f: any) => [f.id, f]));
+      expect(porId[12].ultimo_acesso).toEqual(new Date(agora - 86400000));
+      expect(porId[15].ultimo_acesso).toBeNull();
+      for (const [args] of prisma.auditLog.groupBy.mock.calls) {
+        expect(args.where).toEqual(expect.objectContaining({ id_condominio: 1, acao: 'LOGIN', created_at: { gte: expect.any(Date) } }));
+        expect(agora - +args.where.created_at.gte).toBeGreaterThanOrEqual(89 * 86400000);
+      }
     });
 
     it('sem a auditoria (falha na consulta), a lista sai com último acesso vazio', async () => {
@@ -242,6 +262,26 @@ describe('Equipe da portaria (console) — listar, ativar/desativar e turno', ()
       const antes = JSON.parse(JSON.stringify(db.fp));
       await expect(svc.alterarLoginPortaria(1, 12, body as any, sindico)).rejects.toThrow(new BadRequestException(msg));
       expect(db.fp).toEqual(antes);
+    });
+
+    it("sair de 'Geral' num login de prestador com outro nome: o nome da linha vira o do prestador (o elo continua)", async () => {
+      const { svc, db, auditoria } = banco();
+      db.fp[1].nome = 'Elétrico Zé'; // a concessão copia o nome, mas a linha pode ter sido renomeada
+      const r = await svc.alterarLoginPortaria(1, 13, { turno: 'Noturno' }, sindico);
+      expect(db.fp[1]).toEqual(expect.objectContaining({ turno: 'Noturno', nome: 'Eletricista' }));
+      expect(r).toEqual(expect.objectContaining({ turno: 'Noturno', nome: 'Eletricista' }));
+      expect(auditoria.registrar.mock.calls[0][0].descricao).toContain('nome igualado ao do prestador');
+      const porId = Object.fromEntries((await svc.listarEquipePortaria(1, sindico)).map((f: any) => [f.id, f]));
+      expect(porId[13]).toEqual(expect.objectContaining({ origem: 'prestador', prestador: { id: 1, nome: 'Eletricista' } }));
+    });
+
+    it("login 'Geral' sem prestador dono identificável não sai de 'Geral' (400) e nada muda", async () => {
+      const { svc, db } = banco();
+      db.prestadores.splice(0, 1); // ninguém mais com o e-mail ele@x.com
+      await expect(svc.alterarLoginPortaria(1, 13, { turno: 'Noturno' }, sindico)).rejects.toThrow(
+        'Este login foi dado pelo cadastro de prestador e não há um prestador com este e-mail para ligá-lo: o turno continua "Geral".',
+      );
+      expect(db.fp[1].turno).toBe('Geral');
     });
 
     it("'Geral' pode voltar no login que é do prestador (é o turno que a concessão grava)", async () => {

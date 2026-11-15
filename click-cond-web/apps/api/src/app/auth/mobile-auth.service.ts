@@ -17,6 +17,7 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService, ehFuncionarioDoApp, type PermissaoFuncionario } from './tenant-access.service';
 import { MSG_CONTA_DE_OUTRO_CONDOMINIO, usuarioTemVinculoEmOutroCondominio, usuarioTemVinculoNoCondominio, usuariosComVinculoEmOutroCondominio } from '../common/vinculos-usuario.util';
 import { contaSoDaEquipeDoCondominio } from './conta-so-de-equipe.util';
+import { MSG_FUNCIONARIO_DESATIVADO, loginPortariaDesativadoNoCondominio } from './login-portaria-desativado.util';
 import { ehLoginDoPrestador, nomeNormalizado } from '../prestadores/login-do-prestador.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { lerPermissoesSalvas } from '../prestadores/permissoes-salvas.util';
@@ -1035,12 +1036,14 @@ export class MobileAuthService {
     // Se o usuário não existe em Users ou não tem o vínculo na tabela Funcionarios,
     // busca na tabela Funcionarios_Portaria (criada pelo painel Web).
     if (!user || !user.funcionarios || user.funcionarios.length === 0) {
+      // Só login de portaria ATIVO: o desativado na aba "Equipe da portaria" não recria conta nem vínculo.
       const portaria = await this.prisma.funcionarios_Portaria.findFirst({
         where: {
           OR: [
             { login: cleanLogin },
             { email: cleanLogin },
           ],
+          ativo: 1,
         },
         include: { condominio: { select: { ativo: true } } },
       });
@@ -1186,6 +1189,8 @@ export class MobileAuthService {
             { login: cleanLogin },
             { email: cleanLogin },
           ],
+          // A senha de um login de portaria desativado não vale nem para adotar a senha da conta.
+          ativo: 1,
         },
       });
 
@@ -1218,9 +1223,17 @@ export class MobileAuthService {
       throw new UnauthorizedException('Login ou Senha incorretos');
     }
 
-    this.recusarSeSoCondominiosInativos(user.funcionarios);
+    // Vínculo de equipe num condomínio onde o login de portaria está desativado (aba "Equipe da portaria") não
+    // conta enquanto a linha estiver inativa. Sem nenhum outro, o login é recusado.
+    const vinculos: typeof user.funcionarios = [];
+    for (const f of user.funcionarios) {
+      if (!(await loginPortariaDesativadoNoCondominio(this.prisma, user.id, f.id_condominio))) vinculos.push(f);
+    }
+    if (vinculos.length === 0) throw new UnauthorizedException(MSG_FUNCIONARIO_DESATIVADO);
 
-    const func = user.funcionarios.find((f) => f.condominio?.ativo !== 0) ?? user.funcionarios[0];
+    this.recusarSeSoCondominiosInativos(vinculos);
+
+    const func = vinculos.find((f) => f.condominio?.ativo !== 0) ?? vinculos[0];
     const userObj = {
       id: user.id,
       nome: func.nome,
@@ -1269,6 +1282,15 @@ export class MobileAuthService {
     return null;
   }
 
+  /**
+   * Condomínio do vínculo de equipe que o app resolve sozinho (resumo, "meus eventos", encomendas sem
+   * id_condominio): não vale enquanto o login de portaria dele ali estiver desativado (aba "Equipe da portaria").
+   */
+  private async condominioDoVinculoSeAtivo(idUser: number, idCondominio?: number | null): Promise<number | undefined> {
+    if (!idCondominio) return undefined;
+    return (await loginPortariaDesativadoNoCondominio(this.prisma, idUser, idCondominio)) ? undefined : idCondominio;
+  }
+
   async listCondominiosFuncionario(idUser: number) {
     if (!this.prisma.isConnected) {
       return [{
@@ -1288,9 +1310,14 @@ export class MobileAuthService {
         },
       });
 
+      // Condomínio onde o login de portaria dele está desativado não entra na lista (as rotas recusam).
+      const desativados = new Set<number>();
+      for (const f of funcs) {
+        if (await loginPortariaDesativadoNoCondominio(this.prisma, idUser, f.id_condominio)) desativados.add(f.id_condominio);
+      }
       const resultList = funcs.map(f => {
         const c = f.condominio;
-        if (!c || c.ativo === 0) return null;
+        if (!c || c.ativo === 0 || desativados.has(f.id_condominio)) return null;
         const saldoNum = c.financeiro?.reduce((acc, fin) => acc + (Number(fin.valor) || 0), 0) ?? 0;
         const saldoStr = saldoNum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         return {
@@ -1379,7 +1406,7 @@ export class MobileAuthService {
           where: { id_user: idUser, condominio: { ativo: 1 } },
           select: { id_condominio: true },
         });
-        condId = func?.id_condominio;
+        condId = await this.condominioDoVinculoSeAtivo(idUser, func?.id_condominio);
 
         if (!condId) {
           const userObj = await this.prisma.users.findUnique({
@@ -1388,7 +1415,7 @@ export class MobileAuthService {
           });
           if (userObj?.email) {
             const port = await this.prisma.funcionarios_Portaria.findFirst({
-              where: { email: userObj.email, condominio: { ativo: 1 } },
+              where: { email: userObj.email, ativo: 1, condominio: { ativo: 1 } },
               select: { id_condominio: true },
             });
             condId = port?.id_condominio;
@@ -1579,9 +1606,7 @@ export class MobileAuthService {
         where: { id_user: idUser, condominio: { ativo: 1 } },
         select: { id_condominio: true },
       });
-      if (func?.id_condominio) {
-        idCondominioFuncionario = func.id_condominio;
-      }
+      idCondominioFuncionario = (await this.condominioDoVinculoSeAtivo(idUser, func?.id_condominio)) ?? null;
     }
 
     if (idCondominioFuncionario) {
@@ -3844,6 +3869,12 @@ export class MobileAuthService {
     }
     // Domínio das lápides da revogação de portaria (common/email-reservado.util).
     assertEmailNaoReservado(func.email, func.login);
+    // Turno 'Síndico' é reservado: o assertSindico (não estrito) aceita esse turno como síndico, e o porteiro que o
+    // recebesse ganhava sessão de console com poderes de síndico. Mesma regra da aba "Equipe da portaria".
+    const turnoPedido = func.ch ?? func.turno;
+    if (typeof turnoPedido === 'string' && nomeNormalizado(turnoPedido) === 'sindico') {
+      throw new BadRequestException('Este turno é reservado.');
+    }
     const idCondominio = Number(body.id_condominio);
 
     // Resolvida em cada ramo, depois da autorização: URL do bucket só passa se
@@ -4187,7 +4218,13 @@ export class MobileAuthService {
     });
     const loginsDeSindico = new Set(sindicos.map((u) => chave(u.login)));
     const meuLogin = await this.loginsDaContaDoToken(user);
-    const ultimos = await this.ultimosLoginsNoConsole(idCondominio, linhas.map((f) => f.id));
+    // Conta do app de cada login (o elo do saveFuncionario: Users.login): o login por QR é auditado com Users.id.
+    const contas = await this.prisma.users.findMany({ where: { login: { in: logins } }, select: { id: true, login: true } });
+    const contaPorLogin = new Map(contas.map((u) => [chave(u.login), u.id]));
+    const ultimos = await this.ultimosLoginsNoConsole(
+      idCondominio,
+      linhas.map((f) => ({ idPortaria: f.id, idConta: contaPorLogin.get(chave(f.login)) ?? null })),
+    );
 
     return linhas.map((f) => {
       const comMesmoEmail = prestadores.filter((p) => chave(p.email) === chave(f.login));
@@ -4248,28 +4285,43 @@ export class MobileAuthService {
     });
     if (!fp) throw new NotFoundException('Funcionário não encontrado.');
 
+    // Login de prestador: o elo com o cadastro é o e-mail + (turno 'Geral' OU mesmo nome). Sair de 'Geral' com um
+    // nome diferente do prestador desfaria o elo (remover/desligar o prestador deixaria de alcançar o login): o nome
+    // da linha passa a ser o do prestador dono, na mesma gravação. Sem um dono identificável, não sai de 'Geral'.
+    let nomeDoDono: string | undefined;
     if (turno !== undefined) {
       const t = nomeNormalizado(turno);
       if (t === 'sindico') throw new BadRequestException('Este turno é reservado.');
-      if (t === 'geral') {
+      const saiDeGeral = fp.turno === 'Geral' && t !== 'geral';
+      if (t === 'geral' || saiDeGeral) {
         const prestadores = await this.prisma.prestadores_servico.findMany({
           where: { id_condominio: idCondominio, email: fp.login },
           select: { id: true, nome: true, email: true },
         });
-        if (!prestadores.some((p) => ehLoginDoPrestador(fp, p))) throw new BadRequestException('Este turno é reservado.');
-        turno = 'Geral';
+        const donos = prestadores.filter((p) => ehLoginDoPrestador(fp, p));
+        if (t === 'geral') {
+          if (donos.length === 0) throw new BadRequestException('Este turno é reservado.');
+          turno = 'Geral';
+        } else if (donos.length !== 1) {
+          throw new BadRequestException(
+            'Este login foi dado pelo cadastro de prestador e não há um prestador com este e-mail para ligá-lo: o turno continua "Geral".',
+          );
+        } else if (nomeNormalizado(donos[0].nome) !== nomeNormalizado(fp.nome)) {
+          nomeDoDono = donos[0].nome;
+        }
       }
     }
     if (ativo === false && (await this.loginsDaContaDoToken(user)).has(fp.login.trim().toLowerCase())) {
       throw new BadRequestException('Você não pode desativar o seu próprio acesso.');
     }
 
-    const data: { ativo?: number; turno?: string } = {};
+    const data: { ativo?: number; turno?: string; nome?: string } = {};
     if (ativo !== undefined) data.ativo = ativo ? 1 : 0;
     if (turno !== undefined) data.turno = turno;
+    if (nomeDoDono !== undefined) data.nome = nomeDoDono;
 
     const atualizado = await this.prisma.$transaction(async (tx) => {
-      const r = await tx.funcionarios_Portaria.update({ where: { id: fp.id }, data, select: { id: true, ativo: true, turno: true } });
+      const r = await tx.funcionarios_Portaria.update({ where: { id: fp.id }, data, select: { id: true, ativo: true, turno: true, nome: true } });
       if (turno !== undefined) {
         // A conta do app deste login (o mesmo elo do saveFuncionario: Users.login) e só o vínculo DESTE condomínio.
         const conta = await tx.users.findFirst({ where: { login: fp.login }, select: { id: true } });
@@ -4281,6 +4333,7 @@ export class MobileAuthService {
     const mudancas: string[] = [];
     if (data.ativo !== undefined && data.ativo !== fp.ativo) mudancas.push(data.ativo ? 'ativado' : 'desativado');
     if (data.turno !== undefined && data.turno !== fp.turno) mudancas.push(`turno ${fp.turno ?? '—'} → ${data.turno}`);
+    if (data.nome !== undefined) mudancas.push(`nome igualado ao do prestador (${data.nome})`);
     if (mudancas.length && this.auditoria) {
       void this.auditoria
         .registrar({
@@ -4297,7 +4350,7 @@ export class MobileAuthService {
         .catch(() => undefined);
     }
 
-    return { id: atualizado.id, ativo: atualizado.ativo === 1, turno: atualizado.turno ?? '' };
+    return { id: atualizado.id, ativo: atualizado.ativo === 1, turno: atualizado.turno ?? '', nome: atualizado.nome ?? fp.nome };
   }
 
   /** Login e e-mail (minúsculos) da conta Users do token; vazio para token sem Users.id (porteiro do console). */
@@ -4308,21 +4361,52 @@ export class MobileAuthService {
     return new Set([conta?.login, conta?.email].filter((s): s is string => !!s).map((s) => s.trim().toLowerCase()));
   }
 
-  /** Último LOGIN no console por senha de cada login de portaria (audit_logs). Falha → mapa vazio. */
-  private async ultimosLoginsNoConsole(idCondominio: number, ids: number[]): Promise<Map<number, Date>> {
+  /**
+   * Último LOGIN no console de cada login de portaria (audit_logs), nos últimos 90 dias — a janela usa o índice
+   * (id_condominio, created_at). Por senha o autor é a linha de portaria ('funcionario_portaria'); pelo QR do app é a
+   * conta Users dele ('user'). Vale o mais recente dos dois. Falha → mapa vazio (a coluna sai vazia).
+   */
+  private async ultimosLoginsNoConsole(
+    idCondominio: number,
+    itens: { idPortaria: number; idConta: number | null }[],
+  ): Promise<Map<number, Date>> {
+    const out = new Map<number, Date>();
     try {
-      const grupos = await this.prisma.auditLog.groupBy({
-        by: ['autor_id'],
-        where: { id_condominio: idCondominio, acao: 'LOGIN', autor_tipo: 'funcionario_portaria', autor_id: { in: ids } },
-        _max: { created_at: true },
-      });
-      const out = new Map<number, Date>();
-      for (const g of grupos as any[]) if (g.autor_id != null && g._max?.created_at) out.set(g.autor_id, g._max.created_at);
-      return out;
+      const desde = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const base = { id_condominio: idCondominio, acao: 'LOGIN', created_at: { gte: desde } };
+      const idsContas = [...new Set(itens.map((i) => i.idConta).filter((v): v is number => v != null))];
+      const [porSenha, porConta] = await Promise.all([
+        this.prisma.auditLog.groupBy({
+          by: ['autor_id'],
+          where: { ...base, autor_tipo: 'funcionario_portaria', autor_id: { in: itens.map((i) => i.idPortaria) } },
+          _max: { created_at: true },
+        }),
+        idsContas.length
+          ? this.prisma.auditLog.groupBy({
+              by: ['autor_id'],
+              where: { ...base, autor_tipo: 'user', autor_id: { in: idsContas } },
+              _max: { created_at: true },
+            })
+          : Promise.resolve([]),
+      ]);
+      const mapa = (grupos: any[]) => {
+        const m = new Map<number, Date>();
+        for (const g of grupos ?? []) if (g.autor_id != null && g._max?.created_at) m.set(g.autor_id, g._max.created_at);
+        return m;
+      };
+      const senha = mapa(porSenha as any[]);
+      const conta = mapa(porConta as any[]);
+      for (const i of itens) {
+        const datas = [senha.get(i.idPortaria), i.idConta != null ? conta.get(i.idConta) : undefined].filter(
+          (d): d is Date => !!d,
+        );
+        if (datas.length) out.set(i.idPortaria, new Date(Math.max(...datas.map((d) => +new Date(d)))));
+      }
     } catch (e: any) {
       this.logger.warn(`Último acesso da equipe da portaria indisponível: ${e?.message ?? e}`);
-      return new Map();
+      out.clear();
     }
+    return out;
   }
 
   /**
@@ -5608,7 +5692,7 @@ export class MobileAuthService {
               const func = await this.prisma.funcionarios.findFirst({
                 where: { id_user: idUser, condominio: { ativo: 1 } },
               });
-              condId = func?.id_condominio;
+              condId = await this.condominioDoVinculoSeAtivo(idUser, func?.id_condominio);
             } else {
               const sind = await this.prisma.sindicos_Condominios.findFirst({
                 where: { id_user: idUser, condominio: { ativo: 1 } },
