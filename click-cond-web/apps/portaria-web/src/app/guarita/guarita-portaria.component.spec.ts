@@ -105,6 +105,17 @@ describe('GuaritaPortariaComponent — portões', () => {
     expect((el.querySelector('[data-guarita-abrir]') as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it('403 na primeira tentativa: os botões somem e fica a mensagem da API', async () => {
+    const msg = 'Abrir portão é só do síndico.';
+    const { f, el, tela, api } = build({ extra: { abrirPortao: jest.fn(() => throwError(() => ({ status: 403, error: { message: msg } }))) } });
+    await tela.abrir(tela.portoes()[0]);
+    f.detectChanges();
+    expect(el.querySelector('[data-guarita-abrir]')).toBeNull();
+    expect(el.querySelector('[data-guarita-sem-permissao]')?.textContent?.trim()).toBe(msg);
+    await tela.abrir(tela.portoes()[1]);
+    expect(api.abrirPortao).toHaveBeenCalledTimes(1);
+  });
+
   it('portões que a API não devolve (rota ausente) = nenhum botão, sem erro', () => {
     const { el } = build({ extra: { portoes: jest.fn(() => throwError(() => ({ status: 404 }))) } });
     expect(el.querySelector('[data-guarita-abrir]')).toBeNull();

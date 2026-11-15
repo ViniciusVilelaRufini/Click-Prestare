@@ -53,6 +53,8 @@ export class GuaritaPortariaComponent implements OnInit, OnDestroy {
   readonly abrindo = signal<string | null>(null);
   readonly mensagem = signal<{ texto: string; erro: boolean } | null>(null);
   readonly alertaEmAcao = signal<number | null>(null);
+  /** A API recusou a abertura para esta sessão (403): os botões somem e fica a mensagem dela. */
+  readonly semPermissaoAbrir = signal<string | null>(null);
   readonly erroAlerta = signal<string | null>(null);
 
   /** API sem a rota de alertas (404): para de perguntar. */
@@ -117,7 +119,7 @@ export class GuaritaPortariaComponent implements OnInit, OnDestroy {
   }
 
   async abrir(p: PortaoDaPortaria) {
-    if (this.abrindo() !== null) return;
+    if (this.abrindo() !== null || this.semPermissaoAbrir() !== null) return;
     const ok = await this.confirm.ask({
       title: 'Abrir portão',
       message: `Abrir "${p.portao.nome}" agora? O relé do Guarita "${p.device.nome}" será acionado.`,
@@ -140,6 +142,11 @@ export class GuaritaPortariaComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.abrindo.set(null);
+        if (err?.status === 403) {
+          this.mensagem.set(null);
+          this.semPermissaoAbrir.set(mensagemDaApiGuarita(err, 'Esta sessão não pode abrir portões.'));
+          return;
+        }
         this.avisar({ texto: mensagemDaApiGuarita(err, `Não foi possível abrir "${p.portao.nome}".`), erro: true });
       },
     });

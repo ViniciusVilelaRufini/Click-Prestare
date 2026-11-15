@@ -23,7 +23,10 @@
       }
     </div>
 
-    <!-- Portões -->
+    <!-- Portões (somem se a API disser que esta sessão não pode abrir) -->
+    @if (semPermissaoAbrir(); as msg) {
+      <p data-guarita-sem-permissao role="alert" class="px-5 py-3.5 text-xs text-[var(--signal-danger)]">{{ msg }}</p>
+    } @else {
     <div class="px-5 py-3.5 flex flex-wrap items-center gap-2">
       @for (p of portoes(); track chave(p)) {
         <button type="button" (click)="abrir(p)" [disabled]="abrindo() !== null"
@@ -40,6 +43,7 @@
         <p class="text-sm text-[var(--ink-muted)]">Nenhum portão com relé cadastrado no Guarita.</p>
       }
     </div>
+    }
     @if (mensagem(); as m) {
       <div [attr.role]="m.erro ? 'alert' : 'status'" data-guarita-msg
         class="mx-5 mb-3.5 p-3 border border-[var(--line-200)] text-xs"
