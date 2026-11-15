@@ -2,6 +2,7 @@ import 'package:click/controllers/controller_veiculos.dart';
 import 'package:click/controllers/controller_vagas.dart';
 import 'package:click/models/veiculo_model.dart';
 import 'package:click/models/vaga_model.dart';
+import 'package:click/pages/shared/veiculos/guarita_estado.dart';
 import 'package:click/pages/shared/veiculos/new_veiculo.dart';
 import 'package:click/pages/shared/veiculos/list_vagas.dart';
 import 'package:click/pages/shared/veiculos/liberar_vaga_page.dart';
@@ -330,6 +331,13 @@ class _VeiculoCard extends StatelessWidget {
                       child: Text('Tag: ${veiculo.tagCodigo}',
                           style: AppTypography.tiny(context)
                               .copyWith(color: AppColors.primary)),
+                    ),
+                  ],
+                  if (rotuloEstadoGuarita(veiculo.guaritaEstado) != null) ...[
+                    const SizedBox(height: 6),
+                    SeloEstadoGuarita(
+                      estado: veiculo.guaritaEstado,
+                      erro: veiculo.guaritaErro,
                     ),
                   ],
                 ],

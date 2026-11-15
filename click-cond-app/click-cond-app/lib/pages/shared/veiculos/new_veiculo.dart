@@ -1,5 +1,6 @@
 import 'package:click/controllers/controller_veiculos.dart';
 import 'package:click/models/veiculo_model.dart';
+import 'package:click/pages/shared/veiculos/guarita_estado.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -59,13 +60,28 @@ class _NewVeiculoState extends State<NewVeiculo> {
       tagCodigo: _tag.text.trim(),
     ).toJson(incluirTag: true);
 
-    final err = await apiSaveVeiculo(obj, _isEdit);
+    final r = await apiSalvarVeiculo(obj, _isEdit);
+    final err = r.erro;
+    // Condomínio com Guarita: a tag vinculada pelo morador espera a portaria
+    // aprovar. O estado vem na resposta ou, se não vier, na lista recarregada.
+    String? estadoGuarita;
+    if (err.isEmpty && (obj['tag_codigo'] ?? '').toString().isNotEmpty) {
+      estadoGuarita = estadoGuaritaDaResposta(r.corpo);
+      if (estadoGuarita == null) {
+        final lista = await apiGetAllVeiculos();
+        estadoGuarita = estadoGuaritaNaLista(
+          lista,
+          id: widget.veiculo?.id ?? idVeiculoDaResposta(r.corpo),
+          placa: obj['placa']?.toString(),
+        );
+      }
+    }
     if (!mounted) return;
     setState(() => _saving = false);
 
     if (err.isEmpty) {
       displayMessageWithReturn(context, 'Sucesso',
-              _isEdit ? 'Veículo atualizado!' : 'Veículo cadastrado!')
+              mensagemSucessoVeiculo(isEdit: _isEdit, estado: estadoGuarita))
           .then((_) {
         if (mounted) Navigator.pop(context);
       });
@@ -149,6 +165,13 @@ class _NewVeiculoState extends State<NewVeiculo> {
                 ),
               ],
             ),
+            if (rotuloEstadoGuarita(widget.veiculo?.guaritaEstado) != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              SeloEstadoGuarita(
+                estado: widget.veiculo?.guaritaEstado,
+                erro: widget.veiculo?.guaritaErro,
+              ),
+            ],
             const SizedBox(height: AppSpacing.xl),
             SizedBox(
               height: 50,

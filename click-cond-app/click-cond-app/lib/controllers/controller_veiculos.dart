@@ -33,6 +33,13 @@ apiGetAllVeiculos() async {
 /// Cadastra/edita um veículo. [obj] deve ter placa/cor/marca_modelo (+id se edição).
 /// Retorna "" em sucesso, ou uma mensagem de erro.
 Future<String> apiSaveVeiculo(Map<String, dynamic> obj, bool isEdit) async {
+  return (await apiSalvarVeiculo(obj, isEdit)).erro;
+}
+
+/// Igual a [apiSaveVeiculo], mas devolve também o corpo da resposta de
+/// sucesso (de onde a tela lê o `guarita_estado` opcional).
+Future<({String erro, String corpo})> apiSalvarVeiculo(
+    Map<String, dynamic> obj, bool isEdit) async {
   final url = ApiConfig.buildUri('/veiculos/${isEdit ? 'update' : 'insert'}');
   final body = jsonEncode({
     'id_condominio': Singleton.instance.id_condominio.toString(),
@@ -42,16 +49,21 @@ Future<String> apiSaveVeiculo(Map<String, dynamic> obj, bool isEdit) async {
     final response = await ApiClient.post(url,
             headers: _headers(withContentType: true), body: body, encoding: utf8)
         .timeout(ApiConfig.timeout);
-    if (response.statusCode >= 200 && response.statusCode < 300) return "";
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return (erro: "", corpo: response.body);
+    }
     try {
       final parsed = jsonDecode(response.body);
-      return parsed['message']?.toString() ?? 'Não foi possível salvar o veículo.';
+      return (
+        erro: parsed['message']?.toString() ?? 'Não foi possível salvar o veículo.',
+        corpo: '',
+      );
     } catch (_) {
-      return 'Não foi possível salvar o veículo.';
+      return (erro: 'Não foi possível salvar o veículo.', corpo: '');
     }
   } catch (e) {
     logDebug('[apiSaveVeiculo] Erro: $e');
-    return 'Falha de comunicação com o servidor. Verifique sua conexão.';
+    return (erro: 'Falha de comunicação com o servidor. Verifique sua conexão.', corpo: '');
   }
 }
 
