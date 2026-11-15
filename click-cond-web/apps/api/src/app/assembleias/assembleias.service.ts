@@ -692,6 +692,16 @@ export class AssembleiasService {
           },
         });
         if (marcada.count === 0) throw new BadRequestException(MSG_JA_FINALIZADA);
+        // Voto gravado depois que a apuração foi calculada (durante o upload)
+        // ficaria fora do texto publicado e do hash: desfaz e pede de novo.
+        if (pautas.length > 0) {
+          const linhas = await tx.votacoes_Usuarios.count({
+            where: { opcao: { votacao: { id_assembleia: Number(assembleia.id) } } },
+          });
+          if (linhas !== pautas.reduce((n, p) => n + p.mapa.votos.length, 0)) {
+            throw new ConflictException('Chegaram votos durante a finalização. Confira a apuração e finalize de novo.');
+          }
+        }
         if (abertas.length > 0) {
           await tx.votacoes.updateMany({
             where: { id: { in: abertas }, data_termino: { gt: hoje } },
@@ -848,11 +858,15 @@ export class AssembleiasService {
     if (!this.prisma.isConnected) return { success: true };
     const atual = await this.prisma.votacoes.findUnique({
       where: { id: Number(id) },
-      select: { id_condominio: true, encerrada_em: true, data_termino: true },
+      select: {
+        id_condominio: true, encerrada_em: true, data_termino: true,
+        assembleia: { select: { finalizada_em: true } },
+      },
     });
     if (!atual) throw new NotFoundException('Votação não encontrada');
     await this.tenant.assertEntidade(atual.id_condominio, requester, `votação #${id}`);
-    if (atual.encerrada_em) return { success: true };
+    // Já encerrada, ou pauta de assembleia finalizada (imutável): nada a gravar.
+    if (atual.encerrada_em || atual.assembleia?.finalizada_em) return { success: true };
 
     const hoje = hojeBrasilia();
     await this.prisma.votacoes.update({

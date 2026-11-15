@@ -245,7 +245,17 @@ function build(
     ordem.push('lock');
     return [];
   });
-  prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
+  // Como o banco: erro dentro da transação desfaz o que ela gravou.
+  prisma.$transaction = jest.fn(async (fn: any) => {
+    const tabelas: any[][] = [votos, votacoes, assembleias, documentos];
+    const copia = tabelas.map((tab) => structuredClone(tab));
+    try {
+      return await fn(prisma);
+    } catch (e) {
+      tabelas.forEach((tab, i) => tab.splice(0, tab.length, ...copia[i]));
+      throw e;
+    }
+  });
   const tenant: any = { assertEntidade: jest.fn(async () => undefined), assertCondominio: jest.fn(async () => undefined) };
   const storage: any = {
     isDataUrl: (v: unknown) => typeof v === 'string' && v.startsWith('data:') && v.includes('base64,'),
@@ -966,5 +976,35 @@ describe('2.5 — nada some', () => {
       const aberta: any = await svc.get(COND, 4, 10, morador(10));
       expect(aberta.assembleia).toMatchObject({ finalizada: false, finalizada_em: null, link_ata: null });
     });
+  });
+});
+
+describe('2.5 — corridas e bordas da finalização', () => {
+  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const umVoto = [{ id: 1, id_opcao: 51, id_user: 10, id_apto: 100, tipo_vinculo: 'proprietario', nome_votante: 'P', rotulo_unidade: 'Apto 11 Bloco A' }] as any;
+
+  it('voto que chega enquanto a ATA sobe: a finalização desfaz (409) e os arquivos enviados saem do bucket', async () => {
+    const { svc, prisma, storage, assembleias, votos } = build({ votos: umVoto });
+    // O segundo upload (apuração) é o momento em que outro morador vota.
+    const real = storage.uploadDataUrl.getMockImplementation();
+    storage.uploadDataUrl.mockImplementation(async (d: string, pasta: string) => {
+      if (storage.uploadDataUrl.mock.calls.length === 2) {
+        votos.push({ id: 2, id_opcao: 52, id_user: 20, id_apto: 200, created_at: new Date(), tipo_vinculo: 'proprietario', nome_votante: 'V', rotulo_unidade: 'Apto 21 Bloco A', substituido_em: null });
+      }
+      return real(d, pasta);
+    });
+    await expect(svc.finish(COND, { id: 3, doc: PDF }, sindico)).rejects.toThrow(
+      new ConflictException('Chegaram votos durante a finalização. Confira a apuração e finalize de novo.'),
+    );
+    expect(assembleias[0].finalizada_em).toBeNull();
+    expect(storage.deleteUrl).toHaveBeenCalledTimes(2);
+    expect(prisma.assembleias.delete).not.toHaveBeenCalled();
+  });
+
+  it('"Encerrar" pauta de assembleia finalizada: sucesso sem regravar', async () => {
+    const { svc, prisma, votacoes } = build({ assembleias: [{ id: 3, finalizada_em: new Date('2026-11-15T13:00:00Z') }] });
+    votacoes[0].data_termino = new Date('2026-11-01T00:00:00Z'); // encerrada pela data, sem encerrada_em
+    await expect(svc.finishVotacao(5, sindico)).resolves.toEqual({ success: true });
+    expect(prisma.votacoes.update).not.toHaveBeenCalled();
   });
 });
