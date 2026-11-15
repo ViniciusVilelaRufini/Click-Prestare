@@ -712,7 +712,7 @@ export class AssembleiasService {
               data: { encerrada_em: agora },
             });
           }
-          await this.congelarVotosAntigos(tx, antes, agora);
+          await this.congelarVotosAntigos(tx, antes);
           const pautas =
             abertas.length > 0 || antes.some((p) => p.antigos.length > 0) ? await this.mapasDasVotacoes(doBanco, tx) : antes;
           const hash = pautas.length > 0 ? hashMapas(pautas.map((p) => p.mapa)) : null;
@@ -957,7 +957,7 @@ export class AssembleiasService {
       if (linha.encerrada_em) return; // encerrar de novo: sucesso sem regravar
 
       const agora = new Date();
-      await this.congelarVotosAntigos(tx, await this.mapasDasVotacoes({ id: Number(id) }, tx), agora);
+      await this.congelarVotosAntigos(tx, await this.mapasDasVotacoes({ id: Number(id) }, tx));
       const hoje = hojeBrasilia();
       await tx.votacoes.update({
         where: { id: Number(id) },
@@ -1076,15 +1076,17 @@ export class AssembleiasService {
       // Serializa os votos da unidade: o segundo espera o primeiro confirmar e
       // então vê o voto que ele gravou como vigente.
       await tx.$queryRaw`SELECT id FROM Apartamentos WHERE id = ${unidade} FOR UPDATE`;
-      const vigentes = await tx.votacoes_Usuarios.findMany({
+      const lidos = await tx.votacoes_Usuarios.findMany({
         where: {
           id_opcao: { in: idsOpcoes },
           substituido_em: null,
           OR: [{ id_apto: unidade }, { id_apto: null, tipo_vinculo: null, id_user: { in: antigosDe } }],
         },
-        select: { id: true, id_opcao: true, id_user: true, tipo_vinculo: true, created_at: true },
+        select: { id: true, id_opcao: true, id_user: true, tipo_vinculo: true, rotulo_unidade: true, created_at: true },
         orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       });
+      // Voto antigo congelado sem direito (rótulo sem tipo) não é vigente da unidade.
+      const vigentes = lidos.filter((v) => v.tipo_vinculo || !v.rotulo_unidade);
       const atual = vigentes[0];
       if (atual) {
         const nivelAtual = atual.tipo_vinculo
@@ -1195,23 +1197,28 @@ export class AssembleiasService {
 
   /**
    * Congela os votos ANTIGOS (sem retrato) das votações ao encerrar/finalizar
-   * (revisão I-3): o retrato passa a ser o que o mapa mostra hoje (unidade,
-   * votante, tipo, id_apto), e o voto antigo que não conta recebe
-   * `substituido_em`. Depois disso a apuração e o hash dependem só dos dados
-   * do próprio voto — sair da unidade, excluir ou renomear a conta não muda
-   * mais o resultado. Os substituídos também recebem o retrato (o mapa os
-   * mostra). Rode sob a trava da votação, com `calcs` lido na transação.
+   * (revisão I-3), gravando o que o mapa mostra hoje:
+   *  - o que CONTA: nome, rótulo, `id_apto` (unidade da apuração) e
+   *    `tipo_vinculo` — passa a valer como voto novo;
+   *  - o já substituído: o mesmo retrato (continua fora, por `substituido_em`);
+   *  - o que NÃO conta (sem vínculo): só nome e rótulo, SEM `tipo_vinculo` e SEM
+   *    `substituido_em` (ninguém o substituiu). Critério explícito e estável:
+   *    voto com `rotulo_unidade` e sem `tipo_vinculo` é "voto antigo congelado
+   *    sem direito" e fica fora da apuração para sempre (ver apurar) — voto novo
+   *    sempre grava os dois, e voto antigo não congelado não tem rótulo.
+   * Depois disso a apuração e o hash dependem só dos dados do próprio voto —
+   * sair da unidade, ganhar vínculo, excluir ou renomear a conta não muda mais
+   * o resultado. Rode sob a trava da votação, com `calcs` lido na transação.
    */
-  private async congelarVotosAntigos(tx: Prisma.TransactionClient, calcs: MapaCalculado[], agora: Date): Promise<void> {
+  private async congelarVotosAntigos(tx: Prisma.TransactionClient, calcs: MapaCalculado[]): Promise<void> {
     for (const a of calcs.flatMap((c) => c.antigos)) {
       await tx.votacoes_Usuarios.updateMany({
         where: { id: a.id, tipo_vinculo: null, rotulo_unidade: null },
         data: {
           nome_votante: a.votante.slice(0, 255),
           rotulo_unidade: a.unidade.slice(0, 120),
-          ...(a.idUnidade != null ? { id_apto: a.idUnidade } : {}),
+          ...((a.conta || a.substituido) && a.idUnidade != null ? { id_apto: a.idUnidade } : {}),
           ...(a.tipo && (a.conta || a.substituido) ? { tipo_vinculo: a.tipo } : {}),
-          ...(!a.conta && !a.substituido ? { substituido_em: agora } : {}),
         },
       });
     }
@@ -1623,6 +1630,8 @@ export class AssembleiasService {
     for (const op of opcoes) {
       for (const voto of op.votos) {
         if (voto.substituido_em) continue;
+        // Voto antigo congelado sem direito (rótulo sem tipo): fora para sempre.
+        if (!voto.tipo_vinculo && voto.rotulo_unidade) continue;
         let chave: ChaveUnidade;
         let tipo: TipoVinculo;
         if (voto.tipo_vinculo) {

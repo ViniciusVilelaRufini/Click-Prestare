@@ -1180,7 +1180,7 @@ describe('I-3 — o resultado e o hash não mudam depois de finalizar/encerrar',
     { id: 2, id_opcao: 52, id_user: 99, id_apto: 300, created_at: t('09:10') },
   ];
 
-  it('finish congela os votos antigos: o que conta ganha o retrato; o que não conta fica como substituído', async () => {
+  it('finish congela os votos antigos: o que conta ganha o retrato; o que não conta ganha só nome e rótulo (não vira substituído)', async () => {
     jest.useFakeTimers({ now: new Date('2026-11-15T13:00:00Z'), doNotFake: ['nextTick', 'setImmediate'] });
     try {
       const { svc, votos } = build({ votos: ANTIGOS() });
@@ -1188,7 +1188,10 @@ describe('I-3 — o resultado e o hash não mudam depois de finalizar/encerrar',
       expect(votos.find((v) => v.id === 1)).toMatchObject({
         id_apto: 100, tipo_vinculo: 'proprietario', nome_votante: 'Paula Proprietária', rotulo_unidade: 'Apto 11 Bloco A', substituido_em: null,
       });
-      expect(votos.find((v) => v.id === 2)).toMatchObject({ tipo_vinculo: null, substituido_em: new Date('2026-11-15T13:00:00Z') });
+      // Ninguém o substituiu: sem substituido_em e sem tipo; o rótulo gravado o marca como "fora da apuração".
+      expect(votos.find((v) => v.id === 2)).toMatchObject({
+        tipo_vinculo: null, substituido_em: null, nome_votante: 'Conta 99', rotulo_unidade: 'Apto 31', id_apto: 300,
+      });
     } finally {
       jest.useRealTimers();
     }
@@ -1212,7 +1215,7 @@ describe('I-3 — o resultado e o hash não mudam depois de finalizar/encerrar',
     const { svc, votos } = build({ votos: ANTIGOS(), vinculos });
     await svc.finishVotacao(5, sindico);
     expect(votos.find((v) => v.id === 1)).toMatchObject({ id_apto: 100, tipo_vinculo: 'proprietario' });
-    expect(votos.find((v) => v.id === 2)?.substituido_em).toBeInstanceOf(Date);
+    expect(votos.find((v) => v.id === 2)).toMatchObject({ substituido_em: null, tipo_vinculo: null, rotulo_unidade: 'Apto 31' });
     const antes = await svc.mapaVotacao(5, sindico);
     vinculos.splice(0, vinculos.length);
     expect(await svc.mapaVotacao(5, sindico)).toEqual(antes);
@@ -1291,5 +1294,39 @@ describe('N-2 — dentro da transação, só o cliente da transação', () => {
     const b = build({ votos: VOTOS() });
     vigiarTransacao(b.svc, b.prisma);
     await expect(b.svc.finishVotacao(5, sindico)).resolves.toEqual({ success: true });
+  });
+});
+
+describe('N-3 — voto antigo congelado que não contava', () => {
+  const PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const t = (hhmm: string) => new Date(`2026-11-14T${hhmm}:00Z`);
+  const ANTIGOS = () => [
+    { id: 1, id_opcao: 51, id_user: 10, id_apto: null, created_at: t('09:00') },
+    { id: 2, id_opcao: 52, id_user: 99, id_apto: 300, created_at: t('09:10') },
+  ];
+
+  it('no mapa: nao_conta, vigente false, substituido_em null — antes e depois de finalizar', async () => {
+    const { svc, votacoes } = build({ votos: ANTIGOS() });
+    votacoes[0].encerrada_em = new Date('2026-11-14T20:00:00Z');
+    const linhaDo99 = (m: any) => m.votos.find((v: any) => v.votante === 'Conta 99');
+    expect(linhaDo99(await svc.mapaVotacao(5, sindico))).toMatchObject({ situacao: 'nao_conta', vigente: false, substituido_em: null });
+    const b = build({ votos: ANTIGOS() });
+    await b.svc.finish(COND, { id: 3, doc: PDF }, sindico);
+    expect(linhaDo99(await b.svc.mapaVotacao(5, sindico))).toEqual({
+      unidade: 'Apto 31', votante: 'Conta 99', tipo_vinculo: null, opcao: 'Rejeitar',
+      registrado_em: '14/11/2026 06:10:00', vigente: false, substituido_em: null, situacao: 'nao_conta',
+    });
+  });
+
+  it('fica fora da apuração para sempre: ganhar vínculo depois não o faz contar, e o hash não muda', async () => {
+    const vinculos = VINCULOS_PADRAO.map((v) => ({ ...v }));
+    const { svc, assembleias } = build({ votos: ANTIGOS(), vinculos });
+    await svc.finish(COND, { id: 3, doc: PDF }, sindico);
+    const antes = await svc.mapaVotacao(5, sindico);
+    expect(antes.opcoes.map((o) => o.votos)).toEqual([1, 0]);
+    vinculos.push({ id_user: 99, id_apto: 300, tipo: 'proprietario' }); // a conta 99 passa a ter a unidade
+    const depois = await svc.mapaVotacao(5, sindico);
+    expect(depois).toEqual(antes);
+    expect(hashMapas([depois])).toBe(assembleias[0].apuracao_hash);
   });
 });
