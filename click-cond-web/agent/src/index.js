@@ -72,10 +72,18 @@ const { criarVerificacaoForcada } = require('./core/verificacao-forcada');
 const { descobrir } = require('./descoberta');
 const { criarAgendador } = require('./descoberta/agendador');
 const { lerTabelaArp } = require('./descoberta/arp');
-const { resolverDriver, resolverDriverDeEventos, replayEmTodaReconexao } = require('./drivers/registro');
+const {
+  resolverDriver,
+  resolverDriverDeEventos,
+  resolverOuvinte,
+  replayEmTodaReconexao,
+  TIPO_GUARITA,
+} = require('./drivers/registro');
+const { urlComCapacidades } = require('./core/capacidades');
 const dahuaFacial = require('./drivers/dahua-facial');
 const hikvisionFacial = require('./drivers/hikvision-facial');
 const controlidFacial = require('./drivers/controlid-facial');
+const linearGuarita = require('./drivers/linear-guarita');
 const { avaliarAcessoLiveView, origensLiveView } = require('./core/liveview-acesso');
 
 /**
@@ -378,10 +386,18 @@ async function runCondoLoop(token) {
   // "Dedup de backlog" ±5 s + guardas de eco). Demais marcas: como antes, só
   // quando o heartbeat tinha marcado offline (ver `replayEmTodaReconexao`).
   // `agendarReplayOffline` garante um replay por vez por aparelho.
-  // Ouvinte de eventos: só tipo 'facial' (`resolverDriverDeEventos`) — uma
-  // câmera LPR ou catraca da mesma marca não assina o stream de rostos.
+  // Ouvinte de eventos: tipo 'facial' (`resolverDriverDeEventos`) — uma
+  // câmera LPR ou catraca da mesma marca não assina o stream de rostos — e o
+  // laço de serviço do Módulo Guarita, tipo 'guarita' (`resolverOuvinte`).
+  // O Guarita fala com a nuvem pelas rotas próprias, sob este token; o
+  // evento dele NÃO passa por forwardAccessEvent (só registra, nunca abre).
+  linearGuarita.configurar({
+    requisitarNuvem: (metodo, caminho, corpo) =>
+      cloudRequest(metodo, `/api/facial/agent/condo/${token}${caminho}`, corpo),
+    agora: () => agoraDaNuvem().getTime(),
+  });
   const supervisor = new Supervisor({
-    resolverDriver: resolverDriverDeEventos,
+    resolverDriver: resolverOuvinte,
     aoEvento: (device, data) => forwardAccessEvent(token, device, data),
     aoRecuperarOffline: (device) => {
       const estavaOffline = lastDeviceOnline.get(device.id) === false;
@@ -515,7 +531,9 @@ async function runCondoLoop(token) {
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
-      const res = await cloudRequest('GET', `/api/facial/agent/condo/${token}/poll`);
+      // Declara o que este agente sabe operar (capacidades=guarita): a API só
+      // entrega o Módulo Guarita a agente que fala o protocolo dele.
+      const res = await cloudRequest('GET', urlComCapacidades(`/api/facial/agent/condo/${token}/poll`));
       if (res.status === 401 || res.status === 404) {
         errBackoff = 0;
         console.error(
@@ -612,6 +630,7 @@ async function runCondoLoop(token) {
 
 async function runDeviceLoop(token) {
   let pollMs = DEFAULT_POLL_MS;
+  let guaritaAvisado = false;
   // backoff simples quando a nuvem está inacessível, pra não martelar
   let errBackoff = 0;
   // Mesmo despacho do modo condomínio (core/despacho.js). Aqui há um device
@@ -645,8 +664,19 @@ async function runDeviceLoop(token) {
       const body = res.data && typeof res.data === 'object' ? res.data : {};
       pollMs = intervaloDePoll(body.poll_interval_ms, pollMs, POLL_MIN);
 
-      // Entrada sem device/id é ignorada pelo despachante (não lança).
-      await despachante.despachar([{ device: body.device, commands: body.commands }]);
+      if (body.device && body.device.tipo === TIPO_GUARITA) {
+        // O Módulo Guarita precisa do laço de serviço (Supervisor), que só
+        // existe no modo condomínio. Nunca cai no REST genérico daqui.
+        if (!guaritaAvisado) {
+          guaritaAvisado = true;
+          console.error(
+            `[agente] ${body.device.nome || 'Módulo Guarita'}: o Módulo Guarita não é suportado no modo legado (token por aparelho) — configure o AGENT_TOKEN do condomínio. Ignorado.`,
+          );
+        }
+      } else {
+        // Entrada sem device/id é ignorada pelo despachante (não lança).
+        await despachante.despachar([{ device: body.device, commands: body.commands }]);
+      }
     } catch (err) {
       errBackoff = Math.min(errBackoff + 1, 10);
       console.error(
@@ -668,6 +698,15 @@ async function runDeviceLoop(token) {
  * Mantenha em sincronia com facial-device-client.service.ts (modo direto).
  */
 async function executeOnDevice(device, cmd) {
+  // Módulo Guarita (TCP binário): sempre pelo driver dele, antes de qualquer
+  // outra regra — nunca pelo REST genérico, qualquer que seja o fabricante.
+  if (device && device.tipo === TIPO_GUARITA) {
+    try {
+      return comMotivoDoPing(cmd, await linearGuarita.executar(device, cmd));
+    } catch (err) {
+      return falhaDeComando(cmd, err);
+    }
+  }
   // Mesma normalização do registro de drivers ("ZKTeco" = "zkteco").
   const fabricante = normalizarFabricante(device.fabricante);
   if (Object.prototype.hasOwnProperty.call(SEM_COMANDO_HTTP, fabricante)) {
@@ -858,6 +897,8 @@ async function streamLiveView(device, res) {
 }
 
 async function doPing(device) {
+  // Guarita: estado da sessão TCP, nunca GET /status.
+  if (device && device.tipo === TIPO_GUARITA) return linearGuarita.testar(device);
   const driver = resolverDriver(device);
   if (driver) {
     // Dahua/Intelbras: ver `testar` no driver (não usa login RPC2 — estouraria

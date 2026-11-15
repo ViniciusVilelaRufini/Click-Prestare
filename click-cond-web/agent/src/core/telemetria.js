@@ -26,6 +26,7 @@
 const os = require('os');
 const { AGENT_VERSION } = require('../versao');
 const { cloudRequest } = require('./nuvem');
+const { CAPACIDADES } = require('./capacidades');
 
 const INTERVALO_PADRAO_MS = 60000;
 
@@ -48,6 +49,8 @@ function montarPayload({
       .saudeTodos()
       .map((s) => ({ ...s, online: onlineDoDispositivo(s.id) === true })),
     eventos_pendentes: pendentes(),
+    // O que este agente sabe operar (ver core/capacidades.js).
+    capacidades: [...CAPACIDADES],
   };
   if (typeof atualizacao === 'function') {
     try {

@@ -24,7 +24,14 @@
  * "dahua" (ver `normalizarFabricante` em apps/api/src/app/facial/facial.service.ts)
  * — sem essa normalização aqui, esses devices cairiam sem driver.
  *
- * Sem driver conhecido, as duas devolvem `null`. Quem chama decide o que
+ * Módulo Guarita (Nice / Linear-HCS): device com `tipo` 'guarita' usa o
+ * driver `linear-guarita` (TCP binário, conexão única) — e só ele: a escolha
+ * é pelo TIPO, antes da família, e nenhum outro tipo passa a usá-lo. Ele não é
+ * ouvinte facial (`resolverDriverDeEventos` continua só 'facial': replay,
+ * marca d'água e acerto de relógio não o tocam); o Supervisor o assina por
+ * `resolverOuvinte`.
+ *
+ * Sem driver conhecido, as funções devolvem `null`. Quem chama decide o que
  * fazer (index.js cai no REST genérico para comandos; o Supervisor loga uma
  * vez "sem driver para <tipo>/<fabricante>" e não assina nada).
  */
@@ -32,6 +39,9 @@
 const dahuaFacial = require('./dahua-facial');
 const hikvisionFacial = require('./hikvision-facial');
 const controlidFacial = require('./controlid-facial');
+const linearGuarita = require('./linear-guarita');
+
+const TIPO_GUARITA = 'guarita';
 
 // fabricante → família de driver: a tabela de aliases e a normalização
 // (trim, minúsculas, sem acento) moram em lib/fabricante.js. O campo é texto
@@ -47,6 +57,7 @@ const DRIVERS_POR_FAMILIA = {
 
 /** Driver para COMANDOS (ping, open_door, enroll...): por família, qualquer tipo. */
 function resolverDriver(device) {
+  if (device && device.tipo === TIPO_GUARITA) return linearGuarita;
   if (!device || !device.fabricante) return null;
   const familia = familiaDoFabricante(device.fabricante);
   return Object.prototype.hasOwnProperty.call(DRIVERS_POR_FAMILIA, familia)
@@ -59,6 +70,16 @@ function resolverDriverDeEventos(device) {
   if (!device) return null;
   if ((device.tipo || 'facial') !== 'facial') return null;
   return resolverDriver(device);
+}
+
+/**
+ * Driver que o Supervisor assina (`escutar`) para o device: o ouvinte
+ * facial de sempre (`resolverDriverDeEventos`) e, para `tipo` 'guarita', o
+ * laço de serviço do Módulo Guarita (sessão TCP, eventos, operações).
+ */
+function resolverOuvinte(device) {
+  if (device && device.tipo === TIPO_GUARITA) return linearGuarita;
+  return resolverDriverDeEventos(device);
 }
 
 /**
@@ -77,4 +98,11 @@ function replayEmTodaReconexao(device) {
   return !!driver && typeof driver.buscarDesde === 'function' && typeof driver.advanceBaselineWhileOnline === 'function';
 }
 
-module.exports = { resolverDriver, resolverDriverDeEventos, replayEmTodaReconexao, FAMILIA_POR_FABRICANTE };
+module.exports = {
+  resolverDriver,
+  resolverDriverDeEventos,
+  resolverOuvinte,
+  replayEmTodaReconexao,
+  FAMILIA_POR_FABRICANTE,
+  TIPO_GUARITA,
+};
