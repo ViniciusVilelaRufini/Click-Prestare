@@ -16,6 +16,7 @@ void main() {
       expect(rotuloEstadoGuarita('ativo'), 'Ativo nos portões');
       expect(rotuloEstadoGuarita('falhou'), 'Não foi possível gravar no portão');
       expect(rotuloEstadoGuarita('removendo'), 'Removendo do portão');
+      expect(rotuloEstadoGuarita('recusada'), 'Recusada pela portaria');
     });
 
     test('a_vincular, nulo, vazio ou desconhecido não têm selo', () {
@@ -35,6 +36,7 @@ void main() {
       expect(sinalEstadoGuarita('pendente'), AppSignal.warn);
       expect(sinalEstadoGuarita('removendo'), AppSignal.warn);
       expect(sinalEstadoGuarita('falhou'), AppSignal.danger);
+      expect(sinalEstadoGuarita('recusada'), AppSignal.danger);
     });
   });
 
@@ -81,33 +83,11 @@ void main() {
     });
   });
 
-  group('estadoGuaritaNaLista', () {
-    final lista = [
-      {'id': 1, 'placa': 'AAA1A11', 'guarita_estado': 'ativo'},
-      {'id': 2, 'placa': 'BBB2B22', 'guarita_estado': 'aguardando_aprovacao'},
-      {'id': 3, 'placa': 'CCC3C33'},
-    ];
-
-    test('acha pelo id', () {
-      expect(estadoGuaritaNaLista(lista, id: 2), 'aguardando_aprovacao');
-    });
-
-    test('sem id, acha pela placa (sem diferenciar traço e caixa)', () {
-      expect(estadoGuaritaNaLista(lista, placa: 'bbb-2b22'), 'aguardando_aprovacao');
-    });
-
-    test('veículo sem o campo, ausente ou lista inválida devolve nulo', () {
-      expect(estadoGuaritaNaLista(lista, id: 3), isNull);
-      expect(estadoGuaritaNaLista(lista, id: 99), isNull);
-      expect(estadoGuaritaNaLista('x', id: 1), isNull);
-      expect(estadoGuaritaNaLista(lista), isNull);
-    });
-  });
-
   group('mensagemSucessoVeiculo', () {
     test('sem aguardar aprovação, é a mensagem de sempre', () {
       expect(mensagemSucessoVeiculo(isEdit: false, estado: null), 'Veículo cadastrado!');
       expect(mensagemSucessoVeiculo(isEdit: true, estado: 'ativo'), 'Veículo atualizado!');
+      expect(mensagemSucessoVeiculo(isEdit: true, estado: 'recusada'), 'Veículo atualizado!');
     });
 
     test('aguardando aprovação acrescenta o aviso da tag', () {
@@ -152,6 +132,17 @@ void main() {
       expect(find.text('NÃO FOI POSSÍVEL GRAVAR NO PORTÃO'), findsOneWidget);
       expect(find.text('Guarita não respondeu'), findsOneWidget);
       expect(t.takeException(), isNull);
+    });
+
+    testWidgets('falhou sem erro mostra só o selo', (t) async {
+      await montar(t, estado: 'falhou');
+      expect(find.text('NÃO FOI POSSÍVEL GRAVAR NO PORTÃO'), findsOneWidget);
+      expect(find.byType(Text), findsOneWidget);
+    });
+
+    testWidgets('recusada mostra o selo', (t) async {
+      await montar(t, estado: 'recusada');
+      expect(find.text('RECUSADA PELA PORTARIA'), findsOneWidget);
     });
 
     testWidgets('o erro só aparece em falhou', (t) async {

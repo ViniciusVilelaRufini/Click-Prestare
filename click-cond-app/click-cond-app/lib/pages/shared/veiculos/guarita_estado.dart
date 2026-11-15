@@ -14,6 +14,7 @@ const _rotulos = <String, String>{
   'ativo': 'Ativo nos portões',
   'falhou': 'Não foi possível gravar no portão',
   'removendo': 'Removendo do portão',
+  'recusada': 'Recusada pela portaria',
 };
 
 /// Texto do selo, ou null quando não há selo (`a_vincular`, nulo, vazio ou
@@ -23,13 +24,15 @@ String? rotuloEstadoGuarita(String? estado) {
   return _rotulos[estado.trim()];
 }
 
-/// Sinal (ponto) do selo: gravado/ativo ok, falhou perigo, o resto em andamento.
+/// Sinal (ponto) do selo: gravado/ativo ok, falhou/recusada perigo, o resto em
+/// andamento.
 AppSignal sinalEstadoGuarita(String? estado) {
   switch (estado?.trim()) {
     case 'gravado':
     case 'ativo':
       return AppSignal.ok;
     case 'falhou':
+    case 'recusada':
       return AppSignal.danger;
     default:
       return AppSignal.warn;
@@ -67,38 +70,6 @@ String? estadoGuaritaDaResposta(String body) {
   } catch (_) {
     return null;
   }
-}
-
-/// `id` do veículo no corpo da resposta do salvar, quando vier.
-int? idVeiculoDaResposta(String body) {
-  try {
-    final parsed = jsonDecode(body);
-    if (parsed is! Map) return null;
-    final id = parsed['id'] ?? (parsed['veiculo'] is Map ? parsed['veiculo']['id'] : null);
-    if (id is int) return id;
-    return int.tryParse(id?.toString() ?? '');
-  } catch (_) {
-    return null;
-  }
-}
-
-String _placaNormalizada(String p) =>
-    p.toUpperCase().replaceAll(RegExp('[^A-Z0-9]'), '');
-
-/// `guarita_estado` do veículo na lista recarregada (`veiculos/get-all`),
-/// achado pelo id ou, sem id, pela placa.
-String? estadoGuaritaNaLista(dynamic lista, {int? id, String? placa}) {
-  if (lista is! List) return null;
-  if (id == null && (placa == null || placa.trim().isEmpty)) return null;
-  final alvo = placa == null ? null : _placaNormalizada(placa);
-  for (final e in lista) {
-    if (e is! Map) continue;
-    final casou = id != null
-        ? e['id']?.toString() == id.toString()
-        : _placaNormalizada((e['placa'] ?? '').toString()) == alvo;
-    if (casou) return _texto(e['guarita_estado']);
-  }
-  return null;
 }
 
 /// Selo do estado no Guarita (e, em `falhou`, o motivo). Sem estado com

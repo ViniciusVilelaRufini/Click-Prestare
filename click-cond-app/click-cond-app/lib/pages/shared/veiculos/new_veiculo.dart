@@ -63,19 +63,12 @@ class _NewVeiculoState extends State<NewVeiculo> {
     final r = await apiSalvarVeiculo(obj, _isEdit);
     final err = r.erro;
     // Condomínio com Guarita: a tag vinculada pelo morador espera a portaria
-    // aprovar. O estado vem na resposta ou, se não vier, na lista recarregada.
-    String? estadoGuarita;
-    if (err.isEmpty && (obj['tag_codigo'] ?? '').toString().isNotEmpty) {
-      estadoGuarita = estadoGuaritaDaResposta(r.corpo);
-      if (estadoGuarita == null) {
-        final lista = await apiGetAllVeiculos();
-        estadoGuarita = estadoGuaritaNaLista(
-          lista,
-          id: widget.veiculo?.id ?? idVeiculoDaResposta(r.corpo),
-          placa: obj['placa']?.toString(),
-        );
-      }
-    }
+    // aprovar. O estado vem só na resposta do salvar; ausente = sem aviso
+    // (sem consulta extra: condomínio sem Guarita fica como antes).
+    final String? estadoGuarita = err.isEmpty &&
+            (obj['tag_codigo'] ?? '').toString().isNotEmpty
+        ? estadoGuaritaDaResposta(r.corpo)
+        : null;
     if (!mounted) return;
     setState(() => _saving = false);
 
