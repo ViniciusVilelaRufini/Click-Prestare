@@ -101,7 +101,7 @@ describe('I2 — gravação sem resposta é incerta', () => {
     const { id_operacao } = await m.ops.enfileirarCadastro(1, 'x');
     await m.agente.buscarOperacoes(DEV);
     await m.agente.registrarResultado(DEV, id_operacao, { ok: false, incerto: true, erro: 'O Guarita não respondeu.' });
-    expect(tag(m.db)).toMatchObject({ guarita_estado: 'incerto', guarita_erro: 'Não foi possível confirmar no Guarita.' });
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'incerto', guarita_erro: 'O Guarita não respondeu. Use Regravar para conferir.' });
     expect(ops(m.db, 'cadastrar').filter((o: any) => o.estado === 'pendente')).toHaveLength(1);
     // Morador sai com a tag incerta: o cadastro repetido é cancelado e sai apagar com a unidade pedida.
     expect(await m.ops.enfileirarRemocao(1, 'x')).toBe(true);
@@ -144,7 +144,7 @@ describe('I2 — gravação sem resposta é incerta', () => {
     const repetido = lote.operacoes.find((o) => o.tipo === 'cadastrar')!;
     await m.agente.registrarResultado(DEV, repetido.id, { ok: false, incerto: true });
     expect(ops(m.db, 'cadastrar').filter((o: any) => o.estado === 'pendente')).toHaveLength(0);
-    expect(tag(m.db)).toMatchObject({ guarita_estado: 'incerto', guarita_erro: 'Não foi possível confirmar no Guarita. Use Conferir agora.' });
+    expect(tag(m.db)).toMatchObject({ guarita_estado: 'incerto', guarita_erro: 'O Guarita não respondeu. Use Regravar para conferir.' });
   });
 
   it('apagar incerto: continua removendo, alerta, e volta à fila', async () => {

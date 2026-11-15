@@ -52,8 +52,8 @@ export const MSG_INCERTO = 'Não foi possível confirmar no Guarita.';
 /** Marca do cadastro reenfileirado depois de um incerto: o frame é recalculado na entrega (R5). */
 export const CRIADO_POR_RECADASTRO_INCERTO = 'Conferir cadastro sem confirmação';
 
-/** Depois do segundo cadastro incerto (sem mais tentativa automática). */
-export const MSG_INCERTO_CONFERIR = 'Não foi possível confirmar no Guarita. Use Conferir agora.';
+/** Texto da tag com cadastro sem confirmação, desde o primeiro incerto (o console tem "Regravar"). */
+export const MSG_INCERTO_TAG = 'O Guarita não respondeu. Use Regravar para conferir.';
 
 /** Código de tag criado pelos fluxos do Guarita (importação, captura, digitado): G<tipo>-<serial>[-D<id>]. */
 const CODIGO_DO_GUARITA = /^G[1236]-[0-9A-F]+(-D\d+)?$/;
@@ -1037,13 +1037,12 @@ export class GuaritaOperacoesService {
     });
     if (op.tipo === 'cadastrar') {
       const saindo = EM_REMOCAO.includes(tag.guarita_estado ?? '');
-      // Segundo incerto do mesmo cadastro: não há nova tentativa sozinha; a tela diz o que fazer.
-      const texto = tentativas >= 2 ? MSG_INCERTO_CONFERIR : MSG_INCERTO;
+      // A tela diz o que fazer desde o primeiro incerto; a repetição automática é uma só.
       // Saindo: estado e texto da remoção ficam; o apagar já na fila confere a unidade (F1/F2).
       if (saindo) return;
       await this.prisma.tags.update({
         where: { id: tag.id },
-        data: { guarita_erro: texto, guarita_estado: ESTADO_TAG.incerto },
+        data: { guarita_erro: MSG_INCERTO_TAG, guarita_estado: ESTADO_TAG.incerto },
       });
       if (tentativas === 1 && op.frame_hex) {
         await this.prisma.guarita_Operacoes.create({
